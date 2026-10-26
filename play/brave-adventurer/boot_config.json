@@ -1,7 +1,7 @@
 {
   "game": "brave-adventurer",
-  "module": "glitchygames.examples.brave_adventurer.game",
-  "scene_class": "BraveAdventurerScene",
+  "module": "brave_adventurer_modes.title",
+  "scene_class": "TitleScene",
   "title": "Brave Adventurer",
   "arguments": [],
   "touch_controls": {

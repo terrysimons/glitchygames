@@ -1,6 +1,6 @@
 {
   "game": "paddleslap",
-  "module": "glitchygames.examples.paddleslap",
+  "module": "paddleslap",
   "scene_class": "Game",
   "title": "Paddle Slap",
   "arguments": [],

@@ -55,6 +55,8 @@
                   </li>
                   <li class="toctree-l1 current"><a class="reference internal current" >Games</a>
     <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/game_packages/">Games as Their Own Packages</a>
+                </li>
                 <li class="toctree-l2 current"><a class="reference internal current" href="#">PaddleSlap Architecture</a>
                 </li>
                 <li class="toctree-l2"><a class="reference internal" href="../brave_adventurer/">Brave Adventurer Architecture</a>
@@ -145,6 +147,20 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
               </ul>
       </div>
     </div>
@@ -168,7 +184,7 @@
     </li>
   </ul>
     <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
-        <a href="../../architecture/bitmappy/" class="btn btn-neutral float-left" title="Bitmappy Architecture"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../architecture/game_packages/" class="btn btn-neutral float-left" title="Games as Their Own Packages"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
         <a href="../brave_adventurer/" class="btn btn-neutral float-right" title="Brave Adventurer Architecture">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
     </div>
   <hr/>
@@ -318,7 +334,7 @@ restarts its idle wait).</p>
 <tbody>
 <tr>
 <td><code>Game</code></td>
-<td><code>src/glitchygames/examples/paddleslap.py</code></td>
+<td><code>src/games/paddleslap/paddleslap/__init__.py</code></td>
 <td>The court: paddles, balls, collisions, rally count, high scores</td>
 </tr>
 <tr>
@@ -328,7 +344,7 @@ restarts its idle wait).</p>
 </tr>
 <tr>
 <td><code>PaddleSlapGameOverScene</code></td>
-<td><code>src/glitchygames/examples/paddleslap.py</code></td>
+<td><code>src/games/paddleslap/paddleslap/__init__.py</code></td>
 <td><code>GameOverScene</code> (score, top 5 high scores) plus the attract-mode demo, and a resume that always starts a new <code>Game</code></td>
 </tr>
 </tbody>
@@ -375,7 +391,7 @@ scope the demo runs in); the PaddleSlap box holds the game's own scenes.</p>
 <p>PaddleSlap has no title screen (a game starts serving at once), so its idle screen is the
 game-over screen. <code>PaddleSlapGameOverScene.dt_tick</code> compares its <code>game_time</code> with
 <code>idle_since_game_time</code>; after <code>GAME_OVER_IDLE_SECONDS</code> (10.0) it plays the bundled recording
-<code>PADDLESLAP_DEMO_PATH</code> (<code>src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code>) with
+<code>PADDLESLAP_DEMO_PATH</code> (<code>src/games/paddleslap/paddleslap/demos/rally.jsonl.gz</code>, package data) with
 <code>SceneManager.play_recording(path=..., then=self)</code>. In the diagram, the PaddleSlap box is the
 game's own screen and the Engine box is what plays the demo; the player is outside both.</p>
 <pre class="mermaid"><code>sequenceDiagram
@@ -408,8 +424,18 @@ game's own screen and the Engine box is what plays the demo; the player is outsi
 <li>A demo that cannot play is logged at WARNING ("No demo: ...") and nothing starts. A divergence
   ends it with a WARNING <code>demo diverged: ...</code>.</li>
 </ul>
+<h2 id="its-package">Its package<a class="headerlink" href="#its-package" title="Permanent link">#</a></h2>
+<p>PaddleSlap is a package of its own beside the engine, <code>src/games/paddleslap/</code> (distribution
+<code>paddleslap</code>, import package <code>paddleslap</code>). How such a package is laid out, installed, tested and
+built, and how a game is moved into one, is in
+<a href="../../architecture/game_packages/">Games as Their Own Packages</a>.</p>
+<p>PaddleSlap is one module, so <code>Game</code> is defined in the package itself (<code>paddleslap/__init__.py</code>):
+its recordings name it <code>games.paddleslap:Game</code>, which a <code>Game</code> defined in a submodule would
+change. Its golden replay is <code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code>, its bundled demo ships inside the package
+(<code>src/games/paddleslap/paddleslap/demos/rally.jsonl.gz</code>, package data), its golden trace stays with the engine's trace tests
+(<code>tests/world/golden/paddleslap.jsonl.gz</code>), and its browser bundle ships <code>paddleslap.zip</code>.</p>
 <h2 id="classes">Classes<a class="headerlink" href="#classes" title="Permanent link">#</a></h2>
-<p>PaddleSlap's own code is two classes in <code>src/glitchygames/examples/paddleslap.py</code>: <code>Game</code> and
+<p>PaddleSlap's own code is two classes in <code>src/games/paddleslap/paddleslap/__init__.py</code>: <code>Game</code> and
 <code>PaddleSlapGameOverScene</code>. Everything else it uses comes from the engine: <code>Scene</code> and the
 built-in <code>PauseScene</code> and <code>GameOverScene</code> (<code>glitchygames.scenes</code>), <code>Sprite</code>
 (<code>glitchygames.sprites</code>), and the paddles and balls of the engine's game-object library
@@ -975,12 +1001,12 @@ the PaddleSlap box is what <code>Game</code>'s handlers and <code>dt_tick</code>
 <td><code>tests/world/test_golden_traces.py</code> compares every sprite's rect and visibility frame by frame; each difference must be explained by one <code>ExpectedDifference</code></td>
 </tr>
 <tr>
-<td><code>tests/fixtures/replays/paddleslap/golden.jsonl.gz</code></td>
+<td><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Golden replay: 622 frames at 800×480, seed 20261018, recorded through the real engine loop by <code>scripts/record_scripted_session.py --game paddleslap --frames 600</code></td>
 <td>The replay plugin (<code>src/glitchygames/testing/replays.py</code>) replays it with <code>paddleslap --replay-trace ... --headless</code> and fails unless it exits <code>SUCCESS</code>; <code>tests/replay/test_golden_replays.py</code> checks the fixture set and the controls rule</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code></td>
+<td><code>src/games/paddleslap/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>Bundled demo: 450 frames of <code>Game</code>, recorded with <code>--frames 450 --script-only</code> (before the script's pause, no quit)</td>
 <td><code>tests/replay/test_bundled_demos.py</code> replays it headless and plays it through <code>play_recording</code> inside a running game</td>
 </tr>
@@ -1005,7 +1031,7 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
 </thead>
 <tbody>
 <tr>
-<td><code>tests/examples/test_paddleslap.py</code></td>
+<td><code>src/games/paddleslap/tests/test_paddleslap.py</code></td>
 <td>The game: construction, options and spawn modes, random streams (colours, spawn positions, global <code>random</code> untouched), serves and speed-ups, same-frame paddle bounces, collisions in <code>dt_tick</code> (not <code>update()</code>), dead balls, spawn triggers and the shared cooldown, ball-ball edge cases (500 px/s cap, playable-ball rule), high scores, the game-over demo and idle wait, scancode bindings, gamepads, and <code>main()</code> replaying the golden recording</td>
 </tr>
 <tr>
@@ -1044,11 +1070,15 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
 </thead>
 <tbody>
 <tr>
-<td><code>src/glitchygames/examples/paddleslap.py</code></td>
+<td><code>src/games/paddleslap/paddleslap/__init__.py</code></td>
 <td><code>Game</code>, <code>PaddleSlapGameOverScene</code>, <code>main()</code> (the <code>paddleslap</code> console script), the serve, speed-up and demo constants</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code></td>
+<td><code>src/games/paddleslap/paddleslap/__main__.py</code></td>
+<td><code>python -m paddleslap</code></td>
+</tr>
+<tr>
+<td><code>src/games/paddleslap/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>The bundled attract-mode demo</td>
 </tr>
 <tr>
@@ -1084,7 +1114,7 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
 <td>The golden replay and demo recorder, and the controls tail</td>
 </tr>
 <tr>
-<td><code>tests/fixtures/replays/paddleslap/golden.jsonl.gz</code></td>
+<td><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>The golden replay</td>
 </tr>
 <tr>
@@ -1092,7 +1122,7 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
 <td>The golden trace baseline</td>
 </tr>
 <tr>
-<td><code>tests/examples/test_paddleslap.py</code></td>
+<td><code>src/games/paddleslap/tests/test_paddleslap.py</code>, <code>src/games/paddleslap/tests/test_paddleslap_after_the_move.py</code></td>
 <td>The game's tests</td>
 </tr>
 </tbody>
@@ -1101,7 +1131,7 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../../architecture/bitmappy/" class="btn btn-neutral float-left" title="Bitmappy Architecture"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../architecture/game_packages/" class="btn btn-neutral float-left" title="Games as Their Own Packages"><span class="icon icon-circle-arrow-left"></span> Previous</a>
         <a href="../brave_adventurer/" class="btn btn-neutral float-right" title="Brave Adventurer Architecture">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
@@ -1129,7 +1159,7 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
         </span>
     
     
-      <span><a href="../../architecture/bitmappy/" style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../../architecture/game_packages/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
       <span><a href="../brave_adventurer/" style="color: #fcfcfc">Next &raquo;</a></span>

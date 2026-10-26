@@ -55,6 +55,8 @@
                   </li>
                   <li class="toctree-l1 current"><a class="reference internal current" >Games</a>
     <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/game_packages/">Games as Their Own Packages</a>
+                </li>
                 <li class="toctree-l2"><a class="reference internal" href="../paddleslap/">PaddleSlap Architecture</a>
                 </li>
                 <li class="toctree-l2"><a class="reference internal" href="../brave_adventurer/">Brave Adventurer Architecture</a>
@@ -144,6 +146,20 @@
               <p class="caption"><span class="caption-text">Games API Reference</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
       </div>
@@ -300,20 +316,13 @@ tied to a key's physical position and works the same on every keyboard layout.</
 <p>Note that ESC pauses the game, but ESC on the pause screen quits. The pause and game-over
 screens are engine scenes and check key codes (<code>event.key</code>), not scancodes.</p>
 <h2 id="its-package">Its package<a class="headerlink" href="#its-package" title="Permanent link">#</a></h2>
-<p>Mr. Muncher is a uv workspace member of its own (plan: <code>plans/2026-10-24-workspace-packages.md</code>),
-not part of the engine's package: distribution <code>mr-muncher</code>, import package <code>mr_muncher</code>, all
-under <code>src/games/mr-muncher/</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>src/games/mr-muncher/
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  pyproject.toml      the member's metadata: depends on glitchygames, the mr-muncher console script
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  README.md
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  mr_muncher/         the game's code (below)
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>  tests/              the game's tests and its golden replay (tests/fixtures/replays/golden.jsonl.gz)
-</code></pre></div>
-<p>From the repository root, <code>uv sync --all-extras --all-groups --all-packages</code> installs it, <code>uv run
-mr-muncher</code> plays it, and <code>uv run pytest src/games/mr-muncher/tests</code> runs its tests (the engine's
-<code>uv run pytest</code> runs them too, golden replay included). Its recordings name the game by logical
-names (<code>games.mr_muncher.game:MrMuncherScene</code>), so they do not depend on where the code lives.
-In the browser, its bundle ships <code>mr_muncher.zip</code> beside the engine's <code>glitchygames.zip</code>.</p>
+<p>Mr. Muncher is a package of its own beside the engine, <code>src/games/mr-muncher/</code> (distribution
+<code>mr-muncher</code>, import package <code>mr_muncher</code>), the first game moved out of the engine. How such a
+package is laid out, installed, tested and built, and how a game is moved into one, is in
+<a href="../../architecture/game_packages/">Games as Their Own Packages</a>.</p>
+<p>Its recordings name it <code>games.mr_muncher.game:MrMuncherScene</code>, its golden replay is
+<code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code>, and its browser bundle ships
+<code>mr_muncher.zip</code>.</p>
 <h2 id="where-things-live">Where things live<a class="headerlink" href="#where-things-live" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -535,30 +544,30 @@ plays once, when its text first appears.</p>
 <p><code>MAZE_LAYOUT</code> is a tuple of strings, one per row of tiles: 27 columns by 24 rows. It is
 symmetric from left to right, every corridor is one tile wide, there are no dead ends, and every
 open tile can be reached from every other. The tests check all four properties.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>###########################
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>#o...........#...........o#
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>#.####.#####.#.#####.####.#
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>#.####.#####.#.#####.####.#
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>T.........................T
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>#.####.##.#######.##.####.#
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>#......##....#....##......#
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>#.####.#####.#.#####.####.#
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>#.#....##         ##....#.#
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>#.#.##.## ###-### ##.##.#.#
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>#...##.   #HHHHH#   .##...#
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>###.##.## #HHHHH# ##.##.###
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>#......## #HHHHH# ##......#
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>#.####.## ####### ##.####.#
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>#.#....##         ##....#.#
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>#.#.##.#####.#.#####.##.#.#
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>#...##.......#.......##...#
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>#.####.#####.#.#####.####.#
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>#o..##.......P.......##..o#
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>###.##.##.#######.##.##.###
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>#......##....#....##......#
-<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>#.##########.#.##########.#
-<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>T.........................T
-<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>###########################
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>###########################
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>#o...........#...........o#
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>#.####.#####.#.#####.####.#
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>#.####.#####.#.#####.####.#
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>T.........................T
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>#.####.##.#######.##.####.#
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>#......##....#....##......#
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>#.####.#####.#.#####.####.#
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>#.#....##         ##....#.#
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>#.#.##.## ###-### ##.##.#.#
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>#...##.   #HHHHH#   .##...#
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>###.##.## #HHHHH# ##.##.###
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>#......## #HHHHH# ##......#
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>#.####.## ####### ##.####.#
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>#.#....##         ##....#.#
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>#.#.##.#####.#.#####.##.#.#
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>#...##.......#.......##...#
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>#.####.#####.#.#####.####.#
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>#o..##.......P.......##..o#
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>###.##.##.#######.##.##.###
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>#......##....#....##......#
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>#.##########.#.##########.#
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>T.........................T
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>###########################
 </code></pre></div>
 <table>
 <thead>

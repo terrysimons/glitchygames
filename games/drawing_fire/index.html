@@ -55,6 +55,8 @@
                   </li>
                   <li class="toctree-l1 current"><a class="reference internal current" >Games</a>
     <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/game_packages/">Games as Their Own Packages</a>
+                </li>
                 <li class="toctree-l2"><a class="reference internal" href="../paddleslap/">PaddleSlap Architecture</a>
                 </li>
                 <li class="toctree-l2"><a class="reference internal" href="../brave_adventurer/">Brave Adventurer Architecture</a>
@@ -145,6 +147,20 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
               </ul>
       </div>
     </div>
@@ -190,7 +206,7 @@ side, and a player who has had enough holds Back (Escape) to leave.</p>
 <strong>swatches</strong>: recolouring a sprite by palette swap, so one soldier sprite wears both armies'
 liveries (see <a href="#swatches-the-mechanic-this-game-proves">Swatches</a>).</p>
 <p>This page explains how the game is built, for a developer who wants to understand it or write a
-game like it. Everything here comes from <code>src/glitchygames/examples/drawing_fire/</code>, and the module
+game like it. Everything here comes from <code>src/games/drawing-fire/drawing_fire/</code>, and the module
 docstrings there are the detailed reference. The design, with the full vision and the MVP's
 decisions, is <code>plans/2026-10-25-drawing-fire-design.md</code>. What comes after the MVP is entry 54 in
 <code>plans/future-features.md</code>.</p>
@@ -223,12 +239,12 @@ is in the MVP (see <code>plans/future-features.md</code>, entry 54).</p>
 <p><img alt="Concept art: the camera over a wide battle" src="camera-battle.png" /></p>
 <p><img alt="Concept art: a Drawing Fire vignette" src="drawing-fire-vignette.png" /></p>
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w">                      </span><span class="c1"># the console script (pyproject.toml [project.scripts])</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w">                      </span><span class="c1"># the console script (its member's pyproject.toml)</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--debug-overlay<span class="w">      </span><span class="c1"># start with the debug seats view (F3 toggles it)</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--random-seed<span class="w"> </span><span class="m">7</span><span class="w">      </span><span class="c1"># another battlefield and other battles</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--record-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># record the session</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--replay-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># watch it again, exactly</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>scripts/simulate_drawing_fire.py<span class="w"> </span>--seeds<span class="w"> </span><span class="m">20</span><span class="w">   </span><span class="c1"># headless battles: lengths and winners</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scripts.simulate_drawing_fire<span class="w"> </span>--seeds<span class="w"> </span><span class="m">20</span><span class="w">   </span><span class="c1"># headless battles: lengths and winners</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>nox<span class="w"> </span>-s<span class="w"> </span>browser<span class="w"> </span>--<span class="w"> </span>drawing-fire<span class="w">           </span><span class="c1"># the browser build</span>
 </code></pre></div>
 <p><code>main()</code> (<code>game.py</code>) is <code>GameEngine(game=DrawingFireScene).start()</code>. The scene adds no options of
@@ -303,47 +319,47 @@ anyone: players drop into and out of them, and the next one starts on its own.</
 </thead>
 <tbody>
 <tr>
-<td><code>src/glitchygames/examples/drawing_fire/__init__.py</code></td>
+<td><code>src/games/drawing-fire/drawing_fire/__init__.py</code></td>
 <td>Re-exports <code>main</code> (the <code>drawing-fire</code> console script's entry point)</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/drawing_fire/game.py</code></td>
+<td><code>src/games/drawing-fire/drawing_fire/game.py</code></td>
 <td><code>DrawingFireScene</code> (the frame: seats, drivers, the battle, the victory countdown; rendering; the debug seats view), <code>Phase</code>, <code>seats_panel_lines</code>, <code>main</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/drawing_fire/battle.py</code></td>
+<td><code>src/games/drawing-fire/drawing_fire/battle.py</code></td>
 <td>The rules: <code>Battle</code>, <code>Soldier</code>, <code>Sandbag</code>, <code>Bullet</code>, <code>Intent</code>, <code>Side</code>, <code>ARMY_NAMES</code>, the events <code>SoldierKilled</code> and <code>SandbagFlattened</code>, and the tuned numbers</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/drawing_fire/terrain.py</code></td>
+<td><code>src/games/drawing-fire/drawing_fire/terrain.py</code></td>
 <td><code>Terrain</code> (a ground y for every x) and <code>build_terrain</code> (flat paper with a few seeded hills)</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/drawing_fire/drivers.py</code></td>
+<td><code>src/games/drawing-fire/drawing_fire/drivers.py</code></td>
 <td>The computer driver: <code>muster_battle</code> (a battle and every soldier's memory and own random stream), <code>computer_intents</code>, <code>computer_intent</code>, <code>ComputerSoldier</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/drawing_fire/players.py</code></td>
+<td><code>src/games/drawing-fire/drawing_fire/players.py</code></td>
 <td>Player input: <code>Device</code>, <code>KEYBOARD</code>, <code>connected_devices</code>, <code>device_intent</code> (a device's input as an <code>Intent</code>), <code>Button</code>, <code>ButtonEdges</code> (presses, and holds in frames and seconds, per device)</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/drawing_fire/seats.py</code></td>
+<td><code>src/games/drawing-fire/drawing_fire/seats.py</code></td>
 <td><code>Seats</code>: joining, choosing a side and a soldier, the takeover on death, leaving, the seat log; <code>PlayerSeat</code>, <code>Stage</code>, <code>SideChoice</code>, <code>LEAVE_HOLD_SECONDS</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/drawing_fire/swatches.py</code></td>
+<td><code>src/games/drawing-fire/drawing_fire/swatches.py</code></td>
 <td>Swatches, the mechanic this game proves (written to move into the engine)</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/drawing_fire/drawing.py</code></td>
+<td><code>src/games/drawing-fire/drawing_fire/drawing.py</code></td>
 <td>The pencil look: <code>wobble</code>, the terrain, sandbags, soldiers in their liveries (<code>ARMY_LIVERIES</code>), bullets, the HUD and the victory banner</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/drawing_fire/seat_drawing.py</code></td>
+<td><code>src/games/drawing-fire/drawing_fire/seat_drawing.py</code></td>
 <td>The join note, the seat cards, the soldier highlight, and the debug seat tags and panel</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/drawing_fire/sprites/soldier.toml</code></td>
+<td><code>src/games/drawing-fire/drawing_fire/sprites/soldier.toml</code></td>
 <td>The soldier sprite (stand, walk and down), with its <code>[swatches.livery]</code> parts</td>
 </tr>
 <tr>
@@ -351,11 +367,11 @@ anyone: players drop into and out of them, and the next one starts on its own.</
 <td>Headless computer-against-computer battles across seeds (the tuning tool)</td>
 </tr>
 <tr>
-<td><code>tests/examples/drawing_fire/</code></td>
-<td>The tests, one file per module, plus the simulation's</td>
+<td><code>src/games/drawing-fire/tests/</code></td>
+<td>The tests, one file per module, plus the simulation's and <code>test_drawing_fire_after_the_move.py</code></td>
 </tr>
 <tr>
-<td><code>tests/fixtures/replays/drawing-fire/golden.jsonl.gz</code></td>
+<td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>The golden replay (1,614 frames)</td>
 </tr>
 <tr>
@@ -567,7 +583,7 @@ once per content, fonts are made once. The colours are the paper (<code>PAPER_CO
 <h3 id="recording-replay-and-the-golden-replay">Recording, replay and the golden replay<a class="headerlink" href="#recording-replay-and-the-golden-replay" title="Permanent link">#</a></h3>
 <p>Everything that decides what happens runs on the frame's <code>dt</code>, the seeded streams and the
 polled input, so a <code>--record-trace</code> recording replays exactly with <code>--replay-trace</code>.</p>
-<p>The golden replay <code>tests/fixtures/replays/drawing-fire/golden.jsonl.gz</code> was recorded through the
+<p>The golden replay <code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code> was recorded through the
 real engine loop by <code>scripts/record_scripted_session.py --game drawing_fire --frames 1600</code>. The
 keyboard plays the whole session (<code>drawing_fire_script</code>): Enter opens a seat at frame 30, the
 right arrow moves the side card to the Platoon and Enter confirms it, D and A move the soldier
@@ -608,6 +624,13 @@ twice), about 125 KB compressed on its own.</p>
 Re-record the fixture only deliberately (the commands are in the script's docstring), never just
 to make a failing replay pass. A re-recording without the player's death and takeover fails the
 test above.</p>
+<h2 id="its-package">Its package<a class="headerlink" href="#its-package" title="Permanent link">#</a></h2>
+<p>Drawing Fire is a package of its own beside the engine, <code>src/games/drawing-fire/</code> (distribution
+<code>drawing-fire</code>, import package <code>drawing_fire</code>). Its soldier sprite ships inside the package as
+package data (<code>drawing_fire/sprites/soldier.toml</code>, read through the module's own path), so the
+member's wheel and its browser archive (<code>drawing_fire.zip</code>) hold it. How such a package is laid
+out, installed, tested and built, and how a game is moved into one, is in
+<a href="../../architecture/game_packages/">Games as Their Own Packages</a>.</p>
 <h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
 <p>The tests use real pygame on the dummy driver; what is drawn is checked by its pixels.</p>
 <table>
@@ -619,40 +642,40 @@ test above.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>tests/examples/drawing_fire/test_battle.py</code></td>
+<td><code>src/games/drawing-fire/tests/test_drawing_fire_battle.py</code></td>
 <td>Mustering, walking and sandbags, pistols and cooldowns, bullets (hills, range, no tunnelling, never the shooter's own cover), hits and deaths, sandbags losing sand, sandbag placement, the winner and a draw</td>
 </tr>
 <tr>
-<td><code>tests/examples/drawing_fire/test_terrain.py</code></td>
+<td><code>src/games/drawing-fire/tests/test_drawing_fire_terrain.py</code></td>
 <td>Seeded hills over a flat baseline, any screen width, the ground between pixels</td>
 </tr>
 <tr>
-<td><code>tests/examples/drawing_fire/test_drivers.py</code></td>
+<td><code>src/games/drawing-fire/tests/test_drawing_fire_drivers.py</code></td>
 <td>The computer driver's rules: targets, stand-offs, cover, sandbags, spacing, held aim, each soldier's own stream</td>
 </tr>
 <tr>
-<td><code>tests/examples/drawing_fire/test_players.py</code></td>
+<td><code>src/games/drawing-fire/tests/test_drawing_fire_players.py</code></td>
 <td>Keyboard and mouse, and controller, input as intents; dead zones; button edges</td>
 </tr>
 <tr>
-<td><code>tests/examples/drawing_fire/test_seats.py</code></td>
+<td><code>src/games/drawing-fire/tests/test_drawing_fire_seats.py</code></td>
 <td>Joining, choosing a side and a soldier, the highlight, takeovers on death, waiting, leaving, two players</td>
 </tr>
 <tr>
-<td><code>tests/examples/drawing_fire/test_swatches.py</code></td>
+<td><code>src/games/drawing-fire/tests/test_drawing_fire_swatches.py</code></td>
 <td>Reading swatch sets and their errors, schemes, shades, recolouring, the frame cache</td>
 </tr>
 <tr>
-<td><code>tests/examples/drawing_fire/test_drawing.py</code></td>
+<td><code>src/games/drawing-fire/tests/test_drawing_fire_drawing.py</code></td>
 <td>The pencil look by its pixels: wobble, terrain, sandbags, soldiers in their liveries, bullets, HUD, banner</td>
 </tr>
 <tr>
-<td><code>tests/examples/drawing_fire/test_game.py</code></td>
+<td><code>src/games/drawing-fire/tests/test_drawing_fire_game.py</code></td>
 <td>The scene: battles, victory (and a draw) and the next battle, players driving soldiers, the seats drawn, the debug seats view, Escape never quitting</td>
 </tr>
 <tr>
-<td><code>tests/examples/drawing_fire/test_simulation.py</code></td>
-<td><code>scripts/simulate_drawing_fire.py</code>'s headless battles</td>
+<td><code>src/games/drawing-fire/tests/test_drawing_fire_simulation.py</code></td>
+<td>The headless battles of <code>python -m scripts.simulate_drawing_fire</code> (<code>scripts/simulate_drawing_fire.py</code>)</td>
 </tr>
 </tbody>
 </table>

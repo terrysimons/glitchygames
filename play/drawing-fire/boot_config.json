@@ -1,6 +1,6 @@
 {
   "game": "drawing-fire",
-  "module": "glitchygames.examples.drawing_fire.game",
+  "module": "drawing_fire.game",
   "scene_class": "DrawingFireScene",
   "title": "Drawing Fire",
   "arguments": [],

@@ -55,6 +55,8 @@
                   </li>
                   <li class="toctree-l1 current"><a class="reference internal current" >Games</a>
     <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/game_packages/">Games as Their Own Packages</a>
+                </li>
                 <li class="toctree-l2"><a class="reference internal" href="../paddleslap/">PaddleSlap Architecture</a>
                 </li>
                 <li class="toctree-l2"><a class="reference internal" href="../brave_adventurer/">Brave Adventurer Architecture</a>
@@ -145,6 +147,20 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
               </ul>
       </div>
     </div>
@@ -184,7 +200,7 @@ The last floor has no elevator: standing on its top platform, under the victory 
 game.</p>
 <p>Everything is drawn from pygame primitives (no image files), every sound is synthesized, and the
 game is small enough to read in one sitting (about 2,700 lines in
-<code>src/glitchygames/examples/clockwork_keep/</code>). It is also one of the engine's reference games: its
+<code>src/games/clockwork-keep/clockwork_keep/</code>). It is also one of the engine's reference games: its
 golden trace and golden replay pin world space, transitions, pausing and replay, so the page
 below shows both how the game works and which engine features it leans on.</p>
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
@@ -402,9 +418,18 @@ score and lives it began with. The values are the ones the floor <strong>began</
 lost on the floor are what the playback replays, so they must not be in the starting state
 (<code>test_floor_replay_arguments_rebuild_the_floor</code>). They are plain ints, so they round-trip
 through JSON exactly, as scene starts require.</p>
+<h2 id="its-package">Its package<a class="headerlink" href="#its-package" title="Permanent link">#</a></h2>
+<p>Clockwork Keep is a package of its own beside the engine, <code>src/games/clockwork-keep/</code>
+(distribution <code>clockwork-keep</code>, import package <code>clockwork_keep</code>). How such a package is laid out,
+installed, tested and built, and how a game is moved into one, is in
+<a href="../../architecture/game_packages/">Games as Their Own Packages</a>.</p>
+<p>Its recordings name it <code>games.clockwork_keep.game:ClockworkKeepScene</code>, its golden replay is
+<code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code>, its golden trace stays with the
+engine's trace tests (<code>tests/world/golden/clockwork_keep.jsonl.gz</code>), and its browser bundle ships
+<code>clockwork_keep.zip</code>.</p>
 <h2 id="classes">Classes<a class="headerlink" href="#classes" title="Permanent link">#</a></h2>
 <p>Clockwork Keep's own code is the scene, five sprite classes and the floor data, all in
-<code>src/glitchygames/examples/clockwork_keep/</code>. The rest comes from the engine: <code>Scene</code> and the built-in
+<code>src/games/clockwork-keep/clockwork_keep/</code>. The rest comes from the engine: <code>Scene</code> and the built-in
 <code>PauseScene</code> and <code>GameOverScene</code> (<code>glitchygames.scenes</code>), <code>Sprite</code> (<code>glitchygames.sprites</code>) and
 <code>PhysicsBody</code> (<code>glitchygames.physics</code>). In the diagram, the Engine box is what every game gets; the
 Clockwork Keep box is what this game adds. Solid arrows are inheritance, pointing at the base
@@ -1055,7 +1080,7 @@ real high scores.</p>
   match the baseline frame by frame; six <code>ExpectedDifference</code> entries explain every difference
   (engine culling, separate snapping of sprite and camera, and the pose fix's 2 px on frame 0 and
   during the ride).</li>
-<li><strong>Golden replay</strong> (<code>tests/fixtures/replays/clockwork-keep/golden.jsonl.gz</code>, 532 frames): the
+<li><strong>Golden replay</strong> (<code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code>, 532 frames): the
   same script's first 330 frames plus a controls tail (run right with Left Shift, jump with Space,
   interact away from an elevator, pause and resume with Esc / Space, quit with Q), recorded
   through the real engine loop by <code>scripts/record_scripted_session.py --game clockwork_keep
@@ -1077,8 +1102,12 @@ otherwise auto-pause the game. Never re-record either baseline to make a change 
 </thead>
 <tbody>
 <tr>
-<td><code>tests/examples/test_clockwork_keep.py</code></td>
+<td><code>src/games/clockwork-keep/tests/test_clockwork_keep.py</code></td>
 <td>The game itself: elevator activation by interact only (not jump, BUGS.md #24), every recipe renders and each sound plays once at its moment, the elevator ride's motor, rumble, shakes and silent fallbacks, the clock's hand angles and animated layer, <code>MAX_FRAME_SECONDS</code>, <code>replay_arguments</code>, <code>--floor</code>, hitbox-based support, walls and pickups, collision layers, world space (no sprite positions itself, the engine follows the player, follow stops at game over), the pose rule at walls, scancode bindings, the moving gear and the Clock Face route, no fall-through after a slow frame (the swept ground check), victory on the Clock Face's top platform, death, high scores, pause/quit/focus input, joystick and controller buttons, the HUD, <code>main()</code></td>
+</tr>
+<tr>
+<td><code>src/games/clockwork-keep/tests/test_clockwork_keep_after_the_move.py</code></td>
+<td>The move out of the engine: every scene the golden replay starts keeps its logical name, and nothing is left of <code>glitchygames.examples.clockwork_keep</code></td>
 </tr>
 <tr>
 <td><code>tests/world/test_golden_traces.py</code></td>
@@ -1106,7 +1135,7 @@ otherwise auto-pause the game. Never re-record either baseline to make a change 
 </tr>
 </tbody>
 </table>
-<p>Run them with <code>uv run pytest tests/examples/test_clockwork_keep.py</code> (add <code>--dummy-only</code> to skip
+<p>Run them with <code>uv run pytest src/games/clockwork-keep/tests/test_clockwork_keep.py</code> (add <code>--dummy-only</code> to skip
 the native-driver comparison while iterating).</p>
 <h2 id="where-things-live">Where things live<a class="headerlink" href="#where-things-live" title="Permanent link">#</a></h2>
 <table>
@@ -1118,35 +1147,35 @@ the native-driver comparison while iterating).</p>
 </thead>
 <tbody>
 <tr>
-<td><code>src/glitchygames/examples/clockwork_keep/__init__.py</code></td>
-<td><code>main</code> (the <code>clockwork-keep</code> console script in <code>pyproject.toml</code>)</td>
+<td><code>src/games/clockwork-keep/clockwork_keep/__init__.py</code></td>
+<td><code>main</code> (the <code>clockwork-keep</code> console script in the member's <code>pyproject.toml</code>)</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/clockwork_keep/game.py</code></td>
+<td><code>src/games/clockwork-keep/clockwork_keep/game.py</code></td>
 <td><code>ClockworkKeepScene</code> (floors, input, collision, elevator, death, saves, HUD), <code>CogCollectible</code>, the arrival shakes, <code>main()</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/clockwork_keep/player.py</code></td>
+<td><code>src/games/clockwork-keep/clockwork_keep/player.py</code></td>
 <td><code>Tinker</code>: physics body, state machine, the pose rule, wall fitting</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/clockwork_keep/terrain.py</code></td>
+<td><code>src/games/clockwork-keep/clockwork_keep/terrain.py</code></td>
 <td><code>Platform</code>, <code>Elevator</code>, <code>MovingGear</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/clockwork_keep/levels.py</code></td>
+<td><code>src/games/clockwork-keep/clockwork_keep/levels.py</code></td>
 <td><code>FloorData</code>, <code>MovingGearData</code>, the three floors, <code>ALL_FLOORS</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/clockwork_keep/drawing.py</code></td>
+<td><code>src/games/clockwork-keep/clockwork_keep/drawing.py</code></td>
 <td>Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, <code>clock_hand_angles</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/clockwork_keep/sounds.py</code></td>
+<td><code>src/games/clockwork-keep/clockwork_keep/sounds.py</code></td>
 <td>The six <code>SoundRecipe</code>s, <code>ALL_RECIPES</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/clockwork_keep/constants.py</code></td>
+<td><code>src/games/clockwork-keep/clockwork_keep/constants.py</code></td>
 <td>Screen, physics, layers, gameplay, colours, elevator ride feel, the clock</td>
 </tr>
 <tr>
@@ -1170,12 +1199,16 @@ the native-driver comparison while iterating).</p>
 <td>Golden trace baseline</td>
 </tr>
 <tr>
-<td><code>tests/fixtures/replays/clockwork-keep/golden.jsonl.gz</code></td>
+<td><code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Golden replay fixture</td>
 </tr>
 <tr>
-<td><code>tests/examples/test_clockwork_keep.py</code></td>
+<td><code>src/games/clockwork-keep/tests/test_clockwork_keep.py</code></td>
 <td>The game's tests</td>
+</tr>
+<tr>
+<td><code>src/games/clockwork-keep/pyproject.toml</code>, <code>README.md</code></td>
+<td>The member: distribution <code>clockwork-keep</code>, its console script</td>
 </tr>
 </tbody>
 </table>

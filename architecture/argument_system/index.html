@@ -55,6 +55,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" >Games</a>
     <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../game_packages/">Games as Their Own Packages</a>
+                </li>
                 <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
                 </li>
                 <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
@@ -144,6 +146,20 @@
               <p class="caption"><span class="caption-text">Games API Reference</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
       </div>
@@ -477,7 +493,7 @@ leaves them out.</p>
 <tbody>
 <tr>
 <td>Paddle Slap</td>
-<td><code>src/glitchygames/examples/paddleslap.py</code></td>
+<td><code>src/games/paddleslap/paddleslap/__init__.py</code></td>
 <td><code>-v, --version</code>, <code>-b, --balls</code> (int, default 1), <code>--ball-spawn-mode</code> (choice, default <code>paddle_only</code>)</td>
 </tr>
 <tr>
@@ -487,13 +503,18 @@ leaves them out.</p>
 </tr>
 <tr>
 <td>Clockwork Keep</td>
-<td><code>src/glitchygames/examples/clockwork_keep/game.py</code></td>
+<td><code>src/games/clockwork-keep/clockwork_keep/game.py</code></td>
 <td><code>--floor</code> (int, default 0)</td>
 </tr>
 <tr>
 <td>Brave Adventurer (both editions)</td>
-<td><code>src/glitchygames/examples/brave_adventurer/game.py</code>, <code>src/glitchygames/examples/brave_adventurer_papyrus/game.py</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer/game.py</code>, <code>src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py</code></td>
 <td><code>-v, --version</code></td>
+</tr>
+<tr>
+<td>Brave Adventurer's launcher</td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_modes/launcher.py</code> (read before the engine's parser, which never sees it), <code>title.py</code> (<code>TitleScene.args()</code> lists it in <code>-h</code>)</td>
+<td><code>--game {classic,papyrus}</code>, <code>-v, --version</code></td>
 </tr>
 <tr>
 <td>Joystick Demo</td>

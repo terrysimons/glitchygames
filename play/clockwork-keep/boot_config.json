@@ -1,6 +1,6 @@
 {
   "game": "clockwork-keep",
-  "module": "glitchygames.examples.clockwork_keep.game",
+  "module": "clockwork_keep.game",
   "scene_class": "ClockworkKeepScene",
   "title": "Clockwork Keep",
   "arguments": [],

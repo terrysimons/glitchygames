@@ -8,6 +8,7 @@ packages = [
 
 [files]
 "./glitchygames.zip" = "./*"
+"./drawing_fire.zip" = "./*"
 "./browser_storage.py" = "./browser_storage.py"
 "./browser_clipboard.py" = "./browser_clipboard.py"
 "./browser_user_files.py" = "./browser_user_files.py"

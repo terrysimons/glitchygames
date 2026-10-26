@@ -55,6 +55,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" >Games</a>
     <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../game_packages/">Games as Their Own Packages</a>
+                </li>
                 <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
                 </li>
                 <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
@@ -144,6 +146,20 @@
               <p class="caption"><span class="caption-text">Games API Reference</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
       </div>
@@ -891,9 +907,10 @@ own hash, for any run, is derived from its frames' hashes:
 <p>Neither history is compared by a replay or served to the game. They are the record the
 baselines in the repository keep: behaviour (hashes) and speed (processing times) over time.</p>
 <h2 id="golden-replays">Golden replays<a class="headerlink" href="#golden-replays" title="Permanent link">#</a></h2>
-<p><code>tests/fixtures/replays/&lt;game&gt;/golden.jsonl.gz</code> holds a recorded session of each example game
-still inside the engine (PaddleSlap, Clockwork Keep, both Brave Adventurer editions and Drawing
-Fire); Mr. Muncher's lives with its tests, <code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code>.
+<p>Each game's workspace member holds a recorded session of it in
+<code>&lt;member&gt;/tests/fixtures/replays/golden.jsonl.gz</code> (PaddleSlap, Clockwork Keep, Mr. Muncher and
+Drawing Fire; both Brave Adventurer editions as <code>golden-classic.jsonl.gz</code> and
+<code>golden-papyrus.jsonl.gz</code>).
 <code>scripts/record_scripted_session.py</code> recorded them through the real engine loop, with a
 supervisor posting each game's golden input script, then the game's controls tail: input that
 presses the controls the script does not, pauses and resumes, and ends with the game's own quit
@@ -1005,13 +1022,18 @@ at WARNING and nothing starts. Record a demo with
 <code>scripts/record_scripted_session.py --script-only --output PATH</code> (it runs <code>--record-trace</code>, so
 its first frame holds the scene start; <code>--script-only</code> leaves out the controls tail, whose quit
 would end the demo).</p>
-<p>Bundled demos are recordings shipped in the game's package,
-<code>src/glitchygames/examples/&lt;game&gt;_demos/&lt;name&gt;.jsonl.gz</code> for a game still inside the engine (a
-workspace member's go in the member's import package, e.g.
-<code>src/games/mr-muncher/mr_muncher/demos/&lt;name&gt;.jsonl.gz</code>, and ship in the member's wheel, not the
-engine's). PaddleSlap's game-over screen plays
-<code>rally.jsonl.gz</code> after 10 seconds without a press. <code>tests/replay/test_bundled_demos.py</code> replays
-every bundled demo headless, so a change that makes a demo diverge fails in CI before it ships.</p>
+<p>Bundled demos are recordings shipped in a game's package as package data,
+<code>&lt;package&gt;/demos/&lt;name&gt;.jsonl.gz</code>: PaddleSlap's <code>paddleslap/demos/rally.jsonl.gz</code>, which its
+game-over screen plays after 10 seconds without a press. The engine finds them, for any tool or
+installed game, with <code>glitchygames.bundled_demos.bundled_demos()</code>: each <code>BundledDemo</code> (a frozen
+record) holds the game's console script (None when no installed console script is in the
+package), the demo's installed path and its install name (<code>paddleslap/demos/rally.jsonl.gz</code>,
+the same under any install). It searches the installed packages <code>MEMBER_LAYERS</code> names
+(<code>importlib.util.find_spec</code>, importing no game), leaves out bookmarked copies and sorts them by
+path. <code>tests/replay/test_bundled_demos.py</code> replays every one headless (through
+<code>glitchygames.testing.replays.bundled_demo_paths</code>, which refuses a demo nothing replays), so a
+change that makes a demo diverge fails in CI before it ships; scripts/replay_metrics.py measures
+the same demos (reporting a demo nothing replays as unreplayable).</p>
 <h3 id="instant-replay">Instant replay<a class="headerlink" href="#instant-replay" title="Permanent link">#</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Match</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">INSTANT_REPLAY_SECONDS</span> <span class="o">=</span> <span class="mf">5.0</span>                       <span class="c1"># opt in: show the last 5 seconds</span>

@@ -55,6 +55,8 @@
                   </li>
                   <li class="toctree-l1 current"><a class="reference internal current" >Games</a>
     <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/game_packages/">Games as Their Own Packages</a>
+                </li>
                 <li class="toctree-l2"><a class="reference internal" href="../paddleslap/">PaddleSlap Architecture</a>
                 </li>
                 <li class="toctree-l2 current"><a class="reference internal current" href="#">Brave Adventurer Architecture</a>
@@ -145,6 +147,20 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
               </ul>
       </div>
     </div>
@@ -182,22 +198,86 @@ adventurer runs right across 20 screens of desert, jumps stone walls and pits, a
 scarab beetles and scorpions, and picks up gold scarabs. Every picture is drawn from pygame
 primitives and every sound is synthesized at startup, so the game ships no asset files.</p>
 <p>The <strong>Papyrus Edition</strong> is the same game with hand-drawn TOML pixel art for the player, the
-enemies and the collectibles (see <a href="#the-papyrus-edition">The Papyrus Edition</a> below).</p>
+enemies and the collectibles (see <a href="#the-papyrus-edition">The Papyrus Edition</a> below). One
+command plays both: its title screen offers Classic and Papyrus (see
+<a href="#the-launcher-and-its-title-screen">The launcher and its title screen</a>).</p>
 <p>This page is for a developer who wants to understand the game or build one like it. It shows
 which engine features the game uses and where its code puts each of them: world-space sprites,
 camera follow and parallax layers, the pose rule, hitbox-based terrain collision, ActionMap
 input, synthesized sounds, saves, recording and replay.</p>
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>brave-adventurer<span class="w">            </span><span class="c1"># the primitives edition</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>brave-adventurer-papyrus<span class="w">    </span><span class="c1"># the Papyrus Edition (TOML pixel art)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>brave-adventurer<span class="w">                  </span><span class="c1"># the title screen: choose Classic or Papyrus</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>brave-adventurer<span class="w"> </span>--game<span class="w"> </span>classic<span class="w">   </span><span class="c1"># Classic at once: every sprite drawn in code</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>brave-adventurer<span class="w"> </span>--game<span class="w"> </span>papyrus<span class="w">   </span><span class="c1"># Papyrus at once: the Egyptian edition, sprite-sheet art</span>
 </code></pre></div>
-<p>Both console scripts are declared in <code>pyproject.toml</code> and call <code>main()</code>, which runs
-<code>GameEngine(game=BraveAdventurerScene).start()</code> (or <code>PapyrusBraveAdventurerScene</code>). The window
-is 800 x 480 (<code>SCREEN_WIDTH</code>, <code>SCREEN_HEIGHT</code> in <code>constants.py</code>).</p>
+<p><code>brave-adventurer</code> is the project's one console script (<code>src/games/brave-adventurer/</code>, see
+<a href="#its-package">Its package</a>): the launcher, <code>brave_adventurer_modes.main()</code>. With <code>--game</code> it
+runs that game's own <code>main()</code>, which runs <code>GameEngine(game=BraveAdventurerScene).start()</code> (or
+<code>PapyrusBraveAdventurerScene</code>); without it, the title screen. The window is 800 x 480
+(<code>SCREEN_WIDTH</code>, <code>SCREEN_HEIGHT</code> in <code>brave_adventurer_core/constants.py</code>). The browser build
+(<code>/play/brave-adventurer/</code>) starts the title screen.</p>
+<h3 id="the-launcher-and-its-title-screen">The launcher and its title screen<a class="headerlink" href="#the-launcher-and-its-title-screen" title="Permanent link">#</a></h3>
+<p><code>brave_adventurer_modes.main()</code> (<code>launcher.py</code>) chooses what to start, in this order:</p>
+<ol>
+<li><code>--game classic|papyrus</code>: it reads the flag (<code>parse_known_args</code>), removes it from
+   <code>sys.argv</code>, and runs that game's own <code>main()</code> unchanged. The game's arguments, scene flow,
+   recording header and recordings are its own, exactly as when it had its own command. With a
+   recording as well, the flag still decides, and that game's replay refuses another game's
+   recording.</li>
+<li>A recording to replay (<code>--replay-trace PATH</code>): the recording's header names the scene it
+   was made in by logical name, and the launcher starts that game's own <code>main()</code> without the
+   title screen (<code>game_for_recording</code>). The golden-replay plugin, the replay-metrics ledger's
+   rebaselines, watched replays and their restarts all start games this way, so each reaches
+   its own game through the one command. A recording made from the title screen names the
+   title screen (<code>games.brave_adventurer_modes.title:TitleScene</code>) and is replayed from there.
+   Another game's recording is refused with <code>ExitCode.UNUSABLE_INPUT</code>, and so is one made
+   before logical names (name its game with <code>--game</code>). One whose header cannot be read goes to
+   the engine, which refuses it as it refuses any missing or unusable recording.</li>
+<li>Otherwise the title screen, <code>TitleScene</code> (<code>title.py</code>), runs.</li>
+</ol>
+<p>The title screen draws the games' own sky and pyramids (<code>brave_adventurer_core.drawing</code>), the
+title, a card for each game with a line on how it differs, and a line of help. It reads its
+controls through its own <code>ActionMap</code> (<code>TitleScene._create_action_map</code>), keyboard by scancode,
+as the games do:</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Keyboard (by position)</th>
+<th>Gamepad</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>choose the other game (wraps round)</td>
+<td>Up or Left, Down or Right</td>
+<td>D-pad</td>
+<td>press</td>
+</tr>
+<tr>
+<td>start the chosen game</td>
+<td>Space or Return</td>
+<td>A or Start</td>
+<td>release, after a press on this screen (as the pause and game-over screens go on), so the game never gets that release</td>
+</tr>
+<tr>
+<td>quit</td>
+<td>Q</td>
+<td>B or Back</td>
+<td>press (Esc does nothing here, on press or release: the browser's touch Pause button sends it)</td>
+</tr>
+</tbody>
+</table>
+<p>Starting a game sets <code>next_scene</code> to a new scene of that game, built with the run's options, in
+the same engine: the game then runs as it does from its own <code>main()</code>. Its game-over screen
+restarts that game, not the title screen. A recording made from the title screen holds the
+title screen's frames first, then the game's.</p>
 <h3 id="controls">Controls<a class="headerlink" href="#controls" title="Permanent link">#</a></h3>
 <p>The gameplay scene binds every control through one <code>ActionMap</code>
-(<code>BraveAdventurerScene._create_action_map</code>). Keyboard controls are bound by <strong>scancode</strong>, a
-physical key position, so they sit in the same place on every keyboard layout.</p>
+(<code>BraveAdventurerSceneBase._create_action_map</code>; the classic edition's adds the mic button).
+Keyboard controls are bound by <strong>scancode</strong>, a physical key position, so they sit in the same
+place on every keyboard layout.</p>
 <table>
 <thead>
 <tr>
@@ -267,8 +347,8 @@ physical key position, so they sit in the same place on every keyboard layout.</
 </table>
 <p>The analog sticks move nothing: no axis is bound (<code>TestButtonsAndAxesHoldMovement</code> pins it).</p>
 <h3 id="options">Options<a class="headerlink" href="#options" title="Permanent link">#</a></h3>
-<p>The scene's <code>args()</code> adds one option of its own; everything else is the engine's (see
-<a href="../../architecture/argument_system/">Argument System</a>).</p>
+<p>The launcher reads <code>--game</code>; each scene's <code>args()</code> adds <code>-v</code>; everything else is the engine's
+(see <a href="../../architecture/argument_system/">Argument System</a>).</p>
 <table>
 <thead>
 <tr>
@@ -279,9 +359,14 @@ physical key position, so they sit in the same place on every keyboard layout.</
 </thead>
 <tbody>
 <tr>
+<td><code>--game {classic,papyrus}</code></td>
+<td>the launcher (<code>launcher.py</code>; listed in <code>-h</code> by <code>TitleScene.args()</code>)</td>
+<td>Starts that game at once, without the title screen</td>
+</tr>
+<tr>
 <td><code>-v</code>, <code>--version</code></td>
-<td><code>BraveAdventurerScene.args()</code></td>
-<td>Prints the game's name and version (<code>Brave Adventurer 1.0</code>; Papyrus: <code>Brave Adventurer: Papyrus Edition 1.0</code>) and exits before the game starts (argparse's <code>version</code> action)</td>
+<td><code>TitleScene.args()</code>, <code>BraveAdventurerScene.args()</code>, <code>PapyrusBraveAdventurerScene.args()</code></td>
+<td>Prints the name and version and exits before anything starts (argparse's <code>version</code> action): <code>Brave Adventurer 1.0</code> (the title screen's, and Classic's with <code>--game classic</code>); with <code>--game papyrus</code>, <code>Brave Adventurer: Papyrus Edition 1.0</code></td>
 </tr>
 <tr>
 <td><code>--input-mode {auto,joystick,controller}</code></td>
@@ -323,6 +408,32 @@ Brave Adventurer box (or the PapyrusEdition box) is what this game adds. Here th
 code is its <code>main()</code> (which starts the engine's <code>GameEngine</code>) and the gameplay scene; the pause
 and game-over screens are the engine's, which the game constructs and hands to <code>next_scene</code>, and
 the engine ends the run on QUIT.</p>
+<p>Before the game, the launcher (<code>brave_adventurer_modes</code>) either runs a game's own <code>main()</code> or
+starts the engine on its title screen, which switches to the chosen game's scene:</p>
+<pre class="mermaid"><code>flowchart TB
+    subgraph LAUNCHER["The launcher: brave-adventurer"]
+        direction TB
+        launch(["brave_adventurer_modes.main#40;#41;"])
+        title["TitleScene&lt;br/&gt;both games, a line each"]
+    end
+    subgraph GAMES["The games"]
+        direction TB
+        classic_main(["brave_adventurer.main#40;#41;"])
+        papyrus_main(["brave_adventurer_papyrus.main#40;#41;"])
+        classic["BraveAdventurerScene"]
+        papyrus["PapyrusBraveAdventurerScene"]
+    end
+    quit_title(["QUIT: the run ends"])
+
+    launch --&gt;|"--game classic, or a Classic recording"| classic_main
+    launch --&gt;|"--game papyrus, or a Papyrus recording"| papyrus_main
+    launch --&gt;|"neither, or a title-screen recording:&lt;br/&gt;GameEngine#40;game=TitleScene#41;.start#40;#41;"| title
+    classic_main --&gt; classic
+    papyrus_main --&gt; papyrus
+    title --&gt;|"Classic chosen: next_scene"| classic
+    title --&gt;|"Papyrus chosen: next_scene"| papyrus
+    title --&gt;|"Q, B or Back"| quit_title</code></pre>
+<p>From there each game runs its own scenes:</p>
 <pre class="mermaid"><code>flowchart TB
     subgraph GAME_SCENES["Brave Adventurer"]
         direction TB
@@ -400,7 +511,8 @@ ones off screen. Only the HUD is drawn in screen space, straight onto the displa
 then positions the sprites (frame steps 5 and 6 in the next section).</p>
 <h3 id="parallax-layers">Parallax layers<a class="headerlink" href="#parallax-layers" title="Permanent link">#</a></h3>
 <p>Four background layers are added with <code>camera.add_background_layer(...)</code>, drawn by the
-functions in <code>drawing.py</code>. Each draw function depends only on its arguments (the layer's
+functions in <code>brave_adventurer_core/drawing.py</code> (both editions draw the same backgrounds). Each
+draw function depends only on its arguments (the layer's
 offset), so the engine redraws a layer only when its offset changes; none needs
 <code>animated=True</code>.</p>
 <table>
@@ -445,7 +557,7 @@ offset), so the engine redraws a layer only when its offset changes; none needs
 </tbody>
 </table>
 <p>The sprites sit above them on layers 4 to 7: terrain, collectibles, enemies, then the player
-(<code>LAYER_*</code> in <code>constants.py</code>).</p>
+(<code>LAYER_*</code> in <code>brave_adventurer_core/constants.py</code>).</p>
 <h3 id="levels-and-screens">Levels and screens<a class="headerlink" href="#levels-and-screens" title="Permanent link">#</a></h3>
 <p>A level is a list of <code>ScreenData</code>, one per 800 px screen. Each screen lists its content in
 screen-local x (and y for collectibles):</p>
@@ -483,9 +595,13 @@ screen-local x (and y for collectibles):</p>
 <p><code>LEVEL_1</code> ("The Path of the Pharaoh") has 20 screens of rising difficulty: flat ground with
 scarabs to collect, a first short wall (screen 2), a first pit (screen 4), the first cobra
 (5), scarab (7) and scorpion (10), then combinations, a triple pit (16), a gauntlet (18) and a
-collectible run (19). <code>LevelManager</code> builds it once, in the scene's <code>__init__</code>. The level data,
-the builder and the terrain code are the game's; the sprite group and the collision layers they
-feed are the engine's <code>Scene</code> services:</p>
+collectible run (19). The scene's level manager (<code>ClassicLevelManager</code>, <code>PapyrusLevelManager</code>)
+builds it once, in the scene's <code>__init__</code>: the shared <code>LevelManager._build()</code> (in
+<code>brave_adventurer_core/levels.py</code>) makes each screen's ground segments, walls, enemies and
+collectibles in that order, and each game gives its enemy classes (<code>_get_enemy_class_map()</code>)
+and its gold scarab (<code>_get_collectible_class()</code>). The level data, the builder and the terrain
+code are the game's; the sprite group and the collision layers they feed are the engine's
+<code>Scene</code> services:</p>
 <pre class="mermaid"><code>flowchart TB
     subgraph GAME_LEVEL["Brave Adventurer"]
         direction TB
@@ -819,7 +935,7 @@ speech-to-text, an AI model and text-to-speech back to the controller's speaker,
 mic button as 15 on the controller API and 16 on the raw joystick API, so both are bound
 (<code>MIC_BUTTON_CONTROLLER</code>, <code>MIC_BUTTON_JOYSTICK</code>). The Papyrus Edition has no voice assistant.</p>
 <h2 id="sound">Sound<a class="headerlink" href="#sound" title="Permanent link">#</a></h2>
-<p><code>sounds.py</code> generates five effects once, in <code>setup()</code> (<code>GameSounds.initialize()</code>), with the
+<p><code>brave_adventurer_core/sounds.py</code> generates five effects once, in <code>setup()</code> (<code>GameSounds.initialize()</code>), with the
 engine's synthesizer toolkit (<code>glitchygames.audio.synth</code>: <code>oscillator</code>, <code>frequency_curve</code>,
 <code>apply_envelope</code>, <code>concatenate</code>, <code>to_sound</code>), at the mixer's sample rate:</p>
 <table>
@@ -973,7 +1089,7 @@ of its own, a recording replays it exactly:</p>
 <tbody>
 <tr>
 <td>Golden replay</td>
-<td><code>tests/fixtures/replays/brave-adventurer/golden.jsonl.gz</code> (and <code>brave-adventurer-papyrus/</code>)</td>
+<td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz</code> (and <code>golden-papyrus.jsonl.gz</code>), both replayed through the launcher, <code>brave-adventurer</code>, which starts the game each header names</td>
 <td><code>scripts/record_scripted_session.py --game brave_adventurer --frames 400</code> through the real engine loop: the golden input script, then a controls tail (walk left, jump with Space, quit with Q): 472 frames</td>
 <td>Replayed in a child process with <code>--replay-trace PATH --headless</code> by the replay pytest plugin; any divergence fails. <code>tests/replay/test_golden_replays.py</code> also checks that every bound control is exercised, or listed with the reason it is not (no gamepad on the dummy driver)</td>
 </tr>
@@ -1000,12 +1116,32 @@ deliberately, after finding out why it changed (the scripts' docstrings give the
 </thead>
 <tbody>
 <tr>
-<td><code>tests/examples/test_brave_adventurer_game.py</code></td>
-<td>Both editions (most fixtures are parametrized over both scenes): rumble on death and game over; terrain from the hitbox (walls flush, wider frames pushed back out, fast players pushed back the way they came, ledges); the world left edge; feet on the ground; stable support at ledge and wall-top edges; Papyrus facing-left hitboxes and foot anchoring; one death per hit; Papyrus falling transitions in TOML; world space (every sprite class declares it, no module positions or culls sprites itself, the camera follows on x and stops at game over); the pose rule (<code>TestPoseBeforeCollision</code>); culled enemies keep animating; pits meet the ground at a half-pixel camera; scancode controls; parallax layer pixel digests; game over freezes the world; high scores; jump, quit, D-pad hold and mic buttons; the HUD; both <code>main()</code> entry points replaying their golden recordings; the score keeping gold scarab bonuses; respawn standing still; no voice assistant in a replay; scarabs in a pit drawn over it; enemy poses drawn in <code>dt_tick</code>; running to falling; <code>-v/--version</code></td>
+<td><code>src/games/brave-adventurer/tests/core/test_brave_adventurer_both_editions.py</code></td>
+<td>Both editions (the scene fixtures are parametrized over both scenes): rumble on death and game over; terrain from the hitbox (walls flush, wider frames pushed back out, fast players pushed back the way they came, ledges); the world left edge; feet on the ground; stable support at ledge and wall-top edges; one death per hit; world space at the scene (the camera follows on x and stops at game over, terrain snaps as drawn); the pose rule (<code>TestPoseBeforeCollision</code>); pits meet the ground at a half-pixel camera; scancode controls; game over freezes the world; high scores; jump, quit and D-pad hold; the HUD; both <code>main()</code> entry points replaying their golden recordings; both level managers; the score keeping gold scarab bonuses; respawn standing still; scarabs in a pit drawn over it; running to falling; <code>-v/--version</code></td>
 </tr>
 <tr>
-<td><code>tests/examples/test_brave_adventurer_sounds.py</code></td>
-<td>The synthesized sounds against stored goldens (<code>tests/examples/brave_adventurer_golden/*.npy</code>): length, envelope and pitch; silent play without a mixer</td>
+<td><code>src/games/brave-adventurer/tests/core/test_brave_adventurer_core.py</code></td>
+<td>The shared primitives: the terrain sprites are world sprites; parallax layer pixel digests</td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/tests/core/test_brave_adventurer_sounds.py</code></td>
+<td>The synthesized sounds against stored goldens (<code>tests/core/brave_adventurer_golden/*.npy</code>): length, envelope and pitch; silent play without a mixer</td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/tests/classic/test_brave_adventurer_classic.py</code></td>
+<td>The classic edition: its sprites declare world space and no module (its own or the core's) positions or culls sprites; culled enemies keep animating; the mic button and no voice assistant in a replay; enemy poses drawn in <code>dt_tick</code>; its player's running to falling</td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus.py</code></td>
+<td>The Papyrus Edition: facing-left hitboxes and foot anchoring; falling transitions in TOML; world space (its sprites, and no module of its own or the core's positions, culls or rounds); the sprite utilities; its player's running to falling</td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/tests/test_brave_adventurer_modes.py</code></td>
+<td>The launcher: <code>--game</code> runs that game's own <code>main()</code> without the flag, an unknown game is an error, a recording starts its own game without the title screen (the replay plugin replays both goldens through <code>brave-adventurer</code>, as <code>brave-adventurer/golden-classic</code> and <code>brave-adventurer/golden-papyrus</code>), another game's recording is refused; the title screen: its logical name, both cards, choosing with the keyboard (through the real engine) and a gamepad, Q, B and Back quitting, Esc doing nothing, <code>-v</code>, <code>-h</code>, and a recording made from it replaying through the launcher</td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/tests/test_brave_adventurer_after_the_move.py</code></td>
+<td>The move into one project: both scenes keep their logical names, the old example packages are gone, both goldens keep their history, the core imports neither game, each level manager builds its own gold scarab</td>
 </tr>
 <tr>
 <td><code>tests/world/test_golden_traces.py</code></td>
@@ -1020,19 +1156,19 @@ deliberately, after finding out why it changed (the scripts' docstrings give the
 <td>The Cobra's hitbox follows its drawing; Papyrus hitboxes scale with <code>SPRITE_SCALE</code></td>
 </tr>
 <tr>
-<td><code>tests/examples/test_examples_sprites.py</code></td>
-<td>The Papyrus TOML sprites load, and their <code>[[transition]]</code> sections survive a save round trip</td>
+<td><code>src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus_sprite_files.py</code></td>
+<td>The Papyrus TOML sprites pass the engine's sprite-file checks (<code>tests/examples/test_examples_sprites.py</code>: equal rows; timings, hitboxes, pixels, metadata and <code>[[transition]]</code> sections survive a save round trip), and their state machines reload in order</td>
 </tr>
 </tbody>
 </table>
 <h2 id="the-papyrus-edition">The Papyrus Edition<a class="headerlink" href="#the-papyrus-edition" title="Permanent link">#</a></h2>
-<p><code>brave_adventurer_papyrus</code> keeps the game and changes its characters. It imports the original
-package's level data, terrain, drawing, sounds and constants, and replaces the sprites that
-have pixel art.</p>
+<p><code>brave_adventurer_papyrus</code> keeps the game and changes its characters. It shares the level
+data, terrain, background drawing, sounds and constants with the classic edition
+(<code>brave_adventurer_core</code>, below both games), and replaces the sprites that have pixel art.</p>
 <table>
 <thead>
 <tr>
-<th>Shared with the original (imported, unchanged)</th>
+<th>Shared with the classic edition (<code>brave_adventurer_core</code>, unchanged)</th>
 <th>Changed in Papyrus</th>
 </tr>
 </thead>
@@ -1064,12 +1200,13 @@ have pixel art.</p>
 </tbody>
 </table>
 <h3 id="how-it-is-structured">How it is structured<a class="headerlink" href="#how-it-is-structured" title="Permanent link">#</a></h3>
-<p>The level manager is reused by subclassing; the scene is a parallel copy. The Engine box is
-what both editions get from <code>glitchygames</code>, the BraveAdventurer box is the original game, and
-the PapyrusEdition box is what the edition adds on top of it. Solid arrows are inheritance,
-pointing at the base class; dotted arrows are runtime use (one class building or calling
-another). Both scenes also import the original's <code>drawing.py</code>, <code>sounds.py</code> and constants (left
-out to keep the diagrams readable).</p>
+<p>The level manager and the scene are both shared by subclassing. The Engine box is
+what both editions get from <code>glitchygames</code>, the Core box is what both share
+(<code>brave_adventurer_core</code>), the BraveAdventurer box is the classic edition and the
+PapyrusEdition box is what the Papyrus Edition adds. Solid arrows are inheritance, pointing at
+the base class; dotted arrows are runtime use (one class building or calling another). Both
+scenes also import the core's <code>drawing.py</code>, <code>sounds.py</code> and constants (left out to keep the
+diagrams readable).</p>
 <h4 id="scenes">Scenes<a class="headerlink" href="#scenes" title="Permanent link">#</a></h4>
 <pre class="mermaid"><code>classDiagram
     direction TB
@@ -1078,33 +1215,48 @@ out to keep the diagrams readable).</p>
         class PauseScene
         class GameOverScene
     }
-    namespace BraveAdventurer {
-        class BraveAdventurerScene
+    namespace Core {
+        class BraveAdventurerSceneBase {
+            _scarab_class()*
+            _player_top_and_foot_line()*
+            _player_world_y_standing_on()*
+            _update_voice_assistant()
+            _on_voice_button_down()
+            _on_voice_button_up()
+        }
         class LevelManager {
             _build()
+            _get_enemy_class_map()*
+            _get_collectible_class()*
+        }
+    }
+    namespace BraveAdventurer {
+        class BraveAdventurerScene
+        class ClassicLevelManager {
             _get_enemy_class_map()
+            _get_collectible_class()
         }
     }
     namespace PapyrusEdition {
         class PapyrusBraveAdventurerScene
         class PapyrusLevelManager {
-            _build()
             _get_enemy_class_map()
+            _get_collectible_class()
         }
     }
 
     Scene &lt;|-- PauseScene
     Scene &lt;|-- GameOverScene
-    Scene &lt;|-- BraveAdventurerScene
-    Scene &lt;|-- PapyrusBraveAdventurerScene
+    Scene &lt;|-- BraveAdventurerSceneBase
+    BraveAdventurerSceneBase &lt;|-- BraveAdventurerScene
+    BraveAdventurerSceneBase &lt;|-- PapyrusBraveAdventurerScene
+    LevelManager &lt;|-- ClassicLevelManager
     LevelManager &lt;|-- PapyrusLevelManager
 
-    PauseScene &lt;.. BraveAdventurerScene : Esc creates
-    GameOverScene &lt;.. BraveAdventurerScene : creates at game over
-    LevelManager &lt;.. BraveAdventurerScene : uses
-    PapyrusLevelManager &lt;.. PapyrusBraveAdventurerScene : uses</code></pre>
-<p><code>PapyrusBraveAdventurerScene</code> creates the same engine <code>PauseScene</code> and <code>GameOverScene</code> as the
-original scene (left out of the diagram to keep it readable).</p>
+    PauseScene &lt;.. BraveAdventurerSceneBase : Esc creates
+    GameOverScene &lt;.. BraveAdventurerSceneBase : creates at game over
+    ClassicLevelManager &lt;.. BraveAdventurerScene : LEVEL_MANAGER_CLASS
+    PapyrusLevelManager &lt;.. PapyrusBraveAdventurerScene : LEVEL_MANAGER_CLASS</code></pre>
 <h4 id="sprites">Sprites<a class="headerlink" href="#sprites" title="Permanent link">#</a></h4>
 <pre class="mermaid"><code>classDiagram
     direction TB
@@ -1113,10 +1265,12 @@ original scene (left out of the diagram to keep it readable).</p>
         class AnimatedSprite
         class PhysicsBody
     }
-    namespace BraveAdventurer {
-        class SpritesLevelManager["LevelManager"]
-        class Player
+    namespace Core {
         class TerrainSprites["GroundSegment, StoneWall"]
+    }
+    namespace BraveAdventurer {
+        class SpritesLevelManager["ClassicLevelManager"]
+        class Player
         class PrimitiveSprites["Cobra, Scarab, Scorpion, GoldScarab"]
     }
     namespace PapyrusEdition {
@@ -1140,15 +1294,22 @@ original scene (left out of the diagram to keep it readable).</p>
     TerrainSprites &lt;.. SpritesPapyrusLevelManager : builds
     PapyrusSprites &lt;.. SpritesPapyrusLevelManager : builds</code></pre>
 <ul>
-<li><strong><code>PapyrusLevelManager</code></strong> overrides <code>_get_enemy_class_map()</code> to return the Papyrus enemy
-  classes. It also overrides <code>_build()</code>, a copy of the original's loop that builds
-  <code>PapyrusGoldScarab</code> instead of <code>GoldScarab</code>, because the base class has no hook for the
-  collectible class.</li>
-<li><strong><code>PapyrusBraveAdventurerScene</code></strong> is not a subclass of <code>BraveAdventurerScene</code>: it is a copy of
-  the scene (about 960 lines against 1,010) with the Papyrus classes, the fixed foot line in
-  the ground, wall and respawn code (<code>_snapped_player_top()</code> + <code>PAPYRUS_PLAYER_HEIGHT</code>), and no
-  voice assistant. A change to the shared gameplay has to be made in both files; the tests run
-  most cases against both scenes to keep them in step.</li>
+<li><strong><code>PapyrusLevelManager</code></strong> gives <code>_get_enemy_class_map()</code> (the Papyrus enemy classes) and
+  <code>_get_collectible_class()</code> (<code>PapyrusGoldScarab</code>); the shared <code>LevelManager._build()</code> builds
+  them, as <code>ClassicLevelManager</code>'s give <code>Cobra</code>, <code>Scarab</code>, <code>Scorpion</code> and <code>GoldScarab</code>.</li>
+<li><strong><code>BraveAdventurerSceneBase</code></strong> (<code>brave_adventurer_core/scene.py</code>) is the gameplay both
+  scenes play by: the camera and parallax, the level and player built in that order (recordings
+  number sprites by creation order), the controls, the <code>dt_tick</code> order, terrain, wall and enemy
+  collision, death, respawn and high scores, the input handlers, <code>render()</code>, the pits and the
+  HUD. Each game's scene stays in its own <code>game.py</code> under its own name (recordings name a scene
+  by its module and class) and gives only what differs: <code>NAME</code>; <code>LEVEL_MANAGER_CLASS</code>,
+  <code>PLAYER_CLASS</code> and <code>PLAYER_START_WORLD_Y</code>; <code>SAVE_APP_NAME</code> (<code>brave-adventurer</code>,
+  <code>brave-adventurer-papyrus</code>); <code>_scarab_class()</code> (the enemy that follows the terrain); and the
+  foot line, <code>_player_top_and_foot_line()</code> and <code>_player_world_y_standing_on()</code>: the classic
+  edition's hitbox bottom (a <code>float</code> world y), Papyrus's <code>_snapped_player_top()</code> +
+  <code>PAPYRUS_PLAYER_HEIGHT</code> (an <code>int</code>). The classic edition adds the voice assistant: it is
+  discovered after the shared <code>__init__</code>, its mic button is bound after the shared controls,
+  and it fills the base's voice hooks, which Papyrus leaves empty.</li>
 <li><strong><code>PapyrusPlayer</code></strong> has the same <code>PhysicsBody</code> and move methods as <code>Player</code>. Each <code>dt_tick</code>
   ticks physics, evaluates the TOML state machine, advances the TOML animation
   (<code>AnimatedSprite.update(self, dt)</code>), rescales the frame (<code>apply_transparency_and_scale</code>), and
@@ -1208,6 +1369,21 @@ original scene (left out of the diagram to keep it readable).</p>
 </tbody>
 </table>
 <p><code>scripts/audit_hitboxes.py</code> audits the Papyrus sprites' hitboxes against their pixels.</p>
+<h2 id="its-package">Its package<a class="headerlink" href="#its-package" title="Permanent link">#</a></h2>
+<p>Both editions are one package beside the engine, <code>src/games/brave-adventurer/</code> (distribution
+<code>brave-adventurer</code>), in a src layout of layered import packages: <code>brave_adventurer_core</code> (the
+constants, terrain, level data and level manager, background drawing, sounds and the gameplay
+scene's base both games share; it imports neither game), <code>brave_adventurer</code> (the classic edition),
+<code>brave_adventurer_papyrus</code> (the Papyrus Edition) and <code>brave_adventurer_modes</code> (the launcher and
+its title screen, the project's one console script). How such a package is laid out, installed,
+tested and built, and how a game is moved into one, is in
+<a href="../../architecture/game_packages/">Games as Their Own Packages</a>.</p>
+<p>Its recordings name the scenes <code>games.brave_adventurer.game:BraveAdventurerScene</code> and
+<code>games.brave_adventurer_papyrus.game:PapyrusBraveAdventurerScene</code>, as before the move (the title
+screen is <code>games.brave_adventurer_modes.title:TitleScene</code>); its golden replays are
+<code>src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz</code> and
+<code>golden-papyrus.jsonl.gz</code>, both replayed by the launcher, which starts the game each header
+names; and its one browser page, the title screen, ships all four archives, the core first.</p>
 <h2 id="where-things-live">Where things live<a class="headerlink" href="#where-things-live" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -1218,71 +1394,103 @@ original scene (left out of the diagram to keep it readable).</p>
 </thead>
 <tbody>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer/__init__.py</code></td>
-<td>Exports <code>main</code> (the <code>brave-adventurer</code> console script)</td>
+<td><code>src/games/brave-adventurer/pyproject.toml</code></td>
+<td>The project: distribution <code>brave-adventurer</code>, its console script (the launcher), the four packages</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer/game.py</code></td>
-<td><code>BraveAdventurerScene</code>: camera, parallax, level, controls, <code>dt_tick</code> order, terrain and enemy collision, death and respawn, high scores, input handlers, <code>render()</code>, pits, HUD; <code>main()</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_modes/launcher.py</code></td>
+<td><code>main()</code> (the <code>brave-adventurer</code> console script): <code>--game</code>, a recording's game (<code>game_for_recording</code>), or the title screen; <code>GAMES_BY_NAME</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer/player.py</code></td>
-<td><code>Player</code>: physics body, state machine, the pose drawn in <code>dt_tick</code>, the common pose x-range</td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_modes/title.py</code></td>
+<td><code>TitleScene</code>, its cards (<code>GameChoiceCard</code>) and <code>GAME_CHOICES</code>: each game's name, line and scene</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer/terrain.py</code></td>
-<td><code>GroundSegment</code>, <code>StoneWall</code>, <code>GoldScarab</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_core/constants.py</code></td>
+<td>Screen, physics, camera, parallax, layer, scoring, terrain and background colour, HUD, lives and rumble constants both games share</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer/enemies.py</code></td>
-<td><code>Cobra</code>, <code>Scarab</code>, <code>Scorpion</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_core/terrain.py</code></td>
+<td><code>GroundSegment</code>, <code>StoneWall</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer/levels.py</code></td>
-<td><code>ScreenData</code>, <code>LEVEL_1</code> (20 screens), <code>LevelManager</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_core/levels.py</code></td>
+<td><code>ScreenData</code>, <code>LEVEL_1</code> (20 screens), <code>LevelManager</code> (the shared builder, with the enemy and collectible hooks)</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer/drawing.py</code></td>
-<td>Every primitive drawing: the player, enemies, terrain, the four parallax layers</td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_core/drawing.py</code></td>
+<td>The terrain drawing and the four parallax layers</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer/sounds.py</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_core/sounds.py</code></td>
 <td>The synthesized effects and <code>GameSounds</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer/constants.py</code></td>
-<td>Screen, physics, camera, parallax, layer, size, scoring, colour and rumble constants</td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_core/scene.py</code></td>
+<td><code>BraveAdventurerSceneBase</code>: camera, parallax, level, controls, <code>dt_tick</code> order, terrain and enemy collision, death and respawn, high scores, input handlers, <code>render()</code>, pits, HUD; the hooks each game fills</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer_papyrus/game.py</code></td>
-<td><code>PapyrusBraveAdventurerScene</code> (the scene's parallel copy); <code>main()</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer/__init__.py</code></td>
+<td>Exports <code>main</code> (the launcher's <code>--game classic</code>)</td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer_papyrus/player.py</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer/game.py</code></td>
+<td><code>BraveAdventurerScene</code>: the shared scene's hooks (its sprites, save name, hitbox foot line) and the voice assistant; <code>main()</code></td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/src/brave_adventurer/player.py</code></td>
+<td><code>Player</code>: physics body, state machine, the pose drawn in <code>dt_tick</code>, the common pose x-range</td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/src/brave_adventurer/terrain.py</code></td>
+<td><code>GoldScarab</code></td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/src/brave_adventurer/enemies.py</code></td>
+<td><code>Cobra</code>, <code>Scarab</code>, <code>Scorpion</code></td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/src/brave_adventurer/levels.py</code></td>
+<td><code>ClassicLevelManager</code></td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/src/brave_adventurer/drawing.py</code></td>
+<td>The classic sprites' primitive drawing: the player, the gold scarab, the enemies</td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/src/brave_adventurer/constants.py</code></td>
+<td>The classic sprites' sizes and colours, the arm and leg swing</td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py</code></td>
+<td><code>PapyrusBraveAdventurerScene</code>: the shared scene's hooks (its sprites, save name, fixed foot line); <code>main()</code></td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/player.py</code></td>
 <td><code>PapyrusPlayer</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer_papyrus/enemies.py</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py</code></td>
 <td><code>PapyrusCobra</code>, <code>PapyrusScarab</code>, <code>PapyrusScorpion</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer_papyrus/terrain.py</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/terrain.py</code></td>
 <td><code>PapyrusGoldScarab</code>; re-exports the shared <code>GroundSegment</code> and <code>StoneWall</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer_papyrus/levels.py</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/levels.py</code></td>
 <td><code>PapyrusLevelManager</code>; re-exports <code>LEVEL_1</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer_papyrus/sprite_utils.py</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py</code></td>
 <td>Colour key to alpha, 2x scaling, <code>hitbox_scale</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer_papyrus/constants.py</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/constants.py</code></td>
 <td>Re-exports the shared constants; <code>SPRITE_SCALE</code>, the Papyrus heights, <code>SPRITES_DIR</code></td>
 </tr>
 <tr>
-<td><code>src/glitchygames/examples/brave_adventurer_papyrus/sprites/*.toml</code></td>
+<td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/sprites/*.toml</code></td>
 <td>The pixel art, hitboxes and state machines</td>
 </tr>
 <tr>
@@ -1290,11 +1498,11 @@ original scene (left out of the diagram to keep it readable).</p>
 <td>The engine's pause and game-over screens</td>
 </tr>
 <tr>
-<td><code>tests/examples/test_brave_adventurer_game.py</code>, <code>test_brave_adventurer_sounds.py</code></td>
-<td>The game's tests</td>
+<td><code>src/games/brave-adventurer/tests/</code> (<code>core/</code>, <code>classic/</code>, <code>papyrus/</code>)</td>
+<td>The games' tests</td>
 </tr>
 <tr>
-<td><code>tests/fixtures/replays/brave-adventurer*/golden.jsonl.gz</code></td>
+<td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-*.jsonl.gz</code></td>
 <td>The golden replays</td>
 </tr>
 <tr>
