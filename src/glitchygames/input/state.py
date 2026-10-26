@@ -39,6 +39,8 @@ from typing import TYPE_CHECKING, Any, cast, override
 import pygame
 from pygame.key import ScancodeWrapper
 
+from glitchygames.engine_context import ContextSlot, current_context
+
 if TYPE_CHECKING:
     from collections.abc import Collection, Sequence
 
@@ -324,7 +326,18 @@ IDLE_INPUT = InputSnapshot(
     mouse_focused=False,
 )
 
-_CURRENT: list[InputSnapshot] = [IDLE_INPUT]
+
+@dataclasses.dataclass
+class _CurrentInput:
+    """Holds an engine context's polled input this frame (current_input)."""
+
+    snapshot: InputSnapshot = IDLE_INPUT
+
+
+# Each engine context's polled input (glitchygames.engine_context)
+CURRENT_INPUT_SLOT: ContextSlot[_CurrentInput] = ContextSlot(
+    name='glitchygames.input.state.current_input', factory=_CurrentInput
+)
 
 
 def live_scancode(*, key: int) -> int:
@@ -428,17 +441,17 @@ def current_input() -> InputSnapshot:
         The snapshot.
 
     """
-    return _CURRENT[0]
+    return current_context().value(slot=CURRENT_INPUT_SLOT).snapshot
 
 
 def set_current_input(*, snapshot: InputSnapshot) -> None:
     """Make ``snapshot`` this frame's input (GameEngine.process_events, once per frame)."""
-    _CURRENT[0] = snapshot
+    current_context().value(slot=CURRENT_INPUT_SLOT).snapshot = snapshot
 
 
 def reset_current_input() -> None:
     """Back to IDLE_INPUT (a new run, or a test)."""
-    _CURRENT[0] = IDLE_INPUT
+    current_context().value(slot=CURRENT_INPUT_SLOT).snapshot = IDLE_INPUT
 
 
 def _device_mapping_changes(
