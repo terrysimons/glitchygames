@@ -201,8 +201,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   recordings name games by logical names. Master plan: `plans/2026-10-24-workspace-packages.md`
 - **Status**: Part 1 (foundation and the Mr. Muncher pilot) merged (#105); Part 2 (every game
   its own package: mr-muncher, clockwork-keep, brave-adventurer as one project with a launcher,
-  paddleslap, drawing-fire) DONE on `feature/workspace-packages-2-games`; Parts 3-5 (demos,
-  Bitmappy, browser IDE) TODO
+  paddleslap, drawing-fire) merged (#109); Part 4 (Bitmappy as an app, `src/apps/bitmappy/`)
+  DONE on `feature/workspace-packages-4-bitmappy`, not yet merged; Parts 3 (the demos) and 5 (the
+  browser IDE) TODO
 - **Part 2 leftovers** (deferred review findings, 2026-10-25; none blocks the merge):
   - Brave Adventurer (`src/games/brave-adventurer/`): no golden replay exercises the title
     screen's controls; `tests/engine/test_engine_lifecycle.py`'s power-on test has no direct
@@ -221,7 +222,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
     text is unchanged), which a test matching `record.msg` would see
   - Papyrus's sprite-file test imports the engine's checks from
     `tests.examples.test_examples_sprites`; if a second game needs them, they belong in
-    `src/glitchygames/testing/` (a sprite-files helper)
+    `src/glitchygames/testing/` (a sprite-files helper). Bitmappy is now the second importer;
+    Part 3 does the move (`src/glitchygames/testing/sprite_files.py`, the user, 2026-10-26)
   - With member packages first-party, isort orders `glitchygames` imports after a game's own in
     member files (cosmetic)
   - `tests/test_build_browser_bundle.py`'s stand-in `record_archive` takes `**_ignored`: a name

@@ -431,7 +431,7 @@ only replays; Part 2 Task 1).
 ## Assets and art
 
 - Ghosty sprite: frames 1–7 have inferred outer outlines; canvas screenshots of each frame would
-  make them exact (`src/glitchygames/examples/resources/sprites/ghosty.toml`).
+  make them exact (`src/apps/bitmappy/bitmappy/resources/sprites/ghosty.toml`).
 - Papyrus player art could be redrawn bottom-aligned, after which `frame_anchor` is unnecessary.
 
 ## Galimore

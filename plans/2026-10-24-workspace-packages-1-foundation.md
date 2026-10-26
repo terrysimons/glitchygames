@@ -6,6 +6,8 @@
 tool and harness covering members; name games in recordings by logical names; move the engine's
 source to `src/glitchygames/`; and prove it by moving Mr. Muncher to `src/games/mr-muncher/`.
 
+**Status:** DONE (2026-10-25), merged as #105, b29f85fc.
+
 > **Amended 2026-10-25 (the user's decisions 7, 8 and 9 in the master plan).** Decision 7:
 > everything lives under `src/`: the engine at `src/glitchygames/`, members at
 > `src/games/<game>/`, `src/demos/<demo>/`, `src/apps/<app>/`. Decision 8: recordings name games
