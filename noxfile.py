@@ -1303,7 +1303,6 @@ def performance_test(session: nox.Session) -> None:
         'no:xdist',
         '--benchmark-only',
         '--benchmark-save=baseline',
-        'tests/',
     )
 
 

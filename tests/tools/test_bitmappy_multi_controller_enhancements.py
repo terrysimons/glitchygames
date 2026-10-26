@@ -4,12 +4,7 @@ Targets uncovered lines: 119, 147, 153, 165, 224-226, 232-240,
 255-270, 392, 395.
 """
 
-import sys
-from pathlib import Path
-
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.bitmappy.controllers.enhancements import (
     BitmappyMultiControllerEnhancements,

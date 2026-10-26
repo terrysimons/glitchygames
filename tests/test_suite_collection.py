@@ -720,3 +720,42 @@ def test_an_unclosed_fence_in_one_bug_entry_does_not_hide_the_next(tmp_path):
             '### 3. B\n- **Status**: Active\n  glitchygames/ui/y.py\n'
         ),
     ) == ['BUGS.md:10: glitchygames/ui/y.py']
+
+
+def bitmappy_test_imports_outside_tools(*, project_root: Path) -> list[str]:
+    """Return every test outside tests/tools/ that imports Bitmappy, as ``<file>:<line>``.
+
+    Bitmappy's tests all live in tests/tools/ so they move with Bitmappy as one directory.
+
+    Args:
+        project_root: The repository (its tests/ directory is scanned).
+
+    Returns:
+        ``<file>:<line>`` for each import of ``bitmappy`` (or of ``glitchygames.bitmappy``), sorted.
+
+    """
+    tests_directory = project_root / 'tests'
+    findings: list[str] = []
+    for python_file in sorted(tests_directory.rglob('*.py')):
+        relative = python_file.relative_to(project_root)
+        if '__pycache__' in python_file.parts or relative.parts[:2] == ('tests', 'tools'):
+            continue
+        module = ast.parse(python_file.read_text(encoding='utf-8'), filename=str(python_file))
+        for node in ast.walk(module):
+            if isinstance(node, ast.ImportFrom):
+                imported_names = [node.module or '']
+            elif isinstance(node, ast.Import):
+                imported_names = [alias.name for alias in node.names]
+            else:
+                continue
+            if any(
+                name.split('.')[0] == 'bitmappy' or name.startswith('glitchygames.bitmappy')
+                for name in imported_names
+            ):
+                findings.append(f'{relative.as_posix()}:{node.lineno}')
+    return findings
+
+
+def test_bitmappys_tests_are_all_in_tests_tools():
+    """Bitmappy's tests are one directory, so the next task moves them in one step."""
+    assert bitmappy_test_imports_outside_tools(project_root=PROJECT_ROOT) == []

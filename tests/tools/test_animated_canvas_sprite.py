@@ -5,15 +5,10 @@ of testable methods including initialization, frame navigation, panning, pixel
 operations, and rendering state management.
 """
 
-import sys
-from pathlib import Path
 from typing import NamedTuple, cast
 
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.bitmappy.animated_canvas import AnimatedCanvasSprite
 from glitchygames.bitmappy.canvas_interfaces import (

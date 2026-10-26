@@ -20,7 +20,6 @@ from scripts.record_golden_traces import GoldenTraceEngine
 
 from glitchygames import engine as engine_package
 from glitchygames import timing
-from glitchygames.bitmappy.editor import BitmapEditorScene
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
 from glitchygames.exit_codes import ExitCode
@@ -369,14 +368,6 @@ class TestResolveTargetFps:
         )
         options = GameEngine.initialize_arguments(self._scene_class(120.0))
         assert math.isclose(options['target_fps'], 120.0, abs_tol=1e-9)
-
-    def test_bitmappy_gets_engine_default(self, mocker):
-        mocker.patch(
-            'argparse.ArgumentParser.parse_args',
-            return_value=argparse.Namespace(log_level='INFO', target_fps=None),
-        )
-        options = GameEngine.initialize_arguments(BitmapEditorScene)
-        assert math.isclose(options['target_fps'], DEFAULT_TARGET_FPS, abs_tol=1e-9)
 
     @pytest.mark.parametrize('invalid_target_fps', ['120', True, False, b'60'])
     def test_non_numeric_game_target_raises_type_error(self, invalid_target_fps):

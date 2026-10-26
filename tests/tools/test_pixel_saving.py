@@ -1,11 +1,5 @@
 """Test pixel saving functionality in bitmap editor."""
 
-import sys
-from pathlib import Path
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from glitchygames.bitmappy.toml_processing import (
     collect_unique_colors_from_pixels,
 )
