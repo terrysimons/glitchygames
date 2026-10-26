@@ -12,8 +12,10 @@ here wait in ``PENDING_LEDGER_PATH`` (gitignored) until a deploy publishes them.
 1. refuses a checkout whose commit is unknown, and one with uncommitted changes unless
    ``--allow-dirty`` (the rows say so; such a trial never counts as measuring its commit) or
    ``--skip-dirty`` (measure nothing and succeed: what docs-deploy passes);
-2. for each golden replay (``tests/fixtures/replays/<console-script>/golden.jsonl.gz``, and each
-   workspace member's ``<member>/tests/fixtures/replays/golden.jsonl.gz``) and bundled demo
+2. for each golden replay (each workspace member's
+   ``<member>/tests/fixtures/replays/golden.jsonl.gz``, and any in the root's
+   ``tests/fixtures/replays/<console-script>/``, the plugin's layout for other projects, which
+   holds no game here) and bundled demo
    (a member package's ``<package>/demos/*.jsonl.gz``) not already measured for this commit on
    this machine (published or pending; ``--force`` measures again): rebaselines it
    headless into a temporary file through its console script
@@ -89,7 +91,8 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PENDING_LEDGER_PATH = PROJECT_ROOT / PENDING_LEDGER_RELATIVE_PATH
-# The engine's golden replays (tests/fixtures/replays/<console-script>/); each workspace member's
+# Golden replays in the root's tests/fixtures/replays/<console-script>/ (the replay plugin's layout
+# for other projects: none here, every game is a member); each workspace member's
 # are directly in its replay fixtures directory (golden_replay_globs): golden.jsonl.gz, or one
 # golden-<game>.jsonl.gz per game in a member with several (Brave Adventurer's golden-classic
 # and golden-papyrus; docs/architecture/game_packages.md)

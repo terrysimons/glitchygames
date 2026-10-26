@@ -594,8 +594,10 @@ baselines in the repository keep: behaviour (hashes) and speed (processing times
 
 ## Golden replays
 
-`tests/fixtures/replays/<game>/golden.jsonl.gz` holds a recorded session of each example game
-(PaddleSlap, Clockwork Keep, both Brave Adventurer editions and Mr. Muncher).
+Each game's workspace member holds a recorded session of it in
+`<member>/tests/fixtures/replays/golden.jsonl.gz` (PaddleSlap, Clockwork Keep, Mr. Muncher and
+Drawing Fire; both Brave Adventurer editions as `golden-classic.jsonl.gz` and
+`golden-papyrus.jsonl.gz`).
 `scripts/record_scripted_session.py` recorded them through the real engine loop, with a
 supervisor posting each game's golden input script, then the game's controls tail: input that
 presses the controls the script does not, pauses and resumes, and ends with the game's own quit

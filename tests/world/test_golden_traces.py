@@ -2,8 +2,8 @@
 
 The baselines in ``tests/world/golden/`` were recorded by ``scripts/record_golden_traces.py``
 before any world-space engine change (plans/2026-10-18-engine-world-space.md), for the games
-that existed then (``GOLDEN_TRACE_GAMES``; later games are covered by their golden replays under
-``tests/fixtures/replays/``). Each test
+that existed then (``GOLDEN_TRACE_GAMES``; later games are covered by their golden replays in
+their members' ``tests/fixtures/replays/``). Each test
 replays the same scripted, deterministic run and compares every sprite's rect and visibility,
 frame by frame.
 

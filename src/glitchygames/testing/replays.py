@@ -3,9 +3,9 @@ r"""A pytest plugin that runs recordings as regression tests.
 A recording is collected as one test item, ``<console-script>/<name>``, from either of two
 layouts (``recording_console_script`` tells which console script replays it):
 
-- ``.../fixtures/replays/<console-script>/<name>.jsonl.gz`` (in this project, the engine's own
-  ``tests/fixtures/replays/``; the directory is the game's console script from
-  ``[project.scripts]``, for example ``paddleslap`` or ``clockwork-keep``);
+- ``.../fixtures/replays/<console-script>/<name>.jsonl.gz``, another project's layout (the
+  plugin ships in the engine's wheel; no game of this project's is there, every one is a
+  workspace member): the directory is the game's console script from ``[project.scripts]``;
 - ``<member>/tests/fixtures/replays/<name>.jsonl.gz``, a workspace member's golden replays
   (``src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz``): the member's directory is
   named after its distribution, whose console script replays them: its one (Brave Adventurer's
@@ -45,8 +45,8 @@ directories, so tests/replay/test_bundled_demos.py replays each one through it.
 
 Loading the plugin: ``pytest_plugins = ['glitchygames.testing.replays']`` in the root conftest
 (this project's ``conftest.py``), or ``pytest -p glitchygames.testing.replays``. Recordings are
-made by ``--record-trace``; this project's fixtures (``tests/fixtures/replays/``) are recorded by
-scripts/record_scripted_session.py.
+made by ``--record-trace``; this project's fixtures (each member's
+``<member>/tests/fixtures/replays/``) are recorded by scripts/record_scripted_session.py.
 
 The collector follows pytest's "Working with non-python tests" example
 (https://docs.pytest.org/en/stable/example/nonpython.html).
@@ -130,9 +130,9 @@ def recording_console_script(*, path: Path) -> str:
     script (the member's directory is named after its distribution: ``src/games/mr-muncher``):
     its one (``src/games/brave-adventurer``'s launcher starts whichever of its games the
     recording's header names), or, for a member with a console script per game, the one that
-    starts the game the recording's header names (``recorded_games_console_script``); the
-    engine's own (and the games not yet moved) lie in ``tests/fixtures/replays/<console-script>/``,
-    whose folder names the script.
+    starts the game the recording's header names (``recorded_games_console_script``); another
+    project's (this one's games are all members) lie in
+    ``fixtures/replays/<console-script>/``, whose folder names the script.
 
     Args:
         path: The recording.

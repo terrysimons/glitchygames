@@ -119,12 +119,23 @@ any tool's configuration.
 
 - `git mv src/glitchygames/examples/<package> src/games/<game>/<package>`, then delete what is
   left of the old directory: its git-ignored `__pycache__` would otherwise keep an importable
-  namespace package there.
+  namespace package there. `git mv` of a directory carries its untracked `__pycache__` along
+  too: delete it in the member as well (its `.pyc` files name the old module).
 - Move its tests to `src/games/<game>/tests/` with no `__init__.py` (a tests directory must not be
-  a package named `tests`: `tests/test_suite_collection.py`). Test file names must stay unique
-  across every test directory; a shared helper module name can collide too (BUGS.md #31).
+  a package named `tests`: `tests/test_suite_collection.py`). A member's tests directory is
+  rootless, so pytest imports each test file under its bare file name: name every test file
+  after the package, `test_<package>_<area>.py` (Drawing Fire's `test_drawing_fire_battle.py`, not
+  `test_battle.py`), so no two test directories share a name.
+  `tests/test_suite_collection.py::test_test_file_names_are_unique_across_packages` fails on a
+  name used twice, naming both files; a shared helper module name can collide too (BUGS.md #31).
+- A member may have a `tests/conftest.py` (Drawing Fire's drains the event queue). It is imported
+  under the bare name `conftest`, replacing the root conftest in `sys.modules`, so nothing may
+  `import conftest` by name: look a conftest up as pytest registered it, by its path
+  (`pytestconfig.pluginmanager.get_plugin(str(pytestconfig.rootpath / 'conftest.py'))`).
 - Move its golden replay to `src/games/<game>/tests/fixtures/replays/golden.jsonl.gz`, its bytes
   unchanged. Data its tests read beside them (golden sounds, for instance) moves with them.
+  Delete the emptied `tests/fixtures/replays/<console-script>/` (and any parent it leaves empty:
+  Drawing Fire's move emptied the root's `tests/fixtures/`).
 - Rewrite `glitchygames.examples.<package>` imports to `<package>` (`git grep -l` across the
   repository, excluding `plans/`), then read the whole diff: a docstring or a path string can
   match too.
@@ -161,25 +172,27 @@ any tool's configuration.
 ### 5. Update the scripts and tests that name it
 
 - `scripts/record_golden_traces.py`: its imports, `GAME_SCENES`, and `GAME_MODULES` (whose value
-  becomes the bare package name). `scripts/record_scripted_session.py` derives its fixture
-  directories from `GAME_MODULES` and the workspace: only its docstring examples need editing.
+  is the bare package name). `scripts/record_scripted_session.py` derives its fixture
+  directories from `GAME_MODULES` and the workspace (`REPLAY_FIXTURE_DIRECTORIES`), and refuses
+  a game no member holds: only its docstring examples need editing.
 - `tests/replay/test_golden_replays.py`: its imports, `GAMEPLAY_ACTION_MAPS`,
   `ENGINE_SCENE_CONTROLS`, `UNEXERCISED_CONTROLS` and any table naming the game.
 - The engine tests that borrow a game, by import or by path. Clockwork Keep's move touched
   `tests/animation/test_animation.py`, `tests/world/test_golden_traces.py` (its trace stays; only
   imports change), `tests/world/test_transition_input.py`, `tests/test_browser_touch_controls.py`
-  and `scripts/audio_glitch_probe.py`. `tests/replay/test_record_scripted_session.py`
-  (`test_every_game_has_a_fixture_location`) uses one game still in the root layout as its
-  example (`tests/fixtures/replays/<console-script>/golden.jsonl.gz`): when that game moves, point
-  it at one not yet moved, and add the moved game to
-  `test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures`.
+  and `scripts/audio_glitch_probe.py`. Add the moved game to
+  `tests/replay/test_record_scripted_session.py::test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures`.
   `tests/engine/test_engine_lifecycle.py` `GAME_CONSOLE_SCRIPTS` lists every game's console script
-  (unchanged by a move, which keeps the script's name). Tests that use a game as their example
-  of the root layout or of the engine's several console scripts (`tests/replay/test_replay_plugin.py`,
-  `tests/replay/test_golden_replays.py`, `tests/test_build_browser_bundle.py`,
-  `tests/test_code_tree.py`) need one still in the root layout too.
-- Paths built with `/` (`REPLAY_FIXTURE_DIRECTORY / '<game>' / ...`) escape the grep below: also
-  grep for `'<console-script>' /` and `/ '<console-script>'`.
+  (unchanged by a move, which keeps the script's name).
+- Every game is a member now (Drawing Fire, the last in the engine's examples, moved), so no
+  game is a root-layout example any more. The root's `fixtures/replays/<console-script>/` layout
+  stays only as the replay plugin's layout for other projects; the tests of it
+  (`tests/replay/test_replay_plugin.py`, `tests/replay/test_golden_replays.py`,
+  `tests/test_code_tree.py`, `tests/test_measure_staged_replays.py`) use stand-ins: a `tmp_path`
+  path, a stand-in installed distribution, a pytester copy. A new game or demo starts as a
+  member; a test that needs a root-layout or several-console-script example writes one.
+- Paths built with `/` (`... / 'fixtures' / 'replays' / '<game>' / ...`) escape the grep below:
+  also grep for `'<console-script>' /` and `/ '<console-script>'`.
 - `git grep` for the old package path and the old golden path across the repository: engine tests
   that borrow a game (a collision test using its sprites), benchmarks reading its golden, scripts
   importing it. Point each at the member, or move the test into the member when it is really the

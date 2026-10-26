@@ -342,12 +342,12 @@ The tests use real pygame on the dummy driver; what is drawn is checked by its p
 
 | File | What it pins |
 |---|---|
-| `src/games/drawing-fire/tests/test_battle.py` | Mustering, walking and sandbags, pistols and cooldowns, bullets (hills, range, no tunnelling, never the shooter's own cover), hits and deaths, sandbags losing sand, sandbag placement, the winner and a draw |
-| `src/games/drawing-fire/tests/test_terrain.py` | Seeded hills over a flat baseline, any screen width, the ground between pixels |
-| `src/games/drawing-fire/tests/test_drivers.py` | The computer driver's rules: targets, stand-offs, cover, sandbags, spacing, held aim, each soldier's own stream |
-| `src/games/drawing-fire/tests/test_players.py` | Keyboard and mouse, and controller, input as intents; dead zones; button edges |
-| `src/games/drawing-fire/tests/test_seats.py` | Joining, choosing a side and a soldier, the highlight, takeovers on death, waiting, leaving, two players |
-| `src/games/drawing-fire/tests/test_swatches.py` | Reading swatch sets and their errors, schemes, shades, recolouring, the frame cache |
-| `src/games/drawing-fire/tests/test_drawing.py` | The pencil look by its pixels: wobble, terrain, sandbags, soldiers in their liveries, bullets, HUD, banner |
-| `src/games/drawing-fire/tests/test_game.py` | The scene: battles, victory (and a draw) and the next battle, players driving soldiers, the seats drawn, the debug seats view, Escape never quitting |
-| `src/games/drawing-fire/tests/test_simulation.py` | `scripts/simulate_drawing_fire.py`'s headless battles |
+| `src/games/drawing-fire/tests/test_drawing_fire_battle.py` | Mustering, walking and sandbags, pistols and cooldowns, bullets (hills, range, no tunnelling, never the shooter's own cover), hits and deaths, sandbags losing sand, sandbag placement, the winner and a draw |
+| `src/games/drawing-fire/tests/test_drawing_fire_terrain.py` | Seeded hills over a flat baseline, any screen width, the ground between pixels |
+| `src/games/drawing-fire/tests/test_drawing_fire_drivers.py` | The computer driver's rules: targets, stand-offs, cover, sandbags, spacing, held aim, each soldier's own stream |
+| `src/games/drawing-fire/tests/test_drawing_fire_players.py` | Keyboard and mouse, and controller, input as intents; dead zones; button edges |
+| `src/games/drawing-fire/tests/test_drawing_fire_seats.py` | Joining, choosing a side and a soldier, the highlight, takeovers on death, waiting, leaving, two players |
+| `src/games/drawing-fire/tests/test_drawing_fire_swatches.py` | Reading swatch sets and their errors, schemes, shades, recolouring, the frame cache |
+| `src/games/drawing-fire/tests/test_drawing_fire_drawing.py` | The pencil look by its pixels: wobble, terrain, sandbags, soldiers in their liveries, bullets, HUD, banner |
+| `src/games/drawing-fire/tests/test_drawing_fire_game.py` | The scene: battles, victory (and a draw) and the next battle, players driving soldiers, the seats drawn, the debug seats view, Escape never quitting |
+| `src/games/drawing-fire/tests/test_drawing_fire_simulation.py` | The headless battles of `python -m scripts.simulate_drawing_fire` (`scripts/simulate_drawing_fire.py`) |

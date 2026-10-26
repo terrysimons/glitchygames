@@ -6,7 +6,7 @@ driver, with no window. One line is printed per seed, then a summary: wins per a
 longest battle. Use it to tune the battle's numbers.
 
 Usage:
-    uv run python scripts/simulate_drawing_fire.py [--seeds N] [--soldiers-per-side N]
+    uv run python -m scripts.simulate_drawing_fire [--seeds N] [--soldiers-per-side N]
 """
 
 from __future__ import annotations
