@@ -8,28 +8,22 @@ including system prompts, training examples, and user requests.
 from __future__ import annotations
 
 import logging
-import sys
 import typing
-from pathlib import Path
 from typing import Any, cast, override
 
 import pygame
 
-# Add the project root to the Python path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-from glitchygames.bitmappy import (  # ruff: ignore[module-import-not-at-top-of-file]
+from bitmappy import (
     AI_MAX_CONTEXT_SIZE,
     AI_MAX_INPUT_TOKENS,
     AI_MODEL,
     load_ai_training_data,
 )
-from glitchygames.bitmappy.constants import ai_training_state  # ruff: ignore[module-import-not-at-top-of-file]
-from glitchygames.engine import GameEngine  # ruff: ignore[module-import-not-at-top-of-file]
-from glitchygames.scenes import Scene  # ruff: ignore[module-import-not-at-top-of-file]
-from glitchygames.sprites import SPRITE_GLYPHS  # ruff: ignore[module-import-not-at-top-of-file]
-from glitchygames.ui import MultiLineTextBox  # ruff: ignore[module-import-not-at-top-of-file]
+from bitmappy.constants import ai_training_state
+from glitchygames.engine import GameEngine
+from glitchygames.scenes import Scene
+from glitchygames.sprites import SPRITE_GLYPHS
+from glitchygames.ui import MultiLineTextBox
 
 if typing.TYPE_CHECKING:
     from glitchygames import events

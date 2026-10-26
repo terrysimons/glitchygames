@@ -1,1 +1,1 @@
-"""The engine's demos, and Bitmappy's resources (every game is its own package in src/games/)."""
+"""The engine's demos (every game is its own package in src/games/, Bitmappy in src/apps/)."""

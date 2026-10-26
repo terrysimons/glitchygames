@@ -7,6 +7,7 @@
     "src/games/clockwork-keep",
     "src/games/paddleslap",
     "src/games/drawing-fire",
+    "src/apps/bitmappy",
     "tests",
     "scripts"
   ],
@@ -67,7 +68,8 @@
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep",
         "src/games/paddleslap",
-        "src/games/drawing-fire"
+        "src/games/drawing-fire",
+        "src/apps/bitmappy"
       ],
       "reportArgumentType": false,
       "reportCallIssue": false,
@@ -102,7 +104,8 @@
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep",
         "src/games/paddleslap",
-        "src/games/drawing-fire"
+        "src/games/drawing-fire",
+        "src/apps/bitmappy"
       ],
       "reportArgumentType": false,
       "reportCallIssue": false,
@@ -141,7 +144,8 @@
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep",
         "src/games/paddleslap",
-        "src/games/drawing-fire"
+        "src/games/drawing-fire",
+        "src/apps/bitmappy"
       ],
       "reportArgumentType": false,
       "reportCallIssue": false,
@@ -180,7 +184,8 @@
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep",
         "src/games/paddleslap",
-        "src/games/drawing-fire"
+        "src/games/drawing-fire",
+        "src/apps/bitmappy"
       ],
       "reportArgumentType": false,
       "reportCallIssue": false,
@@ -219,7 +224,8 @@
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep",
         "src/games/paddleslap",
-        "src/games/drawing-fire"
+        "src/games/drawing-fire",
+        "src/apps/bitmappy"
       ],
       "reportArgumentType": false,
       "reportCallIssue": false,
@@ -258,7 +264,8 @@
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep",
         "src/games/paddleslap",
-        "src/games/drawing-fire"
+        "src/games/drawing-fire",
+        "src/apps/bitmappy"
       ],
       "reportArgumentType": false,
       "reportCallIssue": false,
@@ -286,6 +293,46 @@
     },
     {
       "root": "src/games/drawing-fire",
+      "extraPaths": ["src"]
+    },
+    {
+      "root": "src/apps/bitmappy/tests",
+      "extraPaths": [
+        ".",
+        "src",
+        "src/games/mr-muncher",
+        "src/games/brave-adventurer/src",
+        "src/games/clockwork-keep",
+        "src/games/paddleslap",
+        "src/games/drawing-fire",
+        "src/apps/bitmappy"
+      ],
+      "reportArgumentType": false,
+      "reportCallIssue": false,
+      "reportFunctionMemberAccess": false,
+      "reportGeneralTypeIssues": false,
+      "reportIncompatibleMethodOverride": false,
+      "reportReturnType": false,
+      "reportUnnecessaryTypeIgnoreComment": false,
+      "reportUnknownMemberType": false,
+      "reportUnknownVariableType": false,
+      "reportUnknownArgumentType": false,
+      "reportUnknownParameterType": false,
+      "reportPrivateUsage": false,
+      "reportAttributeAccessIssue": false,
+      "reportOptionalMemberAccess": false,
+      "reportMissingTypeArgument": false,
+      "reportUnusedCallResult": false,
+      "reportImplicitOverride": false,
+      "reportImplicitStringConcatenation": false,
+      "reportMissingParameterType": false,
+      "reportUninitializedInstanceVariable": false,
+      "reportUnknownLambdaType": false,
+      "reportUnusedVariable": false,
+      "reportUnusedFunction": false
+    },
+    {
+      "root": "src/apps/bitmappy",
       "extraPaths": ["src"]
     }
   ]

@@ -41,10 +41,10 @@ a = Analysis(
         ('src/glitchygames/color/resources', 'glitchygames/color/resources'),
         # Editor assets — eraser.toml, raspberry.toml, icons
         ('src/glitchygames/assets', 'glitchygames/assets'),
-        # Editor resources — bitmappy.png icon, bitmappy.cfg
-        ('src/glitchygames/bitmappy/resources', 'glitchygames/bitmappy/resources'),
-        # Sprite examples — AI training data loaded via SPRITE_CONFIG_DIR
-        ('src/glitchygames/examples/resources/sprites', 'glitchygames/examples/resources/sprites'),
+        # Bitmappy's resources — the bitmappy.png icon, bitmappy.cfg, and the sprite library (AI
+        # training data). editor.py and utils.py resolve them via Path(__file__).parent /
+        # 'resources', and a bundled module's __file__ is under _MEIPASS, at bitmappy/
+        ('src/apps/bitmappy/bitmappy/resources', 'bitmappy/resources'),
     ],
     hiddenimports=[
         # Conditionally imported at runtime (inside try/except or function bodies)

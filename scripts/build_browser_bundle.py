@@ -82,8 +82,8 @@ BROWSER_MODULES = ('browser_storage.py', 'browser_clipboard.py', 'browser_user_f
 BROWSER_PAGE_SCRIPTS = ('touch_controls.js',)
 
 # Engine subpackages no game imports: desktop tools only (checked: nothing outside them refers
-# to them, but sprites/animated.py's TOML sprite loading, which no bundled game uses)
-EXCLUDED_SUBPACKAGES = frozenset({'bitmappy', 'api', 'services', 'testing', 'templates'})
+# to them). Bitmappy is a workspace member now, shipped as its own bitmappy.zip
+EXCLUDED_SUBPACKAGES = frozenset({'api', 'services', 'testing', 'templates'})
 # glitchygames/assets PNGs are the window icon (1 MB)
 EXCLUDED_ASSET_SUFFIXES = frozenset({'.png'})
 # Every archive member gets this timestamp, so the same sources make the same archive
@@ -110,7 +110,6 @@ class GameSpecification:
         module: The module holding the game's first scene class.
         scene_class: The scene class GameEngine is constructed with.
         title: The page title.
-        included_subpackages: Subpackages of EXCLUDED_SUBPACKAGES this one needs (Bitmappy).
         member_packages: The import packages of the workspace members holding the game's code,
             the ones depended on first. A game in one package names it (``('mr_muncher',)``);
             a project of layered packages names every one it starts, the shared core first
@@ -124,7 +123,6 @@ class GameSpecification:
     module: str
     scene_class: str
     title: str
-    included_subpackages: frozenset[str] = frozenset()
     member_packages: tuple[str, ...] = ()
 
 
@@ -288,12 +286,12 @@ GAMES: dict[str, GameSpecification] = {
         member_packages=('drawing_fire',),
     ),
     # The pixel-art editor: its AI sprite generation is off in browser builds (the
-    # glitchygames.bitmappy.constants.AI_FEATURES_ENABLED feature flag)
+    # bitmappy.constants.AI_FEATURES_ENABLED feature flag)
     'bitmappy': GameSpecification(
-        module='glitchygames.bitmappy.editor',
+        module='bitmappy.editor',
         scene_class='BitmapEditorScene',
         title='Bitmappy',
-        included_subpackages=frozenset({'bitmappy'}),
+        member_packages=('bitmappy',),
     ),
 }
 
@@ -558,7 +556,7 @@ def write_bundle(
     file_count = write_engine_archive(
         package_directory=PACKAGE_DIRECTORY,
         archive_path=output_directory / 'glitchygames.zip',
-        excluded_subpackages=EXCLUDED_SUBPACKAGES - GAMES[game].included_subpackages,
+        excluded_subpackages=EXCLUDED_SUBPACKAGES,
         engine_version=installed_engine_version(),
     )
     for member_package in GAMES[game].member_packages:

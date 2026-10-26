@@ -21,6 +21,8 @@ from tests.ast_scanning import import_bindings, scanned_source_files
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BITMAPPY_PACKAGE = 'glitchygames.bitmappy'
+# Bitmappy's package since it became a workspace member (src/apps/bitmappy)
+BITMAPPY_MEMBER_PACKAGE = 'bitmappy'
 # The sprite library's path inside the engine, which Bitmappy owns
 BITMAPPY_SPRITE_PATH_SEGMENTS = "'examples', 'resources', 'sprites'"
 MEMBERS = workspace_members(project_root=PROJECT_ROOT)
@@ -317,8 +319,30 @@ def test_the_real_pyright_configuration_parses():
     ]
 
 
+def absolute_imported_module_names(*, tree: ast.Module) -> list[str]:
+    """List the modules a module imports absolutely, in walk order (relative imports left out).
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        Each ``import`` alias's module and each absolute ``from ... import``'s module.
+
+    """
+    module_names: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            module_names.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module is not None:
+            module_names.append(node.module)
+    return module_names
+
+
 def engine_files_pointing_into_bitmappy(*, project_root: Path) -> list[str]:
     """List the engine files (outside bitmappy/) that import Bitmappy or name its sprite path.
+
+    Bitmappy is imported as ``glitchygames.bitmappy`` (where it was) or as the member's own
+    top-level ``bitmappy`` (where it is): both are offences.
 
     Args:
         project_root: The repository.
@@ -349,6 +373,12 @@ def engine_files_pointing_into_bitmappy(*, project_root: Path) -> list[str]:
             for alias in node.names
             if alias.name.startswith(BITMAPPY_PACKAGE)
         )
+        # The member's package, in any spelling (`from bitmappy.editor import ...` too)
+        offences.extend(
+            f'{key}: imports {module_name}'
+            for module_name in absolute_imported_module_names(tree=tree)
+            if module_name.split('.')[0] == BITMAPPY_MEMBER_PACKAGE
+        )
         if BITMAPPY_SPRITE_PATH_SEGMENTS in source:
             offences.append(f'{key}: names the sprite path {BITMAPPY_SPRITE_PATH_SEGMENTS}')
     return offences
@@ -368,6 +398,10 @@ def test_the_engine_outside_bitmappy_points_nowhere_into_it():
         ),
         ('from glitchygames import bitmappy\n', 'imports glitchygames.bitmappy'),
         ('import glitchygames.bitmappy.utils\n', 'imports glitchygames.bitmappy.utils'),
+        ('import bitmappy\n', 'imports bitmappy'),
+        ('import bitmappy.utils\n', 'imports bitmappy.utils'),
+        ('from bitmappy import main\n', 'imports bitmappy'),
+        ('from bitmappy.editor import BitmapEditorScene\n', 'imports bitmappy.editor'),
         (
             "PATH = ('examples', 'resources', 'sprites')\n",
             "names the sprite path 'examples', 'resources', 'sprites'",
@@ -375,7 +409,10 @@ def test_the_engine_outside_bitmappy_points_nowhere_into_it():
     ],
 )
 def test_the_guard_finds_each_way_to_point_into_bitmappy(tmp_path, source, expected_offence):
-    """The guard reports an import (three spellings) and the sprite path, and spares bitmappy/."""
+    """The guard reports an import (each spelling, either package) and the sprite path.
+
+    It spares bitmappy/ (where the package was, inside the engine).
+    """
     engine_directory = tmp_path / 'src' / 'glitchygames'
     (engine_directory / 'bitmappy').mkdir(parents=True)
     (engine_directory / 'bitmappy' / 'inside.py').write_text(source, encoding='utf-8')

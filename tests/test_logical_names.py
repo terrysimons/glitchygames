@@ -81,6 +81,7 @@ def test_every_example_demo_and_member_has_a_layer():
         'clockwork_keep': 'games',
         'paddleslap': 'games',
         'drawing_fire': 'games',
+        'bitmappy': 'apps',
     }
 
 

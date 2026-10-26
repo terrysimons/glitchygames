@@ -12,8 +12,8 @@ Four layers, all under `src/`:
 
 ```
 src/
-  glitchygames/        the engine (distribution glitchygames); examples/ holds the demos and
-                       Bitmappy's resources, which have not moved yet
+  glitchygames/        the engine (distribution glitchygames); examples/ holds the demos,
+                       which have not moved yet
   games/<game>/        one member per game: every game (mr-muncher, clockwork-keep,
                        brave-adventurer, paddleslap, drawing-fire)
   demos/<demo>/        one member per demo

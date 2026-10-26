@@ -33,7 +33,6 @@ dependencies = [
   "miniaudio",
   "speechrecognition",
   "bokeh",
-  "tenacity>=9.1",
   "fastapi",
   "uvicorn",
   "pydantic",
@@ -50,7 +49,6 @@ dependencies = [
 "Repository" = "https://github.com/terrysimons/glitchygames"
 
 [project.scripts]
-bitmappy = "glitchygames.bitmappy:main"
 glitchygames-server = "glitchygames.api.main:run"
 glitchygames-client = "glitchygames.api.client:run"
 
@@ -100,7 +98,7 @@ api = []
 # `pip install glitchygames[games]` installs the engine and every game. Each member depends on
 # glitchygames, so these are a cycle through an extra, which pip and uv both resolve. Kept equal
 # to the workspace by tests/test_workspace_config.py; an empty layer is an empty extra until its
-# first member moves (demos: Part 3, apps: Part 4)
+# first member moves (demos: Part 3)
 games = [
   "mr-muncher",
   "brave-adventurer",
@@ -109,7 +107,7 @@ games = [
   "drawing-fire",
 ]
 demos = []
-apps = []
+apps = ["bitmappy"]
 
 [tool.uv.workspace]
 # Each a package of its own beside the engine, under src/<layer>/
@@ -120,6 +118,7 @@ members = [
   "src/games/clockwork-keep",
   "src/games/paddleslap",
   "src/games/drawing-fire",
+  "src/apps/bitmappy",
 ]
 
 [tool.uv.sources]
@@ -129,6 +128,7 @@ brave-adventurer = { workspace = true }
 clockwork-keep = { workspace = true }
 paddleslap = { workspace = true }
 drawing-fire = { workspace = true }
+bitmappy = { workspace = true }
 
 [dependency-groups]
 # Every workspace member: `uv sync` installs the dev group and is exact, so without the members
@@ -141,6 +141,7 @@ dev = [
   "clockwork-keep",
   "paddleslap",
   "drawing-fire",
+  "bitmappy",
 ]
 
 [tool.hatch.build]
@@ -161,6 +162,7 @@ testpaths = [
   "src/games/clockwork-keep/tests",
   "src/games/paddleslap/tests",
   "src/games/drawing-fire/tests",
+  "src/apps/bitmappy/tests",
 ]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
@@ -176,7 +178,7 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "-n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "-n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
@@ -199,6 +201,7 @@ source = [
   "clockwork_keep",
   "paddleslap",
   "drawing_fire",
+  "bitmappy",
 ]
 branch = true
 parallel = true
@@ -240,6 +243,7 @@ drawing_fire = [
   "src/games/drawing-fire/drawing_fire",
   "*/site-packages/drawing_fire",
 ]
+bitmappy = ["src/apps/bitmappy/bitmappy", "*/site-packages/bitmappy"]
 
 [tool.coverage.report]
 show_missing = true
@@ -277,6 +281,8 @@ src = [
   "src/games/clockwork-keep",
   "src/games/paddleslap",
   "src/games/drawing-fire",
+  "src/apps/bitmappy",
+  "src/apps/bitmappy/tests",
 ]
 include = [
   "src/glitchygames/*.py",
@@ -285,6 +291,7 @@ include = [
   "src/games/clockwork-keep/**/*.py",
   "src/games/paddleslap/**/*.py",
   "src/games/drawing-fire/**/*.py",
+  "src/apps/bitmappy/**/*.py",
   "tests/**/*.py",
   "scripts/**/*.py",
   "noxfile.py",
@@ -298,6 +305,7 @@ namespace-packages = [
   "src/games/clockwork-keep/tests",
   "src/games/paddleslap/tests",
   "src/games/drawing-fire/tests",
+  "src/apps/bitmappy/tests",
 ]
 
 [tool.ruff.lint]
@@ -345,6 +353,26 @@ fixable = ["ALL"]
 ]
 # Workspace members' tests get the same relaxations as tests/ (one glob per layer)
 "src/games/*/tests/**/*.py" = [
+  "PLR2004",
+  "ANN",
+  "ARG001",
+  "ARG005",
+  "PLC2701",
+  "PLC2801", # Tests may call dunder methods directly to verify they work
+  "D102",    # Test method names are self-documenting
+  "DOC201",  # Test helper return docs unnecessary
+  "RET504",  # Explicit assignment before return aids test readability
+  "F841",
+  "B007",
+  "S101",
+  "PT018",   # Compound assertions are acceptable in tests
+  "RUF069",  # Exact float comparisons are intentional in property-based tests
+  "B905",    # zip() without strict= is fine in tests
+  "B002",    # False positive on double-negation test: -(-speed)
+  "ARG002",  # Pytest fixtures are activated by parameter presence, not by direct use
+  "S311",    # Tests build seeded random.Random instances for reproducible inputs
+]
+"src/apps/*/tests/**/*.py" = [
   "PLR2004",
   "ANN",
   "ARG001",
@@ -467,6 +495,7 @@ known-first-party = [
   "clockwork_keep",
   "paddleslap",
   "drawing_fire",
+  "bitmappy",
 ]
 
 ## basedpyright config lives in pyrightconfig.json (supports per-environment overrides)
@@ -483,6 +512,7 @@ root = [
   "src/games/clockwork-keep",
   "src/games/paddleslap",
   "src/games/drawing-fire",
+  "src/apps/bitmappy",
 ]
 extra-paths = ["scripts"]
 
@@ -494,11 +524,12 @@ include = [
   "src/games/clockwork-keep",
   "src/games/paddleslap",
   "src/games/drawing-fire",
+  "src/apps/bitmappy",
   "scripts",
 ]
 # Tests excluded: ty doesn't understand pytest-mock's mocker.patch semantics,
 # generating hundreds of false positives on mock attribute access and assignments.
-exclude = ["tests", "src/games/*/tests", ".venv", ".nox"]
+exclude = ["tests", "src/games/*/tests", "src/apps/*/tests", ".venv", ".nox"]
 
 [tool.ty.rules]
 # type: ignore comments are shared with basedpyright — don't flag them as unused
@@ -522,8 +553,8 @@ confidence = "medium"
 package_module_name_map = { "pygame-ce" = "pygame" }
 # Not this package's code: the pygame-ce submodule (its own project), browser/, which runs
 # in Pyodide on its runtime modules (js, pyodide) and its own files, and the workspace members
-# under src/games (projects of their own, each declaring its dependencies)
-extend_exclude = ["third_party", "browser", "src/games"]
+# under src/games and src/apps (projects of their own, each declaring its dependencies)
+extend_exclude = ["third_party", "browser", "src/games", "src/apps"]
 # The engine's own package, under src/, and the workspace members' packages scripts/ imports
 # (deptry guesses first-party modules from the root's direct children only)
 known_first_party = [
@@ -536,6 +567,7 @@ known_first_party = [
   "clockwork_keep",
   "paddleslap",
   "drawing_fire",
+  "bitmappy",
 ]
 
 [tool.deptry.per_rule_ignores]

@@ -263,7 +263,7 @@ leaves them out.
 
 #### Bitmappy v1.0 Options
 
-Added by `BitmapEditorScene.args()` in `src/glitchygames/bitmappy/editor.py`; the heading is
+Added by `BitmapEditorScene.args()` in `src/apps/bitmappy/bitmappy/editor.py`; the heading is
 `<NAME> v<VERSION> Options`.
 
 - `-v, --version` (`store_true`, default `False`): print the game version and exit

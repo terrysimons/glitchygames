@@ -254,8 +254,8 @@ print(SpriteGenerationPrompt.FORMAT_SPEC)
 See [INTEGRATION.md](INTEGRATION.md) for detailed integration guide.
 
 **Where it is used:**
-- `AIManager.on_text_submit_event()` (`glitchygames/bitmappy/ai_manager.py`) builds refinement messages when the canvas holds a sprite to refine, else generation messages (`max_examples=3`); responses go through `clean_ai_response` and `validate_ai_response`
-- `glitchygames/bitmappy/ai_worker.py` (the AI worker process) uses `get_sprite_size_hint`
+- `AIManager.on_text_submit_event()` (`src/apps/bitmappy/bitmappy/ai_manager.py`) builds refinement messages when the canvas holds a sprite to refine, else generation messages (`max_examples=3`); responses go through `clean_ai_response` and `validate_ai_response`
+- `src/apps/bitmappy/bitmappy/ai_worker.py` (the AI worker process) uses `get_sprite_size_hint`
 - `SpriteGenerationService` (`glitchygames/services/sprite_generation_service.py`, used by the API server) builds, cleans and validates the same way
 
 ## Testing

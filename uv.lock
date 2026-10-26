@@ -10,6 +10,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "bitmappy",
     "brave-adventurer",
     "clockwork-keep",
     "drawing-fire",
@@ -293,6 +294,29 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/86/72/4755b85101f37707c71526a301c1203e413c715a0016ecb592de3d2dcfff/binaryornot-0.6.0.tar.gz", hash = "sha256:cc8d57cfa71d74ff8c28a7726734d53a851d02fad9e3a5581fb807f989f702f0", size = 478718, upload-time = "2026-03-08T16:26:28.804Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cd/0c/31cfaa6b56fe23488ecb993bc9fc526c0d84d89607decdf2a10776426c2e/binaryornot-0.6.0-py3-none-any.whl", hash = "sha256:900adfd5e1b821255ba7e63139b0396b14c88b9286e74e03b6f51e0200331337", size = 14185, upload-time = "2026-03-08T16:26:27.466Z" },
+]
+
+[[package]]
+name = "bitmappy"
+version = "1.0.0"
+source = { editable = "src/apps/bitmappy" }
+dependencies = [
+    { name = "aisuite", extra = ["anthropic", "aws", "cerebras", "cohere", "deepgram", "deepseek", "gemini", "groq", "lmstudio", "mcp", "mistral", "ollama", "openai", "postgres", "watsonx"] },
+    { name = "glitchygames" },
+    { name = "numpy" },
+    { name = "pydantic" },
+    { name = "pygame-ce" },
+    { name = "tenacity" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aisuite", extras = ["anthropic", "aws", "cerebras", "cohere", "deepgram", "deepseek", "gemini", "groq", "lmstudio", "mcp", "mistral", "ollama", "openai", "postgres", "watsonx"], specifier = ">=0.1.14" },
+    { name = "glitchygames", editable = "." },
+    { name = "numpy" },
+    { name = "pydantic" },
+    { name = "pygame-ce" },
+    { name = "tenacity", specifier = ">=9.1" },
 ]
 
 [[package]]
@@ -1082,12 +1106,14 @@ dependencies = [
     { name = "pygame-ce" },
     { name = "pyperclip" },
     { name = "speechrecognition" },
-    { name = "tenacity" },
     { name = "tomli-w" },
     { name = "uvicorn" },
 ]
 
 [package.optional-dependencies]
+apps = [
+    { name = "bitmappy" },
+]
 dev = [
     { name = "bandit" },
     { name = "basedpyright" },
@@ -1135,6 +1161,7 @@ games = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "bitmappy" },
     { name = "brave-adventurer" },
     { name = "clockwork-keep" },
     { name = "drawing-fire" },
@@ -1148,6 +1175,7 @@ requires-dist = [
     { name = "apng" },
     { name = "bandit", marker = "extra == 'dev'" },
     { name = "basedpyright", marker = "extra == 'dev'" },
+    { name = "bitmappy", marker = "extra == 'apps'", editable = "src/apps/bitmappy" },
     { name = "bokeh" },
     { name = "brave-adventurer", marker = "extra == 'games'", editable = "src/games/brave-adventurer" },
     { name = "clockwork-keep", marker = "extra == 'games'", editable = "src/games/clockwork-keep" },
@@ -1192,7 +1220,6 @@ requires-dist = [
     { name = "safety", marker = "extra == 'dev'" },
     { name = "speechrecognition" },
     { name = "taplo", marker = "extra == 'dev'", specifier = ">=0.9.3" },
-    { name = "tenacity", specifier = ">=9.1" },
     { name = "tomli-w" },
     { name = "ty", marker = "extra == 'dev'" },
     { name = "uvicorn" },
@@ -1204,6 +1231,7 @@ provides-extras = ["docs", "dev", "api", "games", "demos", "apps"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "bitmappy", editable = "src/apps/bitmappy" },
     { name = "brave-adventurer", editable = "src/games/brave-adventurer" },
     { name = "clockwork-keep", editable = "src/games/clockwork-keep" },
     { name = "drawing-fire", editable = "src/games/drawing-fire" },

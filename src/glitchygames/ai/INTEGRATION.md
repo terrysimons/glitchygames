@@ -150,8 +150,8 @@ is_animated = detect_animation_request("animated walking character")
 
 ## Integration Points
 
-All AI code in Bitmappy lives in `glitchygames/bitmappy/ai_manager.py` (`AIManager`, in the editor
-process) and `glitchygames/bitmappy/ai_worker.py` (the worker process that calls aisuite).
+All AI code in Bitmappy lives in `src/apps/bitmappy/bitmappy/ai_manager.py` (`AIManager`, in the editor
+process) and `src/apps/bitmappy/bitmappy/ai_worker.py` (the worker process that calls aisuite).
 
 | Step | Where |
 |------|-------|
@@ -172,7 +172,7 @@ server) builds, cleans and validates through the same functions.
 pytest tests/ai/test_sprite_generator.py -v
 
 # Test the Bitmappy integration
-pytest tests/tools/test_ai_manager.py tests/tools/test_ai_worker.py tests/tools/test_bitmappy_ai_strip_integration.py -v
+pytest src/apps/bitmappy/tests/test_bitmappy_ai_manager.py src/apps/bitmappy/tests/test_bitmappy_ai_worker.py src/apps/bitmappy/tests/test_bitmappy_ai_strip_integration.py -v
 ```
 
 ## Performance Improvements

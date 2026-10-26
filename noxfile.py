@@ -27,6 +27,7 @@ _CODE_DIRS = [
     'src/games/clockwork-keep',
     'src/games/paddleslap',
     'src/games/drawing-fire',
+    'src/apps/bitmappy',
     'scripts',
     'tests',
 ]
@@ -41,6 +42,7 @@ _SOURCE_PACKAGE_DIRS = [
     'src/games/clockwork-keep/clockwork_keep',
     'src/games/paddleslap/paddleslap',
     'src/games/drawing-fire/drawing_fire',
+    'src/apps/bitmappy/bitmappy',
 ]
 # The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
 # through scripts/workspace_packages.py: CI runs nox through uvx, whose interpreter has neither
@@ -51,6 +53,7 @@ _MEMBER_DISTRIBUTIONS = [
     'clockwork-keep',
     'paddleslap',
     'drawing-fire',
+    'bitmappy',
 ]
 
 

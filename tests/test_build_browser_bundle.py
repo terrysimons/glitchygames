@@ -62,7 +62,6 @@ def make_package(root: Path) -> Path:
         'fonts/bitstream_vera/Vera.ttf': 'font',
         'assets/glitch.png': 'png',
         'assets/eraser.toml': 'toml',
-        'bitmappy/editor.py': 'EDITOR = 1\n',
         'api/main.py': 'API = 1\n',
         'examples/paddleslap.py': 'GAME = 1\n',
     }.items():
@@ -85,7 +84,6 @@ class TestPackageSelection:
             ('examples/paddleslap.py', True),
             ('engine/__pycache__/game_engine.cpython-314.pyc', False),
             ('assets/glitch.png', False),
-            ('bitmappy/editor.py', False),
             ('api/main.py', False),
             ('services/renderer_service.py', False),
             ('testing/frame_fingerprints.py', False),
@@ -121,7 +119,7 @@ class TestEngineArchive:
             assert archive.read('glitchygames/engine/game_engine.py') == b'ENGINE = 1\n'
         assert count == 5
         assert names[0] == 'glitchygames/__init__.py'
-        assert 'glitchygames/bitmappy/editor.py' not in names
+        assert 'glitchygames/api/main.py' not in names
 
     def test_the_engine_version_is_readable_where_the_archive_is_unpacked(self, tmp_path):
         """Unpacked (not installed), the engine still knows its version: a replay checks it."""
@@ -212,12 +210,14 @@ class TestGeneratedFiles:
         assert GAMES['clockwork-keep'].member_packages == ('clockwork_keep',)
         assert GAMES['paddleslap'].member_packages == ('paddleslap',)
         assert GAMES['drawing-fire'].member_packages == ('drawing_fire',)
+        assert GAMES['bitmappy'].member_packages == ('bitmappy',)
         assert [name for name, game in GAMES.items() if game.member_packages] == [
             'paddleslap',
             'brave-adventurer',
             'clockwork-keep',
             'mr-muncher',
             'drawing-fire',
+            'bitmappy',
         ]
 
     def test_brave_adventurer_starts_its_title_screen_with_both_games(self):
@@ -379,7 +379,7 @@ class TestMain:
         with zipfile.ZipFile(output / 'glitchygames.zip') as archive:
             names = set(archive.namelist())
         assert 'glitchygames/host.py' in names
-        assert not any(name.startswith('glitchygames/bitmappy/') for name in names)
+        assert not any(name.startswith('glitchygames/api/') for name in names)
 
     def test_all_writes_every_game_and_a_page_linking_them(self, tmp_path):
         """The site published with the docs (play/): one bundle per game, and an index."""
@@ -407,19 +407,25 @@ class TestMain:
         assert 'a game command line needs one game' in capsys.readouterr().err
 
     def test_only_the_bitmappy_bundle_holds_the_editor(self, tmp_path):
-        """Bitmappy's bundle includes its package; a game's leaves it out."""
+        """Bitmappy's bundle ships its package as bitmappy.zip; no engine archive holds it."""
         wheel = tmp_path / WHEEL_NAME
         wheel.write_bytes(b'wheel')
 
-        archives = {}
+        engine_archives = {}
         for game in ('bitmappy', 'paddleslap'):
             main([game, '--wheel', str(wheel), '--output', str(tmp_path / game)])
             with zipfile.ZipFile(tmp_path / game / 'glitchygames.zip') as archive:
-                archives[game] = set(archive.namelist())
+                engine_archives[game] = set(archive.namelist())
+        with zipfile.ZipFile(tmp_path / 'bitmappy' / 'bitmappy.zip') as archive:
+            bitmappy_names = set(archive.namelist())
 
-        assert 'glitchygames/bitmappy/editor.py' in archives['bitmappy']
-        assert 'glitchygames/bitmappy/editor.py' not in archives['paddleslap']
-        assert not any(name.startswith('glitchygames/api/') for name in archives['bitmappy'])
+        assert 'bitmappy/editor.py' in bitmappy_names
+        assert not (tmp_path / 'paddleslap' / 'bitmappy.zip').exists()
+        for engine_names in engine_archives.values():
+            assert not any(
+                name.startswith(('bitmappy/', 'glitchygames/bitmappy/')) for name in engine_names
+            )
+        assert not any(name.startswith('glitchygames/api/') for name in engine_archives['bitmappy'])
 
     def test_a_member_games_bundle_holds_its_package_apart_from_the_engine(self, tmp_path):
         wheel = tmp_path / WHEEL_NAME
@@ -436,14 +442,18 @@ class TestMain:
         assert not any(name.startswith('mr_muncher/') for name in engine_names)
         assert '"./mr_muncher.zip" = "./*"' in (tmp_path / 'muncher' / 'pyscript.toml').read_text()
 
-    def test_an_app_of_the_engine_has_no_member_archive(self, tmp_path):
-        """Every game is a member now; Bitmappy, still in the engine, ships the engine alone."""
+    def test_bitmappys_bundle_ships_the_engine_and_its_app_package(self, tmp_path):
+        """Bitmappy is a member of the apps layer: it ships glitchygames.zip and bitmappy.zip."""
         wheel = tmp_path / WHEEL_NAME
         wheel.write_bytes(b'wheel')
 
         main(['bitmappy', '--wheel', str(wheel), '--output', str(tmp_path / 'bitmappy')])
 
-        assert [path.name for path in (tmp_path / 'bitmappy').glob('*.zip')] == ['glitchygames.zip']
+        assert sorted(path.name for path in (tmp_path / 'bitmappy').glob('*.zip')) == [
+            'bitmappy.zip',
+            'glitchygames.zip',
+        ]
+        assert '"./bitmappy.zip" = "./*"' in (tmp_path / 'bitmappy' / 'pyscript.toml').read_text()
 
     def test_drawing_fires_bundle_ships_its_sprite_in_its_package(self, tmp_path):
         """The soldier sprite is package data: it ships in drawing_fire.zip, not the engine's."""

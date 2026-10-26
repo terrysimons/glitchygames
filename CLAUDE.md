@@ -173,8 +173,8 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 ### Example Games
 Every game is its own workspace package under `src/games/` (Part 2 of
 plans/2026-10-24-workspace-packages.md; the recipe is docs/architecture/game_packages.md), with
-its code, tests and golden replay; `src/glitchygames/examples/` keeps only the three demos and
-Bitmappy's resources. `uv run paddleslap` (its own workspace package `src/games/paddleslap/`, one module: `Game` is
+its code, tests and golden replay; `src/glitchygames/examples/` keeps only the three demos
+(Bitmappy is its own package, `src/apps/bitmappy/`). `uv run paddleslap` (its own workspace package `src/games/paddleslap/`, one module: `Game` is
 defined in `paddleslap/__init__.py`), `brave-adventurer` (one project holding both editions, Classic and Papyrus,
 `src/games/brave-adventurer/`: four import packages, `brave_adventurer_core` (what both share),
 `brave_adventurer` (Classic), `brave_adventurer_papyrus` and the launcher `brave_adventurer_modes`,
@@ -963,7 +963,7 @@ Dialogs: `LoadDialogScene`, `SaveDialogScene`, `NewCanvasDialogScene`
 
 **Focus Model**: Focusable sprites intercept keyboard input via `active` attribute
 
-### Bitmappy Pixel Art Editor (`src/glitchygames/bitmappy/`)
+### Bitmappy Pixel Art Editor (`src/apps/bitmappy/bitmappy/`)
 
 Features:
 - Canvas-based pixel editing with undo/redo (`UndoRedoManager`)
