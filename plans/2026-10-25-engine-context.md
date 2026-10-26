@@ -1,12 +1,13 @@
 # Engine Context (master plan)
 
 Status: IN PROGRESS. Sub-plan 1 (State) implemented on feature/engine-context-state
-(commits 9d3a162e..faa2c616 and the documentation commit), verification in its Task 10. Sub-plan 1 has a full implementation plan; sub-plans 2-8 are one line each below and
-get their plans when each starts, written against how the one before turned out. Execution is
-subagent-driven (superpowers:subagent-driven-development), for every sub-plan. When this file
-is committed, the controller adds it to `LIVING_PLAN_FILES` in `tests/test_suite_collection.py`
-(it passes the living-documentation path guard); the sub-plans stay off that list (they quote
-existing docstrings exactly).
+(commits 9d3a162e^..faa2c616 and the documentation commit), verification in its Task 10.
+Sub-plan 1 has a full implementation plan; sub-plans 2-8 are one line each below and get
+their plans when each starts, written against how the one before turned out. Execution is
+subagent-driven (superpowers:subagent-driven-development), for every sub-plan. This file is
+listed in `LIVING_PLAN_FILES` in `tests/test_suite_collection.py` (it passes the
+living-documentation path guard); the sub-plans stay off that list (they quote existing
+docstrings exactly).
 
 
 Spec: [the Arcade master spec](2026-10-23-arcade-showcase.md), its sub-plan 1 ("Engine context

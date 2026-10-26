@@ -2,12 +2,19 @@
 
 An engine context is the state one running game owns, so several games can run in one process
 (the Arcade's demo tiles; design: `plans/2026-10-25-engine-context.md`). Ordinary games never
-create one: they run in the default context, exactly as before.
+create one: they run in the default context, exactly as before. Only the six slots below are
+per context today; the rest of the process-wide state (`GameEngine` and its `OPTIONS`,
+`SceneManager.OPTIONS`, `FontManager`, `ResourceManager`, the event managers and the other rows
+of the audit in `plans/2026-10-25-engine-context.md`) is still shared and belongs to later
+sub-plans. The engine does not switch contexts yet: nothing in `src/` calls `.active()`, only
+tests do.
 
 ## Rules
 
 1. Per-context state is a `ContextSlot` (`src/glitchygames/engine_context.py`), declared once at
-   module level with a unique dotted name and a factory.
+   module level with a unique dotted name and a factory. `ContextSlot` is internal to the
+   engine: only engine modules declare slots, and games keep their state on their scenes. The
+   tests' `COUNTER_SLOT` exists only to test the class.
 2. Code reads a slot when it needs it, `current_context().value(slot=...)`, never as its module
    is imported: the test suite scans the engine and every workspace member for such reads.
 3. A context makes each value with the slot's factory the first time it is read there.
@@ -16,7 +23,8 @@ create one: they run in the default context, exactly as before.
 5. `with context.active():` makes a context current and puts the previous one back when the
    block ends, also by an exception; switches nest. An asyncio task made inside a switch keeps
    it, a switch held across an `await` is never seen by another task, and a thread sees it only
-   when started with `context=contextvars.copy_context()`.
+   when started with `context=contextvars.copy_context()` (or on an interpreter whose
+   `sys.flags.thread_inherit_context` is set, such as free-threaded 3.14 builds).
 6. A context owns only what its slots hold. The display, the mixer, SDL's event queue and the
    joystick subsystem are one per process.
 

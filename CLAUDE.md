@@ -769,17 +769,26 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 **Engine Context** (`src/glitchygames/engine_context.py`; design `plans/2026-10-25-engine-context.md`)
 - The state one running game owns, so several games can run in one process (the Arcade's demo
   tiles). Ordinary games never create one and run in the default context
-  (`default_context()`), exactly as before
+  (`default_context()`), exactly as before. Only the slots below are per context today; the rest
+  of the process-wide state (`GameEngine` and its `OPTIONS`, `SceneManager.OPTIONS`,
+  `FontManager`, `ResourceManager`, the event managers, other audit rows) is later sub-plans,
+  and the engine does not switch contexts yet (nothing in `src/` calls `.active()`; tests do)
 - Per-context state is a `ContextSlot(name=..., factory=...)` declared once at module level in
   the module that owns it; code reads `current_context().value(slot=...)` when it needs it,
-  never at import (`tests/test_engine_context.py` scans the engine and every member)
+  never at import (`tests/test_engine_context.py` scans the engine and every member).
+  `ContextSlot` is internal to the engine: engine modules declare slots, games keep state on
+  their scenes (the tests' `COUNTER_SLOT` only tests the class)
 - `with context.active():` switches (a `contextvars.ContextVar`: per thread and asyncio task;
   nests; restores on exceptions). Slots today: the default snap mode, the default background,
   the polled input, the random streams, the doors with the frame clock and observers, and the
   `SceneManager` singleton; each has an isolation check in `tests/test_engine_context.py`
   (`ISOLATION_CHECKS`), and a slot without one fails the suite
 - The harness fails a test that leaves another context current
-  (`every_test_ends_in_the_default_engine_context`)
+  (`every_test_ends_in_the_default_engine_context`). A new autouse fixture that resets engine
+  state must join a group (`per_context_state_resets` or `engine_service_resets` in
+  `tests/harness.py`) that the leak check requests, or be listed in
+  `PROCESS_STATE_AUTOUSE_FIXTURES` (`tests/test_engine_context.py`) with its reason; a guard
+  test enforces it
 
 **Source revision** (`src/glitchygames/build_info.py`, the contract): `source_revision()` names the
 engine's commit and how it is known, first answer wins: a git checkout (git: HEAD, its date,
