@@ -8,6 +8,7 @@ for various operations like saving, loading, and creating new files.
 from __future__ import annotations
 
 import logging
+import string
 import sys
 from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING, Any, Self, override
@@ -31,7 +32,37 @@ LOG.addHandler(logging.NullHandler())
 WINDOWS_PLATFORMS = frozenset({'win32', 'cygwin'})
 MACOS_PLATFORM = 'darwin'
 
+# A letter drive is the letter and its ':'; the extended and device forms put a prefix before it
+LETTER_DRIVE_LENGTH = 2
+EXTENDED_DRIVE_PREFIXES = ('\\\\?\\', '\\\\.\\')
+
 _EXAMPLES_PREFIX_HINT = "The 'examples:' prefix was removed: type the sprite's path instead."
+
+
+def _is_letter_drive(drive: str) -> bool:
+    r"""Say whether a PureWindowsPath drive is a drive letter and nothing else.
+
+    That is 'C:' (also the drive of 'C:a' and 'C:/a'), or the extended or device form '\\?\C:'
+    or '\\.\C:', with the letter in either case. A UNC drive ('\\server\share', or
+    '\\?\UNC\server\share') is not one, even when its share name ends in ':'.
+
+    Args:
+        drive: The ``drive`` of a ``PureWindowsPath``
+
+    Returns:
+        bool: True when the drive is exactly a letter drive
+
+    """
+    letter_and_colon = drive
+    for extended_prefix in EXTENDED_DRIVE_PREFIXES:
+        if drive.startswith(extended_prefix):
+            letter_and_colon = drive[len(extended_prefix) :]
+            break
+    return (
+        len(letter_and_colon) == LETTER_DRIVE_LENGTH
+        and letter_and_colon[0] in string.ascii_letters
+        and letter_and_colon[1] == ':'
+    )
 
 
 def _file_name_problem(filename: str, *, platform: str = sys.platform) -> str | None:
@@ -59,10 +90,10 @@ def _file_name_problem(filename: str, *, platform: str = sys.platform) -> str | 
     """
     if platform in WINDOWS_PLATFORMS:
         # PureWindowsPath splits off the drive: 'C:' for 'C:\a', 'C:/a' and 'C:a', and
-        # '\\?\C:' for an extended path. A UNC drive ('\\server\share') is left in the
-        # remainder, where a ':' is refused too.
+        # '\\?\C:' for an extended path. Any other drive (UNC, '\\?\UNC\server\share') is no
+        # drive designator: it stays in the remainder, where a ':' is refused too.
         drive = PureWindowsPath(filename).drive
-        remainder = filename[len(drive) :] if drive.endswith(':') else filename
+        remainder = filename[len(drive) :] if _is_letter_drive(drive) else filename
         if ':' not in remainder:
             return None
         return (

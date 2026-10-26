@@ -440,6 +440,10 @@ class TestFileNameProblem:
             '\\\\server\\share\\a.toml',
             'a.toml',
             'sprites\\a.toml',
+            'C:',
+            'C:\\',
+            '\\\\.\\C:\\x.toml',
+            '\\\\?\\UNC\\server\\share\\x.toml',
         ],
     )
     @pytest.mark.parametrize('platform', ['win32', 'cygwin'])
@@ -456,11 +460,14 @@ class TestFileNameProblem:
             'C:a:b.toml',
             'ab:foo.toml',
             ':foo.toml',
+            '\\\\server\\sh:\\a.toml',
+            '\\\\?\\UNC\\server\\sh:\\a.toml',
         ],
     )
-    def test_windows_refuses_any_other_colon(self, filename):
+    @pytest.mark.parametrize('platform', ['win32', 'cygwin'])
+    def test_windows_refuses_any_other_colon(self, filename, platform):
         """A ':' outside the drive would name an NTFS alternate data stream."""
-        problem = _file_name_problem(filename, platform='win32')
+        problem = _file_name_problem(filename, platform=platform)
 
         assert problem is not None
         assert "':' is only allowed after a drive letter" in problem

@@ -37,8 +37,7 @@ replay, which names the remedy; `--replay-trace OLD --rebaseline NEW --headless`
   | Linux and others | Allowed |
   | Browser (`emscripten`) | Allowed (Save is a download; the browser sanitizes the name) |
 
-  Load is unchanged (a missing name is reported as
-  "File not found").
+  Load is unchanged (a missing name is reported as "File not found").
 
 ## Bootstrap & Main Loop
 
