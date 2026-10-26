@@ -207,7 +207,7 @@ changes". They stay in the pending file after a deploy, so they remain visible l
 <ol>
 <li><strong>Every commit carries the measurements of its code.</strong> A pre-commit hook
    (<code>scripts/measure_staged_replays.py</code>, installed by <code>.envrc</code>) works out the <em>code tree</em> of what
-   is being committed (<code>glitchygames/code_tree.py</code>: only what can change how the replays run,
+   is being committed (<code>src/glitchygames/code_tree.py</code>: only what can change how the replays run,
    the engine, games, demos, apps, recordings, <code>uv.lock</code> and <code>pyproject.toml</code>). When this machine
    has not measured that code yet, it measures every golden replay and bundled demo on it and
    adds one small file per recording to the commit, under <code>quality/replay-ledger/</code>. A docs commit
@@ -232,7 +232,7 @@ work, by their content hash), and where behaviour changed (the frames whose cont
 differs, with both runs' commits). Design:
 <code>plans/2026-10-23-recording-metrics.md</code> (Parts 1 and 2).</p>
 <p>Until a build generates them, this page has only this text.</p>
-<p>Generated from 45 ledger rows (156 in the repository, 38 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
+<p>Generated from 45 ledger rows (156 in the repository, 45 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
 <h2 id="latest-measurements">Latest measurements<a class="headerlink" href="#latest-measurements" title="Permanent link">#</a></h2>
 <table>
 <thead>

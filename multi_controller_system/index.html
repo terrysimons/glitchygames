@@ -188,11 +188,11 @@
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">#</a></h2>
 <h3 id="core-components">Core Components<a class="headerlink" href="#core-components" title="Permanent link">#</a></h3>
 <ol>
-<li><strong>MultiControllerManager</strong> (<code>glitchygames/bitmappy/controllers/manager.py</code>) - Central singleton managing all controllers</li>
-<li><strong>ControllerSelection</strong> (<code>glitchygames/bitmappy/controllers/selection.py</code>) - Individual controller state management</li>
-<li><strong>VisualCollisionManager</strong> (<code>glitchygames/bitmappy/indicators/collision.py</code>) - Smart positioning and collision avoidance</li>
-<li><strong>ModeSwitcher</strong> (<code>glitchygames/bitmappy/controllers/modes.py</code>) - Each controller's mode (film strip, canvas, R/G/B slider), switched with the L2/R2 triggers</li>
-<li><strong>Integration with Bitmappy</strong> - <code>ControllerEventHandler</code> (<code>glitchygames/bitmappy/controllers/event_handler.py</code>) and the per-mode button strategies (<code>glitchygames/bitmappy/controllers/strategies.py</code>)</li>
+<li><strong>MultiControllerManager</strong> (<code>src/glitchygames/bitmappy/controllers/manager.py</code>) - Central singleton managing all controllers</li>
+<li><strong>ControllerSelection</strong> (<code>src/glitchygames/bitmappy/controllers/selection.py</code>) - Individual controller state management</li>
+<li><strong>VisualCollisionManager</strong> (<code>src/glitchygames/bitmappy/indicators/collision.py</code>) - Smart positioning and collision avoidance</li>
+<li><strong>ModeSwitcher</strong> (<code>src/glitchygames/bitmappy/controllers/modes.py</code>) - Each controller's mode (film strip, canvas, R/G/B slider), switched with the L2/R2 triggers</li>
+<li><strong>Integration with Bitmappy</strong> - <code>ControllerEventHandler</code> (<code>src/glitchygames/bitmappy/controllers/event_handler.py</code>) and the per-mode button strategies (<code>src/glitchygames/bitmappy/controllers/strategies.py</code>)</li>
 </ol>
 <p>The button and trigger bindings are listed in <code>CONTROLLER_CONTROLS_README.md</code> at the repository root.</p>
 <h3 id="controller-color-scheme">Controller Color Scheme<a class="headerlink" href="#controller-color-scheme" title="Permanent link">#</a></h3>

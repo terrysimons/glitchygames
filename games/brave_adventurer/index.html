@@ -1216,75 +1216,75 @@ original scene (left out of the diagram to keep it readable).</p>
 </thead>
 <tbody>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer/__init__.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer/__init__.py</code></td>
 <td>Exports <code>main</code> (the <code>brave-adventurer</code> console script)</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer/game.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer/game.py</code></td>
 <td><code>BraveAdventurerScene</code>: camera, parallax, level, controls, <code>dt_tick</code> order, terrain and enemy collision, death and respawn, high scores, input handlers, <code>render()</code>, pits, HUD; <code>main()</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer/player.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer/player.py</code></td>
 <td><code>Player</code>: physics body, state machine, the pose drawn in <code>dt_tick</code>, the common pose x-range</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer/terrain.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer/terrain.py</code></td>
 <td><code>GroundSegment</code>, <code>StoneWall</code>, <code>GoldScarab</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer/enemies.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer/enemies.py</code></td>
 <td><code>Cobra</code>, <code>Scarab</code>, <code>Scorpion</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer/levels.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer/levels.py</code></td>
 <td><code>ScreenData</code>, <code>LEVEL_1</code> (20 screens), <code>LevelManager</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer/drawing.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer/drawing.py</code></td>
 <td>Every primitive drawing: the player, enemies, terrain, the four parallax layers</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer/sounds.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer/sounds.py</code></td>
 <td>The synthesized effects and <code>GameSounds</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer/constants.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer/constants.py</code></td>
 <td>Screen, physics, camera, parallax, layer, size, scoring, colour and rumble constants</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer_papyrus/game.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer_papyrus/game.py</code></td>
 <td><code>PapyrusBraveAdventurerScene</code> (the scene's parallel copy); <code>main()</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer_papyrus/player.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer_papyrus/player.py</code></td>
 <td><code>PapyrusPlayer</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer_papyrus/enemies.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer_papyrus/enemies.py</code></td>
 <td><code>PapyrusCobra</code>, <code>PapyrusScarab</code>, <code>PapyrusScorpion</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer_papyrus/terrain.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer_papyrus/terrain.py</code></td>
 <td><code>PapyrusGoldScarab</code>; re-exports the shared <code>GroundSegment</code> and <code>StoneWall</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer_papyrus/levels.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer_papyrus/levels.py</code></td>
 <td><code>PapyrusLevelManager</code>; re-exports <code>LEVEL_1</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer_papyrus/sprite_utils.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer_papyrus/sprite_utils.py</code></td>
 <td>Colour key to alpha, 2x scaling, <code>hitbox_scale</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer_papyrus/constants.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer_papyrus/constants.py</code></td>
 <td>Re-exports the shared constants; <code>SPRITE_SCALE</code>, the Papyrus heights, <code>SPRITES_DIR</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/brave_adventurer_papyrus/sprites/*.toml</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer_papyrus/sprites/*.toml</code></td>
 <td>The pixel art, hitboxes and state machines</td>
 </tr>
 <tr>
-<td><code>glitchygames/scenes/builtin_scenes/pause_scene.py</code>, <code>game_over_scene.py</code></td>
+<td><code>src/glitchygames/scenes/builtin_scenes/pause_scene.py</code>, <code>game_over_scene.py</code></td>
 <td>The engine's pause and game-over screens</td>
 </tr>
 <tr>

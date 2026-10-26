@@ -190,7 +190,7 @@ Clockwork Keep's elevator ride (BUGS.md #189), neither visible on <code>dummy</c
    machine is no busier than for one run.</li>
 </ol>
 <p>Both runs record a fingerprint (size and SHA-256 of the RGB bytes, as the window shows them) of
-every frame each test presents (<code>glitchygames/testing/frame_fingerprints.py</code>). When both have
+every frame each test presents (<code>src/glitchygames/testing/frame_fingerprints.py</code>). When both have
 finished, the frames are compared (<code>scripts/compare_driver_frames.py</code>). Any difference, or a
 failure in the native run, fails the run; the differing tests are re-run on both drivers to save
 the differing frames as PNG files with a difference image (the baseline dimmed to grey, differing

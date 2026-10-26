@@ -300,7 +300,7 @@ every component that needs it.</p>
 each with its type and default, then its help text.</p>
 <h3 id="layer-1-the-engine">Layer 1: the engine<a class="headerlink" href="#layer-1-the-engine" title="Permanent link">#</a></h3>
 <h4 id="graphics-options">Graphics Options<a class="headerlink" href="#graphics-options" title="Permanent link">#</a></h4>
-<p>Added by <code>GameEngine.args()</code> in <code>glitchygames/engine/game_engine.py</code>.</p>
+<p>Added by <code>GameEngine.args()</code> in <code>src/glitchygames/engine/game_engine.py</code>.</p>
 <ul>
 <li><code>-f, --target-fps TARGET_FPS</code> (<code>float</code>): cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)</li>
 <li><code>--fps-log-interval-ms FPS_LOG_INTERVAL_MS</code> (<code>float</code>): how often to log the FPS counter in ms (default: 1000)</li>
@@ -372,13 +372,13 @@ from <code>--help</code>: the watched replay's restart internals.</p>
 </ul>
 <h3 id="layer-2-event-managers-and-fonts">Layer 2: event managers and fonts<a class="headerlink" href="#layer-2-event-managers-and-fonts" title="Permanent link">#</a></h3>
 <h4 id="controller-options">Controller Options<a class="headerlink" href="#controller-options" title="Permanent link">#</a></h4>
-<p>Added by <code>ControllerEventManager.args()</code> in <code>glitchygames/events/controller.py</code> (see
+<p>Added by <code>ControllerEventManager.args()</code> in <code>src/glitchygames/events/controller.py</code> (see
 <a href="../event_system/#one-device-one-event-layer">Event System</a>).</p>
 <ul>
 <li><code>--input-mode {auto,joystick,controller}</code> (<code>choice</code>): Which gamepads the game sees (default: auto, every device; a mapped pad sends controller events, any other device joystick events; joystick: every device sends joystick events; controller: mapped pads only)</li>
 </ul>
 <h4 id="font-options">Font Options<a class="headerlink" href="#font-options" title="Permanent link">#</a></h4>
-<p>Added by <code>FontManager.args()</code> in <code>glitchygames/fonts/font_manager.py</code>.</p>
+<p>Added by <code>FontManager.args()</code> in <code>src/glitchygames/fonts/font_manager.py</code>.</p>
 <ul>
 <li><code>--font-name FONT_NAME</code> (<code>str</code>): Font to use (default: the bundled Vera; the bundled variants are Vera, VeraBd, VeraIt and VeraBI; any other name is looked up among the system's fonts)</li>
 <li><code>--font-size FONT_SIZE</code> (<code>int</code>): size of the default font, used by text that asks for no font of its own (default: 14)</li>
@@ -389,7 +389,7 @@ from <code>--help</code>: the watched replay's restart internals.</p>
 <li><code>--font-system {pygame,freetype}</code> (<code>choice</code>, default <code>freetype</code>): Font system to use: freetype (enhanced, default) or pygame (built-in)</li>
 </ul>
 <h4 id="game-options">Game Options<a class="headerlink" href="#game-options" title="Permanent link">#</a></h4>
-<p>Added by <code>GameEventManager.args()</code> in <code>glitchygames/events/game.py</code>.</p>
+<p>Added by <code>GameEventManager.args()</code> in <code>src/glitchygames/events/game.py</code>.</p>
 <ul>
 <li><code>-l, --log-level {debug,info,warning,error,critical}</code> (<code>choice</code>, default <code>info</code>): set the logging level</li>
 <li><code>--no-unhandled-events</code> (<code>store_true</code>, default <code>False</code>): fail on unhandled events</li>
@@ -456,7 +456,7 @@ leaves them out.</p>
 </table>
 <h3 id="layer-3-the-game">Layer 3: the game<a class="headerlink" href="#layer-3-the-game" title="Permanent link">#</a></h3>
 <h4 id="bitmappy-v10-options">Bitmappy v1.0 Options<a class="headerlink" href="#bitmappy-v10-options" title="Permanent link">#</a></h4>
-<p>Added by <code>BitmapEditorScene.args()</code> in <code>glitchygames/bitmappy/editor.py</code>; the heading is
+<p>Added by <code>BitmapEditorScene.args()</code> in <code>src/glitchygames/bitmappy/editor.py</code>; the heading is
 <code>&lt;NAME&gt; v&lt;VERSION&gt; Options</code>.</p>
 <ul>
 <li><code>-v, --version</code> (<code>store_true</code>, default <code>False</code>): print the game version and exit</li>
@@ -475,27 +475,27 @@ leaves them out.</p>
 <tbody>
 <tr>
 <td>Paddle Slap</td>
-<td><code>glitchygames/examples/paddleslap.py</code></td>
+<td><code>src/glitchygames/examples/paddleslap.py</code></td>
 <td><code>-v, --version</code>, <code>-b, --balls</code> (int, default 1), <code>--ball-spawn-mode</code> (choice, default <code>paddle_only</code>)</td>
 </tr>
 <tr>
 <td>DT Demo</td>
-<td><code>glitchygames/examples/dt_demo.py</code></td>
+<td><code>src/glitchygames/examples/dt_demo.py</code></td>
 <td><code>-v, --version</code>, <code>-b, --balls</code> (int, default 1)</td>
 </tr>
 <tr>
 <td>Clockwork Keep</td>
-<td><code>glitchygames/examples/clockwork_keep/game.py</code></td>
+<td><code>src/glitchygames/examples/clockwork_keep/game.py</code></td>
 <td><code>--floor</code> (int, default 0)</td>
 </tr>
 <tr>
 <td>Brave Adventurer (both editions)</td>
-<td><code>glitchygames/examples/brave_adventurer/game.py</code>, <code>glitchygames/examples/brave_adventurer_papyrus/game.py</code></td>
+<td><code>src/glitchygames/examples/brave_adventurer/game.py</code>, <code>src/glitchygames/examples/brave_adventurer_papyrus/game.py</code></td>
 <td><code>-v, --version</code></td>
 </tr>
 <tr>
 <td>Joystick Demo</td>
-<td><code>glitchygames/examples/joystick_demo.py</code></td>
+<td><code>src/glitchygames/examples/joystick_demo.py</code></td>
 <td>none (the engine's <code>--input-mode</code> chooses what it shows)</td>
 </tr>
 <tr>
@@ -519,7 +519,7 @@ Mixer and the other reserved groups). Every option it prints, with its help text
 <h2 id="how-to-add-arguments-to-a-new-event-manager">How to Add Arguments to a New Event Manager<a class="headerlink" href="#how-to-add-arguments-to-a-new-event-manager" title="Permanent link">#</a></h2>
 <p>If you are adding arguments to a currently-empty event manager group, follow the
 existing pattern:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># In glitchygames/events/mouse.py</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># In src/glitchygames/events/mouse.py</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nd">@classmethod</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">args</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parser</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">:</span>

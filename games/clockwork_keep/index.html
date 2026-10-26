@@ -182,7 +182,7 @@ The last floor has no elevator: standing on its top platform, under the victory 
 game.</p>
 <p>Everything is drawn from pygame primitives (no image files), every sound is synthesized, and the
 game is small enough to read in one sitting (about 2,700 lines in
-<code>glitchygames/examples/clockwork_keep/</code>). It is also one of the engine's reference games: its
+<code>src/glitchygames/examples/clockwork_keep/</code>). It is also one of the engine's reference games: its
 golden trace and golden replay pin world space, transitions, pausing and replay, so the page
 below shows both how the game works and which engine features it leans on.</p>
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
@@ -392,7 +392,7 @@ pending", so <code>quit</code> goes through <code>scene_manager.quit()</code>.</
 </code></pre></div>
 <p>The engine's default is <code>{}</code>, which rebuilds a scene from options alone. That works for the first
 floor but not for the others: a floor the elevator built would be rebuilt as the <code>--floor</code> floor
-with score 0 and 3 lives. A scene start (<code>glitchygames/scene_start.py</code>) keeps these arguments,
+with score 0 and 3 lives. A scene start (<code>src/glitchygames/scene_start.py</code>) keeps these arguments,
 and <code>rebuild_scene(start=..., scene_class=..., options=...)</code> passes them back to the constructor,
 so a playback scope (a demo, an instant replay) that starts on floor 2 rebuilds floor 2 with the
 score and lives it began with. The values are the ones the floor <strong>began</strong> with
@@ -402,7 +402,7 @@ lost on the floor are what the playback replays, so they must not be in the star
 through JSON exactly, as scene starts require.</p>
 <h2 id="classes">Classes<a class="headerlink" href="#classes" title="Permanent link">#</a></h2>
 <p>Clockwork Keep's own code is the scene, five sprite classes and the floor data, all in
-<code>glitchygames/examples/clockwork_keep/</code>. The rest comes from the engine: <code>Scene</code> and the built-in
+<code>src/glitchygames/examples/clockwork_keep/</code>. The rest comes from the engine: <code>Scene</code> and the built-in
 <code>PauseScene</code> and <code>GameOverScene</code> (<code>glitchygames.scenes</code>), <code>Sprite</code> (<code>glitchygames.sprites</code>) and
 <code>PhysicsBody</code> (<code>glitchygames.physics</code>). In the diagram, the Engine box is what every game gets; the
 Clockwork Keep box is what this game adds. Solid arrows are inheritance, pointing at the base
@@ -837,7 +837,7 @@ are the game's (Clockwork Keep box).</p>
     Old-&gt;&gt;SM: motor.stop_now(), rumble.clear_sustained()
     Old-&gt;&gt;SM: play 'elevator_clank',&lt;br/&gt;SCREEN shakes: bounce + rattle
     SM-&gt;&gt;New: the ride ends, Floor N+1 is active</code></pre>
-<p>The ride is <code>glitchygames/transitions/elevator.py</code>: a tall composite of the old floor, a shaft and
+<p>The ride is <code>src/glitchygames/transitions/elevator.py</code>: a tall composite of the old floor, a shaft and
 the new floor scrolls up while the car and the Tinker (a copy of its image) stay pinned at the
 screen's centre. <code>ease_in_sine</code> arrives at full speed, so the stop reads as a slam. The car's
 speed is the easing's slope (<code>transition.eased_velocity_at(progress)</code>), divided by its peak
@@ -1116,43 +1116,43 @@ the native-driver comparison while iterating).</p>
 </thead>
 <tbody>
 <tr>
-<td><code>glitchygames/examples/clockwork_keep/__init__.py</code></td>
+<td><code>src/glitchygames/examples/clockwork_keep/__init__.py</code></td>
 <td><code>main</code> (the <code>clockwork-keep</code> console script in <code>pyproject.toml</code>)</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/clockwork_keep/game.py</code></td>
+<td><code>src/glitchygames/examples/clockwork_keep/game.py</code></td>
 <td><code>ClockworkKeepScene</code> (floors, input, collision, elevator, death, saves, HUD), <code>CogCollectible</code>, the arrival shakes, <code>main()</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/clockwork_keep/player.py</code></td>
+<td><code>src/glitchygames/examples/clockwork_keep/player.py</code></td>
 <td><code>Tinker</code>: physics body, state machine, the pose rule, wall fitting</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/clockwork_keep/terrain.py</code></td>
+<td><code>src/glitchygames/examples/clockwork_keep/terrain.py</code></td>
 <td><code>Platform</code>, <code>Elevator</code>, <code>MovingGear</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/clockwork_keep/levels.py</code></td>
+<td><code>src/glitchygames/examples/clockwork_keep/levels.py</code></td>
 <td><code>FloorData</code>, <code>MovingGearData</code>, the three floors, <code>ALL_FLOORS</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/clockwork_keep/drawing.py</code></td>
+<td><code>src/glitchygames/examples/clockwork_keep/drawing.py</code></td>
 <td>Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, <code>clock_hand_angles</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/clockwork_keep/sounds.py</code></td>
+<td><code>src/glitchygames/examples/clockwork_keep/sounds.py</code></td>
 <td>The six <code>SoundRecipe</code>s, <code>ALL_RECIPES</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/clockwork_keep/constants.py</code></td>
+<td><code>src/glitchygames/examples/clockwork_keep/constants.py</code></td>
 <td>Screen, physics, layers, gameplay, colours, elevator ride feel, the clock</td>
 </tr>
 <tr>
-<td><code>glitchygames/transitions/elevator.py</code></td>
+<td><code>src/glitchygames/transitions/elevator.py</code></td>
 <td><code>ElevatorTransition</code> (engine, written for this game)</td>
 </tr>
 <tr>
-<td><code>glitchygames/scenes/builtin_scenes/pause_scene.py</code>, <code>game_over_scene.py</code></td>
+<td><code>src/glitchygames/scenes/builtin_scenes/pause_scene.py</code>, <code>game_over_scene.py</code></td>
 <td>The pause and game-over screens</td>
 </tr>
 <tr>

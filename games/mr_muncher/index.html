@@ -1085,7 +1085,7 @@ side, the wall shape is blurred, and it is cut at two thresholds. The first give
 with rounded corners, the second the velvet inside it. The door is a bar across its tile.</p>
 <h3 id="make_opaque-on-the-backgrounds"><code>make_opaque</code> on the backgrounds<a class="headerlink" href="#make_opaque-on-the-backgrounds" title="Permanent link">#</a></h3>
 <p>After the maze is blitted onto each background, <code>_draw_maze_backgrounds</code> calls
-<code>make_opaque(surface=background)</code> (<code>glitchygames/opacity.py</code>). The reason is
+<code>make_opaque(surface=background)</code> (<code>src/glitchygames/opacity.py</code>). The reason is
 <a href="https://github.com/terrysimons/glitchygames/blob/main/BUGS.md">BUGS.md #142</a>. On a display
 with per-pixel alpha (macOS cocoa), a plain <code>pygame.Surface</code> takes the display's format,
 including its alpha channel. Alpha-blending a per-pixel-alpha picture such as the smooth-scaled
@@ -1103,7 +1103,7 @@ HIGH SCORE and REEL; the right one the spare lives (up to four bucket icons), th
 and the control hints. <code>fitted_font</code> chooses the largest bundled Bitstream Vera size (from the
 wanted size down to 8) at which each panel's longest text fits.</p>
 <h2 id="sound">Sound<a class="headerlink" href="#sound" title="Permanent link">#</a></h2>
-<p><code>sounds.py</code> defines every sound as a synth <code>SoundRecipe</code> (<code>glitchygames/audio/recipes.py</code>).
+<p><code>sounds.py</code> defines every sound as a synth <code>SoundRecipe</code> (<code>src/glitchygames/audio/recipes.py</code>).
 <code>shared_sound_bank()</code> builds one <code>SoundBank(ALL_RECIPES)</code> for the whole process
 (<code>functools.cache</code>), and <code>setup()</code> calls <code>sounds.prerender()</code>, so no sound is rendered in the
 middle of a frame.</p>
@@ -1274,7 +1274,7 @@ holds 2,072 frames. <code>tests/replay/test_golden_replays.py</code> checks that
 exercised. The gamepad controls (D-pad, stick, Start and the hat, listed as <code>steer</code>) are
 excused in <code>UNEXERCISED_CONTROLS</code>, because the scripted session runs on the dummy driver,
 which has no gamepad.</p>
-<p>The pytest plugin <code>glitchygames/testing/replays.py</code> replays the fixture in a child process
+<p>The pytest plugin <code>src/glitchygames/testing/replays.py</code> replays the fixture in a child process
 (<code>mr-muncher --replay-trace ... --headless</code>), and the test fails unless it exits <code>SUCCESS</code>.
 Re-record the fixture only deliberately (the commands are in the script's docstring), never just
 to make a failing replay pass.</p>

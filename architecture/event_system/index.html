@@ -334,7 +334,7 @@ flowchart LR
 two layers, the raw joystick layer and the controller layer, and sends both layers' events, so
 the engine lets each device's input through from one layer only (its <code>event_layer</code>: the
 controller layer when SDL maps the pad, else the joystick layer), and only for devices
-<code>--input-mode</code> shows the game (<code>glitchygames/input/input_devices.py</code>).</p>
+<code>--input-mode</code> shows the game (<code>src/glitchygames/input/input_devices.py</code>).</p>
 <pre class="mermaid"><code>%%{init: {"flowchart": {"wrappingWidth": 400}}}%%
 flowchart TB
     DEVICE_EVENT["JOY* or CONTROLLER* event"] --&gt; DEVICE_PROCESS
@@ -417,7 +417,7 @@ module is imported before any game code runs, so they are <code>USEREVENT + 1</c
 the numbers recordings hold. Something that calls <code>custom_type()</code> before glitchygames is
 imported shifts them (a recording made that way replays only in a process that imports the
 same way).</p>
-<p>These constants are defined in <code>glitchygames/events/base.py</code> (exported by <code>glitchygames.events</code>):</p>
+<p>These constants are defined in <code>src/glitchygames/events/base.py</code> (exported by <code>glitchygames.events</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">FPSEVENT</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">custom_type</span><span class="p">()</span>  <span class="c1"># FPS counter updates (USEREVENT + 1)</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">GAMEEVENT</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">custom_type</span><span class="p">()</span>  <span class="c1"># Game-specific events, extensible via subtypes (+ 2)</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">MENUEVENT</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">custom_type</span><span class="p">()</span>  <span class="c1"># Menu item selections (+ 3)</span>
@@ -511,7 +511,7 @@ while consuming only one pygame event ID.</p>
 (focus, exposure, property and configure notifications), on Windows each window message
 (<code>hwnd</code>, <code>msg</code>, <code>wparam</code>, <code>lparam</code>). SDL leaves the type disabled, and so does the engine:
 <code>GameEngine</code> allows every event type through <code>allow_every_event_type()</code>
-(<code>glitchygames/events/base.py</code>), which keeps <code>SYSWMEVENT</code> blocked. Before, a plain
+(<code>src/glitchygames/events/base.py</code>), which keeps <code>SYSWMEVENT</code> blocked. Before, a plain
 <code>pygame.event.set_allowed(None)</code> turned it on, so on a real X server the queue, every
 <code>--record-trace</code> recording and every instant-replay journal filled with messages no game read.</p>
 <p>A game that wants them opts in on its scene class (the one given to <code>GameEngine</code>), like
@@ -527,7 +527,7 @@ while consuming only one pygame event ID.</p>
 <p>The route is <code>GameEngine.process_game_event</code> → <code>GameEventManager.on_sys_wm_event</code> →
 <code>SceneManager</code> → the active scene's <code>on_sys_wm_event</code>. A game that opts in records them like any
 other event (an x11 message's bytes are stored as <code>{"__bytes__": "&lt;hex&gt;"}</code>), and a replay serves
-the recorded ones; a replay's input blocking (<code>glitchygames/replay/input_blocking.py</code>) restores
+the recorded ones; a replay's input blocking (<code>src/glitchygames/replay/input_blocking.py</code>) restores
 the type to blocked when it ends. pygame-ce 2.5.8 reports <code>SYSWMEVENT</code> as allowed until
 something blocks it through pygame, although SDL ignores it, which is why the engine blocks it
 explicitly: a snapshot-and-restore of the blocked types would otherwise turn it on.</p>
@@ -695,7 +695,7 @@ objects. The proxy chain provides two capabilities:</p>
 </li>
 <li>
 <p><strong>Attribute fallthrough</strong>: An attribute the manager doesn't have is looked up
-   on its proxies by <code>ResourceManager.__getattr__</code> (<code>glitchygames/events/base.py</code>), each
+   on its proxies by <code>ResourceManager.__getattr__</code> (<code>src/glitchygames/events/base.py</code>), each
    in turn until one has it: <code>mouse_manager.get_pos()</code> falls through the inner proxy and
    the scene to <code>pygame.mouse</code> (BUGS.md #198: the lookup used to stop at the first proxy).</p>
 </li>
@@ -901,10 +901,10 @@ input snapshot (<code>current_input().key_pressed(...)</code>, see
 <strong>what happens to events that nobody handles?</strong></p>
 <h3 id="the-unhandled-event-problem">The unhandled event problem<a class="headerlink" href="#the-unhandled-event-problem" title="Permanent link">#</a></h3>
 <p>GlitchyGames gives every <code>on_*_event()</code> a default stub (the <code>*EventStubs</code> classes
-in <code>glitchygames/events/input_event_interfaces.py</code> and
+in <code>src/glitchygames/events/input_event_interfaces.py</code> and
 <code>system_event_interfaces.py</code>; <code>Scene</code> inherits <code>AllEventStubs</code>). If your scene
 doesn't override <code>on_joy_axis_motion_event</code>, the stub catches the event instead
-of silently dropping it and calls <code>unhandled_event()</code> (<code>glitchygames/events/base.py</code>).
+of silently dropping it and calls <code>unhandled_event()</code> (<code>src/glitchygames/events/base.py</code>).
 This is powerful for debugging — you can see exactly which events your game
 isn't handling.</p>
 <p>But stubs run on <em>every</em> occurrence of their event. A joystick thumbstick
@@ -985,7 +985,7 @@ that started the drag, and the keyboard chord handlers receive the held keys'
 <code>KEYDOWN</code> events as <code>keys: tuple[KeyEvent, ...]</code>.</p>
 <h3 id="typed-event-classes">Typed event classes<a class="headerlink" href="#typed-event-classes" title="Permanent link">#</a></h3>
 <p><code>HashableEvent(type, **fields)</code> builds the class its type maps to in
-<code>EVENT_CLASSES</code> (<code>glitchygames/events/base.py</code>, exported by <code>glitchygames.events</code>),
+<code>EVENT_CLASSES</code> (<code>src/glitchygames/events/base.py</code>, exported by <code>glitchygames.events</code>),
 so a <code>MOUSEMOTION</code> is a <code>MouseMotionEvent</code> however it was built (the engine's
 dispatch, <code>HashableEvent.from_pygame(pygame_event)</code>, tests, games). The classes only
 declare the fields pygame-ce gives their types, for the type checker; they store,
@@ -1120,7 +1120,7 @@ becomes <code>None</code>). Recordings themselves still store the raw pygame eve
 
     PygameEvent --&gt;|"HashableEvent.from_pygame#40;#41;"| HE</code></pre>
 <h2 id="mouse-event-synthesis">Mouse Event Synthesis<a class="headerlink" href="#mouse-event-synthesis" title="Permanent link">#</a></h2>
-<p>The <code>MouseEventManager</code>'s proxy (<code>glitchygames/events/mouse.py</code>) synthesizes
+<p>The <code>MouseEventManager</code>'s proxy (<code>src/glitchygames/events/mouse.py</code>) synthesizes
 button-specific and drag/drop events from primitive pygame mouse events.
 Button-specific variants are generated for the left, middle and right buttons
 (and scroll down/up for the old wheel buttons 4 and 5 on button down).</p>
@@ -1968,7 +1968,7 @@ as unhandled.</p>
 <pre class="mermaid"><code>flowchart LR
     G3["MENUEVENT"] --&gt; GH3["on_menu_item_event"]
     click G3 "https://pyga.me/docs/ref/event.html" _blank</code></pre>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-65-1" name="__codelineno-65-1" href="#__codelineno-65-1"></a><span class="c1"># Custom USEREVENT+3 — posted by a clicked MenuItem (glitchygames/ui/menus.py)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-65-1" name="__codelineno-65-1" href="#__codelineno-65-1"></a><span class="c1"># Custom USEREVENT+3 — posted by a clicked MenuItem (src/glitchygames/ui/menus.py)</span>
 <a id="__codelineno-65-2" name="__codelineno-65-2" href="#__codelineno-65-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_menu_item_event</span><span class="p">(</span>
 <a id="__codelineno-65-3" name="__codelineno-65-3" href="#__codelineno-65-3"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MENUEVENT</span> <span class="p">{</span>
 <a id="__codelineno-65-4" name="__codelineno-65-4" href="#__codelineno-65-4"></a>        <span class="s1">'menu'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
@@ -2183,7 +2183,7 @@ with one instance id, and SDL sends every press on both (<code>JOYBUTTONDOWN</co
 <code>CONTROLLERBUTTONDOWN</code>). The engine runs both managers and hands each press to the game once
 (below).</p>
 <h3 id="one-device-one-event-layer">One device, one event layer<a class="headerlink" href="#one-device-one-event-layer" title="Permanent link">#</a></h3>
-<p><code>InputDevices</code> (<code>glitchygames/input/input_devices.py</code>, whose docstring holds the rules) is the
+<p><code>InputDevices</code> (<code>src/glitchygames/input/input_devices.py</code>, whose docstring holds the rules) is the
 engine's list of the devices a game sees, by instance id: <code>GameEngine.input_devices</code>, or
 <code>self.input_devices</code> in a scene. Each <code>InputDevice</code> has the devices door's <code>descriptor</code> (name,
 GUID, device index, instance id, counts), a <code>joystick</code> layer (always) and a <code>controller</code> layer
@@ -2199,7 +2199,7 @@ has it (a mapped pad, which arrives and leaves on both layers, once each way).</
 <code>joystick</code> every device on its joystick layer only (SDL blocks controller events), <code>controller</code>
 mapped pads only (other devices are hidden and their events dropped). <code>ActionMap</code> binds the
 same families: <code>auto</code> binds a <code>controller_button</code> to both. The joystick demo
-(<code>glitchygames/examples/joystick_demo.py</code>) lists every device with its event layer's live
+(<code>src/glitchygames/examples/joystick_demo.py</code>) lists every device with its event layer's live
 inputs.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a><span class="k">for</span> <span class="n">device</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_devices</span><span class="p">:</span>
 <a id="__codelineno-81-2" name="__codelineno-81-2" href="#__codelineno-81-2"></a>    <span class="n">layer</span> <span class="o">=</span> <span class="n">device</span><span class="o">.</span><span class="n">controller</span> <span class="k">if</span> <span class="n">device</span><span class="o">.</span><span class="n">controller</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">device</span><span class="o">.</span><span class="n">joystick</span>
@@ -2488,7 +2488,7 @@ in the Bitmappy pixel art editor. The editor is Bitmappy's; the dialogs are the 
     state "Bitmappy" as APP_BITMAPPY_SCENES {
         state "BitmapEditorScene" as BitmapEditorScene
     }
-    state "Engine: glitchygames/ui/dialogs.py" as ENGINE_DIALOG_SCENES {
+    state "Engine: src/glitchygames/ui/dialogs.py" as ENGINE_DIALOG_SCENES {
         state "LoadDialogScene" as LoadDialogScene
         state "SaveDialogScene" as SaveDialogScene
         state "NewCanvasDialogScene" as NewCanvasDialogScene
@@ -2512,7 +2512,7 @@ in the Bitmappy pixel art editor. The editor is Bitmappy's; the dialogs are the 
 
     BitmapEditorScene --&gt; [*] : User closes window (QUIT), or releases Q/Escape with nothing focused</code></pre>
 <p>Every transition goes through <code>SceneManager.switch_to_scene()</code>. Dialog scenes
-(<code>glitchygames/ui/dialogs.py</code>) store a reference to <code>previous_scene</code> so they can
+(<code>src/glitchygames/ui/dialogs.py</code>) store a reference to <code>previous_scene</code> so they can
 return to the editor when the user confirms or cancels. The SceneManager itself is a singleton — there is only
 one <code>active_scene</code> at a time, and only that scene receives events.</p>
 <h2 id="event_handlers-dict-construction">EVENT_HANDLERS Dict Construction<a class="headerlink" href="#event_handlers-dict-construction" title="Permanent link">#</a></h2>

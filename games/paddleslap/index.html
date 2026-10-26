@@ -316,17 +316,17 @@ restarts its idle wait).</p>
 <tbody>
 <tr>
 <td><code>Game</code></td>
-<td><code>glitchygames/examples/paddleslap.py</code></td>
+<td><code>src/glitchygames/examples/paddleslap.py</code></td>
 <td>The court: paddles, balls, collisions, rally count, high scores</td>
 </tr>
 <tr>
 <td><code>PauseScene</code></td>
-<td><code>glitchygames/scenes/builtin_scenes/pause_scene.py</code></td>
+<td><code>src/glitchygames/scenes/builtin_scenes/pause_scene.py</code></td>
 <td>The engine's pause screen: the game's last frame dimmed with PAUSED over it</td>
 </tr>
 <tr>
 <td><code>PaddleSlapGameOverScene</code></td>
-<td><code>glitchygames/examples/paddleslap.py</code></td>
+<td><code>src/glitchygames/examples/paddleslap.py</code></td>
 <td><code>GameOverScene</code> (score, top 5 high scores) plus the attract-mode demo, and a resume that always starts a new <code>Game</code></td>
 </tr>
 </tbody>
@@ -373,7 +373,7 @@ scope the demo runs in); the PaddleSlap box holds the game's own scenes.</p>
 <p>PaddleSlap has no title screen (a game starts serving at once), so its idle screen is the
 game-over screen. <code>PaddleSlapGameOverScene.dt_tick</code> compares its <code>game_time</code> with
 <code>idle_since_game_time</code>; after <code>GAME_OVER_IDLE_SECONDS</code> (10.0) it plays the bundled recording
-<code>PADDLESLAP_DEMO_PATH</code> (<code>glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code>) with
+<code>PADDLESLAP_DEMO_PATH</code> (<code>src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code>) with
 <code>SceneManager.play_recording(path=..., then=self)</code>. In the diagram, the PaddleSlap box is the
 game's own screen and the Engine box is what plays the demo; the player is outside both.</p>
 <pre class="mermaid"><code>sequenceDiagram
@@ -407,7 +407,7 @@ game's own screen and the Engine box is what plays the demo; the player is outsi
   ends it with a WARNING <code>demo diverged: ...</code>.</li>
 </ul>
 <h2 id="classes">Classes<a class="headerlink" href="#classes" title="Permanent link">#</a></h2>
-<p>PaddleSlap's own code is two classes in <code>glitchygames/examples/paddleslap.py</code>: <code>Game</code> and
+<p>PaddleSlap's own code is two classes in <code>src/glitchygames/examples/paddleslap.py</code>: <code>Game</code> and
 <code>PaddleSlapGameOverScene</code>. Everything else it uses comes from the engine: <code>Scene</code> and the
 built-in <code>PauseScene</code> and <code>GameOverScene</code> (<code>glitchygames.scenes</code>), <code>Sprite</code>
 (<code>glitchygames.sprites</code>), and the paddles and balls of the engine's game-object library
@@ -504,8 +504,8 @@ extends the engine's, adding the attract-mode demo after an idle wait and always
     VerticalPaddle &lt;.. GameSprites : player1, player2
     BallSprite &lt;.. GameSprites : balls</code></pre>
 <p>PaddleSlap defines no sprite classes: both paddles are the engine's <code>VerticalPaddle</code>
-(<code>glitchygames/game_objects/paddle.py</code>) and every ball is its <code>BallSprite</code>
-(<code>glitchygames/game_objects/ball.py</code>). The game creates them, wires the balls' callbacks
+(<code>src/glitchygames/game_objects/paddle.py</code>) and every ball is its <code>BallSprite</code>
+(<code>src/glitchygames/game_objects/ball.py</code>). The game creates them, wires the balls' callbacks
 (<code>on_paddle_collision</code>, <code>on_wall_bounce</code>) to its rally count and sounds, and resolves collisions
 in <code>Game.dt_tick</code>. <code>HorizontalPaddle</code> is not used by PaddleSlap; it is shown because it shares
 <code>BasePaddle</code>.</p>
@@ -553,7 +553,7 @@ in <code>Game.dt_tick</code>. <code>HorizontalPaddle</code> is not used by Paddl
 </ul>
 <h3 id="hitboxes">Hitboxes<a class="headerlink" href="#hitboxes" title="Permanent link">#</a></h3>
 <p>The collision manager has two layers, <code>balls</code> and <code>paddles</code> (the debug overlay's hitbox panel
-draws them). Hitboxes are the default visible-pixel trim (<code>glitchygames/collision/bounds.py</code>):</p>
+draws them). Hitboxes are the default visible-pixel trim (<code>src/glitchygames/collision/bounds.py</code>):</p>
 <ul>
 <li>A ball's hitbox is its <strong>visible circle's 10×10 box</strong>, offset (5, 5) from the drawn position,
   not its 20×20 image. <code>BallSprite._visible_rect()</code> returns that box with its offset, and every
@@ -731,7 +731,7 @@ overlapping <code>balls</code>/<code>balls</code> pairs. <code>_on_ball_ball_col
 <code>n</code> paddle hits, and scaling both axes keeps the angle the paddle set. Paddles move at
 400 px/s.</p>
 <h2 id="ball-spawning">Ball spawning<a class="headerlink" href="#ball-spawning" title="Permanent link">#</a></h2>
-<p><code>BallSpawnMode</code> (<code>glitchygames/game_objects/ball.py</code>) is a set of bit flags: <strong>triggers</strong> (which
+<p><code>BallSpawnMode</code> (<code>src/glitchygames/game_objects/ball.py</code>) is a set of bit flags: <strong>triggers</strong> (which
 events may spawn), <strong>conditions</strong> (cooldown, speed check, random position, speed and colour) and
 <strong>frequency</strong> (the cooldown length). <code>--ball-spawn-mode</code> picks one combination:</p>
 <table>
@@ -827,7 +827,7 @@ and wall bounces through its callbacks; the PaddleSlap box is the game's spawn r
   spawn too.</li>
 </ul>
 <h2 id="input">Input<a class="headerlink" href="#input" title="Permanent link">#</a></h2>
-<p>Each player has an <code>ActionMap</code> (<code>glitchygames/input/action_map.py</code>) with <code>up</code> and <code>down</code>; a third
+<p>Each player has an <code>ActionMap</code> (<code>src/glitchygames/input/action_map.py</code>) with <code>up</code> and <code>down</code>; a third
 holds <code>pause</code>. <code>_create_action_maps</code> binds, per player, a scancode, a D-pad button and the left
 stick's vertical axis at a ±0.3 threshold, filtered to the gamepad with <strong>instance id</strong> 0 (player 1)
 or 1 (player 2). The keyboard bindings have no instance filter. In the diagram, the Engine boxes are
@@ -875,7 +875,7 @@ the PaddleSlap box is what <code>Game</code>'s handlers and <code>dt_tick</code>
 </ul>
 <h2 id="sound">Sound<a class="headerlink" href="#sound" title="Permanent link">#</a></h2>
 <p>Two sound effects, loaded with <code>glitchygames.game_objects.load_sound</code> from
-<code>glitchygames/game_objects/snd_files/</code> at volume 0.25 (<code>pygame.mixer.Sound</code>, not the synthesiser):</p>
+<code>src/glitchygames/game_objects/snd_files/</code> at volume 0.25 (<code>pygame.mixer.Sound</code>, not the synthesiser):</p>
 <table>
 <thead>
 <tr>
@@ -975,10 +975,10 @@ the PaddleSlap box is what <code>Game</code>'s handlers and <code>dt_tick</code>
 <tr>
 <td><code>tests/fixtures/replays/paddleslap/golden.jsonl.gz</code></td>
 <td>Golden replay: 622 frames at 800×480, seed 20261018, recorded through the real engine loop by <code>scripts/record_scripted_session.py --game paddleslap --frames 600</code></td>
-<td>The replay plugin (<code>glitchygames/testing/replays.py</code>) replays it with <code>paddleslap --replay-trace ... --headless</code> and fails unless it exits <code>SUCCESS</code>; <code>tests/replay/test_golden_replays.py</code> checks the fixture set and the controls rule</td>
+<td>The replay plugin (<code>src/glitchygames/testing/replays.py</code>) replays it with <code>paddleslap --replay-trace ... --headless</code> and fails unless it exits <code>SUCCESS</code>; <code>tests/replay/test_golden_replays.py</code> checks the fixture set and the controls rule</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code></td>
+<td><code>src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code></td>
 <td>Bundled demo: 450 frames of <code>Game</code>, recorded with <code>--frames 450 --script-only</code> (before the script's pause, no quit)</td>
 <td><code>tests/replay/test_bundled_demos.py</code> replays it headless and plays it through <code>play_recording</code> inside a running game</td>
 </tr>
@@ -1042,35 +1042,35 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
 </thead>
 <tbody>
 <tr>
-<td><code>glitchygames/examples/paddleslap.py</code></td>
+<td><code>src/glitchygames/examples/paddleslap.py</code></td>
 <td><code>Game</code>, <code>PaddleSlapGameOverScene</code>, <code>main()</code> (the <code>paddleslap</code> console script), the serve, speed-up and demo constants</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code></td>
+<td><code>src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code></td>
 <td>The bundled attract-mode demo</td>
 </tr>
 <tr>
-<td><code>glitchygames/game_objects/ball.py</code></td>
+<td><code>src/glitchygames/game_objects/ball.py</code></td>
 <td><code>BallSprite</code>, <code>BallSpawnMode</code>, <code>ServeSettings</code>, <code>SpeedUpSettings</code> and their enums</td>
 </tr>
 <tr>
-<td><code>glitchygames/game_objects/paddle.py</code></td>
+<td><code>src/glitchygames/game_objects/paddle.py</code></td>
 <td><code>BasePaddle</code>, <code>VerticalPaddle</code>, <code>HorizontalPaddle</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/game_objects/sounds.py</code>, <code>snd_files/</code></td>
+<td><code>src/glitchygames/game_objects/sounds.py</code>, <code>snd_files/</code></td>
 <td><code>SFX</code>, <code>load_sound</code>, the two WAV files</td>
 </tr>
 <tr>
-<td><code>glitchygames/scenes/builtin_scenes/pause_scene.py</code></td>
+<td><code>src/glitchygames/scenes/builtin_scenes/pause_scene.py</code></td>
 <td><code>PauseScene</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/scenes/builtin_scenes/game_over_scene.py</code></td>
+<td><code>src/glitchygames/scenes/builtin_scenes/game_over_scene.py</code></td>
 <td><code>GameOverScene</code>, <code>TextSprite</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/input/action_map.py</code></td>
+<td><code>src/glitchygames/input/action_map.py</code></td>
 <td><code>ActionMap</code></td>
 </tr>
 <tr>
