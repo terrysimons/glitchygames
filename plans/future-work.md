@@ -495,26 +495,27 @@ drafted issue text. Not posted yet:
     unchanged).
   - Output: a short table (class, file, decision, reason, benchmark if any) in this file or the task
     report, then the conversions in reviewed commits.
-- **Move the package to a `src/` layout** (user request, 2026-10-20): `glitchygames/glitchygames/` →
-  `glitchygames/src/glitchygames/`. Why: tests and scripts then import the installed package (via
-  `uv sync`), never a stray copy from the repository root, which catches packaging mistakes (missing
-  package data, wrong includes) before release; it is the layout the Python Packaging Authority
-  recommends. Things to move or update together, in one reviewed change:
+- **Move the package to a `src/` layout** (user request, 2026-10-20) — DONE (#105, 2026-10-25):
+  the engine package moved from the repository root into `src/glitchygames/`, and the games,
+  demos and apps got `src/games/`, `src/demos/` and `src/apps/` beside it (design:
+  `plans/2026-10-24-workspace-packages.md`). Why: tests and scripts then import the installed
+  package (via `uv sync`), never a stray copy from the repository root, which catches packaging
+  mistakes (missing package data, wrong includes) before release; it is the layout the Python
+  Packaging Authority recommends. What moved or was updated together, in one reviewed change:
   - the build configuration in `pyproject.toml` (package discovery, package data such as fonts,
-    sprites and TOML assets, console-script entry points) — this is build config, not lint config,
-    but the ruff/pyright/ty/vulture/bandit/coverage path settings will also need `src/`; agree that
-    with the user when the task starts (the standing rule is not to change linter or type-checker
-    config without asking);
-  - `noxfile.py` session paths and every documented command (`ruff format glitchygames tests scripts
-    noxfile.py`, `vulture glitchygames …`), CI configs (CircleCI, GitHub Actions);
+    sprites and TOML assets, console-script entry points) and the ruff/pyright/ty/vulture/bandit/
+    coverage path settings, agreed with the user (the standing rule is not to change linter or
+    type-checker config without asking);
+  - `noxfile.py` session paths and every documented command (`ruff format src tests scripts
+    noxfile.py`), CI configs (CircleCI, GitHub Actions);
   - path-based code and tests: the doors guard (`tests/test_engine_doors.py` scans the package
-    directory), the randomness guard, the recording guard, `src/glitchygames/sprites` asset lookups,
-    bundled demos, golden harness and fixture paths, `scripts/` that reference `src/glitchygames/…`;
-  - the PyInstaller spec (`bitmappy.spec`, at the root), mkdocs/mkdocstrings
-    source paths, CLAUDE.md, docs and plans that name `src/glitchygames/...` file paths;
-  - verify: `uv sync`, full suite, lint/type checks, mkdocs strict, `nox -s build` (wheel contents
-    unchanged apart from paths; assets still included), golden traces and golden replay fixtures
-    unchanged.
+    directory), the randomness guard, the recording guard, `src/glitchygames/sprites` asset
+    lookups, bundled demos, golden harness and fixture paths, `scripts/` that reference engine
+    files;
+  - the PyInstaller spec (`bitmappy.spec`, at the root), mkdocs/mkdocstrings source paths,
+    CLAUDE.md, docs and plans that name `src/glitchygames/...` file paths (the docs scrub after
+    #105 wrote them in full and added a guard, `tests/test_suite_collection.py`);
+  - verified: `uv sync`, full suite, lint/type checks, mkdocs strict, `nox -s build`.
 - **Lint ignores cleanup** (user request, 2026-10-20): planned in
   [`plans/2026-10-20-lint-ignores-cleanup.md`](2026-10-20-lint-ignores-cleanup.md). Phases 1-2
   done 2026-10-21 (the dead `EM101`/`EM102` ignores removed, the `COM812` comment corrected, the

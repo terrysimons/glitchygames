@@ -4,15 +4,16 @@
 > 2026-10-18. Newer plans: `plans/engine-audit.md` (engine roadmap), `plans/future-work.md`
 > (backlog) and `plans/2026-10-18-level-tools.md` (Glitchy Studio).
 >
-> Paths: `glitchygames/tools/bitmappy.py` and the other editor modules named below were moved into
-> the `src/glitchygames/bitmappy/` package by the Bitmappy refactor (#87, `4bdc966c`): the editor scene
+> Paths: the editor modules named below (once `tools/bitmappy.py` and the like, in the engine's
+> `tools` package) were moved into the `src/glitchygames/bitmappy/` package by the Bitmappy refactor (#87, `4bdc966c`): the editor scene
 > is `bitmappy/editor.py`, the film strip `bitmappy/film_strip*.py`, `canvas_interfaces.py` and
 > `onion_skinning.py` keep their names, the undo/redo manager and operation trackers are
 > `bitmappy/history/undo_redo.py` and `history/operations.py`, the multi-controller manager and
 > controller selection `bitmappy/controllers/manager.py` and `controllers/selection.py`, and the
 > visual collision manager `bitmappy/indicators/collision.py`. `src/glitchygames/tools/` now holds only
 > the ASCII renderer (`ascii_renderer.py`, `charmap.py`, `terminal_utils.py`). Other
-> `src/glitchygames/tools/...` files listed under planned features were never created.
+> `src/glitchygames/tools/...` files listed under planned features were never created. The
+> entries below name these files at their present paths.
 
 This document tracks planned future features for the GlitchyGames project. Features are listed in priority order and will be implemented as time and priorities allow.
 
@@ -413,7 +414,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
     loader; `RecoloredFrames(frames=..., swatch_set=...).frames_for(scheme)`: each scheme's
     frames built on first use, then the same surfaces
 - **What moving it into `src/glitchygames/sprites/` would take**:
-  - the module moves as it is (a `glitchygames/sprites/swatches.py`), with its tests, and
+  - the module moves as it is (a `src/glitchygames/sprites/swatches.py`), with its tests, and
     `AnimatedSprite` (or the sprite loader) learns to read `[swatches]` itself, so a game asks
     the sprite for its frames in a scheme rather than loading the file twice
   - the sprite format's docs and Bitmappy: `AnimatedSprite._save_toml` (which Bitmappy saves
@@ -598,7 +599,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   complete, original maze-chase game with a cinema theme (2026-10-23)
 - **Status**: ✅ COMPLETED (2026-10-23)
 - **Implementation** (now `src/games/mr-muncher/mr_muncher/`, a workspace member since
-  the workspace-packages Part 1; it was `glitchygames/examples/mr_muncher/`):
+  the workspace-packages Part 1; it was the `mr_muncher` folder of the engine's examples package):
   - `maze.py`: a hand-designed 27x24 maze (symmetric, corridors one tile wide, no dead ends,
     connected; tests check all four), tunnels at the top and bottom, a house with a door
   - `actors.py`: tile-to-tile movement (turns on tile centres only; a direction pressed early is
@@ -621,7 +622,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Description**: Two untracked toys brought up to the project's standards (2026-10-23): the
   plain-pygame Pac-Man toy `scripts/mr_muncher.py` became the example game
   `src/games/mr-muncher/mr_muncher/` (`uv run mr-muncher`; it was
-  `glitchygames/examples/mr_muncher/` until the workspace-packages Part 1), and `scripts/audio_test.py` became
+  the `mr_muncher` folder of the engine's examples package until the workspace-packages Part 1), and `scripts/audio_test.py` became
   `scripts/microphone_capture_check.py`
 - **Status**: ✅ COMPLETED (2026-10-23)
 - **Implementation**:
@@ -711,7 +712,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Maintained existing PNG conversion workflow
   - Updated error messages to reflect support for both file types
 - **Files Modified**:
-  - `glitchygames/tools/bitmappy.py` - Enhanced drag-n-drop handling
+  - `src/glitchygames/bitmappy/editor.py` - Enhanced drag-n-drop handling
 
 ### 18. Flood-Fill Tool ✅ COMPLETED
 - **Description**: Implemented flood-fill functionality for the canvas using control-click to fill connected regions of the same color
@@ -725,7 +726,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Integrated with existing canvas interface and color system
   - Added comprehensive logging for debugging
 - **Files Modified**:
-  - `glitchygames/tools/bitmappy.py` - Added flood-fill algorithm and control-click handling
+  - `src/glitchygames/bitmappy/editor.py` - Added flood-fill algorithm and control-click handling
 
 ### 19. Onion Skinning Initialization Fix ✅ COMPLETED
 - **Description**: Fixed onion skinning initialization when loading sprites to ensure proper alpha blending and transparency handling
@@ -739,7 +740,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Global onion skinning toggle support
   - Enhanced alpha blending with transparent pixels
 - **Files Modified**:
-  - `glitchygames/tools/bitmappy.py` - Fixed onion skinning initialization
+  - `src/glitchygames/bitmappy/editor.py` - Fixed onion skinning initialization
 
 ### 20. Debug Logging Cleanup ✅ COMPLETED
 - **Description**: Removed verbose debug logging statements that were cluttering console output
@@ -751,7 +752,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Removed film strip update debug logs
   - Maintained functionality while reducing console verbosity
 - **Files Modified**:
-  - `glitchygames/tools/bitmappy.py` - Cleaned up debug logging
+  - `src/glitchygames/bitmappy/editor.py` - Cleaned up debug logging
 
 ### 21. Controller Position Undo/Redo System ✅ COMPLETED
 - **Description**: Integrated controller position and mode changes into the undo/redo system, allowing users to undo controller movements and mode switches
@@ -781,9 +782,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Controller Context**: Maintain controller-specific undo/redo history
   - **Performance Optimized**: Minimal impact on continuous movement performance
 - **Files Created/Modified**:
-  - `glitchygames/tools/undo_redo_manager.py` - Added controller position operation types and callbacks
-  - `glitchygames/tools/operation_history.py` - Added ControllerPositionOperationTracker
-  - `glitchygames/tools/bitmappy.py` - Integrated controller position tracking with movement system
+  - `src/glitchygames/bitmappy/history/undo_redo.py` - Added controller position operation types and callbacks
+  - `src/glitchygames/bitmappy/history/operations.py` - Added ControllerPositionOperationTracker
+  - `src/glitchygames/bitmappy/editor.py` - Integrated controller position tracking with movement system
   - `tests/tools/test_controller_position_undo_redo.py` - Comprehensive test suite
   - `tests/tools/test_slider_continuous_movement_fix.py` - Continuous movement fix tests
 - **Known Issues**:
@@ -823,9 +824,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Film Strip Compatibility**: Proper transparency handling in film strip display
 - **Files Modified**:
   - `src/glitchygames/sprites/animated.py` - Enhanced RGBA support and transparency key handling
-  - `glitchygames/tools/bitmappy.py` - Updated canvas rendering and sprite loading
-  - `glitchygames/tools/canvas_interfaces.py` - Fixed transparency key pixel rendering
-  - `glitchygames/tools/film_strip.py` - Proper transparency handling for film strip
+  - `src/glitchygames/bitmappy/editor.py` - Updated canvas rendering and sprite loading
+  - `src/glitchygames/bitmappy/canvas_interfaces.py` - Fixed transparency key pixel rendering
+  - `src/glitchygames/bitmappy/film_strip.py` - Proper transparency handling for film strip
   - `src/glitchygames/tools/ascii_renderer.py` - Enhanced animation frame display with dimensions
 - **Future Improvements**:
   - Update AI sprite generation instructions to include per-pixel alpha examples
@@ -847,11 +848,11 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Keyboard Shortcuts**: 'O' key toggles global onion skinning on/off
   - **Transparency Control**: Configurable transparency level (default 50%)
 - **Files Created/Modified**:
-  - `glitchygames/tools/onion_skinning.py` - Core onion skinning management
-  - `glitchygames/tools/onion_skinning_renderer.py` - Canvas rendering with transparency
-  - `glitchygames/tools/film_strip.py` - Visual indicators and click handling
-  - `glitchygames/tools/canvas_interfaces.py` - Integration with canvas rendering
-  - `glitchygames/tools/bitmappy.py` - Keyboard shortcuts
+  - `src/glitchygames/bitmappy/onion_skinning.py` - Core onion skinning management
+  - `src/glitchygames/tools/onion_skinning_renderer.py` - Canvas rendering with transparency
+  - `src/glitchygames/bitmappy/film_strip.py` - Visual indicators and click handling
+  - `src/glitchygames/bitmappy/canvas_interfaces.py` - Integration with canvas rendering
+  - `src/glitchygames/bitmappy/editor.py` - Keyboard shortcuts
   - `tests/tools/test_onion_skinning.py` - Comprehensive test suite
 
 
@@ -891,11 +892,11 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Smooth Navigation**: Independent scrolling and frame selection
   - **No Conflicts**: Smart positioning prevents visual overlap
 - **Files to Create/Modify**:
-  - `glitchygames/tools/multi_controller_manager.py` - Core multi-controller system
-  - `glitchygames/tools/controller_selection.py` - Individual controller state management
-  - `glitchygames/tools/visual_collision_manager.py` - Visual indicator positioning
-  - `glitchygames/tools/bitmappy.py` - Enhanced with multi-controller support
-  - `glitchygames/tools/film_strip.py` - Enhanced visual system for multiple indicators
+  - `src/glitchygames/bitmappy/controllers/manager.py` - Core multi-controller system
+  - `src/glitchygames/bitmappy/controllers/selection.py` - Individual controller state management
+  - `src/glitchygames/bitmappy/indicators/collision.py` - Visual indicator positioning
+  - `src/glitchygames/bitmappy/editor.py` - Enhanced with multi-controller support
+  - `src/glitchygames/bitmappy/film_strip.py` - Enhanced visual system for multiple indicators
   - `tests/tools/test_multi_controller.py` - Multi-controller system tests
   - `tests/tools/test_visual_collision.py` - Visual system tests
 - **Configuration Options**:
@@ -960,12 +961,12 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Time-Based**: Most recent edit wins
   - **Area-Based**: Controllers assigned to different sprite areas
 - **Files to Create/Modify**:
-  - `glitchygames/tools/collaborative_editing.py` - Collaborative editing system
-  - `glitchygames/tools/session_manager.py` - Session management
-  - `glitchygames/tools/conflict_resolver.py` - Conflict resolution
-  - `glitchygames/tools/permission_manager.py` - Permission system
-  - `glitchygames/tools/edit_history.py` - Edit history tracking
-  - `glitchygames/tools/bitmappy.py` - Enhanced with collaborative features
+  - `src/glitchygames/tools/collaborative_editing.py` - Collaborative editing system
+  - `src/glitchygames/tools/session_manager.py` - Session management
+  - `src/glitchygames/tools/conflict_resolver.py` - Conflict resolution
+  - `src/glitchygames/tools/permission_manager.py` - Permission system
+  - `src/glitchygames/tools/edit_history.py` - Edit history tracking
+  - `src/glitchygames/bitmappy/editor.py` - Enhanced with collaborative features
   - `tests/tools/test_collaborative_editing.py` - Collaborative editing tests
   - `tests/tools/test_session_manager.py` - Session management tests
   - `tests/tools/test_conflict_resolver.py` - Conflict resolution tests
@@ -1016,7 +1017,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Performance optimization for large sprites
 - **Files to Create/Modify**:
   - `src/glitchygames/tools/ascii_renderer.py` - ASCII rendering system
-  - `glitchygames/tools/color_mapper.py` - Color palette mapping
+  - `src/glitchygames/tools/color_mapper.py` - Color palette mapping
   - `src/glitchygames/tools/terminal_utils.py` - Terminal capability detection
   - `tests/tools/test_ascii_renderer.py` - ASCII rendering tests
   - `tests/tools/test_color_mapper.py` - Color mapping tests
@@ -1058,11 +1059,11 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Batch Generation**: Voice commands for creating multiple sprites
   - **Style Transfer**: "Make it look like pixel art" or "Make it anime style"
 - **Files to Create/Modify**:
-  - `glitchygames/ai/speech_sprite_generator.py` - Core speech-to-sprite system
-  - `glitchygames/ai/voice_processor.py` - Speech recognition and processing
-  - `glitchygames/ai/controller_mic.py` - PS5 controller microphone support
-  - `glitchygames/ai/voice_commands.py` - Voice command parsing
-  - `glitchygames/tools/bitmappy.py` - Integration with bitmappy tool
+  - `src/glitchygames/ai/speech_sprite_generator.py` - Core speech-to-sprite system
+  - `src/glitchygames/ai/voice_processor.py` - Speech recognition and processing
+  - `src/glitchygames/ai/controller_mic.py` - PS5 controller microphone support
+  - `src/glitchygames/ai/voice_commands.py` - Voice command parsing
+  - `src/glitchygames/bitmappy/editor.py` - Integration with bitmappy tool
   - `tests/ai/test_speech_sprite_generator.py` - Speech generation tests
   - `tests/ai/test_voice_processor.py` - Voice processing tests
 
@@ -1151,10 +1152,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Audio system integration
   - Performance optimization for real-time effects
 - **Files to Create/Modify**:
-  - `glitchygames/levels/water_level.py` - Water level implementation
-  - `glitchygames/effects/water_effects.py` - Visual effects system
-  - `glitchygames/physics/refraction.py` - Refraction physics
-  - `glitchygames/audio/water_sounds.py` - Water audio effects
+  - `src/glitchygames/levels/water_level.py` - Water level implementation
+  - `src/glitchygames/effects/water_effects.py` - Visual effects system
+  - `src/glitchygames/physics/refraction.py` - Refraction physics
+  - `src/glitchygames/audio/water_sounds.py` - Water audio effects
   - `tests/levels/test_water_level.py` - Water level tests
   - `tests/physics/test_refraction.py` - Refraction physics tests
 
@@ -1224,11 +1225,11 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Performance analysis algorithms
   - Integration with existing sprite loading system
 - **Files to Create/Modify**:
-  - `glitchygames/tools/sprite_linter.py` - Core linting engine
-  - `glitchygames/tools/format_validator.py` - Format validation system
-  - `glitchygames/tools/color_analyzer.py` - Color palette analysis
-  - `glitchygames/tools/sprite_optimizer.py` - Performance optimization suggestions
-  - `glitchygames/tools/cli_linter.py` - Command-line interface
+  - `src/glitchygames/tools/sprite_linter.py` - Core linting engine
+  - `src/glitchygames/tools/format_validator.py` - Format validation system
+  - `src/glitchygames/tools/color_analyzer.py` - Color palette analysis
+  - `src/glitchygames/tools/sprite_optimizer.py` - Performance optimization suggestions
+  - `src/glitchygames/tools/cli_linter.py` - Command-line interface
   - `tests/tools/test_sprite_linter.py` - Linter validation tests
   - `tests/tools/test_format_validator.py` - Format validation tests
 - **Validation Categories**:
@@ -1276,9 +1277,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Unified History**: Single undo/redo system that works across both areas
   - **Context Awareness**: Undo/redo operations respect current editing context
 - **Files to Create/Modify**:
-  - `glitchygames/tools/undo_redo_manager.py` - Core undo/redo system
-  - `glitchygames/tools/operation_history.py` - Operation tracking
-  - `glitchygames/tools/bitmappy.py` - Integration with main editor
+  - `src/glitchygames/bitmappy/history/undo_redo.py` - Core undo/redo system
+  - `src/glitchygames/bitmappy/history/operations.py` - Operation tracking
+  - `src/glitchygames/bitmappy/editor.py` - Integration with main editor
   - `tests/tools/test_undo_redo.py` - Undo/redo system tests
 
 ### 30. Pixel-Level Copy/Paste System
@@ -1304,10 +1305,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Transform Tools**: Rotate, flip, scale pasted content
   - **Preview Mode**: See paste result before confirming
 - **Files to Create/Modify**:
-  - `glitchygames/tools/selection_tools.py` - Selection system
-  - `glitchygames/tools/pixel_clipboard.py` - Pixel-level clipboard
-  - `glitchygames/tools/transform_tools.py` - Transform operations
-  - `glitchygames/tools/bitmappy.py` - Integration with main editor
+  - `src/glitchygames/tools/selection_tools.py` - Selection system
+  - `src/glitchygames/tools/pixel_clipboard.py` - Pixel-level clipboard
+  - `src/glitchygames/tools/transform_tools.py` - Transform operations
+  - `src/glitchygames/bitmappy/editor.py` - Integration with main editor
   - `tests/tools/test_selection_tools.py` - Selection system tests
 
 ### 31. Multi-Frame Copy/Paste System
@@ -1328,9 +1329,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Paste Options**: Insert, replace, or append frames
   - **Timing Control**: Adjust timing when pasting frames
 - **Files to Create/Modify**:
-  - `glitchygames/tools/animation_clipboard.py` - Animation clipboard system
-  - `glitchygames/tools/frame_sequence_manager.py` - Frame sequence handling
-  - `glitchygames/tools/bitmappy.py` - Integration with main editor
+  - `src/glitchygames/tools/animation_clipboard.py` - Animation clipboard system
+  - `src/glitchygames/tools/frame_sequence_manager.py` - Frame sequence handling
+  - `src/glitchygames/bitmappy/editor.py` - Integration with main editor
   - `tests/tools/test_animation_clipboard.py` - Animation clipboard tests
 
 ### 32. Advanced Clipboard Operations
@@ -1350,9 +1351,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Clipboard Export**: Save clipboard items to files
   - **Clipboard Import**: Load clipboard items from files
 - **Files to Create/Modify**:
-  - `glitchygames/tools/advanced_clipboard.py` - Advanced clipboard system
-  - `glitchygames/tools/clipboard_browser.py` - Clipboard management UI
-  - `glitchygames/tools/bitmappy.py` - Integration with main editor
+  - `src/glitchygames/tools/advanced_clipboard.py` - Advanced clipboard system
+  - `src/glitchygames/tools/clipboard_browser.py` - Clipboard management UI
+  - `src/glitchygames/bitmappy/editor.py` - Integration with main editor
   - `tests/tools/test_advanced_clipboard.py` - Advanced clipboard tests
 
 ### 33. Selection and Transform Tools
@@ -1376,9 +1377,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
     - Selection preview and confirmation
     - Selection constraints (aspect ratio, grid alignment)
 - **Files to Create/Modify**:
-  - `glitchygames/tools/selection_tools.py` - Selection system
-  - `glitchygames/tools/transform_tools.py` - Transform operations
-  - `glitchygames/tools/bitmappy.py` - Integration with main editor
+  - `src/glitchygames/tools/selection_tools.py` - Selection system
+  - `src/glitchygames/tools/transform_tools.py` - Transform operations
+  - `src/glitchygames/bitmappy/editor.py` - Integration with main editor
   - `tests/tools/test_transform_tools.py` - Transform tools tests
 
 ### 34. System Clipboard Integration
@@ -1396,9 +1397,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - JSON export/import for animation data
   - Custom format for bitmappy-specific data
 - **Files to Create/Modify**:
-  - `glitchygames/tools/system_clipboard.py` - System clipboard integration
-  - `glitchygames/tools/format_converter.py` - Format conversion utilities
-  - `glitchygames/tools/bitmappy.py` - Integration with main editor
+  - `src/glitchygames/tools/system_clipboard.py` - System clipboard integration
+  - `src/glitchygames/tools/format_converter.py` - Format conversion utilities
+  - `src/glitchygames/bitmappy/editor.py` - Integration with main editor
   - `tests/tools/test_system_clipboard.py` - System clipboard tests
 
 ### 35. Undo/Redo Visualization
@@ -1418,9 +1419,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Operation Tree**: Tree view of operation relationships
   - **Filter Options**: Filter operations by type, time, or scope
 - **Files to Create/Modify**:
-  - `glitchygames/tools/undo_visualization.py` - Undo/redo visualization
-  - `glitchygames/tools/history_browser.py` - History management UI
-  - `glitchygames/tools/bitmappy.py` - Integration with main editor
+  - `src/glitchygames/tools/undo_visualization.py` - Undo/redo visualization
+  - `src/glitchygames/tools/history_browser.py` - History management UI
+  - `src/glitchygames/bitmappy/editor.py` - Integration with main editor
   - `tests/tools/test_undo_visualization.py` - Undo visualization tests
 
 ### 36. Batch Operations
@@ -1440,9 +1441,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Sprite Operations**: Apply operations to multiple sprites
   - **Operation Queuing**: Queue multiple operations for batch execution
 - **Files to Create/Modify**:
-  - `glitchygames/tools/batch_operations.py` - Batch operation system
-  - `glitchygames/tools/operation_templates.py` - Operation template system
-  - `glitchygames/tools/bitmappy.py` - Integration with main editor
+  - `src/glitchygames/tools/batch_operations.py` - Batch operation system
+  - `src/glitchygames/tools/operation_templates.py` - Operation template system
+  - `src/glitchygames/bitmappy/editor.py` - Integration with main editor
   - `tests/tools/test_batch_operations.py` - Batch operations tests
 
 ### 37. Enhanced Drag-n-Drop Frame Updates
@@ -1487,11 +1488,11 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Visual feedback and preview system
   - Integration with existing undo/redo system
 - **Files to Create/Modify**:
-  - `glitchygames/tools/enhanced_drag_drop.py` - Enhanced drag-n-drop system
-  - `glitchygames/tools/frame_updater.py` - Frame update operations
-  - `glitchygames/tools/content_integration.py` - Content integration utilities
-  - `glitchygames/tools/bitmappy.py` - Integration with main editor
-  - `glitchygames/tools/film_strip.py` - Enhanced film strip drop handling
+  - `src/glitchygames/tools/enhanced_drag_drop.py` - Enhanced drag-n-drop system
+  - `src/glitchygames/tools/frame_updater.py` - Frame update operations
+  - `src/glitchygames/tools/content_integration.py` - Content integration utilities
+  - `src/glitchygames/bitmappy/editor.py` - Integration with main editor
+  - `src/glitchygames/bitmappy/film_strip.py` - Enhanced film strip drop handling
   - `tests/tools/test_enhanced_drag_drop.py` - Enhanced drag-n-drop tests
 
 ### 38. Frame Alignment Command

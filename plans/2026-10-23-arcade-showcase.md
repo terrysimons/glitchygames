@@ -137,7 +137,7 @@ lists "inner frames handed to a sink rather than presented" as a later user of t
 
 ### 3. The Arcade
 
-`glitchygames/arcade/`, an ordinary outer game: its scene holds nine `DemoPlayer`s, draws the
+`src/glitchygames/arcade/`, an ordinary outer game: its scene holds nine `DemoPlayer`s, draws the
 top frame, separator and grid, runs the reel (bars, chime, demo) and the highlight, and shares
 the frame budget. One Arcade frame:
 
@@ -225,7 +225,7 @@ sprite being drawn; the joystick demo's shows its readout answering a recorded p
    inner-game runner, the viewer and playback scope on it, fast-forward, the frame budget,
    poster frames.
 3. **Demos for all nine games** (can run beside 1 and 2).
-4. **The Arcade screen, reel and chime:** `glitchygames/arcade/`, the console script, layout,
+4. **The Arcade screen, reel and chime:** `src/glitchygames/arcade/`, the console script, layout,
    highlight, input, idle time-out, the chime recipe.
 5. **Launching in the same process:** the registry, fresh contexts for games, return, window size.
 6. **The browser bundle:** `nox -s browser -- glitchygames`.

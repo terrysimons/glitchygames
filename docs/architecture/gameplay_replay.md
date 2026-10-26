@@ -724,8 +724,9 @@ would end the demo).
 
 Bundled demos are recordings shipped in the game's package,
 `src/glitchygames/examples/<game>_demos/<name>.jsonl.gz` for a game still inside the engine (a
-workspace member's go in its own package, `<package>/demos/<name>.jsonl.gz`, e.g.
-`src/games/<game>/<package>/demos/`). PaddleSlap's game-over screen plays
+workspace member's go in the member's import package, e.g.
+`src/games/mr-muncher/mr_muncher/demos/<name>.jsonl.gz`, and ship in the member's wheel, not the
+engine's). PaddleSlap's game-over screen plays
 `rally.jsonl.gz` after 10 seconds without a press. `tests/replay/test_bundled_demos.py` replays
 every bundled demo headless, so a change that makes a demo diverge fails in CI before it ships.
 

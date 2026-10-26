@@ -499,10 +499,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   logged at WARNING ("No demo: ...") and nothing starts; a divergence ends it and logs WARNING
   `demo diverged: <describe()>`; a cut-off file plays to its cut-off and ends `truncated`
   (INFO). Check `last_playback_outcome` for how it ended
-- Bundled demos (Part 3 Task 4): `src/glitchygames/examples/<game>_demos/<name>.jsonl.gz` (a game
-  still inside the engine; a workspace member's go in its package, `<package>/demos/<name>.jsonl.gz`,
-  e.g. `src/games/<game>/<package>/demos/`) ships in
-  the wheel (hatch includes every file in the package; no pyproject change). PaddleSlap has no
+- Bundled demos (Part 3 Task 4): `src/glitchygames/examples/<game>_demos/<name>.jsonl.gz` for a
+  game still inside the engine; a workspace member's go in the member's import package, e.g.
+  `src/games/mr-muncher/mr_muncher/demos/<name>.jsonl.gz`. Each ships in the wheel of the package
+  that holds it (the engine's, or the member's; hatch includes every file in the package; no
+  pyproject change). PaddleSlap has no
   title screen, so its game-over screen (`PaddleSlapGameOverScene`) plays
   `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS` (10) of game time without a key or
   button press. `tests/replay/test_bundled_demos.py` replays every demo headless
