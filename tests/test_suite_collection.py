@@ -392,13 +392,24 @@ LIVING_PLAN_FILES = (
     'plans/2026-10-23-arcade-showcase.md',
     'plans/2026-10-24-workspace-packages.md',
 )
-# An engine path not written from the repository root: `glitchygames/` right after something
-# that makes it part of a longer path or name (a word, '.', '/', '-', '~') is not one, which
-# leaves out `src/glitchygames/`, `site-packages/glitchygames/`, URLs, `dev.glitchygames/`
-# and the dotted module name `glitchygames.engine`.
-ENGINE_PATH_WITHOUT_ROOT = re.compile(r'(?<![\w./~-])glitchygames/(?P<rest>[\w./-]*)')
-# `src/examples` (there is no examples layer) and a workspace layer written without `src/`
-STALE_LAYER_PATH = re.compile(r'src/examples\b|(?<![\w./~-])(?:games|demos|apps)/(?=[\w<])')
+# An engine path not written from the repository root: `glitchygames/<something>` right after
+# something that makes it part of a longer path or name (a word, '.', '/', '-', '~') is not one,
+# which leaves out `src/glitchygames/`, `site-packages/glitchygames/`, URLs, `dev.glitchygames/`
+# and the dotted module name `glitchygames.engine`. A bare `glitchygames/` names the package
+# directory (a wheel's top level, an archive listing), not a path from the root, so it needs a
+# name after the slash. There is no check that the file exists: a planned engine file is under
+# src/ too, and a deleted file's stale reference must not go quiet.
+ENGINE_PATH_WITHOUT_ROOT = re.compile(r'(?<![\w./~-])glitchygames/(?P<rest>[\w<][\w./<>-]*)')
+# `src/examples` (there is no examples layer), and, in backticks, a layer directory written from
+# the root without `src/` (`games/<game>/tests`; `examples/...` too: the examples are games and
+# demos). Relative links (`games/paddleslap.md`, a docs page), `tests/examples/` and
+# `src/glitchygames/examples/` (their slash follows another name) and prose such as "games/demos"
+# (no backtick) are not claims about the root.
+STALE_LAYER_PATH = re.compile(
+    r'src/examples\b|(?<=`)(?:games|demos|apps|examples)/(?![\w./<>-]*\.md\b)(?=[\w<])'
+)
+# A fence opens with three or more backticks or tildes and closes with the same marker
+FENCE_LINE = re.compile(r'^\s*(?P<marker>`{3,}|~{3,})')
 
 
 def _is_generated_api_stub(*, text: str) -> bool:
@@ -471,26 +482,68 @@ def living_documentation_lines(*, project_root: Path = PROJECT_ROOT) -> list[tup
     return lines
 
 
+def _scan_units(*, project_root: Path) -> list[tuple[str, list[tuple[int, str]]]]:
+    """Return (file, lines) units whose fenced-code state is independent of each other.
+
+    A file is one unit; each active BUGS.md entry is its own unit, because only those entries'
+    lines are scanned and an unclosed fence in one must not carry into the next.
+    """
+    units: dict[tuple[str, int], list[tuple[int, str]]] = {}
+    previous_line_number = 0
+    unit_number = 0
+    for relative, line_number, line in living_documentation_lines(project_root=project_root):
+        if relative == 'BUGS.md' and (
+            line.startswith(('## ', '### ')) or line_number != previous_line_number + 1
+        ):
+            unit_number += 1
+        previous_line_number = line_number if relative == 'BUGS.md' else 0
+        units.setdefault((relative, unit_number if relative == 'BUGS.md' else 0), []).append((
+            line_number,
+            line,
+        ))
+    return [(relative, lines) for (relative, _), lines in units.items()]
+
+
 def paths_without_the_source_root(*, project_root: Path = PROJECT_ROOT) -> list[str]:
     """Return 'file:line: text' for each living-documentation path that predates src/."""
     problems: list[str] = []
-    fenced_files: set[str] = set()
-    for relative, line_number, line in living_documentation_lines(project_root=project_root):
-        if line.lstrip().startswith('```'):
-            fenced_files ^= {relative}
-            continue
-        # In a fenced layout tree an indented entry is a child of the line above it
-        # (`  glitchygames/` under `src/`), not a path from the repository root
-        indentation = len(line) - len(line.lstrip())
-        tree_entry_start = indentation if relative in fenced_files and indentation else None
-        stale = [
-            match.group(0)
-            for match in ENGINE_PATH_WITHOUT_ROOT.finditer(line)
-            if match.start() != tree_entry_start
-            and (project_root / 'src' / match.group(0).rstrip('.,;:)`\'"')).exists()
-        ]
-        stale.extend(match.group(0) for match in STALE_LAYER_PATH.finditer(line))
-        problems.extend(f'{relative}:{line_number}: {text}' for text in stale)
+    for relative, lines in _scan_units(project_root=project_root):
+        fence_marker: str | None = None
+        previous_is_tree = False
+        for line_number, line in lines:
+            fence = FENCE_LINE.match(line)
+            if fence is not None:
+                marker = fence.group('marker')
+                if fence_marker is None:
+                    fence_marker = marker
+                elif marker[0] == fence_marker[0] and len(marker) >= len(fence_marker):
+                    fence_marker = None
+                previous_is_tree = False
+                continue
+            if not line.strip():
+                continue
+            # In a fenced layout tree an indented entry is a child of the tree line above it
+            # (`  glitchygames/` under `src/`), not a path from the repository root. A tree line
+            # starts with a name ending in a slash; an entry follows a tree line or an entry. A
+            # command's continuation (`uv run pytest \\` then an indented path) follows neither.
+            indentation = len(line) - len(line.lstrip())
+            is_tree_entry = (
+                fence_marker is not None
+                and indentation > 0
+                and previous_is_tree
+                and ENGINE_PATH_WITHOUT_ROOT.match(line.lstrip(), 0) is not None
+            )
+            if fence_marker is not None:
+                previous_is_tree = line.split()[0].endswith('/') or (
+                    indentation > 0 and previous_is_tree
+                )
+            stale = [
+                match.group(0)
+                for match in ENGINE_PATH_WITHOUT_ROOT.finditer(line)
+                if not (is_tree_entry and match.start() == indentation)
+            ]
+            stale.extend(match.group(0) for match in STALE_LAYER_PATH.finditer(line))
+            problems.extend(f'{relative}:{line_number}: {text}' for text in stale)
     return problems
 
 
@@ -504,48 +557,114 @@ def test_living_documentation_writes_repository_paths_from_the_repository_root()
     assert paths_without_the_source_root() == []
 
 
+def _guard_findings(*, tmp_path: Path, claude_text: str, bugs_text: str = '') -> list[str]:
+    """Return the guard's findings for a repository whose CLAUDE.md and BUGS.md have this text."""
+    engine = tmp_path / 'src' / 'glitchygames'
+    engine.mkdir(parents=True, exist_ok=True)
+    (tmp_path / 'CLAUDE.md').write_text(claude_text, encoding='utf-8')
+    if bugs_text:
+        (tmp_path / 'BUGS.md').write_text(bugs_text, encoding='utf-8')
+    return paths_without_the_source_root(project_root=tmp_path)
+
+
 def test_the_path_guard_finds_stale_paths_and_leaves_names_and_urls_alone(tmp_path):
     """The guard names stale paths, and leaves dotted names, URLs, cache names and history alone."""
-    (tmp_path / 'src' / 'glitchygames' / 'ui').mkdir(parents=True)
-    (tmp_path / 'src' / 'glitchygames' / 'ui' / 'x.py').touch()
-    (tmp_path / 'src' / 'glitchygames' / 'ui' / 'y.py').touch()
     (tmp_path / 'docs').mkdir()
-    (tmp_path / 'CLAUDE.md').write_text(
-        'See `glitchygames/ui/` and glitchygames/ui/x.py.\n'
-        'See `src/glitchygames/ui/`, glitchygames.ui, site-packages/glitchygames/ui.\n'
-        'https://github.com/terrysimons/glitchygames/ui and glitchygames/nowhere.\n'
-        'The ~/.glitchygames/cache, glitchygames-wasm and src/examples/x, apps/y.\n'
-        'Plain games/ prose, src/games/muncher and docs/games/x.md are fine.',
-        encoding='utf-8',
-    )
     (tmp_path / 'docs' / 'stub.md').write_text(
         '::: glitchygames.ui\n    options:\n', encoding='utf-8'
     )
-    (tmp_path / 'BUGS.md').write_text(
-        '## Active Bugs\n### 1. A\n- **Status**: Active\nglitchygames/ui/y.py\n'
-        '## Resolved Bugs\n### 2. B\n- **Status**: Resolved\nglitchygames/ui/z.py\n',
-        encoding='utf-8',
-    )
 
-    assert paths_without_the_source_root(project_root=tmp_path) == [
+    assert _guard_findings(
+        tmp_path=tmp_path,
+        claude_text=(
+            'See `glitchygames/ui/` and glitchygames/ui/x.py.\n'
+            'See `src/glitchygames/ui/`, glitchygames.ui, site-packages/glitchygames/ui.\n'
+            'https://github.com/terrysimons/glitchygames/ui and `glitchygames/arcade/` planned.\n'
+            'The ~/.glitchygames/cache, glitchygames-wasm and src/examples/x, `apps/y`.\n'
+            'Plain games/ prose, src/games/muncher and docs/games/x.md are fine.'
+        ),
+        bugs_text=(
+            '## Active Bugs\n### 1. A\n- **Status**: Active\nglitchygames/ui/y.py\n'
+            '## Resolved Bugs\n### 2. B\n- **Status**: Resolved\nglitchygames/ui/z.py\n'
+        ),
+    ) == [
         'CLAUDE.md:1: glitchygames/ui/',
         'CLAUDE.md:1: glitchygames/ui/x.py.',
+        'CLAUDE.md:3: glitchygames/arcade/',
         'CLAUDE.md:4: src/examples',
         'CLAUDE.md:4: apps/',
         'BUGS.md:4: glitchygames/ui/y.py',
     ]
 
 
-def test_a_layout_tree_entry_is_read_under_its_parent(tmp_path):
-    """In a fenced tree, `  glitchygames/` indented under `src/` is src/glitchygames/.
-
-    A path at the start of an unindented fenced line (a command, a root-level entry) still counts.
-    """
-    (tmp_path / 'src' / 'glitchygames' / 'ui').mkdir(parents=True)
-    (tmp_path / 'docs').mkdir()
-    (tmp_path / 'CLAUDE.md').write_text(
-        '```\nsrc/\n  glitchygames/        the engine\n    ui/\nglitchygames/ui/\n```\n',
-        encoding='utf-8',
+def test_the_path_guard_leaves_a_bare_package_directory_name_alone(tmp_path):
+    """`glitchygames/` with nothing after it names the package (a wheel, a listing), not a path."""
+    assert (
+        _guard_findings(
+            tmp_path=tmp_path,
+            claude_text=(
+                'The wheel holds glitchygames/ at the top, `glitchygames/`, glitchygames/*.py.'
+            ),
+        )
+        == []
     )
 
-    assert paths_without_the_source_root(project_root=tmp_path) == ['CLAUDE.md:5: glitchygames/ui/']
+
+def test_the_path_guard_flags_only_a_root_level_layer_path_claim(tmp_path):
+    """Relative links, prose pairs and docs-relative paths are not claims about the root."""
+    assert _guard_findings(
+        tmp_path=tmp_path,
+        claude_text=(
+            'See [a](games/paddleslap.md) and [b](demos/x.md), games/demos, games/<game>/tests.\n'
+            '`games/paddleslap.md`, src/games/x, tests/examples/x.py,'
+            ' `src/glitchygames/examples/`.\n'
+            'Stale: `examples/resources/x.toml`, `demos/dt/`, `games/<game>/tests`.'
+        ),
+    ) == [
+        'CLAUDE.md:3: examples/',
+        'CLAUDE.md:3: demos/',
+        'CLAUDE.md:3: games/',
+    ]
+
+
+def test_the_path_guard_exempts_only_fenced_tree_entries(tmp_path):
+    """A tree's indented entry sits under its parent; a command's continuation does not."""
+    fence = '```'
+    tree_text = [
+        fence,
+        'src/',
+        '  glitchygames/    the engine',
+        '    ui/',
+        '  games/',
+        fence,
+        '~~~~',
+        'uv run pytest \\',
+        '    glitchygames/ui/x.py',
+        fence,
+        'inside a four-marker fence',
+        fence,
+        '    glitchygames/ui/y.py',
+        '~~~~',
+        'glitchygames/ui/after.py',
+    ]
+    assert _guard_findings(
+        tmp_path=tmp_path,
+        claude_text='\n'.join(tree_text),
+    ) == [
+        'CLAUDE.md:9: glitchygames/ui/x.py',
+        'CLAUDE.md:13: glitchygames/ui/y.py',
+        'CLAUDE.md:15: glitchygames/ui/after.py',
+    ]
+
+
+def test_an_unclosed_fence_in_one_bug_entry_does_not_hide_the_next(tmp_path):
+    """BUGS.md scans only active entries, so fence state starts afresh in each of them."""
+    assert _guard_findings(
+        tmp_path=tmp_path,
+        claude_text='',
+        bugs_text=(
+            '### 1. A\n- **Status**: Active\n```\nsrc/\n'
+            '### 2. Resolved\n- **Status**: Resolved\n```\n'
+            '### 3. B\n- **Status**: Active\n  glitchygames/ui/y.py\n'
+        ),
+    ) == ['BUGS.md:10: glitchygames/ui/y.py']
