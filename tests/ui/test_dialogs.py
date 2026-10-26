@@ -15,7 +15,8 @@ dialogs hand file names to) is a small recording stand-in.
 
 import logging
 import shutil
-from pathlib import Path
+import sys
+from pathlib import Path, PureWindowsPath
 
 import pygame
 import pytest
@@ -426,44 +427,83 @@ class TestFileNames:
 
 
 class TestFileNameProblem:
-    """A file name containing ':' is refused, except a Windows drive letter at its start."""
-
-    @pytest.mark.parametrize(
-        'filename', ['examples:foo.toml', 'sprites/a:b.toml', 'a:', ':foo.toml', 'ab:foo.toml']
-    )
-    def test_a_colon_is_refused(self, filename):
-        """':' anywhere other than after a single leading ASCII letter is a problem."""
-        problem = _file_name_problem(filename)
-
-        assert problem is not None
-        assert "':' is not allowed in a file name" in problem
-        assert "'examples:' prefix was removed" in problem
+    """':' in a Save name depends on the platform; the tests pass the platform explicitly."""
 
     @pytest.mark.parametrize(
         'filename',
         [
-            'foo.toml',
-            'sprites/foo.toml',
-            'C:\\sprites\\foo.toml',
-            'C:/sprites/foo.toml',
-            'z:/a.toml',
+            'C:\\a.toml',
+            'C:/a.toml',
+            'C:a.toml',
+            'c:\\a.toml',
+            '\\\\?\\C:\\a.toml',
+            '\\\\server\\share\\a.toml',
+            'a.toml',
+            'sprites\\a.toml',
         ],
     )
-    def test_a_name_without_a_colon_or_with_a_drive_letter_is_allowed(self, filename):
-        """A plain name, and a drive letter followed by a separator, pass."""
-        assert _file_name_problem(filename) is None
+    @pytest.mark.parametrize('platform', ['win32', 'cygwin'])
+    def test_windows_allows_a_colon_only_in_the_drive_designator(self, filename, platform):
+        """A drive (including drive-relative and extended paths) and UNC names pass."""
+        assert _file_name_problem(filename, platform=platform) is None
 
-    def test_a_second_colon_after_a_drive_letter_is_refused(self):
-        """Only the drive letter's colon is excepted."""
-        assert _file_name_problem('C:/sprites/a:b.toml') is not None
+    @pytest.mark.parametrize(
+        'filename',
+        [
+            'foo:bar.toml',
+            'examples:foo.toml',
+            'C:\\a:b.toml',
+            'C:a:b.toml',
+            'ab:foo.toml',
+            ':foo.toml',
+        ],
+    )
+    def test_windows_refuses_any_other_colon(self, filename):
+        """A ':' outside the drive would name an NTFS alternate data stream."""
+        problem = _file_name_problem(filename, platform='win32')
 
-    def test_a_drive_letter_without_a_separator_is_refused(self):
-        """'C:foo.toml' is a drive-relative path, which is not accepted."""
-        assert _file_name_problem('C:foo.toml') is not None
+        assert problem is not None
+        assert "':' is only allowed after a drive letter" in problem
+        assert 'alternate data stream' in problem
+        assert "'examples:' prefix was removed" in problem
 
-    def test_a_digit_is_not_a_drive_letter(self):
-        """A drive letter is a single ASCII letter."""
-        assert _file_name_problem('1:/foo.toml') is not None
+    def test_windows_extended_path_drive_is_pinned(self):
+        """PureWindowsPath puts the extended path's drive in .drive, colon included."""
+        assert PureWindowsPath('\\\\?\\C:\\a.toml').drive == '\\\\?\\C:'
+        assert PureWindowsPath('C:a.toml').drive == 'C:'
+        assert PureWindowsPath('C:/a.toml').drive == 'C:'
+
+    @pytest.mark.parametrize(
+        'filename', ['a:b.toml', 'examples:foo.toml', 'C:\\a.toml', 'C:/a.toml']
+    )
+    def test_macos_refuses_any_colon(self, filename):
+        """Finder shows ':' as '/', so no ':' is accepted, not even a drive letter's."""
+        problem = _file_name_problem(filename, platform='darwin')
+
+        assert problem is not None
+        assert "':' isn't allowed in a file name on macOS" in problem
+        assert 'Finder shows it as' in problem
+        assert "'examples:' prefix was removed" in problem
+
+    @pytest.mark.parametrize('filename', ['a.toml', 'sprites/a.toml'])
+    def test_macos_allows_a_name_without_a_colon(self, filename):
+        """A plain name passes."""
+        assert _file_name_problem(filename, platform='darwin') is None
+
+    @pytest.mark.parametrize('filename', ['a:b.toml', 'examples:foo.toml', 'a.toml'])
+    def test_linux_allows_a_colon(self, filename):
+        """':' is a legal character on Linux."""
+        assert _file_name_problem(filename, platform='linux') is None
+
+    def test_the_browser_allows_a_colon(self):
+        """Save is a download there, and the browser sanitizes the name."""
+        assert _file_name_problem('a:b.toml', platform='emscripten') is None
+
+    def test_the_default_platform_is_this_machines(self):
+        """Without platform=, the helper uses sys.platform."""
+        assert _file_name_problem('a:b.toml') == _file_name_problem(
+            'a:b.toml', platform=sys.platform
+        )
 
 
 class TestDialogSceneSetupCleanupDismiss:
@@ -905,6 +945,19 @@ class TestLoadDialogConfirm:
 class TestSaveDialogConfirm:
     """Test SaveDialogScene.on_confirm_event."""
 
+    @pytest.fixture
+    def macos_rules(self, mocker):
+        """Make the dialog apply macOS's rule, wherever the tests run.
+
+        The dialog uses this machine's platform, where a ':' may be legal (Linux), so the helper is
+        patched to be called with platform='darwin' (sys.platform itself is left alone).
+        """
+        real_file_name_problem = _file_name_problem
+        mocker.patch(
+            'glitchygames.ui.dialogs._file_name_problem',
+            side_effect=lambda filename: real_file_name_problem(filename, platform='darwin'),
+        )
+
     def test_confirm_calls_on_save_file_event(self, previous_scene):
         """Test confirm event calls canvas on_save_file_event."""
         dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
@@ -915,7 +968,9 @@ class TestSaveDialogConfirm:
         assert previous_scene.canvas.saved_paths == ['output.toml']
 
     @pytest.mark.parametrize('filename', ['examples:star.toml', 'sprites/a:b.toml'])
-    def test_a_name_with_a_colon_is_refused_and_nothing_is_saved(self, previous_scene, filename):
+    def test_a_name_with_a_colon_is_refused_and_nothing_is_saved(
+        self, previous_scene, filename, macos_rules
+    ):
         """A ':' name shows the reason, saves nothing, hands nothing over and closes the dialog."""
         user_files = _RecordingUserFiles()
         install_user_files(user_files=user_files)
@@ -927,10 +982,12 @@ class TestSaveDialogConfirm:
 
         assert previous_scene.canvas.saved_paths == []
         assert not user_files.saved_files
-        assert "':' is not allowed in a file name" in previous_scene.debug_text.text
+        assert "':' isn't allowed in a file name on macOS" in previous_scene.debug_text.text
         assert dialog.next_scene is previous_scene
 
-    def test_a_refused_name_writes_no_file(self, previous_scene, tmp_path, monkeypatch):
+    def test_a_refused_name_writes_no_file(
+        self, previous_scene, tmp_path, monkeypatch, macos_rules
+    ):
         """Nothing is created in the working directory for a refused name."""
         monkeypatch.chdir(tmp_path)
         dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
@@ -940,7 +997,9 @@ class TestSaveDialogConfirm:
 
         assert list(tmp_path.iterdir()) == []
 
-    def test_a_refused_name_without_a_debug_text_is_only_dismissed(self, previous_scene):
+    def test_a_refused_name_without_a_debug_text_is_only_dismissed(
+        self, previous_scene, macos_rules
+    ):
         """A scene with no debug text box still closes the dialog without saving."""
         dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
         dialog.dialog.input_box.text = 'examples:star.toml'

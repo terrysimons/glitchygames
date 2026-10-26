@@ -8,8 +8,8 @@ for various operations like saving, loading, and creating new files.
 from __future__ import annotations
 
 import logging
-import string
-from pathlib import Path
+import sys
+from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
@@ -27,42 +27,56 @@ from glitchygames.user_files import installed_user_files
 LOG = logging.getLogger('game.ui.dialogs')
 LOG.addHandler(logging.NullHandler())
 
-# A Windows drive prefix: the letter, the ':' and the separator
-DRIVE_PREFIX_LENGTH = 3
+# The platforms (sys.platform values) where a ':' in a file name is refused, and why
+WINDOWS_PLATFORMS = frozenset({'win32', 'cygwin'})
+MACOS_PLATFORM = 'darwin'
+
+_EXAMPLES_PREFIX_HINT = "The 'examples:' prefix was removed: type the sprite's path instead."
 
 
-def _file_name_problem(filename: str) -> str | None:
-    r"""Say why a file name cannot be saved, or None when it can.
+def _file_name_problem(filename: str, *, platform: str = sys.platform) -> str | None:
+    r"""Say why a file name cannot be saved on ``platform``, or None when it can.
 
-    A ':' is refused anywhere in the name, except the one that follows a Windows drive letter at
-    the start (a single ASCII letter, then ':' and a backslash or '/', as in 'C:\a.toml' or
-    'C:/a.toml'). On Windows NTFS a ':' in a file name names an alternate data stream, so
-    'examples:foo.toml' would leave an empty file called 'examples' with a hidden stream.
+    Windows (win32, cygwin): a ':' is allowed only in the drive designator ('C:\a.toml',
+    'C:/a.toml', the drive-relative 'C:a.toml', the extended '\\?\C:\a.toml'). Anywhere else
+    NTFS reads 'name:stream' as a hidden alternate data stream, so 'examples:foo.toml' would leave
+    an empty file called 'examples'.
+
+    macOS (darwin): any ':' is refused. The POSIX layer accepts it, but Finder shows ':' as '/'
+    (a leftover of Classic Mac OS, where ':' was the path separator), so the file would appear
+    under a confusing name.
+
+    Every other platform (Linux, and emscripten, the browser, where Save is a download whose name
+    the browser sanitizes): ':' is a legal character and is allowed.
 
     Args:
         filename: The file name, already stripped of surrounding whitespace
+        platform: The sys.platform value to apply the rule of; this machine's by default
 
     Returns:
         str | None: The message to show the user, or None when the name is acceptable
 
     """
-    after_drive_letter = filename
-    starts_with_drive_letter = (
-        len(filename) >= DRIVE_PREFIX_LENGTH
-        and filename[0] in string.ascii_letters
-        and filename[1] == ':'
-        and filename[2] in {'\\', '/'}
-    )
-    if starts_with_drive_letter:
-        after_drive_letter = filename[DRIVE_PREFIX_LENGTH:]
+    if platform in WINDOWS_PLATFORMS:
+        # PureWindowsPath splits off the drive: 'C:' for 'C:\a', 'C:/a' and 'C:a', and
+        # '\\?\C:' for an extended path. A UNC drive ('\\server\share') is left in the
+        # remainder, where a ':' is refused too.
+        drive = PureWindowsPath(filename).drive
+        remainder = filename[len(drive) :] if drive.endswith(':') else filename
+        if ':' not in remainder:
+            return None
+        return (
+            "':' is only allowed after a drive letter. A ':' elsewhere would hide the data in an "
+            f'NTFS alternate data stream. {_EXAMPLES_PREFIX_HINT}'
+        )
 
-    if ':' not in after_drive_letter:
-        return None
+    if platform == MACOS_PLATFORM and ':' in filename:
+        return (
+            "':' isn't allowed in a file name on macOS (Finder shows it as '/'). "
+            f'{_EXAMPLES_PREFIX_HINT}'
+        )
 
-    return (
-        "':' is not allowed in a file name. The 'examples:' prefix was removed: "
-        "type the sprite's path instead."
-    )
+    return None
 
 
 def _get_save_path(filename: str) -> Path:
@@ -400,7 +414,7 @@ class SaveDialogScene(InputConfirmationDialogScene):
         self.log.info('Save File: event: %s, trigger: %s', event, trigger)
         # Get the filename from the input box
         filename = self.dialog.input_box.text
-        # A name with a ':' is refused before anything is written
+        # A name with a ':' this platform cannot hold is refused before anything is written
         problem = _file_name_problem(filename.strip())
         if problem is not None:
             self._show_save_error(message=problem)

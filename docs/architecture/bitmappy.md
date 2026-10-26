@@ -26,10 +26,18 @@ replay, which names the remedy; `--replay-trace OLD --rebaseline NEW --headless`
 - **The Load and Save dialogs** (the engine's `glitchygames.ui` dialog scenes) treat every file the
   same: the name is used as given, with surrounding whitespace trimmed, and a sprite in the
   library is opened by its path. The `example:` prefix they once understood is gone, and Save
-  refuses a `:` in a file name (a Windows drive letter such as `C:\` or `C:/` at the start is
-  the one exception): on Windows NTFS a `:` names an alternate data stream, so a typed
-  `examples:foo.toml` would leave an empty file called `examples`. The refusal is shown in the
-  editor's debug text and nothing is written; Load is unchanged (a missing name is reported as
+  applies a per-platform rule to `:` in a file name (`_file_name_problem`, the platform passed in
+  and `sys.platform` by default); the refusal is shown in the editor's debug text and nothing is
+  written:
+
+  | Platform | `:` in a Save name |
+  |---|---|
+  | Windows (`win32`, `cygwin`) | Allowed only in the drive designator (`C:\a.toml`, `C:/a.toml`, `C:a.toml`, `\\?\C:\a.toml`); elsewhere it names an NTFS alternate data stream, so `examples:foo.toml` would leave an empty file called `examples` |
+  | macOS (`darwin`) | Refused everywhere: Finder shows `:` as `/` (a Classic Mac OS leftover) |
+  | Linux and others | Allowed |
+  | Browser (`emscripten`) | Allowed (Save is a download; the browser sanitizes the name) |
+
+  Load is unchanged (a missing name is reported as
   "File not found").
 
 ## Bootstrap & Main Loop
