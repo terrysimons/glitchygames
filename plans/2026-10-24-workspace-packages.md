@@ -9,7 +9,9 @@ starts, written against how Part 1 turned out.
 
 Sub-plans:
 - Part 1: [Foundation and the Mr. Muncher pilot](2026-10-24-workspace-packages-1-foundation.md)
-- Part 2: The other four games (outline below)
+- Part 2: [The other five games](2026-10-25-workspace-packages-2-games.md) (the four below and
+  Drawing Fire, which postdates the outline; the move recipe is
+  `docs/architecture/game_packages.md`)
 - Part 3: The three demos (outline below)
 - Part 4: Bitmappy as an app (outline below)
 - Part 5: A browser IDE on each game's page (outline below)
@@ -159,11 +161,14 @@ from the member). Task order: 1-4 (done), 5 logical names, 6 the conversion, 7 t
 `src/`, 8 the configuration checks, 9 Mr. Muncher, 10 the browser build, 11 docs, 12
 verification.
 
-### Part 2: The other four games (outline)
+### Part 2: The other five games (outline)
+
+Full plan: [2026-10-25-workspace-packages-2-games.md](2026-10-25-workspace-packages-2-games.md).
 
 - Clockwork Keep, then Brave Adventurer, then Brave Adventurer Papyrus (depends on
   `brave-adventurer`: a member depending on a member; its sprite TOMLs ship as package data),
-  then PaddleSlap, each to `src/games/<game>/`.
+  then PaddleSlap, then Drawing Fire (added 2026-10-25: it was written after this outline), each
+  to `src/games/<game>/`.
 - PaddleSlap stays importable as `paddleslap` (logical name `games.paddleslap:Game`, the same
   before and after). Its bundled demo moves into its package
   (`src/games/paddleslap/paddleslap/demos/rally.jsonl.gz`, decision 9); bundled-demo discovery
