@@ -377,16 +377,16 @@ def reset_default_snap_mode():
     from Scene.PIXEL_SNAP_MODE; without this, one test's scene would change snapping for the
     next test on the worker.
     """
-    pixel_snap.set_active_default_snap_mode(pixel_snap.PixelSnapMode.NEAREST_HALF_UP)
+    pixel_snap.set_active_default_snap_mode(mode=pixel_snap.PixelSnapMode.NEAREST_HALF_UP)
     yield
-    pixel_snap.set_active_default_snap_mode(pixel_snap.PixelSnapMode.NEAREST_HALF_UP)
+    pixel_snap.set_active_default_snap_mode(mode=pixel_snap.PixelSnapMode.NEAREST_HALF_UP)
 
 
 @pytest.fixture(autouse=True)
 def reset_default_background_pattern():
     """Start and end each test with the canvas pattern as the default scene background.
 
-    The default is process-global (glitchygames/backgrounds.py) and GameEngine sets it from
+    The default is per engine context (glitchygames.backgrounds) and GameEngine sets it from
     --default-background; without this, one test's engine would change the next test's scenes.
     """
     set_active_default_background_pattern(pattern=CANVAS_PATTERN)
