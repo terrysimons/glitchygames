@@ -59,7 +59,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import override
 
-from scripts.git_checkout import tracked_files
+from scripts.git_checkout import files_not_ignored
 from scripts.workspace_packages import workspace_members
 
 REPOSITORY_DIRECTORY = Path(__file__).resolve().parent.parent
@@ -317,11 +317,11 @@ def is_bundled(
 def bundled_package_files(
     *, package_directory: Path, excluded_subpackages: frozenset[str] = EXCLUDED_SUBPACKAGES
 ) -> list[Path]:
-    """Return the package's git-tracked files that go into the bundle, relative to it, sorted.
+    """Return the package's files that go into the bundle, relative to it, sorted.
 
-    Only tracked files ship: a file git ignores (macOS Finder's ``.DS_Store``) or has not been told
-    about would otherwise reach a locally built archive. Bundles are built from a checkout, so a
-    directory outside one raises ``NotAGitCheckoutError``.
+    Files git ignores (macOS Finder's ``.DS_Store``) never ship; tracked files and new files not
+    yet added do. Bundles are built from a checkout, so a directory outside one raises
+    ``NotAGitCheckoutError``.
 
     Returns:
         The files.
@@ -329,7 +329,7 @@ def bundled_package_files(
     """
     return sorted(
         relative_path
-        for relative_path in tracked_files(directory=package_directory)
+        for relative_path in files_not_ignored(directory=package_directory)
         if (package_directory / relative_path).is_file()
         and is_bundled(relative_path=relative_path, excluded_subpackages=excluded_subpackages)
     )

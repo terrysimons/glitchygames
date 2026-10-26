@@ -111,7 +111,7 @@ class TestPackageSelection:
         ]
 
     def test_an_ignored_file_is_not_bundled(self, tmp_path):
-        """An ignored .DS_Store and an untracked file stay out of the bundle."""
+        """An ignored .DS_Store stays out of the bundle; a new file not yet added is in it."""
         package = make_package(tmp_path)
         (tmp_path / '.gitignore').write_text('.DS_Store\n', encoding='utf-8')
         (package / '.DS_Store').write_bytes(b'finder')
@@ -122,7 +122,7 @@ class TestPackageSelection:
 
         assert Path('.DS_Store') not in files
         assert Path('engine/.DS_Store') not in files
-        assert Path('engine/untracked.py') not in files
+        assert Path('engine/untracked.py') in files
         assert Path('engine/game_engine.py') in files
 
     def test_outside_a_checkout_is_an_error(self, tmp_path):

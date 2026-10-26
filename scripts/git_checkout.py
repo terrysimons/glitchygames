@@ -56,24 +56,28 @@ def run_git(*, arguments: list[str], directory: Path) -> tuple[int, str]:
     return completed.returncode, completed.stdout
 
 
-def tracked_files(*, directory: Path) -> list[Path]:
-    """Return the files git tracks at or below a directory, relative to it.
+def files_not_ignored(*, directory: Path) -> list[Path]:
+    """Return the files at or below a directory that git does not ignore, relative to it.
 
-    A file git ignores (macOS Finder's ``.DS_Store``) or has not been told about is not tracked,
-    so it is not here.
+    That is the tracked files plus the untracked files no ignore rule covers, so a new file not
+    yet added still counts. A file git ignores (macOS Finder's ``.DS_Store``) is not here.
 
     Args:
         directory: A directory inside a git checkout.
 
     Returns:
-        The tracked files' paths relative to ``directory``, in git's order.
+        The paths relative to ``directory``, without duplicates, in git's order.
 
     Raises:
         NotAGitCheckoutError: When ``directory`` is not inside a git checkout.
 
     """
-    returncode, output = run_git(arguments=['ls-files', '-z', '--', '.'], directory=directory)
+    returncode, output = run_git(
+        arguments=['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '.'],
+        directory=directory,
+    )
     if returncode != 0:
         message = f'{directory} is not in a git checkout (git ls-files said: {output.strip()})'
         raise NotAGitCheckoutError(message)
-    return [Path(tracked_path) for tracked_path in output.split('\0') if tracked_path]
+    listed_paths = dict.fromkeys(path for path in output.split('\0') if path)
+    return [Path(listed_path) for listed_path in listed_paths]
