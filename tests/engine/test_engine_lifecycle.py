@@ -735,8 +735,10 @@ GAME_CONSOLE_SCRIPTS = (
     'clockwork-keep',
     'drawing-fire',
     'dt-demo',
+    'joystick-demo',
     'mr-muncher',
     'paddleslap',
+    'text-input-demo',
 )
 # Console scripts that are not games (the API server and client run no GameEngine)
 NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-client'})

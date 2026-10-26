@@ -2267,7 +2267,7 @@ has it (a mapped pad, which arrives and leaves on both layers, once each way).
 `joystick` every device on its joystick layer only (SDL blocks controller events), `controller`
 mapped pads only (other devices are hidden and their events dropped). `ActionMap` binds the
 same families: `auto` binds a `controller_button` to both. The joystick demo
-(`src/glitchygames/examples/joystick_demo.py`) lists every device with its event layer's live
+(`src/demos/joystick-demo/src/joystick_demo/__init__.py`) lists every device with its event layer's live
 inputs.
 
 ```py

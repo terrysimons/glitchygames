@@ -1,6 +1,6 @@
-"""Test the joystick demo (glitchygames/examples/joystick_demo.py): real pygame, the real display.
+"""Test the joystick demo (the joystick_demo package): real pygame, the real display.
 
-The demo has no console script; it runs with ``python -m glitchygames.examples.joystick_demo``.
+The demo runs with its ``joystick-demo`` console script or ``python -m joystick_demo``.
 It draws a header and one column per device the engine sees, from the frame's input snapshot.
 Devices are hardware, so the engine here runs on stand-in devices through the real devices door
 (tests/input/stand_in_devices.py): an unmapped flight stick and a mapped game pad. Everything
@@ -17,9 +17,9 @@ import pygame
 import pytest
 from scripts.record_golden_traces import GoldenTraceEngine, GoldenTraceSceneManager, command_line
 
+import joystick_demo
 from glitchygames.color import BLACK, WHITE, YELLOW
 from glitchygames.events.base import HashableEvent
-from glitchygames.examples import joystick_demo
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from glitchygames.input.devices import ReplayJoystick

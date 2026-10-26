@@ -280,7 +280,7 @@ The other games add their own options the same way:
 | Clockwork Keep | `src/games/clockwork-keep/src/clockwork_keep/game.py` | `--floor` (int, default 0) |
 | Brave Adventurer (both editions) | `src/games/brave-adventurer/src/brave_adventurer/game.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py` | `-v, --version` |
 | Brave Adventurer's launcher | `src/games/brave-adventurer/src/brave_adventurer_modes/launcher.py` (read before the engine's parser, which never sees it), `title.py` (`TitleScene.args()` lists it in `-h`) | `--game {classic,papyrus}`, `-v, --version` |
-| Joystick Demo | `src/glitchygames/examples/joystick_demo.py` | none (the engine's `--input-mode` chooses what it shows) |
+| Joystick Demo | `src/demos/joystick-demo/src/joystick_demo/__init__.py` | none (the engine's `--input-mode` chooses what it shows) |
 | Bitrot Adventures | `scripts/bitrotadventures.py` | `-s, --some-game-specific-option` |
 | Animation Demo | `scripts/animation_scene_full_demo.py` | `-v, --version` |
 

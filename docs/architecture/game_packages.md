@@ -12,11 +12,11 @@ Four layers, all under `src/`:
 
 ```
 src/
-  glitchygames/        the engine (distribution glitchygames); examples/ now holds only the
-                       three demos, which have not moved yet (Part 3)
+  glitchygames/        the engine (distribution glitchygames); examples/ now holds only a
+                       resources/ directory (every game and demo has moved)
   games/<game>/        one member per game: every game (mr-muncher, clockwork-keep,
                        brave-adventurer, paddleslap, drawing-fire)
-  demos/<demo>/        one member per demo
+  demos/<demo>/        one member per demo (dt-demo, joystick-demo, text-input-demo)
   apps/<app>/          one member per application (Bitmappy)
 tests/                 the engine's own tests
 scripts/               tools
@@ -110,7 +110,8 @@ extra; `tests/test_workspace_config.py` keeps each extra equal to its layer's me
   code lives, and moving a game changes no recording. The layers are data in the engine,
   `src/glitchygames/logical_names.py`: `MEMBER_LAYERS` for members (kept equal to the workspace by
   `tests/test_workspace_config.py`) and `EXAMPLES_LAYERS` for the demos still in
-  `src/glitchygames/examples/` (every game and Bitmappy have moved; Part 3 moves the demos).
+  `src/glitchygames/examples/` (none: every game, demo and Bitmappy has moved; the table goes with
+  Part 3).
 - **Golden replays** live with the member's tests; the golden plugin collects them from every
   member, so the engine's `uv run pytest` replays each one.
 - **The browser build** ships a member's package as its own archive (`<package>.zip`) beside the

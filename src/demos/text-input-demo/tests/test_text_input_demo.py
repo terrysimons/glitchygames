@@ -1,6 +1,6 @@
-"""Test the Text Input demo (glitchygames/examples/text_input_demo.py): real pygame and display.
+"""Test the Text Input demo (the text_input_demo package): real pygame and display.
 
-The demo has no console script; it runs with ``python -m glitchygames.examples.text_input_demo``.
+The demo runs with its ``text-input-demo`` console script or ``python -m text_input_demo``.
 It shows one InputBox on a yellow background: a click or Tab gives it the keyboard, typing
 edits its text, Return submits it (logged), Tab or Escape (released) gives the keyboard back.
 """
@@ -13,9 +13,9 @@ from typing import TYPE_CHECKING, cast
 import pygame
 import pytest
 
+import text_input_demo
 from glitchygames.display_mode import set_display_mode
 from glitchygames.events.base import HashableEvent
-from glitchygames.examples import text_input_demo
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from tests.demo_runs import engine_run_environment, run_demo_main
@@ -280,7 +280,7 @@ def test_the_box_joins_the_sprite_group_it_is_given() -> None:
 
 @pytest.mark.usefixtures('engine_run')
 def test_main_runs_the_demo_and_types_into_the_box(mocker: MockerFixture) -> None:
-    """``python -m glitchygames.examples.text_input_demo``: a click and typing show in the box."""
+    """``python -m text_input_demo`` (or its console script): a click and typing show in the box."""
     script = run_demo_main(
         mocker=mocker,
         module=text_input_demo,

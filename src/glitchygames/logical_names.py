@@ -18,12 +18,9 @@ from __future__ import annotations
 
 LAYERS: tuple[str, ...] = ('games', 'demos', 'apps')
 EXAMPLES_PACKAGE = 'glitchygames.examples'
-# Demos not yet moved out of glitchygames/examples/ (every game has: Part 2): package name
-# there -> layer (the user, 2026-10-25; Part 3 of the workspace plan moves the demos and deletes it)
-EXAMPLES_LAYERS: dict[str, str] = {
-    'joystick_demo': 'demos',
-    'text_input_demo': 'demos',
-}
+# Demos not yet moved out of glitchygames/examples/ (every game and demo has: Parts 2 and 3):
+# package name there -> layer (the user, 2026-10-25; Part 3 of the workspace plan deletes it)
+EXAMPLES_LAYERS: dict[str, str] = {}
 # Workspace members: top-level import package -> layer (src/<layer>/<member>/); equal to the
 # workspace, checked by tests/test_workspace_config.py
 MEMBER_LAYERS: dict[str, str] = {
@@ -37,6 +34,8 @@ MEMBER_LAYERS: dict[str, str] = {
     'drawing_fire': 'games',
     'bitmappy': 'apps',
     'dt_demo': 'demos',
+    'joystick_demo': 'demos',
+    'text_input_demo': 'demos',
 }
 
 

@@ -64,6 +64,8 @@ nav:
     - drawing_fire: "drawing_fire/index.md"
   - Demos API Reference:
     - dt_demo: "dt_demo/index.md"
+    - joystick_demo: "joystick_demo/index.md"
+    - text_input_demo: "text_input_demo/index.md"
   - Apps API Reference:
     - bitmappy: "bitmappy/index.md"
 
@@ -168,6 +170,8 @@ plugins:
             - src/games/paddleslap/src
             - src/games/drawing-fire/src
             - src/demos/dt-demo/src
+            - src/demos/joystick-demo/src
+            - src/demos/text-input-demo/src
             - src/apps/bitmappy/src
           options:
             show_source: true

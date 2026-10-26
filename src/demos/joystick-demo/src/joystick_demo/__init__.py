@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
 """Joystick Demo: every connected joystick and game controller, live.
 
-Run it with ``python -m glitchygames.examples.joystick_demo`` and plug devices in and out. Each
+Run it with ``joystick-demo`` or ``python -m joystick_demo`` and plug devices in and out. Each
 device the engine sees (``Scene.input_devices``, glitchygames/input/input_devices.py) gets a
 column: its name, GUID, instance id and device index (the devices door's descriptor), the layer
 its events come from, then that layer's live axes, held buttons and hats. A mapped game pad
@@ -324,7 +323,3 @@ class Game(Scene):
 def main() -> None:
     """Run the demo."""
     GameEngine(game=Game).start()
-
-
-if __name__ == '__main__':
-    main()

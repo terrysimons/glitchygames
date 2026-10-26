@@ -28,6 +28,8 @@ _CODE_DIRS = [
     'src/games/paddleslap',
     'src/games/drawing-fire',
     'src/demos/dt-demo',
+    'src/demos/joystick-demo',
+    'src/demos/text-input-demo',
     'src/apps/bitmappy',
     'scripts',
     'tests',
@@ -44,6 +46,8 @@ _SOURCE_PACKAGE_DIRS = [
     'src/games/paddleslap/src/paddleslap',
     'src/games/drawing-fire/src/drawing_fire',
     'src/demos/dt-demo/src/dt_demo',
+    'src/demos/joystick-demo/src/joystick_demo',
+    'src/demos/text-input-demo/src/text_input_demo',
     'src/apps/bitmappy/src/bitmappy',
 ]
 # The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
@@ -56,6 +60,8 @@ _MEMBER_DISTRIBUTIONS = [
     'paddleslap',
     'drawing-fire',
     'dt-demo',
+    'joystick-demo',
+    'text-input-demo',
     'bitmappy',
 ]
 

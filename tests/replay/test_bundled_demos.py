@@ -15,7 +15,7 @@ from scripts.record_golden_traces import FRAME_SECONDS
 
 # Loaded on purpose: its scene is also named Game, so the playback below must tell PaddleSlap's
 # apart by module (glitchygames/replay/playback.py, find_scene_class)
-from glitchygames.examples import joystick_demo
+import joystick_demo
 from glitchygames.exit_codes import ExitCode
 from glitchygames.live_sources import LiveSources
 from glitchygames.testing.replays import bundled_demo_paths, replay_recording_headless

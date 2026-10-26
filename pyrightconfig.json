@@ -8,6 +8,8 @@
     "src/games/paddleslap",
     "src/games/drawing-fire",
     "src/demos/dt-demo",
+    "src/demos/joystick-demo",
+    "src/demos/text-input-demo",
     "src/apps/bitmappy",
     "tests",
     "scripts"
@@ -71,6 +73,8 @@
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/demos/dt-demo/src",
+        "src/demos/joystick-demo/src",
+        "src/demos/text-input-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -108,6 +112,8 @@
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/demos/dt-demo/src",
+        "src/demos/joystick-demo/src",
+        "src/demos/text-input-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -149,6 +155,8 @@
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/demos/dt-demo/src",
+        "src/demos/joystick-demo/src",
+        "src/demos/text-input-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -190,6 +198,8 @@
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/demos/dt-demo/src",
+        "src/demos/joystick-demo/src",
+        "src/demos/text-input-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -231,6 +241,8 @@
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/demos/dt-demo/src",
+        "src/demos/joystick-demo/src",
+        "src/demos/text-input-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -272,6 +284,8 @@
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/demos/dt-demo/src",
+        "src/demos/joystick-demo/src",
+        "src/demos/text-input-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -313,6 +327,8 @@
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/demos/dt-demo/src",
+        "src/demos/joystick-demo/src",
+        "src/demos/text-input-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -344,6 +360,92 @@
       "extraPaths": ["src", "src/demos/dt-demo/src"]
     },
     {
+      "root": "src/demos/joystick-demo/tests",
+      "extraPaths": [
+        ".",
+        "src",
+        "src/games/mr-muncher/src",
+        "src/games/brave-adventurer/src",
+        "src/games/clockwork-keep/src",
+        "src/games/paddleslap/src",
+        "src/games/drawing-fire/src",
+        "src/demos/dt-demo/src",
+        "src/demos/joystick-demo/src",
+        "src/demos/text-input-demo/src",
+        "src/apps/bitmappy/src"
+      ],
+      "reportArgumentType": false,
+      "reportCallIssue": false,
+      "reportFunctionMemberAccess": false,
+      "reportGeneralTypeIssues": false,
+      "reportIncompatibleMethodOverride": false,
+      "reportReturnType": false,
+      "reportUnnecessaryTypeIgnoreComment": false,
+      "reportUnknownMemberType": false,
+      "reportUnknownVariableType": false,
+      "reportUnknownArgumentType": false,
+      "reportUnknownParameterType": false,
+      "reportPrivateUsage": false,
+      "reportAttributeAccessIssue": false,
+      "reportOptionalMemberAccess": false,
+      "reportMissingTypeArgument": false,
+      "reportUnusedCallResult": false,
+      "reportImplicitOverride": false,
+      "reportImplicitStringConcatenation": false,
+      "reportMissingParameterType": false,
+      "reportUninitializedInstanceVariable": false,
+      "reportUnknownLambdaType": false,
+      "reportUnusedVariable": false,
+      "reportUnusedFunction": false
+    },
+    {
+      "root": "src/demos/joystick-demo",
+      "extraPaths": ["src", "src/demos/joystick-demo/src"]
+    },
+    {
+      "root": "src/demos/text-input-demo/tests",
+      "extraPaths": [
+        ".",
+        "src",
+        "src/games/mr-muncher/src",
+        "src/games/brave-adventurer/src",
+        "src/games/clockwork-keep/src",
+        "src/games/paddleslap/src",
+        "src/games/drawing-fire/src",
+        "src/demos/dt-demo/src",
+        "src/demos/joystick-demo/src",
+        "src/demos/text-input-demo/src",
+        "src/apps/bitmappy/src"
+      ],
+      "reportArgumentType": false,
+      "reportCallIssue": false,
+      "reportFunctionMemberAccess": false,
+      "reportGeneralTypeIssues": false,
+      "reportIncompatibleMethodOverride": false,
+      "reportReturnType": false,
+      "reportUnnecessaryTypeIgnoreComment": false,
+      "reportUnknownMemberType": false,
+      "reportUnknownVariableType": false,
+      "reportUnknownArgumentType": false,
+      "reportUnknownParameterType": false,
+      "reportPrivateUsage": false,
+      "reportAttributeAccessIssue": false,
+      "reportOptionalMemberAccess": false,
+      "reportMissingTypeArgument": false,
+      "reportUnusedCallResult": false,
+      "reportImplicitOverride": false,
+      "reportImplicitStringConcatenation": false,
+      "reportMissingParameterType": false,
+      "reportUninitializedInstanceVariable": false,
+      "reportUnknownLambdaType": false,
+      "reportUnusedVariable": false,
+      "reportUnusedFunction": false
+    },
+    {
+      "root": "src/demos/text-input-demo",
+      "extraPaths": ["src", "src/demos/text-input-demo/src"]
+    },
+    {
       "root": "src/apps/bitmappy/tests",
       "extraPaths": [
         ".",
@@ -354,6 +456,8 @@
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/demos/dt-demo/src",
+        "src/demos/joystick-demo/src",
+        "src/demos/text-input-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,

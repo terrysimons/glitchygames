@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
-"""Text Input Demo."""
+"""Text Input Demo: one InputBox on a yellow background.
+
+Run it with the ``text-input-demo`` console script or ``python -m text_input_demo``.
+"""
 
 from __future__ import annotations
 
@@ -128,7 +130,3 @@ class Game(Scene):
 def main() -> None:
     """Run the main entry point for the game."""
     GameEngine(game=Game).start()
-
-
-if __name__ == '__main__':
-    main()
