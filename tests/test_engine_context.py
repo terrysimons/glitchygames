@@ -15,6 +15,7 @@ import sys
 import threading
 from typing import TYPE_CHECKING, override
 
+import numpy as np
 import pygame
 import pytest
 from pydantic import BaseModel, ConfigDict
@@ -35,6 +36,7 @@ from glitchygames.engine_context import (
     declared_context_slots,
     default_context,
 )
+from glitchygames.input.devices import JOYSTICK_COUNT_CALL, EnumerationAnswer
 from glitchygames.input.state import IDLE_INPUT, current_input, set_current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.pixel_snap import (
@@ -43,8 +45,10 @@ from glitchygames.pixel_snap import (
     set_active_default_snap_mode,
 )
 from glitchygames.randomness import (
+    NUMPY_STREAM_KIND,
     RANDOM_STREAM_KIND,
     engine_random_seed,
+    numpy_stream,
     random_stream,
     reset_streams,
     seed_engine_random,
@@ -55,12 +59,23 @@ from glitchygames.sources import (
     SourcesAlreadyRunningError,
     active_sources,
     advance_frame_clock,
+    discard_scope_posts,
     frame_clock_seconds,
+    has_scoped_sources,
     install_sources,
     mark_frames_started,
+    notify_device_answer,
+    notify_save_store_opened,
+    observe_device_answers,
+    observe_save_store_openings,
     pending_redelivered_events,
+    pop_scoped_sources,
+    push_scoped_sources,
     redeliver_events,
     reset_sources,
+    stop_observing_device_answers,
+    stop_observing_save_store_openings,
+    without_discarded_scope_posts,
 )
 from glitchygames.state import MemorySaveManager, SaveManager, open_saves
 from tests.ast_scanning import PROJECT_ROOT, scanned_source_files
@@ -69,6 +84,8 @@ from tests.input.test_input_state import snapshot_with
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
     from pathlib import Path
+
+    from glitchygames.input.devices import DeviceDescriptor
 
 # A slot of this test module's own (declared once, as the module is imported, like every slot)
 COUNTER_SLOT_NAME = 'tests.engine_context.counter'
@@ -465,6 +482,15 @@ SECOND_SEED = 2
 DRAWS_STREAM = 'tests.engine_context.draws'
 STAND_IN_GAME = 'stand-in-game'
 SAVE_SLOT = 'progress'
+FIRST_NAMESPACE = 'stand-in-game-first'
+SECOND_NAMESPACE = 'stand-in-game-second'
+# Draws per stream in the random-streams check, and the numpy draws' exclusive upper bound
+DRAW_ROUNDS = 3
+NUMPY_DRAW_LIMIT = 1000
+# The two-games test: frames each game runs, its frame time and first frame number per seed
+STAND_IN_FRAME_COUNT = 4
+FRAME_SECONDS_PER_SEED = 0.25
+FRAME_NUMBER_START_PER_SEED = 100
 # SDL scancodes of Space and Return
 SPACE_SCANCODE = 44
 RETURN_SCANCODE = 40
@@ -504,15 +530,77 @@ class MemorySavesSources(LiveSources):
 
 
 class StandInGame(BaseModel):
-    """One stand-in game's context and the state it sets up in it."""
+    """One stand-in game's settings: what it sets up in its context and holds each frame."""
 
-    model_config = ConfigDict(frozen=True, extra='forbid', arbitrary_types_allowed=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
-    context: EngineContext
     seed: int
     snap_mode: PixelSnapMode
     pattern: BackgroundPattern
     scancode: int
+
+
+class StandInFrameReadings(BaseModel):
+    """What one frame of a stand-in game read from its context (compared run against run)."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    doors_seed: int
+    engine_seed: int
+    snap_mode: PixelSnapMode
+    pattern: BackgroundPattern
+    held_scancodes_before: frozenset[int]
+    frame_number: int
+    random_draw: float
+    numpy_draw: int
+    frame_clock_seconds: float
+    saved_frames: list[int]
+
+
+class HeardObserver:
+    """An observer of save-store openings and device answers that keeps what it was told."""
+
+    def __init__(self) -> None:
+        """Start having heard nothing."""
+        self.heard_namespaces: list[str] = []
+        self.heard_answers: list[EnumerationAnswer] = []
+
+    def on_save_store_opened(self, *, namespace: str, store: SaveManager) -> None:
+        """Keep the namespace of a store opened.
+
+        Args:
+            namespace: The store's namespace.
+            store: The store (unused).
+
+        """
+        del store
+        self.heard_namespaces.append(namespace)
+
+    def on_device_answer(
+        self, *, answer: EnumerationAnswer, opened: DeviceDescriptor | None
+    ) -> None:
+        """Keep an answer given.
+
+        Args:
+            answer: The answer.
+            opened: The opened device's descriptor (unused).
+
+        """
+        del opened
+        self.heard_answers.append(answer)
+
+
+def joystick_count_answer(*, count: int) -> EnumerationAnswer:
+    """Return the devices door's answer to a joystick count.
+
+    Args:
+        count: The count answered.
+
+    Returns:
+        The answer.
+
+    """
+    return EnumerationAnswer(call=JOYSTICK_COUNT_CALL, device_index=None, value=count)
 
 
 def check_default_snap_mode(*, first: EngineContext, second: EngineContext) -> None:
@@ -560,26 +648,33 @@ def check_current_input(*, first: EngineContext, second: EngineContext) -> None:
 def check_random_streams(*, first: EngineContext, second: EngineContext) -> None:
     """Each context draws its own numbers, as it would alone, and the default keeps its seed."""
     default_seed = engine_random_seed()
-    with first.active():
-        reset_streams(seed=FIRST_SEED)
-        first_draw = random_stream(name=DRAWS_STREAM).random()
-    with second.active():
-        reset_streams(seed=SECOND_SEED)
-        second_draw = random_stream(name=DRAWS_STREAM).random()
-    with first.active():
-        assert engine_random_seed() == FIRST_SEED
-        following_first_draw = random_stream(name=DRAWS_STREAM).random()
-    first_reference = random.Random(
-        stream_seed(kind=RANDOM_STREAM_KIND, master_seed=FIRST_SEED, name=DRAWS_STREAM)
-    )
-    second_reference = random.Random(
-        stream_seed(kind=RANDOM_STREAM_KIND, master_seed=SECOND_SEED, name=DRAWS_STREAM)
-    )
-    assert [first_draw, following_first_draw] == [
-        first_reference.random(),
-        first_reference.random(),
-    ]
-    assert second_draw == second_reference.random()
+    random_draws: dict[int, list[float]] = {FIRST_SEED: [], SECOND_SEED: []}
+    numpy_draws: dict[int, list[int]] = {FIRST_SEED: [], SECOND_SEED: []}
+    for context, seed in ((first, FIRST_SEED), (second, SECOND_SEED)):
+        with context.active():
+            reset_streams(seed=seed)
+    # Alternate the contexts draw by draw
+    for _round in range(DRAW_ROUNDS):
+        for context, seed in ((first, FIRST_SEED), (second, SECOND_SEED)):
+            with context.active():
+                assert engine_random_seed() == seed
+                random_draws[seed].append(random_stream(name=DRAWS_STREAM).random())
+                numpy_draws[seed].append(
+                    int(numpy_stream(name=DRAWS_STREAM).integers(low=0, high=NUMPY_DRAW_LIMIT))
+                )
+
+    for seed in (FIRST_SEED, SECOND_SEED):
+        random_reference = random.Random(
+            stream_seed(kind=RANDOM_STREAM_KIND, master_seed=seed, name=DRAWS_STREAM)
+        )
+        numpy_reference = np.random.default_rng(
+            stream_seed(kind=NUMPY_STREAM_KIND, master_seed=seed, name=DRAWS_STREAM)
+        )
+        assert random_draws[seed] == [random_reference.random() for _round in range(DRAW_ROUNDS)]
+        assert numpy_draws[seed] == [
+            int(numpy_reference.integers(low=0, high=NUMPY_DRAW_LIMIT))
+            for _round in range(DRAW_ROUNDS)
+        ]
     assert engine_random_seed() == default_seed
 
 
@@ -616,6 +711,118 @@ def check_doors_and_frame_clock(*, first: EngineContext, second: EngineContext) 
     assert frame_clock_seconds() == default_clock
 
 
+def check_scoped_sources(*, first: EngineContext, second: EngineContext) -> None:
+    """Doors pushed in one context are never the other's, and popping restores its own."""
+    first_doors = MemorySavesSources(random_seed=FIRST_SEED)
+    first_scoped_doors = MemorySavesSources(random_seed=FIRST_SEED)
+    second_doors = MemorySavesSources(random_seed=SECOND_SEED)
+    second_scoped_doors = MemorySavesSources(random_seed=SECOND_SEED)
+    with first.active():
+        install_sources(sources=first_doors)
+        push_scoped_sources(sources=first_scoped_doors)
+    with second.active():
+        assert not has_scoped_sources()
+        install_sources(sources=second_doors)
+        assert active_sources() is second_doors
+        push_scoped_sources(sources=second_scoped_doors)
+    with first.active():
+        assert active_sources() is first_scoped_doors
+        assert pop_scoped_sources() is first_scoped_doors
+        assert active_sources() is first_doors
+        assert not has_scoped_sources()
+    with second.active():
+        assert has_scoped_sources()
+        assert active_sources() is second_scoped_doors
+        assert pop_scoped_sources() is second_scoped_doors
+        assert active_sources() is second_doors
+    assert not has_scoped_sources()
+    for context in (first, second):
+        with context.active():
+            reset_sources()
+
+
+def check_observers(*, first: EngineContext, second: EngineContext) -> None:
+    """An observer hears its own context's save openings and device answers only."""
+    first_observer = HeardObserver()
+    second_observer = HeardObserver()
+    default_observer = HeardObserver()
+    observe_save_store_openings(observer=default_observer)
+    observe_device_answers(observer=default_observer)
+    for context, observer in ((first, first_observer), (second, second_observer)):
+        with context.active():
+            observe_save_store_openings(observer=observer)
+            observe_device_answers(observer=observer)
+    with second.active():
+        notify_save_store_opened(
+            namespace=SECOND_NAMESPACE,
+            store=MemorySaveManager(app_name=SECOND_NAMESPACE, snapshot={}),
+        )
+        notify_device_answer(answer=joystick_count_answer(count=SECOND_SEED), opened=None)
+        stop_observing_save_store_openings(observer=second_observer)
+        stop_observing_device_answers(observer=second_observer)
+    with first.active():
+        assert first_observer.heard_namespaces == []
+        assert first_observer.heard_answers == []
+        # Stopping in the second context left the first's observing
+        notify_save_store_opened(
+            namespace=FIRST_NAMESPACE,
+            store=MemorySaveManager(app_name=FIRST_NAMESPACE, snapshot={}),
+        )
+        notify_device_answer(answer=joystick_count_answer(count=FIRST_SEED), opened=None)
+        stop_observing_save_store_openings(observer=first_observer)
+        stop_observing_device_answers(observer=first_observer)
+    with second.active():
+        # Stopped: the second's observer no longer hears its own context
+        notify_save_store_opened(
+            namespace=SECOND_NAMESPACE,
+            store=MemorySaveManager(app_name=SECOND_NAMESPACE, snapshot={}),
+        )
+        notify_device_answer(answer=joystick_count_answer(count=SECOND_SEED), opened=None)
+
+    assert first_observer.heard_namespaces == [FIRST_NAMESPACE]
+    assert first_observer.heard_answers == [joystick_count_answer(count=FIRST_SEED)]
+    assert second_observer.heard_namespaces == [SECOND_NAMESPACE]
+    assert second_observer.heard_answers == [joystick_count_answer(count=SECOND_SEED)]
+    assert default_observer.heard_namespaces == []
+    assert default_observer.heard_answers == []
+    stop_observing_save_store_openings(observer=default_observer)
+    stop_observing_device_answers(observer=default_observer)
+    for context in (first, second):
+        with context.active():
+            reset_sources()
+
+
+def check_discarded_scope_posts(*, first: EngineContext, second: EngineContext) -> None:
+    """A scope's posts discarded in one context are dropped from that context's batch only."""
+
+    def first_seed_batch() -> list[pygame.event.Event]:
+        """Return a new batch holding the discarded post's event."""
+        return [pygame.event.Event(pygame.USEREVENT, code=FIRST_SEED)]
+
+    with first.active():
+        discard_scope_posts(posts=[(pygame.USEREVENT, {'code': FIRST_SEED})])
+    with second.active():
+        assert [
+            event.code for event in without_discarded_scope_posts(events=first_seed_batch())
+        ] == [FIRST_SEED]
+    assert [event.code for event in without_discarded_scope_posts(events=first_seed_batch())] == [
+        FIRST_SEED
+    ]
+    with first.active():
+        assert without_discarded_scope_posts(events=first_seed_batch()) == []
+    for context in (first, second):
+        with context.active():
+            reset_sources()
+
+
+def check_sources_registry(*, first: EngineContext, second: EngineContext) -> None:
+    """Every member of the sources registry stays in its own context."""
+    check_doors_and_frame_clock(first=first, second=second)
+    check_scoped_sources(first=first, second=second)
+    check_observers(first=first, second=second)
+    check_discarded_scope_posts(first=first, second=second)
+
+
 def check_scene_managers(*, first: EngineContext, second: EngineContext) -> None:
     """Each context keeps its own scene manager, and the default context its own."""
     default_manager = SceneManager()
@@ -640,7 +847,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.backgrounds.default_pattern': check_default_background,
     'glitchygames.input.state.current_input': check_current_input,
     'glitchygames.randomness.streams': check_random_streams,
-    'glitchygames.sources.registry': check_doors_and_frame_clock,
+    'glitchygames.sources.registry': check_sources_registry,
     'glitchygames.scenes.scene.scene_managers': check_scene_managers,
 }
 
@@ -709,18 +916,67 @@ def test_no_slot_value_leaks_between_two_contexts(slot_name):
     )
 
 
+def set_up_stand_in_game(*, game: StandInGame) -> None:
+    """Set up a stand-in game in the current context, as a game's start would.
+
+    Args:
+        game: The game.
+
+    """
+    seed_engine_random(seed=game.seed)
+    install_sources(sources=MemorySavesSources(random_seed=game.seed))
+    set_active_default_snap_mode(mode=game.snap_mode)
+    set_active_default_background_pattern(pattern=game.pattern)
+    SceneManager().frame_number = game.seed * FRAME_NUMBER_START_PER_SEED
+
+
+def play_stand_in_frame(*, game: StandInGame, frame_index: int) -> StandInFrameReadings:
+    """Run one frame of a stand-in game in the current context, touching every slot.
+
+    Args:
+        game: The game.
+        frame_index: The frame's index (0 first).
+
+    Returns:
+        What the frame read.
+
+    """
+    held_scancodes_before = current_input().pressed_scancodes
+    set_current_input(
+        snapshot=snapshot_with(pressed_scancodes=frozenset({game.scancode, frame_index}))
+    )
+    scene_manager = SceneManager()
+    scene_manager.frame_number += 1
+    saves = open_saves(app_name=STAND_IN_GAME)
+    # The first frame finds no save yet; each later one adds its index to the saved list
+    previous_frames = saves.load(slot_name=SAVE_SLOT)['frames'] if frame_index > 0 else []
+    saved_frames = [*previous_frames, frame_index]
+    saves.save(slot_name=SAVE_SLOT, data={'frames': saved_frames})
+    advance_frame_clock(seconds=game.seed * FRAME_SECONDS_PER_SEED)
+    return StandInFrameReadings(
+        doors_seed=active_sources().random_seed,
+        engine_seed=engine_random_seed(),
+        snap_mode=active_default_snap_mode(),
+        pattern=active_default_background_pattern(),
+        held_scancodes_before=held_scancodes_before,
+        frame_number=scene_manager.frame_number,
+        random_draw=random_stream(name=DRAWS_STREAM).random(),
+        numpy_draw=int(numpy_stream(name=DRAWS_STREAM).integers(low=0, high=NUMPY_DRAW_LIMIT)),
+        frame_clock_seconds=frame_clock_seconds(),
+        saved_frames=saves.load(slot_name=SAVE_SLOT)['frames'],
+    )
+
+
 def test_two_contexts_hold_two_games_worth_of_state_without_leaking():
-    """Two stand-in games set up side by side keep every piece apart, saves included."""
+    """Two stand-in games run frame by frame in turn read exactly what each reads alone."""
     games = [
         StandInGame(
-            context=EngineContext(name='first game'),
             seed=FIRST_SEED,
             snap_mode=PixelSnapMode.FLOOR,
             pattern=BackgroundPattern.CHANNEL_THREE,
             scancode=SPACE_SCANCODE,
         ),
         StandInGame(
-            context=EngineContext(name='second game'),
             seed=SECOND_SEED,
             snap_mode=PixelSnapMode.CEIL,
             pattern=BackgroundPattern.TEST_PATTERN,
@@ -729,32 +985,35 @@ def test_two_contexts_hold_two_games_worth_of_state_without_leaking():
     ]
     default_manager = SceneManager()
     default_clock = frame_clock_seconds()
+    default_seed = engine_random_seed()
 
+    # Each game alone in a context of its own
+    alone_readings: list[list[StandInFrameReadings]] = []
     for game in games:
-        with game.context.active():
-            seed_engine_random(seed=game.seed)
-            install_sources(sources=MemorySavesSources(random_seed=game.seed))
-            set_active_default_snap_mode(mode=game.snap_mode)
-            set_active_default_background_pattern(pattern=game.pattern)
-            set_current_input(snapshot=snapshot_with(pressed_scancodes=frozenset({game.scancode})))
-            SceneManager().frame_number = game.seed * 100
-            open_saves(app_name=STAND_IN_GAME).save(slot_name=SAVE_SLOT, data={'seed': game.seed})
-            advance_frame_clock(seconds=game.seed * 0.5)
-
-    for game in games:
-        with game.context.active():
-            assert engine_random_seed() == game.seed
-            assert active_sources().random_seed == game.seed
-            assert active_default_snap_mode() is game.snap_mode
-            assert active_default_background_pattern() is game.pattern
-            assert current_input().pressed_scancodes == frozenset({game.scancode})
-            assert SceneManager().frame_number == game.seed * 100
-            assert open_saves(app_name=STAND_IN_GAME).load(slot_name=SAVE_SLOT) == {
-                'seed': game.seed
-            }
-            assert frame_clock_seconds() == game.seed * 0.5
+        with EngineContext(name=f'game {game.seed} alone').active():
+            set_up_stand_in_game(game=game)
+            alone_readings.append([
+                play_stand_in_frame(game=game, frame_index=frame_index)
+                for frame_index in range(STAND_IN_FRAME_COUNT)
+            ])
+            reset_sources()
+    # Both games in contexts side by side, one frame of each in turn
+    contexts = [EngineContext(name=f'game {game.seed}') for game in games]
+    side_by_side_readings: list[list[StandInFrameReadings]] = [[] for _game in games]
+    for game, context in zip(games, contexts, strict=True):
+        with context.active():
+            set_up_stand_in_game(game=game)
+    for frame_index in range(STAND_IN_FRAME_COUNT):
+        for game, context, readings in zip(games, contexts, side_by_side_readings, strict=True):
+            with context.active():
+                readings.append(play_stand_in_frame(game=game, frame_index=frame_index))
+    for context in contexts:
+        with context.active():
             reset_sources()
 
+    assert side_by_side_readings == alone_readings
+    assert alone_readings[0] != alone_readings[1]
     assert SceneManager() is default_manager
     assert frame_clock_seconds() == default_clock
+    assert engine_random_seed() == default_seed
     assert current_input() is IDLE_INPUT
