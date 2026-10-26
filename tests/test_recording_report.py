@@ -75,19 +75,9 @@ def test_a_real_recording_reports_every_run_and_no_behaviour_change(tmp_path, ca
     assert 'frame time p50' in output
     assert 'processing p50' in output
     assert 'Behaviour changes (content hash, adjacent runs):' in output
-    # The two new runs did the same work. The first of them differs from the golden's newest run
-    # in frame 0 only: a scene start records the scene's module, and PaddleSlap's moved from
-    # glitchygames.examples.paddleslap to paddleslap (Part 2 of
-    # plans/2026-10-24-workspace-packages.md; docs/architecture/game_packages.md, "Verify")
-    golden_scene_start = golden_frames[0]['scene_start']
-    new_scene_start = read_trace(path=path)[FRAMES_FIELD][0]['scene_start']
-    assert golden_scene_start['scene_module'] == 'glitchygames.examples.paddleslap'
-    assert new_scene_start['scene_module'] == 'paddleslap'
-    assert golden_scene_start['scene'] == new_scene_start['scene'] == 'games.paddleslap:Game'
+    # The two new runs did the same work. How the first of them differs from the golden's newest
+    # run is PaddleSlap's own history, checked in its member's test_paddleslap_recording_history.py
     assert output.count('no behaviour change in') == 1 + golden_unchanged_pairs
-    behaviour_changes = output.split('Behaviour changes (content hash, adjacent runs):')[1]
-    new_against_golden = behaviour_changes.split(f'run {golden_runs} -> run 1 (')[1].split('\n')[0]
-    assert new_against_golden.endswith('behaviour changed in frame 0 (scene Game), 1 span, 1 frame')
     assert 'Processing (same work only' in output
 
 

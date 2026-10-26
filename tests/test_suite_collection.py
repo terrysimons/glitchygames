@@ -949,7 +949,7 @@ FORMER_EXAMPLES_EXEMPT_PATHS: dict[str, str] = {
     'tests/replay/test_replay_plugin.py': (
         'old-format stand-in: a recording whose header names the module as it was'
     ),
-    'tests/test_recording_report.py': (
+    'src/games/paddleslap/tests/test_paddleslap_recording_history.py': (
         'the golden replay is old-format: its scene start names the module as it was'
     ),
     'tests/test_replay_metrics.py': (

@@ -438,7 +438,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: Medium
 - **Reporter**: Found moving the ball physics tests onto real pygame
 - **Date Reported**: 2026-10-22
-- **Details**: Pinned: `tests/game_objects/test_ball_collision_physics.py::TestBallCollisionSweepFrameAlignedMeeting::test_head_on_balls_meeting_on_a_frame_collide` (4 angles). A fix (swept collision or sub-stepping) changes PaddleSlap physics and so its golden trace and replay. Note: the moving-pair sweep's 10% velocity-swap tolerance holds only with its 2 px contact phase (the game computes contact directions from whole-pixel centres, so on a 10 px circle a pixel of rounding turns the direction by about 10 degrees)
+- **Details**: Pinned: `src/games/paddleslap/tests/test_paddleslap_ball_collision_physics.py::TestBallCollisionSweepFrameAlignedMeeting::test_head_on_balls_meeting_on_a_frame_collide` (4 angles). A fix (swept collision or sub-stepping) changes PaddleSlap physics and so its golden trace and replay. Note: the moving-pair sweep's 10% velocity-swap tolerance holds only with its 2 px contact phase (the game computes contact directions from whole-pixel centres, so on a 10 px circle a pixel of rounding turns the direction by about 10 degrees)
 - **Files**: `src/games/paddleslap/paddleslap/__init__.py`, `src/glitchygames/game_objects/ball.py`
 
 ### 59. Papyrus Sprites Keep Their Unscaled Native Rect Size

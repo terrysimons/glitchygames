@@ -9,7 +9,6 @@ from glitchygames.events import HashableEvent
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.testing.keys import qwerty_scancode
-from paddleslap import Game, PaddleSlapGameOverScene
 
 
 def _key_event(*, event_type: int, key: int) -> pygame.event.Event:
@@ -142,39 +141,7 @@ class TestGameOverScene:
 
 
 class TestGameOverIntegration:
-    """Test Game Over integration with the main game."""
-
-    @pytest.fixture
-    def save_directory(self, mocker, tmp_path):
-        """Send PaddleSlap's high-score saves to a temporary directory, not the user's.
-
-        Returns:
-            Path: The directory the saves go to.
-
-        """
-        mocker.patch(
-            'glitchygames.state.manager.get_save_directory',
-            side_effect=lambda app_name: tmp_path / app_name,
-        )
-        return tmp_path
-
-    def test_game_over_triggered_when_all_balls_dead(self, save_directory):
-        """A frame whose balls are all dead switches PaddleSlap to its Game Over scene."""
-        game = Game(options={})
-        assert game.balls, 'PaddleSlap serves balls when it is built'
-        for ball in game.balls:
-            ball.kill()
-
-        # Run a frame's logic (dt_tick resolves collisions and checks for Game Over)
-        game.dt_tick(0.0)
-
-        assert game.balls == []
-        assert isinstance(game.next_scene, PaddleSlapGameOverScene)
-        assert game.next_scene.final_score == game.rally_count
-        assert game.next_scene.high_scores == [{'score': game.rally_count}]
-        assert game.previous_scene == game
-        # The high score was saved in the temporary save directory
-        assert any((save_directory / 'paddleslap').iterdir())
+    """Test Game Over integration with the scene manager."""
 
     def test_game_over_scene_gets_game_engine_reference(self, mocker):
         """Switching to a Game Over scene hands it the scene manager's game engine."""

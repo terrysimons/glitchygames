@@ -12,7 +12,7 @@ from glitchygames.collision.layers import CollisionManager
 from glitchygames.game_objects import BallSprite
 from glitchygames.game_objects.ball import speed_up_step_ratio
 from glitchygames.movement import Speed
-from paddleslap import PADDLESLAP_SPEED_UP, Game
+from paddleslap import PADDLESLAP_SPEED_UP
 from tests.game_objects.ball_helpers import drawn_position
 
 # Constants for magic values
@@ -249,33 +249,6 @@ class TestBallToBallCollisions:
         assert ball1.speed.y == SPEED_0_0
         assert ball2.speed.x == SPEED_3_0  # Now moving
         assert ball2.speed.y == SPEED_0_0
-
-    def test_ball_to_ball_collision_cooldown(self):
-        """A pair that just collided is not collided again during PaddleSlap's pair cooldown.
-
-        The cooldown is the game's (Game._ball_collision_cooldowns, counted in frames), not
-        state on the balls.
-        """
-        game = Game.__new__(Game)
-        game._ball_collision_cooldowns = {}
-        game._ball_collision_pairs = []
-        ball1 = BallSprite(collision_sound=None)
-        ball2 = BallSprite(collision_sound=None)
-        # Overlapping (centres 10 px apart) and closing on each other
-        ball1.world_x, ball1.world_y = 100.0, 100.0
-        ball2.world_x, ball2.world_y = 110.0, 100.0
-        drawn_position(ball1)
-        drawn_position(ball2)
-        ball1.speed = Speed(SPEED_3_0, 0.0)
-        ball2.speed = Speed(SPEED_NEG_3_0, 0.0)
-
-        game._on_ball_ball_collision(ball1, ball2)
-        speeds_after_collision = (ball1.speed.x, ball2.speed.x)
-        game._on_ball_ball_collision(ball2, ball1)
-
-        assert game._ball_collision_cooldowns == {(id(ball1), id(ball2)): 10}
-        assert speeds_after_collision != (SPEED_3_0, SPEED_NEG_3_0)
-        assert (ball1.speed.x, ball2.speed.x) == speeds_after_collision
 
     def test_ball_to_ball_collision_separation(self):
         """Test balls separate after collision to prevent sticking."""

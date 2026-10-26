@@ -308,8 +308,9 @@ soldier killed (`SOLDIER_KILLED_SUBTYPE`: his id, side and driver) and every sea
 holds them, and a replay in which the battle plays out differently misses one and diverges
 ("missing internal event"). `DrawingFireScene.setup()` registers its own subtypes
 (`DRAWING_FIRE_EVENT_SUBTYPES`) with the scene manager, with a callback (`_take_marker`) that
-does nothing: they are markers for recordings. `test_the_drawing_fire_golden_replay_holds_a_death_and_a_takeover` checks that
-the fixture holds the player's death and takeover.
+does nothing: they are markers for recordings. The game's own
+`tests/test_drawing_fire_golden_replay.py` checks that the fixture holds the player's death and
+takeover.
 
 `tests/replay/test_golden_replays.py` checks that every control the game reads is exercised: its
 keys by scancode, the mouse's motion and left button, and Q. The controller's controls are
