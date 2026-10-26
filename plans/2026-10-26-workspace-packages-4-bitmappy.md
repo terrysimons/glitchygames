@@ -2,8 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** PLANNED (2026-10-26). Open questions 1-9 answered by the user on 2026-10-26; 10 (the
-branch name) is assumed. Awaiting the user's go-ahead; no code written.
+**Status:** Tasks 1-6 done (2026-10-26); Task 7 (verification, with the user's manual checks)
+pending. Open questions 1-9 were answered by the user on 2026-10-26; 10 (the branch name) was
+assumed.
 
 **Goal:** Move Bitmappy out of the engine into its own workspace member,
 `src/apps/bitmappy/` (distribution `bitmappy`, import package `bitmappy`, console script `bitmappy`

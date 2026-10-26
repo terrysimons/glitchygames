@@ -3,6 +3,30 @@
 Bitmappy is GlitchyGames' pixel art editor. These diagrams show how it is wired up
 through the engine, from bootstrap to rendering.
 
+## Its package
+
+Bitmappy is an app, not part of the engine: the first member of the apps layer of the
+[uv workspace](game_packages.md), at `src/apps/bitmappy/`. The distribution, the import package
+and the console script are all `bitmappy` (`uv run bitmappy`), and its scene's logical name, the
+one a recording holds, is `apps.bitmappy.editor:BitmapEditorScene`. A recording made when the scene
+lived in the engine (`glitchygames.bitmappy.editor:BitmapEditorScene`) is refused by a plain
+replay, which names the remedy; `--replay-trace OLD --rebaseline NEW --headless` converts it
+([gameplay replay](gameplay_replay.md)).
+
+- **Its code** is `src/apps/bitmappy/bitmappy/`. The engine never imports it, and Bitmappy uses
+  the engine's public API (sprite file-format detection, for one, is the engine's
+  `src/glitchygames/sprites/file_format.py`).
+- **Its sprite library** is 71 sprites in `src/apps/bitmappy/bitmappy/resources/sprites/`,
+  shipped as package data and found through `bitmappy.SPRITE_CONFIG_DIR`. They are also the AI's
+  training data (`load_ai_training_data()` below), so they stay in the package.
+- **Its other resources** (the window icon and `bitmappy.cfg`) are beside them, in
+  `src/apps/bitmappy/bitmappy/resources/`.
+- **Its tests** are in `src/apps/bitmappy/tests/`, rootless, every file named
+  `test_bitmappy_*.py`.
+- **The Load and Save dialogs** (the engine's `glitchygames.ui` dialog scenes) treat every file the
+  same: the name is used as given, with surrounding whitespace trimmed, and a sprite in the
+  library is opened by its path. The `example:` prefix they once understood is gone.
+
 ## Bootstrap & Main Loop
 
 How Bitmappy starts up: entry point through `main()`, GameEngine initialization,

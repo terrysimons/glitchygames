@@ -6,7 +6,10 @@ by Task 12; merged as #105, b29f85fc). Part 2 DONE on feature/workspace-packages
 (2026-10-25: every game is its own package, five members under `src/games/`: mr-muncher (Part 1),
 clockwork-keep, brave-adventurer (one project: core, Classic, Papyrus and a launcher), paddleslap
 and drawing-fire; commits 46a6ca20 to "Workspace packages, Part 2: every game is its own
-package", `git log origin/main..HEAD`, 26 commits, verified by Task 9; not yet merged). Plan written 2026-10-24; amended 2026-10-25: everything under `src/`,
+package", 26 commits, verified by Task 9; merged as #109, a97efbe9). Part 4 DONE on
+feature/workspace-packages-4-bitmappy (2026-10-26: Bitmappy is its own package, `src/apps/bitmappy/`;
+commits a97efbe9..the "Docs: Bitmappy is an app" commit, see
+[its plan](2026-10-26-workspace-packages-4-bitmappy.md); not yet merged). Plan written 2026-10-24; amended 2026-10-25: everything under `src/`,
 decision 7; logical names in recordings, decision 8; where recordings live, decision 9.
 Part 1 has a full implementation plan; Parts 2-5 are outlined here and get theirs when each
 starts, written against how Part 1 turned out.
@@ -17,7 +20,7 @@ Sub-plans:
   Keep, Brave Adventurer with Papyrus as one project, PaddleSlap and Drawing Fire, which postdates
   the outline; the move recipe is `docs/architecture/game_packages.md`)
 - Part 3: The three demos (outline below)
-- Part 4: Bitmappy as an app (outline below)
+- Part 4 (DONE): [Bitmappy as an app](2026-10-26-workspace-packages-4-bitmappy.md)
 - Part 5: A browser IDE on each game's page (outline below)
 
 ## Why
@@ -83,7 +86,9 @@ golden replay directly in `tests/fixtures/replays/` (`golden.jsonl.gz`; decision
    stays at 100% (a 100% total means every file is at 100%, so each package is).
 5. **Bitmappy's sprites** (`src/glitchygames/examples/resources/sprites`: its AI training data, the
    `examples:` save/load prefix, the PyInstaller spec) **move with Bitmappy** to
-   `src/apps/bitmappy/`.
+   `src/apps/bitmappy/`. (2026-10-26: the user removed the `examples:` prefix instead of moving it:
+   "We shouldn't treat examples specially anymore". The Load and Save dialogs use a file name as
+   given, whitespace trimmed.)
 6. **The browser IDE** (Part 5) is planned as MVP + Good; Better and Best are follow-ups.
 7. **Everything under `src/`** (the user, 2026-10-25): four layers, `src/glitchygames/` (the
    engine), `src/games/<game>/`, `src/apps/<app>/`, `src/demos/<demo>/`. The engine moves too,
@@ -206,10 +211,14 @@ The outline as written:
   logical names, `demos.joystick_demo:Game` and `games.paddleslap:Game`, tell them apart).
 - With the demos out, nothing is left in `src/glitchygames/examples/` that `EXAMPLES_LAYERS` names:
   the table is deleted (decision 8) along with its `glitchygames.examples` prefix handling.
+- Ends with `src/glitchygames/examples/` gone (moved here from Part 4's outline).
 - `foo2.toml` moves to the one test that uses it; the four unused `src/glitchygames/examples/resources/snd/*.wav`
   are listed for the user to keep or delete (nothing references them).
 
-### Part 4: Bitmappy as an app (outline)
+### Part 4: Bitmappy as an app (DONE)
+
+Full plan: [2026-10-26-workspace-packages-4-bitmappy.md](2026-10-26-workspace-packages-4-bitmappy.md).
+Done 2026-10-26 (commits a97efbe9..the "Docs: Bitmappy is an app" commit). The outline as written:
 
 - `src/apps/bitmappy/` (distribution `bitmappy`, import package `bitmappy`, console script
   `bitmappy` unchanged) with its sprites. Engine code that points into Bitmappy or its sprites
@@ -218,7 +227,8 @@ The outline as written:
   engine, what is Bitmappy's moves. `bitmappy.spec`, its PyInstaller hooks, the browser build's
   `included_subpackages` and the Bitmappy docs follow. The biggest part: a survey of the
   engine's references into `src/glitchygames/bitmappy/` comes first.
-- Ends with `src/glitchygames/examples/` gone.
+- (Its "Ends with `src/glitchygames/examples/` gone" moved to Part 3: Part 4 ran first, so the
+  demos were still there. After Part 4, `examples/` holds the three demos and their resources.)
 
 ### Part 5: A browser IDE on each game's page (outline)
 

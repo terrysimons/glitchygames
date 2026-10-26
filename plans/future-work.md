@@ -90,6 +90,17 @@ local branches are deleted. The decisions made on the way, for the record:
   62 sites left, all in Bitmappy (see Lint ignores cleanup below).~~ **Done** 2026-10-22
   (`8dc652f2`): every site narrowed, the ignore removed, BUGS.md #19 resolved.
 
+## Sprite file-format detection (2026-10-26, workspace packages part 4)
+
+- **Two `detect_file_format`s remain.** `src/glitchygames/sprites/file_format.py` (moved out of
+  Bitmappy; case-insensitive; returns `'toml'` for a `.toml` extension or none and raises
+  `ValueError` for any other) serves `AnimatedSprite` and Bitmappy's `AnimatedCanvasSprite`.
+  `SpriteFactory.detect_file_format` (`src/glitchygames/sprites/factory.py`; case-sensitive;
+  returns `'toml'`, `'yaml'` for `.yaml` or `.yml`, and `'unknown'` instead of raising) answers
+  differently for the same file name, though only TOML is supported. Unify them (and their
+  callers: `SpriteFactory.load_sprite` and `src/glitchygames/sprites/bitmappy_sprite.py`) in one
+  slice.
+
 ## World space follow-ups (feature/engine-world-space final review)
 
 - **Clockwork Keep's start-of-scene camera swoop (game design decision):** at scene start the

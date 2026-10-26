@@ -1448,7 +1448,7 @@ def build_binary(session: nox.Session) -> None:
 
 @nox.session(venv_backend='none', name='build-wheel', default=False)
 def build_wheel(session: nox.Session) -> None:
-    """Build a wheel package (.whl) for distribution.
+    """Build the wheel (.whl) of every workspace package (the engine and each member).
 
     Usage:
         nox -s build-wheel
@@ -1459,7 +1459,7 @@ def build_wheel(session: nox.Session) -> None:
 
 @nox.session(python=['3.14'], reuse_venv=False, name='build', default=False)
 def build_all(session: nox.Session) -> None:
-    """Build Bitmappy binary and wheel package.
+    """Build the Bitmappy binary and the wheel of every workspace package.
 
     Usage:
         nox -s build
