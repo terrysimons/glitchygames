@@ -101,7 +101,13 @@ api = []
 # glitchygames, so these are a cycle through an extra, which pip and uv both resolve. Kept equal
 # to the workspace by tests/test_workspace_config.py; an empty layer is an empty extra until its
 # first member moves (demos: Part 3, apps: Part 4)
-games = ["mr-muncher", "brave-adventurer", "clockwork-keep", "paddleslap", "drawing-fire"]
+games = [
+  "mr-muncher",
+  "brave-adventurer",
+  "clockwork-keep",
+  "paddleslap",
+  "drawing-fire",
+]
 demos = []
 apps = []
 
@@ -129,7 +135,13 @@ drawing-fire = { workspace = true }
 # here a plain `uv sync` uninstalls what `--all-packages` installed, console scripts included,
 # and the replay-metrics hook can no longer replay their recordings. Checked against the
 # workspace by tests/test_workspace_config.py
-dev = ["mr-muncher", "brave-adventurer", "clockwork-keep", "paddleslap", "drawing-fire"]
+dev = [
+  "mr-muncher",
+  "brave-adventurer",
+  "clockwork-keep",
+  "paddleslap",
+  "drawing-fire",
+]
 
 [tool.hatch.build]
 # The build stamp is gitignored (hatch leaves ignored files out); nox -s build-wheel and
@@ -219,9 +231,15 @@ brave_adventurer_modes = [
   "src/games/brave-adventurer/src/brave_adventurer_modes",
   "*/site-packages/brave_adventurer_modes",
 ]
-clockwork_keep = ["src/games/clockwork-keep/clockwork_keep", "*/site-packages/clockwork_keep"]
+clockwork_keep = [
+  "src/games/clockwork-keep/clockwork_keep",
+  "*/site-packages/clockwork_keep",
+]
 paddleslap = ["src/games/paddleslap/paddleslap", "*/site-packages/paddleslap"]
-drawing_fire = ["src/games/drawing-fire/drawing_fire", "*/site-packages/drawing_fire"]
+drawing_fire = [
+  "src/games/drawing-fire/drawing_fire",
+  "*/site-packages/drawing_fire",
+]
 
 [tool.coverage.report]
 show_missing = true
