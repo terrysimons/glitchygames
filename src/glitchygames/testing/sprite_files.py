@@ -76,14 +76,19 @@ def _pixel_blocks(*, sprite_data: SpriteData) -> list[tuple[str, str]]:
     return blocks
 
 
-def _frames_in_index_order(*, animation: SpriteData) -> list[SpriteData]:
-    """Return an animation's frames in frame_index order.
+def _frames_in_file_order(*, animation: SpriteData) -> list[SpriteData]:
+    """Return an animation's frames in the order the loader gives them: the file's order.
+
+    The loader (AnimatedSprite._process_toml_animation) sorts by a ``frame_index`` attribute that
+    SpriteFrame never has, so the sort keeps the file's order and a ``frame_index`` key in the
+    file does not reorder anything. Sorting by the key here would disagree with the loader for a
+    file where only some frames carry one.
 
     Returns:
-        list[SpriteData]: The ``[[animation.frame]]`` tables, sorted by ``frame_index``.
+        list[SpriteData]: The ``[[animation.frame]]`` tables, in file order.
 
     """
-    return sorted(animation.get('frame', []), key=lambda frame: frame.get('frame_index', 0))
+    return animation.get('frame', [])
 
 
 def _animation_timings(*, sprite_data: SpriteData) -> list[AnimationTiming]:
@@ -91,7 +96,7 @@ def _animation_timings(*, sprite_data: SpriteData) -> list[AnimationTiming]:
 
     Returns:
         list[AnimationTiming]: (namespace, frame_interval, loop, per-frame frame_interval
-        overrides in frame_index order, None where absent).
+        overrides in file order, None where absent).
 
     """
     return [
@@ -99,7 +104,7 @@ def _animation_timings(*, sprite_data: SpriteData) -> list[AnimationTiming]:
             animation.get('namespace', 'default'),
             animation.get('frame_interval', DEFAULT_TOML_FRAME_INTERVAL),
             animation.get('loop', True),
-            [frame.get('frame_interval') for frame in _frames_in_index_order(animation=animation)],
+            [frame.get('frame_interval') for frame in _frames_in_file_order(animation=animation)],
         )
         for animation in sprite_data.get('animation', [])
     ]
@@ -113,13 +118,13 @@ def _hitbox_sections(
     Returns:
         tuple[SpriteData | None, list[SpriteData | None]]: The [sprite.hitbox] table (or None) and
         each animation frame's [animation.frame.hitbox] (None where absent), in file order with
-        frames in frame_index order.
+        frames in file order.
 
     """
     frame_hitboxes: list[SpriteData | None] = []
     for animation in sprite_data.get('animation', []):
         frame_hitboxes.extend(
-            frame.get('hitbox') for frame in _frames_in_index_order(animation=animation)
+            frame.get('hitbox') for frame in _frames_in_file_order(animation=animation)
         )
     return sprite_data.get('sprite', {}).get('hitbox'), frame_hitboxes
 

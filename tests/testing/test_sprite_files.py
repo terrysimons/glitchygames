@@ -45,6 +45,16 @@ ANIMATED_SPRITE = (
     f'{COLORS_SECTION}'
 )
 
+PARTLY_INDEXED_SPRITE = (
+    '[sprite]\nname = "mixed"\n\n'
+    '[[animation]]\nnamespace = "walk"\nframe_interval = 0.1\n\n'
+    '[[animation.frame]]\nnamespace = "walk"\nframe_index = 1\nframe_interval = 0.25\n'
+    'pixels = """\n#.\n##\n"""\n\n'
+    '[[animation.frame]]\nnamespace = "walk"\nframe_interval = 0.75\n'
+    'pixels = """\n.#\n##\n"""\n\n'
+    f'{COLORS_SECTION}'
+)
+
 ONE_FRAME_ANIMATED_SPRITE = (
     '[sprite]\nname = "blinker"\n\n'
     '[[animation]]\nnamespace = "blink"\nframe_interval = 0.1\nloop = true\n\n'
@@ -169,16 +179,26 @@ class TestAnimationTimings:
                 sprite_file=sprite_file, directory=saved_directory
             )
 
-    def test_a_reloaded_duration_that_differs_fails(self, tmp_path, mocker):
-        """A save whose per-frame durations reload differently fails, naming the animation."""
-        sprite_file = write_sprite(directory=tmp_path, name='walker.toml', text=ANIMATED_SPRITE)
+    def test_frames_are_compared_in_the_order_the_loader_gives_them(self, tmp_path):
+        """Only some frames carry a frame_index: the loader keeps file order, so does the check."""
+        sprite_file = write_sprite(
+            directory=tmp_path, name='mixed.toml', text=PARTLY_INDEXED_SPRITE
+        )
         saved_directory = tmp_path / 'saved'
         saved_directory.mkdir()
-        mocker.patch.object(
-            sprite_files, '_animation_timings', return_value=[('walk', 0.1, True, [None])]
+        sprite_files.check_animation_timings_survive_a_save_round_trip(
+            sprite_file=sprite_file, directory=saved_directory
         )
-        save_altered(mocker=mocker, find='frame_interval = 0.75', replace='frame_interval = 0.5')
-        with pytest.raises(AssertionError, match=r'walk'):
+
+    def test_a_dropped_frame_with_its_timing_kept_fails_on_the_reloaded_durations(
+        self, tmp_path, mocker
+    ):
+        """A save that empties a frame's pixels keeps its timing but reloads without the frame."""
+        sprite_file = write_sprite(directory=tmp_path, name='walker.toml', text=ANIMATED_SPRITE)
+        save_altered(mocker=mocker, find='pixels = """\n.#\n##\n"""', replace='pixels = """\n"""')
+        saved_directory = tmp_path / 'saved'
+        saved_directory.mkdir()
+        with pytest.raises(AssertionError, match=r'walker\.toml walk: reloaded durations'):
             sprite_files.check_animation_timings_survive_a_save_round_trip(
                 sprite_file=sprite_file, directory=saved_directory
             )
