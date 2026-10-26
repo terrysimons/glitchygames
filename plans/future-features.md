@@ -5,14 +5,14 @@
 > (backlog) and `plans/2026-10-18-level-tools.md` (Glitchy Studio).
 >
 > Paths: `glitchygames/tools/bitmappy.py` and the other editor modules named below were moved into
-> the `glitchygames/bitmappy/` package by the Bitmappy refactor (#87, `4bdc966c`): the editor scene
+> the `src/glitchygames/bitmappy/` package by the Bitmappy refactor (#87, `4bdc966c`): the editor scene
 > is `bitmappy/editor.py`, the film strip `bitmappy/film_strip*.py`, `canvas_interfaces.py` and
 > `onion_skinning.py` keep their names, the undo/redo manager and operation trackers are
 > `bitmappy/history/undo_redo.py` and `history/operations.py`, the multi-controller manager and
 > controller selection `bitmappy/controllers/manager.py` and `controllers/selection.py`, and the
-> visual collision manager `bitmappy/indicators/collision.py`. `glitchygames/tools/` now holds only
+> visual collision manager `bitmappy/indicators/collision.py`. `src/glitchygames/tools/` now holds only
 > the ASCII renderer (`ascii_renderer.py`, `charmap.py`, `terminal_utils.py`). Other
-> `glitchygames/tools/...` files listed under planned features were never created.
+> `src/glitchygames/tools/...` files listed under planned features were never created.
 
 This document tracks planned future features for the GlitchyGames project. Features are listed in priority order and will be implemented as time and priorities allow.
 
@@ -40,7 +40,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Track sprite count and memory usage
   - Estimate CPU usage from frame times
 - **Progress**: the FPS overlay is done: the debug overlay's performance panel
-  (`glitchygames/debug/`, `--debug-overlay` / F3) shows FPS, frame time, the 1% low and a
+  (`src/glitchygames/debug/`, `--debug-overlay` / F3) shows FPS, frame time, the 1% low and a
   frame-time graph. Warnings, sprite count and memory usage are still open.
 
 ### 3. Enhanced Metrics Collection
@@ -77,10 +77,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: TODO: design in `plans/2026-10-23-recording-metrics.md` (Parts 0-7, all chosen by
   the user 2026-10-23; open decisions listed there)
   Done: Part 0 (2026-10-23): the engine's source revision, the machine's state and a run
-  summary in every run (`glitchygames/build_info.py`, `machine_state.py`, `recording_history.py`)
+  summary in every run (`src/glitchygames/build_info.py`, `machine_state.py`, `recording_history.py`)
   Done: Parts 1 and 2 (2026-10-23): the run ledger on gh-pages (`nox -s replay-metrics`, the docs
   site's Replay Performance page) and `scripts/recording_report.py` (speed changes and the
-  behaviour-change map; `glitchygames/recording_metrics.py`)
+  behaviour-change map; `src/glitchygames/recording_metrics.py`)
   Done (2026-10-25): measured rows in the repository: a pre-commit hook measures every commit
   that can change the replays into row files keyed by code tree, the docs publish the rows whose
   code landed on main, CircleCI deploys after each merge, and the gh-pages history moved in
@@ -132,10 +132,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   over debug off and on (the debug overlay and each of its panels: collision, physics, camera,
   performance; `--debug-events`). The "on" variants must still match every recorded frame (a
   divergence is a bug: debugging changed gameplay), and they keep the books through the existing
-  run ledger (`glitchygames/recording_metrics.py`, `nox -s replay-metrics`): one more row per
+  run ledger (`src/glitchygames/recording_metrics.py`, `nox -s replay-metrics`): one more row per
   recording per run, tagged with what debugging was on, so the performance page
   (docs/quality/performance.md) graphs the off and on series side by side across commits and
-  machines. Later: the games' own tests (`games/<game>/tests`, after the workspace-packages
+  machines. Later: the games' own tests (`src/games/<game>/tests`, after the workspace-packages
   plan) take the same parametrization
 - **Open questions**:
   - the overlay is drawn when a frame is presented (`SceneManager._present_frame`); headless
@@ -149,7 +149,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 ### 53. A CRT Power-On Startup Sequence — BUILT (being tested by the user)
 - **Goal**: the engine's startup looks like an analogue CRT switching on, showing the configured
   default background (`--default-background`: the TV test pattern's colour bars, or the channel
-  3 blue VCR screen; glitchygames/backgrounds.py), flickering like a real set before it settles
+  3 blue VCR screen; src/glitchygames/backgrounds.py), flickering like a real set before it settles
   and the game's first scene appears (the user's idea, 2026-10-24)
 - **Sequence** (about a second; each stage's timing a constant):
   1. black, then a bright dot in the centre (the electron beam before deflection)
@@ -160,7 +160,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
      brief degauss-style colour wobble
   4. settles into the steady pattern, then the first scene's frame replaces it
 - **Possible extras**: the power-on sound (a synth recipe: the click, the high whine, the static
-  crackle; glitchygames/audio/recipes.py), a matching CRT power-off collapse when the game quits
+  crackle; src/glitchygames/audio/recipes.py), a matching CRT power-off collapse when the game quits
 - **Rules it must keep**:
   - visual only, before frame 0: never in recordings, screenshots or golden traces, and it
     changes no game state, random stream or clock a replay serves
@@ -169,14 +169,14 @@ This document tracks planned future features for the GlitchyGames project. Featu
     delays their first frame noticeably; any key or button skips it
   - an option to turn it off (and probably one to force it on for a replay watched by a person)
   - drawn from the background pattern the run is configured with, at the display's size
-    (`BackgroundPattern`, cached per size), opaque on cocoa (glitchygames/opacity.py)
+    (`BackgroundPattern`, cached per size), opaque on cocoa (src/glitchygames/opacity.py)
 - **Where** (the user, 2026-10-24: "wired up to the front of every game"): the engine runs it
   for every game, on the game's own canvas (its display, at its resolution), after the display
   opens and before control is handed to the game: before the first scene's setup and first
   frame, with no input reaching the game while it plays. No game opts in or writes code for it.
   The engine already paints a new display with the default background before the first frame
   (CLAUDE.md, Scene backgrounds); the sequence replaces that single paint
-- **Status**: BUILT 2026-10-24 (`glitchygames/crt_power_on.py`, plan
+- **Status**: BUILT 2026-10-24 (`src/glitchygames/crt_power_on.py`, plan
   plans/2026-10-24-crt-power-on.md); being tested by the user, the stage constants tuned by eye
   from that. The power-on sound and a power-off collapse are follow-ups
 
@@ -277,7 +277,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 ### 50. Browser Builds: PyScript/Pyodide Runner and the Game Host — IN PROGRESS
 - **Description**: Run the games in a browser through PyScript (Pyodide 314, Python 3.14) with
   our pygame-ce fork's wheel. The engine gains an outer game on every live run (`GameHost`,
-  `glitchygames/host.py`: transparent doors beneath the recorder for later AI and event
+  `src/glitchygames/host.py`: transparent doors beneath the recorder for later AI and event
   injection, and an async frame driver paced at the target FPS whatever the display's refresh),
   plus a local launcher (`nox -s browser`).
 - **Status**: IN PROGRESS on branch `wasm/pygame-ce-fork` (worktree `../glitchygames-wasm`). Plan
@@ -342,7 +342,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Priority**: Low
 - **Implementation**:
   - Performance bottleneck visualization
-  - Frame time graph overlay (done: the debug overlay's performance panel, `glitchygames/debug/panels.py`)
+  - Frame time graph overlay (done: the debug overlay's performance panel, `src/glitchygames/debug/panels.py`)
   - Performance hotspot identification
   - Memory leak detection
 
@@ -384,7 +384,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ### 55. Swatches Into the Engine: Recolouring Sprites by Palette Swap — TODO
 - **Goal**: move the mechanic Drawing Fire proved (plans/2026-10-25-drawing-fire-design.md,
-  section 7) from `glitchygames/examples/drawing_fire/swatches.py` into the engine, so any
+  section 7) from `src/glitchygames/examples/drawing_fire/swatches.py` into the engine, so any
   game recolours a sprite's parts (a helmet, a uniform) by palette swap, its shades following.
   The user's rule: every new game proves a mechanic, and a proven one is considered for the
   engine
@@ -412,7 +412,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - `load_frames(path=...)`: every animation's frames through the engine's `AnimatedSprite`
     loader; `RecoloredFrames(frames=..., swatch_set=...).frames_for(scheme)`: each scheme's
     frames built on first use, then the same surfaces
-- **What moving it into `glitchygames/sprites/` would take**:
+- **What moving it into `src/glitchygames/sprites/` would take**:
   - the module moves as it is (a `glitchygames/sprites/swatches.py`), with its tests, and
     `AnimatedSprite` (or the sprite loader) learns to read `[swatches]` itself, so a game asks
     the sprite for its frames in a scheme rather than loading the file twice
@@ -443,7 +443,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 ### 11. Event Manager Naming Convention Refactor
 - **Description**: Refactor all event managers to use consistent `FooEventManager` naming convention instead of `FooManager`
 - **Use Case**: Improves code clarity and consistency by making it explicit that these classes manage events
-- **Status**: Planned. The rename is done: every manager in `glitchygames/events/` is a
+- **Status**: Planned. The rename is done: every manager in `src/glitchygames/events/` is a
   `*EventManager` (voice: `VoiceEventManager`; no `VoiceRecognitionManager` remains). The Vosk
   backend item below is still open
 - **Priority**: Medium
@@ -516,7 +516,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - ✅ **Physics Accuracy**: Proper momentum transfer and angle calculations
   - ✅ **Visual Feedback**: Clear indication of collision points and bounce directions
 - **Files Modified**:
-  - `glitchygames/game_objects/ball.py` - Enhanced physics with realistic collision response
+  - `src/glitchygames/game_objects/ball.py` - Enhanced physics with realistic collision response
   - `tests/game_objects/test_ball_boundary_physics.py` - Comprehensive test suite
 
 ### 15. Momentum Dampening System
@@ -538,7 +538,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   exits, instead of guessing from a game's behaviour why a pad does or does not work (2026-10-24)
 - **Status**: ✅ COMPLETED
 - **Implementation**:
-  - `glitchygames/input/device_listing.py`: starts the joystick and controller subsystems,
+  - `src/glitchygames/input/device_listing.py`: starts the joystick and controller subsystems,
     counts the devices before SDL's queue is pumped, listens for `LISTEN_SECONDS` (1 s; macOS
     reports connected pads as device-added events) keeping each device added/removed event with
     its time, opens each device through the devices door (as a game controller when SDL maps it)
@@ -614,21 +614,22 @@ This document tracks planned future features for the GlitchyGames project. Featu
     player, fuzzball munchers, candy snacks), `scenery.py`, `sounds.py` (all original sounds)
   - `autopilot.py`: a player bot (territory-safe BFS) used by the golden script and the tests;
     golden replay re-recorded (then 2250 frames, 2072 since #44: countdown, pause, a snack, two munchers and the
-    bonus eaten, a death, take 2); tests `tests/examples/test_mr_muncher.py` and
-    `tests/examples/test_mr_muncher_maze_and_actors.py` (100% lines and branches)
+    bonus eaten, a death, take 2); tests `src/games/mr-muncher/tests/test_mr_muncher.py` and
+    `src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py` (100% lines and branches)
 
 ### 41. Mr. Muncher Example Game and Microphone Capture Check ✅ COMPLETED
 - **Description**: Two untracked toys brought up to the project's standards (2026-10-23): the
   plain-pygame Pac-Man toy `scripts/mr_muncher.py` became the example game
-  `glitchygames/examples/mr_muncher/` (`uv run mr-muncher`), and `scripts/audio_test.py` became
+  `src/games/mr-muncher/mr_muncher/` (`uv run mr-muncher`; it was
+  `glitchygames/examples/mr_muncher/` until the workspace-packages Part 1), and `scripts/audio_test.py` became
   `scripts/microphone_capture_check.py`
 - **Status**: ✅ COMPLETED (2026-10-23)
 - **Implementation**:
   - Mr. Muncher: a `Scene` run by `GameEngine`; scancode `ActionMap` controls; the maze, its
     sprockets and the munchers' turns from seeded random streams; frame-rate independent speeds;
     sprites (compared by replays) instead of direct drawing; golden replay
-    `tests/fixtures/replays/mr-muncher/golden.jsonl.gz` (600 frames,
-    `scripts/record_golden_traces.py: mr_muncher_script`); `tests/examples/test_mr_muncher.py`
+    `src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz` (600 frames,
+    `scripts/record_golden_traces.py: mr_muncher_script`); `src/games/mr-muncher/tests/test_mr_muncher.py`
   - Microphone check: capture `--duration` seconds (default 3) from the default or a named
     (`--device`) capture device with miniaudio, report bytes, frames and peak/RMS levels, exit
     with an `ExitCode`; `tests/test_microphone_capture_check.py`
@@ -645,21 +646,21 @@ This document tracks planned future features for the GlitchyGames project. Featu
   2026-10-20; final whole-branch review clean 2026-10-20; merged 2026-10-22 as PR #95, `bb51239d`)
 - **Priority**: High
 - **Implementation**:
-  - The doors: `glitchygames/sources.py` (leaf registry), `LiveSources`, `RecordingSources`,
+  - The doors: `src/glitchygames/sources.py` (leaf registry), `LiveSources`, `RecordingSources`,
     `ReplaySources`; `tests/test_engine_doors.py` guards them
-  - Clocks (`glitchygames/clock.py`, `Scene.game_time`), input snapshots (`current_input()`),
+  - Clocks (`src/glitchygames/clock.py`, `Scene.game_time`), input snapshots (`current_input()`),
     the devices door with replay stand-ins, saves through `open_saves` (`DiskSaveManager` /
     `MemorySaveManager`), the supervisor hook and control events
   - Trace format 3, `--replay-fps {recorded,real}`, real input blocked at SDL during a replay,
     golden replay fixtures (`tests/fixtures/replays/`, `scripts/record_scripted_session.py`),
-    run as pytest items by the replay plugin (`glitchygames/testing/replays.py`)
+    run as pytest items by the replay plugin (`src/glitchygames/testing/replays.py`)
   - Part 2, tooling: `--headless`, the watched-replay viewer (pause, step, speed, step back
     through a restarted process, bookmarks saved to `*.bookmarked.jsonl.gz`), recordings as
     pytest items, `--rebaseline`
-  - Part 3, playback: scene starts (`glitchygames/scene_start.py`), the playback scope
-    (`glitchygames/replay/playback.py`), demos (`play_recording`; PaddleSlap's bundled demo on
-    its game-over screen), instant replay (`glitchygames/instant_replay.py`), ghosts
-    (`glitchygames/replay/ghosts.py`)
+  - Part 3, playback: scene starts (`src/glitchygames/scene_start.py`), the playback scope
+    (`src/glitchygames/replay/playback.py`), demos (`play_recording`; PaddleSlap's bundled demo on
+    its game-over screen), instant replay (`src/glitchygames/instant_replay.py`), ghosts
+    (`src/glitchygames/replay/ghosts.py`)
 - **Docs**: CLAUDE.md (Clocks, Gameplay Recording and Replay),
   `docs/architecture/gameplay_replay.md`, `plans/2026-10-19-gameplay-replay.md`
 
@@ -673,7 +674,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: ✅ COMPLETED (branch `feature/engine-world-space`, 2026-10-18; merged 2026-10-22 as PR #94, `cd5e5f97`)
 - **Priority**: High
 - **Implementation**:
-  - `glitchygames/world.py`: `CoordinateSpace`, `WorldPositioned`, `hidden`,
+  - `src/glitchygames/world.py`: `CoordinateSpace`, `WorldPositioned`, `hidden`,
     `position_world_sprites` (`CULL_MARGIN_PIXELS` culling that never lowers `dirty = 2`,
     `draw_offset` added), `aim_camera`
   - `Camera2D.follow(target=, axes=FollowAxes)`, `aim_at`, `begin_frame`; `Scene.camera_target()`,
@@ -697,7 +698,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Enhanced transparency detection for both RGBA and magenta transparency
   - Improved contrast for better terminal visibility
 - **Files Modified**:
-  - `glitchygames/tools/ascii_renderer.py` - Enhanced transparency handling
+  - `src/glitchygames/tools/ascii_renderer.py` - Enhanced transparency handling
 
 ### 17. TOML Drag-n-Drop Support ✅ COMPLETED
 - **Description**: Added drag-n-drop support for .toml files to the canvas, complementing existing PNG drag-n-drop functionality
@@ -821,11 +822,11 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - **Enhanced ASCII Output**: Shows all animation frames with dimensions (e.g., "dimensions: 2x2")
   - **Film Strip Compatibility**: Proper transparency handling in film strip display
 - **Files Modified**:
-  - `glitchygames/sprites/animated.py` - Enhanced RGBA support and transparency key handling
+  - `src/glitchygames/sprites/animated.py` - Enhanced RGBA support and transparency key handling
   - `glitchygames/tools/bitmappy.py` - Updated canvas rendering and sprite loading
   - `glitchygames/tools/canvas_interfaces.py` - Fixed transparency key pixel rendering
   - `glitchygames/tools/film_strip.py` - Proper transparency handling for film strip
-  - `glitchygames/tools/ascii_renderer.py` - Enhanced animation frame display with dimensions
+  - `src/glitchygames/tools/ascii_renderer.py` - Enhanced animation frame display with dimensions
 - **Future Improvements**:
   - Update AI sprite generation instructions to include per-pixel alpha examples
   - Add documentation for alpha transparency best practices
@@ -1014,9 +1015,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Terminal compatibility testing
   - Performance optimization for large sprites
 - **Files to Create/Modify**:
-  - `glitchygames/tools/ascii_renderer.py` - ASCII rendering system
+  - `src/glitchygames/tools/ascii_renderer.py` - ASCII rendering system
   - `glitchygames/tools/color_mapper.py` - Color palette mapping
-  - `glitchygames/tools/terminal_utils.py` - Terminal capability detection
+  - `src/glitchygames/tools/terminal_utils.py` - Terminal capability detection
   - `tests/tools/test_ascii_renderer.py` - ASCII rendering tests
   - `tests/tools/test_color_mapper.py` - Color mapping tests
 
@@ -1068,7 +1069,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 ## Gameplay Features
 
 ### 54. Drawing Fire: Everything After the MVP — TODO
-- **Goal**: grow Drawing Fire (`glitchygames/examples/drawing_fire/`, `uv run drawing-fire`)
+- **Goal**: grow Drawing Fire (`src/glitchygames/examples/drawing_fire/`, `uv run drawing-fire`)
   from its MVP into the full vision of its design, plans/2026-10-25-drawing-fire-design.md
   (section 3; the MVP is section 4, docs/games/drawing_fire.md describes it as built)
 - **The MVP, built 2026-10-25**: one battlefield that fits the screen, computer against
@@ -1520,13 +1521,13 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Priority**: Medium
 - **Implementation**:
   - **Plan from the description**: the LLM (through the existing AI client used for sprite
-    generation, `glitchygames/ai/`) returns a structured plan (a pydantic model, validated): the
+    generation, `src/glitchygames/ai/`) returns a structured plan (a pydantic model, validated): the
     source sounds and the operations to apply, in order. A rule-based fallback maps common words
     (pop, click, thud, whoosh, zap, chirp) to recipes when no model is available
   - **Source sounds**, any of:
-    - synthesized: the existing toolkit (`glitchygames/audio/synth.py` oscillators, noise,
-      envelopes, pitch curves) and `SoundRecipe`/`Tone` (`glitchygames/audio/recipes.py`)
-    - spoken: words or syllables rendered with text-to-speech (`glitchygames/audio/tts.py`)
+    - synthesized: the existing toolkit (`src/glitchygames/audio/synth.py` oscillators, noise,
+      envelopes, pitch curves) and `SoundRecipe`/`Tone` (`src/glitchygames/audio/recipes.py`)
+    - spoken: words or syllables rendered with text-to-speech (`src/glitchygames/audio/tts.py`)
     - performed: the engine suggests sounds for you to make yourself ("say 'pop' with your lips
       closed", "click your tongue twice", "say 'tsss'") and records them from the microphone
       (the microphone capture script, `scripts/`), then trims the silence

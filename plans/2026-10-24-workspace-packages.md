@@ -2,7 +2,7 @@
 
 Status: IN PROGRESS. Part 1 DONE on feature/workspace-packages-foundation (2026-10-25: the
 src/ layout, Mr. Muncher as a member, logical names; commits e864215c..73a60265, 22 commits, verified
-by Task 12; not yet merged). Plan written 2026-10-24; amended 2026-10-25: everything under `src/`,
+by Task 12; merged as #105). Plan written 2026-10-24; amended 2026-10-25: everything under `src/`,
 decision 7; logical names in recordings, decision 8; where recordings live, decision 9.
 Part 1 has a full implementation plan; Parts 2-5 are outlined here and get theirs when each
 starts, written against how Part 1 turned out.
@@ -16,7 +16,7 @@ Sub-plans:
 
 ## Why
 
-The example games live inside the engine's package (`glitchygames/examples/`) and ship in its
+The example games live inside the engine's package (`src/glitchygames/examples/`) and ship in its
 wheel. Moving each into its own package beside the engine:
 
 - **makes a game's code path easy to review**: a game change is one directory, its code, tests
@@ -33,9 +33,9 @@ wheel. Moving each into its own package beside the engine:
 Four layers, all under `src/` (decision 7):
 
 ```
-src/
-  glitchygames/                the engine (the root project, distribution glitchygames; moved
+src/glitchygames/              the engine (the root project, distribution glitchygames; moved
                                from ./glitchygames/ in Part 1, first; loses examples/ part by part)
+src/
   games/
     mr-muncher/                pyproject.toml (distribution mr-muncher), mr_muncher/, tests/
     paddleslap/
@@ -50,12 +50,12 @@ tests/                         the engine's tests (stay at the root)
 scripts/                       tools (stay at the root)
 ```
 
-The engine's import name stays `glitchygames`; its wheel holds `glitchygames/` at the top level
+The engine's import name stays `glitchygames`; its wheel holds the top-level package `glitchygames`
 (hatch `packages = ["src/glitchygames"]`), so nothing that imports it changes. The repository
 root holds no importable engine: tests and tools run from the root import the installed package
 (nox installs it non-editable; `uv sync` installs it editable, through a `.pth` naming `src/`).
-Where this plan names an engine file by its package path (`glitchygames/ui/dialogs.py`), the
-file is at `src/` plus that path in the repository once Part 1 has moved the engine.
+This plan names engine files by their repository path (`src/glitchygames/ui/dialogs.py`), as they
+are now that Part 1 has moved the engine.
 
 Each member is a uv workspace member (root `pyproject.toml` `[tool.uv.workspace]`): its own
 `pyproject.toml` (hatchling, like the engine), its import package (`mr_muncher`: a hyphen
@@ -73,7 +73,7 @@ golden replay directly in `tests/fixtures/replays/` (`golden.jsonl.gz`; decision
 3. **Each package's tests and golden replay live inside it** (`src/games/mr-muncher/tests/`).
 4. **100% coverage everywhere**: coverage measures the engine and every member, and the gate
    stays at 100% (a 100% total means every file is at 100%, so each package is).
-5. **Bitmappy's sprites** (`glitchygames/examples/resources/sprites`: its AI training data, the
+5. **Bitmappy's sprites** (`src/glitchygames/examples/resources/sprites`: its AI training data, the
    `examples:` save/load prefix, the PyInstaller spec) **move with Bitmappy** to
    `src/apps/bitmappy/`.
 6. **The browser IDE** (Part 5) is planned as MVP + Good; Better and Best are follow-ups.
@@ -94,9 +94,9 @@ golden replay directly in `tests/fixtures/replays/` (`golden.jsonl.gz`; decision
    from the workspace member that owns the class's top-level import package
    (`src/<layer>/<member>/`). Because the engine needs it at run time and an installed engine
    has no workspace to read (nor may it import `scripts/`), the layers are data in the engine,
-   `glitchygames/logical_names.py`: `MEMBER_LAYERS` (kept equal to what
+   `src/glitchygames/logical_names.py`: `MEMBER_LAYERS` (kept equal to what
    `scripts/workspace_packages.py` reads by a test) and `EXAMPLES_LAYERS` for the games and
-   demos still in `glitchygames/examples/` (paddleslap, brave_adventurer,
+   demos still in `src/glitchygames/examples/` (paddleslap, brave_adventurer,
    brave_adventurer_papyrus, clockwork_keep, mr_muncher -> games; dt_demo, joystick_demo,
    text_input_demo -> demos), deleted when the last one leaves. One function maps a class to
    its logical name; the header (`game`) and every scene start (`scene`) record it; the header
@@ -130,7 +130,7 @@ golden replay directly in `tests/fixtures/replays/` (`golden.jsonl.gz`; decision
   glitchygames` resolves to the installed package (Part 1). Coverage maps the installed copies
   back to `src/` (`[tool.coverage.paths]`), so the report names the files in the repository.
 - A moved recording keeps its run-ledger history (`RECORDING_PATH_RENAMES`,
-  `glitchygames/recording_metrics.py`, Part 1): the engine's move already moves PaddleSlap's
+  `src/glitchygames/recording_metrics.py`, Part 1): the engine's move already moves PaddleSlap's
   bundled demo, and every later move adds one line per moved recording (old and new path).
 - Every committed recording names its game and scenes by logical names that resolve
   (`tests/replay/test_recording_logical_names.py`, Part 1), and the engine's `MEMBER_LAYERS`
@@ -167,7 +167,7 @@ verification.
 - PaddleSlap stays importable as `paddleslap` (logical name `games.paddleslap:Game`, the same
   before and after). Its bundled demo moves into its package
   (`src/games/paddleslap/paddleslap/demos/rally.jsonl.gz`, decision 9); bundled-demo discovery
-  (`glitchygames/testing/replays.py` `bundled_demo_paths`, which today builds
+  (`src/glitchygames/testing/replays.py` `bundled_demo_paths`, which today builds
   `glitchygames.examples.<game>` from the `<game>_demos` folder name) finds demos through each
   member's package (`<package>/demos/`), and the demo's ledger history follows it (one more
   `RECORDING_PATH_RENAMES` line). `ball._debug_positions` gets a public read-only API on
@@ -185,16 +185,16 @@ verification.
   today they have none). The joystick demo's `Game` deliberately shares its name with
   PaddleSlap's (`tests/replay/test_playback_scope.py`): that test keeps both loaded (their
   logical names, `demos.joystick_demo:Game` and `games.paddleslap:Game`, tell them apart).
-- With the demos out, nothing is left in `glitchygames/examples/` that `EXAMPLES_LAYERS` names:
+- With the demos out, nothing is left in `src/glitchygames/examples/` that `EXAMPLES_LAYERS` names:
   the table is deleted (decision 8) along with its `glitchygames.examples` prefix handling.
-- `foo2.toml` moves to the one test that uses it; the four unused `examples/resources/snd/*.wav`
+- `foo2.toml` moves to the one test that uses it; the four unused `src/glitchygames/examples/resources/snd/*.wav`
   are listed for the user to keep or delete (nothing references them).
 
 ### Part 4: Bitmappy as an app (outline)
 
 - `src/apps/bitmappy/` (distribution `bitmappy`, import package `bitmappy`, console script
   `bitmappy` unchanged) with its sprites. Engine code that points into Bitmappy or its sprites
-  (`glitchygames/ui/dialogs.py` `examples:` prefix, `glitchygames/bitmappy/utils.py`
+  (`src/glitchygames/ui/dialogs.py` `examples:` prefix, `src/glitchygames/bitmappy/utils.py`
   `SPRITE_CONFIG_DIR`, the API routes, services) is separated: what is generic stays in the
   engine, what is Bitmappy's moves. `bitmappy.spec`, its PyInstaller hooks, the browser build's
   `included_subpackages` and the Bitmappy docs follow. The biggest part: a survey of the

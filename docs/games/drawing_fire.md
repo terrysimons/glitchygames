@@ -15,7 +15,7 @@ Every new GlitchyGames game proves a new mechanic for the engine. Drawing Fire p
 liveries (see [Swatches](#swatches-the-mechanic-this-game-proves)).
 
 This page explains how the game is built, for a developer who wants to understand it or write a
-game like it. Everything here comes from `glitchygames/examples/drawing_fire/`, and the module
+game like it. Everything here comes from `src/glitchygames/examples/drawing_fire/`, and the module
 docstrings there are the detailed reference. The design, with the full vision and the MVP's
 decisions, is `plans/2026-10-25-drawing-fire-design.md`. What comes after the MVP is entry 54 in
 `plans/future-features.md`.
@@ -109,17 +109,17 @@ anyone: players drop into and out of them, and the next one starts on its own.
 
 | File | What it holds |
 |---|---|
-| `glitchygames/examples/drawing_fire/__init__.py` | Re-exports `main` (the `drawing-fire` console script's entry point) |
-| `glitchygames/examples/drawing_fire/game.py` | `DrawingFireScene` (the frame: seats, drivers, the battle, the victory countdown; rendering; the debug seats view), `Phase`, `seats_panel_lines`, `main` |
-| `glitchygames/examples/drawing_fire/battle.py` | The rules: `Battle`, `Soldier`, `Sandbag`, `Bullet`, `Intent`, `Side`, `ARMY_NAMES`, the events `SoldierKilled` and `SandbagFlattened`, and the tuned numbers |
-| `glitchygames/examples/drawing_fire/terrain.py` | `Terrain` (a ground y for every x) and `build_terrain` (flat paper with a few seeded hills) |
-| `glitchygames/examples/drawing_fire/drivers.py` | The computer driver: `muster_battle` (a battle and every soldier's memory and own random stream), `computer_intents`, `computer_intent`, `ComputerSoldier` |
-| `glitchygames/examples/drawing_fire/players.py` | Player input: `Device`, `KEYBOARD`, `connected_devices`, `device_intent` (a device's input as an `Intent`), `Button`, `ButtonEdges` (presses, and holds in frames and seconds, per device) |
-| `glitchygames/examples/drawing_fire/seats.py` | `Seats`: joining, choosing a side and a soldier, the takeover on death, leaving, the seat log; `PlayerSeat`, `Stage`, `SideChoice`, `LEAVE_HOLD_SECONDS` |
-| `glitchygames/examples/drawing_fire/swatches.py` | Swatches, the mechanic this game proves (written to move into the engine) |
-| `glitchygames/examples/drawing_fire/drawing.py` | The pencil look: `wobble`, the terrain, sandbags, soldiers in their liveries (`ARMY_LIVERIES`), bullets, the HUD and the victory banner |
-| `glitchygames/examples/drawing_fire/seat_drawing.py` | The join note, the seat cards, the soldier highlight, and the debug seat tags and panel |
-| `glitchygames/examples/drawing_fire/sprites/soldier.toml` | The soldier sprite (stand, walk and down), with its `[swatches.livery]` parts |
+| `src/glitchygames/examples/drawing_fire/__init__.py` | Re-exports `main` (the `drawing-fire` console script's entry point) |
+| `src/glitchygames/examples/drawing_fire/game.py` | `DrawingFireScene` (the frame: seats, drivers, the battle, the victory countdown; rendering; the debug seats view), `Phase`, `seats_panel_lines`, `main` |
+| `src/glitchygames/examples/drawing_fire/battle.py` | The rules: `Battle`, `Soldier`, `Sandbag`, `Bullet`, `Intent`, `Side`, `ARMY_NAMES`, the events `SoldierKilled` and `SandbagFlattened`, and the tuned numbers |
+| `src/glitchygames/examples/drawing_fire/terrain.py` | `Terrain` (a ground y for every x) and `build_terrain` (flat paper with a few seeded hills) |
+| `src/glitchygames/examples/drawing_fire/drivers.py` | The computer driver: `muster_battle` (a battle and every soldier's memory and own random stream), `computer_intents`, `computer_intent`, `ComputerSoldier` |
+| `src/glitchygames/examples/drawing_fire/players.py` | Player input: `Device`, `KEYBOARD`, `connected_devices`, `device_intent` (a device's input as an `Intent`), `Button`, `ButtonEdges` (presses, and holds in frames and seconds, per device) |
+| `src/glitchygames/examples/drawing_fire/seats.py` | `Seats`: joining, choosing a side and a soldier, the takeover on death, leaving, the seat log; `PlayerSeat`, `Stage`, `SideChoice`, `LEAVE_HOLD_SECONDS` |
+| `src/glitchygames/examples/drawing_fire/swatches.py` | Swatches, the mechanic this game proves (written to move into the engine) |
+| `src/glitchygames/examples/drawing_fire/drawing.py` | The pencil look: `wobble`, the terrain, sandbags, soldiers in their liveries (`ARMY_LIVERIES`), bullets, the HUD and the victory banner |
+| `src/glitchygames/examples/drawing_fire/seat_drawing.py` | The join note, the seat cards, the soldier highlight, and the debug seat tags and panel |
+| `src/glitchygames/examples/drawing_fire/sprites/soldier.toml` | The soldier sprite (stand, walk and down), with its `[swatches.livery]` parts |
 | `scripts/simulate_drawing_fire.py` | Headless computer-against-computer battles across seeds (the tuning tool) |
 | `tests/examples/drawing_fire/` | The tests, one file per module, plus the simulation's |
 | `tests/fixtures/replays/drawing-fire/golden.jsonl.gz` | The golden replay (1,614 frames) |
@@ -252,7 +252,7 @@ In the game, `drawing.load_soldier_frames` loads the frames with the engine's `A
 loader, scales them up by whole pixels (so the exact colours survive), adds mirrored copies for
 a soldier facing left, and `draw_soldier` asks for his army's livery
 (`ARMY_LIVERIES[soldier.side]`). Nothing in `swatches.py` names the game: it is written to move
-into `glitchygames/sprites/`. What that would take is entry 55 in `plans/future-features.md`.
+into `src/glitchygames/sprites/`. What that would take is entry 55 in `plans/future-features.md`.
 
 ## The pencil look
 
@@ -321,7 +321,7 @@ One limit, noted in `plans/future-features.md` entry 54: the fixture is about 18
 100 KB the other games keep. The first frame holds every random stream's state (19 of them,
 twice), about 125 KB compressed on its own.
 
-The pytest plugin `glitchygames/testing/replays.py` replays the fixture in a child process
+The pytest plugin `src/glitchygames/testing/replays.py` replays the fixture in a child process
 (`drawing-fire --replay-trace ... --headless`), and the test fails unless it exits `SUCCESS`.
 Re-record the fixture only deliberately (the commands are in the script's docstring), never just
 to make a failing replay pass. A re-recording without the player's death and takeover fails the

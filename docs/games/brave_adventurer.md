@@ -643,24 +643,24 @@ classDiagram
 
 | File | What it holds |
 |---|---|
-| `glitchygames/examples/brave_adventurer/__init__.py` | Exports `main` (the `brave-adventurer` console script) |
-| `glitchygames/examples/brave_adventurer/game.py` | `BraveAdventurerScene`: camera, parallax, level, controls, `dt_tick` order, terrain and enemy collision, death and respawn, high scores, input handlers, `render()`, pits, HUD; `main()` |
-| `glitchygames/examples/brave_adventurer/player.py` | `Player`: physics body, state machine, the pose drawn in `dt_tick`, the common pose x-range |
-| `glitchygames/examples/brave_adventurer/terrain.py` | `GroundSegment`, `StoneWall`, `GoldScarab` |
-| `glitchygames/examples/brave_adventurer/enemies.py` | `Cobra`, `Scarab`, `Scorpion` |
-| `glitchygames/examples/brave_adventurer/levels.py` | `ScreenData`, `LEVEL_1` (20 screens), `LevelManager` |
-| `glitchygames/examples/brave_adventurer/drawing.py` | Every primitive drawing: the player, enemies, terrain, the four parallax layers |
-| `glitchygames/examples/brave_adventurer/sounds.py` | The synthesized effects and `GameSounds` |
-| `glitchygames/examples/brave_adventurer/constants.py` | Screen, physics, camera, parallax, layer, size, scoring, colour and rumble constants |
-| `glitchygames/examples/brave_adventurer_papyrus/game.py` | `PapyrusBraveAdventurerScene` (the scene's parallel copy); `main()` |
-| `glitchygames/examples/brave_adventurer_papyrus/player.py` | `PapyrusPlayer` |
-| `glitchygames/examples/brave_adventurer_papyrus/enemies.py` | `PapyrusCobra`, `PapyrusScarab`, `PapyrusScorpion` |
-| `glitchygames/examples/brave_adventurer_papyrus/terrain.py` | `PapyrusGoldScarab`; re-exports the shared `GroundSegment` and `StoneWall` |
-| `glitchygames/examples/brave_adventurer_papyrus/levels.py` | `PapyrusLevelManager`; re-exports `LEVEL_1` |
-| `glitchygames/examples/brave_adventurer_papyrus/sprite_utils.py` | Colour key to alpha, 2x scaling, `hitbox_scale` |
-| `glitchygames/examples/brave_adventurer_papyrus/constants.py` | Re-exports the shared constants; `SPRITE_SCALE`, the Papyrus heights, `SPRITES_DIR` |
-| `glitchygames/examples/brave_adventurer_papyrus/sprites/*.toml` | The pixel art, hitboxes and state machines |
-| `glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The engine's pause and game-over screens |
+| `src/glitchygames/examples/brave_adventurer/__init__.py` | Exports `main` (the `brave-adventurer` console script) |
+| `src/glitchygames/examples/brave_adventurer/game.py` | `BraveAdventurerScene`: camera, parallax, level, controls, `dt_tick` order, terrain and enemy collision, death and respawn, high scores, input handlers, `render()`, pits, HUD; `main()` |
+| `src/glitchygames/examples/brave_adventurer/player.py` | `Player`: physics body, state machine, the pose drawn in `dt_tick`, the common pose x-range |
+| `src/glitchygames/examples/brave_adventurer/terrain.py` | `GroundSegment`, `StoneWall`, `GoldScarab` |
+| `src/glitchygames/examples/brave_adventurer/enemies.py` | `Cobra`, `Scarab`, `Scorpion` |
+| `src/glitchygames/examples/brave_adventurer/levels.py` | `ScreenData`, `LEVEL_1` (20 screens), `LevelManager` |
+| `src/glitchygames/examples/brave_adventurer/drawing.py` | Every primitive drawing: the player, enemies, terrain, the four parallax layers |
+| `src/glitchygames/examples/brave_adventurer/sounds.py` | The synthesized effects and `GameSounds` |
+| `src/glitchygames/examples/brave_adventurer/constants.py` | Screen, physics, camera, parallax, layer, size, scoring, colour and rumble constants |
+| `src/glitchygames/examples/brave_adventurer_papyrus/game.py` | `PapyrusBraveAdventurerScene` (the scene's parallel copy); `main()` |
+| `src/glitchygames/examples/brave_adventurer_papyrus/player.py` | `PapyrusPlayer` |
+| `src/glitchygames/examples/brave_adventurer_papyrus/enemies.py` | `PapyrusCobra`, `PapyrusScarab`, `PapyrusScorpion` |
+| `src/glitchygames/examples/brave_adventurer_papyrus/terrain.py` | `PapyrusGoldScarab`; re-exports the shared `GroundSegment` and `StoneWall` |
+| `src/glitchygames/examples/brave_adventurer_papyrus/levels.py` | `PapyrusLevelManager`; re-exports `LEVEL_1` |
+| `src/glitchygames/examples/brave_adventurer_papyrus/sprite_utils.py` | Colour key to alpha, 2x scaling, `hitbox_scale` |
+| `src/glitchygames/examples/brave_adventurer_papyrus/constants.py` | Re-exports the shared constants; `SPRITE_SCALE`, the Papyrus heights, `SPRITES_DIR` |
+| `src/glitchygames/examples/brave_adventurer_papyrus/sprites/*.toml` | The pixel art, hitboxes and state machines |
+| `src/glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The engine's pause and game-over screens |
 | `tests/examples/test_brave_adventurer_game.py`, `test_brave_adventurer_sounds.py` | The game's tests |
 | `tests/fixtures/replays/brave-adventurer*/golden.jsonl.gz` | The golden replays |
 | `tests/world/golden/brave_adventurer*.jsonl.gz` | The golden traces |

@@ -69,7 +69,7 @@ broadcast's two-tone chord, never a broadcaster's trademark chimes):
   next; quiet (about 20% of full scale, well under a demo's sound), lightly low-passed, so warm
   rather than bright;
 - the last note fades as the bars hand over to the demo; together about 3 s;
-- a synth recipe (`glitchygames/audio/recipes.py`), rendered to a file for the user to listen to
+- a synth recipe (`src/glitchygames/audio/recipes.py`), rendered to a file for the user to listen to
   and adjust before it is wired in.
 
 ### Input
@@ -90,7 +90,7 @@ broadcast's two-tone chord, never a broadcaster's trademark chimes):
 ### 1. The engine context (the D1 refactor)
 
 Today the engine's per-run state is process-wide: the `SceneManager` singleton, the doors
-(`glitchygames/sources.py`), the random streams (`glitchygames/randomness.py`), the frame clock,
+(`src/glitchygames/sources.py`), the random streams (`src/glitchygames/randomness.py`), the frame clock,
 the saves and the live audio. It moves into one `EngineContext` object. Ordinary games run in a
 single default context and do not change. The Arcade creates one context per demo player and
 switches into it around that player's frames; a launched game gets a fresh context of its own.
@@ -131,7 +131,7 @@ on the default test pattern, then the poster frame as a still; once every player
 plays live from where it stopped. The nine tiles therefore start at different points of their
 demos, every run picks new frames, and a test reproduces any run from its seed.
 
-The watched replay's viewer (`glitchygames/replay/viewer.py`: an outer game ticking an
+The watched replay's viewer (`src/glitchygames/replay/viewer.py`: an outer game ticking an
 unpresented inner game through `EngineSources.hold_frame`) is the model; its docstring already
 lists "inner frames handed to a sink rather than presented" as a later user of that contract.
 
@@ -159,14 +159,14 @@ only, as the watched replay's controls get it today.
 A registry of the games (console script or module, display name, demo recording, the game's
 scene and its startup: options, `NAME`, `TARGET_FPS`), derived from `[project.scripts]` as
 `glitchygames.testing.replays.console_script_in_module` does, plus the three small demos
-(`glitchygames/examples/dt_demo.py`, `joystick_demo.py`, `text_input_demo.py`), which have no
+(`src/glitchygames/examples/dt_demo.py`, `joystick_demo.py`, `text_input_demo.py`), which have no
 console script. Launching builds the game in a fresh context and runs it until it quits; then
 the Arcade's context comes back. The window takes the game's resolution, and the Arcade's again
 after.
 
 ### 5. Demos for all nine
 
-One recording per game, bundled (`glitchygames/examples/<game>_demos/<name>.jsonl.gz`, as
+One recording per game, bundled (`src/glitchygames/examples/<game>_demos/<name>.jsonl.gz`, as
 PaddleSlap's `rally.jsonl.gz`), recorded with `scripts/record_scripted_session.py --script-only
 --output PATH`, each replayed headless by `tests/replay/test_bundled_demos.py`. Bitmappy's shows a
 sprite being drawn; the joystick demo's shows its readout answering a recorded pad.
