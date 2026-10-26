@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.examples.clockwork_keep.constants import (
+from clockwork_keep.constants import (
     PLAYFIELD_LEFT,
     PLAYFIELD_RIGHT,
     PLAYFIELD_WIDTH,

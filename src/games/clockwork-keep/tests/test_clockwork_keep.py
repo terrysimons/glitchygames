@@ -18,16 +18,9 @@ from scripts.record_golden_traces import (
     release,
 )
 
-from glitchygames.audio.exceptions import AudioUnavailableError
-from glitchygames.audio.live import VoiceState
-from glitchygames.camera import FollowAxes, ParallaxLayer
-from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
-from glitchygames.display_mode import set_display_mode
-from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
-from glitchygames.events.base import HashableEvent
-from glitchygames.examples.clockwork_keep import game as clockwork_game
-from glitchygames.examples.clockwork_keep import sounds as clockwork_sounds
-from glitchygames.examples.clockwork_keep.constants import (
+from clockwork_keep import game as clockwork_game
+from clockwork_keep import sounds as clockwork_sounds
+from clockwork_keep.constants import (
     CLOCK_START_SECONDS,
     COG_SILVER_POINTS,
     ELEVATOR_ASCENT_RUMBLE_LOW,
@@ -43,22 +36,29 @@ from glitchygames.examples.clockwork_keep.constants import (
     PLAYFIELD_LEFT,
     PLAYFIELD_RIGHT,
 )
-from glitchygames.examples.clockwork_keep.drawing import clock_hand_angles
-from glitchygames.examples.clockwork_keep.game import (
+from clockwork_keep.drawing import clock_hand_angles
+from clockwork_keep.game import (
     ELEVATOR_STOP_BOUNCE,
     ELEVATOR_STOP_RATTLE,
     ClockworkKeepScene,
     ClockworkKeepVictoryScene,
     CogCollectible,
 )
-from glitchygames.examples.clockwork_keep.levels import (
+from clockwork_keep.levels import (
     ALL_FLOORS,
     FLOOR_BOILER_ROOM,
     FLOOR_CLOCK_FACE,
     FLOOR_GEAR_WORKS,
 )
-from glitchygames.examples.clockwork_keep.player import Tinker
-from glitchygames.examples.clockwork_keep.terrain import Elevator, MovingGear, Platform
+from clockwork_keep.player import Tinker
+from clockwork_keep.terrain import Elevator, MovingGear, Platform
+from glitchygames.audio.exceptions import AudioUnavailableError
+from glitchygames.audio.live import VoiceState
+from glitchygames.camera import FollowAxes, ParallaxLayer
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.display_mode import set_display_mode
+from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
+from glitchygames.events.base import HashableEvent
 from glitchygames.exit_codes import ExitCode
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
@@ -1362,9 +1362,7 @@ class TestFloorRendering:
         assert self._hud_text_pixel_count(screen, self.SCORE_AREA) == 0
 
 
-GOLDEN_REPLAY_PATH = (
-    Path(__file__).parent.parent / 'fixtures' / 'replays' / 'clockwork-keep' / 'golden.jsonl.gz'
-)
+GOLDEN_REPLAY_PATH = Path(__file__).parent / 'fixtures' / 'replays' / 'golden.jsonl.gz'
 
 
 def test_main_runs_the_game_through_the_engine(mocker, capsys):

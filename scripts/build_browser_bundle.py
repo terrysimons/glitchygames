@@ -267,9 +267,10 @@ GAMES: dict[str, GameSpecification] = {
         ),
     ),
     'clockwork-keep': GameSpecification(
-        module='glitchygames.examples.clockwork_keep.game',
+        module='clockwork_keep.game',
         scene_class='ClockworkKeepScene',
         title='Clockwork Keep',
+        member_packages=('clockwork_keep',),
     ),
     'mr-muncher': GameSpecification(
         module='mr_muncher.game',

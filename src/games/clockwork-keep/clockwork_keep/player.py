@@ -6,8 +6,7 @@ from typing import Any, Self, override
 
 import pygame
 
-from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
-from glitchygames.examples.clockwork_keep.constants import (
+from clockwork_keep.constants import (
     FALLING_VELOCITY_THRESHOLD,
     GRAVITY,
     JUMP_VELOCITY,
@@ -24,7 +23,8 @@ from glitchygames.examples.clockwork_keep.constants import (
     PLAYFIELD_RIGHT,
     STARTING_LIVES,
 )
-from glitchygames.examples.clockwork_keep.drawing import draw_tinker
+from clockwork_keep.drawing import draw_tinker
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.physics import (
     AccelerationBehavior,
     BoundsConstraint,

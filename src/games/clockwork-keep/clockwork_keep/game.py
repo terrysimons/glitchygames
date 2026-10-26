@@ -8,14 +8,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
-from glitchygames.audio.exceptions import AudioUnavailableError
-from glitchygames.audio.recipes import SoundBank, Tremolo
-from glitchygames.audio.synth import Waveform
-from glitchygames.camera import Camera2D, FollowAxes
-from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
-from glitchygames.effects.shake import RumbleSettings, Shake, ShakeAxis, ShakeStyle, ShakeTarget
-from glitchygames.engine import GameEngine
-from glitchygames.examples.clockwork_keep.constants import (
+from clockwork_keep.constants import (
     BOILER_LED,
     BOILER_PLATFORM,
     BOILER_PLATFORM_TOP,
@@ -59,16 +52,23 @@ from glitchygames.examples.clockwork_keep.constants import (
     PARALLAX_FAR,
     PIT_DEATH_THRESHOLD,
 )
-from glitchygames.examples.clockwork_keep.drawing import (
+from clockwork_keep.drawing import (
     draw_boiler_background,
     draw_clock_background,
     draw_cog_collectible,
     draw_gear_background,
 )
-from glitchygames.examples.clockwork_keep.levels import ALL_FLOORS, FloorData
-from glitchygames.examples.clockwork_keep.player import Tinker
-from glitchygames.examples.clockwork_keep.sounds import ALL_RECIPES
-from glitchygames.examples.clockwork_keep.terrain import Elevator, MovingGear, Platform
+from clockwork_keep.levels import ALL_FLOORS, FloorData
+from clockwork_keep.player import Tinker
+from clockwork_keep.sounds import ALL_RECIPES
+from clockwork_keep.terrain import Elevator, MovingGear, Platform
+from glitchygames.audio.exceptions import AudioUnavailableError
+from glitchygames.audio.recipes import SoundBank, Tremolo
+from glitchygames.audio.synth import Waveform
+from glitchygames.camera import Camera2D, FollowAxes
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.effects.shake import RumbleSettings, Shake, ShakeAxis, ShakeStyle, ShakeTarget
+from glitchygames.engine import GameEngine
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, TextSprite

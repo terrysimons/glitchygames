@@ -4,6 +4,7 @@
     "src/glitchygames",
     "src/games/mr-muncher",
     "src/games/brave-adventurer",
+    "src/games/clockwork-keep",
     "tests",
     "scripts"
   ],
@@ -57,7 +58,13 @@
     },
     {
       "root": "tests",
-      "extraPaths": [".", "src", "src/games/mr-muncher", "src/games/brave-adventurer/src"],
+      "extraPaths": [
+        ".",
+        "src",
+        "src/games/mr-muncher",
+        "src/games/brave-adventurer/src",
+        "src/games/clockwork-keep"
+      ],
       "reportArgumentType": false,
       "reportCallIssue": false,
       "reportFunctionMemberAccess": false,
@@ -84,7 +91,13 @@
     },
     {
       "root": "src/games/mr-muncher/tests",
-      "extraPaths": [".", "src", "src/games/mr-muncher", "src/games/brave-adventurer/src"],
+      "extraPaths": [
+        ".",
+        "src",
+        "src/games/mr-muncher",
+        "src/games/brave-adventurer/src",
+        "src/games/clockwork-keep"
+      ],
       "reportArgumentType": false,
       "reportCallIssue": false,
       "reportFunctionMemberAccess": false,
@@ -115,7 +128,13 @@
     },
     {
       "root": "src/games/brave-adventurer/tests",
-      "extraPaths": [".", "src", "src/games/mr-muncher", "src/games/brave-adventurer/src"],
+      "extraPaths": [
+        ".",
+        "src",
+        "src/games/mr-muncher",
+        "src/games/brave-adventurer/src",
+        "src/games/clockwork-keep"
+      ],
       "reportArgumentType": false,
       "reportCallIssue": false,
       "reportFunctionMemberAccess": false,
@@ -143,6 +162,43 @@
     {
       "root": "src/games/brave-adventurer",
       "extraPaths": ["src", "src/games/brave-adventurer/src"]
+    },
+    {
+      "root": "src/games/clockwork-keep/tests",
+      "extraPaths": [
+        ".",
+        "src",
+        "src/games/mr-muncher",
+        "src/games/brave-adventurer/src",
+        "src/games/clockwork-keep"
+      ],
+      "reportArgumentType": false,
+      "reportCallIssue": false,
+      "reportFunctionMemberAccess": false,
+      "reportGeneralTypeIssues": false,
+      "reportIncompatibleMethodOverride": false,
+      "reportReturnType": false,
+      "reportUnnecessaryTypeIgnoreComment": false,
+      "reportUnknownMemberType": false,
+      "reportUnknownVariableType": false,
+      "reportUnknownArgumentType": false,
+      "reportUnknownParameterType": false,
+      "reportPrivateUsage": false,
+      "reportAttributeAccessIssue": false,
+      "reportOptionalMemberAccess": false,
+      "reportMissingTypeArgument": false,
+      "reportUnusedCallResult": false,
+      "reportImplicitOverride": false,
+      "reportImplicitStringConcatenation": false,
+      "reportMissingParameterType": false,
+      "reportUninitializedInstanceVariable": false,
+      "reportUnknownLambdaType": false,
+      "reportUnusedVariable": false,
+      "reportUnusedFunction": false
+    },
+    {
+      "root": "src/games/clockwork-keep",
+      "extraPaths": ["src"]
     }
   ]
 }

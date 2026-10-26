@@ -64,7 +64,6 @@ def test_every_example_game_and_demo_has_a_layer():
     """The owner's table (2026-10-25); Part 2 deletes it when glitchygames/examples is empty."""
     assert logical_names.EXAMPLES_LAYERS == {
         'paddleslap': 'games',
-        'clockwork_keep': 'games',
         'drawing_fire': 'games',
         'dt_demo': 'demos',
         'joystick_demo': 'demos',
@@ -76,6 +75,7 @@ def test_every_example_game_and_demo_has_a_layer():
         'brave_adventurer': 'games',
         'brave_adventurer_papyrus': 'games',
         'brave_adventurer_modes': 'games',
+        'clockwork_keep': 'games',
     }
 
 

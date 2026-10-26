@@ -38,10 +38,10 @@ from brave_adventurer_papyrus.player import PapyrusPlayer
 from brave_adventurer_papyrus.sprite_utils import (
     apply_transparency_and_scale,
 )
+from clockwork_keep.constants import PLAYER_HEIGHT, PLAYER_WIDTH
+from clockwork_keep.drawing import draw_tinker
+from clockwork_keep.player import Tinker
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
-from glitchygames.examples.clockwork_keep.constants import PLAYER_HEIGHT, PLAYER_WIDTH
-from glitchygames.examples.clockwork_keep.drawing import draw_tinker
-from glitchygames.examples.clockwork_keep.player import Tinker
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
 from glitchygames.tracing import (
     TRACE_FORMAT_VERSION,

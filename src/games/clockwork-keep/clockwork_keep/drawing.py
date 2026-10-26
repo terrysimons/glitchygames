@@ -10,7 +10,7 @@ import math
 
 import pygame
 
-from glitchygames.examples.clockwork_keep.constants import (
+from clockwork_keep.constants import (
     ANIMATION_SPEED,
     ARM_SWING_AMPLITUDE,
     CLOCK_BRASS,
@@ -307,7 +307,7 @@ def draw_boiler_background(
         camera_y: Vertical camera position.
 
     """
-    from glitchygames.examples.clockwork_keep.constants import (
+    from clockwork_keep.constants import (
         BOILER_BG,
         BOILER_GLOW,
         BOILER_WALL,
@@ -346,7 +346,7 @@ def draw_gear_background(
         camera_y: Vertical camera position.
 
     """
-    from glitchygames.examples.clockwork_keep.constants import (
+    from clockwork_keep.constants import (
         GEAR_BG,
         GEAR_COPPER,
         GEAR_WALL,
@@ -427,7 +427,7 @@ def draw_clock_background(
         clock_seconds: Seconds since midnight shown by the hands (12-hour dial).
 
     """
-    from glitchygames.examples.clockwork_keep.constants import (
+    from clockwork_keep.constants import (
         CLOCK_BG,
         CLOCK_WALL,
         CLOCK_WALL_ACCENT,

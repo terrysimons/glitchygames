@@ -22,7 +22,6 @@ EXAMPLES_PACKAGE = 'glitchygames.examples'
 # (the user, 2026-10-25; Part 2 of the workspace plan deletes it)
 EXAMPLES_LAYERS: dict[str, str] = {
     'paddleslap': 'games',
-    'clockwork_keep': 'games',
     'drawing_fire': 'games',
     'dt_demo': 'demos',
     'joystick_demo': 'demos',
@@ -36,6 +35,7 @@ MEMBER_LAYERS: dict[str, str] = {
     'brave_adventurer': 'games',
     'brave_adventurer_papyrus': 'games',
     'brave_adventurer_modes': 'games',
+    'clockwork_keep': 'games',
 }
 
 

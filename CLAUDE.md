@@ -17,7 +17,8 @@ script that imports `scripts.*` runs as `uv run python -m scripts.<name>` from t
 
 ```bash
 # Install dependencies (uv manages the virtual environment automatically); --all-packages
-# installs the workspace members too (src/games/mr-muncher, src/games/brave-adventurer). A
+# installs the workspace members too (src/games/mr-muncher, src/games/brave-adventurer,
+# src/games/clockwork-keep). A
 # plain `uv sync` keeps them as well: the root's dev dependency group (installed by default)
 # names every member as a workspace source (tests/test_workspace_config.py checks it)
 uv sync --all-packages
@@ -163,7 +164,8 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 `uv run paddleslap`, `brave-adventurer` (both editions, Classic and Papyrus, one workspace
 package, `src/games/brave-adventurer/`, sharing `brave_adventurer_core`; its launcher,
 `brave_adventurer_modes`, shows a title screen, or starts one with `--game classic|papyrus`, or
-the game a `--replay-trace` recording names), `clockwork-keep`,
+the game a `--replay-trace` recording names), `clockwork-keep` (a steampunk tower climb, its own
+workspace package `src/games/clockwork-keep/`),
 `mr-muncher` (a maze chase at the movies, its own workspace package `src/games/mr-muncher/`) and
 `drawing-fire` (a pencil-on-paper stick-figure battle, `src/glitchygames/examples/drawing_fire/`:
 computer battles that one or two local players join with START or Enter; its new mechanic is

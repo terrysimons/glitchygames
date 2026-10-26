@@ -54,7 +54,6 @@ bitmappy = "glitchygames.bitmappy:main"
 glitchygames-server = "glitchygames.api.main:run"
 glitchygames-client = "glitchygames.api.client:run"
 paddleslap = "glitchygames.examples.paddleslap:main"
-clockwork-keep = "glitchygames.examples.clockwork_keep:main"
 drawing-fire = "glitchygames.examples.drawing_fire:main"
 
 [project.optional-dependencies]
@@ -104,26 +103,27 @@ api = []
 # glitchygames, so these are a cycle through an extra, which pip and uv both resolve. Kept equal
 # to the workspace by tests/test_workspace_config.py; an empty layer is an empty extra until its
 # first member moves (demos: Part 3, apps: Part 4)
-games = ["mr-muncher", "brave-adventurer"]
+games = ["mr-muncher", "brave-adventurer", "clockwork-keep"]
 demos = []
 apps = []
 
 [tool.uv.workspace]
 # Each a package of its own beside the engine, under src/<layer>/
 # (plans/2026-10-24-workspace-packages.md); listed one by one, never by glob
-members = ["src/games/mr-muncher", "src/games/brave-adventurer"]
+members = ["src/games/mr-muncher", "src/games/brave-adventurer", "src/games/clockwork-keep"]
 
 [tool.uv.sources]
 # Each member from the workspace, never from an index (the dev group below)
 mr-muncher = { workspace = true }
 brave-adventurer = { workspace = true }
+clockwork-keep = { workspace = true }
 
 [dependency-groups]
 # Every workspace member: `uv sync` installs the dev group and is exact, so without the members
 # here a plain `uv sync` uninstalls what `--all-packages` installed, console scripts included,
 # and the replay-metrics hook can no longer replay their recordings. Checked against the
 # workspace by tests/test_workspace_config.py
-dev = ["mr-muncher", "brave-adventurer"]
+dev = ["mr-muncher", "brave-adventurer", "clockwork-keep"]
 
 [tool.hatch.build]
 # The build stamp is gitignored (hatch leaves ignored files out); nox -s build-wheel and
@@ -136,7 +136,12 @@ artifacts = ["src/glitchygames/_build_info.json"]
 packages = ["src/glitchygames"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "src/games/mr-muncher/tests", "src/games/brave-adventurer/tests"]
+testpaths = [
+  "tests",
+  "src/games/mr-muncher/tests",
+  "src/games/brave-adventurer/tests",
+  "src/games/clockwork-keep/tests",
+]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -151,7 +156,7 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "-n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "-n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
@@ -171,6 +176,7 @@ source = [
   "brave_adventurer",
   "brave_adventurer_papyrus",
   "brave_adventurer_modes",
+  "clockwork_keep",
 ]
 branch = true
 parallel = true
@@ -203,6 +209,7 @@ brave_adventurer_modes = [
   "src/games/brave-adventurer/src/brave_adventurer_modes",
   "*/site-packages/brave_adventurer_modes",
 ]
+clockwork_keep = ["src/games/clockwork-keep/clockwork_keep", "*/site-packages/clockwork_keep"]
 
 [tool.coverage.report]
 show_missing = true
@@ -231,11 +238,19 @@ directory = "htmlcov"
 preview = true
 line-length = 100
 output-format = "grouped"
-src = ["src", "tests", "scripts", "src/games/mr-muncher", "src/games/brave-adventurer/src"]
+src = [
+  "src",
+  "tests",
+  "scripts",
+  "src/games/mr-muncher",
+  "src/games/brave-adventurer/src",
+  "src/games/clockwork-keep",
+]
 include = [
   "src/glitchygames/*.py",
   "src/games/mr-muncher/**/*.py",
   "src/games/brave-adventurer/**/*.py",
+  "src/games/clockwork-keep/**/*.py",
   "tests/**/*.py",
   "scripts/**/*.py",
   "noxfile.py",
@@ -243,7 +258,11 @@ include = [
 target-version = "py314"
 # A workspace member's tests directory is not a package (pytest imports its files by name; a
 # package named tests would shadow the engine's tests/), so it is a namespace on purpose
-namespace-packages = ["src/games/mr-muncher/tests", "src/games/brave-adventurer/tests"]
+namespace-packages = [
+  "src/games/mr-muncher/tests",
+  "src/games/brave-adventurer/tests",
+  "src/games/clockwork-keep/tests",
+]
 
 [tool.ruff.lint]
 task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
@@ -406,6 +425,7 @@ known-first-party = [
   "brave_adventurer",
   "brave_adventurer_papyrus",
   "brave_adventurer_modes",
+  "clockwork_keep",
 ]
 
 ## basedpyright config lives in pyrightconfig.json (supports per-environment overrides)
@@ -414,11 +434,23 @@ known-first-party = [
 [tool.ty.environment]
 python-version = "3.14"
 # src/ first: the engine's source package (explicit; ty's automatic src root is not relied on)
-root = ["src", ".", "src/games/mr-muncher", "src/games/brave-adventurer/src"]
+root = [
+  "src",
+  ".",
+  "src/games/mr-muncher",
+  "src/games/brave-adventurer/src",
+  "src/games/clockwork-keep",
+]
 extra-paths = ["scripts"]
 
 [tool.ty.src]
-include = ["src/glitchygames", "src/games/mr-muncher", "src/games/brave-adventurer", "scripts"]
+include = [
+  "src/glitchygames",
+  "src/games/mr-muncher",
+  "src/games/brave-adventurer",
+  "src/games/clockwork-keep",
+  "scripts",
+]
 # Tests excluded: ty doesn't understand pytest-mock's mocker.patch semantics,
 # generating hundreds of false positives on mock attribute access and assignments.
 exclude = ["tests", "src/games/*/tests", ".venv", ".nox"]
@@ -456,6 +488,7 @@ known_first_party = [
   "brave_adventurer",
   "brave_adventurer_papyrus",
   "brave_adventurer_modes",
+  "clockwork_keep",
 ]
 
 [tool.deptry.per_rule_ignores]

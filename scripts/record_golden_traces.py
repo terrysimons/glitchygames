@@ -56,10 +56,10 @@ import pygame
 
 from brave_adventurer.game import BraveAdventurerScene
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+from clockwork_keep.game import ClockworkKeepScene
 from glitchygames.engine import GameEngine
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
 from glitchygames.examples import paddleslap
-from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.examples.drawing_fire.game import DrawingFireScene
 from glitchygames.examples.drawing_fire.seats import LEAVE_HOLD_SECONDS, Stage
 from glitchygames.scenes import SceneManager
@@ -117,7 +117,7 @@ GAME_SCENES: dict[str, type[Scene]] = {
 # (Brave Adventurer's, brave_adventurer_modes, starts both its games; scripts/
 # record_scripted_session.py GAME_CONSOLE_SCRIPTS)
 GAME_MODULES: dict[str, str] = {
-    'clockwork_keep': 'glitchygames.examples.clockwork_keep',
+    'clockwork_keep': 'clockwork_keep',
     'brave_adventurer': 'brave_adventurer',
     'brave_adventurer_papyrus': 'brave_adventurer_papyrus',
     'paddleslap': 'glitchygames.examples.paddleslap',

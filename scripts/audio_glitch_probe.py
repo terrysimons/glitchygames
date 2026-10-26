@@ -97,10 +97,7 @@ def run_dsp_worker(arguments: argparse.Namespace) -> None:
     # Imports are deferred: SDL_AUDIODRIVER must be set (by the parent) before pygame loads
     import pygame
 
-    from glitchygames.audio.live import LiveAudio, reserve_live_voice_pool
-    from glitchygames.audio.recipes import Tremolo
-    from glitchygames.audio.synth import Waveform
-    from glitchygames.examples.clockwork_keep.constants import (
+    from clockwork_keep.constants import (
         ELEVATOR_MOTOR_IDLE_FREQUENCY,
         ELEVATOR_MOTOR_LOW_PASS_CUTOFF,
         ELEVATOR_MOTOR_MAXIMUM_VOLUME,
@@ -109,6 +106,9 @@ def run_dsp_worker(arguments: argparse.Namespace) -> None:
         ELEVATOR_MOTOR_TREMOLO_DEPTH,
         ELEVATOR_MOTOR_TREMOLO_RATE,
     )
+    from glitchygames.audio.live import LiveAudio, reserve_live_voice_pool
+    from glitchygames.audio.recipes import Tremolo
+    from glitchygames.audio.synth import Waveform
 
     sys.setswitchinterval(arguments.switch_interval_ms / 1000.0)
     pygame.mixer.init()

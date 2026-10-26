@@ -11,6 +11,7 @@ resolution-markers = [
 [manifest]
 members = [
     "brave-adventurer",
+    "clockwork-keep",
     "glitchygames",
     "mr-muncher",
 ]
@@ -584,6 +585,17 @@ wheels = [
 ]
 
 [[package]]
+name = "clockwork-keep"
+version = "1.0.0"
+source = { editable = "src/games/clockwork-keep" }
+dependencies = [
+    { name = "glitchygames" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "glitchygames", editable = "." }]
+
+[[package]]
 name = "cloudpickle"
 version = "3.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1102,12 +1114,14 @@ docs = [
 ]
 games = [
     { name = "brave-adventurer" },
+    { name = "clockwork-keep" },
     { name = "mr-muncher" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "brave-adventurer" },
+    { name = "clockwork-keep" },
     { name = "mr-muncher" },
 ]
 
@@ -1119,6 +1133,7 @@ requires-dist = [
     { name = "basedpyright", marker = "extra == 'dev'" },
     { name = "bokeh" },
     { name = "brave-adventurer", marker = "extra == 'games'", editable = "src/games/brave-adventurer" },
+    { name = "clockwork-keep", marker = "extra == 'games'", editable = "src/games/clockwork-keep" },
     { name = "cookiecutter" },
     { name = "deptry", marker = "extra == 'dev'", specifier = ">=0.25.1" },
     { name = "fastapi" },
@@ -1171,6 +1186,7 @@ provides-extras = ["docs", "dev", "api", "games", "demos", "apps"]
 [package.metadata.requires-dev]
 dev = [
     { name = "brave-adventurer", editable = "src/games/brave-adventurer" },
+    { name = "clockwork-keep", editable = "src/games/clockwork-keep" },
     { name = "mr-muncher", editable = "src/games/mr-muncher" },
 ]
 

@@ -183,7 +183,8 @@ class TestGeneratedFiles:
         )
 
     @pytest.mark.parametrize(
-        'moved_package', ['mr_muncher', 'brave_adventurer', 'brave_adventurer_papyrus']
+        'moved_package',
+        ['mr_muncher', 'brave_adventurer', 'brave_adventurer_papyrus', 'clockwork_keep'],
     )
     def test_the_engine_archive_no_longer_holds_the_moved_game(self, moved_package):
         """The moved games' code is not under src/glitchygames/ any more."""
@@ -193,8 +194,10 @@ class TestGeneratedFiles:
 
     def test_only_member_games_name_member_packages(self):
         assert GAMES['mr-muncher'].member_packages == ('mr_muncher',)
+        assert GAMES['clockwork-keep'].member_packages == ('clockwork_keep',)
         assert [name for name, game in GAMES.items() if game.member_packages] == [
             'brave-adventurer',
+            'clockwork-keep',
             'mr-muncher',
         ]
 

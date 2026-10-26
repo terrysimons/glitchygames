@@ -202,10 +202,10 @@ def test_every_game_has_a_fixture_location():
     """Every scripted game has a console script: tests/fixtures/replays/<console-script>/."""
     assert sorted(GAME_CONSOLE_SCRIPTS) == sorted(SCRIPT_BUILDERS)
 
-    path = fixture_path(game_key='clockwork_keep', name='golden')
+    path = fixture_path(game_key='paddleslap', name='golden')
 
     assert path.relative_to(PROJECT_ROOT).as_posix() == (
-        'tests/fixtures/replays/clockwork-keep/golden.jsonl.gz'
+        'tests/fixtures/replays/paddleslap/golden.jsonl.gz'
     )
 
 
@@ -242,13 +242,20 @@ def test_both_brave_adventurer_games_are_replayed_by_the_launcher():
     )
 
 
-def test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures():
+@pytest.mark.parametrize(
+    ('game_key', 'member_directory'),
+    [('mr_muncher', 'mr-muncher'), ('clockwork_keep', 'clockwork-keep')],
+)
+def test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures(
+    game_key, member_directory
+):
     """A game in a workspace member records into <member>/tests/fixtures/replays/<name>.jsonl.gz."""
-    path = fixture_path(game_key='mr_muncher', name='golden')
+    path = fixture_path(game_key=game_key, name='golden')
 
     assert path.relative_to(PROJECT_ROOT).as_posix() == (
-        'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz'
+        f'src/games/{member_directory}/tests/fixtures/replays/golden.jsonl.gz'
     )
+    assert path.is_file()
 
 
 @pytest.mark.parametrize(

@@ -44,9 +44,9 @@ from scripts.workspace_packages import workspace_members
 
 from brave_adventurer.game import BraveAdventurerScene
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+from clockwork_keep.game import ClockworkKeepScene
 from glitchygames.events import GAMEEVENT
 from glitchygames.examples import paddleslap
-from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.examples.drawing_fire import players as drawing_fire_players
 from glitchygames.examples.drawing_fire.game import (
     SEAT_CHANGED_SUBTYPE,

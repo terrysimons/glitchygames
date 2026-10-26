@@ -22,7 +22,7 @@ from scripts.build_browser_bundle import (
 from brave_adventurer.game import BraveAdventurerScene
 from brave_adventurer_modes.title import TitleScene
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
-from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
+from clockwork_keep.game import ClockworkKeepScene
 from glitchygames.examples.paddleslap import Game as PaddleSlapScene
 from mr_muncher.game import MrMuncherScene
 

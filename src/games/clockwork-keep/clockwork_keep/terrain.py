@@ -7,13 +7,13 @@ from typing import Any, Self, override
 
 import pygame
 
-from glitchygames.examples.clockwork_keep.constants import (
+from clockwork_keep.constants import (
     ELEVATOR_HEIGHT,
     ELEVATOR_WIDTH,
     LAYER_TERRAIN,
     PLATFORM_HEIGHT,
 )
-from glitchygames.examples.clockwork_keep.drawing import draw_elevator, draw_platform
+from clockwork_keep.drawing import draw_elevator, draw_platform
 from glitchygames.sprites import Sprite
 from glitchygames.world import CoordinateSpace
 
