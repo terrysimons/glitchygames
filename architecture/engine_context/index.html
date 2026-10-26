@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/architecture/engine_context/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Engine Context - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Engine Context";
+        var mkdocs_page_input_path = "architecture/engine_context.md";
+        var mkdocs_page_url = "/glitchygames/architecture/engine_context/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="https://terrysimons.github.io/glitchygames/play/">Play in the Browser</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/drawing_fire/">Drawing Fire Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Engine Context</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/upstream_issues/">Upstream Issues</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/effects/">glitchygames.effects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/input/">glitchygames.input</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/state/">glitchygames.state</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/transitions/">glitchygames.transitions</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Games API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+      <li class="breadcrumb-item active">Engine Context</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/architecture/engine_context.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../gameplay_replay/" class="btn btn-neutral float-left" title="Gameplay Recording and Replay"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../multi_controller_system/" class="btn btn-neutral float-right" title="Multi-Controller System">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="engine-context">Engine Context<a class="headerlink" href="#engine-context" title="Permanent link">#</a></h1>
+<p>An engine context is the state one running game owns, so several games can run in one process
+(the Arcade's demo tiles; design: <code>plans/2026-10-25-engine-context.md</code>). Ordinary games never
+create one: they run in the default context, exactly as before. Only the six slots below are
+per context today; the rest of the process-wide state (<code>GameEngine</code> and its <code>OPTIONS</code>,
+<code>SceneManager.OPTIONS</code>, <code>FontManager</code>, <code>ResourceManager</code>, the event managers and the other rows
+of the audit in <code>plans/2026-10-25-engine-context.md</code>) is still shared and belongs to later
+sub-plans. The engine does not switch contexts yet: nothing in <code>src/</code> calls <code>.active()</code>, only
+tests do.</p>
+<h2 id="rules">Rules<a class="headerlink" href="#rules" title="Permanent link">#</a></h2>
+<ol>
+<li>Per-context state is a <code>ContextSlot</code> (<code>src/glitchygames/engine_context.py</code>), declared once at
+   module level with a unique dotted name and a factory. <code>ContextSlot</code> is internal to the
+   engine: only engine modules declare slots, and games keep their state on their scenes. The
+   tests' <code>COUNTER_SLOT</code> exists only to test the class.</li>
+<li>Code reads a slot when it needs it, <code>current_context().value(slot=...)</code>, never as its module
+   is imported: the test suite scans the engine and every workspace member for such reads.</li>
+<li>A context makes each value with the slot's factory the first time it is read there.</li>
+<li><code>current_context()</code> is the context switched to last in this thread or asyncio task, else the
+   default context.</li>
+<li><code>with context.active():</code> makes a context current and puts the previous one back when the
+   block ends, also by an exception; switches nest. An asyncio task made inside a switch keeps
+   it, a switch held across an <code>await</code> is never seen by another task, and a thread sees it only
+   when started with <code>context=contextvars.copy_context()</code> (or on an interpreter whose
+   <code>sys.flags.thread_inherit_context</code> is set, such as free-threaded 3.14 builds).</li>
+<li>A context owns only what its slots hold. The display, the mixer, SDL's event queue and the
+   joystick subsystem are one per process.</li>
+</ol>
+<h2 id="what-belongs-to-a-context-today">What belongs to a context today<a class="headerlink" href="#what-belongs-to-a-context-today" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Slot</th>
+<th>Module</th>
+<th>Public functions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glitchygames.pixel_snap.default_mode</code></td>
+<td><code>src/glitchygames/pixel_snap.py</code></td>
+<td><code>set_active_default_snap_mode</code>, <code>active_default_snap_mode</code>, <code>resolve_snap_mode</code></td>
+</tr>
+<tr>
+<td><code>glitchygames.backgrounds.default_pattern</code></td>
+<td><code>src/glitchygames/backgrounds.py</code></td>
+<td><code>set_active_default_background_pattern</code>, <code>active_default_background_pattern</code>, <code>paint_default_background</code></td>
+</tr>
+<tr>
+<td><code>glitchygames.input.state.current_input</code></td>
+<td><code>src/glitchygames/input/state.py</code></td>
+<td><code>current_input</code>, <code>set_current_input</code>, <code>reset_current_input</code></td>
+</tr>
+<tr>
+<td><code>glitchygames.randomness.streams</code></td>
+<td><code>src/glitchygames/randomness.py</code></td>
+<td><code>random_stream</code>, <code>numpy_stream</code>, <code>reset_streams</code>, <code>seed_engine_random</code>, <code>engine_random_seed</code>, <code>capture_stream_states</code>, <code>restore_stream_states</code></td>
+</tr>
+<tr>
+<td><code>glitchygames.sources.registry</code></td>
+<td><code>src/glitchygames/sources.py</code></td>
+<td><code>active_sources</code>, <code>install_sources</code>, the scoped sources, the frame clock, held events, observers</td>
+</tr>
+<tr>
+<td><code>glitchygames.scenes.scene.scene_managers</code></td>
+<td><code>src/glitchygames/scenes/scene.py</code></td>
+<td><code>SceneManager()</code>, <code>SceneManager._reset()</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>tests/test_engine_context.py</code> proves, for every slot, that two contexts in one process never
+see each other's values; a slot added without such a check fails the suite.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../gameplay_replay/" class="btn btn-neutral float-left" title="Gameplay Recording and Replay"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../multi_controller_system/" class="btn btn-neutral float-right" title="Multi-Controller System">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../gameplay_replay/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../multi_controller_system/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
