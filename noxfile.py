@@ -42,7 +42,7 @@ _SOURCE_PACKAGE_DIRS = [
     'src/games/clockwork-keep/src/clockwork_keep',
     'src/games/paddleslap/src/paddleslap',
     'src/games/drawing-fire/src/drawing_fire',
-    'src/apps/bitmappy/bitmappy',
+    'src/apps/bitmappy/src/bitmappy',
 ]
 # The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
 # through scripts/workspace_packages.py: CI runs nox through uvx, whose interpreter has neither

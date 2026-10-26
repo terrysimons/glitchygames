@@ -968,14 +968,14 @@ Dialogs: `LoadDialogScene`, `SaveDialogScene`, `NewCanvasDialogScene`
 
 **Focus Model**: Focusable sprites intercept keyboard input via `active` attribute
 
-### Bitmappy Pixel Art Editor (`src/apps/bitmappy/bitmappy/`)
+### Bitmappy Pixel Art Editor (`src/apps/bitmappy/src/bitmappy/`)
 
 Bitmappy is an app: the first workspace member of the apps layer (`src/apps/bitmappy/`;
 distribution, import package and console script are all `bitmappy`; Part 4 of
 plans/2026-10-24-workspace-packages.md, plans/2026-10-26-workspace-packages-4-bitmappy.md). The
 scene's logical name, which recordings hold, is `apps.bitmappy.editor:BitmapEditorScene`. The
 engine never imports it. Its sprite library (71 sprites, also the AI's training data) is package
-data in `src/apps/bitmappy/bitmappy/resources/sprites/` (`bitmappy.SPRITE_CONFIG_DIR`), beside
+data in `src/apps/bitmappy/src/bitmappy/resources/sprites/` (`bitmappy.SPRITE_CONFIG_DIR`), beside
 its window icon and `bitmappy.cfg`. Its tests are in `src/apps/bitmappy/tests/`, and its
 `pyproject.toml` declares what it imports (the engine, aisuite, numpy, pydantic, pygame-ce,
 tenacity). The Load and Save dialogs open the file name as typed (whitespace trimmed): there is
@@ -988,9 +988,9 @@ Features:
 - Collision visualization (`VisualCollisionManager`)
 - TOML file format for sprites
 - AI integration via aisuite, behind the feature flag `AI_FEATURES_ENABLED`
-  (`src/apps/bitmappy/bitmappy/constants.py`; off in WebAssembly builds for now: the AI worker is a separate
+  (`src/apps/bitmappy/src/bitmappy/constants.py`; off in WebAssembly builds for now: the AI worker is a separate
   process, which a browser cannot start). `tenacity` is imported only when an AI request is made
-  (`src/apps/bitmappy/bitmappy/ai_worker.py` `_create_ai_retry_decorator`), so Bitmappy imports without it
+  (`src/apps/bitmappy/src/bitmappy/ai_worker.py` `_create_ai_retry_decorator`), so Bitmappy imports without it
 - Voice recognition support
 - PNG drag-and-drop
 - Runs in the browser: `nox -s browser -- bitmappy` (its bundle ships the app as its own archive, `bitmappy.zip` beside `glitchygames.zip`, as a member game ships `mr_muncher.zip`; the builder runs as `python -m scripts.build_browser_bundle`).

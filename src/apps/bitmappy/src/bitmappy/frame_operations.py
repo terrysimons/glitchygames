@@ -44,7 +44,7 @@ class FrameOperationManager:
         self._frame_clipboard: dict[str, Any] | None = None
 
     # ──────────────────────────────────────────────────────────────────────
-    # Canvas panning (see src/apps/bitmappy/bitmappy/panning.py)
+    # Canvas panning (see src/apps/bitmappy/src/bitmappy/panning.py)
     # ──────────────────────────────────────────────────────────────────────
 
     def handle_canvas_panning(self, delta_x: int, delta_y: int) -> None:

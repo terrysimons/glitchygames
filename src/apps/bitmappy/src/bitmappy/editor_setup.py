@@ -415,7 +415,7 @@ class EditorSetup:
         **STATUS: DISABLED BY DEFAULT**
 
         This functionality is implemented but nothing calls it: BitmapEditorScene.__init__
-        (src/apps/bitmappy/bitmappy/editor.py) leaves it out where its "Voice recognition is
+        (src/apps/bitmappy/src/bitmappy/editor.py) leaves it out where its "Voice recognition is
         currently disabled" comment stands. Voice recognition requires:
         - A microphone to be connected and available
         - The glitchygames.events.voice module to be importable

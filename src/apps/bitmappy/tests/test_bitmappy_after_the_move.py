@@ -20,7 +20,7 @@ from glitchygames.process import run_command
 
 # src/apps/bitmappy/tests/ -> the repository root, where `uv build --package` runs
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
-MEMBER_PACKAGE_DIRECTORY = PROJECT_ROOT / 'src' / 'apps' / 'bitmappy' / 'bitmappy'
+MEMBER_PACKAGE_DIRECTORY = PROJECT_ROOT / 'src' / 'apps' / 'bitmappy' / 'src' / 'bitmappy'
 # The sprite library's size when it moved with Bitmappy (2026-10-26)
 SPRITE_LIBRARY_FILE_COUNT = 71
 SPRITE_LIBRARY_WHEEL_DIRECTORY = 'bitmappy/resources/sprites/'
@@ -49,8 +49,8 @@ def test_the_old_engine_package_is_gone():
 def test_bitmappy_is_imported_from_its_member():
     """The bitmappy imported is the one its distribution installed, never another copy.
 
-    uv sync installs the member editable (the package imported is its source under src/apps/);
-    nox installs it non-editable (site-packages).
+    uv sync installs the member editable (the package imported is its source under
+    src/apps/bitmappy/src/); nox installs it non-editable (site-packages).
     """
     imported_from = Path(bitmappy.__file__).resolve().parent
     distribution = importlib.metadata.distribution('bitmappy')
@@ -60,6 +60,17 @@ def test_bitmappy_is_imported_from_its_member():
         assert imported_from == MEMBER_PACKAGE_DIRECTORY.resolve()
     else:
         assert imported_from == Path(str(distribution.locate_file('bitmappy'))).resolve()
+
+
+def test_bitmappy_is_imported_from_its_src_directory():
+    """Bitmappy's package is under its member's src/ (or site-packages in a wheel install)."""
+    member_source_directory = Path(__file__).resolve().parents[1] / 'src'
+    package_directory = Path(bitmappy.__file__).resolve().parent
+
+    assert (
+        package_directory.parent == member_source_directory
+        or 'site-packages' in package_directory.parts
+    ), f'{package_directory} is not under {member_source_directory} or site-packages'
 
 
 def test_the_sprite_library_is_package_data():

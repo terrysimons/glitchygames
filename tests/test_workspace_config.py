@@ -431,7 +431,6 @@ def test_the_guard_finds_each_way_to_point_into_bitmappy(tmp_path, source, expec
     assert expected_offence in offences[0]
 
 
-@pytest.mark.xfail(strict=True, reason='Stage A converts the flat members')
 def test_every_member_keeps_its_packages_under_src():
     """Every member's import packages are under <member>/src/ (Brave Adventurer's precedent)."""
     assert members_with_packages_outside_src(members=MEMBERS) == []

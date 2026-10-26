@@ -1,4 +1,4 @@
-"""Tests for FilmStripCoordinator (src/apps/bitmappy/bitmappy/film_strip_coordinator.py).
+"""Tests for FilmStripCoordinator (src/apps/bitmappy/src/bitmappy/film_strip_coordinator.py).
 
 The coordinator is driven against a small stand-in editor that holds real
 AnimatedSprite and SpriteFrame objects, so each test checks the editor state

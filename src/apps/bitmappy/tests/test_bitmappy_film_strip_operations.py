@@ -1,4 +1,4 @@
-"""Tests for src/apps/bitmappy/bitmappy/controllers/film_strip_operations.py.
+"""Tests for src/apps/bitmappy/src/bitmappy/controllers/film_strip_operations.py.
 
 Drives the FilmStripOperations delegate through a real ControllerEventHandler, real
 ControllerSelection, VisualCollisionManager and MultiControllerManager objects, and small

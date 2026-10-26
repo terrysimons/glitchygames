@@ -44,7 +44,7 @@ a = Analysis(
         # Bitmappy's resources — the bitmappy.png icon, bitmappy.cfg, and the sprite library (AI
         # training data). editor.py and utils.py resolve them via Path(__file__).parent /
         # 'resources', and a bundled module's __file__ is under _MEIPASS, at bitmappy/
-        ('src/apps/bitmappy/bitmappy/resources', 'bitmappy/resources'),
+        ('src/apps/bitmappy/src/bitmappy/resources', 'bitmappy/resources'),
     ],
     hiddenimports=[
         # Conditionally imported at runtime (inside try/except or function bodies)

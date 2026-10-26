@@ -205,7 +205,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         )
 
     def _initialize_panning(self) -> None:
-        """Start with no pan in progress (see src/apps/bitmappy/bitmappy/panning.py)."""
+        """Start with no pan in progress (see src/apps/bitmappy/src/bitmappy/panning.py)."""
         self.pan_session: PanSession | None = None
 
     def _current_sprite_frame(self) -> SpriteFrame | None:

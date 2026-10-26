@@ -56,7 +56,7 @@ The sprite API server and client (FastAPI, uvicorn, httpx, apng, pillow) are cor
 
 ### `bitmappy` -- Pixel Art Editor
 
-Full-featured pixel art and sprite editor with animation timeline, multi-controller support (up to 4 simultaneous controllers), AI sprite generation, and voice recognition. It is an app, its own package in `src/apps/bitmappy/` (code in `src/apps/bitmappy/bitmappy/`, its sprite library in `src/apps/bitmappy/bitmappy/resources/sprites/`, tests in `src/apps/bitmappy/tests/`; `src/apps/bitmappy/README.md`).
+Full-featured pixel art and sprite editor with animation timeline, multi-controller support (up to 4 simultaneous controllers), AI sprite generation, and voice recognition. It is an app, its own package in `src/apps/bitmappy/` (code in `src/apps/bitmappy/src/bitmappy/`, its sprite library in `src/apps/bitmappy/src/bitmappy/resources/sprites/`, tests in `src/apps/bitmappy/tests/`; `src/apps/bitmappy/README.md`).
 
 ```bash
 # Run with default settings (32x32 canvas)

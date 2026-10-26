@@ -13,14 +13,14 @@ lived in the engine (`glitchygames.bitmappy.editor:BitmapEditorScene`) is refuse
 replay, which names the remedy; `--replay-trace OLD --rebaseline NEW --headless` converts it
 ([gameplay replay](gameplay_replay.md)).
 
-- **Its code** is `src/apps/bitmappy/bitmappy/`. The engine never imports it, and Bitmappy uses
+- **Its code** is `src/apps/bitmappy/src/bitmappy/`. The engine never imports it, and Bitmappy uses
   the engine's public API (sprite file-format detection, for one, is the engine's
   `src/glitchygames/sprites/file_format.py`).
-- **Its sprite library** is 71 sprites in `src/apps/bitmappy/bitmappy/resources/sprites/`,
+- **Its sprite library** is 71 sprites in `src/apps/bitmappy/src/bitmappy/resources/sprites/`,
   shipped as package data and found through `bitmappy.SPRITE_CONFIG_DIR`. They are also the AI's
   training data (`load_ai_training_data()` below), so they stay in the package.
 - **Its other resources** (the window icon and `bitmappy.cfg`) are beside them, in
-  `src/apps/bitmappy/bitmappy/resources/`.
+  `src/apps/bitmappy/src/bitmappy/resources/`.
 - **Its tests** are in `src/apps/bitmappy/tests/`, rootless, every file named
   `test_bitmappy_*.py`.
 - **The Load and Save dialogs** (the engine's `glitchygames.ui` dialog scenes) treat every file the
@@ -43,7 +43,7 @@ replay, which names the remedy; `--replay-trace OLD --rebaseline NEW --headless`
 
 How Bitmappy starts up: entry point through `main()`, GameEngine initialization,
 scene setup, and the main loop (one frame per pass, ended by `_finish_frame`). The Bitmappy box
-is the editor's own code (`src/apps/bitmappy/bitmappy/`); the Engine box is what every game gets.
+is the editor's own code (`src/apps/bitmappy/src/bitmappy/`); the Engine box is what every game gets.
 
 ```mermaid
 sequenceDiagram
