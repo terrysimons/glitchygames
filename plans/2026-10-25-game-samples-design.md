@@ -4,6 +4,28 @@ Status: DRAFT for the user's review (2026-10-25); the four questions answered (2
 plan follows. Decisions marked **(user)** are the user's, from the 2026-10-25 conversation; the rest
 are proposals, marked **(proposal)**, for the user to accept or change.
 
+## 0. Phase 0: decontaminate the layers first **(user, 2026-10-26)**
+
+The samples machinery cannot be built cleanly on top of the engine and the games reaching into each
+other: the explorer needs the games' controls through a public API, registration needs a `Game`
+descriptor, the cpu stimuli need a public harness with each game's robot player in its game. A
+read-only audit (plans/2026-10-26-layer-audit.md) found every crossing; phase 0 adds the six public
+engine APIs it names and moves what it says belongs elsewhere, before any human or cpu work:
+
+1. A test-isolation plugin (`glitchygames.testing.isolation`, `reset_engine_state()`).
+2. Public controls (`Scene.action_maps()`, a `Controls` record: pause, quit, polled inputs, excused
+   controls, touch layout).
+3. The `Game` descriptor, registered by composition (section 5a).
+4. A public stimulus harness, with each game's robot-player script moved into its game as its
+   scripted cpu player (choice B, the user, 2026-10-26).
+5. A public sprite-file validator.
+6. Small accessors (`Scene.forget_key_press`, a read-only `StateMachine.transitions`, live audio).
+
+Plus the audit's moves: engine tests that are really about a game move into it, engine tests that
+borrow a game get a stand-in, per-game tables in tests and tooling come from the games, the golden
+trace baselines (`tests/world/golden/`) move to their games, and the docs stop teaching private
+names. Phases after it: human and cpu, then ai, then superhuman (section 13).
+
 ## 1. Intent
 
 Every GlitchyGames game gets, for free, recorded runs of itself that the engine can replay and
