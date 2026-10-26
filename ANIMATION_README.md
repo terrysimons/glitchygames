@@ -135,7 +135,7 @@ blue = 255  # Magenta: the transparency key
 - **`[animation.frame.hitbox]`** (optional): Per-frame hitbox (`offset_x`, `offset_y`, `width`, `height`)
 
 #### `[[transition]]` Section (optional)
-- **`from`**, **`to`**, **`when`**: Animation state machine transitions (`glitchygames/animation/state_machine.py`); see `glitchygames/examples/brave_adventurer_papyrus/sprites/cobra.toml`
+- **`from`**, **`to`**, **`when`**: Animation state machine transitions (`src/glitchygames/animation/state_machine.py`); see `src/glitchygames/examples/brave_adventurer_papyrus/sprites/cobra.toml`
 
 ### Animation-Frame Relationship
 
@@ -398,7 +398,7 @@ Caveat: a single-frame sprite saved in the static format currently writes `alpha
 
 #### Transparency Rendering
 
-In terminal/ASCII rendering tools (`glitchygames/tools/ascii_renderer.py`):
+In terminal/ASCII rendering tools (`src/glitchygames/tools/ascii_renderer.py`):
 
 - **Fully transparent** (`alpha = 0`, or magenta): Uses a transparency placeholder glyph
 - **Semi-transparent** (`alpha` 1-254): Color intensity is adjusted based on alpha value
@@ -592,7 +592,7 @@ Switching to an animation (`set_animation` or `play`) applies its `loop` flag to
 
 ### Loading Sprites
 
-`SpriteFactory` (`glitchygames/sprites/factory.py`) loads both static and animated sprites. It always returns an `AnimatedSprite`; a static sprite becomes one animation of one frame:
+`SpriteFactory` (`src/glitchygames/sprites/factory.py`) loads both static and animated sprites. It always returns an `AnimatedSprite`; a static sprite becomes one animation of one frame:
 
 ```python
 from glitchygames.sprites import SpriteFactory
@@ -602,7 +602,7 @@ sprite = SpriteFactory.load_sprite(filename="hero.toml")  # Could be static or a
 sprite = SpriteFactory.load_sprite(filename="static.toml")  # Static sprite
 sprite = SpriteFactory.load_sprite(filename="animated.toml")  # Animated sprite
 
-# Load default sprite (glitchygames/assets/raspberry.toml) when no filename provided
+# Load default sprite (src/glitchygames/assets/raspberry.toml) when no filename provided
 default_sprite = SpriteFactory.load_sprite()  # Loads default sprite
 default_sprite = SpriteFactory.load_sprite(filename=None)  # Same as above
 ```
@@ -1288,7 +1288,7 @@ pixels = """
 
 ### Animation State Machine
 
-`[[transition]]` tables declare animation changes that the state machine (`glitchygames/animation/state_machine.py`) evaluates; a sprite loaded with them gets `sprite.state_machine`:
+`[[transition]]` tables declare animation changes that the state machine (`src/glitchygames/animation/state_machine.py`) evaluates; a sprite loaded with them gets `sprite.state_machine`:
 
 ```toml
 [[transition]]

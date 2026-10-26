@@ -280,7 +280,7 @@ The model string is formatted as `{provider}:{model}` for aisuite (e.g. `anthrop
 
 ### Audio Backend
 
-The engine uses pygame's mixer for audio playback, started by `pygame.init()` at 44100 Hz, signed 16-bit stereo with a 512-sample buffer. Live synth voices (`glitchygames/audio/`) stream on a channel pool reserved at startup (`--live-voice-pool`). Audio device hotplug events (`AUDIO_DEVICE_ADDED`, `AUDIO_DEVICE_REMOVED`) are routed through the event system.
+The engine uses pygame's mixer for audio playback, started by `pygame.init()` at 44100 Hz, signed 16-bit stereo with a 512-sample buffer. Live synth voices (`src/glitchygames/audio/`) stream on a channel pool reserved at startup (`--live-voice-pool`). Audio device hotplug events (`AUDIO_DEVICE_ADDED`, `AUDIO_DEVICE_REMOVED`) are routed through the event system.
 
 ### Voice Recognition
 
@@ -288,10 +288,10 @@ Voice recognition provides hands-free command input in Bitmappy. It uses the `sp
 
 #### Microphone Backends (auto-detected, priority order)
 
-1. **Miniaudio** -- preferred backend using the `miniaudio` library (`glitchygames/events/voice_miniaudio.py`). Captures at 16000 Hz mono, SIGNED16 format.
+1. **Miniaudio** -- preferred backend using the `miniaudio` library (`src/glitchygames/events/voice_miniaudio.py`). Captures at 16000 Hz mono, SIGNED16 format.
 2. **PortAudio** -- fallback, wraps `speech_recognition.Microphone` (requires PyAudio).
 
-The backend registry (`glitchygames/events/voice_backends/registry.py`) automatically probes available backends and selects the best one. If neither is available, voice recognition is disabled gracefully.
+The backend registry (`src/glitchygames/events/voice_backends/registry.py`) automatically probes available backends and selects the best one. If neither is available, voice recognition is disabled gracefully.
 
 #### Voice Commands in Bitmappy
 

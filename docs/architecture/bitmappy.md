@@ -7,7 +7,7 @@ through the engine, from bootstrap to rendering.
 
 How Bitmappy starts up: entry point through `main()`, GameEngine initialization,
 scene setup, and the main loop (one frame per pass, ended by `_finish_frame`). The Bitmappy box
-is the editor's own code (`glitchygames/bitmappy/`); the Engine box is what every game gets.
+is the editor's own code (`src/glitchygames/bitmappy/`); the Engine box is what every game gets.
 
 ```mermaid
 sequenceDiagram
@@ -426,7 +426,7 @@ flowchart TD
         FILE_IN["sprite.toml"]
         subgraph APP_LOAD["Bitmappy"]
             CLOAD["AnimatedCanvasSprite.on_load_file_event()"]
-            CLOAD --> DETECT["detect_file_format()\n(glitchygames/bitmappy/utils.py: TOML only)"]
+            CLOAD --> DETECT["detect_file_format()\n(src/glitchygames/bitmappy/utils.py: TOML only)"]
         end
         subgraph ENGINE_LOAD["Engine"]
             AS["AnimatedSprite().load(filename)\nstatic sprites become one-frame animations"]

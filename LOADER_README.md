@@ -8,16 +8,16 @@ This document provides comprehensive guidance for implementing new file formats 
 
 ### Core Components
 
-1. **SpriteFactory** (`glitchygames/sprites/factory.py`)
-   - Main entry point: `SpriteFactory.load_sprite(filename=...)` validates the file and always returns an `AnimatedSprite` (a static sprite becomes a single-frame animation); with no filename it loads `glitchygames/assets/raspberry.toml`
+1. **SpriteFactory** (`src/glitchygames/sprites/factory.py`)
+   - Main entry point: `SpriteFactory.load_sprite(filename=...)` validates the file and always returns an `AnimatedSprite` (a static sprite becomes a single-frame animation); with no filename it loads `src/glitchygames/assets/raspberry.toml`
    - `SpriteFactory.save_sprite(sprite=..., filename=..., file_format=...)` saves either sprite type
    - File format detection and content analysis (`detect_file_format`, `_analyze_file`, `_analyze_toml_file`)
 
-2. **BitmappySprite** (`glitchygames/sprites/bitmappy_sprite.py`)
+2. **BitmappySprite** (`src/glitchygames/sprites/bitmappy_sprite.py`)
    - Static sprite implementation
    - TOML loading/saving support (`load` goes through `SpriteFactory` and copies the result's image, falling back to `_load_static_only` when the factory refuses the file)
 
-3. **AnimatedSprite** (`glitchygames/sprites/animated.py`)
+3. **AnimatedSprite** (`src/glitchygames/sprites/animated.py`)
    - Animated sprite implementation
    - Frame management and animation playback
    - TOML loading/saving support
@@ -27,7 +27,7 @@ This document provides comprehensive guidance for implementing new file formats 
 There are two detection functions, both extension based:
 
 ```python
-# glitchygames/sprites/factory.py (used by SpriteFactory and BitmappySprite)
+# src/glitchygames/sprites/factory.py (used by SpriteFactory and BitmappySprite)
 @staticmethod
 def detect_file_format(filename: str) -> str:
     """Detect file format based on extension."""
@@ -40,7 +40,7 @@ def detect_file_format(filename: str) -> str:
 ```
 
 ```python
-# glitchygames/bitmappy/utils.py (used by AnimatedSprite.load)
+# src/glitchygames/bitmappy/utils.py (used by AnimatedSprite.load)
 def detect_file_format(filename: str) -> str:
     """Detect file format from filename extension."""
     extension = Path(filename).suffix.lower().lstrip('.')
@@ -62,8 +62,8 @@ Anything but `toml` is refused further on: `SpriteFactory._analyze_file` raises
 
 ### Step 1: Update File Format Detection
 
-**Location:** `SpriteFactory.detect_file_format` (`glitchygames/sprites/factory.py`) and
-`detect_file_format` (`glitchygames/bitmappy/utils.py`)
+**Location:** `SpriteFactory.detect_file_format` (`src/glitchygames/sprites/factory.py`) and
+`detect_file_format` (`src/glitchygames/bitmappy/utils.py`)
 
 ```python
 @staticmethod
@@ -84,7 +84,7 @@ def detect_file_format(filename: str) -> str:
 
 ### Step 2: Add File Analysis Method
 
-**Location:** `SpriteFactory._analyze_file` (`glitchygames/sprites/factory.py`)
+**Location:** `SpriteFactory._analyze_file` (`src/glitchygames/sprites/factory.py`)
 
 Add a new analysis method for your format. It returns the same three flags as
 `_analyze_toml_file`; `load_sprite` refuses a file with none of them, or with sprite pixels
@@ -138,7 +138,7 @@ def _analyze_json_file(filename: str) -> dict[str, Any]:
 ### Step 3: Update BitmappySprite Save/Load Methods
 
 **Location:** `BitmappySprite._save_static_only` and `BitmappySprite._load_static_only`
-(`glitchygames/sprites/bitmappy_sprite.py`)
+(`src/glitchygames/sprites/bitmappy_sprite.py`)
 
 `save()` goes through `SpriteFactory.save_sprite`, which calls `_save` and then
 `_save_static_only`. Today `_save_static_only` always writes TOML through
@@ -173,7 +173,7 @@ Add the matching branch to `_load_static_only`, which raises for anything but `t
 
 ### Step 4: Update AnimatedSprite Save/Load Methods
 
-**Location:** `AnimatedSprite.load` and `AnimatedSprite.save` (`glitchygames/sprites/animated.py`)
+**Location:** `AnimatedSprite.load` and `AnimatedSprite.save` (`src/glitchygames/sprites/animated.py`)
 
 `load(filename)` takes no format argument; it detects the format itself. `save(filename,
 file_format)` writes a single-frame sprite with `_save_as_static_sprite` and anything else with
@@ -214,7 +214,7 @@ def _load_json(self: Self, filename: str) -> None:
 ### Step 5: Update Deflate Method
 
 **Location:** `BitmappySprite.deflate` and `BitmappySprite._deflate_config`
-(`glitchygames/sprites/bitmappy_sprite.py`)
+(`src/glitchygames/sprites/bitmappy_sprite.py`)
 
 `deflate()` wraps `_deflate_config()`, which builds the color map and pixel rows and then calls
 `_raise_unsupported_format_error` for anything but `toml`. Add your format there:
@@ -392,7 +392,7 @@ All TOML functionality has been preserved:
 ### 1. Error Handling
 
 Always provide clear error messages. Error messages are module-level constants (ruff's TRY003),
-for example in `glitchygames/sprites/bitmappy_sprite.py`:
+for example in `src/glitchygames/sprites/bitmappy_sprite.py`:
 
 ```python
 _ERR_UNSUPPORTED_FORMAT = 'Unsupported format: {file_format}'
@@ -431,7 +431,7 @@ Update documentation when adding new formats:
 
 ### 4. Backward Compatibility
 
-When possible, maintain backward compatibility. `glitchygames/bitmappy/utils.py`'s
+When possible, maintain backward compatibility. `src/glitchygames/bitmappy/utils.py`'s
 `detect_file_format` already treats a name with no extension as TOML; keep that when adding
 formats:
 

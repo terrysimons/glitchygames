@@ -160,7 +160,7 @@ each with its type and default, then its help text.
 
 #### Graphics Options
 
-Added by `GameEngine.args()` in `glitchygames/engine/game_engine.py`.
+Added by `GameEngine.args()` in `src/glitchygames/engine/game_engine.py`.
 
 - `-f, --target-fps TARGET_FPS` (`float`): cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)
 - `--fps-log-interval-ms FPS_LOG_INTERVAL_MS` (`float`): how often to log the FPS counter in ms (default: 1000)
@@ -217,14 +217,14 @@ from `--help`: the watched replay's restart internals.
 
 #### Controller Options
 
-Added by `ControllerEventManager.args()` in `glitchygames/events/controller.py` (see
+Added by `ControllerEventManager.args()` in `src/glitchygames/events/controller.py` (see
 [Event System](event_system.md#one-device-one-event-layer)).
 
 - `--input-mode {auto,joystick,controller}` (`choice`): Which gamepads the game sees (default: auto, every device; a mapped pad sends controller events, any other device joystick events; joystick: every device sends joystick events; controller: mapped pads only)
 
 #### Font Options
 
-Added by `FontManager.args()` in `glitchygames/fonts/font_manager.py`.
+Added by `FontManager.args()` in `src/glitchygames/fonts/font_manager.py`.
 
 - `--font-name FONT_NAME` (`str`): Font to use (default: the bundled Vera; the bundled variants are Vera, VeraBd, VeraIt and VeraBI; any other name is looked up among the system's fonts)
 - `--font-size FONT_SIZE` (`int`): size of the default font, used by text that asks for no font of its own (default: 14)
@@ -236,7 +236,7 @@ Added by `FontManager.args()` in `glitchygames/fonts/font_manager.py`.
 
 #### Game Options
 
-Added by `GameEventManager.args()` in `glitchygames/events/game.py`.
+Added by `GameEventManager.args()` in `src/glitchygames/events/game.py`.
 
 - `-l, --log-level {debug,info,warning,error,critical}` (`choice`, default `info`): set the logging level
 - `--no-unhandled-events` (`store_true`, default `False`): fail on unhandled events
@@ -263,7 +263,7 @@ leaves them out.
 
 #### Bitmappy v1.0 Options
 
-Added by `BitmapEditorScene.args()` in `glitchygames/bitmappy/editor.py`; the heading is
+Added by `BitmapEditorScene.args()` in `src/glitchygames/bitmappy/editor.py`; the heading is
 `<NAME> v<VERSION> Options`.
 
 - `-v, --version` (`store_true`, default `False`): print the game version and exit
@@ -275,11 +275,11 @@ The other games add their own options the same way:
 
 | Game | File | Arguments |
 |------|------|-----------|
-| Paddle Slap | `glitchygames/examples/paddleslap.py` | `-v, --version`, `-b, --balls` (int, default 1), `--ball-spawn-mode` (choice, default `paddle_only`) |
-| DT Demo | `glitchygames/examples/dt_demo.py` | `-v, --version`, `-b, --balls` (int, default 1) |
-| Clockwork Keep | `glitchygames/examples/clockwork_keep/game.py` | `--floor` (int, default 0) |
-| Brave Adventurer (both editions) | `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py` | `-v, --version` |
-| Joystick Demo | `glitchygames/examples/joystick_demo.py` | none (the engine's `--input-mode` chooses what it shows) |
+| Paddle Slap | `src/glitchygames/examples/paddleslap.py` | `-v, --version`, `-b, --balls` (int, default 1), `--ball-spawn-mode` (choice, default `paddle_only`) |
+| DT Demo | `src/glitchygames/examples/dt_demo.py` | `-v, --version`, `-b, --balls` (int, default 1) |
+| Clockwork Keep | `src/glitchygames/examples/clockwork_keep/game.py` | `--floor` (int, default 0) |
+| Brave Adventurer (both editions) | `src/glitchygames/examples/brave_adventurer/game.py`, `src/glitchygames/examples/brave_adventurer_papyrus/game.py` | `-v, --version` |
+| Joystick Demo | `src/glitchygames/examples/joystick_demo.py` | none (the engine's `--input-mode` chooses what it shows) |
 | Bitrot Adventures | `scripts/bitrotadventures.py` | `-s, --some-game-specific-option` |
 | Animation Demo | `scripts/animation_scene_full_demo.py` | `-v, --version` |
 
@@ -297,7 +297,7 @@ If you are adding arguments to a currently-empty event manager group, follow the
 existing pattern:
 
 ```python
-# In glitchygames/events/mouse.py
+# In src/glitchygames/events/mouse.py
 
 @classmethod
 def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
