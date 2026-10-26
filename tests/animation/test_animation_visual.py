@@ -5,7 +5,7 @@ transition between frames correctly, and maintain pixel integrity during
 the complete animation pipeline.
 
 Like test_animation_hardware.py (whose scene and helpers it shares), it renders to a real
-pygame display surface (headless under the dummy video driver ``tests/conftest.py`` sets)
+pygame display surface (headless under the dummy video driver ``tests/harness.py`` sets)
 and reads its pixels in bulk: the shared pygame mocks it used to run on drew nothing.
 """
 

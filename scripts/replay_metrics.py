@@ -12,14 +12,20 @@ here wait in ``PENDING_LEDGER_PATH`` (gitignored) until a deploy publishes them.
 1. refuses a checkout whose commit is unknown, and one with uncommitted changes unless
    ``--allow-dirty`` (the rows say so; such a trial never counts as measuring its commit) or
    ``--skip-dirty`` (measure nothing and succeed: what docs-deploy passes);
-2. for each golden replay (``tests/fixtures/replays/<console-script>/golden.jsonl.gz``) and
-   bundled demo (``glitchygames/examples/<game>_demos/*.jsonl.gz``) not already measured for this
-   commit on this machine (published or pending; ``--force`` measures again): rebaselines it
+2. for each golden replay (``tests/fixtures/replays/<console-script>/golden.jsonl.gz``, and each
+   workspace member's ``<member>/tests/fixtures/replays/golden.jsonl.gz``) and bundled demo
+   (``glitchygames/examples/<game>_demos/*.jsonl.gz``) not already measured for this commit on
+   this machine (published or pending; ``--force`` measures again): rebaselines it
    headless into a temporary file through its console script
    (``glitchygames.testing.replays.rebaseline_recording_headless``), so the run measures every
    frame's processing time and records its provenance (commit, machine state);
 3. appends the rebaselined recording's rows (``ledger_rows_from_rebaseline``: the measurement,
-   then each run the recording held, unless already in the ledger) to the pending file.
+   then each run the recording held, unless already in the ledger) to the pending file. A run the
+   recording held is written (to the pending file, or with ``--rows-directory``, the
+   pre-commit hook, as row files) only if it landed (``rows_to_write``: measured on a commit that is
+   on ``origin/main``, without uncommitted changes; none at all without an ``origin/main``,
+   said once). "Already in the ledger" compares rows with a moved recording's old path resolved
+   to its new one (``LedgerRow.held_key``).
 
 The children must run this checkout's package (an editable install, as ``uv run`` gives), or
 they cannot name their commit: a row whose commit is not the checkout's is a failure.
@@ -27,13 +33,16 @@ they cannot name their commit: a row whose commit is not the checkout's is a fai
 ``clear-published`` (docs-deploy, after ``mkdocs gh-deploy`` succeeded): removes the pending rows
 that ``origin/gh-pages``'s ledger now holds; the rest stay pending.
 
-Usage:
-    uv run python scripts/replay_metrics.py measure [--force] [--allow-dirty | --skip-dirty]
+Usage (a module: it imports scripts.workspace_packages):
+    uv run python -m scripts.replay_metrics measure [--force] [--allow-dirty | --skip-dirty]
         [--only TEXT] [--pending PATH]
-    uv run python scripts/replay_metrics.py clear-published [--pending PATH]
+    uv run python -m scripts.replay_metrics clear-published [--pending PATH]
 
 Exit codes: ``SUCCESS``; ``OPTIONS_REFUSED`` for an unknown commit or uncommitted changes;
-``INTERNAL_ERROR`` when a recording could not be measured (the others are still measured).
+``INTERNAL_ERROR`` when a recording could not be measured (the others are still measured),
+a golden replay no installed console script replays included: a workspace member that is not
+installed is reported on one line naming the fix, ``uv sync --all-packages``
+(``metric_recordings``' ``unreplayable``).
 """
 
 from __future__ import annotations
@@ -51,6 +60,7 @@ from glitchygames.build_info import (
     SourceRevision,
     source_revision,
 )
+from glitchygames.code_tree import commit_is_on_origin_main, origin_main_exists
 from glitchygames.exit_codes import ExitCode
 from glitchygames.machine_state import current_machine_state
 from glitchygames.recording_metrics import (
@@ -66,8 +76,13 @@ from glitchygames.recording_metrics import (
     write_row_files,
 )
 from glitchygames.replay.processing import machine_description
-from glitchygames.testing.replays import bundled_demo_paths, rebaseline_recording_headless
+from glitchygames.testing.replays import (
+    bundled_demo_paths,
+    rebaseline_recording_headless,
+    recording_console_script,
+)
 from glitchygames.tracing import read_trace
+from scripts.workspace_packages import workspace_members
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -76,8 +91,11 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PENDING_LEDGER_PATH = PROJECT_ROOT / PENDING_LEDGER_RELATIVE_PATH
-GOLDEN_REPLAYS_GLOB = 'tests/fixtures/replays/*/golden.jsonl.gz'
-EXAMPLES_PATH = Path('glitchygames') / 'examples'
+# The engine's golden replays (tests/fixtures/replays/<console-script>/); each workspace member's
+# are directly in its replay fixtures directory (golden_replay_globs)
+ENGINE_GOLDEN_REPLAYS_GLOB = 'tests/fixtures/replays/*/golden.jsonl.gz'
+MEMBER_GOLDEN_REPLAYS_GLOB = 'golden.jsonl.gz'
+EXAMPLES_PATH = Path('src') / 'glitchygames' / 'examples'
 # How many of a failed child's last output lines are shown
 FAILURE_OUTPUT_LINES = 10
 MILLISECONDS_PER_SECOND = 1000.0
@@ -107,19 +125,88 @@ class MeasureResult(BaseModel):
     failures: tuple[str, ...] = ()
 
 
-def metric_recordings(*, project_root: Path) -> list[tuple[str, Path]]:
+def golden_replay_globs(*, project_root: Path) -> list[str]:
+    """Return the globs, relative to the repository, that find every golden replay.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        The engine's glob, then each workspace member's.
+
+    """
+    return [
+        ENGINE_GOLDEN_REPLAYS_GLOB,
+        *(
+            (
+                member.replay_fixtures_directory.relative_to(project_root)
+                / MEMBER_GOLDEN_REPLAYS_GLOB
+            ).as_posix()
+            for member in workspace_members(project_root=project_root)
+        ),
+    ]
+
+
+class UnreplayableRecording(BaseModel):
+    """A recording no installed console script replays, and why (one line).
+
+    Attributes:
+        path: The recording.
+        reason: Why it cannot be replayed, naming the fix (``recording_console_script``'s
+            refusal: a workspace member a plain ``uv sync`` uninstalled, say).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    path: Path
+    reason: str
+
+
+class MetricRecordings(BaseModel):
+    """Every golden replay and bundled demo, as ``metric_recordings`` found them.
+
+    Attributes:
+        replayable: ``(console script, path)`` pairs: the golden replays, then the demos, each
+            by path.
+        unreplayable: The golden replays no installed console script replays: reported and
+            counted as failures, while the others are still measured.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    replayable: tuple[tuple[str, Path], ...]
+    unreplayable: tuple[UnreplayableRecording, ...] = ()
+
+
+def metric_recordings(*, project_root: Path) -> MetricRecordings:
     """Return every golden replay and bundled demo, with the console script that replays it.
 
     Args:
         project_root: The repository.
 
     Returns:
-        ``(console script, path)`` pairs: the golden replays, then the demos, each by path.
+        The recordings: those a console script replays, and those none does (a workspace member
+        not installed: ``uv sync --all-packages`` installs every member).
 
     """
-    goldens = [(path.parent.name, path) for path in sorted(project_root.glob(GOLDEN_REPLAYS_GLOB))]
+    goldens: list[tuple[str, Path]] = []
+    unreplayable: list[UnreplayableRecording] = []
+    for path in sorted(
+        path
+        for glob in golden_replay_globs(project_root=project_root)
+        for path in project_root.glob(glob)
+    ):
+        try:
+            goldens.append((recording_console_script(path=path), path))
+        except KeyError as error:
+            # The refusal's message (not KeyError's quoted repr), without the path it starts
+            # with: the failure line names the recording
+            reason = str(error.args[0]).removeprefix(f'{path}: ')
+            unreplayable.append(UnreplayableRecording(path=path, reason=reason))
     demos = bundled_demo_paths(examples_directory=project_root / EXAMPLES_PATH)
-    return [*goldens, *demos]
+    return MetricRecordings(replayable=(*goldens, *demos), unreplayable=tuple(unreplayable))
 
 
 def this_machine() -> str:
@@ -291,8 +378,103 @@ def _already_measured(
     )
 
 
+def rows_to_write(
+    *,
+    rows: Sequence[LedgerRow],
+    held_keys: set[str],
+    repository: Path,
+    origin_main_present: bool,
+) -> list[LedgerRow]:
+    """Return the rows of a rebaselined recording that a row-file measurement writes.
+
+    The newest run (``rows[0]``, the one just measured) is written unless held. A history row (a
+    run the recording held) is written only when no row holds it, and its run was measured on a
+    commit that is on ``origin/main`` with no uncommitted changes: a run of code that never
+    landed would be published unconditionally (it names no code tree). With no ``origin/main``
+    to compare with, none is written. "Held" compares keys with the recording at its current
+    path (``LedgerRow.held_key``), so a moved recording's earlier runs are not written again.
+
+    Args:
+        rows: The recording's rows, newest first (``ledger_rows_from_rebaseline``).
+        held_keys: The ``held_key`` of every row already held.
+        repository: The repository whose ``origin/main`` decides what landed.
+        origin_main_present: Whether the repository has ``origin/main`` (looked up once).
+
+    Returns:
+        The rows to write, in order.
+
+    """
+    newest, *history = rows
+    written = [] if newest.held_key in held_keys else [newest]
+    for row in history:
+        commit = row.commit
+        if (
+            row.held_key in held_keys
+            or not origin_main_present
+            or commit is None
+            or row.measured_uncommitted_changes
+            or not commit_is_on_origin_main(repository=repository, commit=commit)
+        ):
+            continue
+        written.append(row)
+    return written
+
+
+def _origin_main_present(*, settings: MeasureSettings) -> bool:
+    """Return whether the repository has ``origin/main``, which history runs are judged by.
+
+    Says so once when it has none (no history row is written then).
+
+    Returns:
+        True when ``origin/main`` exists.
+
+    """
+    if origin_main_exists(repository=settings.project_root):
+        return True
+    sys.stdout.write(
+        'No origin/main in this repository: no history rows written (earlier runs count as '
+        'landed only on that branch)\n'
+    )
+    return False
+
+
+def _write_new_rows(
+    *,
+    settings: MeasureSettings,
+    rows: list[LedgerRow],
+    held_keys: set[str],
+    origin_main_present: bool,
+) -> list[LedgerRow]:
+    """Write a recording's rows no row holds yet (see ``rows_to_write``) and return them.
+
+    They are written as row files with ``--rows-directory``, else appended to the pending file
+    (which the docs deploy publishes, so the same landed rules apply).
+
+    Returns:
+        The rows written.
+
+    """
+    new_rows = rows_to_write(
+        rows=rows,
+        held_keys=held_keys,
+        repository=settings.project_root,
+        origin_main_present=origin_main_present,
+    )
+    if settings.rows_directory is None:
+        settings.pending_path.parent.mkdir(parents=True, exist_ok=True)
+        with settings.pending_path.open('a', encoding='utf-8') as pending:
+            pending.write(ledger_text(rows=new_rows))
+    else:
+        write_row_files(rows=new_rows, directory=settings.rows_directory)
+    return new_rows
+
+
 def measure(
-    *, settings: MeasureSettings, recordings: Sequence[tuple[str, Path]], published_text: str
+    *,
+    settings: MeasureSettings,
+    recordings: Sequence[tuple[str, Path]],
+    published_text: str,
+    unreplayable: Sequence[UnreplayableRecording] = (),
 ) -> MeasureResult:
     """Measure recordings and append their rows to the pending ledger (see the docstring).
 
@@ -300,6 +482,8 @@ def measure(
         settings: The measurement's settings.
         recordings: ``(console script, path)`` pairs to measure.
         published_text: The published ledger's text.
+        unreplayable: Recordings no console script replays: each is a failure, reported on one
+            line with its reason, and the others are still measured.
 
     Returns:
         What was measured, skipped and failed.
@@ -321,9 +505,14 @@ def measure(
             else read_row_files(directory=settings.rows_directory),
         ]
     )
+    origin_main_present = _origin_main_present(settings=settings)
     measured: list[str] = []
     skipped: list[str] = []
     failures: list[str] = []
+    for unreplayable_recording in unreplayable:
+        recording = unreplayable_recording.path.relative_to(settings.project_root).as_posix()
+        _failure(recording=recording, message=unreplayable_recording.reason)
+        failures.append(recording)
     with tempfile.TemporaryDirectory(prefix='replay-metrics-') as temporary_name:
         for index, (console_script, path) in enumerate(recordings):
             recording = path.relative_to(settings.project_root).as_posix()
@@ -352,14 +541,12 @@ def measure(
                 # The run just measured (the newest) measured the code tree; the recording's
                 # own earlier runs are history and keep naming their commits
                 rows = [rows[0].model_copy(update={'code_tree': settings.code_tree}), *rows[1:]]
-            known_keys = {row.key for row in known}
-            new_rows = [row for row in rows if row.key not in known_keys]
-            if settings.rows_directory is not None:
-                write_row_files(rows=new_rows, directory=settings.rows_directory)
-            else:
-                settings.pending_path.parent.mkdir(parents=True, exist_ok=True)
-                with settings.pending_path.open('a', encoding='utf-8') as pending:
-                    pending.write(ledger_text(rows=new_rows))
+            new_rows = _write_new_rows(
+                settings=settings,
+                rows=rows,
+                held_keys={row.held_key for row in known},
+                origin_main_present=origin_main_present,
+            )
             known.extend(new_rows)
             measured.append(recording)
             sys.stdout.write(
@@ -478,11 +665,15 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
     if options.skip_dirty and revision.uncommitted_changes:
         sys.stdout.write('Not measuring the replays: the checkout has uncommitted changes\n')
         return ExitCode.SUCCESS
+
+    def selected(path: Path) -> bool:
+        return options.only is None or options.only in path.relative_to(PROJECT_ROOT).as_posix()
+
+    found = metric_recordings(project_root=PROJECT_ROOT)
     recordings = [
-        (console_script, path)
-        for console_script, path in metric_recordings(project_root=PROJECT_ROOT)
-        if options.only is None or options.only in path.relative_to(PROJECT_ROOT).as_posix()
+        (console_script, path) for console_script, path in found.replayable if selected(path)
     ]
+    unreplayable = [recording for recording in found.unreplayable if selected(recording.path)]
     settings = MeasureSettings(
         project_root=PROJECT_ROOT,
         pending_path=options.pending,
@@ -493,7 +684,10 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
         rows_directory=options.rows_directory,
     )
     return measure(
-        settings=settings, recordings=recordings, published_text=published_text
+        settings=settings,
+        recordings=recordings,
+        published_text=published_text,
+        unreplayable=unreplayable,
     ).exit_code
 
 

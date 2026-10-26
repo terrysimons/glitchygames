@@ -6,25 +6,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 GlitchyGames is a Python 3.14 game engine built on Pygame with an event-driven architecture. The project includes a full-featured pixel art editor called Bitmappy and supports animation, UI widgets, and physics-based game objects.
 
+The engine's source is `src/glitchygames/` (members: `src/games/`, `src/demos/`, `src/apps/`;
+plans/2026-10-24-workspace-packages.md). Nothing at the repository root is importable as our
+package: tests and tools import the installed engine (`uv sync`: editable, its `.pth` naming
+`src/`; nox: not editable). Paths like `glitchygames/clock.py` in this file, the docs and
+comments name the file inside the package (`src/glitchygames/clock.py` in the repository). A
+script that imports `scripts.*` runs as `uv run python -m scripts.<name>` from the root.
+
 ## Development Setup
 
 ```bash
-# Install dependencies (uv manages the virtual environment automatically)
-uv sync
+# Install dependencies (uv manages the virtual environment automatically); --all-packages
+# installs the workspace members too (src/games/mr-muncher). A plain `uv sync` keeps them as
+# well: the root's dev dependency group (installed by default) names every member as a
+# workspace source (tests/test_workspace_config.py checks it)
+uv sync --all-packages
 
 # Install with dev extras (for testing/linting)
-uv sync --extra dev
+uv sync --extra dev --all-packages
 
 # Install with all extras
-uv sync --all-extras
+uv sync --all-extras --all-packages
 
 # Optional: trust the project's .envrc (direnv); on entering the repo it runs
-# `uv sync --all-extras --all-groups` (the locked versions) and, on macOS, installs PulseAudio with
-# Homebrew (sound from the Linux test container, nox -s test-linux-x11)
+# `uv sync --all-extras --all-groups --all-packages` (the locked versions) and, on macOS,
+# installs PulseAudio with Homebrew (sound from the Linux test container, nox -s test-linux-x11)
 direnv allow
 
 # Upgrade dependencies deliberately, then review the uv.lock change
-uv sync --upgrade --all-extras --all-groups
+uv sync --upgrade --all-extras --all-groups --all-packages
 ```
 
 ## Common Commands
@@ -54,13 +64,13 @@ pytest --benchmark-only
 ### Linting and Type Checking
 ```bash
 # Format code with ruff
-ruff format glitchygames tests scripts noxfile.py
+ruff format src tests scripts noxfile.py
 
 # Check and fix import ordering
-ruff check --select I --fix glitchygames tests scripts noxfile.py
+ruff check --select I --fix src tests scripts noxfile.py
 
 # Run full ruff linting
-ruff check glitchygames tests scripts noxfile.py
+ruff check src tests scripts noxfile.py
 
 # Type checking with basedpyright (configured in pyrightconfig.json)
 basedpyright
@@ -114,8 +124,9 @@ nox -s safety-scan         # Run safety only
 nox -s build               # Build binary (PyInstaller) + wheel
 nox -s build-binary        # Build standalone Bitmappy binary only
 nox -s build-wheel         # Build wheel (.whl) only
-# build, build-wheel and build-binary stamp the engine's commit into the package first
-# (glitchygames/_build_info.json, removed after; glitchygames/build_info.py)
+# build, build-wheel, build-binary and test stamp the engine's commit into the package first
+# (glitchygames/_build_info.json, removed after; glitchygames/build_info.py): test's installed
+# copy is not editable, so the stamp is how it names its commit
 
 # --- Docs ---
 nox -s docs-deploy         # Fetch gh-pages, replay-metrics (--skip-dirty), build, publish to https://terrysimons.github.io/glitchygames/ (pushes gh-pages, then clears published pending rows; `-- --build-only`: no push)
@@ -150,8 +161,8 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 
 ### Example Games
 `uv run paddleslap`, `brave-adventurer`, `brave-adventurer-papyrus`, `clockwork-keep`,
-`mr-muncher` (a maze chase at the movies, `glitchygames/examples/mr_muncher/`) and
-`drawing-fire` (a pencil-on-paper stick-figure battle, `glitchygames/examples/drawing_fire/`:
+`mr-muncher` (a maze chase at the movies, its own workspace package `src/games/mr-muncher/`) and
+`drawing-fire` (a pencil-on-paper stick-figure battle, `src/glitchygames/examples/drawing_fire/`:
 computer battles that one or two local players join with START or Enter; its new mechanic is
 swatches, recolouring a sprite by palette swap; docs/games/drawing_fire.md) start the example
 games.
@@ -493,9 +504,17 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   button press. `tests/replay/test_bundled_demos.py` replays every demo headless
   (`bundled_demo_paths`, `replay_recording_headless` in `glitchygames/testing/replays.py`) and
   plays PaddleSlap's through `play_recording` (stepped with `step_finishing`: the golden harness's
-  `step` never gives a playback the recording's dt). A scene start records `scene_module` and the
-  `__qualname__`, and the header `game_module`, so same-named scenes and games are told apart
-  (bare-name fallback, ambiguity refused). Record a demo with `scripts/record_scripted_session.py --script-only --output PATH` (it runs
+  `step` never gives a playback the recording's dt). A recording names its game (header `game`)
+  and each scene start (`scene`) by logical names (`glitchygames/logical_names.py`: the layer,
+  the module path inside the package, `:` and the `__qualname__`, e.g.
+  `games.mr_muncher.game:MrMuncherScene`; a module in no layer keeps its path), unchanged when
+  a game's code moves; the header check (`check_recorded_game`) and the playback's lookup
+  (`find_scene_class`) compare them. A recording without them (made before) is compared by its
+  exact `game_module` / `scene_module` and `__qualname__` (bare-name fallback, ambiguity
+  refused), except under `--rebaseline`, the backward-compatibility path (no table of former
+  locations): there the qualified name alone decides, so a game or scene that moved since is
+  accepted (ambiguity still refused; one rule, `modules_not_compared` in
+  `glitchygames/replay/driver.py`), and NEW holds the current logical names. Record a demo with `scripts/record_scripted_session.py --script-only --output PATH` (it runs
   `--record-trace`, so frame 0 holds the scene start); PaddleSlap's is `--frames 450`, before the
   golden script's pause
 - `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All
@@ -508,7 +527,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   replay a recording exactly through the real engine. `ReplaySources` serve its events, dt,
   polled input, devices, in-memory saves, clocks and seed, and every frame's sprites are compared
   with the recorded frame. Refusals log the reason and exit with an `ExitCode` (see Exit Codes):
-  `UNUSABLE_INPUT` (65) for a recording of another game, an unreadable file or an unsupported
+  `UNUSABLE_INPUT` (65) for a recording of another game (by its logical name `game`, or, in a
+  recording made before logical names, its exact module: one of a game that moved since is
+  refused with a message naming `--replay-trace OLD --rebaseline NEW --headless`, which
+  converts it), an unreadable file or an unsupported
   format version, `MISSING_INPUT` (66) for a missing file, and `OPTIONS_REFUSED` (64) for
   `--record-trace` given too (recording over a replay is `--rebaseline`'s job only). A
   different engine version only warns. Recorded options apply except
@@ -576,7 +598,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   check key codes (`event.key`). Both screens answer a gamepad too, on either event layer
   (`scenes/builtin_scenes/gamepad_choice.py`): Start or A goes on (resume, restart) on its
   release after a press there, as SPACE does; B or Back quits on its press, as ESC does
-- Golden replays: `tests/fixtures/replays/<console-script>/golden.jsonl.gz`, recorded through the
+- Golden replays: the engine's own live in `tests/fixtures/replays/<console-script>/golden.jsonl.gz`;
+  a workspace member's in `<member>/tests/fixtures/replays/<name>.jsonl.gz` (Mr. Muncher's:
+  `src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz`), replayed through the member's
+  console script (`recording_console_script`), and its bundled demos in `<package>/demos/`.
+  They are recorded through the
   real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).
   Each is a pytest item of its own: the plugin `glitchygames/testing/replays.py` (root
@@ -664,10 +690,15 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `plans/2026-10-25-measured-rows-in-the-repository.md`): the `replay-metrics` pre-commit hook
   (`scripts/measure_staged_replays.py`, its docstring the rules; installed by `.envrc` when
   missing) measures every golden replay and bundled demo when this machine has no rows for the
-  staged code tree (`glitchygames/code_tree.py`: a git tree of only `MEASURED_PATHS`, the
-  engine, games, demos, apps, recordings, `uv.lock`, `pyproject.toml`), so code that arrived by
+  staged code tree (`glitchygames/code_tree.py`: a git tree of only `MEASURED_PATHS`,
+  `src/` (the engine, games, demos, apps; less the members' `tests/` but for their
+  `tests/fixtures/replays/`: `is_measured_path`), recordings, `uv.lock`, `pyproject.toml`), so
+  code that arrived by
   a merge or rebase is measured by the next commit, and stages the rows, each naming that code
-  tree (`LedgerRow.code_tree`), into the same commit (refused for a partial `git commit <path>`
+  tree (`LedgerRow.code_tree`), into the same commit, plus the `history-...` row files it wrote
+  (a recording's earlier header runs, written only when measured on a commit on `origin/main`
+  without uncommitted changes, and never again under a moved recording's new path:
+  `replay_metrics.rows_to_write`, `LedgerRow.held_key`; none without an `origin/main`) (refused for a partial `git commit <path>`
   or untracked files under the measured paths; `SKIP=replay-metrics` skips it); every docs build reads them and keeps the rows whose tree
   landed (`landed_code_trees`: the tree of each commit that added rows, i.e. main's squash
   merge; `landed_rows`), labelled with that commit, then merges gh-pages' ledger and local
@@ -675,7 +706,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   (`scripts/generate_performance_graphs.py`, docs/quality/performance.md); CircleCI's
   `deploy-docs` publishes after each merge (`nox -s docs-deploy` refuses unless HEAD is on
   origin/main). A branch updated from main is measured by its next commit, or by hand: `uv run
-  python scripts/measure_staged_replays.py`, then commit what it stages Each measured row carries a `FrameProfile` (about 100 buckets of the run's slowest frame
+  python -m scripts.measure_staged_replays`, then commit what it stages Each measured row carries a `FrameProfile` (about 100 buckets of the run's slowest frame
   per stretch, integer microseconds, scenes run-length encoded; ~0.4-0.6 KB) for the page's frame
   x commit heatmap (time only: the report shows whether the work changed). Rows measured on
   uncommitted changes (`LedgerRow.from_uncommitted_changes`, e.g. `--allow-dirty`) are left out
@@ -691,10 +722,12 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   copy (rule 16 of `glitchygames/replay/driver.py`)
 - `--replay-trace OLD --rebaseline NEW --headless` (`glitchygames/replay/rebaseline.py`, whose
   docstring is the contract): replays OLD on the current code without stopping at divergences
-  (`ReplayOptions.stop_on_divergence=False`), records the run into NEW through
+  (`ReplayOptions.stop_on_divergence=False`; it alone accepts an old-format recording of a game
+  that moved, matched by qualified name, and so converts it to logical names), records the run into NEW through
   `RecordingSources(..., replayed=<the ReplaySources>)` (origins from `last_batch_origins()`,
   per-frame saves/device fields from `recording.recorded_frame_fields()`; header = OLD's +
-  `rebaselined_from` + current versions, `source_truncated` for a cut-off OLD), written to
+  `rebaselined_from` + current versions + this run's game names (`game_class`, `game_module`,
+  `game`), `source_truncated` for a cut-off OLD), written to
   `NEW.partial` and moved into place only on a normal end, prints `Rebaselined N frames to NEW:
   K frames differ (first at F: ...); sprites affected: ...` (or `no frames differ`) and exits
   `SUCCESS` (`ReplayExitPolicy.SUCCESS_AFTER_WRITING`); input OLD has that the run never got
@@ -733,7 +766,7 @@ uncommitted changes to tracked files; only when git tracks the package's files, 
 installed in another repository's `.venv` does not count), a git archive
 (`glitchygames/_git_archival.txt`, `export-subst` in `.gitattributes`: `git archive` and GitHub's
 source zips write the commit in), a build stamp (`_build_info.json`, written by
-`scripts/write_build_stamp.py` around `nox -s build-wheel`/`build-binary`, gitignored, packaged
+`scripts/write_build_stamp.py` around `nox -s build-wheel`/`build-binary`/`test`, gitignored, packaged
 through hatch `artifacts`), else unknown. Every recorded run holds it
 (`MeasurementRun.source_revision`; `engine_source_revision()` looks it up once per process)
 
@@ -886,7 +919,7 @@ Features:
   (`ai_worker._create_ai_retry_decorator`), so Bitmappy imports without it
 - Voice recognition support
 - PNG drag-and-drop
-- Runs in the browser: `nox -s browser -- bitmappy` (its bundle alone includes `bitmappy/`).
+- Runs in the browser: `nox -s browser -- bitmappy` (its bundle alone includes `bitmappy/`; the builder runs as `python -m scripts.build_browser_bundle`, and a workspace member's game ships its package as its own archive, `mr_muncher.zip` beside `glitchygames.zip`).
   There Load opens the browser's file picker and Save downloads the saved file, through the
   installed user files (`glitchygames/user_files.py`; the page's `browser/browser_user_files.py`).
   On the desktop nothing is installed and the dialogs ask for file names as always
@@ -895,7 +928,7 @@ Features:
 - Text widgets copy and paste through `system_clipboard()`: the installed clipboard, else
   `create_clipboard()`'s choice (`PyperclipClipboard`, else `InProcessClipboard` without
   pyperclip). A clipboard that cannot be used raises `ClipboardUnavailableError`. Tests get a
-  fresh `InProcessClipboard` each (`tests/conftest.py` `in_process_clipboard`), never the machine's
+  fresh `InProcessClipboard` each (`tests/harness.py` `in_process_clipboard`), never the machine's
 - The browser installs `BrowserClipboard` (`browser/browser_clipboard.py`): paste takes the
   page's paste event text (Ctrl/Cmd+V fires it before the game's frame reads the key); copy is
   kept in the game and written with `navigator.clipboard.writeText`, which Safari refuses
@@ -905,7 +938,7 @@ Features:
   with a file picker, `save_file` as a download). Tests start with none (`desktop_user_files`)
 
 **Touch controls in the browser** (`browser/touch_controls.js`; layouts in
-`scripts/build_browser_bundle.py` `TOUCH_LAYOUTS`, written into boot_config.json)
+`scripts.build_browser_bundle` `TOUCH_LAYOUTS` (scripts/build_browser_bundle.py), written into boot_config.json)
 - On touch devices the page shows on-screen buttons (portrait: below the game; landscape: over
   its bottom corners). A held button holds its key: key events dispatched on the canvas reach
   SDL (on the window they do not), so games, action maps, recordings and replays see ordinary
@@ -943,7 +976,7 @@ Features:
   (pixels), not on draw calls. Assertions must not assume the display's pixel format (cocoa's has
   per-pixel alpha)
 - Test filenames: Use descriptive names, not generic suffixes like `_simple`
-- `tests/conftest.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
+- `tests/harness.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
   plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`).
 - Real pads never reach tests: `tests/sdl_defaults.py` defaults SDL's macOS joystick drivers off
   (`SDL_JOYSTICK_HIDAPI`, `SDL_JOYSTICK_MFI`, `SDL_JOYSTICK_IOKIT` = `0`; each alone finds pads),
@@ -1082,4 +1115,7 @@ alpha = 127  # 0-254 for transparency, omit for opaque
 - **Sprite Loading**: Use `SpriteFactory` not direct `BitmappySprite` for new code
 - **Coverage**: 100% minimum required (`--cov-fail-under` in pyproject.toml); no exclusions in configuration
 - **Documentation**: Architecture details in `docs/architecture/` (the mkdocs site) and root .md files
-  (ANIMATION_README.md, LOADER_README.md, etc.)
+  (ANIMATION_README.md, LOADER_README.md, etc.). The engine's API reference pages are written by
+  hand (`docs/glitchygames/`); each workspace member package's (`mr_muncher/index.md`) is
+  generated in the build by `scripts/gen_ref_pages.py` (mkdocs-gen-files), and mkdocs.yml's nav
+  names it (`tests/test_workspace_config.py` checks every member's)

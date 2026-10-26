@@ -12,7 +12,6 @@ import logging
 import os
 import signal
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -23,6 +22,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from scripts.record_golden_traces import GoldenTraceEngine, command_line
+from scripts.workspace_packages import declared_console_scripts
 
 from glitchygames import crt_power_on
 from glitchygames.backgrounds import BackgroundPattern, paint_default_background
@@ -729,7 +729,8 @@ class TestCrtPowerOnBeforeEveryGame:
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-# Every game's console script ([project.scripts]): the power-on sequence must play before each
+# Every game's console script (the root's and the members' [project.scripts]): the power-on
+# sequence must play before each
 GAME_CONSOLE_SCRIPTS = (
     'bitmappy',
     'brave-adventurer',
@@ -752,9 +753,11 @@ class PowerOnPlayed(BaseException):
 
 
 def test_every_game_console_script_is_covered():
-    """A new game's console script must join GAME_CONSOLE_SCRIPTS, so its power-on is tested."""
-    with (PROJECT_ROOT / 'pyproject.toml').open('rb') as pyproject_file:
-        scripts = tomllib.load(pyproject_file)['project']['scripts']
+    """A new game's console script must join GAME_CONSOLE_SCRIPTS, so its power-on is tested.
+
+    The root project's console scripts and every workspace member's (src/games/mr-muncher).
+    """
+    scripts = declared_console_scripts(project_root=PROJECT_ROOT)
 
     assert set(scripts) - NOT_GAME_CONSOLE_SCRIPTS == set(GAME_CONSOLE_SCRIPTS)
 

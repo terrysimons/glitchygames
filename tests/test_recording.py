@@ -74,6 +74,7 @@ from glitchygames.scenes import Scene
 from glitchygames.sources import frame_clock_seconds, set_frame_clock_seconds
 from glitchygames.supervision import ControlEvent
 from glitchygames.tracing import TraceFormatError, TraceWriter, read_trace_result
+from tests.ast_scanning import PROJECT_ROOT, scanned_source_files
 
 WINDOW_SIZE = (16, 16)
 TEST_JOYSTICK_INSTANCE_ID = 7
@@ -1340,13 +1341,11 @@ def test_pump_seam_is_the_only_place_the_engine_reads_sdl_queue():
     so no other code may call pygame.event.get/poll/wait/peek/pump/clear (directly or through
     an alias such as ``getattr(pygame, 'fastevent')``).
     """
-    package_root = Path(recording.__file__).parent
     offenders = [
         offender
-        for source_path in sorted(package_root.rglob('*.py'))
+        for allowlist_key, source_path in scanned_source_files(project_root=PROJECT_ROOT)
         for offender in _queue_reads_outside_the_pump_seam(
-            source_path=source_path,
-            relative_path=source_path.relative_to(package_root).as_posix(),
+            source_path=source_path, relative_path=allowlist_key
         )
     ]
 

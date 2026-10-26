@@ -60,10 +60,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   across the top plays each game's demo with sound, with the colour bars for a few seconds and
   a beep between games. Below it, a boxed grid of the games, each tile looping its replay
   silently; pick one to play it.
-- **Status**: TODO: design draft in `plans/2026-10-23-arcade-showcase.md`. The gallery is an
-  outer game that hosts several demo wrappers, generalising the watched replay's "game inside a
-  game". Open questions there: one engine context per wrapper in-process or child processes,
-  and timings
+- **Status**: TODO: spec agreed 2026-10-25 in `plans/2026-10-23-arcade-showcase.md` (the master
+  plan): one screen, one process (the browser has no child processes), nine live silent tiles
+  under a top frame showing the highlighted one with sound, an original chime over the bars.
+  First sub-plan: the engine context (one per demo player)
 - **Priority**: High (requested 2026-10-23)
 
 ### 46. Recording Metrics: History, Headroom and Gameplay Analytics — TODO
@@ -179,6 +179,30 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: BUILT 2026-10-24 (`glitchygames/crt_power_on.py`, plan
   plans/2026-10-24-crt-power-on.md); being tested by the user, the stage constants tuned by eye
   from that. The power-on sound and a power-off collapse are follow-ups
+
+### 56. Games, Demos and Apps as Their Own Packages (uv workspace) — IN PROGRESS
+- **Description**: the engine moved to `src/glitchygames`; each game, demo and app becomes a
+  uv workspace member under `src/games|demos|apps`, with its tests and recordings beside it;
+  recordings name games by logical names. Master plan: `plans/2026-10-24-workspace-packages.md`
+- **Status**: Part 1 (foundation and the Mr. Muncher pilot) built on
+  `feature/workspace-packages-foundation`; Parts 2-5 (other games, demos, Bitmappy, browser IDE)
+  TODO
+
+### 55. Recording Naming Convention and Logical Recording Ids — TODO
+- **Goal**: every recording is named and placed by one convention, and has a logical id that
+  survives moves (the user, 2026-10-25)
+- **Convention**: golden replays at `<member>/tests/fixtures/replays/golden.jsonl.gz` (extra ones
+  `golden-<purpose>.jsonl.gz`); demos inside the game's package at `<package>/demos/<name>.jsonl.gz`;
+  later roles (`ghost`, `bookmark`) get their own folders
+- **Ids**: the game's logical name (`games.mr_muncher`, see the workspace packages plan), the role
+  and the name: `games.mr_muncher:golden`, `games.paddleslap:demo/rally`, derived from the
+  location; a test checks every recording follows the convention and its id agrees with its
+  header's logical name
+- **Uses**: the run ledger and performance graphs key history by id, so moving a recording needs
+  no `RECORDING_PATH_RENAMES` entry (the map is removed); the Arcade asks a game for its
+  `demo/*` recordings instead of knowing paths
+- **Status**: TODO, after workspace packages Parts 1 and 2 (`plans/2026-10-24-workspace-packages.md`)
+- **Priority**: Medium
 
 ### 54. Docs Deploys That Cannot Go Stale — TODO
 - **Goal**: the published docs (https://terrysimons.github.io/glitchygames/) are always `main`'s
@@ -573,7 +597,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
   player, no end to a won game; a perfect bot cleared 87 of 211 dots in 10 minutes). It is now a
   complete, original maze-chase game with a cinema theme (2026-10-23)
 - **Status**: ✅ COMPLETED (2026-10-23)
-- **Implementation** (`glitchygames/examples/mr_muncher/`):
+- **Implementation** (now `src/games/mr-muncher/mr_muncher/`, a workspace member since
+  the workspace-packages Part 1; it was `glitchygames/examples/mr_muncher/`):
   - `maze.py`: a hand-designed 27x24 maze (symmetric, corridors one tile wide, no dead ends,
     connected; tests check all four), tunnels at the top and bottom, a house with a door
   - `actors.py`: tile-to-tile movement (turns on tile centres only; a direction pressed early is

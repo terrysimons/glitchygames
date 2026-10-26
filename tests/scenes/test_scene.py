@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 def _install_frame_input(*, mouse_position: tuple[int, int], mouse_focused: bool) -> None:
     """Make a snapshot with this mouse this frame's polled input (``current_input()``).
 
-    The autouse ``reset_engine_sources`` fixture (tests/conftest.py) resets it after the test.
+    The autouse ``reset_engine_sources`` fixture (tests/harness.py) resets it after the test.
     """
     set_current_input(
         snapshot=InputSnapshot(

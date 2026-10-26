@@ -5,7 +5,7 @@ real pygame objects must work in either order on the same worker. These checks r
 sequence in a fresh interpreter, because the leaks they guard against depend on what the
 process has already done: pygame imports ``sndarray`` lazily, on first attribute access, and
 that import binds whatever ``pygame.mixer`` is at that moment; ``GameEngine.initialize_icon``
-writes a class attribute that outlives the engine. tests/conftest.py guards against both
+writes a class attribute that outlives the engine. tests/harness.py guards against both
 (``_load_lazy_pygame_modules`` at import, the ``restore_game_engine_class_state`` fixture);
 without either guard, one of the later tests fails.
 """
@@ -65,7 +65,7 @@ def test_a_patched_test_does_not_leak_into_a_later_real_test(pytester, monkeypat
         '-c',
         str(PROJECT_ROOT / 'pyproject.toml'),
         '-p',
-        'tests.conftest',
+        'tests.harness',
         '-p',
         'no:cacheprovider',
         '-p',

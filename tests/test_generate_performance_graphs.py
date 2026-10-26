@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 GOLDEN = 'tests/fixtures/replays/paddleslap/golden.jsonl.gz'
-DEMO = 'glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+DEMO = 'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
 OLDER_COMMITTED_AT = '2026-10-22T12:00:00-07:00'
 OLDER_PROFILE = FrameProfile(
     frame_count=4, max_microseconds=(100, 200, None, 400), scene_runs=((0, 'Game'), (3, 'Pause'))
@@ -292,10 +292,10 @@ def clone_with_measured_rows(*, tmp_path: Path) -> tuple[Path, LedgerRow, Ledger
 
     """
     clone = clone_with_published_ledger(tmp_path=tmp_path, ledger='')
-    code = clone / 'glitchygames' / 'world.py'
+    code = clone / 'src' / 'glitchygames' / 'world.py'
     code.parent.mkdir(parents=True, exist_ok=True)
     code.write_text('gravity = 9.8\n', encoding='utf-8')
-    git(repository=clone, arguments=['add', 'glitchygames/world.py'])
+    git(repository=clone, arguments=['add', 'src/glitchygames/world.py'])
     tree = staged_code_tree(repository=clone)
     landed = ledger_row(measured_at='2026-10-25T10:00:00+00:00').model_copy(
         update={'code_tree': tree, 'allowed_uncommitted_changes': True}

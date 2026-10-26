@@ -1,6 +1,6 @@
 """The shared pause-style message screen (glitchygames/ui/message_screen.py).
 
-Kept out of tests/scenes: tests there run with pygame's drawing mocked (tests/conftest.py), and
+Kept out of tests/scenes: tests there run with pygame's drawing mocked (tests/harness.py), and
 these compare real pixels.
 """
 

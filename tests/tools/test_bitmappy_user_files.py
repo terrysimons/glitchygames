@@ -3,18 +3,16 @@
 from __future__ import annotations
 
 import shutil
-from pathlib import Path
 
 from glitchygames.user_files import install_user_files
+from tests.harness import imported_engine_directory
+
+# The imported engine's directory (installed: never the source tree by accident)
+ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
 
 # A real sprite file, named 'scarab' in its [sprite] table
 SPRITE_FILE = (
-    Path(__file__).resolve().parents[2]
-    / 'glitchygames'
-    / 'examples'
-    / 'brave_adventurer_papyrus'
-    / 'sprites'
-    / 'scarab.toml'
+    ENGINE_PACKAGE_DIRECTORY / 'examples' / 'brave_adventurer_papyrus' / 'sprites' / 'scarab.toml'
 )
 
 

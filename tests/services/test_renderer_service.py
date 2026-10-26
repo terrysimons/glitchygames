@@ -134,7 +134,7 @@ blue = 0
     def test_preset_sdl_drivers_are_kept(self, mocker):
         """A driver already chosen is kept; only an unset one defaults to dummy.
 
-        The same rule as tests/conftest.py's.
+        The same rule as tests/harness.py's.
         """
         mocker.patch.object(RendererService, 'pygame_initialized', new=False)
         pygame_init = mocker.patch.object(pygame, 'init')

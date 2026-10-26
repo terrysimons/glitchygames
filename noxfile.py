@@ -19,7 +19,13 @@ if TYPE_CHECKING:
 # managed by uv, without touching the project's .venv.
 nox.options.default_venv_backend = 'uv'
 
-_CODE_DIRS = ['noxfile.py', 'glitchygames', 'scripts', 'tests']
+_CODE_DIRS = ['noxfile.py', 'src/glitchygames', 'src/games/mr-muncher', 'scripts', 'tests']
+# The source packages vulture and bandit scan: the engine's and each workspace member's
+_SOURCE_PACKAGE_DIRS = ['src/glitchygames', 'src/games/mr-muncher/mr_muncher']
+# The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
+# through scripts/workspace_packages.py: CI runs nox through uvx, whose interpreter has neither
+# pydantic nor the engine; tests/test_workspace_config.py keeps the list equal to the workspace
+_MEMBER_DISTRIBUTIONS = ['mr-muncher']
 
 
 # ---------------------------------------------------------------------------
@@ -34,7 +40,7 @@ def _install_from_lockfile(session: nox.Session, *, all_extras: bool = True) -> 
     the locked versions (installing ``.[api,dev,docs]`` with pip-style resolution picked the
     newest matching versions, so a new release of any dependency could change what CI tested
     without the lockfile changing). ``--no-editable`` installs the built package, as before,
-    not the source tree.
+    not the source tree. ``--all-packages`` installs the workspace members too.
 
     Args:
         session: The nox session whose venv to fill.
@@ -47,10 +53,17 @@ def _install_from_lockfile(session: nox.Session, *, all_extras: bool = True) -> 
         'sync',
         '--frozen',
         '--no-editable',
+        '--all-packages',
         # A reused venv keeps an installed project whose version is unchanged, so a module added
-        # since would be missing (the docs build imported glitchygames.code_tree): reinstall it
+        # since would be missing (the docs build imported glitchygames.code_tree): reinstall it,
+        # and every workspace member, which is kept the same way
         '--reinstall-package',
         'glitchygames',
+        *(
+            argument
+            for distribution in _MEMBER_DISTRIBUTIONS
+            for argument in ('--reinstall-package', distribution)
+        ),
         *(['--all-extras'] if all_extras else []),
         env={'UV_PROJECT_ENVIRONMENT': session.virtualenv.location},
     )
@@ -121,7 +134,7 @@ def _lint_dependencies(session: nox.Session) -> None:
 
 def _lint_dead_code(session: nox.Session) -> None:
     """Detect dead code with vulture."""
-    session.run('vulture', 'glitchygames', 'vulture_whitelist.py', '--min-confidence=80')
+    session.run('vulture', *_SOURCE_PACKAGE_DIRS, 'vulture_whitelist.py', '--min-confidence=80')
 
 
 # Known vulnerabilities pip-audit ignores: only ones with no fix we can take yet, each with why.
@@ -164,7 +177,9 @@ def _lint_cves(session: nox.Session) -> None:
             'uv',
             'export',
             '--quiet',
-            '--no-emit-project',
+            # Not the workspace's own projects (the root and every member): the root's dev group
+            # names each member, which uv exports as an editable path pip-audit cannot hash
+            '--no-emit-workspace',
             # The extras too (dev tools, aisuite and its SDKs): what `uv sync --all-extras` installs
             '--all-extras',
             '--output-file',
@@ -259,7 +274,9 @@ _GIT_FETCH_STATUSES = [0, 1, 128]
 
 
 def _replay_metrics(session: nox.Session, *arguments: str) -> None:
-    """Run scripts/replay_metrics.py in the project's environment (``uv run``).
+    """Run scripts/replay_metrics.py in the project's environment (``uv run``), as a module.
+
+    It imports scripts.workspace_packages, so it runs as ``python -m scripts.replay_metrics``.
 
     The rebaselines it starts must run this checkout's package (the project's editable install)
     to know their commit: a nox venv's built copy of the package cannot name it.
@@ -269,7 +286,8 @@ def _replay_metrics(session: nox.Session, *arguments: str) -> None:
         'run',
         '--frozen',
         'python',
-        'scripts/replay_metrics.py',
+        '-m',
+        'scripts.replay_metrics',
         *arguments,
         external=True,
         # Unset (nox drops None): a session's own venv is not the project's, and uv would warn
@@ -309,7 +327,7 @@ def docs_deploy(session: nox.Session) -> None:
     when they were made from another commit: about a minute, and the performance graphs from the
     published run ledger plus the pending rows, which it publishes with the site), commits it to
     gh-pages and pushes it. Only after that succeeded are the now-published pending rows
-    removed. Before the docs, every game's browser build (``scripts/build_browser_bundle.py
+    removed. Before the docs, every game's browser build (``python -m scripts.build_browser_bundle
     all``: the pygame-ce wheel is built first when the submodule changed) goes into the site as
     play/. Run it from what should be published (usually main after a merge); a warning stops
     it before anything is pushed.
@@ -346,7 +364,7 @@ def docs_deploy(session: nox.Session) -> None:
     if measure:
         _replay_metrics(session, 'measure', '--skip-dirty')
     # The browser games, published with the docs as play/ (scripts/mkdocs_hooks.py)
-    session.run('python', 'scripts/build_browser_bundle.py', 'all')
+    session.run('python', '-m', 'scripts.build_browser_bundle', 'all')
     if build_only:
         session.run('mkdocs', 'build', '--strict')
         return
@@ -492,7 +510,10 @@ def _usable_cpu_count() -> int:
 @nox.session(python=['3.14'], reuse_venv=False)
 def test(session: nox.Session) -> None:
     """Run tests."""
-    _install_from_lockfile(session)
+    # The installed copy is built (not editable), so it has no git checkout: the stamp gives it
+    # HEAD's commit, which the replay-metrics tests' child rebaselines record and compare
+    with _build_stamp(session):
+        _install_from_lockfile(session)
 
     # The SDL drivers are left to the suite (tests/sdl_defaults.py defaults both to dummy, and
     # outside CI tests/driver_comparison.py also runs the native driver and compares the
@@ -651,7 +672,7 @@ def _start_pulseaudio(session: nox.Session) -> bool:
 
 
 # The container's setup before its command: the locked dev dependencies into the venv volume
-_LINUX_X11_SYNC = 'uv sync --frozen --extra dev --no-install-package taplo --quiet'
+_LINUX_X11_SYNC = 'uv sync --frozen --extra dev --all-packages --no-install-package taplo --quiet'
 
 
 def _run_in_linux_x11_container(
@@ -1212,7 +1233,8 @@ def browser(session: nox.Session) -> None:
         'run',
         '--frozen',
         'python',
-        'scripts/build_browser_bundle.py',
+        '-m',
+        'scripts.build_browser_bundle',
         # Before the game's own arguments, which may follow a -- that ends the builder's options
         '--serve',
         *arguments,
@@ -1267,7 +1289,7 @@ def _bandit_scan(session: nox.Session) -> None:
         '-ll',  # Medium+ severity
         '-ii',  # Medium+ confidence
         '-r',
-        'glitchygames',
+        *_SOURCE_PACKAGE_DIRS,
         '-f',
         'json',
         '-o',

@@ -4,7 +4,7 @@ This module tests that animated sprites properly reach the display surface, prov
 multiple layers of verification to quickly identify where rendering problems occur in the
 pipeline.
 
-The tests draw on a real pygame display: ``tests/conftest.py`` sets ``SDL_VIDEODRIVER`` to
+The tests draw on a real pygame display: ``tests/harness.py`` sets ``SDL_VIDEODRIVER`` to
 ``dummy``, so ``pygame.display.set_mode`` gives a headless display surface that holds real
 pixels (set ``SDL_VIDEODRIVER=cocoa`` or similar to watch them in a window). They used to
 run on the shared pygame mocks, whose display surface answers black for every pixel, so
@@ -25,9 +25,13 @@ from glitchygames.color import MAGENTA_TRANSPARENCY_KEY
 from glitchygames.display_mode import set_display_mode
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SpriteFactory
+from tests.harness import imported_engine_directory
 
 # Add project root so direct imports work in isolated runs
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+# The imported engine's directory (installed: never the source tree by accident)
+ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
 
 
 def get_resource_path(filename: str) -> str:
@@ -38,12 +42,7 @@ def get_resource_path(filename: str) -> str:
 
     """
     return str(
-        Path(__file__).parent.parent.parent
-        / 'glitchygames'
-        / 'examples'
-        / 'resources'
-        / 'sprites'
-        / filename,
+        ENGINE_PACKAGE_DIRECTORY / 'examples' / 'resources' / 'sprites' / filename,
     )
 
 

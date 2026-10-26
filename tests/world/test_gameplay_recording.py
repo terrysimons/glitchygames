@@ -43,6 +43,7 @@ from glitchygames.host import HostSources
 from glitchygames.input import devices as devices_module
 from glitchygames.input.state import IDLE_INPUT, apply_snapshot_changes
 from glitchygames.live_sources import LiveSources
+from glitchygames.logical_names import logical_name
 from glitchygames.process import run_command
 from glitchygames.randomness import engine_random
 from glitchygames.recording import (
@@ -478,6 +479,7 @@ def _assert_recording_header(header: dict[str, Any]) -> None:
     assert header['random_seed'] == RANDOM_SEED
     assert header['game_class'] == 'DepartureRecordedScene'
     assert header['game_module'] == DepartureRecordedScene.__module__
+    assert header['game'] == logical_name(scene_class=DepartureRecordedScene)
     assert header['scene_class'] == 'DepartureRecordedScene'
     assert header['engine_version'] == importlib.metadata.version('glitchygames')
     assert header['pygame_version'] == pygame.version.ver

@@ -62,13 +62,13 @@ from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdve
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.examples.drawing_fire.game import DrawingFireScene
 from glitchygames.examples.drawing_fire.seats import LEAVE_HOLD_SECONDS, Stage
-from glitchygames.examples.mr_muncher.autopilot import Autopilot
-from glitchygames.examples.mr_muncher.game import MrMuncherScene
-from glitchygames.examples.mr_muncher.maze import Direction
 from glitchygames.scenes import SceneManager
 from glitchygames.state import manager as save_manager_module
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.tracing import StableSpriteIds, sample_scene_frame, write_trace
+from mr_muncher.autopilot import Autopilot
+from mr_muncher.game import MrMuncherScene
+from mr_muncher.maze import Direction
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -111,9 +111,21 @@ GAME_SCENES: dict[str, type[Scene]] = {
     'drawing_fire': DrawingFireScene,
 }
 
+# Game key -> the module holding its main() (where its console script's entry point is):
+# a game moved into its own package names its package (plans/2026-10-24-workspace-packages.md)
+GAME_MODULES: dict[str, str] = {
+    'clockwork_keep': 'glitchygames.examples.clockwork_keep',
+    'brave_adventurer': 'glitchygames.examples.brave_adventurer',
+    'brave_adventurer_papyrus': 'glitchygames.examples.brave_adventurer_papyrus',
+    'paddleslap': 'glitchygames.examples.paddleslap',
+    'mr_muncher': 'mr_muncher',
+    'drawing_fire': 'glitchygames.examples.drawing_fire',
+}
+
 # The games whose golden traces (tests/world/golden/) were recorded before the world-space
 # change: tests/world/test_golden_traces.py compares these. Games written after it (Mr. Muncher,
-# Drawing Fire) have no such baseline; their golden replays (tests/fixtures/replays/) cover them.
+# Drawing Fire) have no such baseline; their golden replays cover them (Mr. Muncher's in its
+# package, src/games/mr-muncher/tests/fixtures/replays/; Drawing Fire's in tests/fixtures/replays/).
 GOLDEN_TRACE_GAMES: tuple[str, ...] = (
     'clockwork_keep',
     'brave_adventurer',
@@ -488,7 +500,7 @@ def paddleslap_script() -> InputScript:
 class MuncherSteering:
     """Hold the arrow key for the way Mr. Muncher's autopilot asks for, frame by frame.
 
-    The autopilot (glitchygames/examples/mr_muncher/autopilot.py) reads the scene and names a
+    The autopilot (src/games/mr-muncher/mr_muncher/autopilot.py) reads the scene and names a
     direction; this presses that direction's arrow key (releasing the one held before). A key
     is pressed again when the player still wants another way after MR_MUNCHER_REPRESS_FRAMES
     (a new life starts heading left, whatever key is held). Nothing is pressed while another

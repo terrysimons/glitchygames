@@ -38,7 +38,7 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    has not measured that code yet, it measures every golden replay and bundled demo on it and
    adds one small file per recording to the commit, under `quality/replay-ledger/`. A docs commit
    after a measured one is instant; code that arrived by a merge from `main` or a rebase is
-   measured by the next commit (or by hand: `uv run python scripts/measure_staged_replays.py`,
+   measured by the next commit (or by hand: `uv run python -m scripts.measure_staged_replays`,
    then commit). `SKIP=replay-metrics git commit ...` skips it.
 2. **The site shows what landed on `main`.** Every docs build reads the repository's row files
    and keeps those whose code tree is the code tree of a commit that added rows: on `main`, the

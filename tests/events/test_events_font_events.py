@@ -22,13 +22,15 @@ from glitchygames.events import (
 )
 from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene
+from tests.harness import imported_engine_directory
+
+# The imported engine's directory (installed: never the source tree by accident)
+ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
 
 EVENT_TEST_OPTIONS = {'debug_events': False, 'no_unhandled_events': True}
 
 # The bundled font the system-font tests hand back in place of a system lookup
-BUNDLED_VERA_PATH = (
-    Path(__file__).parent.parent.parent / 'glitchygames' / 'fonts' / 'bitstream_vera' / 'Vera.ttf'
-)
+BUNDLED_VERA_PATH = ENGINE_PACKAGE_DIRECTORY / 'fonts' / 'bitstream_vera' / 'Vera.ttf'
 
 FONT_OPTIONS = {
     'font_name': 'arial',

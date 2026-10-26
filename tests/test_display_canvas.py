@@ -1,6 +1,6 @@
 """The test display rule: every test starts on the canvas, and an all-black last frame fails.
 
-The rule lives in tests/conftest.py (the canvas before each test, the present and the guard
+The rule lives in tests/harness.py (the canvas before each test, the present and the guard
 after the body) and tests/display_canvas.py (the canvas and the black check).
 """
 
@@ -11,7 +11,6 @@ import pytest
 
 from glitchygames.backgrounds import BackgroundPattern, background_pattern_surface
 from tests import display_canvas
-from tests.conftest import _fail_on_entirely_black_frame
 from tests.display_canvas import (
     CANVAS_PATTERN,
     TEST_CANVAS_VARIABLE,
@@ -22,6 +21,7 @@ from tests.display_canvas import (
     show_canvas,
     show_canvas_on_new_display,
 )
+from tests.harness import _fail_on_entirely_black_frame
 
 BLACK_RGB = (0, 0, 0)
 # A colour dim enough that a few pixels of it average down to black

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import dataclasses
-import tomllib
 
 import pygame
 import pytest
 from scripts.record_golden_traces import (
+    GAME_MODULES,
     PROJECT_ROOT,
     SCRIPT_BUILDERS,
     GoldenTraceSceneManager,
@@ -27,6 +27,7 @@ from scripts.record_scripted_session import (
     polled_input_follows,
     record_scripted_session,
 )
+from scripts.workspace_packages import declared_console_scripts
 
 from glitchygames import live_sources
 from glitchygames.events import GAMEEVENT
@@ -208,12 +209,20 @@ def test_every_game_has_a_fixture_location():
 
 
 def test_each_fixture_directory_is_the_games_console_script_in_pyproject():
-    """The mapping follows [project.scripts]: each game's entry point is in its module."""
-    with (PROJECT_ROOT / 'pyproject.toml').open('rb') as pyproject_file:
-        console_scripts = tomllib.load(pyproject_file)['project']['scripts']
+    """The mapping follows [project.scripts] (the root's and the members'): each in its module."""
+    console_scripts = declared_console_scripts(project_root=PROJECT_ROOT)
     for console_script, game_key in CONSOLE_SCRIPT_GAME_KEYS.items():
         entry_point_module = console_scripts[console_script].split(':')[0]
-        assert entry_point_module == f'glitchygames.examples.{game_key}'
+        assert entry_point_module == GAME_MODULES[game_key]
+
+
+def test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures():
+    """A game in a workspace member records into <member>/tests/fixtures/replays/<name>.jsonl.gz."""
+    path = fixture_path(game_key='mr_muncher', name='golden')
+
+    assert path.relative_to(PROJECT_ROOT).as_posix() == (
+        'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz'
+    )
 
 
 def posted_key_events() -> list[tuple[int, int]]:

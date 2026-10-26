@@ -24,15 +24,14 @@ from glitchygames.game_objects.ball import (
 from glitchygames.recording_history import frame_content_hash
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tracing import read_trace_result
+from tests.harness import imported_engine_directory
+
+# The imported engine's directory (installed: never the source tree by accident)
+ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
 
 # Path to the static sprite fixture
 STATIC_TOML = str(
-    Path(__file__).parent.parent.parent
-    / 'glitchygames'
-    / 'examples'
-    / 'resources'
-    / 'sprites'
-    / 'static.toml',
+    ENGINE_PACKAGE_DIRECTORY / 'examples' / 'resources' / 'sprites' / 'static.toml',
 )
 
 BRAVE_ADVENTURER_GOLDEN = (

@@ -9,6 +9,10 @@ resolution-markers = [
 ]
 
 [manifest]
+members = [
+    "glitchygames",
+    "mr-muncher",
+]
 overrides = [{ name = "docstring-parser", specifier = ">=0.16" }]
 
 [[package]]
@@ -1056,6 +1060,11 @@ docs = [
     { name = "pymdown-extensions" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "mr-muncher" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aisuite", extras = ["all"], specifier = ">=0.1.14" },
@@ -1110,6 +1119,9 @@ requires-dist = [
     { name = "yamllint", marker = "extra == 'dev'", specifier = ">=1.38.0" },
 ]
 provides-extras = ["docs", "dev", "api"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "mr-muncher", editable = "src/games/mr-muncher" }]
 
 [[package]]
 name = "google-api-core"
@@ -2365,6 +2377,17 @@ sdist = { url = "https://files.pythonhosted.org/packages/fb/43/4783d5606de4f5e4b
 wheels = [
     { url = "https://files.pythonhosted.org/packages/be/1b/fc924a97a237adda47f15c1b0cc271639e6b181ab3f95500fbf060c79a69/mkdocstrings_python-2.0.10-py3-none-any.whl", hash = "sha256:4a3aaeebb25ba5ae57a8f9e75432fe4571984889602f2b2f7d672faa760e9062", size = 105538, upload-time = "2026-10-19T15:58:06.287Z" },
 ]
+
+[[package]]
+name = "mr-muncher"
+version = "1.0.0"
+source = { editable = "src/games/mr-muncher" }
+dependencies = [
+    { name = "glitchygames" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "glitchygames", editable = "." }]
 
 [[package]]
 name = "msgpack"

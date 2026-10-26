@@ -15,10 +15,15 @@ changed); running this script regenerates them unconditionally. The steps:
    changed, which graphed whatever the last commit happened to touch.);
 3. build a wily cache of the whole git history, in a temporary directory (``wily build -n``
    with the commit count; about a minute for this repository's history);
-4. graph each metric in ``METRICS`` for all ranked modules together (one line per module), with
+4. join each moved module's history (``join_moved_paths``): wily keys its history by file
+   path, so a module that moved (the engine's ``glitchygames/`` became ``src/glitchygames/``,
+   ``MOVED_PATH_PREFIXES``) would start a new series at the move. Each revision's measurements
+   under a former path are renamed to the current path in the cache, so the module's series
+   runs through the whole history;
+5. graph each metric in ``METRICS`` for all ranked modules together (one line per module), with
    plotly.js loaded from jsDelivr at the exact version plotly wrote (wily's ``--cdn-js`` names
    cdn.plot.ly; the graph pages would otherwise inline the whole 4.5 MB plotly.js each);
-5. write ``GRAPHS_SNIPPET_NAME``, the markdown docs/quality/complexity.md includes (pymdownx
+6. write ``GRAPHS_SNIPPET_NAME``, the markdown docs/quality/complexity.md includes (pymdownx
    snippets; mkdocs.yml's ``exclude_docs`` keeps it from becoming a page of its own). Without it
    the page builds with its own text only, so ``mkdocs build --strict`` passes either way.
 
@@ -71,7 +76,15 @@ LOG = logging.getLogger(__name__)
 TOP_MODULE_COUNT = 15
 
 # The package whose modules are ranked and graphed
-RANKED_PACKAGE = 'glitchygames'
+RANKED_PACKAGE = 'src/glitchygames'
+
+# Paths that moved: each revision's measurements under a former prefix are joined to the
+# current one (join_moved_paths), so a moved module's series is one line through its history.
+# The engine moved to src/ in 4ec9becd (plans/2026-10-24-workspace-packages.md)
+MOVED_PATH_PREFIXES: tuple[tuple[str, str], ...] = (('glitchygames/', 'src/glitchygames/'),)
+# wily's cache of git revisions (one <revision>.json each) and its index of them
+WILY_ARCHIVER_DIRECTORY_NAME = 'git'
+WILY_INDEX_NAME = 'index.json'
 
 # The radon block types whose complexity a module's total sums (radon also reports each class,
 # whose complexity repeats its methods')
@@ -273,6 +286,85 @@ def measure_top_modules(*, checkout: Path, report_path: Path, module_count: int)
     modules = rank_modules(radon_report=radon_report, module_count=module_count)
     # radon names modules with the platform's separator; wily's paths use /
     return [Path(module_path).as_posix() for module_path in modules]
+
+
+def current_path(*, path: str) -> str:
+    """Return where a measured file is now: its path with a moved prefix replaced.
+
+    Args:
+        path: A file's path as a revision measured it (``glitchygames/scenes/scene.py``).
+
+    Returns:
+        Its current path (``src/glitchygames/scenes/scene.py``), or ``path`` when it did not
+        move. wily names files with the platform's separator (backslashes on Windows), so a
+        prefix matches in the separator the path uses, and the result keeps it.
+
+    """
+    separator = '\\' if '\\' in path else '/'
+    for former_prefix, current_prefix in MOVED_PATH_PREFIXES:
+        former = former_prefix.replace('/', separator)
+        if path.startswith(former):
+            return current_prefix.replace('/', separator) + path.removeprefix(former)
+    return path
+
+
+def joined_operator_data(
+    *, operator_data: dict[str, dict[str, object]]
+) -> dict[str, dict[str, object]]:
+    """Return one revision's measurements with every former path renamed to its current one.
+
+    Args:
+        operator_data: A wily revision's ``operator_data``: each operator's measurements by
+            file path.
+
+    Returns:
+        The same measurements by current path. A revision measuring a file under both paths
+        keeps the current path's.
+
+    """
+    joined: dict[str, dict[str, object]] = {}
+    for operator, measurements in operator_data.items():
+        renamed: dict[str, object] = {}
+        for path, value in measurements.items():
+            moved_to = current_path(path=path)
+            # The current path's own measurement wins over a former path's
+            if moved_to == path or moved_to not in measurements:
+                renamed[moved_to] = value
+        joined[operator] = renamed
+    return joined
+
+
+def join_moved_paths(*, cache_directory: Path) -> int:
+    """Join each moved module's history in a built wily cache (``MOVED_PATH_PREFIXES``).
+
+    Every revision's measurements and the index's ``tracked_files`` name former paths by their
+    current ones, so ``wily graph`` draws a moved module's whole history as one series.
+
+    Args:
+        cache_directory: The built wily cache.
+
+    Returns:
+        How many revisions held measurements under a former path.
+
+    """
+    archiver_directory = cache_directory / WILY_ARCHIVER_DIRECTORY_NAME
+    joined_revisions = 0
+    for revision_path in sorted(archiver_directory.glob('*.json')):
+        revision = json.loads(revision_path.read_text(encoding='utf-8'))
+        if revision_path.name == WILY_INDEX_NAME:
+            for entry in revision:
+                entry['tracked_files'] = sorted({
+                    current_path(path=path) for path in entry.get('tracked_files', [])
+                })
+        else:
+            operator_data = revision['operator_data']
+            joined = joined_operator_data(operator_data=operator_data)
+            if joined == operator_data:
+                continue
+            joined_revisions += 1
+            revision['operator_data'] = joined
+        revision_path.write_text(json.dumps(revision), encoding='utf-8')
+    return joined_revisions
 
 
 def load_plotly_from_jsdelivr(*, html: str) -> str:
@@ -528,6 +620,8 @@ def _generate_into(
                 working_directory=checkout,
                 timeout_seconds=WILY_BUILD_TIMEOUT_SECONDS,
             )
+            joined_revisions = join_moved_paths(cache_directory=cache_directory)
+            LOG.info("Joined moved modules' histories in %d revisions", joined_revisions)
             graph_files: dict[str, str] = {}
             for metric, metric_label in METRICS:
                 graph_files[metric] = graph_file_name(metric=metric)

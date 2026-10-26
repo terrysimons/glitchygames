@@ -23,12 +23,6 @@
       inherited_members: true
       show_submodules: false
 
-::: glitchygames.examples.mr_muncher.game
-    options:
-      heading_level: 2
-      inherited_members: true
-      show_submodules: false
-
 ::: glitchygames.examples.paddleslap
     options:
       heading_level: 2

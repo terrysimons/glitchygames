@@ -1,4 +1,4 @@
-"""SDL defaults tests/conftest.py applies before pygame is imported: dummy drivers, no real pads."""
+"""SDL defaults tests/harness.py applies before pygame is imported: dummy drivers, no real pads."""
 
 import os
 

@@ -16,17 +16,17 @@ A Python 3.14 game engine built on Pygame with an event-driven architecture. Inc
 git clone https://github.com/terrysimons/glitchygames.git
 cd glitchygames
 
-# Install core dependencies
-uv sync
+# Install core dependencies (--all-packages: the workspace members too, src/games/mr-muncher)
+uv sync --all-packages
 
 # Install with dev extras (testing, linting, type checking, security scanning)
-uv sync --extra dev
+uv sync --extra dev --all-packages
 
 # Install with documentation extras (MkDocs)
-uv sync --extra docs
+uv sync --extra docs --all-packages
 
 # Install everything
-uv sync --all-extras
+uv sync --all-extras --all-packages
 ```
 
 ### Optional Dependency Groups
@@ -161,7 +161,7 @@ uv run glitchygames-client "blue dragon" --animation-language-model anthropic:cl
 
 ### Example Games
 
-`uv run paddleslap`, `uv run brave-adventurer`, `uv run brave-adventurer-papyrus`, `uv run clockwork-keep`, `uv run mr-muncher` and `uv run drawing-fire` start the example games in `glitchygames/examples/`.
+`uv run paddleslap`, `uv run brave-adventurer`, `uv run brave-adventurer-papyrus`, `uv run clockwork-keep`, `uv run mr-muncher` and `uv run drawing-fire` start the example games: Mr. Muncher is its own package in `src/games/mr-muncher/`, the others are still in `src/glitchygames/examples/`.
 
 ## Engine Options
 
@@ -329,13 +329,13 @@ uv run pytest --benchmark-only
 
 ```bash
 # Format code
-uv run ruff format glitchygames tests scripts noxfile.py
+uv run ruff format src tests scripts noxfile.py
 
 # Fix import ordering
-uv run ruff check --select I --fix glitchygames tests scripts noxfile.py
+uv run ruff check --select I --fix src tests scripts noxfile.py
 
 # Lint
-uv run ruff check glitchygames tests scripts noxfile.py
+uv run ruff check src tests scripts noxfile.py
 
 # Type check
 uv run basedpyright

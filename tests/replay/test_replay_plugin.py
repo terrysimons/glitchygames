@@ -22,6 +22,7 @@ from glitchygames.testing.replays import (
     bundled_demo_paths,
     game_entry_point,
     rebaseline_recording_headless,
+    recording_console_script,
     replay_recording_headless,
 )
 from tests.replay.replay_helpers import tamper_first_sprite_rect
@@ -336,6 +337,31 @@ def test_game_entry_point_of_an_unknown_console_script_raises():
         game_entry_point(console_script='no-such-game')
 
 
+def test_a_member_recording_of_a_distribution_without_one_console_script_is_refused(tmp_path):
+    """A member's recordings name one game: a distribution with several scripts names none."""
+    recording = tmp_path.joinpath(
+        'glitchygames', 'tests', *REPLAY_FIXTURES_PATH_PARTS, 'golden.jsonl.gz'
+    )
+
+    with pytest.raises(KeyError, match=r"'glitchygames' has \d+ console scripts, not one"):
+        recording_console_script(path=recording)
+
+
+def test_a_recording_whose_fixtures_are_not_under_tests_is_refused(tmp_path):
+    """Only <member>/tests/fixtures/replays/ names a member: another project's layout does not.
+
+    The plugin ships in the engine's wheel, so a project laid out otherwise
+    (``<project>/integration/fixtures/replays/``) must not be read as a member named after the
+    directory four levels up, even when a distribution of that name is installed.
+    """
+    recording = tmp_path.joinpath(
+        'mr-muncher', 'integration', *REPLAY_FIXTURES_PATH_PARTS, 'golden.jsonl.gz'
+    )
+
+    with pytest.raises(KeyError, match=r"above fixtures/ is 'integration', not 'tests'"):
+        recording_console_script(path=recording)
+
+
 class TestPluginInProcess:
     """The collector and the item, run in this interpreter with the child replay stubbed out."""
 
@@ -350,10 +376,25 @@ class TestPluginInProcess:
         result.stdout.fnmatch_lines(["*'no-such-game' is not a console script*"])
 
     def test_a_misplaced_recording_is_a_collection_error(self, pytester):
-        """A recording directly in fixtures/replays/ (no game directory) fails collection."""
+        """A recording directly in fixtures/replays/ of no workspace member fails collection.
+
+        Directly in ``fixtures/replays/`` is a member's layout: the directory above ``tests/``
+        names the member's distribution, and pytester's temporary directory is none.
+        """
         replays_directory = pytester.path.joinpath(*REPLAY_FIXTURES_PATH_PARTS)
         replays_directory.mkdir(parents=True)
         (replays_directory / 'stray.jsonl.gz').write_bytes(b'')
+
+        result = run_pytest_in_process(pytester=pytester)
+
+        result.assert_outcomes(errors=1)
+        result.stdout.fnmatch_lines([MISPLACED_RECORDING_LINE])
+
+    def test_a_recording_nested_below_a_game_directory_is_a_collection_error(self, pytester):
+        """A recording in neither layout (below a game's directory) fails collection."""
+        nested_directory = game_directory(pytester=pytester, console_script='paddleslap') / 'old'
+        nested_directory.mkdir()
+        (nested_directory / 'rally.jsonl.gz').write_bytes(b'')
 
         result = run_pytest_in_process(pytester=pytester)
 

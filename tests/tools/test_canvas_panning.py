@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for canvas panning (Ctrl+Shift+Arrow) and the canvas's single-frame save."""
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pygame
 import pytest
@@ -18,6 +18,13 @@ from glitchygames.bitmappy.panning import (
 )
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.testing.keys import qwerty_scancode
+from tests.harness import imported_engine_directory
+
+# The imported engine's directory (installed: never the source tree by accident)
+ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestStaticSaveKeepsSpriteMetadata:
@@ -67,7 +74,9 @@ class TestStaticSaveKeepsSpriteMetadata:
 
         from glitchygames.sprites import AnimatedSprite
 
-        source_file = Path('glitchygames/examples/resources/sprites/battle_axe.toml')
+        source_file = (
+            ENGINE_PACKAGE_DIRECTORY / 'examples' / 'resources' / 'sprites' / 'battle_axe.toml'
+        )
         self.canvas.animated_sprite = AnimatedSprite(str(source_file))
         saved_file = tmp_path / 'battle_axe.toml'
 

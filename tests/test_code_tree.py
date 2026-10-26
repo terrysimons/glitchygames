@@ -10,7 +10,10 @@ import pytest
 from glitchygames.code_tree import (
     LEDGER_DIRECTORY,
     commit_code_tree,
+    commit_is_on_origin_main,
+    is_measured_path,
     landed_code_trees,
+    origin_main_exists,
     staged_code_tree,
 )
 from glitchygames.process import run_command
@@ -63,15 +66,36 @@ def repository(tmp_path: Path) -> Path:
 
     """
     git(repository=tmp_path, arguments=['init', '--quiet'])
-    write(repository=tmp_path, relative_path='glitchygames/game.py', text='speed = 1\n')
+    write(repository=tmp_path, relative_path='src/glitchygames/game.py', text='speed = 1\n')
     write(repository=tmp_path, relative_path=f'{LEDGER_DIRECTORY}/first.json', text='{}\n')
     git(repository=tmp_path, arguments=['commit', '--quiet', '-m', 'First'])
     return tmp_path
 
 
+@pytest.mark.parametrize(
+    ('path', 'measured'),
+    [
+        ('src/glitchygames/world.py', True),
+        ('src/games/mr-muncher/src/mr_muncher/game.py', True),
+        ('src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz', True),
+        ('tests/fixtures/replays/paddleslap/golden.jsonl.gz', True),
+        ('uv.lock', True),
+        ('src/games/mr-muncher/tests/test_mr_muncher.py', False),
+        ('src/games/mr-muncher/tests/fixtures/sprites.toml', False),
+        ('tests/test_world.py', False),
+        ('README.md', False),
+        # Not a member: the engine's own package is not a layer
+        ('src/glitchygames/tests/helper.py', True),
+    ],
+)
+def test_is_measured_path_leaves_out_members_tests_but_their_recordings(path, measured):
+    """Under MEASURED_PATHS, less a member's tests/, but for its tests/fixtures/replays/."""
+    assert is_measured_path(path=path) is measured
+
+
 def test_the_staged_code_tree_is_the_commits_once_committed(repository):
     """What the hook measures before the commit is what the commit holds."""
-    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 2\n')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 2\n')
     staged = staged_code_tree(repository=repository)
     git(repository=repository, arguments=['commit', '--quiet', '-m', 'Faster'])
 
@@ -92,11 +116,13 @@ def test_ledger_rows_never_change_the_code_tree(repository):
 @pytest.mark.parametrize(
     'relative_path',
     [
-        'glitchygames/world.py',
-        'games/mr-muncher/mr_muncher/game.py',
-        'demos/joystick-demo/joystick_demo/demo.py',
-        'apps/bitmappy/bitmappy/editor.py',
+        'src/glitchygames/world.py',
+        'src/games/mr-muncher/mr_muncher/game.py',
+        'src/demos/joystick-demo/joystick_demo/demo.py',
+        'src/apps/bitmappy/bitmappy/editor.py',
         'tests/fixtures/replays/paddleslap/golden.jsonl.gz',
+        # A member's golden replay, in its own tests/fixtures/replays/
+        'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz',
         'uv.lock',
         'pyproject.toml',
     ],
@@ -111,7 +137,17 @@ def test_a_change_that_can_change_the_replays_changes_the_code_tree(repository, 
 
 @pytest.mark.parametrize(
     'relative_path',
-    ['README.md', 'BUGS.md', 'plans/future-features.md', 'docs/index.md', 'tests/test_world.py'],
+    [
+        'README.md',
+        'BUGS.md',
+        'plans/future-features.md',
+        'docs/index.md',
+        'tests/test_world.py',
+        # A member's tests (but its recordings) are tests too
+        'src/games/mr-muncher/tests/test_mr_muncher.py',
+        'src/games/mr-muncher/tests/conftest.py',
+        'src/demos/joystick-demo/tests/helpers/devices.py',
+    ],
 )
 def test_docs_plans_and_tests_leave_the_code_tree_alone(repository, relative_path):
     """A docs commit after the last measured one keeps the measured tree the one that lands."""
@@ -123,7 +159,7 @@ def test_docs_plans_and_tests_leave_the_code_tree_alone(repository, relative_pat
 
 def test_the_real_index_is_left_alone(repository):
     """The tree is computed on a copy of the index: nothing staged is unstaged."""
-    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 3\n')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 3\n')
     status_before = git(repository=repository, arguments=['status', '--porcelain'])
 
     staged_code_tree(repository=repository)
@@ -146,7 +182,7 @@ def test_landed_code_trees_name_the_commit_each_measured_tree_arrived_in(reposit
     """
     first_tree = commit_code_tree(repository=repository, commit='HEAD')
     first_commit = git(repository=repository, arguments=['rev-parse', 'HEAD'])
-    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 5\n')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 5\n')
     write(repository=repository, relative_path=f'{LEDGER_DIRECTORY}/fast.json', text='{}\n')
     git(repository=repository, arguments=['commit', '--quiet', '-m', 'Faster, measured'])
     faster_tree = commit_code_tree(repository=repository, commit='HEAD')
@@ -165,7 +201,7 @@ def test_landed_code_trees_name_the_commit_each_measured_tree_arrived_in(reposit
 
 def test_a_tree_measured_but_never_committed_has_not_landed(repository):
     """An intermediate commit's tree is not any row-adding commit's tree."""
-    write(repository=repository, relative_path='glitchygames/game.py', text='speed = 7\n')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 7\n')
     intermediate_tree = staged_code_tree(repository=repository)
     git(repository=repository, arguments=['commit', '--quiet', '-m', 'Unmeasured'])
 
@@ -194,3 +230,47 @@ def test_a_repository_with_nothing_staged_yet_has_the_empty_code_tree(tmp_path):
     empty_tree = git(repository=tmp_path, arguments=['hash-object', '-t', 'tree', '/dev/null'])
 
     assert staged_code_tree(repository=tmp_path) == empty_tree
+
+
+def test_there_is_no_origin_main_in_a_repository_without_that_ref(repository):
+    """A fresh clone without the remote ref, or a test repository."""
+    assert not origin_main_exists(repository=repository)
+
+
+def test_origin_main_exists_once_the_ref_does(repository):
+    """The remote-tracking ref makes it exist."""
+    commit = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    git(repository=repository, arguments=['update-ref', 'refs/remotes/origin/main', commit])
+
+    assert origin_main_exists(repository=repository)
+
+
+def test_a_commit_on_origin_main_is_on_it_and_a_branch_commit_is_not(repository):
+    """Equal to origin/main or one of its ancestors counts; a commit ahead of it does not."""
+    landed = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    git(repository=repository, arguments=['update-ref', 'refs/remotes/origin/main', landed])
+    write(repository=repository, relative_path='README.md', text='# branch work\n')
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Branch'])
+    branch_commit = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+
+    assert commit_is_on_origin_main(repository=repository, commit=landed)
+    assert not commit_is_on_origin_main(repository=repository, commit=branch_commit)
+
+
+def test_an_ancestor_of_origin_main_is_on_it(repository):
+    """An older commit of the branch has landed too."""
+    first = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    write(repository=repository, relative_path='README.md', text='# second\n')
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Second'])
+    second = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    git(repository=repository, arguments=['update-ref', 'refs/remotes/origin/main', second])
+
+    assert commit_is_on_origin_main(repository=repository, commit=first)
+
+
+def test_a_commit_this_repository_never_had_is_not_on_origin_main(repository):
+    """A row measured in another clone: its commit is unknown here, so it has not landed."""
+    commit = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    git(repository=repository, arguments=['update-ref', 'refs/remotes/origin/main', commit])
+
+    assert not commit_is_on_origin_main(repository=repository, commit='0' * 40)

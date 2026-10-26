@@ -11,7 +11,7 @@ from __future__ import annotations
 import ast
 import json
 import random
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
@@ -29,7 +29,17 @@ from glitchygames.randomness import (
     seed_engine_random,
     stream_seed,
 )
-from tests.ast_scanning import dynamic_import_name, import_bindings, qualified_name
+from tests.ast_scanning import (
+    PROJECT_ROOT,
+    dynamic_import_name,
+    import_bindings,
+    qualified_name,
+    scanned_source_files,
+    write_project_with_member_module,
+)
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 DRAW_COUNT = 20
 TEST_SEED = 123
@@ -457,21 +467,36 @@ def offending_randomness_file(tmp_path) -> Path:
 
 
 def test_package_draws_randomness_only_from_seeded_streams():
-    """No module in glitchygames/ uses randomness the master seed does not control.
+    """No module in glitchygames/ or a member package uses randomness the seed does not control.
 
     Gameplay randomness goes through random_stream / numpy_stream, so a seed reproduces a
     run (replay, golden traces). The allowed modules are listed with their reasons.
     """
-    package_root = Path(randomness.__file__).parent
     offenders = [
         offender
-        for source_path in sorted(package_root.rglob('*.py'))
-        if source_path.relative_to(package_root).as_posix()
-        not in UNSEEDED_RANDOMNESS_ALLOWED_MODULES
+        for allowlist_key, source_path in scanned_source_files(project_root=PROJECT_ROOT)
+        if allowlist_key not in UNSEEDED_RANDOMNESS_ALLOWED_MODULES
         for offender in unseeded_randomness(source_path)
     ]
 
     assert offenders == []
+
+
+def test_unseeded_randomness_in_a_member_package_is_reported_under_its_repository_path(tmp_path):
+    """The guard's walk reads a member's file: random.random() there is an offender."""
+    member_key = write_project_with_member_module(
+        project_root=tmp_path, source='import random\n\nroll = random.random()\n'
+    )
+
+    offenders = {
+        allowlist_key: unseeded_randomness(source_path)
+        for allowlist_key, source_path in scanned_source_files(project_root=tmp_path)
+        if allowlist_key not in UNSEEDED_RANDOMNESS_ALLOWED_MODULES
+        and unseeded_randomness(source_path)
+    }
+
+    assert list(offenders) == [member_key]
+    assert offenders[member_key][0].endswith(':3 random.random')
 
 
 def test_unseeded_randomness_scan_finds_every_kind(offending_randomness_file):

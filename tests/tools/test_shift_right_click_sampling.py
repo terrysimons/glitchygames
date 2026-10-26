@@ -31,7 +31,7 @@ def editor(mocker):
 def _hold_keys(*, scancodes=frozenset()):
     """Install this frame's polled input: the given keys held, the mouse idle.
 
-    The autouse ``reset_engine_sources`` fixture (tests/conftest.py) resets it after the test.
+    The autouse ``reset_engine_sources`` fixture (tests/harness.py) resets it after the test.
     """
     set_current_input(
         snapshot=InputSnapshot(

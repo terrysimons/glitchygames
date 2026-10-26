@@ -1,6 +1,6 @@
 {
   "typeCheckingMode": "strict",
-  "include": ["glitchygames", "tests", "scripts"],
+  "include": ["src/glitchygames", "src/games/mr-muncher", "tests", "scripts"],
   "exclude": ["**/__pycache__"],
   "stubPath": "typings",
   "defineConstant": { "DEBUG": true },
@@ -46,12 +46,12 @@
 
   "executionEnvironments": [
     {
-      "root": "glitchygames",
-      "extraPaths": ["scripts"]
+      "root": "src/glitchygames",
+      "extraPaths": ["src", "scripts"]
     },
     {
       "root": "tests",
-      "extraPaths": ["."],
+      "extraPaths": [".", "src", "src/games/mr-muncher"],
       "reportArgumentType": false,
       "reportCallIssue": false,
       "reportFunctionMemberAccess": false,
@@ -75,6 +75,37 @@
       "reportUnknownLambdaType": false,
       "reportUnusedVariable": false,
       "reportUnusedFunction": false
+    },
+    {
+      "root": "src/games/mr-muncher/tests",
+      "extraPaths": [".", "src", "src/games/mr-muncher"],
+      "reportArgumentType": false,
+      "reportCallIssue": false,
+      "reportFunctionMemberAccess": false,
+      "reportGeneralTypeIssues": false,
+      "reportIncompatibleMethodOverride": false,
+      "reportReturnType": false,
+      "reportUnnecessaryTypeIgnoreComment": false,
+      "reportUnknownMemberType": false,
+      "reportUnknownVariableType": false,
+      "reportUnknownArgumentType": false,
+      "reportUnknownParameterType": false,
+      "reportPrivateUsage": false,
+      "reportAttributeAccessIssue": false,
+      "reportOptionalMemberAccess": false,
+      "reportMissingTypeArgument": false,
+      "reportUnusedCallResult": false,
+      "reportImplicitOverride": false,
+      "reportImplicitStringConcatenation": false,
+      "reportMissingParameterType": false,
+      "reportUninitializedInstanceVariable": false,
+      "reportUnknownLambdaType": false,
+      "reportUnusedVariable": false,
+      "reportUnusedFunction": false
+    },
+    {
+      "root": "src/games/mr-muncher",
+      "extraPaths": ["src"]
     }
   ]
 }

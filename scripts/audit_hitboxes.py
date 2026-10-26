@@ -54,10 +54,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Priority tiers for sprite file discovery
 PRIORITY_TIERS: dict[int, list[Path]] = {
-    1: [PROJECT_ROOT / 'glitchygames' / 'examples' / 'brave_adventurer_papyrus' / 'sprites'],
-    2: [PROJECT_ROOT / 'glitchygames' / 'examples' / 'resources' / 'sprites'],
+    1: [
+        PROJECT_ROOT / 'src' / 'glitchygames' / 'examples' / 'brave_adventurer_papyrus' / 'sprites'
+    ],
+    2: [PROJECT_ROOT / 'src' / 'glitchygames' / 'examples' / 'resources' / 'sprites'],
     3: [
-        PROJECT_ROOT / 'glitchygames' / 'assets',
+        PROJECT_ROOT / 'src' / 'glitchygames' / 'assets',
         PROJECT_ROOT / 'sprites',
         PROJECT_ROOT / 'auto-generated' / 'sprites',
     ],

@@ -41,8 +41,8 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # What the diff compares (each that exists): the package and the scripts
-DIFF_PATHS = ('glitchygames', 'scripts')
-RANKED_PATH = 'glitchygames'
+DIFF_PATHS = ('src/glitchygames', 'scripts')
+RANKED_PATH = 'src/glitchygames'
 RANK_LIMIT = 20
 # wily diff exits 1 when it has changes to report
 WILY_DIFF_EXIT_STATUSES = frozenset({0, 1})

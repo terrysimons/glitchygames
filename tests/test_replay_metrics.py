@@ -18,15 +18,18 @@ from scripts import replay_metrics
 from scripts.replay_metrics import (
     PENDING_LEDGER_PATH,
     MeasureSettings,
+    UnreplayableRecording,
     clear_published,
     measure,
     metric_recordings,
+    rows_to_write,
     run,
 )
 
 from glitchygames.build_info import RevisionSource, SourceRevision, source_revision
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import run_command
+from glitchygames.recording_history import MEASUREMENT_RUNS_HEADER_FIELD
 from glitchygames.recording_metrics import (
     PUBLISHED_LEDGER_PATH,
     PUBLISHED_LEDGER_REF,
@@ -37,18 +40,20 @@ from glitchygames.recording_metrics import (
     read_ledger_file,
     read_row_files,
 )
+from glitchygames.tracing import read_trace
 from tests.replay.test_replay_plugin import REPO_FIXTURE
-from tests.test_recording_metrics import ledger_row
+from tests.test_recording_metrics import ledger_row, with_uncommitted_changes
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 GIT_TIMEOUT_SECONDS = 60.0
 
 
 def clean_revision() -> SourceRevision:
-    """Return this checkout's revision, as if it had no uncommitted changes.
+    """Return the imported engine's revision, as if it had no uncommitted changes.
 
-    The child rebaselines run on this checkout and record its commit; the tree's own state
-    (changed while developing, clean in CI) must not decide the tests.
+    The child rebaselines run the same installed engine and record its commit (``uv sync``: the
+    checkout's git HEAD; nox: the build stamp its test session's install was built with); the
+    tree's own state (changed while developing, clean in CI) must not decide the tests.
 
     Returns:
         The revision.
@@ -68,6 +73,32 @@ def copied_golden(*, project_root: Path) -> list[tuple[str, Path]]:
     target.parent.mkdir(parents=True)
     shutil.copy(REPO_FIXTURE, target)
     return [('paddleslap', target)]
+
+
+# A workspace member no environment installs, and its golden replay (relative to the project)
+UNINSTALLED_MEMBER_DIRECTORY = Path('src') / 'games' / 'glitchygames-not-installed-game'
+UNINSTALLED_MEMBER_GOLDEN = (
+    UNINSTALLED_MEMBER_DIRECTORY / 'tests' / 'fixtures' / 'replays' / 'golden.jsonl.gz'
+)
+
+
+def write_uninstalled_member(*, project_root: Path) -> None:
+    """Write a project whose one workspace member, with a golden replay, is not installed."""
+    member = project_root / UNINSTALLED_MEMBER_DIRECTORY
+    (member / 'src' / 'not_installed_game').mkdir(parents=True)
+    (project_root / 'pyproject.toml').write_text(
+        '[project]\nname = "stand-in"\n\n[tool.uv.workspace]\n'
+        f'members = ["{UNINSTALLED_MEMBER_DIRECTORY.as_posix()}"]\n',
+        encoding='utf-8',
+    )
+    (member / 'pyproject.toml').write_text(
+        '[project]\nname = "glitchygames-not-installed-game"\n\n'
+        '[tool.hatch.build.targets.wheel]\npackages = ["src/not_installed_game"]\n',
+        encoding='utf-8',
+    )
+    golden = project_root / UNINSTALLED_MEMBER_GOLDEN
+    golden.parent.mkdir(parents=True)
+    golden.write_text('recording\n', encoding='utf-8')
 
 
 def git(*, repository: Path, arguments: list[str]) -> str:
@@ -154,14 +185,30 @@ class TestTheRecordings:
 
     def test_this_projects_recordings(self):
         recordings = metric_recordings(project_root=PROJECT_ROOT)
-        paths = {path.relative_to(PROJECT_ROOT).as_posix() for _, path in recordings}
+        paths = {path.relative_to(PROJECT_ROOT).as_posix() for _, path in recordings.replayable}
         assert 'tests/fixtures/replays/paddleslap/golden.jsonl.gz' in paths
-        assert 'glitchygames/examples/paddleslap_demos/rally.jsonl.gz' in paths
+        assert 'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz' in paths
         assert (
             'mr-muncher',
-            PROJECT_ROOT / 'tests/fixtures/replays/mr-muncher/golden.jsonl.gz',
-        ) in (recordings)
-        assert all(console_script for console_script, _ in recordings)
+            PROJECT_ROOT / 'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz',
+        ) in (recordings.replayable)
+        assert all(console_script for console_script, _ in recordings.replayable)
+        assert not recordings.unreplayable
+
+    def test_a_member_that_is_not_installed_is_named_with_the_fix(self, tmp_path):
+        """A plain `uv sync` uninstalls the members: one line naming `uv sync --all-packages`."""
+        write_uninstalled_member(project_root=tmp_path)
+
+        recordings = metric_recordings(project_root=tmp_path)
+
+        assert recordings.replayable == ()
+        golden = tmp_path / UNINSTALLED_MEMBER_GOLDEN
+        [unreplayable] = recordings.unreplayable
+        assert unreplayable.path == golden
+        assert 'uv sync --all-packages' in unreplayable.reason
+        assert "'glitchygames-not-installed-game'" in unreplayable.reason
+        assert '\n' not in unreplayable.reason
+        assert str(golden) not in unreplayable.reason
 
 
 class TestMeasuringIntoRowFiles:
@@ -210,11 +257,26 @@ class TestMeasuringIntoRowFiles:
         rows = read_row_files(directory=rows_directory)
         measured = [row for row in rows if row.origin == LedgerOrigin.REPLAY_METRICS]
         recorded = [row for row in rows if row.origin == LedgerOrigin.RECORDING]
-        # Only the run just measured names the code tree: the recording's own runs are history
+        # Only the run just measured names the code tree; this directory is no repository with
+        # an origin/main, so none of the recording's own (history) runs has landed: none written
         assert [row.code_tree for row in measured] == [self.TREE]
-        assert recorded
-        assert all(row.code_tree is None for row in recorded)
+        assert recorded == []
         assert not measured[0].from_uncommitted_changes
+
+    def test_a_missing_origin_main_is_said_once(self, tmp_path, capsys):
+        project_root = tmp_path / 'project'
+
+        self.measure_tree(
+            project_root=project_root,
+            recordings=copied_golden(project_root=project_root),
+            pending=tmp_path / 'pending.jsonl',
+            rows_directory=tmp_path / 'replay-ledger',
+            code_tree=self.TREE,
+        )
+
+        output = capsys.readouterr().out
+        assert output.count('origin/main') == 1
+        assert 'no history rows written' in output
 
     def test_the_same_code_tree_is_measured_once_per_machine(self, tmp_path):
         project_root = tmp_path / 'project'
@@ -251,8 +313,178 @@ class TestMeasuringIntoRowFiles:
         assert 'code tree 0123456789ab' in summary
 
 
+class TestRowsToWrite:
+    """The rows a measurement writes: the newest run, and history runs that have landed."""
+
+    @pytest.fixture
+    def landed_repository(self, tmp_path):
+        """Return a repository whose origin/main is its first commit, with one commit ahead.
+
+        Returns:
+            ``(repository, landed commit, branch commit)``.
+
+        """
+        git(repository=tmp_path, arguments=['init', '--quiet'])
+        (tmp_path / 'README').write_text('one\n', encoding='utf-8')
+        git(repository=tmp_path, arguments=['add', 'README'])
+        git(repository=tmp_path, arguments=['commit', '--quiet', '-m', 'One'])
+        landed = git(repository=tmp_path, arguments=['rev-parse', 'HEAD']).strip()
+        git(repository=tmp_path, arguments=['update-ref', 'refs/remotes/origin/main', landed])
+        (tmp_path / 'README').write_text('two\n', encoding='utf-8')
+        git(repository=tmp_path, arguments=['commit', '--quiet', '-am', 'Two'])
+        branch = git(repository=tmp_path, arguments=['rev-parse', 'HEAD']).strip()
+        return tmp_path, landed, branch
+
+    def history_row(self, *, commit, measured_at='2026-10-20T10:00:00+00:00'):
+        """Return a row of a run the recording held.
+
+        Returns:
+            The row.
+
+        """
+        return ledger_row(commit=commit, measured_at=measured_at).model_copy(
+            update={'origin': LedgerOrigin.RECORDING}
+        )
+
+    def test_a_history_run_measured_on_a_landed_commit_is_written(self, landed_repository):
+        repository, landed, _ = landed_repository
+        newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
+        history = self.history_row(commit=landed)
+
+        written = rows_to_write(
+            rows=[newest, history], held_keys=set(), repository=repository, origin_main_present=True
+        )
+
+        assert written == [newest, history]
+
+    def test_a_history_run_measured_on_a_commit_not_on_origin_main_is_not(self, landed_repository):
+        repository, _, branch = landed_repository
+        newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
+
+        written = rows_to_write(
+            rows=[newest, self.history_row(commit=branch)],
+            held_keys=set(),
+            repository=repository,
+            origin_main_present=True,
+        )
+
+        assert written == [newest]
+
+    def test_a_history_run_with_uncommitted_changes_is_not_written(self, landed_repository):
+        repository, landed, _ = landed_repository
+        dirty = self.history_row(commit=landed)
+        dirty = dirty.model_copy(update={'run': with_uncommitted_changes(dirty.run)})
+        newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
+
+        written = rows_to_write(
+            rows=[newest, dirty], held_keys=set(), repository=repository, origin_main_present=True
+        )
+
+        assert written == [newest]
+
+    def test_a_history_run_of_an_unknown_commit_is_not_written(self, landed_repository):
+        repository, _, _ = landed_repository
+        newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
+
+        written = rows_to_write(
+            rows=[newest, self.history_row(commit=None)],
+            held_keys=set(),
+            repository=repository,
+            origin_main_present=True,
+        )
+
+        assert written == [newest]
+
+    def test_without_origin_main_no_history_run_is_written(self, landed_repository):
+        repository, landed, _ = landed_repository
+        newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
+
+        written = rows_to_write(
+            rows=[newest, self.history_row(commit=landed)],
+            held_keys=set(),
+            repository=repository,
+            origin_main_present=False,
+        )
+
+        assert written == [newest]
+
+    def test_a_run_held_under_a_moved_recordings_old_path_is_not_written_again(
+        self, landed_repository
+    ):
+        repository, landed, _ = landed_repository
+        old_path = 'glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+        new_path = 'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+        held = ledger_row(recording=old_path, commit=landed)
+        again = ledger_row(recording=new_path, commit=landed)
+        newest = ledger_row(recording=new_path, measured_at='2026-10-25T10:00:00+00:00')
+
+        written = rows_to_write(
+            rows=[newest, again],
+            held_keys={held.held_key},
+            repository=repository,
+            origin_main_present=True,
+        )
+
+        assert written == [newest]
+
+
+class TestHistoryRunsInThePendingFile:
+    """The pending file is published too: it takes the same landed history runs as row files."""
+
+    def measure_into_pending(self, *, tmp_path):
+        """Measure the golden into a pending file (no rows directory).
+
+        Returns:
+            The pending rows.
+
+        """
+        project_root = tmp_path / 'project'
+        measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=tmp_path / 'pending.jsonl',
+                revision=clean_revision(),
+                force=False,
+                allow_dirty=False,
+            ),
+            recordings=copied_golden(project_root=project_root),
+            published_text='',
+        )
+        return read_ledger_file(path=tmp_path / 'pending.jsonl').rows
+
+    def test_a_history_run_on_a_commit_not_on_origin_main_is_not_appended(self, tmp_path, capsys):
+        rows = self.measure_into_pending(tmp_path=tmp_path)
+
+        assert [row.origin for row in rows] == [LedgerOrigin.REPLAY_METRICS]
+        assert capsys.readouterr().out.count('origin/main') == 1
+
+    def test_a_history_run_on_a_commit_on_origin_main_is_appended(self, mocker, tmp_path):
+        mocker.patch.object(replay_metrics, 'origin_main_exists', return_value=True)
+        mocker.patch.object(replay_metrics, 'commit_is_on_origin_main', return_value=True)
+
+        rows = self.measure_into_pending(tmp_path=tmp_path)
+
+        assert LedgerOrigin.RECORDING in {row.origin for row in rows}
+
+
 class TestMeasuring:
     """Each recording is rebaselined into a temporary file and its runs become pending rows."""
+
+    @pytest.fixture(autouse=True)
+    def history_has_landed(self, mocker):
+        """Treat every recorded run as landed (the landed rules have their own tests above)."""
+        mocker.patch.object(replay_metrics, 'origin_main_exists', return_value=True)
+        mocker.patch.object(replay_metrics, 'commit_is_on_origin_main', return_value=True)
+
+    def golden_runs_with_a_commit(self):
+        """Return how many runs the golden holds that name a commit (the others are not landed).
+
+        Returns:
+            The count.
+
+        """
+        runs = read_trace(path=REPO_FIXTURE)[MEASUREMENT_RUNS_HEADER_FIELD]
+        return sum(1 for run in runs if run.get('source_revision'))
 
     def test_a_measurement_appends_rows_and_a_second_one_skips(self, tmp_path, capsys):
         project_root = tmp_path / 'project'
@@ -274,7 +506,7 @@ class TestMeasuring:
 
         assert result.exit_code == ExitCode.SUCCESS
         rows = read_ledger_file(path=pending).rows
-        measured, recorded = rows
+        measured, recorded, *older_recorded = rows
         assert measured.origin == LedgerOrigin.REPLAY_METRICS
         assert measured.recording == 'tests/fixtures/replays/paddleslap/golden.jsonl.gz'
         assert measured.console_script == 'paddleslap'
@@ -285,6 +517,8 @@ class TestMeasuring:
         assert not measured.run.processing_paced
         assert measured.run.machine_state is not None
         assert recorded.origin == LedgerOrigin.RECORDING
+        # One recorded row per run the golden holds, the measurement on top
+        assert len(older_recorded) + 1 == self.golden_runs_with_a_commit()
         assert 'tests/fixtures/replays/paddleslap/golden.jsonl.gz: 622 frames' in (
             capsys.readouterr().out
         )
@@ -413,7 +647,36 @@ class TestMeasuring:
         assert result.exit_code == ExitCode.INTERNAL_ERROR
         assert result.failures == ('tests/fixtures/replays/paddleslap/broken.jsonl.gz',)
         assert 'UNUSABLE_INPUT' in capsys.readouterr().err
-        assert len(read_ledger_file(path=pending).rows) == 2
+        assert len(read_ledger_file(path=pending).rows) == 1 + self.golden_runs_with_a_commit()
+
+    def test_an_unreplayable_recording_is_one_line_and_the_others_are_measured(
+        self, tmp_path, capsys
+    ):
+        project_root = tmp_path / 'project'
+        recordings = copied_golden(project_root=project_root)
+        missing = project_root / UNINSTALLED_MEMBER_GOLDEN
+        pending = tmp_path / 'pending.jsonl'
+        result = measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=pending,
+                revision=clean_revision(),
+                force=False,
+                allow_dirty=False,
+            ),
+            recordings=recordings,
+            unreplayable=[
+                UnreplayableRecording(path=missing, reason='not installed: uv sync --all-packages')
+            ],
+            published_text='',
+        )
+        assert result.exit_code == ExitCode.INTERNAL_ERROR
+        assert result.failures == (UNINSTALLED_MEMBER_GOLDEN.as_posix(),)
+        error_lines = capsys.readouterr().err.splitlines()
+        assert error_lines == [
+            f'{UNINSTALLED_MEMBER_GOLDEN.as_posix()}: not installed: uv sync --all-packages'
+        ]
+        assert len(read_ledger_file(path=pending).rows) == 1 + self.golden_runs_with_a_commit()
 
     def test_a_replay_of_another_commit_is_a_failure(self, tmp_path, capsys):
         project_root = tmp_path / 'project'
@@ -477,7 +740,7 @@ class TestTheCommandLine:
         assert run(arguments=['measure', *arguments]) == ExitCode.SUCCESS
         rows = read_ledger_file(path=pending).rows
         assert {row.recording for row in rows} == {
-            'glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+            'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
         }
         assert 'Measured 1 recording' in capsys.readouterr().out
         # Nothing published: clearing the published rows keeps every pending one

@@ -1,6 +1,6 @@
 """Base test class and real-object builders for film strip tests.
 
-Every test runs on the real pygame display that tests/conftest.py
+Every test runs on the real pygame display that tests/harness.py
 (``ensure_pygame_graceful_quit``) opens, so these helpers build real sprites, frames and
 editor scenes: a film strip draws into real surfaces and a rendering bug fails the test.
 """

@@ -66,7 +66,7 @@ SIZE = (160, 120)
 def configured_background(request) -> BackgroundPattern:
     """Run a test once per background the run can be configured with (--default-background).
 
-    The harness puts the default pattern back after the test (tests/conftest.py).
+    The harness puts the default pattern back after the test (tests/harness.py).
 
     Returns:
         The pattern in effect.

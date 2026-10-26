@@ -13,6 +13,7 @@ It writes, into the output directory:
                       the clipboard, and the player's own files (a file picker, downloads)
   touch_controls.js   on-screen buttons on touch devices (the layout in boot_config.json)
   boot_config.json    which game to start, and its command-line arguments
+  <package>.zip       a member game's own package (mr_muncher.zip), unpacked beside the engine's
   glitchygames.zip    the engine package, without what only desktop tools use (the API server
                       and its services, test helpers, project templates, the large PNG assets,
                       and Bitmappy unless the build is Bitmappy itself); unpacked by PyScript
@@ -29,10 +30,13 @@ under ~/.cache/glitchygames-pyodide-build; the first build takes several minutes
 and an index.html linking them, which ``nox -s docs-deploy`` publishes with the docs as play/
 (scripts/mkdocs_hooks.py).
 
+It imports ``scripts.*`` and runs as ``python -m scripts.build_browser_bundle`` from the
+repository root.
+
 Usage:
-    uv run python scripts/build_browser_bundle.py paddleslap --serve
-    uv run python scripts/build_browser_bundle.py all --serve
-    uv run python scripts/build_browser_bundle.py mr-muncher --output build/browser/mr-muncher \\
+    uv run python -m scripts.build_browser_bundle paddleslap --serve
+    uv run python -m scripts.build_browser_bundle all --serve
+    uv run python -m scripts.build_browser_bundle mr-muncher --output build/browser/mr-muncher \\
         -- --target-fps 30
 """
 
@@ -55,8 +59,10 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import override
 
+from scripts.workspace_packages import workspace_members
+
 REPOSITORY_DIRECTORY = Path(__file__).resolve().parent.parent
-PACKAGE_DIRECTORY = REPOSITORY_DIRECTORY / 'glitchygames'
+PACKAGE_DIRECTORY = REPOSITORY_DIRECTORY / 'src' / 'glitchygames'
 BROWSER_DIRECTORY = REPOSITORY_DIRECTORY / 'browser'
 PYGAME_CE_DIRECTORY = REPOSITORY_DIRECTORY / 'third_party' / 'pygame-ce'
 WHEEL_BUILD_SCRIPT = Path('buildconfig') / 'glitchygames' / 'build_pyodide_wheel.sh'
@@ -105,6 +111,9 @@ class GameSpecification:
         scene_class: The scene class GameEngine is constructed with.
         title: The page title.
         included_subpackages: Subpackages of EXCLUDED_SUBPACKAGES this one needs (Bitmappy).
+        member_package: The import package of the workspace member holding the game's code
+            (``mr_muncher``); the bundle ships it as ``<member_package>.zip``, apart from the
+            engine's archive. None for a game inside the engine package.
 
     """
 
@@ -112,6 +121,7 @@ class GameSpecification:
     scene_class: str
     title: str
     included_subpackages: frozenset[str] = frozenset()
+    member_package: str | None = None
 
 
 # The keys a touch button can press, by DOM KeyboardEvent.code: the event's key, its legacy
@@ -258,9 +268,10 @@ GAMES: dict[str, GameSpecification] = {
         title='Clockwork Keep',
     ),
     'mr-muncher': GameSpecification(
-        module='glitchygames.examples.mr_muncher.game',
+        module='mr_muncher.game',
         scene_class='MrMuncherScene',
         title='Mr. Muncher',
+        member_package='mr_muncher',
     ),
     'drawing-fire': GameSpecification(
         module='glitchygames.examples.drawing_fire.game',
@@ -322,7 +333,9 @@ def write_engine_archive(
     excluded_subpackages: frozenset[str] = EXCLUDED_SUBPACKAGES,
     engine_version: str | None = None,
 ) -> int:
-    """Zip the bundled package files as ``glitchygames/...`` with fixed timestamps.
+    """Zip a package's bundled files (the engine's or a member game's) with fixed timestamps.
+
+    Entries are named after ``package_directory`` (``glitchygames/...``, ``mr_muncher/...``).
 
     With ``engine_version``, the archive also holds the package's metadata
     (``glitchygames-<version>.dist-info/METADATA``): the package is unpacked, not installed, and
@@ -371,8 +384,13 @@ def installed_engine_version() -> str | None:
         return None
 
 
-def pyscript_config(*, wheel_name: str) -> str:
+def pyscript_config(*, wheel_name: str, member_package: str | None = None) -> str:
     """Return pyscript.toml: our pygame-ce wheel, the engine's packages and its archive.
+
+    Args:
+        wheel_name: The pygame-ce wheel's file name.
+        member_package: The import package of a workspace member game, listed as its own
+            archive beside the engine's.
 
     Returns:
         The TOML text.
@@ -380,6 +398,7 @@ def pyscript_config(*, wheel_name: str) -> str:
     """
     packages = [f'./wheels/{wheel_name}', *PYODIDE_PACKAGES]
     package_lines = ''.join(f'  "{package}",\n' for package in packages)
+    member_line = '' if member_package is None else f'"./{member_package}.zip" = "./*"\n'
     module_lines = ''.join(f'"./{module}" = "./{module}"\n' for module in BROWSER_MODULES)
     return (
         '# Written by scripts/build_browser_bundle.py\n'
@@ -387,6 +406,7 @@ def pyscript_config(*, wheel_name: str) -> str:
         '\n'
         '[files]\n'
         '"./glitchygames.zip" = "./*"\n'
+        f'{member_line}'
         f'{module_lines}'
         '"./boot_config.json" = "./boot_config.json"\n'
     )
@@ -483,6 +503,27 @@ def build_wheel(*, pygame_ce_directory: Path) -> Path:
     return wheel_directory / str(info['wheel'])
 
 
+def member_package_directory(*, import_package: str) -> Path:
+    """Return the source directory of a workspace member's import package.
+
+    Args:
+        import_package: The package's import name (``mr_muncher``).
+
+    Returns:
+        The directory.
+
+    Raises:
+        LookupError: If no workspace member holds the package.
+
+    """
+    for member in workspace_members(project_root=REPOSITORY_DIRECTORY):
+        for package_directory in member.package_directories:
+            if package_directory.name == import_package:
+                return package_directory
+    message = f'No workspace member holds the package {import_package}'
+    raise LookupError(message)
+
+
 def write_bundle(
     *, game: str, output_directory: Path, wheel_path: Path, arguments: list[str]
 ) -> None:
@@ -499,7 +540,8 @@ def write_bundle(
         render_page(template=template, game=game), encoding='utf-8'
     )
     (output_directory / 'pyscript.toml').write_text(
-        pyscript_config(wheel_name=wheel_path.name), encoding='utf-8'
+        pyscript_config(wheel_name=wheel_path.name, member_package=GAMES[game].member_package),
+        encoding='utf-8',
     )
     (output_directory / 'boot_config.json').write_text(
         json.dumps(boot_config(game=game, arguments=arguments), indent=2) + '\n', encoding='utf-8'
@@ -510,6 +552,13 @@ def write_bundle(
         excluded_subpackages=EXCLUDED_SUBPACKAGES - GAMES[game].included_subpackages,
         engine_version=installed_engine_version(),
     )
+    member_package = GAMES[game].member_package
+    if member_package is not None:
+        write_engine_archive(
+            package_directory=member_package_directory(import_package=member_package),
+            archive_path=output_directory / f'{member_package}.zip',
+            excluded_subpackages=frozenset(),
+        )
     report(f'{output_directory}: {GAMES[game].title}, {file_count} engine files, {wheel_path.name}')
 
 

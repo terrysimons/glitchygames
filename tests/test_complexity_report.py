@@ -48,20 +48,20 @@ def working_tree_state(*, repository: Path) -> tuple[str, str, str]:
     """
     return (
         git(repository=repository, arguments=['status', '--porcelain']),
-        (repository / 'glitchygames' / 'simple.py').read_text(encoding='utf-8'),
+        (repository / 'src' / 'glitchygames' / 'simple.py').read_text(encoding='utf-8'),
         git(repository=repository, arguments=['worktree', 'list']),
     )
 
 
 def test_the_report_compares_the_working_tree_without_changing_it(fixture_repository):
-    (fixture_repository / 'glitchygames' / 'simple.py').write_text(
+    (fixture_repository / 'src' / 'glitchygames' / 'simple.py').write_text(
         EDITED_SIMPLE_MODULE, encoding='utf-8'
     )
     before = working_tree_state(repository=fixture_repository)
 
     report = posix_paths(make_complexity_report(project_root=fixture_repository, rank=False))
 
-    assert 'glitchygames/simple.py' in report
+    assert 'src/glitchygames/simple.py' in report
     # Compared with HEAD, where branchy.py already is what it is now: unchanged, not reported
     assert 'branchy' not in report
     assert working_tree_state(repository=fixture_repository) == before
@@ -72,7 +72,7 @@ def test_the_report_can_rank_the_modules(fixture_repository):
 
     # Ranked at HEAD, where branchy.py's complexity is 3 (1 at the first commit)
     # (the table's border is | on Windows and a box-drawing line elsewhere)
-    assert re.search(r'glitchygames/branchy\.py\s*[|\u2502]\s*3\b', report)
+    assert re.search(r'src/glitchygames/branchy\.py\s*[|\u2502]\s*3\b', report)
 
 
 def test_main_prints_the_report(fixture_repository, mocker):
@@ -81,7 +81,7 @@ def test_main_prints_the_report(fixture_repository, mocker):
 
     main(['--rank'])
 
-    assert 'glitchygames/branchy.py' in posix_paths(output.getvalue())
+    assert 'src/glitchygames/branchy.py' in posix_paths(output.getvalue())
 
 
 def test_main_exits_internal_error_when_a_tool_fails(fixture_repository, mocker):

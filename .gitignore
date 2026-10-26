@@ -191,7 +191,7 @@ safety-report.json
 *.orig
 
 # Personal sprite work kept on disk, outside git (move any you want into
-# glitchygames/examples/resources/sprites/ to track it)
+# src/glitchygames/examples/resources/sprites/ to track it)
 /bkp/
 /slime-jump*.toml
 /bomb-animation.toml2
@@ -203,4 +203,4 @@ safety-report.json
 /leprechaun2-128x128.png
 
 # Build stamp: written by nox -s build-wheel / build-binary, removed after (glitchygames/build_info.py)
-glitchygames/_build_info.json
+src/glitchygames/_build_info.json

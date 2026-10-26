@@ -34,6 +34,7 @@ from glitchygames.build_info import (
 )
 from glitchygames.process import TimeoutExpired, run_command
 from glitchygames.recording_history import MeasurementRun, latest_measurement_run
+from tests.harness import CHECKOUT_ENGINE_DIRECTORY
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -95,10 +96,10 @@ class TestGitCheckout:
     """A package whose files git tracks: git answers, always current."""
 
     def test_this_engine_running_from_its_checkout_names_head(self):
-        revision = source_revision()
+        revision = source_revision(package_directory=CHECKOUT_ENGINE_DIRECTORY)
 
         assert revision.source is RevisionSource.GIT_CHECKOUT
-        repository = build_info.PACKAGE_DIRECTORY
+        repository = CHECKOUT_ENGINE_DIRECTORY
         assert revision.commit == _git('rev-parse', 'HEAD', directory=repository)
         assert revision.committed_at == _git('log', '-1', '--format=%cI', directory=repository)
         status = _git('status', '--porcelain', '--untracked-files=no', directory=repository)

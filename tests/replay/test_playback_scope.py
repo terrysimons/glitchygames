@@ -22,6 +22,7 @@ from glitchygames.examples import joystick_demo, paddleslap
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, ReplayDeviceRegistry
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.live_sources import LiveSources
+from glitchygames.logical_names import logical_name
 from glitchygames.randomness import random_stream
 from glitchygames.recording import (
     EVENT_BATCHES_FIELD,
@@ -478,6 +479,22 @@ class TestPlaybackErrors:
             is joystick_demo.Game
         )
 
+    def test_a_scene_start_naming_a_logical_name_finds_its_scene(self):
+        assert (
+            find_scene_class(
+                name='CountingScene',
+                module='somewhere.else',
+                logical=logical_name(scene_class=CountingScene),
+            )
+            is CountingScene
+        )
+
+    def test_a_scene_start_naming_another_logical_name_is_refused(self):
+        assert (
+            find_scene_class(name='CountingScene', module=None, logical='games.other:CountingScene')
+            is None
+        )
+
     def test_without_an_exact_match_a_unique_name_is_used(self):
         """A start without a module (older recordings), or from a game run as __main__."""
         assert find_scene_class(name='CountingScene', module=None) is CountingScene
@@ -486,6 +503,21 @@ class TestPlaybackErrors:
     def test_a_unique_name_from_another_recorded_module_is_refused(self):
         """A recorded module that is neither absent nor __main__ must match: another game's."""
         assert find_scene_class(name='CountingScene', module='some_other_game.scenes') is None
+
+    def test_a_rebaseline_finds_an_old_format_start_of_a_moved_scene_by_qualified_name(self):
+        """Without a logical name, a rebaseline lets the module differ: the scene moved."""
+        assert (
+            find_scene_class(
+                name='CountingScene', module='some_other_game.scenes', is_rebaseline=True
+            )
+            is CountingScene
+        )
+
+    def test_a_rebaseline_still_refuses_a_qualified_name_several_loaded_scenes_share(self, caplog):
+        assert (
+            find_scene_class(name='Game', module='a_moved_game.scenes', is_rebaseline=True) is None
+        )
+        assert 'Several scene classes are named Game' in caplog.text
 
     def test_a_loaded_scene_run_as_main_matches_its_recorded_module_by_name(self):
         """The loaded class defined in __main__ (a game file run as a script) matches by name."""
@@ -503,13 +535,17 @@ class TestPlaybackErrors:
         start = SceneStart.from_json(frames[0][SCENE_START_FIELD])
         assert start.scene_module == CountingScene.__module__
         assert start.scene_class == CountingScene.__qualname__
+        assert start.scene == logical_name(scene_class=CountingScene)
 
     def test_a_start_recorded_without_a_module_still_reads(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         _header, frames = recorded_trace(path=recording_path)
         start_record = dict(frames[0][SCENE_START_FIELD])
         del start_record['scene_module']
-        assert SceneStart.from_json(start_record).scene_module is None
+        del start_record['scene']
+        old_start = SceneStart.from_json(start_record)
+        assert old_start.scene_module is None
+        assert old_start.scene is None
 
 
 class TestPlaybackSourcesDefersToTheInstalledDoors:
