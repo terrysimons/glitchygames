@@ -3,7 +3,7 @@
 pytest skips tests without any warning when a directory matches a norecursedirs pattern
 (matched against directory *names* at any depth, not paths) or when a file's name does
 not match python_files. Both have happened: norecursedirs = ["examples"] once excluded
-tests/examples/ for months.
+the engine's examples tests (tests/examples/, deleted since) for months.
 """
 
 import ast
@@ -13,6 +13,8 @@ import json
 import re
 import tomllib
 from pathlib import Path
+
+from scripts.git_checkout import run_git
 
 from tests.ast_scanning import import_bindings, qualified_name
 from tests.harness import CHECKOUT_ENGINE_DIRECTORY, imported_engine_directory
@@ -881,4 +883,181 @@ def test_a_test_editing_sys_path_is_found(tmp_path):
         'src/games/space-game/tests/test_member_edit.py:3',
         'src/games/space-game/tests/test_member_edit.py:4',
         'tests/test_root_edit.py:2',
+    ]
+
+
+# `glitchygames.examples` (a module path) or `glitchygames/examples` (a directory path): the
+# engine's examples package, deleted when the last demo became a workspace member (Part 3 of
+# plans/2026-10-24-workspace-packages.md)
+FORMER_EXAMPLES_REFERENCE = re.compile(r'glitchygames[./]examples\b')
+# File types the guard reads: code, configuration and documentation
+FORMER_EXAMPLES_SCANNED_SUFFIXES = frozenset({
+    '.py',
+    '.mjs',
+    '.toml',
+    '.yml',
+    '.yaml',
+    '.cfg',
+    '.md',
+    '.html',
+})
+# Tracked directories that are history, not code, configuration or living documentation: finished
+# plans (the living ones are scanned below through living_documentation_lines) and the replay
+# ledger's rows, which record the recordings' paths as they were measured
+FORMER_EXAMPLES_HISTORY_DIRECTORIES = ('plans', 'quality', '.superpowers')
+# The only files that may still name the deleted package, each for a reason that is history on
+# purpose. A path is listed (never a pattern), so a new reference anywhere else is found.
+FORMER_EXAMPLES_EXEMPT_PATHS: dict[str, str] = {
+    'src/glitchygames/recording_metrics.py': (
+        'RECORDING_PATH_RENAMES keys: the old paths of the recordings that moved'
+    ),
+    'src/demos/dt-demo/tests/test_dt_demo_after_the_move.py': 'the move out of the engine',
+    'src/demos/joystick-demo/tests/test_joystick_demo_after_the_move.py': (
+        'the move out of the engine'
+    ),
+    'src/demos/text-input-demo/tests/test_text_input_demo_after_the_move.py': (
+        'the move out of the engine'
+    ),
+    'src/games/brave-adventurer/tests/test_brave_adventurer_after_the_move.py': (
+        'the move out of the engine'
+    ),
+    'src/games/clockwork-keep/tests/test_clockwork_keep_after_the_move.py': (
+        'the move out of the engine'
+    ),
+    'src/games/drawing-fire/tests/test_drawing_fire_after_the_move.py': (
+        'the move out of the engine'
+    ),
+    'src/games/mr-muncher/tests/test_logical_names_after_the_move.py': (
+        'the move out of the engine'
+    ),
+    'src/games/paddleslap/tests/test_paddleslap_after_the_move.py': 'the move out of the engine',
+    'src/demos/dt-demo/src/dt_demo/__main__.py': (
+        'docstring: the old python -m command, kept as history'
+    ),
+    'src/demos/joystick-demo/src/joystick_demo/__main__.py': (
+        'docstring: the old python -m command, kept as history'
+    ),
+    'src/demos/text-input-demo/src/text_input_demo/__main__.py': (
+        'docstring: the old python -m command, kept as history'
+    ),
+    'src/games/paddleslap/src/paddleslap/__main__.py': (
+        'docstring: the old python -m command, kept as history'
+    ),
+    'tests/world/test_gameplay_replay.py': (
+        'old-format stand-ins: recordings whose header names the module as it was'
+    ),
+    'tests/replay/test_replay_plugin.py': (
+        'old-format stand-in: a recording whose header names the module as it was'
+    ),
+    'tests/test_recording_report.py': (
+        'the golden replay is old-format: its scene start names the module as it was'
+    ),
+    'tests/test_replay_metrics.py': (
+        'old-format recordings and the ledger rows keyed by their old paths'
+    ),
+    'docs/architecture/game_packages.md': (
+        'the recipe for moving a game out of the engine: its history lines name where games were'
+    ),
+    'docs/games/clockwork_keep.md': (
+        'describes test_clockwork_keep_after_the_move.py, which asserts the old package is gone'
+    ),
+    'plans/2026-10-24-workspace-packages.md': 'the master plan: the decisions and the history',
+    'tests/test_workspace_packages.py': (
+        'test_the_engines_examples_directory_is_gone: names the deleted directory to check it'
+    ),
+    'tests/test_suite_collection.py': 'this guard: its regex, exemptions and examples',
+}
+
+
+def _tracked_paths(*, project_root: Path) -> list[str]:
+    """Return the paths git tracks in ``project_root`` (ignored and untracked files are not)."""
+    returncode, listing = run_git(arguments=['ls-files', '-z'], directory=project_root)
+    assert returncode == 0, listing
+    return [tracked_path for tracked_path in listing.split('\0') if tracked_path]
+
+
+def former_examples_references(*, project_root: Path) -> list[str]:
+    """Return ``<file>:<line>: <text>`` for each reference to the deleted examples package.
+
+    Args:
+        project_root: The repository (a git work tree).
+
+    Returns:
+        The references in tracked code, configuration and documentation, and in the living plans
+        and BUGS.md's active entries, other than those in the exempt paths; sorted.
+
+    """
+    lines: list[tuple[str, int, str]] = []
+    for relative in _tracked_paths(project_root=project_root):
+        path = project_root / relative
+        if (
+            Path(relative).suffix not in FORMER_EXAMPLES_SCANNED_SUFFIXES
+            or relative.split('/', maxsplit=1)[0] in FORMER_EXAMPLES_HISTORY_DIRECTORIES
+            or relative == 'BUGS.md'
+            or not path.is_file()
+        ):
+            continue
+        lines.extend(
+            (relative, line_number, line)
+            for line_number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1)
+        )
+    # Finished plans and resolved bugs are history; the living plans and open bugs are not
+    lines.extend(
+        entry
+        for entry in living_documentation_lines(project_root=project_root)
+        if entry[0] == 'BUGS.md' or entry[0] in LIVING_PLAN_FILES
+    )
+    return sorted(
+        f'{relative}:{line_number}: {line.strip()}'
+        for relative, line_number, line in lines
+        if relative not in FORMER_EXAMPLES_EXEMPT_PATHS
+        and FORMER_EXAMPLES_REFERENCE.search(line) is not None
+    )
+
+
+def test_nothing_names_the_deleted_examples_package():
+    """No code, configuration or living document names glitchygames.examples any more."""
+    assert former_examples_references(project_root=PROJECT_ROOT) == []
+
+
+def test_the_exempt_paths_all_exist_and_still_name_the_deleted_package():
+    """An exemption that no longer applies is removed, so the list never hides a new reference."""
+    stale = [
+        relative
+        for relative in FORMER_EXAMPLES_EXEMPT_PATHS
+        if relative != 'tests/test_suite_collection.py'
+        and FORMER_EXAMPLES_REFERENCE.search((PROJECT_ROOT / relative).read_text(encoding='utf-8'))
+        is None
+    ]
+
+    assert stale == []
+
+
+def test_a_reference_outside_the_exempt_paths_is_found(tmp_path):
+    """Code, config and a living doc are found; history, exempt paths and other types are not."""
+    files = {
+        'src/engine.py': 'import glitchygames.examples\n',
+        'pyproject.toml': 'path = "src/glitchygames/examples"\n',
+        'docs/guide.md': 'fine\nsee glitchygames/examples/x\n',
+        'plans/old.md': 'glitchygames.examples\n',
+        'BUGS.md': (
+            '## 1. A\n- **Status**: Active\nglitchygames.examples\n'
+            '## 2. B\n- **Status**: Resolved\nglitchygames.examples\n'
+        ),
+        'src/glitchygames/recording_metrics.py': 'glitchygames/examples/x\n',
+        'notes.txt': 'glitchygames.examples\n',
+        'src/glitchygames/examples_utils.py': 'glitchygames.examples_utils\n',
+    }
+    for relative, text in files.items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding='utf-8')
+    run_git(arguments=['init', '--quiet'], directory=tmp_path)
+    run_git(arguments=['add', '.'], directory=tmp_path)
+
+    assert former_examples_references(project_root=tmp_path) == [
+        'BUGS.md:3: glitchygames.examples',
+        'docs/guide.md:2: see glitchygames/examples/x',
+        'pyproject.toml:1: path = "src/glitchygames/examples"',
+        'src/engine.py:1: import glitchygames.examples',
     ]

@@ -298,12 +298,4 @@ Also in the reference: [glitchygames.audio](./audio/index.md) (synthesis, recipe
       heading_level: 2
       inherited_members: true
       show_submodules: true
-
-## glitchygames.examples
-
-::: glitchygames.examples
-    options:
-      heading_level: 2
-      inherited_members: true
-      show_submodules: true
  -->

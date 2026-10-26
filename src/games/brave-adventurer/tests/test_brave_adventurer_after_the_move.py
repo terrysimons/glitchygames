@@ -114,7 +114,7 @@ def test_the_scene_classes_kept_their_names():
 )
 def test_the_old_example_packages_are_gone(old_package):
     """Nothing is left in glitchygames/examples to import (a stale __pycache__ would be)."""
-    assert importlib.util.find_spec(old_package) is None
+    assert importlib.util.find_spec('glitchygames.examples') is None
     old_directory = PROJECT_ROOT.joinpath('src', *old_package.split('.'))
     assert not old_directory.exists()
 

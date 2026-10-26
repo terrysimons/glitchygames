@@ -183,10 +183,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   from that. The power-on sound and a power-off collapse are follow-ups
 
 ### 57. A pygame-examples-Like Demos Experience — TODO (plan later)
-- **Description**: the demos (today `dt_demo.py`, `joystick_demo.py`, `text_input_demo.py` in
-  `src/glitchygames/examples/`) become a browsable set of small, focused examples of what the
+- **Description**: the demos (today `dt_demo`, `joystick_demo` and `text_input_demo`, each a member of the
+  demos layer) become a browsable set of small, focused examples of what the
   engine does, in the spirit of pygame's own examples (`python -m pygame.examples.aliens`): easy to
-  list and run, each showing one engine feature. They leave the engine's examples for the demos
+  list and run, each showing one engine feature. They left the engine's examples for the demos
   layer, each its own member (the user, 2026-10-26: `src/demos/dt-demo/`, `src/demos/joystick-demo/`,
   `src/demos/text-input-demo/`, Part 3 of #56), not inside Bitmappy, which takes only its own
   resources (Part 4)

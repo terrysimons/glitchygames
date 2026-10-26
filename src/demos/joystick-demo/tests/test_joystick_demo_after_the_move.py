@@ -24,7 +24,7 @@ def test_the_demo_is_named_in_the_demos_layer():
 
 def test_the_old_example_module_is_gone():
     """Nothing is left in glitchygames/examples to import (a stale __pycache__ would be)."""
-    assert importlib.util.find_spec('glitchygames.examples.joystick_demo') is None
+    assert importlib.util.find_spec('glitchygames.examples') is None
 
 
 def test_the_joystick_demo_console_script_runs_the_demos_main():

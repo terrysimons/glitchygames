@@ -66,7 +66,7 @@ def make_package(root: Path) -> Path:
         'assets/glitch.png': 'png',
         'assets/eraser.toml': 'toml',
         'api/main.py': 'API = 1\n',
-        'examples/paddleslap.py': 'GAME = 1\n',
+        'services/renderer_service.py': 'SERVICE = 1\n',
     }.items():
         path = package / relative
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -87,7 +87,6 @@ class TestPackageSelection:
             ('engine/game_engine.py', True),
             ('fonts/bitstream_vera/Vera.ttf', True),
             ('assets/eraser.toml', True),
-            ('examples/paddleslap.py', True),
             ('engine/__pycache__/game_engine.cpython-314.pyc', False),
             ('assets/glitch.png', False),
             ('api/main.py', False),
@@ -106,7 +105,6 @@ class TestPackageSelection:
             Path('__init__.py'),
             Path('assets/eraser.toml'),
             Path('engine/game_engine.py'),
-            Path('examples/paddleslap.py'),
             Path('fonts/bitstream_vera/Vera.ttf'),
         ]
 
@@ -152,7 +150,7 @@ class TestEngineArchive:
         with zipfile.ZipFile(archive_path) as archive:
             names = archive.namelist()
             assert archive.read('glitchygames/engine/game_engine.py') == b'ENGINE = 1\n'
-        assert count == 5
+        assert count == 4
         assert names[0] == 'glitchygames/__init__.py'
         assert 'glitchygames/api/main.py' not in names
 
@@ -215,30 +213,11 @@ class TestGeneratedFiles:
             './mr_muncher.zip' not in tomllib.loads(pyscript_config(wheel_name=WHEEL_NAME))['files']
         )
 
-    @pytest.mark.parametrize(
-        'moved_package',
-        [
-            'mr_muncher',
-            'brave_adventurer',
-            'brave_adventurer_papyrus',
-            'clockwork_keep',
-            'drawing_fire',
-        ],
-    )
-    def test_the_engine_archive_no_longer_holds_the_moved_game(self, moved_package):
-        """The moved games' code is not under src/glitchygames/ any more."""
+    def test_the_engine_archive_holds_no_examples(self):
+        """The engine's examples package is gone: no game, demo or sound is under examples/."""
         files = bundled_package_files(package_directory=PACKAGE_DIRECTORY)
 
-        assert not any(path.parts[:2] == ('examples', moved_package) for path in files)
-
-    def test_the_engine_archive_no_longer_holds_paddleslap_or_its_demo(self):
-        """PaddleSlap was one module (examples/paddleslap.py) with its demo folder beside it."""
-        files = {
-            path.as_posix() for path in bundled_package_files(package_directory=PACKAGE_DIRECTORY)
-        }
-
-        assert 'examples/paddleslap.py' not in files
-        assert not any(name.startswith('examples/paddleslap_demos/') for name in files)
+        assert not any(path.parts[0] == 'examples' for path in files)
 
     def test_only_member_games_name_member_packages(self):
         assert GAMES['mr-muncher'].member_packages == ('mr_muncher',)

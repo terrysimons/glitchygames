@@ -200,14 +200,6 @@ def test_this_repositorys_members_are_read():
     assert 'mr-muncher' in distributions
 
 
-# Part 2's, Part 3's and Part 4's end state (plans/2026-10-24-workspace-packages.md): every game,
-# demo and Bitmappy are members, so the engine's examples hold only resources/ (which still holds
-# snd/), beside foo2.toml (Part 3 moves it to the one test that reads it)
-ENGINE_EXAMPLES_DIRECTORY = PROJECT_ROOT / 'src' / 'glitchygames' / 'examples'
-ENGINE_EXAMPLES_NOT_CHECKED = frozenset({'__init__.py', '__pycache__', 'foo2.toml'})
-ENGINE_EXAMPLES_AFTER_PART_2 = frozenset({
-    'resources',
-})
 # A console script a game had before Part 2 and no longer has (Brave Adventurer's launcher
 # replaced it): its old root golden directory is checked too
 FORMER_GAME_CONSOLE_SCRIPTS = ('brave-adventurer-papyrus',)
@@ -251,11 +243,23 @@ def tracked_entry_names(*, directory: Path) -> set[str]:
     }
 
 
-def test_the_engines_examples_hold_only_the_demos_and_their_resources():
-    """The engine's examples are its resources/: each game and demo moved to its member."""
-    entries = tracked_entry_names(directory=ENGINE_EXAMPLES_DIRECTORY)
+def test_the_engines_examples_directory_is_gone():
+    """Every game, demo and Bitmappy is a member: nothing is tracked or left at the old place."""
+    tracked = run_git(
+        arguments=[
+            'ls-files',
+            '-z',
+            '--',
+            'src/glitchygames/examples',
+            'tests/examples',
+            'docs/glitchygames/examples',
+        ],
+        directory=PROJECT_ROOT,
+    )
 
-    assert entries - ENGINE_EXAMPLES_NOT_CHECKED == ENGINE_EXAMPLES_AFTER_PART_2
+    assert not tracked
+    assert not (PROJECT_ROOT / 'src' / 'glitchygames' / 'examples').exists()
+    assert not (PROJECT_ROOT / 'tests' / 'examples').exists()
 
 
 def test_tracked_entry_names_leaves_out_ignored_and_untracked_files(tmp_path):

@@ -1,10 +1,10 @@
 """Run a small demo's ``main()`` through the real engine, headless, for a few frames.
 
 A root test helper (it imports ``scripts.record_golden_traces``), shared by the demos' tests: the
-demos layer's members (``src/demos/dt-demo/tests``) and the demos still in glitchygames/examples
-(``tests/examples``). A demo runs with its console script (``dt-demo``) or ``python -m``. Its
-``main()`` builds ``GameEngine(game=Game)`` and starts it; the tests run that same
-``main()`` with the module's ``GameEngine`` replaced by ``DemoRunEngine``: the real engine
+demos layer's members (``src/demos/dt-demo/tests``, ``src/demos/joystick-demo/tests`` and
+``src/demos/text-input-demo/tests``). A demo runs with its console script (``dt-demo``) or
+``python -m``. Its ``main()`` builds ``GameEngine(game=Game)`` and starts it; the tests run that
+same ``main()`` with the module's ``GameEngine`` replaced by ``DemoRunEngine``: the real engine
 opening a plain window (SDL's dummy video driver has no renderer for GameEngine's SCALED window,
 and the "no fast renderer available" warning it gives is an error under pytest's
 filterwarnings; see ``GoldenTraceEngine``), with a supervisor that posts a scripted input per

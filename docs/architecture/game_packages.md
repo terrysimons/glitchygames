@@ -109,9 +109,8 @@ extra; `tests/test_workspace_config.py` keeps each extra equal to its layer's me
   (`games.mr_muncher.game:MrMuncherScene`). A recording therefore does not depend on where the
   code lives, and moving a game changes no recording. The layers are data in the engine,
   `src/glitchygames/logical_names.py`: `MEMBER_LAYERS` for members (kept equal to the workspace by
-  `tests/test_workspace_config.py`) and `EXAMPLES_LAYERS` for the demos still in
-  `src/glitchygames/examples/` (none: every game, demo and Bitmappy has moved; the table goes with
-  Part 3).
+  `tests/test_workspace_config.py`). Every game, demo and Bitmappy is a member; the engine has no
+  examples package.
 - **Golden replays** live with the member's tests; the golden plugin collects them from every
   member, so the engine's `uv run pytest` replays each one.
 - **The browser build** ships a member's package as its own archive (`<package>.zip`) beside the
@@ -177,7 +176,7 @@ any tool's configuration.
 
 ### 4. Update the engine's tables
 
-- `src/glitchygames/logical_names.py`: move its package from `EXAMPLES_LAYERS` to `MEMBER_LAYERS`.
+- `src/glitchygames/logical_names.py`: add its package to `MEMBER_LAYERS`.
   Its recordings need nothing else (their logical names do not change); `tests/test_logical_names.py`
   pins both tables.
 - `src/glitchygames/recording_metrics.py` `RECORDING_PATH_RENAMES`: one line per moved recording, old

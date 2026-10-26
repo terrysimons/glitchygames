@@ -33,7 +33,7 @@ def test_paddleslap_game_keeps_its_logical_name():
 
 def test_the_old_example_module_is_gone():
     """Nothing is left in glitchygames/examples to import (a stale __pycache__ would be)."""
-    assert importlib.util.find_spec('glitchygames.examples.paddleslap') is None
+    assert importlib.util.find_spec('glitchygames.examples') is None
 
 
 def test_python_dash_m_paddleslap_runs_the_games_main():

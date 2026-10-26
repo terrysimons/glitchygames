@@ -177,7 +177,7 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 ### Example Games
 Every game is its own workspace package under `src/games/` (Part 2 of
 plans/2026-10-24-workspace-packages.md; the recipe is docs/architecture/game_packages.md), with
-its code, tests and golden replay; `src/glitchygames/examples/` keeps no demo: each demo is a member
+its code, tests and golden replay; the engine has no examples package: each demo is a member
 of the demos layer (`src/demos/dt-demo/`, `joystick-demo/`, `text-input-demo/`: `uv run dt-demo`,
 `joystick-demo` or `text-input-demo`, or `python -m dt_demo`, `joystick_demo`, `text_input_demo`;
 demos get no browser build)

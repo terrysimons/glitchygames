@@ -36,7 +36,6 @@ nav:
     - glitchygames.effects: "glitchygames/effects/index.md"
     - glitchygames.engine: "glitchygames/engine/index.md"
     - glitchygames.events: "glitchygames/events/index.md"
-    - glitchygames.examples: "glitchygames/examples/index.md"
     - glitchygames.font: "glitchygames/fonts/index.md"
     - glitchygames.game_objects: "glitchygames/game_objects/index.md"
     - glitchygames.input: "glitchygames/input/index.md"

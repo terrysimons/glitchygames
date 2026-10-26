@@ -31,7 +31,7 @@ def test_drawing_fire_keeps_its_logical_names():
 
 def test_the_old_example_package_is_gone():
     """Nothing is left in glitchygames/examples to import (a stale __pycache__ would be)."""
-    assert importlib.util.find_spec('glitchygames.examples.drawing_fire') is None
+    assert importlib.util.find_spec('glitchygames.examples') is None
 
 
 def test_drawing_fires_golden_keeps_its_history():
