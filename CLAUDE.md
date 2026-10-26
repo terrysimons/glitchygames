@@ -788,7 +788,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   state must join a group (`per_context_state_resets` or `engine_service_resets` in
   `tests/harness.py`) that the leak check requests, or be listed in
   `PROCESS_STATE_AUTOUSE_FIXTURES` (`tests/test_engine_context.py`) with its reason; a guard
-  test enforces it
+  test enforces it for the autouse fixtures defined in `tests/harness.py`
 
 **Source revision** (`src/glitchygames/build_info.py`, the contract): `source_revision()` names the
 engine's commit and how it is known, first answer wins: a git checkout (git: HEAD, its date,
