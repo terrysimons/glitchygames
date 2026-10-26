@@ -63,7 +63,9 @@ audit, the design, the sub-plans). This is its sub-plan 1.
   (`default_context().reset_value(slot=randomness.ENGINE_RANDOM_STATE_SLOT)`). No test function
   reaches `_STATE`, `_REGISTRY`, `_CURRENT`, `_ActiveSnapSettings`,
   `_ActiveBackgroundSettings` or `SceneManager._instance` (checked at 53869ac4), so no other
-  test line changes.
+  test line changes. (Non-test code did reach `SceneManager._instance`:
+  `scripts/record_golden_traces.py` set it; Task 7 changed that script to write through the
+  context.)
 - `ContextSlot` is internal to the engine (the owner's decision 3): only engine modules declare
   slots; the tests' own `COUNTER_SLOT` exists to test the class. The slot constants are named
   without an underscore so the harness and tests can name them, not as API for games.

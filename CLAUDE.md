@@ -380,7 +380,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 `plans/2026-10-19-gameplay-replay.md`, plans `plans/2026-10-19-gameplay-replay-*.md`)
 - Doors: the engine takes events, frame time, polled input, devices, saves, the clocks and the
   random seed only through the active `EngineSources`. `src/glitchygames/sources.py` is the leaf
-  registry: `active_sources()`, `install_sources(sources=...)` (only before the first frame,
+  registry (one per engine context): `active_sources()`, `install_sources(sources=...)` (only
+  before the context's first frame,
   else `SourcesAlreadyRunningError`), `reset_sources()` (called by `GameEngine.__init__`), and the
   frame clock. It has no engine imports, which avoids an engine/scenes import cycle. Providers:
   `LiveSources` (`src/glitchygames/live_sources.py`: pygame's queue, the measured dt, pygame polling,
@@ -765,6 +766,21 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - Part 2 and Part 3 are done; follow-ups (state snapshots, cheat device) are in
   `plans/future-work.md`. User docs: `docs/architecture/gameplay_replay.md`
 
+**Engine Context** (`src/glitchygames/engine_context.py`; design `plans/2026-10-25-engine-context.md`)
+- The state one running game owns, so several games can run in one process (the Arcade's demo
+  tiles). Ordinary games never create one and run in the default context
+  (`default_context()`), exactly as before
+- Per-context state is a `ContextSlot(name=..., factory=...)` declared once at module level in
+  the module that owns it; code reads `current_context().value(slot=...)` when it needs it,
+  never at import (`tests/test_engine_context.py` scans the engine and every member)
+- `with context.active():` switches (a `contextvars.ContextVar`: per thread and asyncio task;
+  nests; restores on exceptions). Slots today: the default snap mode, the default background,
+  the polled input, the random streams, the doors with the frame clock and observers, and the
+  `SceneManager` singleton; each has an isolation check in `tests/test_engine_context.py`
+  (`ISOLATION_CHECKS`), and a slot without one fails the suite
+- The harness fails a test that leaves another context current
+  (`every_test_ends_in_the_default_engine_context`)
+
 **Source revision** (`src/glitchygames/build_info.py`, the contract): `source_revision()` names the
 engine's commit and how it is known, first answer wins: a git checkout (git: HEAD, its date,
 uncommitted changes to tracked files; only when git tracks the package's files, so a copy
@@ -966,7 +982,7 @@ Features:
 
 ## Design Patterns
 
-- **Singleton**: `SceneManager`, `FontManager`
+- **Singleton**: `SceneManager` (one per engine context), `FontManager`
 - **Observer**: `FrameManager` for animation frame changes
 - **Strategy**: Timer backends, display update modes, controller modes
 - **Proxy**: Event routing through `SceneManager` to `Scene`

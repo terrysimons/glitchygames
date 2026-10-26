@@ -258,8 +258,10 @@ def _reset_all_singleton_instances():
 
     Singleton instances (SceneManager, MenuBar, etc.) persist across tests
     and can carry stale state from mocked pygame environments into tests
-    that need real pygame. This resets both parent and subclass __instance__
-    attributes since Python sets cls.__instance__ on the subclass, not the parent.
+    that need real pygame. SceneManager is no longer one of those: it is
+    a slot of the engine context, so SceneManager._reset() clears the current context's
+    managers. This resets the other classes' parent and subclass __instance__ attributes
+    since Python sets cls.__instance__ on the subclass, not the parent.
     """
     SceneManager._reset()
 
