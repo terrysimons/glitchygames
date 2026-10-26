@@ -39,6 +39,7 @@ from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.display_mode import set_display_mode
 from glitchygames.events.base import HashableEvent
 from glitchygames.exit_codes import ExitCode
+from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_name
 from glitchygames.recording import post_input_event
 from glitchygames.scenes import SceneManager
@@ -494,7 +495,14 @@ class TestTheTitleScreen:
         assert started_games == [TitleScene, 'started']
 
     def test_a_recording_made_from_the_launcher_replays_through_it(self, mocker, tmp_path):
-        """It names the title screen first, then the game; the launcher replays it from there."""
+        """It names the title screen first, then the game; the launcher replays it from there.
+
+        The live session gets a fixed dt, as the golden harness's frames do. Measured, each
+        frame's dt is wall-clock time (the frame after the switch to the game holds the game's
+        construction, 30 ms or so, different on every run), and Papyrus's scarabs bob by the dt
+        they accumulate, so every run, on either driver, presented different frames.
+        """
+        mocker.patch.object(LiveSources, 'frame_seconds', return_value=FRAME_SECONDS)
         recording = tmp_path / 'from-the-title.jsonl.gz'
         with (
             _engine_run(mocker),
