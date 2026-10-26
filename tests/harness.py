@@ -341,13 +341,16 @@ def restore_game_engine_class_state(mocker):
 
 
 @pytest.fixture(autouse=True)
-def fresh_random_streams(mocker):
-    """Give each test an unseeded set of engine random streams (glitchygames/randomness.py).
+def fresh_random_streams():
+    """Give each test an unseeded set of engine random streams (glitchygames.randomness).
 
-    GameEngine and reset_streams() set the process-wide master seed and cache streams; without
-    this, one test's seed and half-used streams would carry into the next test on the worker.
+    GameEngine and reset_streams() set the master seed and cache streams in the current engine
+    context, the default one for every test (glitchygames.engine_context); without this, one
+    test's seed and half-used streams would carry into the next test on the worker.
     """
-    mocker.patch.object(randomness, '_STATE', randomness.EngineRandomState())
+    default_context().reset_value(slot=randomness.ENGINE_RANDOM_STATE_SLOT)
+    yield
+    default_context().reset_value(slot=randomness.ENGINE_RANDOM_STATE_SLOT)
 
 
 @pytest.fixture(autouse=True)
