@@ -12,11 +12,14 @@ Four layers, all under `src/`:
 
 ```
 src/
-  glitchygames/        the engine (distribution glitchygames); examples/ now holds only a
-                       resources/ directory (every game and demo has moved)
+  glitchygames/        the engine (distribution glitchygames); it has no examples package:
+                       every game and demo is a member, and its resources/ holds only what the
+                       engine itself ships
   games/<game>/        one member per game: every game (mr-muncher, clockwork-keep,
                        brave-adventurer, paddleslap, drawing-fire)
-  demos/<demo>/        one member per demo (dt-demo, joystick-demo, text-input-demo)
+  demos/<demo>/        one member per demo (dt-demo, joystick-demo, text-input-demo): a small
+                       program that shows one engine feature (console scripts `dt-demo`,
+                       `joystick-demo`, `text-input-demo`; no browser build)
   apps/<app>/          one member per application (Bitmappy)
 tests/                 the engine's own tests
 scripts/               tools
@@ -27,6 +30,17 @@ the root import the installed engine and members (`uv sync` installs them editab
 non-editable), and `tests/test_suite_collection.py` checks that `import glitchygames` resolves to
 the installed package. Coverage maps the installed copies back to `src/`
 (`[tool.coverage.paths]`), so its report names the files in the repository.
+
+### Two meanings of "demo"
+
+- A **demo** (a demos-layer member): a program under `src/demos/<demo>/`, run with its console
+  script or `python -m <package>`. It is code.
+- A game's **bundled demo recording**: `<package>/demos/<name>.jsonl.gz`, package data inside a
+  game (PaddleSlap's `rally.jsonl.gz`), replayed by that game's console script. It is data, and
+  `glitchygames.bundled_demos` finds it (see "Bundled demos" below).
+
+A `demos` directory inside a package is therefore never a demos-layer member, and a demos-layer
+member's recordings (it has none today) would still be that member's own package data.
 
 ## What a member is
 
@@ -317,7 +331,7 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
   the logical name would become `games.paddleslap.game:Game`. Ruff's `non-empty-init-module`
   (RUF067) is ignored for that file in `pyproject.toml`. A package's `__init__` never runs as
   `__main__`, so the module's `if __name__ == '__main__'` moves to `src/<package>/__main__.py`
-  (`python -m paddleslap`, as `python -m glitchygames.examples.paddleslap` was).
+  (`python -m paddleslap`, as it was when the game lived in the engine's examples package).
 - **Bundled demos** ship inside the package as package data, `<package>/demos/<name>.jsonl.gz`
   (PaddleSlap's `paddleslap/demos/rally.jsonl.gz`, read through `Path(__file__).parent`). The
   engine finds them in the installed packages: `glitchygames.bundled_demos.bundled_demos()`

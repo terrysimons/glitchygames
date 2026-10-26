@@ -11,7 +11,7 @@ packages, Part 2: every game is its own package", 26 commits, verified by Task 9
 its own package, `src/apps/bitmappy/`; commits a97efbe9..1d0994a0 at present, the last hash
 pinned at merge; verified by its Task 7 and the user's manual checks, 2026-10-26, then a
 final-review fix pass; see [its plan](2026-10-26-workspace-packages-4-bitmappy.md); not yet
-merged). Part 3 (the demos): Stage A DONE (every member in a `src/` layout, 2026-10-26, on feature/workspace-packages-3a-src-layout); Stage B NOT STARTED; Part 5 (the browser IDE) NOT STARTED.
+merged). Part 3 (the demos): Stage A DONE (every member in a `src/` layout, 2026-10-26, on feature/workspace-packages-3a-src-layout); Stage B DONE (the three demos are members of the `demos` layer, `src/glitchygames/examples/` and `EXAMPLES_LAYERS` are gone, 2026-10-26); Part 5 (the browser IDE) NOT STARTED.
 Plan written 2026-10-24; amended 2026-10-25: everything under `src/`, decision 7; logical names
 in recordings, decision 8; where recordings live, decision 9; amended 2026-10-26: Part 4 runs
 before Part 3 (the user: "bitmappy should move first"), so deleting `src/glitchygames/examples/`
@@ -26,7 +26,7 @@ Sub-plans:
 - Part 2 (DONE): [The other five games](2026-10-25-workspace-packages-2-games.md) (Clockwork
   Keep, Brave Adventurer with Papyrus as one project, PaddleSlap and Drawing Fire, which postdates
   the outline; the move recipe is `docs/architecture/game_packages.md`)
-- Part 3: The three demos (outline below; not started). Its plan starts from the untracked
+- Part 3 (Stage A and B DONE): [The demos](2026-10-26-workspace-packages-3-demos.md) (outline below). Its plan starts from the untracked
   draft `plans/2026-10-25-workspace-packages-2-games-demos-apps.md` (Tasks 10-12 and 18),
   corrected against #109 and Part 4 (the outline lists what is stale in it); the draft is
   deleted once Part 3 has its plan (the user, 2026-10-26)

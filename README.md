@@ -185,7 +185,7 @@ Every example game is its own package, with its own code, tests and golden repla
 | PaddleSlap | `uv run paddleslap` | `src/games/paddleslap/` |
 | Drawing Fire | `uv run drawing-fire` | `src/games/drawing-fire/` |
 
-Brave Adventurer is one project holding both games: the shared primitives (`brave_adventurer_core`), each game (`brave_adventurer`, the Classic edition, and `brave_adventurer_papyrus`, the Egyptian one) and a launcher (`brave_adventurer_modes`) that is its one console script. Its title screen offers Classic and Papyrus; `--game classic` or `--game papyrus` starts one at once. The demos (`dt_demo`, `joystick_demo`, `text_input_demo`) are members of the demos layer (`src/demos/dt-demo/`, run with `uv run dt-demo`; the others likewise), and Bitmappy is its own package, `src/apps/bitmappy/`.
+Brave Adventurer is one project holding both games: the shared primitives (`brave_adventurer_core`), each game (`brave_adventurer`, the Classic edition, and `brave_adventurer_papyrus`, the Egyptian one) and a launcher (`brave_adventurer_modes`) that is its one console script. Its title screen offers Classic and Papyrus; `--game classic` or `--game papyrus` starts one at once. The demos (`dt_demo`, `joystick_demo`, `text_input_demo`) are members of the demos layer (`src/demos/dt-demo/`, console scripts `dt-demo`, `joystick-demo` and `text-input-demo`, each also `python -m <package>`), and Bitmappy is its own package, `src/apps/bitmappy/`.
 
 ## Engine Options
 
