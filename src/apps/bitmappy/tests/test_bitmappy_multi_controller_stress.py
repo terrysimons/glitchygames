@@ -10,7 +10,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from bitmappy.controllers.manager import MultiControllerManager
+from bitmappy.controllers.manager import (
+    ControllerInfo,
+    ControllerStatus,
+    MultiControllerManager,
+)
 from bitmappy.controllers.selection import ControllerSelection
 from bitmappy.indicators.collision import VisualCollisionManager
 
@@ -264,45 +268,56 @@ class TestMultiControllerStress:
         assert len(self.manager.controllers) == 0
         assert len(self.visual_manager.indicators) == 0
 
-    def test_performance_benchmarks(self):
-        """Test performance benchmarks for various operations."""
-        # Benchmark controller assignment
-        start_time = time.perf_counter()
-        for i in range(1000):
-            instance_id = i
-            self.manager.controllers[instance_id] = self._mocker.Mock()
-            self.manager.assign_controller(instance_id)
-        assignment_time = time.perf_counter()
+    def test_bulk_assignment_and_indicator_outcomes(self):
+        """A bulk run of assignments and indicator adds ends in the right state.
 
-        assert assignment_time - start_time < COLLISION_ADD_TIME_LIMIT
-
-        # Benchmark visual indicator operations
-        visual_start = time.perf_counter()
-        for i in range(1000):
-            self.visual_manager.add_controller_indicator(
-                controller_id=i,
-                instance_id=i,
-                color=(255, 0, 0),
-                position=(i, i),
+        This was ``test_performance_benchmarks``, which asserted wall-clock limits. A time limit
+        is a load test, not a behavior test: it failed on a loaded machine and passed alone. The
+        timing now lives in ``test_bitmappy_benchmarks.py`` (``--benchmark-only``); this test
+        keeps the same work and checks what it produced.
+        """
+        controller_count = 1000
+        for instance_id in range(controller_count):
+            # A real ControllerInfo: a Mock's status is never CONNECTED, so assign_controller
+            # would answer None and the old test measured a no-op.
+            self.manager.controllers[instance_id] = ControllerInfo(
+                controller_id=instance_id % self.manager.MAX_CONTROLLERS,
+                instance_id=instance_id,
+                status=ControllerStatus.CONNECTED,
             )
-        visual_end = time.perf_counter()
+            assert self.manager.assign_controller(instance_id) == (
+                instance_id % self.manager.MAX_CONTROLLERS
+            )
 
-        assert visual_end - visual_start < COLLISION_ADD_TIME_LIMIT
+        assert len(self.manager.controllers) == controller_count
+        assert len(self.manager.assigned_controllers) == controller_count
+        assert all(
+            info.status == ControllerStatus.ASSIGNED for info in self.manager.controllers.values()
+        )
 
-        # Benchmark collision calculation
-        collision_start = time.perf_counter()
-        for i in range(100):
-            # Add many indicators at same position
-            for j in range(10):
+        for index in range(controller_count):
+            self.visual_manager.add_controller_indicator(
+                controller_id=index,
+                instance_id=index,
+                color=(255, 0, 0),
+                position=(index, index),
+            )
+        assert len(self.visual_manager.indicators) == controller_count
+
+        # 100 positions, each shared by 10 indicators: the collision groups hold all ten.
+        for index in range(100):
+            for offset in range(10):
                 self.visual_manager.add_controller_indicator(
-                    controller_id=i * 10 + j,
-                    instance_id=i * 10 + j,
+                    controller_id=index * 10 + offset,
+                    instance_id=index * 10 + offset,
                     color=(255, 0, 0),
-                    position=(i, i),
+                    position=(index, index),
                 )
-        collision_end = time.perf_counter()
-
-        assert collision_end - collision_start < COLLISION_UPDATE_TIME_LIMIT
+        assert len(self.visual_manager.indicators) == controller_count
+        assert len(self.visual_manager.film_strip_collision_groups) == 100
+        assert all(
+            len(group) == 10 for group in self.visual_manager.film_strip_collision_groups.values()
+        )
 
     def test_error_recovery_stress(self):
         """Operations on an unknown controller answer "not found" and change nothing, every time.

@@ -5,6 +5,7 @@ Run benchmarks:
     nox -s performance_test
 """
 
+from bitmappy.controllers.manager import ControllerInfo, ControllerStatus, MultiControllerManager
 from bitmappy.controllers.selection import ControllerSelection
 from bitmappy.indicators.collision import VisualCollisionManager
 
@@ -134,3 +135,62 @@ class TestVisualCollisionBenchmarks:
             call_count += 1
 
         benchmark(update_position)
+
+
+# ---------------------------------------------------------------------------
+# Bulk workload benchmark
+# ---------------------------------------------------------------------------
+class TestBulkWorkloadBenchmarks:
+    """Time the bulk assignment and indicator workload of the stress test."""
+
+    def test_bulk_assignment_and_indicators(self, benchmark):
+        """Benchmark 1000 assignments, 1000 indicator adds and 1000 colliding indicator adds.
+
+        This is the timing that ``test_performance_benchmarks`` in
+        ``test_bitmappy_multi_controller_stress.py`` used to assert as wall-clock limits
+        (2 s per phase). Those limits failed intermittently on a loaded machine, so the normal
+        suite now checks only the outcome
+        (``test_bulk_assignment_and_indicator_outcomes``) and the time is measured here, under
+        ``nox -s performance-test``. Keep this workload equal to that test's.
+        """
+        controller_count = 1000
+
+        def fresh_state():
+            MultiControllerManager._instance = None
+            MultiControllerManager._initialized = False
+            return (MultiControllerManager(), VisualCollisionManager()), {}
+
+        def bulk_workload(manager, visual_manager):
+            for instance_id in range(controller_count):
+                manager.controllers[instance_id] = ControllerInfo(
+                    controller_id=instance_id % manager.MAX_CONTROLLERS,
+                    instance_id=instance_id,
+                    status=ControllerStatus.CONNECTED,
+                )
+                manager.assign_controller(instance_id)
+            for index in range(controller_count):
+                visual_manager.add_controller_indicator(
+                    controller_id=index,
+                    instance_id=index,
+                    color=(255, 0, 0),
+                    position=(index, index),
+                )
+            for index in range(100):
+                for offset in range(10):
+                    visual_manager.add_controller_indicator(
+                        controller_id=index * 10 + offset,
+                        instance_id=index * 10 + offset,
+                        color=(255, 0, 0),
+                        position=(index, index),
+                    )
+            return manager, visual_manager
+
+        manager, visual_manager = benchmark.pedantic(
+            bulk_workload,
+            setup=fresh_state,
+            rounds=5,
+        )
+
+        # The benchmark still proves the work happened (outcome only, never time).
+        assert len(manager.assigned_controllers) == controller_count
+        assert len(visual_manager.film_strip_collision_groups) == 100
