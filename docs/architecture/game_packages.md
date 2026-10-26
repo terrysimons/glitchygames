@@ -36,7 +36,9 @@ A member is a directory under its layer, named after its distribution (with hyph
 src/games/<game>/
   pyproject.toml       its metadata (below)
   README.md            one paragraph: what it is, how to play and test it
-  <package>/           its import package (underscores: a hyphen cannot be imported)
+  src/<package>/       its import package (underscores: a hyphen cannot be imported), never at
+                       the member's root, so nothing in the member directory can be imported by
+                       accident in place of the installed package
   tests/               its tests (no __init__.py), with its golden replay in
                        tests/fixtures/replays/golden.jsonl.gz
 ```
@@ -59,7 +61,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["<package>"]
+packages = ["src/<package>"]
 
 [tool.uv.sources]
 glitchygames = { workspace = true }
@@ -128,7 +130,7 @@ any tool's configuration.
 
 ### 1. Move the code and tests
 
-- `git mv src/glitchygames/examples/<package> src/games/<game>/<package>`, then delete what is
+- `git mv src/glitchygames/examples/<package> src/games/<game>/src/<package>`, then delete what is
   left of the old directory: its git-ignored `__pycache__` would otherwise keep an importable
   namespace package there. `git mv` of a directory carries its untracked `__pycache__` along
   too: delete it in the member as well (its `.pyc` files name the old module).
@@ -166,7 +168,7 @@ any tool's configuration.
 | File | What to add or change |
 |---|---|
 | `pyproject.toml` | Remove its console script from `[project.scripts]` (the member's own `pyproject.toml` has it now). Add the member to its layer's extra (`games`, `demos` or `apps` in `[project.optional-dependencies]`), `[tool.uv.workspace] members`, `[tool.uv.sources]`, the `dev` dependency group, pytest `testpaths`, `addopts` (`--cov=<package>`), coverage `source` and `[tool.coverage.paths]`, ruff `src`, `include` and `namespace-packages` (its tests), isort `known-first-party`, ty `root` and `src.include`, deptry `known_first_party`. Re-key any per-file ruff ignore that names the old path. |
-| `pyrightconfig.json` | Add it to `include`, a tests environment (before the member's own) and the member's environment, each with the `extraPaths` Mr. Muncher's have. Those assume a flat layout (the package beside `pyproject.toml`); a src-layout member uses its `src/` instead (`WorkspaceMember.import_roots` in `scripts/workspace_packages.py`), as Brave Adventurer does |
+| `pyrightconfig.json` | Add it to `include`, a tests environment (before the member's own) and the member's environment, each with the `extraPaths` Mr. Muncher's have. Every member is a src layout, so the environments name the member's `src/` (`WorkspaceMember.import_roots` in `scripts/workspace_packages.py`), as Brave Adventurer's do: that is the one form. `tests/test_workspace_config.py::test_every_member_keeps_its_packages_under_src` enforces the layout, and no configuration entry may name a member path the workspace does not derive |
 | `noxfile.py` | `_CODE_DIRS`, `_SOURCE_PACKAGE_DIRS`, `_MEMBER_DISTRIBUTIONS` |
 | `wily.cfg` | The `path` list |
 | `mkdocs.yml` | The mkdocstrings `paths`, and its API page under "Games API Reference" |
@@ -230,7 +232,7 @@ on another member lists both, the one depended on first: each ships as its own a
 
 ### 7. The docs
 
-- `docs/games/<game>.md`: its file table and every path (`src/games/<game>/<package>/...`), and an
+- `docs/games/<game>.md`: its file table and every path (`src/games/<game>/src/<package>/...`), and an
   "Its package" line linking here.
 - `docs/glitchygames/examples/index.md`: remove its `:::` block, if it has one (its API page is now
   generated from the member).
@@ -310,11 +312,11 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
   nothing may be created in a different order. Its browser bundle lists every archive a game
   needs, the shared ones first.
 - **A game that is one module** (PaddleSlap's `paddleslap.py`): its recordings name
-  `games.paddleslap:Game`, so `Game` must stay defined in the package itself (`paddleslap/__init__.py`),
+  `games.paddleslap:Game`, so `Game` must stay defined in the package itself (`src/paddleslap/__init__.py`),
   not in a `paddleslap/game.py` it re-exports: a re-export does not change `Game.__module__`, and
   the logical name would become `games.paddleslap.game:Game`. Ruff's `non-empty-init-module`
   (RUF067) is ignored for that file in `pyproject.toml`. A package's `__init__` never runs as
-  `__main__`, so the module's `if __name__ == '__main__'` moves to `<package>/__main__.py`
+  `__main__`, so the module's `if __name__ == '__main__'` moves to `src/<package>/__main__.py`
   (`python -m paddleslap`, as `python -m glitchygames.examples.paddleslap` was).
 - **Bundled demos** ship inside the package as package data, `<package>/demos/<name>.jsonl.gz`
   (PaddleSlap's `paddleslap/demos/rally.jsonl.gz`, read through `Path(__file__).parent`). The
