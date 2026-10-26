@@ -346,6 +346,8 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
   coverage.
 - An old example directory left on disk (its ignored `__pycache__`) is importable and shadows
   the member, and `tests/test_suite_collection.py` rejects a `glitchygames/` directory at the
-  root. Delete leftovers after moving.
+  root. Delete leftovers after moving. The same trap applies to Bitmappy's old directory:
+  a leftover `src/glitchygames/bitmappy/` (ignored `__pycache__`) resolves as a namespace
+  package and fails `test_the_old_engine_package_is_gone`; `rm -rf src/glitchygames/bitmappy`.
 - A member's console script resolves through its installed distribution: the golden plugin
   cannot find it unless `--all-packages` installed the member.

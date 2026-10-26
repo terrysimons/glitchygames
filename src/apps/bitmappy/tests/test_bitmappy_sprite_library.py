@@ -7,9 +7,7 @@ those checks run here on every sprite in the library too, as Papyrus's do on its
 """
 
 import logging
-import tempfile
 import time
-from pathlib import Path
 
 import numpy as np
 import pygame
@@ -51,20 +49,16 @@ def sprite_file_id(sprite_file):
 
 
 def _load_example_sprite(sprite_file):
-    """Load an example sprite.
+    """Load a library sprite: the library is shipped data, so every sprite must load.
 
     Returns:
-        The sprite, or None after an expected load error (logged). An unexpected error fails
-        the test.
+        The sprite. Any load error fails the test, naming the sprite.
 
     """
     try:
         sprite = SpriteFactory.load_sprite(filename=str(sprite_file))
-    except (ValueError, FileNotFoundError, AttributeError) as e:
-        LOG.warning('Skipping sprite %s due to expected error: %s', sprite_file.name, e)
-        return None
-    except (TypeError, KeyError, OSError) as e:
-        pytest.fail(f'Unexpected error loading sprite {sprite_file.name}: {e}')
+    except (ValueError, FileNotFoundError, AttributeError, TypeError, KeyError, OSError) as error:
+        pytest.fail(f'Library sprite {sprite_file.name} failed to load: {error!r}')
     return sprite
 
 
@@ -75,40 +69,9 @@ class TestBitmappySpriteLibrary:
         """Set up test fixtures."""
         pygame.init()
         set_display_mode(size=(800, 600))
-        self.temp_dir = tempfile.mkdtemp()
-        self.temp_path = Path(self.temp_dir)
 
         # Bitmappy's sprite library, package data
         self.sprites_dir = SPRITE_CONFIG_DIR
-
-        # Every TOML file in it
-        self.toml_files = sorted(self.sprites_dir.glob('*.toml'))
-
-    def test_load_all_toml_sprites(self):
-        """Test that all TOML sprite files can be loaded."""
-        loaded_count = 0
-
-        for sprite_file in self.toml_files:
-            # Load the sprite
-            sprite = _load_example_sprite(sprite_file)
-            if sprite is None:
-                continue
-
-            # Verify basic properties
-            assert sprite.image is not None, f'Sprite {sprite_file.name} should have an image'
-            assert isinstance(sprite.image, pygame.Surface), (
-                f'Sprite {sprite_file.name} image should be a Surface'
-            )
-
-            # Check dimensions
-            width, height = sprite.image.get_size()
-            assert width > 0, f'Sprite {sprite_file.name} width should be positive'
-            assert height > 0, f'Sprite {sprite_file.name} height should be positive'
-
-            loaded_count += 1
-
-        # Verify we loaded at least some sprites
-        assert loaded_count > 0, 'Should load at least one example sprite'
 
     def test_sprite_pixel_integrity(self):
         """Test pixel data integrity for a sample of sprites."""
@@ -123,13 +86,10 @@ class TestBitmappySpriteLibrary:
 
         for sprite_name in test_sprites:
             sprite_file = self.sprites_dir / sprite_name
-            if not sprite_file.exists():
-                continue
+            assert sprite_file.exists(), f'The named sample {sprite_name} is not in the library'
 
             # Load sprite
             sprite = _load_example_sprite(sprite_file)
-            if sprite is None:
-                continue
 
             # Test pixel integrity: every visible pixel is drawn as it is, and transparent
             # pixels (magenta keyed out, alpha 0) show the background (BUGS.md #133)
@@ -172,12 +132,9 @@ class TestBitmappySpriteLibrary:
 
         for sprite_name in test_sprites:
             sprite_file = self.sprites_dir / sprite_name
-            if not sprite_file.exists():
-                continue
+            assert sprite_file.exists(), f'The named sample {sprite_name} is not in the library'
 
             sprite = _load_example_sprite(sprite_file)
-            if sprite is None:
-                continue
             assert sprite.image is not None
             width, height = sprite.image.get_size()
 
@@ -199,12 +156,9 @@ class TestBitmappySpriteLibrary:
 
         for sprite_name in animated_sprites:
             sprite_file = self.sprites_dir / sprite_name
-            if not sprite_file.exists():
-                continue
+            assert sprite_file.exists(), f'The named sample {sprite_name} is not in the library'
 
             sprite = _load_example_sprite(sprite_file)
-            if sprite is None:
-                continue
 
             # Check if it's an animated sprite
             if hasattr(sprite, 'animations'):
@@ -242,14 +196,11 @@ class TestBitmappySpriteLibrary:
 
         for sprite_name in test_sprites:
             sprite_file = self.sprites_dir / sprite_name
-            if not sprite_file.exists():
-                continue
+            assert sprite_file.exists(), f'The named sample {sprite_name} is not in the library'
 
             # Time the loading
             start_time = time.time()
             sprite = _load_example_sprite(sprite_file)
-            if sprite is None:
-                continue
             load_time = time.time() - start_time
 
             # Time the rendering
@@ -309,6 +260,18 @@ def test_every_library_sprite_is_checked():
     """The checks below run on the whole library, its animated sprites among them."""
     assert len(SPRITE_LIBRARY_FILES) == SPRITE_LIBRARY_FILE_COUNT
     assert ANIMATED_SPRITE_LIBRARY_FILES
+
+
+@pytest.mark.usefixtures('display')
+@pytest.mark.parametrize('sprite_file', SPRITE_LIBRARY_FILES, ids=sprite_file_id)
+def test_every_library_sprite_loads(sprite_file):
+    """Each sprite in the library loads, with a drawable image (a failure names the sprite)."""
+    sprite = _load_example_sprite(sprite_file)
+
+    assert isinstance(sprite.image, pygame.Surface), f'{sprite_file.name} should have an image'
+    width, height = sprite.image.get_size()
+    assert width > 0, f'{sprite_file.name} width should be positive'
+    assert height > 0, f'{sprite_file.name} height should be positive'
 
 
 @pytest.mark.parametrize('sprite_file', SPRITE_LIBRARY_FILES, ids=sprite_file_id)

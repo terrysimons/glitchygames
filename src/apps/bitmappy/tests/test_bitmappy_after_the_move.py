@@ -37,7 +37,13 @@ def test_the_editor_is_named_in_the_apps_layer():
 
 def test_the_old_engine_package_is_gone():
     """Nothing is left in the engine to import (a stale __pycache__ would be)."""
-    assert importlib.util.find_spec('glitchygames.bitmappy') is None
+    spec = importlib.util.find_spec('glitchygames.bitmappy')
+    leftover_locations = [] if spec is None else list(spec.submodule_search_locations or [])
+
+    assert spec is None, (
+        f'glitchygames.bitmappy still resolves, at {leftover_locations}: a leftover of the move '
+        '(ignored __pycache__); rm -rf src/glitchygames/bitmappy'
+    )
 
 
 def test_bitmappy_is_imported_from_its_member():

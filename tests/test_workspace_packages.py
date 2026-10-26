@@ -221,6 +221,43 @@ FORMER_GAME_CONSOLE_SCRIPTS = ('brave-adventurer-papyrus',)
 ROOT_REPLAY_FIXTURES_DIRECTORY = PROJECT_ROOT / 'tests' / 'fixtures' / 'replays'
 
 
+def environment_without_git_variables() -> dict[str, str]:
+    """Return the environment with every ``GIT_*`` variable removed.
+
+    Inside a git hook, ``GIT_DIR`` and ``GIT_INDEX_FILE`` point at the real repository: a git
+    command run from a temporary directory would act on that repository instead.
+
+    Returns:
+        A copy of ``os.environ`` without the variables git reads.
+
+    """
+    return {name: value for name, value in os.environ.items() if not name.startswith('GIT_')}
+
+
+def run_git(*, arguments: list[str], directory: Path) -> str:
+    """Run git in ``directory`` without the ambient ``GIT_*`` variables.
+
+    Args:
+        arguments: The git arguments, after the program.
+        directory: The working directory.
+
+    Returns:
+        git's standard output.
+
+    """
+    git_program = shutil.which('git')
+    assert git_program is not None, 'these tests need git'
+    completed = run_command(
+        command=[git_program, *arguments],
+        environment=environment_without_git_variables(),
+        timeout_seconds=30.0,
+        capture_output=True,
+        working_directory=directory,
+    )
+    assert completed.returncode == 0, completed.stdout
+    return completed.stdout
+
+
 def tracked_entry_names(*, directory: Path) -> set[str]:
     """Return the names directly in a directory that git tracks, ignored and untracked files out.
 
@@ -234,19 +271,10 @@ def tracked_entry_names(*, directory: Path) -> set[str]:
         The tracked files' and directories' names directly in ``directory``.
 
     """
-    git_program = shutil.which('git')
-    assert git_program is not None, 'these tests need git'
-    completed = run_command(
-        command=[git_program, 'ls-files', '-z', '--', '.'],
-        environment=os.environ,
-        timeout_seconds=30.0,
-        capture_output=True,
-        working_directory=directory,
-    )
-    assert completed.returncode == 0, completed.stdout
+    listing = run_git(arguments=['ls-files', '-z', '--', '.'], directory=directory)
     return {
         tracked_path.split('/', maxsplit=1)[0]
-        for tracked_path in completed.stdout.split('\0')
+        for tracked_path in listing.split('\0')
         if tracked_path
     }
 
@@ -260,30 +288,34 @@ def test_the_engines_examples_hold_only_the_demos_and_their_resources():
 
 def test_tracked_entry_names_leaves_out_ignored_and_untracked_files(tmp_path):
     """An ignored .DS_Store and an untracked file are not entries; a tracked directory is one."""
-    git_program = shutil.which('git')
-    assert git_program is not None, 'these tests need git'
-    run_command(
-        command=[git_program, 'init', '--quiet'],
-        environment=os.environ,
-        timeout_seconds=30.0,
-        capture_output=True,
-        working_directory=tmp_path,
-    )
+    run_git(arguments=['init', '--quiet'], directory=tmp_path)
     (tmp_path / '.gitignore').write_text('.DS_Store\n', encoding='utf-8')
     (tmp_path / 'demo.py').write_text('', encoding='utf-8')
     (tmp_path / 'resources').mkdir()
     (tmp_path / 'resources' / 'tone.wav').write_text('', encoding='utf-8')
     (tmp_path / '.DS_Store').write_text('', encoding='utf-8')
     (tmp_path / 'untracked.py').write_text('', encoding='utf-8')
-    run_command(
-        command=[git_program, 'add', '.gitignore', 'demo.py', 'resources'],
-        environment=os.environ,
-        timeout_seconds=30.0,
-        capture_output=True,
-        working_directory=tmp_path,
-    )
+    run_git(arguments=['add', '.gitignore', 'demo.py', 'resources'], directory=tmp_path)
 
     assert tracked_entry_names(directory=tmp_path) == {'.gitignore', 'demo.py', 'resources'}
+
+
+def test_tracked_entry_names_ignores_a_git_dir_from_the_environment(tmp_path, monkeypatch):
+    """A GIT_DIR set by a git hook does not send the helper to another repository."""
+    other_repository = tmp_path / 'other'
+    other_repository.mkdir()
+    run_git(arguments=['init', '--quiet'], directory=other_repository)
+    (other_repository / 'other.py').write_text('', encoding='utf-8')
+    run_git(arguments=['add', 'other.py'], directory=other_repository)
+    repository = tmp_path / 'repository'
+    repository.mkdir()
+    run_git(arguments=['init', '--quiet'], directory=repository)
+    (repository / 'demo.py').write_text('', encoding='utf-8')
+    run_git(arguments=['add', 'demo.py'], directory=repository)
+    monkeypatch.setenv('GIT_DIR', str(other_repository / '.git'))
+    monkeypatch.setenv('GIT_INDEX_FILE', str(other_repository / '.git' / 'index'))
+
+    assert tracked_entry_names(directory=repository) == {'demo.py'}
 
 
 def test_the_root_goldens_are_the_engines_own():

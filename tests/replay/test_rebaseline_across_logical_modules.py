@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import gzip
 import json
 from typing import TYPE_CHECKING, Any
@@ -105,13 +106,23 @@ class TestTheSceneLookup:
 
     def test_two_loaded_classes_of_that_name_are_still_refused(self):
         twin = type('LayerMovedScene', (Scene,), {'__module__': 'twin_module'})
-
-        found = find_scene_class(
-            name='LayerMovedScene', logical=FORMER_LAYER_MOVED_NAME, is_rebaseline=True
-        )
+        try:
+            found = find_scene_class(
+                name='LayerMovedScene', logical=FORMER_LAYER_MOVED_NAME, is_rebaseline=True
+            )
+        finally:
+            # The twin stays in Scene.__subclasses__() until collected: remove it now, so no
+            # other test sees it
+            del twin
+            gc.collect()
 
         assert found is None
-        assert twin.__name__ == 'LayerMovedScene'
+        assert (
+            find_scene_class(
+                name='LayerMovedScene', logical=FORMER_LAYER_MOVED_NAME, is_rebaseline=True
+            )
+            is LayerMovedScene
+        )
 
 
 class TestThroughTheRealGame:
