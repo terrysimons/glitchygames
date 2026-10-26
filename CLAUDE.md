@@ -32,9 +32,12 @@ uv sync --extra dev --all-packages
 uv sync --all-extras --all-groups --all-packages
 
 # Outside the repository: the engine alone, or with every game (the `games` extra names each
-# game's distribution; tests/test_workspace_config.py keeps it equal to src/games/)
-pip install glitchygames
-pip install "glitchygames[games]"
+# game's distribution; tests/test_workspace_config.py keeps it equal to src/games/). The names
+# are not yet on PyPI (neither glitchygames nor any game's), so build the wheels and install
+# from them until they are published
+uv build --all-packages
+pip install --find-links dist glitchygames
+pip install --find-links dist "glitchygames[games]"
 
 # Optional: trust the project's .envrc (direnv); on entering the repo it runs
 # `uv sync --all-extras --all-groups --all-packages` (the locked versions) and, on macOS,

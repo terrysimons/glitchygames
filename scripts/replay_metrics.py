@@ -91,13 +91,16 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PENDING_LEDGER_PATH = PROJECT_ROOT / PENDING_LEDGER_RELATIVE_PATH
+# A golden replay's file name, in either layout: golden.jsonl.gz, or one golden-<game>.jsonl.gz
+# per game in a project with several (Brave Adventurer's golden-classic and golden-papyrus;
+# docs/architecture/game_packages.md). A bookmarked copy (golden-classic.bookmarked.jsonl.gz)
+# matches it too: metric_recordings leaves those out
+GOLDEN_REPLAY_NAME_GLOB = 'golden*.jsonl.gz'
 # Golden replays in the root's tests/fixtures/replays/<console-script>/ (the replay plugin's layout
-# for other projects: none here, every game is a member); each workspace member's
-# are directly in its replay fixtures directory (golden_replay_globs): golden.jsonl.gz, or one
-# golden-<game>.jsonl.gz per game in a member with several (Brave Adventurer's golden-classic
-# and golden-papyrus; docs/architecture/game_packages.md)
-ROOT_LAYOUT_GOLDEN_REPLAYS_GLOB = 'tests/fixtures/replays/*/golden.jsonl.gz'
-MEMBER_GOLDEN_REPLAYS_GLOB = 'golden*.jsonl.gz'
+# for other projects: none here, every game is a member); each workspace member's are directly in
+# its replay fixtures directory (golden_replay_globs)
+ROOT_LAYOUT_GOLDEN_REPLAYS_GLOB = f'tests/fixtures/replays/*/{GOLDEN_REPLAY_NAME_GLOB}'
+MEMBER_GOLDEN_REPLAYS_GLOB = GOLDEN_REPLAY_NAME_GLOB
 # How many of a failed child's last output lines are shown
 FAILURE_OUTPUT_LINES = 10
 MILLISECONDS_PER_SECOND = 1000.0
@@ -234,41 +237,41 @@ def metric_recordings(
     return MetricRecordings(replayable=(*goldens, *demos), unreplayable=tuple(unreplayable))
 
 
-def recording_ledger_name(*, path: Path, project_root: Path) -> str:
+def recording_ledger_name(
+    *, path: Path, project_root: Path, demo_packages: tuple[str, ...] = tuple(MEMBER_LAYERS)
+) -> str:
     """Return the name the ledger gives a recording.
 
     A recording in the repository is named by its repository path
     (``src/games/paddleslap/paddleslap/demos/rally.jsonl.gz``: what a development install, which
     is editable, finds). One outside it (a bundled demo of a built install, in
-    ``site-packages``) is named by its path relative to the import path it is installed under
-    (``paddleslap/demos/rally.jsonl.gz``, ``glitchygames.bundled_demos.BundledDemo.install_name``).
+    ``site-packages``) is named by its bundled demo record's install name
+    (``paddleslap/demos/rally.jsonl.gz``, ``glitchygames.bundled_demos.BundledDemo.install_name``),
+    so the record is the name's one source.
 
     Args:
         path: The recording.
         project_root: The repository.
+        demo_packages: The import packages whose bundled demos may hold a recording outside the
+            repository: every workspace member's unless given (as ``metric_recordings``).
 
     Returns:
         The name.
 
     Raises:
-        ValueError: If the recording is neither in the repository nor under an import path.
+        ValueError: If the recording is neither in the repository nor a bundled demo of one of
+            those packages.
 
     """
     resolved = path.resolve()
     repository = project_root.resolve()
     if resolved.is_relative_to(repository):
         return resolved.relative_to(repository).as_posix()
-    install_roots = [
-        root
-        for root in (Path(entry).resolve() for entry in sys.path if entry)
-        if resolved.is_relative_to(root)
-    ]
-    if not install_roots:
-        message = f'{path}: neither in the repository {project_root} nor under an import path'
-        raise ValueError(message)
-    # The innermost import path: site-packages, not a directory above it on sys.path
-    install_root = max(install_roots, key=lambda root: len(root.parts))
-    return resolved.relative_to(install_root).as_posix()
+    for demo in bundled_demos(packages=demo_packages):
+        if demo.path.resolve() == resolved:
+            return demo.install_name
+    message = f'{path}: neither in the repository {project_root} nor an installed bundled demo'
+    raise ValueError(message)
 
 
 def this_machine() -> str:

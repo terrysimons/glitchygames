@@ -36,6 +36,7 @@ from glitchygames.engine import GameEngine
 from glitchygames.exit_codes import ExitCode
 from glitchygames.logical_names import logical_name
 from glitchygames.replay.driver import GAME_HEADER_FIELD
+from glitchygames.replay.rebuild import REPLAY_TRACE_OPTION
 from glitchygames.tracing import TraceReader
 
 if TYPE_CHECKING:
@@ -48,8 +49,6 @@ GAMES_BY_NAME: dict[str, Callable[[], None]] = {
     'classic': brave_adventurer.main,
     'papyrus': brave_adventurer_papyrus.main,
 }
-# The engine's option naming a recording to replay (GameEngine.args)
-REPLAY_TRACE_OPTION = '--replay-trace'
 
 
 def recorded_game(*, path: Path) -> str | None:

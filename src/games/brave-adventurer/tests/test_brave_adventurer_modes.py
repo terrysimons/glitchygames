@@ -43,7 +43,6 @@ from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_name
 from glitchygames.recording import post_input_event
 from glitchygames.scenes import SceneManager
-from glitchygames.testing.replays import recording_console_script, replay_recording_headless
 from glitchygames.tracing import read_trace_result, write_trace
 
 if TYPE_CHECKING:
@@ -272,15 +271,6 @@ class TestRecordings:
             brave_adventurer_modes.main()
 
         assert exit_info.value.code == ExitCode.MISSING_INPUT
-
-    @pytest.mark.parametrize('golden', [CLASSIC_GOLDEN, PAPYRUS_GOLDEN], ids=lambda path: path.name)
-    def test_both_goldens_replay_through_the_launcher(self, golden):
-        """The member's one console script replays both goldens, as the replay plugin runs it."""
-        assert recording_console_script(path=golden) == 'brave-adventurer'
-
-        finished = replay_recording_headless(console_script='brave-adventurer', path=golden)
-
-        assert finished.returncode == ExitCode.SUCCESS, finished.stdout
 
 
 class ChooseThenQuit:

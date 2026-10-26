@@ -89,10 +89,15 @@ Each layer is also an extra of the engine, naming that layer's members, so an in
 the engine alone or with them:
 
 ```bash
-pip install glitchygames                # the engine
-pip install "glitchygames[games]"       # the engine and every game
-pip install "glitchygames[demos,apps]"  # the engine, the demos and the apps
+uv build --all-packages                                    # every wheel, into dist/
+pip install --find-links dist glitchygames                 # the engine
+pip install --find-links dist "glitchygames[games]"        # the engine and every game
+pip install --find-links dist "glitchygames[demos,apps]"   # the engine, the demos and the apps
 ```
+
+The names are not yet on PyPI (neither `glitchygames` nor any game's), so install from the built
+wheels as above: a plain `pip install glitchygames` would fetch whatever package someone else
+published under that name.
 
 (`uv sync --extra games` does the same in the repository.) A layer with no member yet is an empty
 extra; `tests/test_workspace_config.py` keeps each extra equal to its layer's members.
@@ -148,7 +153,8 @@ any tool's configuration.
   re-exports `main`.
 - A `tests/test_<package>_after_the_move.py` (Mr. Muncher's is `test_logical_names_after_the_move.py`,
   the first; every later member names its own, since `tests/test_suite_collection.py` refuses a
-  test file name used twice): the game's classes keep the logical names its recordings hold, and
+  test file name used twice): the game's classes keep the logical names its recordings hold, its
+  golden's old path maps to its new one in `RECORDING_PATH_RENAMES` (its history follows it), and
   `importlib.util.find_spec('glitchygames.examples.<package>')` is None.
 
 ### 3. Register it in the root configuration
@@ -156,7 +162,7 @@ any tool's configuration.
 | File | What to add or change |
 |---|---|
 | `pyproject.toml` | Remove its console script from `[project.scripts]` (the member's own `pyproject.toml` has it now). Add the member to its layer's extra (`games`, `demos` or `apps` in `[project.optional-dependencies]`), `[tool.uv.workspace] members`, `[tool.uv.sources]`, the `dev` dependency group, pytest `testpaths`, `addopts` (`--cov=<package>`), coverage `source` and `[tool.coverage.paths]`, ruff `src`, `include` and `namespace-packages` (its tests), isort `known-first-party`, ty `root` and `src.include`, deptry `known_first_party`. Re-key any per-file ruff ignore that names the old path. |
-| `pyrightconfig.json` | Add it to `include`, a tests environment (before the member's own) and the member's environment, each with the `extraPaths` Mr. Muncher's have |
+| `pyrightconfig.json` | Add it to `include`, a tests environment (before the member's own) and the member's environment, each with the `extraPaths` Mr. Muncher's have. Those assume a flat layout (the package beside `pyproject.toml`); a src-layout member uses its `src/` instead (`WorkspaceMember.import_roots` in `scripts/workspace_packages.py`), as Brave Adventurer does |
 | `noxfile.py` | `_CODE_DIRS`, `_SOURCE_PACKAGE_DIRS`, `_MEMBER_DISTRIBUTIONS` |
 | `wily.cfg` | The `path` list |
 | `mkdocs.yml` | The mkdocstrings `paths`, and its API page under "Games API Reference" |
@@ -207,9 +213,9 @@ any tool's configuration.
   ```
 
   (grep's `.` matches any character, so the dotted pattern finds the slashed path too) prints
-  only the `RECORDING_PATH_RENAMES` line and its test in `tests/test_recording_metrics.py`
-  (the old path is their point), and the member's after-the-move test (its old-package check and
-  docstring). `plans/`, `quality/` (ledger rows) and `BUGS.md` are history and keep the old paths.
+  only the `RECORDING_PATH_RENAMES` line (the old path is its point) and the member's
+  after-the-move test (its history check on that line, its old-package check and docstring).
+  `plans/`, `quality/` (ledger rows) and `BUGS.md` are history and keep the old paths.
 
 ### 6. The browser build
 
@@ -233,8 +239,11 @@ uv lock                                     # then read its diff: only the new m
 uv sync --all-extras --all-groups --all-packages
 uv run --extra dev nox -s format-code lint-code lint-dependencies
 uv run basedpyright && uv run nox -s static-analysis-ty
-# The member, its golden replay and golden trace
-uv run pytest --dummy-only --no-cov -q src/games/<game>/tests \
+# The member's tests, its golden replay among them (no -k: a golden's id is
+# <console-script>/golden, hyphenated, so -k <package> would deselect it)
+uv run pytest --dummy-only --no-cov -q src/games/<game>/tests
+# The engine's checks on its golden replay, and its golden trace
+uv run pytest --dummy-only --no-cov -q \
     tests/replay/test_golden_replays.py tests/world/test_golden_traces.py -k <package>
 # The configuration guards, and every engine test that borrows the game (step 5's git grep)
 uv run pytest --dummy-only --no-cov -q tests/test_suite_collection.py \
@@ -308,6 +317,10 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
   into the engine, give the engine a public read-only API first, then move the game. PaddleSlap
   needed no private name once the engine offered `BallSprite.trajectory` and
   `record_trajectory_point`.
+- **A known exemption, member tests**: a member's tests may use the engine's test seams (for
+  example `SceneManager._reset` and `FontManager._font_cache`, which reset engine state between
+  tests); the member's game code may not. A public testing helper for them is a follow-up
+  (`plans/future-features.md`, item #56).
 
 ## Pitfalls
 

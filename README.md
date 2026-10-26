@@ -33,11 +33,13 @@ uv sync --all-extras --all-groups --all-packages
 Every game is its own package (a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/)
 member under `src/games/`, depending on `glitchygames` like any third-party game;
 `docs/architecture/game_packages.md`). Outside the repository an installer picks the engine alone
-or with the games:
+or with the games. The names are not yet on PyPI (neither `glitchygames` nor any game's), so
+until they are published, build the wheels in the repository and install from them:
 
 ```bash
-pip install glitchygames                # the engine
-pip install "glitchygames[games]"       # the engine and every game
+uv build --all-packages                                # every wheel, into dist/
+pip install --find-links dist glitchygames             # the engine
+pip install --find-links dist "glitchygames[games]"    # the engine and every game
 ```
 
 ### Optional Dependency Groups

@@ -250,6 +250,25 @@ class TestTheRecordings:
         assert recordings.replayable == (('brave-adventurer', golden),)
         assert not recordings.unreplayable
 
+    def test_the_root_layout_finds_each_games_golden_and_skips_a_bookmarked_copy(self, tmp_path):
+        """The root layout's glob is the member's (golden*): golden-<game> too, not the copies."""
+        # A repository without members: only the root layout's goldens are found
+        (tmp_path / 'pyproject.toml').write_text('[project]\nname = "stand-in"\n', encoding='utf-8')
+        fixtures = tmp_path / 'tests' / 'fixtures' / 'replays' / 'paddleslap'
+        fixtures.mkdir(parents=True)
+        golden = fixtures / 'golden.jsonl.gz'
+        shutil.copy(REPO_FIXTURE, golden)
+        game_golden = fixtures / 'golden-rally.jsonl.gz'
+        shutil.copy(REPO_FIXTURE, game_golden)
+        bookmarked = fixtures / 'golden-rally.bookmarked.jsonl.gz'
+        write_bookmarked_copy(recording_path=game_golden, bookmarks=[1], destination=bookmarked)
+        assert is_bookmarked_copy(path=bookmarked)
+
+        recordings = metric_recordings(project_root=tmp_path, demo_packages=())
+
+        assert recordings.replayable == (('paddleslap', game_golden), ('paddleslap', golden))
+        assert not recordings.unreplayable
+
     def test_a_member_that_is_not_installed_is_named_with_the_fix(self, tmp_path):
         """A plain `uv sync` uninstalls the members: one line naming `uv sync --all-packages`."""
         write_uninstalled_member(project_root=tmp_path)
@@ -332,21 +351,43 @@ class TestRecordingLedgerNames:
         )
 
     def test_a_recording_in_site_packages_is_named_by_its_install_name(self, tmp_path, monkeypatch):
-        """An installed system with no repository: the path below the import path holding it."""
+        """An installed system with no repository: its bundled demo record's install name."""
         site_packages = tmp_path / 'lib' / 'site-packages'
         demo_directory = write_stand_in_package(
             directory=site_packages, package='stand_in_game', demo_names=('rally.jsonl.gz',)
         )
-        # The directory above is an import path too: the innermost one names it
+        # The directory above is an import path too: the record names it from the innermost
         monkeypatch.syspath_prepend(tmp_path)
         monkeypatch.syspath_prepend(site_packages)
         (demo,) = bundled_demos(packages=('stand_in_game',))
 
         name = recording_ledger_name(
-            path=demo_directory / 'rally.jsonl.gz', project_root=tmp_path / 'no-repository'
+            path=demo_directory / 'rally.jsonl.gz',
+            project_root=tmp_path / 'no-repository',
+            demo_packages=('stand_in_game',),
         )
 
         assert name == 'stand_in_game/demos/rally.jsonl.gz' == demo.install_name
+
+    def test_a_recording_under_an_import_path_that_is_no_bundled_demo_is_refused(
+        self, tmp_path, monkeypatch
+    ):
+        """Outside the repository only a bundled demo's record names it, not the import paths."""
+        site_packages = tmp_path / 'site-packages'
+        write_stand_in_package(
+            directory=site_packages, package='stand_in_game', demo_names=('rally.jsonl.gz',)
+        )
+        monkeypatch.syspath_prepend(site_packages)
+        # Under the same import path as the demo, but not in its package's demos/
+        stray = site_packages / 'stand_in_game' / 'rally.jsonl.gz'
+        shutil.copy(REPO_FIXTURE, stray)
+
+        with pytest.raises(ValueError, match='nor an installed bundled demo'):
+            recording_ledger_name(
+                path=stray,
+                project_root=tmp_path / 'no-repository',
+                demo_packages=('stand_in_game',),
+            )
 
     def test_a_recording_neither_in_the_repository_nor_installed_is_refused(self, tmp_path):
         with pytest.raises(ValueError, match='neither in the repository'):

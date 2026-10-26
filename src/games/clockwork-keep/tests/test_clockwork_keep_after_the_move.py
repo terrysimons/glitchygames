@@ -1,4 +1,4 @@
-"""Clockwork Keep moved from glitchygames/examples/clockwork_keep: its logical names stayed."""
+"""Clockwork Keep moved out of glitchygames/examples: its logical names and history stayed."""
 
 from __future__ import annotations
 
@@ -11,10 +11,14 @@ from pathlib import Path
 import clockwork_keep.game
 from clockwork_keep.game import ClockworkKeepScene
 from glitchygames.logical_names import logical_name
+from glitchygames.recording_metrics import RECORDING_PATH_RENAMES
 from glitchygames.scenes import Scene
 
 # The member's golden replay, directly in its tests/fixtures/replays/
 GOLDEN_REPLAY_PATH = Path(__file__).parent / 'fixtures' / 'replays' / 'golden.jsonl.gz'
+# Its golden's ledger name, and the one it had before the move
+GOLDEN_REPOSITORY_PATH = 'src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz'
+GOLDEN_FORMER_PATH = 'tests/fixtures/replays/clockwork-keep/golden.jsonl.gz'
 
 
 def scenes_the_golden_starts() -> set[str]:
@@ -53,3 +57,8 @@ def test_clockwork_keep_keeps_its_logical_names():
 def test_the_old_example_package_is_gone():
     """Nothing is left in glitchygames/examples to import (a stale __pycache__ would be)."""
     assert importlib.util.find_spec('glitchygames.examples.clockwork_keep') is None
+
+
+def test_clockwork_keeps_golden_keeps_its_history():
+    """Clockwork Keep's golden moved into its member: its rows from before the move follow."""
+    assert RECORDING_PATH_RENAMES[GOLDEN_FORMER_PATH] == GOLDEN_REPOSITORY_PATH

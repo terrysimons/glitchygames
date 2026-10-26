@@ -88,7 +88,8 @@ REPLAY_FIXTURES_LAYOUT = (
 UNUSABLE_RECORDING_EXIT_CODES = frozenset({ExitCode.UNUSABLE_INPUT, ExitCode.MISSING_INPUT})
 # The recording header field naming its game by logical name (glitchygames/logical_names.py),
 # which chooses among a workspace member's several console scripts: replay/driver.py's
-# GAME_HEADER_FIELD, not imported from there (it imports pygame, which this plugin never does)
+# GAME_HEADER_FIELD, not imported from there (it imports pygame, which this plugin never does);
+# tests/replay/test_replay_plugin.py keeps the two equal
 GAME_HEADER_FIELD = 'game'
 # Kill a replay child that runs longer than this (a headless replay of a few hundred frames
 # takes a second or two)

@@ -552,12 +552,6 @@ class TestPerformanceSeries:
         assert [row.recording for row in moved.rows] == [old_path, new_path]
         assert only_old.recording == new_path
 
-    def test_clockwork_keeps_golden_keeps_its_history(self):
-        """Clockwork Keep's golden moved into its member: its rows from before the move follow."""
-        assert RECORDING_PATH_RENAMES['tests/fixtures/replays/clockwork-keep/golden.jsonl.gz'] == (
-            'src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz'
-        )
-
     def test_rows_without_a_summary_are_left_out_and_paced_runs_are_their_own_series(self):
         unsummarised = ledger_row().model_copy(update={'summary': None})
         paced = ledger_row().model_copy(

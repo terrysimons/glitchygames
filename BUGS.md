@@ -4,6 +4,24 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 230. Brave Adventurer's Respawn Clamp Can Make the Player's X the Int 0
+- **Description**: `BraveAdventurerScene._respawn_player` (`src/games/brave-adventurer/src/brave_adventurer_core/scene.py`, around line 750) computes `respawn_x = max(0, self.player.world_x - RESPAWN_OFFSET)`. When the player dies within `RESPAWN_OFFSET` (200) pixels of the start, `max` returns the int `0`, not a float, and that int becomes `self.player.world_x`, which is a float everywhere else
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found sharing the two games' scenes (workspace packages Part 2, Task 6)
+- **Date Reported**: 2026-10-25
+- **Details**: Predates the move: both editions' scenes had the same line before they shared one base. Harmless in arithmetic today, but a recording or golden trace that records the player's x would record `0` rather than `0.0` after such a respawn, so the fix (`max(0.0, ...)`) can change recordings and golden traces and needs them re-checked. Not fixed on the branch for that reason. Also noted in `plans/future-features.md` (#56, Part 2 leftovers)
+- **Files**: `src/games/brave-adventurer/src/brave_adventurer_core/scene.py`
+
+### 229. Brave Adventurer Sets `_was_airborne` and Never Reads It
+- **Description**: `BraveAdventurerScene.__init__` (`src/games/brave-adventurer/src/brave_adventurer_core/scene.py`, around line 193) sets `self._was_airborne = False`, commented "for land sound", but nothing reads it: no landing sound is played from it
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found sharing the two games' scenes (workspace packages Part 2, Task 6)
+- **Date Reported**: 2026-10-25
+- **Details**: Predates the move. Either remove it or play the landing sound it was meant for; playing a sound changes the audio a recording holds, so a fix needs the golden replays re-checked. Not fixed on the branch for that reason. Also noted in `plans/future-features.md` (#56, Part 2 leftovers)
+- **Files**: `src/games/brave-adventurer/src/brave_adventurer_core/scene.py`
+
 ### 228. Smaller Findings From the Engine Context Sub-Plan 1 Reviews
 - **Description**: The task reviews and the final whole-branch review of engine context sub-plan 1 (plans/2026-10-25-engine-context-1-state.md, 2026-10-25) recorded these minor findings; the final reviewer triaged them and none blocks the merge. The important findings were fixed on the branch. Item 6 (the positional calls) belongs to sub-plan 2
 - **Status**: Active
@@ -393,7 +411,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: Low
 - **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
 - **Date Reported**: 2026-10-22
-- **Details**: (1) `FontManager` stores `font_bold`/`font_italic` but never uses them. (2) PaddleSlap's TextSprite/TextBox (~157-196 of what was then `src/glitchygames/examples/paddleslap.py`; its module now, `src/games/paddleslap/paddleslap/__init__.py`, holds neither) are never constructed and broken (`FontManager()` without a game raises; a bound method passed as a font name). (3) `src/glitchygames/examples/dt_demo.py` asks for Calibri (SysFont). (4) `--windowed` defaults to True with no way to turn it off, and `args()` compares `platform.system()` with 'MacOS' (it is 'Darwin'); see #76. (5) `BitmappySprite.__init__` discards its `convert()` result (as #143). (6) Tests that test nothing in production, kept and listed for review: inline-logic tests in `test_pixel_saving.py`, mock-only scroll tests in `test_multi_controller_color_assignment.py`, `test_description_loading_from_toml`, protocol/`hasattr` tests in `test_canvas.py`, `test_clipboard_persistence`, `test_film_strip_sprite_methods`, four ball-to-ball swap tests in `test_collision_scenarios.py`, `test_bitmappy_sprite_save_method`, five creation-only tests in `test_sprite_animation.py`, `test_animation_timing_performance`
+- **Details**: (1) `FontManager` stores `font_bold`/`font_italic` but never uses them. (2) PaddleSlap's TextSprite/TextBox (~157-196 of what was then `src/glitchygames/examples/paddleslap.py`) were never constructed and broken (`FontManager()` without a game raises; a bound method passed as a font name) (obsolete 2026-10-26: both were removed with the rest of PaddleSlap's unused text sprite in #96, fab884c1; its module now, `src/games/paddleslap/paddleslap/__init__.py`, defines only `Game` and `PaddleSlapGameOverScene`). (3) `src/glitchygames/examples/dt_demo.py` asks for Calibri (SysFont). (4) `--windowed` defaults to True with no way to turn it off, and `args()` compares `platform.system()` with 'MacOS' (it is 'Darwin'); see #76. (5) `BitmappySprite.__init__` discards its `convert()` result (as #143). (6) Tests that test nothing in production, kept and listed for review: inline-logic tests in `test_pixel_saving.py`, mock-only scroll tests in `test_multi_controller_color_assignment.py`, `test_description_loading_from_toml`, protocol/`hasattr` tests in `test_canvas.py`, `test_clipboard_persistence`, `test_film_strip_sprite_methods`, four ball-to-ball swap tests in `test_collision_scenarios.py`, `test_bitmappy_sprite_save_method`, five creation-only tests in `test_sprite_animation.py`, `test_animation_timing_performance`
 - **Files**: see Details
 
 ### 174. Fast Balls Can Pass Through Each Other in PaddleSlap
@@ -447,7 +465,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: Low
 - **Reporter**: Found on feature/gameplay-replay (replay core, Task 14: the `--audit` children of the PaddleSlap golden replay printed INFO lines under `--log-level error`)
 - **Date Reported**: 2026-10-19
-- **Details**: Not fixed here: removing the module-level `setLevel` calls changes what PaddleSlap logs by default for other `game.*` loggers if anything else lowers the root level, and needs checking against the other examples that may do the same. `--log-level` defaults to `info`, so only runs that ask for a quieter level are affected
+- **Details**: Not fixed here: removing the module-level `setLevel` calls changes what PaddleSlap logs by default for other `game.*` loggers if anything else lowers the root level, and needs checking against the other examples that may do the same. `--log-level` defaults to `info`, so only runs that ask for a quieter level are affected. Re-checked 2026-10-26 after PaddleSlap's move to its own package: still applies. Both calls are where the description says, and `GameEngine` still sets only the root level (`logging.basicConfig(level=args.log_level.upper())`, `src/glitchygames/engine/game_engine.py` around line 901). The others that do the same today: `src/glitchygames/bitmappy/editor.py` (around line 1543, INFO) and `src/glitchygames/examples/text_input_demo.py` (line 19, DEBUG)
 - **Files**: `src/games/paddleslap/paddleslap/__init__.py`, `src/glitchygames/game_objects/paddle.py`
 
 ### 75. `pygame_needs_fastevents` Compares the Major and Minor Versions Separately

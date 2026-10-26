@@ -19,7 +19,9 @@ from scripts.record_scripted_session import fixture_path
 
 from glitchygames.bundled_demos import CONSOLE_SCRIPTS_GROUP, bundled_demos
 from glitchygames.exit_codes import ExitCode
+from glitchygames.replay import driver
 from glitchygames.replay.driver import write_bookmarked_copy
+from glitchygames.testing import replays
 from glitchygames.testing.replays import (
     REPLAY_FIXTURES_PATH_PARTS,
     bundled_demo_paths,
@@ -119,6 +121,11 @@ def run_pytest(
         *arguments,
         timeout=SUBPROCESS_TIMEOUT_SECONDS,
     )
+
+
+def test_the_plugins_game_header_field_is_the_drivers():
+    """The plugin keeps its own copy (it never imports pygame, as replay/driver.py does)."""
+    assert replays.GAME_HEADER_FIELD == driver.GAME_HEADER_FIELD
 
 
 def test_game_entry_point_reads_the_console_script():
