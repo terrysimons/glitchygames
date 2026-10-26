@@ -10,6 +10,7 @@ import ast
 import fnmatch
 import importlib.metadata
 import json
+import re
 import tomllib
 from pathlib import Path
 
@@ -378,3 +379,149 @@ def test_test_file_names_are_unique_across_packages():
     names = [path.name for root in collected_test_roots() for path in root.rglob('test_*.py')]
 
     assert len(names) == len(set(names))
+
+
+# Living documentation writes repository paths from the repository root (the engine at
+# src/glitchygames/, the workspace layers at src/games/, src/demos/ and src/apps/). Finished
+# plans (plans/*.md except the ones below) and resolved BUGS.md entries are history: they name
+# the locations as they were when written, so they are not scanned (TEST_UPDATE_PLAN.md says
+# "complete (historical)" and is among them).
+LIVING_PLAN_FILES = (
+    'plans/future-features.md',
+    'plans/future-work.md',
+    'plans/2026-10-23-arcade-showcase.md',
+    'plans/2026-10-24-workspace-packages.md',
+)
+# An engine path not written from the repository root: `glitchygames/` right after something
+# that makes it part of a longer path or name (a word, '.', '/', '-', '~') is not one, which
+# leaves out `src/glitchygames/`, `site-packages/glitchygames/`, URLs, `dev.glitchygames/`
+# and the dotted module name `glitchygames.engine`.
+ENGINE_PATH_WITHOUT_ROOT = re.compile(r'(?<![\w./~-])glitchygames/(?P<rest>[\w./-]*)')
+# `src/examples` (there is no examples layer) and a workspace layer written without `src/`
+STALE_LAYER_PATH = re.compile(r'src/examples\b|(?<![\w./~-])(?:games|demos|apps)/(?=[\w<])')
+
+
+def _is_generated_api_stub(*, text: str) -> bool:
+    """Return True for a mkdocstrings stub: only `::: module` directives and their options."""
+    lines = [line for line in text.splitlines() if line.strip()]
+    return all(line.startswith((':::', ' ')) for line in lines)
+
+
+def _active_bug_lines(*, text: str) -> list[tuple[int, str]]:
+    """Return the (line number, line) pairs of every BUGS.md entry whose Status is not resolved."""
+    entries: list[list[tuple[int, str]]] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if line.startswith(('## ', '### ')):
+            entries.append([])
+        if entries:
+            entries[-1].append((line_number, line))
+    active: list[tuple[int, str]] = []
+    for entry in entries:
+        statuses = [line for _, line in entry if line.startswith('- **Status**:')]
+        if statuses and not statuses[0].removeprefix('- **Status**:').strip().startswith((
+            'Resolved',
+            'Fixed',
+            'Closed',
+        )):
+            active.extend(entry)
+    return active
+
+
+def living_documentation_lines(*, project_root: Path = PROJECT_ROOT) -> list[tuple[str, int, str]]:
+    """Return (file, line number, line) for every line of the living documentation.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        The lines of CLAUDE.md, README.md, the root README and architecture files, docs/ (but
+        not generated API stubs or the generated docs/quality/graphs and docs/quality/metrics,
+        which are gitignored), the living plans and BUGS.md's active entries.
+
+    """
+    paths = [
+        *(project_root / name for name in ('CLAUDE.md', 'README.md', 'BITMAPPY_ARCHITECTURE.md')),
+        *sorted(project_root.glob('*_README.md')),
+        *(project_root / name for name in LIVING_PLAN_FILES),
+        *(
+            path
+            for path in sorted((project_root / 'docs').rglob('*.md'))
+            if not path.is_relative_to(project_root / 'docs' / 'quality' / 'graphs')
+            and not path.is_relative_to(project_root / 'docs' / 'quality' / 'metrics')
+        ),
+    ]
+    lines: list[tuple[str, int, str]] = []
+    for path in paths:
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding='utf-8')
+        if _is_generated_api_stub(text=text):
+            continue
+        relative = path.relative_to(project_root).as_posix()
+        lines.extend(
+            (relative, line_number, line)
+            for line_number, line in enumerate(text.splitlines(), start=1)
+        )
+    bugs = project_root / 'BUGS.md'
+    if bugs.is_file():
+        lines.extend(
+            ('BUGS.md', line_number, line)
+            for line_number, line in _active_bug_lines(text=bugs.read_text(encoding='utf-8'))
+        )
+    return lines
+
+
+def paths_without_the_source_root(*, project_root: Path = PROJECT_ROOT) -> list[str]:
+    """Return 'file:line: text' for each living-documentation path that predates src/."""
+    problems: list[str] = []
+    for relative, line_number, line in living_documentation_lines(project_root=project_root):
+        stale = [
+            match.group(0)
+            for match in ENGINE_PATH_WITHOUT_ROOT.finditer(line)
+            if (project_root / 'src' / match.group(0).rstrip('.,;:)`\'"')).exists()
+        ]
+        stale.extend(match.group(0) for match in STALE_LAYER_PATH.finditer(line))
+        problems.extend(f'{relative}:{line_number}: {text}' for text in stale)
+    return problems
+
+
+def test_living_documentation_writes_repository_paths_from_the_repository_root():
+    """No living document names the engine as glitchygames/..., or a layer that does not exist.
+
+    The engine is src/glitchygames/ (#105); games, demos and apps are src/games/, src/demos/ and
+    src/apps/ (no examples layer, nothing at the root). History (finished plans, resolved bugs)
+    keeps the paths it was written with.
+    """
+    assert paths_without_the_source_root() == []
+
+
+def test_the_path_guard_finds_stale_paths_and_leaves_names_and_urls_alone(tmp_path):
+    """The guard names stale paths, and leaves dotted names, URLs, cache names and history alone."""
+    (tmp_path / 'src' / 'glitchygames' / 'ui').mkdir(parents=True)
+    (tmp_path / 'src' / 'glitchygames' / 'ui' / 'x.py').touch()
+    (tmp_path / 'src' / 'glitchygames' / 'ui' / 'y.py').touch()
+    (tmp_path / 'docs').mkdir()
+    (tmp_path / 'CLAUDE.md').write_text(
+        'See `glitchygames/ui/` and glitchygames/ui/x.py.\n'
+        'See `src/glitchygames/ui/`, glitchygames.ui, site-packages/glitchygames/ui.\n'
+        'https://github.com/terrysimons/glitchygames/ui and glitchygames/nowhere.\n'
+        'The ~/.glitchygames/cache, glitchygames-wasm and src/examples/x, apps/y.\n'
+        'Plain games/ prose, src/games/muncher and docs/games/x.md are fine.',
+        encoding='utf-8',
+    )
+    (tmp_path / 'docs' / 'stub.md').write_text(
+        '::: glitchygames.ui\n    options:\n', encoding='utf-8'
+    )
+    (tmp_path / 'BUGS.md').write_text(
+        '## Active Bugs\n### 1. A\n- **Status**: Active\nglitchygames/ui/y.py\n'
+        '## Resolved Bugs\n### 2. B\n- **Status**: Resolved\nglitchygames/ui/z.py\n',
+        encoding='utf-8',
+    )
+
+    assert paths_without_the_source_root(project_root=tmp_path) == [
+        'CLAUDE.md:1: glitchygames/ui/',
+        'CLAUDE.md:1: glitchygames/ui/x.py.',
+        'CLAUDE.md:4: src/examples',
+        'CLAUDE.md:4: apps/',
+        'BUGS.md:4: glitchygames/ui/y.py',
+    ]
