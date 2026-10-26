@@ -133,8 +133,10 @@ any tool's configuration.
 
 - `src/games/<game>/pyproject.toml` (above) and `README.md`. The package's `__init__.py`
   re-exports `main`.
-- A `tests/test_logical_names_after_the_move.py` like Mr. Muncher's: the game's classes keep the
-  logical names its recordings hold.
+- A `tests/test_<package>_after_the_move.py` (Mr. Muncher's is `test_logical_names_after_the_move.py`,
+  the first; every later member names its own, since `tests/test_suite_collection.py` refuses a
+  test file name used twice): the game's classes keep the logical names its recordings hold, and
+  `importlib.util.find_spec('glitchygames.examples.<package>')` is None.
 
 ### 3. Register it in the root configuration
 
@@ -163,10 +165,30 @@ any tool's configuration.
   directories from `GAME_MODULES` and the workspace: only its docstring examples need editing.
 - `tests/replay/test_golden_replays.py`: its imports, `GAMEPLAY_ACTION_MAPS`,
   `ENGINE_SCENE_CONTROLS`, `UNEXERCISED_CONTROLS` and any table naming the game.
-- `git grep` for the old package path and the old golden path across `tests/` and `scripts/`:
-  engine tests that borrow a game (a collision test using its sprites), benchmarks reading its
-  golden, scripts importing it. Point each at the member, or move the test into the member when
-  it is really the game's.
+- The engine tests that borrow a game, by import or by path. Clockwork Keep's move touched
+  `tests/animation/test_animation.py`, `tests/world/test_golden_traces.py` (its trace stays; only
+  imports change), `tests/world/test_transition_input.py`, `tests/test_browser_touch_controls.py`
+  and `scripts/audio_glitch_probe.py`. `tests/replay/test_record_scripted_session.py`
+  (`test_every_game_has_a_fixture_location`) uses one game still in the root layout as its
+  example (`tests/fixtures/replays/<console-script>/golden.jsonl.gz`): when that game moves, point
+  it at one not yet moved, and add the moved game to
+  `test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures`.
+  `tests/engine/test_engine_lifecycle.py` `GAME_CONSOLE_SCRIPTS` lists every game's console script
+  (unchanged by a move, which keeps the script's name).
+- `git grep` for the old package path and the old golden path across the repository: engine tests
+  that borrow a game (a collision test using its sprites), benchmarks reading its golden, scripts
+  importing it. Point each at the member, or move the test into the member when it is really the
+  game's. Once done, the only matches left are on purpose:
+
+  ```bash
+  git grep -n \
+      "glitchygames.examples.<package>\|glitchygames/examples/<package>\|fixtures/replays/<game>" \
+      -- ':!plans' ':!quality' ':!BUGS.md'
+  ```
+
+  prints only the `RECORDING_PATH_RENAMES` line and its test in `tests/test_recording_metrics.py`
+  (the old path is their point), and the member's after-the-move test (its old-package check and
+  docstring). `plans/`, `quality/` (ledger rows) and `BUGS.md` are history and keep the old paths.
 
 ### 6. The browser build
 
@@ -179,24 +201,38 @@ on another member lists both, the one depended on first: each ships as its own a
 
 - `docs/games/<game>.md`: its file table and every path (`src/games/<game>/<package>/...`), and an
   "Its package" line linking here.
-- `docs/glitchygames/examples/index.md`: remove its `:::` block (its API page is now generated
-  from the member).
+- `docs/glitchygames/examples/index.md`: remove its `:::` block, if it has one (its API page is now
+  generated from the member).
 - `README.md` and `CLAUDE.md`: where the game lives.
 
 ### 8. Verify
 
 ```bash
-uv lock && uv sync --all-extras --all-groups --all-packages
+uv lock                                     # then read its diff: only the new member
+uv sync --all-extras --all-groups --all-packages
 uv run --extra dev nox -s format-code lint-code lint-dependencies
 uv run basedpyright && uv run nox -s static-analysis-ty
-uv run pytest --dummy-only --no-cov -q src/games/<game>/tests tests/test_suite_collection.py \
+# The member, its golden replay and golden trace
+uv run pytest --dummy-only --no-cov -q src/games/<game>/tests \
+    tests/replay/test_golden_replays.py tests/world/test_golden_traces.py -k <package>
+# The configuration guards, and every engine test that borrows the game (step 5's git grep)
+uv run pytest --dummy-only --no-cov -q tests/test_suite_collection.py \
     tests/test_workspace_config.py tests/test_workspace_packages.py tests/test_logical_names.py \
-    tests/replay tests/test_replay_metrics.py tests/test_generate_performance_graphs.py
+    tests/test_browser_touch_controls.py tests/test_build_browser_bundle.py \
+    tests/engine/test_engine_lifecycle.py tests/test_recording_metrics.py \
+    tests/test_replay_metrics.py tests/test_measure_staged_replays.py \
+    tests/test_generate_performance_graphs.py tests/replay tests/world <borrowing tests>
 uv run pytest                               # the whole suite, both drivers, 100% coverage
 uv build --package <distribution>           # the member builds on its own
-uv run nox -s browser -- <console-script>   # its browser bundle
+uv run python -m scripts.build_browser_bundle <console-script> --output <scratch directory>
+uv run nox -s browser -- <console-script>   # its browser bundle, served and opened
 uv run nox -s lint-docs                     # the docs build strictly
 ```
+
+The bundle built without serving must list `<package>.zip` in its `pyscript.toml`, and the
+member's wheel hold only its package. Before the whole suite, a coverage run of the member's
+tests and its borrowing tests (`--cov=<package> --cov-fail-under=0`) shows its code still at
+100% from where it now is.
 
 The golden replay is not re-recorded: its bytes are unchanged, and it replays strictly from its
 new place. Its first frame records the scene's module, so its content hash changes:
