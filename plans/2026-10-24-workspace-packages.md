@@ -17,7 +17,7 @@ in recordings, decision 8; where recordings live, decision 9; amended 2026-10-26
 before Part 3 (the user: "bitmappy should move first"), so deleting `src/glitchygames/examples/`
 moves to Part 3; the `examples:` file-name prefix is removed, not moved (decision 5); every
 member declares what it imports (decision 10); the four WAVs are kept as engine resources and
-the shared sprite-file checks become an engine testing helper (Part 3).
+the shared sprite-file checks became an engine testing helper (Part 3, done 2026-10-26).
 Parts 1, 2 and 4 have full implementation plans; Parts 3 and 5 are outlined here and get theirs
 when each starts, written against how Parts 2 and 4 turned out.
 
@@ -46,7 +46,8 @@ wheel. Moving each into its own package beside the engine:
   `trajectory` and `record_trajectory_point`);
 - **slims the engine's wheel**: game code, sprites and demos stop shipping in `glitchygames`
   (games since Part 2, Bitmappy and its sprite library since Part 4; the demos and `foo2.toml`
-  still ship until Part 3, which also moves the four WAVs to the engine's own resources);
+  shipped until Part 3, which moved them out on 2026-10-26 and put the four WAVs in the engine's
+  own resources);
 - **gives one package per playable thing**, as the browser bundles and `play/` pages already
   are, and a template a new game copies.
 
@@ -95,8 +96,8 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
    application, not a game or demo; `src/apps/` also fits the API server and client should
    they move).
    (Since then: Part 2 removed one console script, `brave-adventurer-papyrus`, when Brave
-   Adventurer and Papyrus became one project with the `brave-adventurer` launcher; Part 3 adds
-   console scripts to the demos, which have none. The Arcade is an app too, `src/apps/arcade/`,
+   Adventurer and Papyrus became one project with the `brave-adventurer` launcher; Part 3 added
+   console scripts to the demos (`dt-demo`, `joystick-demo`, `text-input-demo`, 2026-10-26). The Arcade is an app too, `src/apps/arcade/`,
    the user, 2026-10-25: `plans/2026-10-23-arcade-showcase.md`.)
 2. ~~**Recordings keep replaying unchanged** through `PREVIOUS_MODULES`~~: replaced by decision
    8 (2026-10-25). Part 1's Task 2 built it; Part 1's Task 5 removes it.
@@ -152,8 +153,8 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
    the current code, before anything moves, each NEW replayed strictly (Part 1, Task 6): the
    recordings change only by that conversion. A game's move then needs nothing for its
    recordings: its logical name does not change.
-   (Since then: after Part 2, `EXAMPLES_LAYERS` names only the three demos, and Part 3 deletes
-   it. Part 4 met the one exception to "a move needs nothing": a package that was in no layer.
+   (Since then: after Part 2, `EXAMPLES_LAYERS` named only the three demos, and Part 3 deleted
+   it (2026-10-26). Part 4 met the one exception to "a move needs nothing": a package that was in no layer.
    Bitmappy's logical name changed from `glitchygames.bitmappy.editor:BitmapEditorScene` to
    `apps.bitmappy.editor:BitmapEditorScene`, so a plain replay refuses a recording made before
    its move, naming the remedy, and `--replay-trace OLD --rebaseline NEW --headless` converts it:
@@ -172,7 +173,7 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
     confirmed it for the demos the same day): its `pyproject.toml` lists every distribution its
     package imports (Bitmappy's: `glitchygames`, `aisuite` with the root's extras, `numpy`,
     `pydantic`, `pygame-ce`, `tenacity`), and a dependency only a member imports moves out of
-    the root (`tenacity`). The demos follow this rule in Part 3. The five games, moved earlier,
+    the root (`tenacity`). The demos follow this rule (Part 3, 2026-10-26). The five games, moved earlier,
     still list only `glitchygames`; backfilling them is a small follow-up (Future work).
 
 ## What every part keeps true
@@ -218,7 +219,7 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
 - A check fed by a glob or a list asserts that its input is not empty, since an empty
   parametrize only skips (for example
   `tests/examples/test_examples_sprites.py::test_the_animated_sprite_checks_have_sprites_to_run_on`,
-  which Part 3 moves with the shared sprite-file checks).
+  which Part 3 moved into `glitchygames.testing.sprite_files`, 2026-10-26).
 - A check of a directory's contents reads the names git tracks, never the file system, so an
   ignored file (`.DS_Store`) cannot fail it, and runs git without the ambient `GIT_*` variables,
   so it also works inside a hook (`tests/test_workspace_packages.py` `tracked_entry_names`).
@@ -272,7 +273,7 @@ The outline as written:
 - Ends with `src/glitchygames/examples/` holding only the demos and Bitmappy's resources, and
   the root `tests/fixtures/replays/` holding only the engine's own recordings.
 
-### Part 3: The three demos (outline; not started)
+### Part 3: The three demos (outline; Stages A and B done 2026-10-26, Stage C not started)
 
 Starts from the untracked draft `plans/2026-10-25-workspace-packages-2-games-demos-apps.md`
 (Tasks 10-12, the demos, and 18, `examples/` deleted), corrected against #109 and Part 4. Its
@@ -389,8 +390,8 @@ outline: `--rebaseline` converts a recording whose classes moved to another logi
 with no `sys.path` edits, and a guard; `nox -s build-wheel` builds every package's wheel;
 Bitmappy's tests are named `test_bitmappy_*.py`, guarded at any depth; the member declares
 everything it imports (`tenacity` left the root, decision 10); the `examples:` prefix is removed,
-not moved (decision 5). Left to Part 3: `src/glitchygames/examples/`, `EXAMPLES_LAYERS`, and the
-shared sprite checks in `tests/examples/test_examples_sprites.py`. The outline as written:
+not moved (decision 5). Part 3 then did what was left (2026-10-26): `src/glitchygames/examples/`, `EXAMPLES_LAYERS`
+and the shared sprite checks in `tests/examples/test_examples_sprites.py` are gone or moved. The outline as written:
 
 - `src/apps/bitmappy/` (distribution `bitmappy`, import package `bitmappy`, console script
   `bitmappy` unchanged) with its sprites. Engine code that points into Bitmappy or its sprites
@@ -400,7 +401,7 @@ shared sprite checks in `tests/examples/test_examples_sprites.py`. The outline a
   `included_subpackages` and the Bitmappy docs follow. The biggest part: a survey of the
   engine's references into `src/glitchygames/bitmappy/` comes first.
 - (Its "Ends with `src/glitchygames/examples/` gone" moved to Part 3: Part 4 ran first, so the
-  demos were still there. After Part 4, `examples/` holds the three demos and their resources.)
+  demos were still there. Part 3 then moved them and deleted `examples/`.)
 
 ### Part 5: A browser IDE on each game's page (outline)
 

@@ -137,6 +137,10 @@ extra; `tests/test_workspace_config.py` keeps each extra equal to its layer's me
 
 ## Moving a game out of the engine
 
+Historical: every game and demo has moved out and `src/glitchygames/examples/` is gone (Part 3,
+2026-10-26). A new game or demo starts as a fresh member. These steps record how the moves were
+done.
+
 The recipe Mr. Muncher's move followed (`plans/2026-10-24-workspace-packages-1-foundation.md`,
 Task 9). Do one game per commit series, and verify each before the next. Every step names the
 check that fails if it is skipped: `tests/test_workspace_config.py` catches a member left out of

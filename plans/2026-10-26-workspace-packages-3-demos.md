@@ -2,8 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Stage A DONE; Stage B DONE (2026-10-26: B1-B7, automated verification green; the user runs each demo by hand); Stage C not started. (Originally PLANNED 2026-10-26.) Written from a
-read-only survey of `feature/workspace-packages-4-bitmappy` at fc4a93d5 (PR #110), which becomes
+**Status:** Stage A DONE; Stage B DONE (2026-10-26: B1-B7, automated verification green;
+the user runs each demo by hand); Stage C not started. (Originally PLANNED 2026-10-26.)
+Written from a read-only survey of `feature/workspace-packages-4-bitmappy` at fc4a93d5 (PR #110), which becomes
 `main` when #110 merges. **Before any stage starts, check `main` against this plan** (the user,
 2026-10-26: "verify that main is correct before actually doing the work"):
 - `git diff fc4a93d5 origin/main --stat` must be empty apart from merge bookkeeping. If #110 was
