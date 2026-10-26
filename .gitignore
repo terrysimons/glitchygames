@@ -191,7 +191,7 @@ safety-report.json
 *.orig
 
 # Personal sprite work kept on disk, outside git (move any you want into
-# src/glitchygames/examples/resources/sprites/ to track it)
+# src/apps/bitmappy/bitmappy/resources/sprites/ to track it)
 /bkp/
 /slime-jump*.toml
 /bomb-animation.toml2

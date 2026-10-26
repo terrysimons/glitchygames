@@ -1,0 +1,316 @@
+"""Tests for film strip navigation and scrolling functionality."""
+
+import pygame
+import pytest
+
+from glitchygames import events
+from test_bitmappy_film_strip_base import FilmStripTestBase, make_real_animated_sprite
+
+# Additional test constants
+FRAME_INDEX_2 = 2
+MAX_VISIBLE_STRIPS = 2
+SCROLL_OFFSET_2 = 2
+SCROLL_OFFSET_1 = 1
+SCROLL_OFFSET_0 = 0
+
+
+def key_down_event(*, key: int) -> events.HashableEvent:
+    """Build a real KEYDOWN event with no modifiers held.
+
+    Returns:
+        The event.
+
+    """
+    return events.HashableEvent(pygame.KEYDOWN, key=key, mod=0, unicode='', scancode=0)
+
+
+class TestFilmStripNavigation(FilmStripTestBase):
+    """Test film strip navigation and scrolling functionality."""
+
+    @pytest.fixture(autouse=True)
+    def setup_navigation(self, setup_real_objects):
+        """Load a real sprite with four animations ('idle', 'walk', 'jump', 'attack')."""
+        self.scene = self.create_optimized_scene()
+
+        # Configure scene for navigation testing
+        self.scene.max_visible_strips = MAX_VISIBLE_STRIPS
+        self.scene.film_strip_scroll_offset = SCROLL_OFFSET_0
+
+        # Four five-frame animations, so the strips can scroll
+        self.animated_sprite = make_real_animated_sprite(
+            frame_counts={'idle': 5, 'walk': 5, 'jump': 5, 'attack': 5},
+        )
+        self.scene.film_strip_coordinator.on_sprite_loaded(self.animated_sprite)
+
+        # Ensure canvas has proper navigation state
+        self.scene.canvas.current_animation = 'idle'
+        self.scene.canvas.current_frame = SCROLL_OFFSET_0
+
+    def test_up_arrow_navigation(self):
+        """Test UP arrow navigates to previous animation."""
+        # Get the list of animations in the order they appear
+        animation_names = list(self.animated_sprite._animations.keys())
+
+        # Start at the last animation
+        self.scene.canvas.current_animation = animation_names[-1]
+        self.scene.canvas.current_frame = SCROLL_OFFSET_0
+
+        # Create UP arrow event
+        up_event = key_down_event(key=pygame.K_UP)
+
+        # Handle the event
+        self.scene.on_key_down_event(up_event)
+
+        # Should navigate to the previous animation
+        expected_animation = animation_names[-2] if len(animation_names) > 1 else animation_names[0]
+        assert self.scene.canvas.current_animation == expected_animation
+        assert self.scene.canvas.current_frame == SCROLL_OFFSET_0
+
+    def test_down_arrow_navigation(self):
+        """Test DOWN arrow navigates to next animation."""
+        # Get the list of animations in the order they appear
+        animation_names = list(self.animated_sprite._animations.keys())
+
+        # Start at the first animation
+        self.scene.canvas.current_animation = animation_names[0]
+        self.scene.canvas.current_frame = SCROLL_OFFSET_0
+
+        # Create DOWN arrow event
+        down_event = key_down_event(key=pygame.K_DOWN)
+
+        # Handle the event
+        self.scene.on_key_down_event(down_event)
+
+        # Should navigate to the next animation
+        expected_animation = animation_names[1] if len(animation_names) > 1 else animation_names[0]
+        assert self.scene.canvas.current_animation == expected_animation
+        assert self.scene.canvas.current_frame == SCROLL_OFFSET_0
+
+    def test_left_arrow_frame_navigation(self):
+        """Test LEFT arrow navigates to previous frame."""
+        # Start at frame 2 of "idle" (3 frames total)
+        self.scene.canvas.current_animation = 'idle'
+        self.scene.canvas.current_frame = FRAME_INDEX_2
+
+        # Create LEFT arrow event
+        left_event = key_down_event(key=pygame.K_LEFT)
+
+        # Handle the event
+        self.scene.on_key_down_event(left_event)
+
+        # Should navigate to frame 1
+        assert self.scene.canvas.current_animation == 'idle'
+        assert self.scene.canvas.current_frame == 1
+
+    def test_right_arrow_frame_navigation(self):
+        """Test RIGHT arrow navigates to next frame."""
+        # Start at frame 0 of "idle"
+        self.scene.canvas.current_animation = 'idle'
+        self.scene.canvas.current_frame = SCROLL_OFFSET_0
+
+        # Create RIGHT arrow event
+        right_event = key_down_event(key=pygame.K_RIGHT)
+
+        # Handle the event
+        self.scene.on_key_down_event(right_event)
+
+        # Should navigate to frame 1
+        assert self.scene.canvas.current_animation == 'idle'
+        assert self.scene.canvas.current_frame == 1
+
+    def test_animation_wraparound(self):
+        """Test animation navigation wraps around at boundaries."""
+        # Get the list of animations in the order they appear
+        animation_names = list(self.animated_sprite._animations.keys())
+
+        # Start at the last animation
+        self.scene.canvas.current_animation = animation_names[-1]
+        self.scene.canvas.current_frame = SCROLL_OFFSET_0
+
+        # Navigate down (should wrap to first)
+        down_event = key_down_event(key=pygame.K_DOWN)
+        self.scene.on_key_down_event(down_event)
+
+        # Should wrap to first animation
+        assert self.scene.canvas.current_animation == animation_names[0]
+
+        # Navigate up (should wrap to last)
+        up_event = key_down_event(key=pygame.K_UP)
+        self.scene.on_key_down_event(up_event)
+
+        # Should wrap to last animation
+        assert self.scene.canvas.current_animation == animation_names[-1]
+
+    def test_frame_wraparound(self):
+        """Test frame navigation wraps around at boundaries."""
+        # Get the number of frames for the idle animation
+        idle_frames = len(self.animated_sprite._animations['idle'])
+        last_frame_index = idle_frames - 1
+
+        # Start at the last frame of "idle"
+        self.scene.canvas.current_animation = 'idle'
+        self.scene.canvas.current_frame = last_frame_index
+
+        # Navigate right (should wrap to frame 0)
+        right_event = key_down_event(key=pygame.K_RIGHT)
+        self.scene.on_key_down_event(right_event)
+
+        # Should wrap to frame 0
+        assert self.scene.canvas.current_frame == SCROLL_OFFSET_0
+
+        # Navigate left (should wrap to last frame)
+        left_event = key_down_event(key=pygame.K_LEFT)
+        self.scene.on_key_down_event(left_event)
+
+        # Should wrap to last frame
+        assert self.scene.canvas.current_frame == last_frame_index
+
+    def test_film_strip_scrolling_up(self):
+        """Test film strip scrolling up functionality."""
+        # Set up with 4 animations, only 2 visible
+        self.scene.max_visible_strips = MAX_VISIBLE_STRIPS
+        self.scene.film_strip_scroll_offset = SCROLL_OFFSET_2  # Showing animations 2 and 3
+
+        # Scroll up
+        self.scene.scroll_film_strips_up()
+
+        # Should show animations 1 and 2
+        assert self.scene.film_strip_scroll_offset == SCROLL_OFFSET_1
+
+    def test_film_strip_scrolling_down(self):
+        """Test film strip scrolling down functionality."""
+        # Set up with 4 animations, only 2 visible
+        self.scene.max_visible_strips = MAX_VISIBLE_STRIPS
+        self.scene.film_strip_scroll_offset = SCROLL_OFFSET_0  # Showing animations 0 and 1
+
+        # Scroll down
+        self.scene.scroll_film_strips_down()
+
+        # Should show animations 1 and 2
+        assert self.scene.film_strip_scroll_offset == SCROLL_OFFSET_1
+
+    def test_scroll_boundaries(self):
+        """Test scrolling respects boundaries."""
+        # Set up with multiple animations, only 2 visible
+        self.scene.max_visible_strips = MAX_VISIBLE_STRIPS
+
+        # Try to scroll up from offset 0 (should not go negative)
+        self.scene.film_strip_scroll_offset = SCROLL_OFFSET_0
+        self.scene.scroll_film_strips_up()
+        assert self.scene.film_strip_scroll_offset == SCROLL_OFFSET_0
+
+        # Calculate actual max scroll based on total animations
+        total_animations = len(self.scene.canvas.animated_sprite._animations)
+        max_scroll = max(0, total_animations - self.scene.max_visible_strips)
+
+        # Try to scroll down from max offset (should not exceed max)
+        self.scene.film_strip_scroll_offset = max_scroll
+        self.scene.scroll_film_strips_down()
+        assert self.scene.film_strip_scroll_offset == max_scroll
+
+    def test_auto_scroll_to_current_animation(self):
+        """Test automatic scrolling to show current animation."""
+        # Set up with multiple animations, only 2 visible
+        self.scene.max_visible_strips = MAX_VISIBLE_STRIPS
+        self.scene.film_strip_scroll_offset = SCROLL_OFFSET_0  # Showing first animations
+
+        # Set current animation to "attack" (last added animation)
+        self.scene.canvas.current_animation = 'attack'
+
+        # Find the index of "attack" in the animation list
+        animation_names = list(self.scene.canvas.animated_sprite._animations.keys())
+        attack_index = animation_names.index('attack')
+
+        # Call auto-scroll
+        self.scene.film_strip_coordinator.scroll_to_current_animation()
+
+        # Should scroll so "attack" is visible
+        # The offset should be at least attack_index - max_visible + 1
+        expected_offset = max(0, attack_index - self.scene.max_visible_strips + 1)
+        assert self.scene.film_strip_scroll_offset == expected_offset
+
+    def test_auto_scroll_when_animation_already_visible(self):
+        """Test auto-scroll doesn't change offset when animation is already visible."""
+        # Set up with 4 animations, only 2 visible
+        self.scene.max_visible_strips = MAX_VISIBLE_STRIPS
+        self.scene.film_strip_scroll_offset = SCROLL_OFFSET_1  # Showing animations 1 and 2
+
+        # Set current animation to "walk" (index 1, should be visible)
+        self.scene.canvas.current_animation = 'walk'
+
+        # Call auto-scroll
+        self.scene.film_strip_coordinator.scroll_to_current_animation()
+
+        # Should not change offset since "walk" is already visible
+        assert self.scene.film_strip_scroll_offset == SCROLL_OFFSET_1
+
+    def test_film_strip_selection_state(self):
+        """Test that the strip of the selected animation is the only one marked selected."""
+        # The editor's global selection is what update_film_strip_selection_state reads
+        self.scene.selected_animation = 'walk'
+        self.scene.selected_frame = 1
+
+        self.scene.update_film_strip_selection_state()
+
+        walk_strip = self.scene.film_strips['walk']
+        assert walk_strip.is_selected
+        assert walk_strip.selected_frame == 1
+        for strip_name, strip_widget in self.scene.film_strips.items():
+            # Every strip renders its own animation's sprockets
+            assert strip_widget.current_animation == strip_name
+            if strip_name != 'walk':
+                assert not strip_widget.is_selected
+
+    def test_switch_to_film_strip(self):
+        """Test switching to a specific film strip."""
+        # Switch to "jump" animation, frame 0
+        self.scene.film_strip_coordinator.switch_to_film_strip('jump', SCROLL_OFFSET_0)
+
+        # Check global selection state
+        assert self.scene.selected_animation == 'jump'
+        assert self.scene.selected_frame == SCROLL_OFFSET_0
+
+        # Check canvas state
+        assert self.scene.canvas.current_animation == 'jump'
+        assert self.scene.canvas.current_frame == SCROLL_OFFSET_0
+
+    def test_dirty_marking_on_selection_change(self):
+        """Test that switching strips marks the old and new strip sprites for redraw."""
+        self.scene.film_strip_coordinator.switch_to_film_strip('jump', SCROLL_OFFSET_0)
+        for strip_sprite in self.scene.film_strip_sprites.values():
+            strip_sprite.dirty = 0
+
+        self.scene.film_strip_coordinator.switch_to_film_strip('attack', SCROLL_OFFSET_0)
+
+        # dirty = 1 redraws the sprite once on the next LayeredDirty.draw()
+        assert self.scene.film_strip_sprites['attack'].dirty == 1
+        assert self.scene.film_strip_sprites['jump'].dirty == 1
+        assert self.scene.film_strips['attack'].is_selected
+        assert not self.scene.film_strips['jump'].is_selected
+
+    def test_keyboard_navigation_with_auto_scroll(self):
+        """Test that keyboard navigation triggers auto-scroll when needed."""
+        # Set up with multiple animations, only 2 visible, showing first 2
+        self.scene.max_visible_strips = MAX_VISIBLE_STRIPS
+        self.scene.film_strip_scroll_offset = SCROLL_OFFSET_0
+
+        # Find "idle" and "attack" positions in the animation list
+        animation_names = list(self.scene.canvas.animated_sprite._animations.keys())
+        idle_index = animation_names.index('idle')
+        attack_index = animation_names.index('attack')
+        steps_needed = attack_index - idle_index
+
+        # Start at "idle"
+        self.scene.canvas.current_animation = 'idle'
+
+        # Navigate down to "attack"
+        down_event = key_down_event(key=pygame.K_DOWN)
+
+        for _ in range(steps_needed):
+            self.scene.on_key_down_event(down_event)
+
+        # Should have navigated to "attack" and auto-scrolled to show it
+        assert self.scene.canvas.current_animation == 'attack'
+        # Should have scrolled so "attack" is visible
+        expected_offset = max(0, attack_index - self.scene.max_visible_strips + 1)
+        assert self.scene.film_strip_scroll_offset == expected_offset

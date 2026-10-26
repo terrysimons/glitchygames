@@ -10,6 +10,8 @@
 
 **Spec:** `plans/2026-10-24-workspace-packages.md` (Part 2's outline, decisions 1-9, "What every part keeps true"); the recipe it argues through is `docs/architecture/game_packages.md`; how Part 1 did it, `plans/2026-10-24-workspace-packages-1-foundation.md` Task 9.
 
+**Status:** DONE (2026-10-25), merged as #109, a97efbe9.
+
 ## Global Constraints
 
 - Order: Clockwork Keep, then Brave Adventurer and Papyrus as one project (`src/games/brave-adventurer/`: two games and a launcher, the user's decision 2026-10-25, Tasks 4-6), then PaddleSlap, then Drawing Fire (added to the outline: it postdates it), each to `src/games/<game>/`.

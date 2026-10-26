@@ -11,8 +11,7 @@ if TYPE_CHECKING:
 
 import pygame
 
-from glitchygames.bitmappy import resource_path
-from glitchygames.engine import GameEngine
+from glitchygames.engine import ASSET_PATH, GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import BitmappySprite
 from glitchygames.ui import ButtonSprite, MenuBar, MenuItem
@@ -68,7 +67,7 @@ class GameScene(Scene):
 
         self.menu_icon = MenuItem(
             name=None,
-            filename=str(resource_path('glitchygames', 'assets', 'raspberry.toml')),
+            filename=str(ASSET_PATH / 'raspberry.toml'),
             x=0,
             y=0,
             width=16,

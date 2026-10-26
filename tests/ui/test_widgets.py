@@ -12,20 +12,12 @@ Every widget here is built on the real display, with real surfaces and the real 
 display's pixel format (per-pixel alpha or not) depends on the video driver.
 """
 
-import sys
-from pathlib import Path
-
 import pygame
 import pytest
 
-from glitchygames.clock import frame_clock_milliseconds
-from glitchygames.sources import advance_frame_clock
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from glitchygames import events
 from glitchygames.clipboard import ClipboardUnavailableError, install_clipboard
+from glitchygames.clock import frame_clock_milliseconds
 from glitchygames.color import WHITE
 from glitchygames.events.base import HashableEvent
 from glitchygames.fonts import FontManager
@@ -36,6 +28,7 @@ from glitchygames.input.state import (
     InputSnapshot,
     set_current_input,
 )
+from glitchygames.sources import advance_frame_clock
 from glitchygames.ui import (
     ButtonSprite,
     CheckboxSprite,

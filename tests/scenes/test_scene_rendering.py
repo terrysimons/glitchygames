@@ -12,14 +12,8 @@ Colors are compared as RGB only, because the display's pixel format differs by d
 has per-pixel alpha, dummy's and x11's do not).
 """
 
-import sys
-from pathlib import Path
-
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.opacity import OPAQUE, has_per_pixel_alpha
 from glitchygames.scenes import Scene, SceneManager

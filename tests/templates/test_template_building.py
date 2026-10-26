@@ -5,13 +5,7 @@ Every test builds from real template directories under ``tmp_path`` (or the bund
 patched: a real one would download a remote template or prompt for its variables.
 """
 
-import sys
-from pathlib import Path
-
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.templates import build
 

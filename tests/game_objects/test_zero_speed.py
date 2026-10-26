@@ -3,12 +3,6 @@
 
 import logging
 import math
-import sys
-from pathlib import Path
-
-# Add project root so direct imports work
-sys.path.insert(0, str(Path(__file__).parent))
-
 
 from glitchygames.game_objects.ball import (
     BallSprite,

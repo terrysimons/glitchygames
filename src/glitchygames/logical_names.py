@@ -36,6 +36,7 @@ MEMBER_LAYERS: dict[str, str] = {
     'clockwork_keep': 'games',
     'paddleslap': 'games',
     'drawing_fire': 'games',
+    'bitmappy': 'apps',
 }
 
 

@@ -6,9 +6,7 @@ it (its options and its game), so a namespace holding them takes its place.
 """
 
 import logging
-import sys
 import types
-from pathlib import Path
 
 import pygame
 import pytest
@@ -21,8 +19,6 @@ from paddleslap import Game
 
 LOG = logging.getLogger(__name__)
 
-# Add the project root to the path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 ENGINE_OPTIONS = {
     'update_type': 'update',

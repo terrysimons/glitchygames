@@ -2,8 +2,6 @@
 
 import math
 import random
-import sys
-from pathlib import Path
 from typing import NamedTuple
 
 import pygame
@@ -33,9 +31,6 @@ from glitchygames.randomness import (
     stream_seed,
 )
 from tests.game_objects.ball_helpers import drawn_position
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 
 SERVE_STREAM_TEST_SEED = 31
 SIZE_20 = 20

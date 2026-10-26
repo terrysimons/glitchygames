@@ -230,7 +230,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
 from glitchygames.input.state import current_input
-from glitchygames.logical_names import logical_name
+from glitchygames.logical_names import logical_module_name, logical_name
 from glitchygames.randomness import capture_stream_states
 from glitchygames.recording import (
     DT_FIELD,
@@ -246,7 +246,6 @@ from glitchygames.recording import (
     take_matching_post,
 )
 from glitchygames.replay.driver import (
-    SCRIPT_MODULE_NAME,
     SOURCE_TRUNCATED_HEADER_FIELD,
     is_cut_off,
     modules_not_compared,
@@ -1042,21 +1041,22 @@ def find_scene_class(
     Only loaded classes are searched: nothing is imported from recording data. A start that
     holds a logical name (``SceneStart.scene``, glitchygames/logical_names.py) is decided by
     it: the class named ``name`` whose logical name is ``logical`` is taken when exactly one is
-    loaded, so a scene whose code moved is still found. Without one (recordings made before
-    logical names), the class defined in ``module`` with the qualified name ``name`` is taken
-    when exactly one is loaded. Otherwise a class is taken by its qualified name alone only
-    where ``modules_not_compared`` (glitchygames/replay/driver.py, the rule
-    ``check_recorded_game`` applies to a recording's game) says so: no module recorded, a game
-    run as a script (``__main__``) on either side, or a ``--rebaseline`` (a scene that moved
-    since it was recorded); then the one such class is taken and several are refused. Outside
-    a rebaseline, a class of that name from another module is another game's scene: refused.
+    loaded, so a scene whose code moved is still found; under a ``--rebaseline`` one at another
+    logical module is taken by its qualified name alone (``modules_not_compared``, as below).
+    Without one (recordings made before logical names), the class defined in ``module`` with the
+    qualified name ``name`` is taken when exactly one is loaded. Otherwise a class is taken by its
+    qualified name alone only where ``modules_not_compared`` (glitchygames/replay/driver.py, the
+    rule ``check_recorded_game`` applies to a recording's game) says so: no module recorded, a game
+    run as a script (``__main__``) on either side, or a ``--rebaseline`` (a scene that moved since
+    it was recorded); then the one such class is taken and several are refused. Outside a
+    rebaseline, a class of that name from another module is another game's scene: refused.
 
     Args:
         name: A class's qualified name (``SceneStart.scene_class``).
         module: The module it is defined in (``SceneStart.scene_module``), or None.
         logical: Its logical name (``SceneStart.scene``), or None.
-        is_rebaseline: True during a ``--rebaseline``: a start without a logical name is found
-            by its qualified name whatever its module.
+        is_rebaseline: True during a ``--rebaseline``: a start is found by its qualified name
+            whatever its module or logical module.
 
     Returns:
         The class, or None when no loaded subclass matches or several match by name alone
@@ -1084,7 +1084,11 @@ def find_scene_class(
         matches_by_name = [
             scene_class
             for scene_class in named_alike
-            if SCRIPT_MODULE_NAME in {logical_module, scene_class.__module__}
+            if modules_not_compared(
+                recorded_module=logical_module,
+                loaded_module=logical_module_name(module=scene_class.__module__),
+                is_rebaseline=is_rebaseline,
+            )
         ]
     else:
         exact_matches = [

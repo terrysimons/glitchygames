@@ -6,15 +6,10 @@ events, the real mixer and real scenes.
 """
 
 import argparse
-import sys
-from pathlib import Path
 
 import pygame
 import pytest
 from scripts.record_golden_traces import GoldenTraceEngine, GoldenTraceSceneManager, command_line
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events import (
     AudioEvents,

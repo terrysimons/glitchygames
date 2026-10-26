@@ -8,15 +8,8 @@ Every game here is a real Scene and every event a real HashableEvent; app events
 scene through the real AppEventManager (and, in TestAppEventFlow, through the real engine).
 """
 
-import sys
-from pathlib import Path
-
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from scripts.record_golden_traces import GoldenTraceEngine, GoldenTraceSceneManager, command_line
 
 from glitchygames.events import (

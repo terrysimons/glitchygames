@@ -8,8 +8,9 @@ for various operations like saving, loading, and creating new files.
 from __future__ import annotations
 
 import logging
+import string
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
@@ -27,109 +28,115 @@ from glitchygames.user_files import installed_user_files
 LOG = logging.getLogger('game.ui.dialogs')
 LOG.addHandler(logging.NullHandler())
 
+# The platforms (sys.platform values) where a ':' in a file name is refused, and why
+WINDOWS_PLATFORMS = frozenset({'win32', 'cygwin'})
+MACOS_PLATFORM = 'darwin'
 
-def _process_example_filename(filename: str) -> tuple[str, bool]:
-    """Process filename that may contain 'example:' or 'examples:' prefix.
+# A letter drive is the letter and its ':'; the extended and device forms put a prefix before it
+LETTER_DRIVE_LENGTH = 2
+EXTENDED_DRIVE_PREFIXES = ('\\\\?\\', '\\\\.\\')
 
-    If the filename contains 'example:' or 'examples:', strip it off and return the cleaned
-    filename along with a flag indicating it should be saved to the examples
-    directory.
+_EXAMPLES_PREFIX_HINT = "The 'examples:' prefix was removed: type the sprite's path instead."
+
+
+def _is_letter_drive(drive: str) -> bool:
+    r"""Say whether a PureWindowsPath drive is a drive letter and nothing else.
+
+    That is 'C:' (also the drive of 'C:a' and 'C:/a'), or the extended or device form '\\?\C:'
+    or '\\.\C:', with the letter in either case. A UNC drive ('\\server\share', or
+    '\\?\UNC\server\share') is not one, even when its share name ends in ':'.
 
     Args:
-        filename: The input filename that may contain 'example:' or 'examples:' prefix
+        drive: The ``drive`` of a ``PureWindowsPath``
 
     Returns:
-        tuple: (cleaned_filename, is_example) where is_example is True if
-               the filename had 'example:' or 'examples:' prefix
+        bool: True when the drive is exactly a letter drive
 
     """
-    is_example = False
-    cleaned_filename = filename.strip()
-
-    if cleaned_filename.startswith('example:'):
-        is_example = True
-        cleaned_filename = cleaned_filename[len('example:') :].strip()
-        LOG.info(
-            "Detected 'example:' prefix. Cleaning filename: '%s' -> '%s'",
-            filename,
-            cleaned_filename,
-        )
-    elif cleaned_filename.startswith('examples:'):
-        is_example = True
-        cleaned_filename = cleaned_filename[len('examples:') :].strip()
-        LOG.info(
-            "Detected 'examples:' prefix. Cleaning filename: '%s' -> '%s'",
-            filename,
-            cleaned_filename,
-        )
-
-    return cleaned_filename, is_example
+    letter_and_colon = drive
+    for extended_prefix in EXTENDED_DRIVE_PREFIXES:
+        if drive.startswith(extended_prefix):
+            letter_and_colon = drive[len(extended_prefix) :]
+            break
+    return (
+        len(letter_and_colon) == LETTER_DRIVE_LENGTH
+        and letter_and_colon[0] in string.ascii_letters
+        and letter_and_colon[1] == ':'
+    )
 
 
-def _get_examples_dir() -> Path:
-    """Get the path to the examples/resources/sprites directory.
+def _file_name_problem(filename: str, *, platform: str = sys.platform) -> str | None:
+    r"""Say why a file name cannot be saved on ``platform``, or None when it can.
+
+    Windows (win32, cygwin): a ':' is allowed only in the drive designator ('C:\a.toml',
+    'C:/a.toml', the drive-relative 'C:a.toml', the extended '\\?\C:\a.toml'). Anywhere else
+    NTFS reads 'name:stream' as a hidden alternate data stream, so 'examples:foo.toml' would leave
+    an empty file called 'examples'.
+
+    macOS (darwin): any ':' is refused. The POSIX layer accepts it, but Finder shows ':' as '/'
+    (a leftover of Classic Mac OS, where ':' was the path separator), so the file would appear
+    under a confusing name.
+
+    Every other platform (Linux, and emscripten, the browser, where Save is a download whose name
+    the browser sanitizes): ':' is a legal character and is allowed.
+
+    Args:
+        filename: The file name, already stripped of surrounding whitespace
+        platform: The sys.platform value to apply the rule of; this machine's by default
 
     Returns:
-        Path: Path to the examples sprites directory
+        str | None: The message to show the user, or None when the name is acceptable
 
     """
-    # Use the same logic as resource_path but defined here to avoid circular imports
-    if hasattr(sys, '_MEIPASS'):
-        # Running in PyInstaller bundle
-        base_path = Path(sys._MEIPASS)  # type: ignore[attr-defined]
-        return base_path.joinpath('glitchygames', 'examples', 'resources', 'sprites')
-    # Running in normal Python environment
-    # dialogs.py is in glitchygames/ui, so go up to glitchygames/, then to examples/
-    # Path(__file__) = glitchygames/ui/dialogs.py
-    # .parent = glitchygames/ui/
-    # .parent.parent = glitchygames/
-    # Then join with examples/resources/sprites
-    return Path(__file__).parent.parent.joinpath('examples', 'resources', 'sprites')
+    if platform in WINDOWS_PLATFORMS:
+        # PureWindowsPath splits off the drive: 'C:' for 'C:\a', 'C:/a' and 'C:a', and
+        # '\\?\C:' for an extended path. Any other drive (UNC, '\\?\UNC\server\share') is no
+        # drive designator: it stays in the remainder, where a ':' is refused too.
+        drive = PureWindowsPath(filename).drive
+        remainder = filename[len(drive) :] if _is_letter_drive(drive) else filename
+        if ':' not in remainder:
+            return None
+        return (
+            "':' is only allowed after a drive letter. A ':' elsewhere would hide the data in an "
+            f'NTFS alternate data stream. {_EXAMPLES_PREFIX_HINT}'
+        )
+
+    if platform == MACOS_PLATFORM and ':' in filename:
+        return (
+            "':' isn't allowed in a file name on macOS (Finder shows it as '/'). "
+            f'{_EXAMPLES_PREFIX_HINT}'
+        )
+
+    return None
 
 
 def _get_save_path(filename: str) -> Path:
-    """Get the full save path for a filename.
+    """Get the path to save to for a filename.
 
     Args:
-        filename: The filename (may contain 'example:' or 'examples:' prefix)
+        filename: The filename, used as given apart from surrounding whitespace
 
     Returns:
-        Path: Full path where the file should be saved
+        Path: The path where the file should be saved
 
     """
-    cleaned_filename, is_example = _process_example_filename(filename)
-
-    if is_example:
-        examples_dir = _get_examples_dir()
-        save_path = examples_dir / cleaned_filename
-        LOG.info('Example save path: %s', save_path)
-        return save_path
-    # Normal save - return just the filename (current behavior)
-    save_path = Path(cleaned_filename)
-    LOG.info('Normal save path: %s', save_path)
+    save_path = Path(filename.strip())
+    LOG.info('Save path: %s', save_path)
     return save_path
 
 
 def _get_load_path(filename: str) -> Path:
-    """Get the full load path for a filename.
+    """Get the path to load from for a filename.
 
     Args:
-        filename: The filename (may contain 'example:' or 'examples:' prefix)
+        filename: The filename, used as given apart from surrounding whitespace
 
     Returns:
-        Path: Full path where the file should be loaded from
+        Path: The path the file should be loaded from
 
     """
-    cleaned_filename, is_example = _process_example_filename(filename)
-
-    if is_example:
-        examples_dir = _get_examples_dir()
-        load_path = examples_dir / cleaned_filename
-        LOG.info('Example load path: %s', load_path)
-        return load_path
-    # Normal load - return just the filename (current behavior)
-    load_path = Path(cleaned_filename)
-    LOG.info('Normal load path: %s', load_path)
+    load_path = Path(filename.strip())
+    LOG.info('Load path: %s', load_path)
     return load_path
 
 
@@ -386,7 +393,7 @@ class LoadDialogScene(InputConfirmationDialogScene):
         self.log.info('Load File: event: %s, trigger: %s', event, trigger)
         # Get the filename from the input box text
         filename = self.dialog.input_box.text
-        # Process example: prefix if present
+        # The name is used as given, apart from surrounding whitespace
         load_path = _get_load_path(filename)
         LOG.info('Processed load path: %s', load_path)
         # Pass the path as string to maintain compatibility
@@ -438,7 +445,14 @@ class SaveDialogScene(InputConfirmationDialogScene):
         self.log.info('Save File: event: %s, trigger: %s', event, trigger)
         # Get the filename from the input box
         filename = self.dialog.input_box.text
-        # Process example: prefix if present
+        # A name with a ':' this platform cannot hold is refused before anything is written
+        problem = _file_name_problem(filename.strip())
+        if problem is not None:
+            self._show_save_error(message=problem)
+            self.dismiss()
+            return
+
+        # The name is used as given, apart from surrounding whitespace
         save_path = _get_save_path(filename)
         LOG.info('Processed save path: %s', save_path)
         # Pass the path as string to maintain compatibility. The canvas logs a failed save and

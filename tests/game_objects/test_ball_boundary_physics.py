@@ -2,11 +2,6 @@
 """Test enhanced ball boundary physics."""
 
 import math
-import sys
-from pathlib import Path
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.game_objects.ball import (
     BallSprite,

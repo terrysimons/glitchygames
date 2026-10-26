@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 
 import pytest
@@ -10,6 +12,8 @@ from scripts.workspace_packages import (
     source_package_directories,
     workspace_members,
 )
+
+from glitchygames.process import run_command
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -199,9 +203,10 @@ def test_this_repositorys_members_are_read():
     assert 'mr-muncher' in distributions
 
 
-# Part 2's end state (plans/2026-10-24-workspace-packages.md): every game is a member, so the
-# engine's examples hold only the three demos (Part 3 moves them) and Bitmappy's resources
-# (Part 4 moves them), beside foo2.toml (Part 3 moves it to the one test that reads it)
+# Part 2's and Part 4's end state (plans/2026-10-24-workspace-packages.md): every game and
+# Bitmappy are members, so the engine's examples hold only the three demos (Part 3 moves them)
+# and resources/ (which still holds snd/), beside foo2.toml (Part 3 moves it to the one test that
+# reads it)
 ENGINE_EXAMPLES_DIRECTORY = PROJECT_ROOT / 'src' / 'glitchygames' / 'examples'
 ENGINE_EXAMPLES_NOT_CHECKED = frozenset({'__init__.py', '__pycache__', 'foo2.toml'})
 ENGINE_EXAMPLES_AFTER_PART_2 = frozenset({
@@ -216,11 +221,101 @@ FORMER_GAME_CONSOLE_SCRIPTS = ('brave-adventurer-papyrus',)
 ROOT_REPLAY_FIXTURES_DIRECTORY = PROJECT_ROOT / 'tests' / 'fixtures' / 'replays'
 
 
-def test_the_engines_examples_hold_only_the_demos_and_bitmappys_resources():
-    """No game is left in src/glitchygames/examples/: each moved into its own member."""
-    entries = {entry.name for entry in ENGINE_EXAMPLES_DIRECTORY.iterdir()}
+def environment_without_git_variables() -> dict[str, str]:
+    """Return the environment with every ``GIT_*`` variable removed.
+
+    Inside a git hook, ``GIT_DIR`` and ``GIT_INDEX_FILE`` point at the real repository: a git
+    command run from a temporary directory would act on that repository instead.
+
+    Returns:
+        A copy of ``os.environ`` without the variables git reads.
+
+    """
+    return {name: value for name, value in os.environ.items() if not name.startswith('GIT_')}
+
+
+def run_git(*, arguments: list[str], directory: Path) -> str:
+    """Run git in ``directory`` without the ambient ``GIT_*`` variables.
+
+    Args:
+        arguments: The git arguments, after the program.
+        directory: The working directory.
+
+    Returns:
+        git's standard output.
+
+    """
+    git_program = shutil.which('git')
+    assert git_program is not None, 'these tests need git'
+    completed = run_command(
+        command=[git_program, *arguments],
+        environment=environment_without_git_variables(),
+        timeout_seconds=30.0,
+        capture_output=True,
+        working_directory=directory,
+    )
+    assert completed.returncode == 0, completed.stdout
+    return completed.stdout
+
+
+def tracked_entry_names(*, directory: Path) -> set[str]:
+    """Return the names directly in a directory that git tracks, ignored and untracked files out.
+
+    A directory counts when git tracks any file below it. A file git ignores (macOS Finder's
+    ``.DS_Store``) or has not been told about is not part of the repository, so it is not here.
+
+    Args:
+        directory: A directory inside a git work tree.
+
+    Returns:
+        The tracked files' and directories' names directly in ``directory``.
+
+    """
+    listing = run_git(arguments=['ls-files', '-z', '--', '.'], directory=directory)
+    return {
+        tracked_path.split('/', maxsplit=1)[0]
+        for tracked_path in listing.split('\0')
+        if tracked_path
+    }
+
+
+def test_the_engines_examples_hold_only_the_demos_and_their_resources():
+    """The engine's examples are its three demos and resources/: each game moved to its member."""
+    entries = tracked_entry_names(directory=ENGINE_EXAMPLES_DIRECTORY)
 
     assert entries - ENGINE_EXAMPLES_NOT_CHECKED == ENGINE_EXAMPLES_AFTER_PART_2
+
+
+def test_tracked_entry_names_leaves_out_ignored_and_untracked_files(tmp_path):
+    """An ignored .DS_Store and an untracked file are not entries; a tracked directory is one."""
+    run_git(arguments=['init', '--quiet'], directory=tmp_path)
+    (tmp_path / '.gitignore').write_text('.DS_Store\n', encoding='utf-8')
+    (tmp_path / 'demo.py').write_text('', encoding='utf-8')
+    (tmp_path / 'resources').mkdir()
+    (tmp_path / 'resources' / 'tone.wav').write_text('', encoding='utf-8')
+    (tmp_path / '.DS_Store').write_text('', encoding='utf-8')
+    (tmp_path / 'untracked.py').write_text('', encoding='utf-8')
+    run_git(arguments=['add', '.gitignore', 'demo.py', 'resources'], directory=tmp_path)
+
+    assert tracked_entry_names(directory=tmp_path) == {'.gitignore', 'demo.py', 'resources'}
+
+
+def test_tracked_entry_names_ignores_a_git_dir_from_the_environment(tmp_path, monkeypatch):
+    """A GIT_DIR set by a git hook does not send the helper to another repository."""
+    other_repository = tmp_path / 'other'
+    other_repository.mkdir()
+    run_git(arguments=['init', '--quiet'], directory=other_repository)
+    (other_repository / 'other.py').write_text('', encoding='utf-8')
+    run_git(arguments=['add', 'other.py'], directory=other_repository)
+    repository = tmp_path / 'repository'
+    repository.mkdir()
+    run_git(arguments=['init', '--quiet'], directory=repository)
+    (repository / 'demo.py').write_text('', encoding='utf-8')
+    run_git(arguments=['add', 'demo.py'], directory=repository)
+    monkeypatch.setenv('GIT_DIR', str(other_repository / '.git'))
+    monkeypatch.setenv('GIT_INDEX_FILE', str(other_repository / '.git' / 'index'))
+
+    assert tracked_entry_names(directory=repository) == {'demo.py'}
 
 
 def test_the_root_goldens_are_the_engines_own():

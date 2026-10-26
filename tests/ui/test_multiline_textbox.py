@@ -6,14 +6,9 @@ and navigation, on real surfaces with the real (FontManager) font and real event
 """
 
 import logging
-import sys
-from pathlib import Path
 
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.ui import MultiLineTextBox

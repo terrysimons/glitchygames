@@ -14,14 +14,12 @@ dialogs hand file names to) is a small recording stand-in.
 """
 
 import logging
+import shutil
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events.base import HashableEvent
 from glitchygames.input.state import InputSnapshot, set_current_input
@@ -34,10 +32,9 @@ from glitchygames.ui.dialogs import (
     LoadDialogScene,
     NewCanvasDialogScene,
     SaveDialogScene,
-    _get_examples_dir,
+    _file_name_problem,
     _get_load_path,
     _get_save_path,
-    _process_example_filename,
 )
 from glitchygames.user_files import install_user_files, installed_user_files
 
@@ -92,6 +89,13 @@ class _RecordingCanvas:
         if self.save_error is not None:
             raise self.save_error
         self.saved_paths.append(path)
+
+
+class _RecordingDebugText:
+    """Stands in for the editor's debug text box: holds the message shown."""
+
+    def __init__(self):
+        self.text = ''
 
 
 class _RecordingUserFiles:
@@ -403,98 +407,110 @@ class TestNewCanvasDialogScene:
 # ============================================================================
 
 
-class TestProcessExampleFilename:
-    """Test _process_example_filename helper function."""
+class TestFileNames:
+    """The dialogs use a file name as given, apart from surrounding whitespace."""
 
-    def test_plain_filename(self):
-        """Test processing a plain filename without prefix."""
-        filename, is_example = _process_example_filename('test.toml')
-        assert filename == 'test.toml'
-        assert is_example is False
+    def test_a_plain_name_is_used_as_it_is(self):
+        """A plain name is the path, for a save and for a load."""
+        assert _get_save_path('test.toml') == Path('test.toml')
+        assert _get_load_path('test.toml') == Path('test.toml')
 
-    def test_example_prefix(self):
-        """Test processing filename with 'example:' prefix."""
-        filename, is_example = _process_example_filename('example:test.toml')
-        assert filename == 'test.toml'
-        assert is_example is True
+    def test_surrounding_whitespace_is_trimmed(self):
+        """Spaces around a name are not part of the file name."""
+        assert _get_save_path('  test.toml  ') == Path('test.toml')
+        assert _get_load_path('  test.toml  ') == Path('test.toml')
 
-    def test_examples_prefix(self):
-        """Test processing filename with 'examples:' prefix."""
-        filename, is_example = _process_example_filename('examples:test.toml')
-        assert filename == 'test.toml'
-        assert is_example is True
-
-    def test_whitespace_handling(self):
-        """Test processing filename with whitespace."""
-        filename, is_example = _process_example_filename('  test.toml  ')
-        assert filename == 'test.toml'
-        assert is_example is False
-
-    def test_example_prefix_with_spaces(self):
-        """Test processing filename with 'example:' prefix and extra spaces."""
-        filename, is_example = _process_example_filename('example:  test.toml')
-        assert filename == 'test.toml'
-        assert is_example is True
+    def test_an_examples_prefix_is_not_special_to_a_load(self):
+        """'examples:' and 'example:' are ordinary characters of a name a load is given."""
+        assert _get_load_path('examples:heart.toml') == Path('examples:heart.toml')
+        assert _get_load_path('example:heart.toml') == Path('example:heart.toml')
 
 
-class TestGetExamplesDir:
-    """Test _get_examples_dir helper function."""
+class TestFileNameProblem:
+    """':' in a Save name depends on the platform; the tests pass the platform explicitly."""
 
-    def test_returns_path(self):
-        """Test _get_examples_dir returns a Path object."""
-        result = _get_examples_dir()
-        assert isinstance(result, Path)
-        # Use Path parts for cross-platform compatibility
-        assert result.parts[-3:] == ('examples', 'resources', 'sprites')
+    @pytest.mark.parametrize(
+        'filename',
+        [
+            'C:\\a.toml',
+            'C:/a.toml',
+            'C:a.toml',
+            'c:\\a.toml',
+            '\\\\?\\C:\\a.toml',
+            '\\\\server\\share\\a.toml',
+            'a.toml',
+            'sprites\\a.toml',
+            'C:',
+            'C:\\',
+            '\\\\.\\C:\\x.toml',
+            '\\\\?\\UNC\\server\\share\\x.toml',
+        ],
+    )
+    @pytest.mark.parametrize('platform', ['win32', 'cygwin'])
+    def test_windows_allows_a_colon_only_in_the_drive_designator(self, filename, platform):
+        """A drive (including drive-relative and extended paths) and UNC names pass."""
+        assert _file_name_problem(filename, platform=platform) is None
 
-    def test_pyinstaller_bundle_path(self, mocker):
-        """Test _get_examples_dir with PyInstaller _MEIPASS."""
-        bundle_path = Path('/tmp/bundle')  # ruff: ignore[hardcoded-temp-file]
-        mocker.patch.object(sys, '_MEIPASS', str(bundle_path), create=True)
-        result = _get_examples_dir()
-        assert isinstance(result, Path)
-        assert bundle_path in result.parents or result.parts[1] == 'tmp'
-        assert result.parts[-3:] == ('examples', 'resources', 'sprites')
+    @pytest.mark.parametrize(
+        'filename',
+        [
+            'foo:bar.toml',
+            'examples:foo.toml',
+            'C:\\a:b.toml',
+            'C:a:b.toml',
+            'ab:foo.toml',
+            ':foo.toml',
+            '\\\\server\\sh:\\a.toml',
+            '\\\\?\\UNC\\server\\sh:\\a.toml',
+        ],
+    )
+    @pytest.mark.parametrize('platform', ['win32', 'cygwin'])
+    def test_windows_refuses_any_other_colon(self, filename, platform):
+        """A ':' outside the drive would name an NTFS alternate data stream."""
+        problem = _file_name_problem(filename, platform=platform)
 
+        assert problem is not None
+        assert "':' is only allowed after a drive letter" in problem
+        assert 'alternate data stream' in problem
+        assert "'examples:' prefix was removed" in problem
 
-class TestGetSavePath:
-    """Test _get_save_path helper function."""
+    def test_windows_extended_path_drive_is_pinned(self):
+        """PureWindowsPath puts the extended path's drive in .drive, colon included."""
+        assert PureWindowsPath('\\\\?\\C:\\a.toml').drive == '\\\\?\\C:'
+        assert PureWindowsPath('C:a.toml').drive == 'C:'
+        assert PureWindowsPath('C:/a.toml').drive == 'C:'
 
-    def test_plain_filename(self):
-        """Test _get_save_path with a plain filename."""
-        result = _get_save_path('test.toml')
-        assert result == Path('test.toml')
+    @pytest.mark.parametrize(
+        'filename', ['a:b.toml', 'examples:foo.toml', 'C:\\a.toml', 'C:/a.toml']
+    )
+    def test_macos_refuses_any_colon(self, filename):
+        """Finder shows ':' as '/', so no ':' is accepted, not even a drive letter's."""
+        problem = _file_name_problem(filename, platform='darwin')
 
-    def test_example_prefix(self):
-        """Test _get_save_path with 'example:' prefix."""
-        result = _get_save_path('example:test.toml')
-        assert isinstance(result, Path)
-        assert result.name == 'test.toml'
-        # Should be in the examples directory (cross-platform check)
-        assert result.parent.parts[-3:] == ('examples', 'resources', 'sprites')
+        assert problem is not None
+        assert "':' isn't allowed in a file name on macOS" in problem
+        assert 'Finder shows it as' in problem
+        assert "'examples:' prefix was removed" in problem
 
+    @pytest.mark.parametrize('filename', ['a.toml', 'sprites/a.toml'])
+    def test_macos_allows_a_name_without_a_colon(self, filename):
+        """A plain name passes."""
+        assert _file_name_problem(filename, platform='darwin') is None
 
-class TestGetLoadPath:
-    """Test _get_load_path helper function."""
+    @pytest.mark.parametrize('filename', ['a:b.toml', 'examples:foo.toml', 'a.toml'])
+    def test_linux_allows_a_colon(self, filename):
+        """':' is a legal character on Linux."""
+        assert _file_name_problem(filename, platform='linux') is None
 
-    def test_plain_filename(self):
-        """Test _get_load_path with a plain filename."""
-        result = _get_load_path('test.toml')
-        assert result == Path('test.toml')
+    def test_the_browser_allows_a_colon(self):
+        """Save is a download there, and the browser sanitizes the name."""
+        assert _file_name_problem('a:b.toml', platform='emscripten') is None
 
-    def test_example_prefix(self):
-        """Test _get_load_path with 'example:' prefix."""
-        result = _get_load_path('example:test.toml')
-        assert isinstance(result, Path)
-        assert result.name == 'test.toml'
-        assert result.parent.parts[-3:] == ('examples', 'resources', 'sprites')
-
-    def test_examples_prefix(self):
-        """Test _get_load_path with 'examples:' prefix."""
-        result = _get_load_path('examples:heart.toml')
-        assert isinstance(result, Path)
-        assert result.name == 'heart.toml'
-        assert result.parent.parts[-3:] == ('examples', 'resources', 'sprites')
+    def test_the_default_platform_is_this_machines(self):
+        """Without platform=, the helper uses sys.platform."""
+        assert _file_name_problem('a:b.toml') == _file_name_problem(
+            'a:b.toml', platform=sys.platform
+        )
 
 
 class TestDialogSceneSetupCleanupDismiss:
@@ -909,18 +925,45 @@ class TestLoadDialogConfirm:
 
         assert previous_scene.canvas.loaded_paths == ['test.toml']
 
-    def test_confirm_with_example_prefix(self, previous_scene):
-        """Test confirm event processes example: prefix correctly."""
+    def test_confirm_loads_a_sprite_by_its_path(self, previous_scene, tmp_path):
+        """Test confirm event hands the canvas the path of a sprite file."""
+        sprite_path = tmp_path / 'static.toml'
+        shutil.copy(
+            Path(__file__).resolve().parents[1] / 'fixtures' / 'sprites' / 'static.toml',
+            sprite_path,
+        )
         dialog = LoadDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
-        dialog.dialog.input_box.text = 'example:heart.toml'
+        dialog.dialog.input_box.text = str(sprite_path)
 
         dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
 
-        assert previous_scene.canvas.loaded_paths == [str(_get_examples_dir() / 'heart.toml')]
+        assert previous_scene.canvas.loaded_paths == [str(sprite_path)]
+
+    def test_an_examples_prefixed_name_is_loaded_as_an_ordinary_name(self, previous_scene):
+        """'examples:heart.toml' reaches the canvas as given, which reports it missing."""
+        dialog = LoadDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        dialog.dialog.input_box.text = 'examples:heart.toml'
+
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert previous_scene.canvas.loaded_paths == ['examples:heart.toml']
 
 
 class TestSaveDialogConfirm:
     """Test SaveDialogScene.on_confirm_event."""
+
+    @pytest.fixture
+    def macos_rules(self, mocker):
+        """Make the dialog apply macOS's rule, wherever the tests run.
+
+        The dialog uses this machine's platform, where a ':' may be legal (Linux), so the helper is
+        patched to be called with platform='darwin' (sys.platform itself is left alone).
+        """
+        real_file_name_problem = _file_name_problem
+        mocker.patch(
+            'glitchygames.ui.dialogs._file_name_problem',
+            side_effect=lambda filename: real_file_name_problem(filename, platform='darwin'),
+        )
 
     def test_confirm_calls_on_save_file_event(self, previous_scene):
         """Test confirm event calls canvas on_save_file_event."""
@@ -931,14 +974,47 @@ class TestSaveDialogConfirm:
 
         assert previous_scene.canvas.saved_paths == ['output.toml']
 
-    def test_confirm_with_example_prefix(self, previous_scene):
-        """Test confirm event processes example: prefix for save."""
+    @pytest.mark.parametrize('filename', ['examples:star.toml', 'sprites/a:b.toml'])
+    def test_a_name_with_a_colon_is_refused_and_nothing_is_saved(
+        self, previous_scene, filename, macos_rules
+    ):
+        """A ':' name shows the reason, saves nothing, hands nothing over and closes the dialog."""
+        user_files = _RecordingUserFiles()
+        install_user_files(user_files=user_files)
+        previous_scene.debug_text = _RecordingDebugText()
         dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
-        dialog.dialog.input_box.text = 'example:star.toml'
+        dialog.dialog.input_box.text = filename
 
         dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
 
-        assert previous_scene.canvas.saved_paths == [str(_get_examples_dir() / 'star.toml')]
+        assert previous_scene.canvas.saved_paths == []
+        assert not user_files.saved_files
+        assert "':' isn't allowed in a file name on macOS" in previous_scene.debug_text.text
+        assert dialog.next_scene is previous_scene
+
+    def test_a_refused_name_writes_no_file(
+        self, previous_scene, tmp_path, monkeypatch, macos_rules
+    ):
+        """Nothing is created in the working directory for a refused name."""
+        monkeypatch.chdir(tmp_path)
+        dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        dialog.dialog.input_box.text = 'examples:star.toml'
+
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert list(tmp_path.iterdir()) == []
+
+    def test_a_refused_name_without_a_debug_text_is_only_dismissed(
+        self, previous_scene, macos_rules
+    ):
+        """A scene with no debug text box still closes the dialog without saving."""
+        dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        dialog.dialog.input_box.text = 'examples:star.toml'
+
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert previous_scene.canvas.saved_paths == []
+        assert dialog.next_scene is previous_scene
 
     def test_without_user_files_nothing_is_handed_over(self, previous_scene):
         """On the desktop the saved file is already the player's own."""

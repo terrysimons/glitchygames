@@ -3,7 +3,6 @@
 import logging
 import math
 import shutil
-import sys
 import tempfile
 import tomllib
 from io import StringIO
@@ -41,10 +40,11 @@ from glitchygames.sprites.pixel_utils import (
 )
 from tests.harness import imported_engine_directory
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 # The imported engine's directory (installed: never the source tree by accident)
 ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
+
+# The engine's own sprite test data (Bitmappy keeps its sprite library)
+SPRITE_FIXTURES_DIRECTORY = Path(__file__).resolve().parents[1] / 'fixtures' / 'sprites'
 FRAME_DURATION = 0.5
 FRAME_DURATION_FAST = 0.25
 SURFACE_SIZE = 4
@@ -3162,7 +3162,7 @@ blue = 0
     def test_frame_anchor_survives_a_save_and_reload(self, tmp_path):
         """[sprite] frame_anchor is written back (the path Bitmappy's save uses) and reloads."""
         # The engine's running girl: four animations, each frame with its own hitbox
-        source = ENGINE_PACKAGE_DIRECTORY / 'examples' / 'resources' / 'sprites' / 'girl.toml'
+        source = SPRITE_FIXTURES_DIRECTORY / 'girl.toml'
         toml_file = tmp_path / 'anchored.toml'
         toml_file.write_text(
             source.read_text(encoding='utf-8').replace(

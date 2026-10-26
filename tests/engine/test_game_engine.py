@@ -55,8 +55,6 @@ from glitchygames.backgrounds import (
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames import events
 from glitchygames.engine import GameEngine

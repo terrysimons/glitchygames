@@ -175,6 +175,9 @@ session again, and every frame's sprites are compared with the recorded frame. T
     holds the current logical names. A plain replay of such a recording is refused
     (``ExitCode.UNUSABLE_INPUT``) with a message naming
     ``--replay-trace OLD --rebaseline NEW --headless``. There is no table of former locations.
+    A recording whose classes moved to another logical module is converted the same way (the
+    logical modules are not compared, the qualified names are); a plain replay refuses it,
+    naming the rebaseline.
 18. Playback (Part 3's in-game playback scope, glitchygames/replay/playback.py, whose docstring
     is the contract): ``playback_replay_sources`` builds the sources a scope serves a
     recording's frames from, starting at ``ReplayOptions.start_frame`` N (the frame holding the
@@ -2744,16 +2747,18 @@ REBASELINE_REMEDY = '--replay-trace OLD --rebaseline NEW --headless'
 def modules_not_compared(
     *, recorded_module: str | None, loaded_module: str, is_rebaseline: bool
 ) -> bool:
-    """Return whether a record made before logical names is matched by qualified name alone.
+    """Return whether a record is matched by qualified name alone.
 
-    The one rule for records without a logical name (a header without ``game``, a scene start
-    without ``scene``; glitchygames/logical_names.py), used by ``check_recorded_game`` and by
+    The one rule for every record a game or scene is found by: an old-format record (a header
+    without ``game``, a scene start without ``scene``; glitchygames/logical_names.py) gives its
+    module, a newer one its logical module. Used by ``check_recorded_game`` and by
     ``find_scene_class`` (glitchygames/replay/playback.py). Their modules are compared, so a
     class of the same name in another game is refused, except where they cannot be: no module
     recorded, or a game file run as a script (``__main__``) on either side. Under
     ``--rebaseline`` (rule 17) they are never compared: a game or scene that moved since it was
-    recorded has another module, and the rebaseline is how such a recording is converted (its
-    new recording holds the logical names). A plain replay keeps comparing them.
+    recorded has another module or logical module, and the rebaseline is how such a recording
+    is converted (its new recording holds the current logical names). A plain replay keeps
+    comparing them.
 
     Args:
         recorded_module: The module the record names, or None when it names none.
@@ -2777,13 +2782,16 @@ def check_recorded_game(
     """Refuse a recording of another game.
 
     A recording holding ``game`` (the game class's logical name, glitchygames/logical_names.py)
-    must name the started game's logical name; when either side's module is ``__main__`` (a
-    game file run as a script, ``python paddleslap.py``, is the same game as its console
-    script) only the qualified names are compared. A recording without ``game`` (made before
-    logical names) must name the started game's class name, and its module too unless
-    ``modules_not_compared`` says otherwise: under ``--rebaseline`` the module may differ (the
-    game moved since; the new recording holds its logical name), while a plain replay of such a
-    recording is refused with a message naming the rebaseline that converts it.
+    must name the started game's logical name; the qualified names must be equal, and so must
+    the logical modules unless ``modules_not_compared`` says otherwise (``__main__`` on either
+    side: a game file run as a script, ``python paddleslap.py``, is the same game as its console
+    script; or a ``--rebaseline``, the game having moved to another logical module). A plain
+    replay of a recording whose game moved is refused with a message naming the rebaseline. A
+    recording without ``game`` (made before logical names) must name the started game's class name,
+    and its module too unless ``modules_not_compared`` says otherwise: under ``--rebaseline`` the
+    module may differ (the game moved since; the new recording holds its logical name), while a
+    plain replay of such a recording is refused with a message naming the rebaseline that converts
+    it.
 
     Args:
         header: The recording's header fields.
@@ -2801,11 +2809,23 @@ def check_recorded_game(
     if recorded_logical_name is not None:
         recorded_module, _, recorded_qualified_name = str(recorded_logical_name).partition(':')
         started_module, _, started_qualified_name = started_logical_name.partition(':')
-        differs = (
-            recorded_qualified_name != started_qualified_name
-            if SCRIPT_MODULE_NAME in {recorded_module, started_module}
-            else recorded_logical_name != started_logical_name
-        )
+        differs = recorded_qualified_name != started_qualified_name
+        if (
+            not differs
+            and recorded_module != started_module
+            and not modules_not_compared(
+                recorded_module=recorded_module,
+                loaded_module=started_module,
+                is_rebaseline=is_rebaseline,
+            )
+        ):
+            message = (
+                f'The recording is of the game {recorded_logical_name}, and this game '
+                f'({started_logical_name}) has the same name in another logical module: if it is '
+                'this game, the game has since moved, and a replay cannot tell it from another '
+                f'game of that name. Convert the recording with {REBASELINE_REMEDY}'
+            )
+            raise ReplayRefusedError(message)
         recorded_place = str(recorded_logical_name)
     else:
         recorded_module = header.get(GAME_MODULE_HEADER_FIELD)

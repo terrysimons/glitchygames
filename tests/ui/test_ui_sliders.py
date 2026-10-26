@@ -4,14 +4,8 @@ This module tests SliderSprite and ColorWellSprite functionality including
 slider dragging, text input, value validation, and color well display.
 """
 
-import sys
-from pathlib import Path
-
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events.base import HashableEvent
 from glitchygames.ui import ColorWellSprite, SliderSprite

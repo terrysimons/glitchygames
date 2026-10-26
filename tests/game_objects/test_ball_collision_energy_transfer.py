@@ -9,8 +9,6 @@ This test specifically addresses the reported issues:
 
 import logging
 import math
-import sys
-from pathlib import Path
 
 import pytest
 
@@ -18,8 +16,6 @@ from glitchygames.display_mode import set_display_mode
 
 LOG = logging.getLogger(__name__)
 
-# Add the project root to the path
-sys.path.insert(0, str(Path(__file__).parent / '..' / '..'))
 
 import pygame  # ruff: ignore[module-import-not-at-top-of-file]
 

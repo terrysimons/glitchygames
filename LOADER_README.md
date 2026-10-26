@@ -40,7 +40,7 @@ def detect_file_format(filename: str) -> str:
 ```
 
 ```python
-# src/glitchygames/bitmappy/utils.py (used by AnimatedSprite.load)
+# src/glitchygames/sprites/file_format.py (used by AnimatedSprite.load and Bitmappy)
 def detect_file_format(filename: str) -> str:
     """Detect file format from filename extension."""
     extension = Path(filename).suffix.lower().lstrip('.')
@@ -63,7 +63,7 @@ Anything but `toml` is refused further on: `SpriteFactory._analyze_file` raises
 ### Step 1: Update File Format Detection
 
 **Location:** `SpriteFactory.detect_file_format` (`src/glitchygames/sprites/factory.py`) and
-`detect_file_format` (`src/glitchygames/bitmappy/utils.py`)
+`detect_file_format` (`src/glitchygames/sprites/file_format.py`)
 
 ```python
 @staticmethod
@@ -431,7 +431,7 @@ Update documentation when adding new formats:
 
 ### 4. Backward Compatibility
 
-When possible, maintain backward compatibility. `src/glitchygames/bitmappy/utils.py`'s
+When possible, maintain backward compatibility. `src/glitchygames/sprites/file_format.py`'s
 `detect_file_format` already treats a name with no extension as TOML; keep that when adding
 formats:
 

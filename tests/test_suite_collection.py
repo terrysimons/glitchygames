@@ -14,6 +14,7 @@ import re
 import tomllib
 from pathlib import Path
 
+from tests.ast_scanning import import_bindings, qualified_name
 from tests.harness import CHECKOUT_ENGINE_DIRECTORY, imported_engine_directory
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -720,3 +721,164 @@ def test_an_unclosed_fence_in_one_bug_entry_does_not_hide_the_next(tmp_path):
             '### 3. B\n- **Status**: Active\n  glitchygames/ui/y.py\n'
         ),
     ) == ['BUGS.md:10: glitchygames/ui/y.py']
+
+
+def engine_test_imports_of_bitmappy(*, project_root: Path) -> list[str]:
+    """Return every file under the root tests/ that imports Bitmappy, as ``<file>:<line>``.
+
+    Bitmappy is a workspace member (src/apps/bitmappy); its tests live there, so the engine's
+    tests never need it.
+
+    Args:
+        project_root: The repository (its tests/ directory is scanned).
+
+    Returns:
+        ``<file>:<line>`` for each import of a module whose top level is ``bitmappy``, sorted.
+
+    """
+    tests_directory = project_root / 'tests'
+    findings: list[str] = []
+    for python_file in sorted(tests_directory.rglob('*.py')):
+        if '__pycache__' in python_file.parts:
+            continue
+        relative = python_file.relative_to(project_root)
+        module = ast.parse(python_file.read_text(encoding='utf-8'), filename=str(python_file))
+        for node in ast.walk(module):
+            if isinstance(node, ast.ImportFrom) and node.level == 0:
+                imported_names = [node.module or '']
+            elif isinstance(node, ast.Import):
+                imported_names = [alias.name for alias in node.names]
+            else:
+                continue
+            if any(name.split('.')[0] == 'bitmappy' for name in imported_names):
+                findings.append(f'{relative.as_posix()}:{node.lineno}')
+    return findings
+
+
+def test_no_engine_test_imports_bitmappy():
+    """The engine's tests import no Bitmappy module: Bitmappy's tests are in its member."""
+    assert engine_test_imports_of_bitmappy(project_root=PROJECT_ROOT) == []
+
+
+def test_an_engine_test_importing_bitmappy_is_found(tmp_path):
+    """Both spellings of an import of Bitmappy are reported, a relative import is not."""
+    (tmp_path / 'tests' / 'tools').mkdir(parents=True)
+    (tmp_path / 'tests' / 'tools' / 'test_editor.py').write_text(
+        'import bitmappy.editor\nfrom bitmappy import main\nfrom . import bitmappy\n',
+        encoding='utf-8',
+    )
+
+    assert engine_test_imports_of_bitmappy(project_root=tmp_path) == [
+        'tests/tools/test_editor.py:1',
+        'tests/tools/test_editor.py:2',
+    ]
+
+
+BITMAPPY_TESTS_DIRECTORY = PROJECT_ROOT / 'src' / 'apps' / 'bitmappy' / 'tests'
+# Directories of test data, not test modules (a member's golden replays live in fixtures/)
+TEST_DATA_DIRECTORY_NAMES = frozenset({'fixtures', '__pycache__'})
+
+
+def misnamed_bitmappy_test_modules(*, tests_directory: Path) -> list[str]:
+    """Return each module in Bitmappy's tests, at any depth, not named ``test_bitmappy*.py``.
+
+    Rootless tests are imported by their bare file names, so every module is named for Bitmappy.
+    ``conftest.py`` is the one exception; test-data directories (``fixtures``) are not scanned.
+
+    Args:
+        tests_directory: Bitmappy's tests directory (src/apps/bitmappy/tests).
+
+    Returns:
+        The misnamed modules, relative to the tests directory, sorted.
+
+    """
+    return sorted(
+        python_file.relative_to(tests_directory).as_posix()
+        for python_file in tests_directory.rglob('*.py')
+        if not TEST_DATA_DIRECTORY_NAMES & set(python_file.relative_to(tests_directory).parts)
+        and python_file.name != 'conftest.py'
+        and not fnmatch.fnmatch(python_file.name, 'test_bitmappy*.py')
+    )
+
+
+def test_bitmappys_test_modules_are_named_for_it():
+    """Every module in Bitmappy's tests, subdirectories included, is named test_bitmappy*.py."""
+    assert misnamed_bitmappy_test_modules(tests_directory=BITMAPPY_TESTS_DIRECTORY) == []
+    assert (BITMAPPY_TESTS_DIRECTORY / 'test_bitmappy_after_the_move.py').is_file()
+
+
+def test_a_misnamed_bitmappy_test_module_in_a_subdirectory_is_found(tmp_path):
+    """A subdirectory's misnamed module is reported; conftest.py and fixtures/ are not."""
+    (tmp_path / 'canvas' / 'fixtures').mkdir(parents=True)
+    for relative in (
+        'conftest.py',
+        'test_bitmappy_tools.py',
+        'canvas/conftest.py',
+        'canvas/test_bitmappy_canvas.py',
+        'canvas/test_canvas.py',
+        'canvas/fixtures/sprite_data.py',
+    ):
+        (tmp_path / relative).write_text('', encoding='utf-8')
+
+    assert misnamed_bitmappy_test_modules(tests_directory=tmp_path) == ['canvas/test_canvas.py']
+
+
+SYS_PATH_EDITS = frozenset({'sys.path.insert', 'sys.path.append'})
+
+
+def sys_path_edits(*, project_root: Path, roots: list[Path]) -> list[str]:
+    """Return every call of ``sys.path.insert`` or ``sys.path.append`` below the test roots.
+
+    Tests import the installed packages; a path edit can put the repository (or ``src/``) ahead
+    of the installed copy, so a non-editable run would test the source tree. ``from sys import
+    path`` and ``import sys as s`` spellings are followed.
+
+    Args:
+        project_root: The repository.
+        roots: The test roots to scan.
+
+    Returns:
+        ``<file>:<line>`` for each call, sorted.
+
+    """
+    findings: list[str] = []
+    for _root, python_file in _python_files(roots=roots):
+        module = ast.parse(python_file.read_text(encoding='utf-8'), filename=str(python_file))
+        bindings = import_bindings(tree=module, watched_modules=frozenset({'sys'}))
+        findings.extend(
+            f'{python_file.relative_to(project_root).as_posix()}:{node.lineno}'
+            for node in ast.walk(module)
+            if isinstance(node, ast.Call)
+            and qualified_name(
+                node=node.func, bindings=bindings, watched_modules=frozenset({'sys'})
+            )
+            in SYS_PATH_EDITS
+        )
+    return sorted(findings)
+
+
+def test_no_test_edits_sys_path():
+    """No test file, in the engine's tests or any member's, edits ``sys.path``."""
+    assert sys_path_edits(project_root=PROJECT_ROOT, roots=collected_test_roots()) == []
+
+
+def test_a_test_editing_sys_path_is_found(tmp_path):
+    """Every spelling of a path edit is reported; reading ``sys.path`` and list inserts are not."""
+    roots = write_member_test_root(project_root=tmp_path)
+    (tmp_path / 'tests' / 'test_root_edit.py').write_text(
+        'import sys\nsys.path.insert(0, "x")\n', encoding='utf-8'
+    )
+    (tmp_path / MEMBER_TESTS / 'test_member_edit.py').write_text(
+        'import sys as system\nfrom sys import path\n'
+        'system.path.append("y")\npath.insert(0, "z")\n',
+        encoding='utf-8',
+    )
+    (tmp_path / MEMBER_TESTS / 'test_innocent.py').write_text(
+        'import sys\nitems = []\nitems.insert(0, 1)\nprint(sys.path[0])\n', encoding='utf-8'
+    )
+
+    assert sys_path_edits(project_root=tmp_path, roots=roots) == [
+        'src/games/space-game/tests/test_member_edit.py:3',
+        'src/games/space-game/tests/test_member_edit.py:4',
+        'tests/test_root_edit.py:2',
+    ]

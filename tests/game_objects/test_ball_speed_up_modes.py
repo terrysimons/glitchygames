@@ -3,13 +3,8 @@
 
 import dataclasses
 import math
-import sys
-from pathlib import Path
 
 import pytest
-
-# Add the project root to the path
-sys.path.insert(0, str(Path(__file__).parent))
 
 from glitchygames.game_objects.ball import (
     BallSprite,

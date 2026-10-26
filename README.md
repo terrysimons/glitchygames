@@ -17,7 +17,7 @@ git clone https://github.com/terrysimons/glitchygames.git
 cd glitchygames
 
 # Install core dependencies (--all-packages: the workspace members too, every game under
-# src/games/)
+# src/games/ and every app under src/apps/)
 uv sync --all-packages
 
 # Install with dev extras (testing, linting, type checking, security scanning)
@@ -26,20 +26,21 @@ uv sync --extra dev --all-packages
 # Install with documentation extras (MkDocs)
 uv sync --extra docs --all-packages
 
-# Install everything: the engine, every game and the dev tools (what development uses)
+# Install everything: the engine, every game, every app and the dev tools (what development uses)
 uv sync --all-extras --all-groups --all-packages
 ```
 
-Every game is its own package (a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/)
-member under `src/games/`, depending on `glitchygames` like any third-party game;
+Every game and app is its own package (a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/)
+member under `src/games/` or `src/apps/`, depending on `glitchygames` like any third-party game;
 `docs/architecture/game_packages.md`). Outside the repository an installer picks the engine alone
-or with the games. The names are not yet on PyPI (neither `glitchygames` nor any game's), so
+or with the games or the apps. The names are not yet on PyPI (neither `glitchygames` nor any member's), so
 until they are published, build the wheels in the repository and install from them:
 
 ```bash
 uv build --all-packages                                # every wheel, into dist/
 pip install --find-links dist glitchygames             # the engine
 pip install --find-links dist "glitchygames[games]"    # the engine and every game
+pip install --find-links dist "glitchygames[apps]"     # the engine and Bitmappy
 ```
 
 ### Optional Dependency Groups
@@ -55,7 +56,7 @@ The sprite API server and client (FastAPI, uvicorn, httpx, apng, pillow) are cor
 
 ### `bitmappy` -- Pixel Art Editor
 
-Full-featured pixel art and sprite editor with animation timeline, multi-controller support (up to 4 simultaneous controllers), AI sprite generation, and voice recognition.
+Full-featured pixel art and sprite editor with animation timeline, multi-controller support (up to 4 simultaneous controllers), AI sprite generation, and voice recognition. It is an app, its own package in `src/apps/bitmappy/` (code in `src/apps/bitmappy/bitmappy/`, its sprite library in `src/apps/bitmappy/bitmappy/resources/sprites/`, tests in `src/apps/bitmappy/tests/`; `src/apps/bitmappy/README.md`).
 
 ```bash
 # Run with default settings (32x32 canvas)
@@ -184,7 +185,7 @@ Every example game is its own package, with its own code, tests and golden repla
 | PaddleSlap | `uv run paddleslap` | `src/games/paddleslap/` |
 | Drawing Fire | `uv run drawing-fire` | `src/games/drawing-fire/` |
 
-Brave Adventurer is one project holding both games: the shared primitives (`brave_adventurer_core`), each game (`brave_adventurer`, the Classic edition, and `brave_adventurer_papyrus`, the Egyptian one) and a launcher (`brave_adventurer_modes`) that is its one console script. Its title screen offers Classic and Papyrus; `--game classic` or `--game papyrus` starts one at once. The engine's `src/glitchygames/examples/` keeps only the three demos (`dt_demo`, `joystick_demo`, `text_input_demo`) and Bitmappy's resources.
+Brave Adventurer is one project holding both games: the shared primitives (`brave_adventurer_core`), each game (`brave_adventurer`, the Classic edition, and `brave_adventurer_papyrus`, the Egyptian one) and a launcher (`brave_adventurer_modes`) that is its one console script. Its title screen offers Classic and Papyrus; `--game classic` or `--game papyrus` starts one at once. The engine's `src/glitchygames/examples/` keeps only the three demos (`dt_demo`, `joystick_demo`, `text_input_demo`); Bitmappy is its own package, `src/apps/bitmappy/`.
 
 ## Engine Options
 

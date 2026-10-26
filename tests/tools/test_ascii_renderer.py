@@ -1,12 +1,6 @@
 """Tests for ascii_renderer module - ASCII rendering of BitmappySprite data."""
 
-import sys
-from pathlib import Path
-
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools.ascii_renderer import ASCIIRenderer
 

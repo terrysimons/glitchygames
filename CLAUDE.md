@@ -21,23 +21,27 @@ root.
 # Install dependencies (uv manages the virtual environment automatically); --all-packages
 # installs the workspace members too: every game is its own package (src/games/mr-muncher,
 # src/games/clockwork-keep, src/games/brave-adventurer, src/games/paddleslap,
-# src/games/drawing-fire). A plain `uv sync` keeps them as well: the root's dev dependency group (installed by default)
+# src/games/drawing-fire), and so is Bitmappy, the first member of the apps layer
+# (src/apps/bitmappy). A plain `uv sync` keeps them as well: the root's dev dependency group (installed by default)
 # names every member as a workspace source (tests/test_workspace_config.py checks it)
 uv sync --all-packages
 
 # Install with dev extras (for testing/linting)
 uv sync --extra dev --all-packages
 
-# Install with all extras: the engine, every game and the dev tools (what development uses)
+# Install with all extras: the engine, every game, every app and the dev tools (what development
+# uses)
 uv sync --all-extras --all-groups --all-packages
 
-# Outside the repository: the engine alone, or with every game (the `games` extra names each
-# game's distribution; tests/test_workspace_config.py keeps it equal to src/games/). The names
+# Outside the repository: the engine alone, or with every game or app (the `games` and `apps`
+# extras name each member's distribution; tests/test_workspace_config.py keeps each equal to its
+# layer's directory, src/games/ and src/apps/). The names
 # are not yet on PyPI (neither glitchygames nor any game's), so build the wheels and install
 # from them until they are published
 uv build --all-packages
 pip install --find-links dist glitchygames
 pip install --find-links dist "glitchygames[games]"
+pip install --find-links dist "glitchygames[apps]"      # Bitmappy
 
 # Optional: trust the project's .envrc (direnv); on entering the repo it runs
 # `uv sync --all-extras --all-groups --all-packages` (the locked versions) and, on macOS,
@@ -116,7 +120,7 @@ nox -s static-analysis-ty           # Run ty only
 
 # --- Testing ---
 nox -s test                # Run tests with coverage
-nox -s performance-test    # Run performance benchmarks
+nox -s performance-test    # Run performance benchmarks (every testpath: the engine's and each member's)
 nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU share, sleep wakes (diagnostic)
 nox -s replay-metrics      # (the project's editable install) Rebaseline every golden replay + bundled demo headless; append run-ledger rows to test-results/replay-metrics/pending.jsonl (skips this commit+machine; `-- --force`, `-- --allow-dirty`, `-- --only TEXT`)
 nox -s test-linux-x11      # Tests on Linux in Docker: X11 windows on XQuartz, sound on the Mac's PulseAudio (starts it; `pulseaudio --kill` stops it; macOS)
@@ -134,7 +138,7 @@ nox -s safety-scan         # Run safety only
 # --- Build / Package ---
 nox -s build               # Build binary (PyInstaller) + wheel
 nox -s build-binary        # Build standalone Bitmappy binary only
-nox -s build-wheel         # Build wheel (.whl) only
+nox -s build-wheel         # Build the wheel (.whl) of every workspace package (uv build --all-packages), only
 # build, build-wheel, build-binary and test stamp the engine's commit into the package first
 # (src/glitchygames/_build_info.json, removed after; src/glitchygames/build_info.py): test's installed
 # copy is not editable, so the stamp is how it names its commit
@@ -173,8 +177,9 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 ### Example Games
 Every game is its own workspace package under `src/games/` (Part 2 of
 plans/2026-10-24-workspace-packages.md; the recipe is docs/architecture/game_packages.md), with
-its code, tests and golden replay; `src/glitchygames/examples/` keeps only the three demos and
-Bitmappy's resources. `uv run paddleslap` (its own workspace package `src/games/paddleslap/`, one module: `Game` is
+its code, tests and golden replay; `src/glitchygames/examples/` keeps only the three demos
+(Bitmappy is an app, its own package in the apps layer, `src/apps/bitmappy/`: Part 4 of the same
+plan). `uv run paddleslap` (its own workspace package `src/games/paddleslap/`, one module: `Game` is
 defined in `paddleslap/__init__.py`), `brave-adventurer` (one project holding both editions, Classic and Papyrus,
 `src/games/brave-adventurer/`: four import packages, `brave_adventurer_core` (what both share),
 `brave_adventurer` (Classic), `brave_adventurer_papyrus` and the launcher `brave_adventurer_modes`,
@@ -963,7 +968,18 @@ Dialogs: `LoadDialogScene`, `SaveDialogScene`, `NewCanvasDialogScene`
 
 **Focus Model**: Focusable sprites intercept keyboard input via `active` attribute
 
-### Bitmappy Pixel Art Editor (`src/glitchygames/bitmappy/`)
+### Bitmappy Pixel Art Editor (`src/apps/bitmappy/bitmappy/`)
+
+Bitmappy is an app: the first workspace member of the apps layer (`src/apps/bitmappy/`;
+distribution, import package and console script are all `bitmappy`; Part 4 of
+plans/2026-10-24-workspace-packages.md, plans/2026-10-26-workspace-packages-4-bitmappy.md). The
+scene's logical name, which recordings hold, is `apps.bitmappy.editor:BitmapEditorScene`. The
+engine never imports it. Its sprite library (71 sprites, also the AI's training data) is package
+data in `src/apps/bitmappy/bitmappy/resources/sprites/` (`bitmappy.SPRITE_CONFIG_DIR`), beside
+its window icon and `bitmappy.cfg`. Its tests are in `src/apps/bitmappy/tests/`, and its
+`pyproject.toml` declares what it imports (the engine, aisuite, numpy, pydantic, pygame-ce,
+tenacity). The Load and Save dialogs open the file name as typed (whitespace trimmed): there is
+no `example:` prefix, so a sprite in the library is opened by its path.
 
 Features:
 - Canvas-based pixel editing with undo/redo (`UndoRedoManager`)
@@ -972,12 +988,12 @@ Features:
 - Collision visualization (`VisualCollisionManager`)
 - TOML file format for sprites
 - AI integration via aisuite, behind the feature flag `AI_FEATURES_ENABLED`
-  (`bitmappy/constants.py`; off in WebAssembly builds for now: the AI worker is a separate
+  (`src/apps/bitmappy/bitmappy/constants.py`; off in WebAssembly builds for now: the AI worker is a separate
   process, which a browser cannot start). `tenacity` is imported only when an AI request is made
-  (`ai_worker._create_ai_retry_decorator`), so Bitmappy imports without it
+  (`src/apps/bitmappy/bitmappy/ai_worker.py` `_create_ai_retry_decorator`), so Bitmappy imports without it
 - Voice recognition support
 - PNG drag-and-drop
-- Runs in the browser: `nox -s browser -- bitmappy` (its bundle alone includes `bitmappy/`; the builder runs as `python -m scripts.build_browser_bundle`, and a workspace member's game ships its package as its own archive, `mr_muncher.zip` beside `glitchygames.zip`).
+- Runs in the browser: `nox -s browser -- bitmappy` (its bundle ships the app as its own archive, `bitmappy.zip` beside `glitchygames.zip`, as a member game ships `mr_muncher.zip`; the builder runs as `python -m scripts.build_browser_bundle`).
   There Load opens the browser's file picker and Save downloads the saved file, through the
   installed user files (`src/glitchygames/user_files.py`; the page's `browser/browser_user_files.py`).
   On the desktop nothing is installed and the dialogs ask for file names as always
@@ -1034,6 +1050,12 @@ Features:
   (pixels), not on draw calls. Assertions must not assume the display's pixel format (cocoa's has
   per-pixel alpha)
 - Test filenames: Use descriptive names, not generic suffixes like `_simple`
+- Tests import the installed packages (`uv sync` installs the engine and every member) and never
+  edit `sys.path`: `tests/test_suite_collection.py` fails on any `sys.path.insert` or
+  `sys.path.append` in a test file. A member's tests (`src/<layer>/<member>/tests/`, no
+  `__init__.py`) are rootless, so pytest imports each file under its bare name: name every file
+  after its package, which for Bitmappy is `test_bitmappy_*.py` (subdirectories included; the same
+  guard checks it)
 - `tests/harness.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
   plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`).
 - Real pads never reach tests: `tests/sdl_defaults.py` defaults SDL's macOS joystick drivers off

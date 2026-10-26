@@ -2,16 +2,10 @@
 """Test script to verify the logging is working."""
 
 import logging
-import sys
-from pathlib import Path
 
 import pygame
 
 from glitchygames.display_mode import set_display_mode
-
-# Add the glitchygames directory to the path
-sys.path.insert(0, str(Path(__file__).parent / 'glitchygames'))
-
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.game_objects.paddle import VerticalPaddle
 

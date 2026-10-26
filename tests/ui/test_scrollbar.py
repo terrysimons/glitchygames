@@ -5,13 +5,7 @@ thumb and track, mouse up clearing drag state, mouse motion with drag
 and hover, and scroll position calculations.
 """
 
-import sys
-from pathlib import Path
-
 import pygame
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import Scrollbar
 

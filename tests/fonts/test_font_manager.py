@@ -7,7 +7,6 @@ table (the fake_system_fonts fixture), so they never depend on the fonts this ma
 """
 
 import argparse
-import sys
 import types
 import warnings
 from pathlib import Path
@@ -17,9 +16,6 @@ import pygame.font
 import pygame.freetype
 import pygame.sysfont
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.display_mode import set_display_mode
 from glitchygames.fonts import FontManager
@@ -521,26 +517,3 @@ class TestInputBoxFont:
 
         assert input_box.font is FontManager._font_cache[f'pygame_{DEFAULT_FONT_NAME}_14']
         assert isinstance(input_box.font, pygame.font.Font)
-
-
-class TestBitmappyFonts:
-    """The Bitmappy editor draws its text with the bundled Vera, not system fonts."""
-
-    def test_building_the_editor_scans_no_system_fonts(self, mocker, fontconfig_unavailable):
-        """Its options and slider labels named 'arial' and 'Courier', so it scanned them.
-
-        On a machine without fontconfig (or a busy one where the scan times out) the scan's
-        warning failed every editor test (BUGS.md #156).
-        """
-        from glitchygames.bitmappy.controllers.manager import MultiControllerManager
-        from glitchygames.bitmappy.editor import BitmapEditorScene
-
-        mocker.patch.object(MultiControllerManager, '_instance', None)
-        mocker.patch.dict(FontManager._font_cache, {}, clear=True)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter('error')
-            editor = BitmapEditorScene(options={})
-
-        fontconfig_unavailable.assert_not_called()
-        assert editor.options['font_name'] == DEFAULT_FONT_NAME

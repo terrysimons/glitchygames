@@ -12,7 +12,6 @@ they checked no rendering at all. Pixels are read in bulk with ``pygame.surfarra
 read the screen one ``get_at`` call at a time (BUGS.md #85).
 """
 
-import sys
 import time
 import tomllib
 from pathlib import Path
@@ -25,13 +24,9 @@ from glitchygames.color import MAGENTA_TRANSPARENCY_KEY
 from glitchygames.display_mode import set_display_mode
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SpriteFactory
-from tests.harness import imported_engine_directory
 
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-# The imported engine's directory (installed: never the source tree by accident)
-ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
+# The engine's own sprite test data (Bitmappy keeps its sprite library)
+SPRITE_FIXTURES_DIRECTORY = Path(__file__).resolve().parents[1] / 'fixtures' / 'sprites'
 
 
 def get_resource_path(filename: str) -> str:
@@ -42,7 +37,7 @@ def get_resource_path(filename: str) -> str:
 
     """
     return str(
-        ENGINE_PACKAGE_DIRECTORY / 'examples' / 'resources' / 'sprites' / filename,
+        SPRITE_FIXTURES_DIRECTORY / filename,
     )
 
 

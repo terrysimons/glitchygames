@@ -2,9 +2,7 @@
 
 import contextlib
 import gc
-import sys
 import weakref
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pygame
@@ -28,8 +26,6 @@ from tests.logged_messages import logged_message
 
 if TYPE_CHECKING:
     from collections.abc import Generator
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def _install_frame_input(*, mouse_position: tuple[int, int], mouse_focused: bool) -> None:

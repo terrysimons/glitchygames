@@ -1,11 +1,5 @@
 """Test coverage for movement integration and edge cases."""
 
-import sys
-from pathlib import Path
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from glitchygames.movement import Horizontal, Speed, Vertical
 
 # Constants for magic values

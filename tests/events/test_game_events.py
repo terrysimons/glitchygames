@@ -11,14 +11,9 @@ behaviour matters).
 """
 
 import argparse
-import sys
-from pathlib import Path
 
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.engine import GameEventManager
 from glitchygames.events import (

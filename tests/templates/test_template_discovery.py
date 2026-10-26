@@ -4,13 +4,7 @@ Each test lists a real temporary templates directory (or the bundled one), with 
 subdirectories, so get_templates() really asks the filesystem what is a directory.
 """
 
-import sys
-from pathlib import Path
-
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.templates import get_templates
 

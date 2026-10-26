@@ -201,8 +201,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   recordings name games by logical names. Master plan: `plans/2026-10-24-workspace-packages.md`
 - **Status**: Part 1 (foundation and the Mr. Muncher pilot) merged (#105); Part 2 (every game
   its own package: mr-muncher, clockwork-keep, brave-adventurer as one project with a launcher,
-  paddleslap, drawing-fire) DONE on `feature/workspace-packages-2-games`; Parts 3-5 (demos,
-  Bitmappy, browser IDE) TODO
+  paddleslap, drawing-fire) merged (#109); Part 4 (Bitmappy as an app, `src/apps/bitmappy/`)
+  DONE on `feature/workspace-packages-4-bitmappy`, not yet merged; Parts 3 (the demos) and 5 (the
+  browser IDE) TODO
 - **Part 2 leftovers** (deferred review findings, 2026-10-25; none blocks the merge):
   - Brave Adventurer (`src/games/brave-adventurer/`): no golden replay exercises the title
     screen's controls; `tests/engine/test_engine_lifecycle.py`'s power-on test has no direct
@@ -221,7 +222,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
     text is unchanged), which a test matching `record.msg` would see
   - Papyrus's sprite-file test imports the engine's checks from
     `tests.examples.test_examples_sprites`; if a second game needs them, they belong in
-    `src/glitchygames/testing/` (a sprite-files helper)
+    `src/glitchygames/testing/` (a sprite-files helper). Bitmappy is now the second importer;
+    Part 3 does the move (`src/glitchygames/testing/sprite_files.py`, the user, 2026-10-26)
   - With member packages first-party, isort orders `glitchygames` imports after a game's own in
     member files (cosmetic)
   - `tests/test_build_browser_bundle.py`'s stand-in `record_archive` takes `**_ignored`: a name
@@ -1217,6 +1219,62 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Integration with existing sound system
 
 ## Editing and Workflow Features
+
+### 58. Game Project Workspaces — TODO (a future PR)
+- **Description**: A way to manage a game's project space: a **workspace** the tools open, holding
+  the game's own files (sprites, levels, sounds, recordings), instead of the tools reaching into
+  directories inside the engine or an app. Starting a project means creating a **new workspace**,
+  and that is where the starter material is bundled (for example, the sprite library that
+  Bitmappy ships today as package data).
+- **Use Case**: The user (2026-10-26): "we need a way to manage a game project space, and since
+  we're going to be migrating to a much more fully featured tool, we need to add workspace support
+  and then we'll just bundle that stuff with a 'new workspace'." The more fully featured tool is
+  Glitchy Studio (`plans/2026-10-18-level-tools.md`).
+- **Status**: TODO (requested 2026-10-26); not started
+- **Priority**: Medium
+- **Context**:
+  - Workspace packages Part 4 (`plans/2026-10-26-workspace-packages-4-bitmappy.md`) removed the
+    engine dialogs' special `examples:` file-name prefix (the user: "We shouldn't treat examples
+    specially anymore"). Files are opened by their path, and Bitmappy's sprite library is its own
+    package data. A new workspace is where such starter files would come from instead.
+- **Later (not now)**: templates for a new workspace (the user: "We could even have templates...
+  but for now, this is ok").
+
+### 59. Bitmappy Tests Organized by Input API and by Module — TODO (a future PR)
+- **Description**: Reorganize Bitmappy's tests (`src/apps/bitmappy/tests/`, rootless, no
+  `__init__.py`) into subdirectories, and decompose them where that reads better:
+
+  ```
+  src/apps/bitmappy/tests/
+    input/
+      controller/   test_bitmappy_pygame_controller_*.py   pygame's game-controller events (CONTROLLER*)
+      joystick/     test_bitmappy_pygame_joystick_*.py     pygame's joystick events (JOY*)
+    controllers/    test_bitmappy_controller_<module>.py   one file per bitmappy/controllers/ module
+  ```
+
+  - Split the input tests by event kind: buttons, axes, hats and balls.
+  - Gather the input-handling tests by API. They are spread across about eight files today
+    (`test_bitmappy_event_handlers.py`, `test_bitmappy_controller_event_handler.py`,
+    `test_bitmappy_bitmap_editor_scene.py`, `test_bitmappy_slider_manager.py`,
+    `test_bitmappy_multi_controller_troubleshooting.py`, `test_bitmappy_multi_controller.py`, ...).
+  - Merge `test_bitmappy_multi_controller_enhancements.py` (coverage filler; its docstring lists
+    source line numbers, which rot) into `test_bitmappy_controller_enhancements.py`: one file for
+    `controllers/enhancements.py`, with classes named for the behavior they pin. Drop any test
+    that only repeats another, keeping coverage at 100%.
+  - Sort the other `test_bitmappy_multi_controller_*` files (stress, performance, edge cases,
+    integration) into the module they test, or keep them as cross-module suites under a clear
+    name.
+- **Use Case**: Readability. The user (2026-10-26): "We could also do a joysticks and separately
+  controllers directory under tests, and make the tests a bit more decomposed if it adds to
+  readability."
+- **Naming**: the `controllers/` test directory mirrors the `bitmappy/controllers/` package, which
+  is the multi-controller *system* (players' cursors and modes, fed by either API). pygame's two
+  APIs live under `input/`, so "controller" never means both. Test file names keep the
+  `test_bitmappy_` prefix in every subdirectory: names must be unique across all test roots
+  (`tests/test_suite_collection.py`), and the member's naming guard must cover subdirectories.
+- **Status**: TODO (requested 2026-10-26). Deliberately not part of workspace packages Part 4,
+  whose commits are pure renames.
+- **Priority**: Low
 
 ### 28. Sprite Format Linter
 - **Description**: Comprehensive validation and linting tool for TOML sprite files to ensure format compliance and catch common errors

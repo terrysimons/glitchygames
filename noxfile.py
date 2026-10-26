@@ -27,6 +27,7 @@ _CODE_DIRS = [
     'src/games/clockwork-keep',
     'src/games/paddleslap',
     'src/games/drawing-fire',
+    'src/apps/bitmappy',
     'scripts',
     'tests',
 ]
@@ -41,6 +42,7 @@ _SOURCE_PACKAGE_DIRS = [
     'src/games/clockwork-keep/clockwork_keep',
     'src/games/paddleslap/paddleslap',
     'src/games/drawing-fire/drawing_fire',
+    'src/apps/bitmappy/bitmappy',
 ]
 # The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
 # through scripts/workspace_packages.py: CI runs nox through uvx, whose interpreter has neither
@@ -51,6 +53,7 @@ _MEMBER_DISTRIBUTIONS = [
     'clockwork-keep',
     'paddleslap',
     'drawing-fire',
+    'bitmappy',
 ]
 
 
@@ -1303,7 +1306,6 @@ def performance_test(session: nox.Session) -> None:
         'no:xdist',
         '--benchmark-only',
         '--benchmark-save=baseline',
-        'tests/',
     )
 
 
@@ -1423,8 +1425,8 @@ def _build_binary(session: nox.Session) -> None:
 
 
 def _build_wheel(session: nox.Session) -> None:
-    """Build a wheel package with uv build."""
-    session.run('uv', 'build', '--wheel', '--out-dir', 'dist', external=True)
+    """Build the engine's wheel and every workspace member's with uv build."""
+    session.run('uv', 'build', '--all-packages', '--wheel', '--out-dir', 'dist', external=True)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='build-binary', default=False)
@@ -1446,7 +1448,7 @@ def build_binary(session: nox.Session) -> None:
 
 @nox.session(venv_backend='none', name='build-wheel', default=False)
 def build_wheel(session: nox.Session) -> None:
-    """Build a wheel package (.whl) for distribution.
+    """Build the wheel (.whl) of every workspace package (the engine and each member).
 
     Usage:
         nox -s build-wheel
@@ -1457,7 +1459,7 @@ def build_wheel(session: nox.Session) -> None:
 
 @nox.session(python=['3.14'], reuse_venv=False, name='build', default=False)
 def build_all(session: nox.Session) -> None:
-    """Build Bitmappy binary and wheel package.
+    """Build the Bitmappy binary and the wheel of every workspace package.
 
     Usage:
         nox -s build

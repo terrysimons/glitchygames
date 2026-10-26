@@ -19,15 +19,10 @@ Covers:
 - _get_pixel_string and _get_color_map helpers
 """
 
-import sys
-from pathlib import Path
 from typing import cast
 
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events.input_event_interfaces import MouseEventStubs
 from glitchygames.sprites import (

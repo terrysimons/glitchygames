@@ -12,8 +12,8 @@ Four layers, all under `src/`:
 
 ```
 src/
-  glitchygames/        the engine (distribution glitchygames); examples/ holds the demos and
-                       Bitmappy's resources, which have not moved yet
+  glitchygames/        the engine (distribution glitchygames); examples/ now holds only the
+                       three demos, which have not moved yet (Part 3)
   games/<game>/        one member per game: every game (mr-muncher, clockwork-keep,
                        brave-adventurer, paddleslap, drawing-fire)
   demos/<demo>/        one member per demo
@@ -90,6 +90,7 @@ the engine alone or with them:
 
 ```bash
 uv build --all-packages                                    # every wheel, into dist/
+                                                           # (nox -s build-wheel does the same)
 pip install --find-links dist glitchygames                 # the engine
 pip install --find-links dist "glitchygames[games]"        # the engine and every game
 pip install --find-links dist "glitchygames[demos,apps]"   # the engine, the demos and the apps
@@ -107,13 +108,16 @@ extra; `tests/test_workspace_config.py` keeps each extra equal to its layer's me
   code lives, and moving a game changes no recording. The layers are data in the engine,
   `src/glitchygames/logical_names.py`: `MEMBER_LAYERS` for members (kept equal to the workspace by
   `tests/test_workspace_config.py`) and `EXAMPLES_LAYERS` for the demos still in
-  `src/glitchygames/examples/` (every game has moved; Part 3 moves the demos).
+  `src/glitchygames/examples/` (every game and Bitmappy have moved; Part 3 moves the demos).
 - **Golden replays** live with the member's tests; the golden plugin collects them from every
   member, so the engine's `uv run pytest` replays each one.
 - **The browser build** ships a member's package as its own archive (`<package>.zip`) beside the
   engine's `glitchygames.zip` (`scripts/build_browser_bundle.py`, `GameSpecification.member_packages`).
 - **API reference**: `scripts/gen_ref_pages.py` writes a page per member package
-  (`<package>/index.md`), listed under "Games API Reference" in `mkdocs.yml`.
+  (`<package>/index.md`), listed under "Games API Reference" in `mkdocs.yml`, or under "Apps API
+  Reference" for an app (Bitmappy's `bitmappy/index.md`).
+- **Wheels**: `nox -s build-wheel` builds the wheel of the engine and of every member
+  (`uv build --all-packages`).
 
 ## Moving a game out of the engine
 
@@ -276,6 +280,18 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
 
 ## Special cases
 
+- **A member that was never in a layer** (Bitmappy, an app that lived in the engine as
+  `glitchygames.bitmappy`, outside `examples/`, so no layer table named it): its logical name
+  changes when it moves, from its module path (`glitchygames.bitmappy.editor:BitmapEditorScene`)
+  to `apps.bitmappy.editor:BitmapEditorScene`, so a recording made before the move no longer
+  matches. A plain replay refuses such a recording, naming the remedy, and
+  `--replay-trace OLD --rebaseline NEW --headless` converts it (a rebaseline compares the game
+  and each scene by qualified name alone and writes the current logical names:
+  [gameplay replay](gameplay_replay.md)). A game that was already in a layer keeps its logical
+  name when it moves, as the recipe above says. Bitmappy has no golden replay, so its move
+  converted none; it keeps its tests named `test_bitmappy_*.py`, its sprite library as package
+  data (`bitmappy.SPRITE_CONFIG_DIR`), and its member declares everything it imports itself (the
+  engine's `pyproject.toml` no longer lists tenacity, for instance).
 - **Several games in one project** (Brave Adventurer and its Egyptian edition, Papyrus): one
   member, built and published together, with layered import packages in its own src layout
   (`src/games/brave-adventurer/src/`): the primitives both games share
@@ -330,6 +346,8 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
   coverage.
 - An old example directory left on disk (its ignored `__pycache__`) is importable and shadows
   the member, and `tests/test_suite_collection.py` rejects a `glitchygames/` directory at the
-  root. Delete leftovers after moving.
+  root. Delete leftovers after moving. The same trap applies to Bitmappy's old directory:
+  a leftover `src/glitchygames/bitmappy/` (ignored `__pycache__`) resolves as a namespace
+  package and fails `test_the_old_engine_package_is_gone`; `rm -rf src/glitchygames/bitmappy`.
 - A member's console script resolves through its installed distribution: the golden plugin
   cannot find it unless `--all-packages` installed the member.

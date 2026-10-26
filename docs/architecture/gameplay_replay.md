@@ -255,8 +255,18 @@ streams with its seed. It refuses, logging the reason and exiting with one of th
   inside the game's package, then `:` and the qualified name, as in
   `games.mr_muncher.game:MrMuncherScene`, which stay the same when the game's code moves; a
   recording made before logical names is compared by its exact `game_module` and
-  `scene_module`, and a `--rebaseline` of it writes the logical names), cannot be read (not gzip, no permission, a directory) or
-  has an unsupported format version: `UNUSABLE_INPUT` (65);
+  `scene_module`, and a `--rebaseline` of it writes the logical names), cannot be read (not gzip,
+  no permission, a directory) or has an unsupported format version: `UNUSABLE_INPUT` (65);
+- the recording's game or scene has the same class name as the one loaded but another logical
+  module (any class that moved to another logical module, for instance Bitmappy's scene, which
+  left `glitchygames.bitmappy.editor` for `apps.bitmappy.editor:BitmapEditorScene`): a plain replay
+  cannot tell a moved class from a different class of that name, so it refuses with
+  `UNUSABLE_INPUT` (65) and a message naming the remedy,
+  `--replay-trace OLD --rebaseline NEW --headless` (`REBASELINE_REMEDY` in
+  `src/glitchygames/replay/driver.py`). A `--rebaseline` compares such records by qualified name
+  alone (`modules_not_compared`, used for the game by `check_recorded_game` and for each scene
+  start by `find_scene_class` in `src/glitchygames/replay/playback.py`), and NEW holds the current
+  logical names;
 - the file does not exist: `MISSING_INPUT` (66);
 - `--record-trace` is given too: `OPTIONS_REFUSED` (64). Recording over a replay is what
   [`--rebaseline`](#rebaselining-rebaseline-new) does, and only it;
@@ -622,6 +632,9 @@ an intentional change, rebaseline it instead (below), so it keeps its recorded i
 writes what that code did to NEW: the same inputs and a new picture. The contract is
 `src/glitchygames/replay/rebaseline.py`'s docstring.
 
+- A recording whose game or scene classes moved to another logical module is converted here and
+  only here: the run matches them by qualified name alone, and NEW holds the current logical
+  names (a plain replay refuses it, above).
 - The replay does not stop at a divergence: it runs to OLD's last frame (or until the game
   ends), counting every frame that differs and naming every sprite that differs in them.
 - NEW holds OLD's inputs as the replay served them: the event batches with their origins

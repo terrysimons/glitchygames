@@ -7,15 +7,10 @@ This module combines tests for:
 """
 
 import argparse
-import sys
-from pathlib import Path
 
 import pygame
 import pygame.midi
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events import (
     HashableEvent,

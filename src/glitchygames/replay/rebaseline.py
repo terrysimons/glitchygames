@@ -23,7 +23,9 @@ The rules:
    ``scene`` (``modules_not_compared`` in glitchygames/replay/driver.py, rule 17 there; a name
    several loaded classes share is still refused); NEW holds the current logical names
    (rule 3), so it replays strictly. This is the backward-compatibility path for such
-   recordings: a plain replay refuses them, naming this command.
+   recordings: a plain replay refuses them, naming this command. A recording whose classes
+   moved to another logical module is converted the same way (the logical modules are not
+   compared, the qualified names are); a plain replay refuses it, naming this command.
 2. Replay: OLD is replayed as usual (glitchygames/replay/driver.py, rule 17 there), but a
    divergence does not stop it (``ReplayOptions.stop_on_divergence`` False): it runs to OLD's
    last frame, or until the game ends, noting every frame that differs and every sprite that

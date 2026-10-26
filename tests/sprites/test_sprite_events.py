@@ -1,12 +1,6 @@
 """Sprite event handling tests."""
 
-import sys
-from pathlib import Path
-
 import pygame
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events.base import HashableEvent
 from glitchygames.sprites import Sprite

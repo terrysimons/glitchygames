@@ -1,311 +1,27 @@
-"""Test suite for example sprites in glitchygames/examples/resources/sprites.
+"""The engine's checks of a bundled sprite file, run on the engine's own sprites.
 
-This module tests loading all the TOML sprite files from the examples directory
-and verifies they work correctly with the TOML-only implementation.
+Every pixel row is the same width, and a save round trip keeps each sprite's timings,
+hitboxes, pixels, metadata and transitions. A package with sprites of its own runs these
+checks on them from its own tests (Papyrus's, and Bitmappy's sprite library in
+src/apps/bitmappy/tests/test_bitmappy_sprite_library.py).
 """
 
-import logging
-import tempfile
-import time
 from pathlib import Path
 
-import numpy as np
 import pygame
 import pytest
 
 from glitchygames.display_mode import set_display_mode
-from glitchygames.sprites import SpriteFactory
 from tests.harness import imported_engine_directory
 
 # The imported engine's directory (installed: never the source tree by accident)
 ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
 
-# Constants for test thresholds
-PIXEL_INTEGRITY_THRESHOLD = 100.0  # every pixel draws exactly as expected
-MAX_REASONABLE_DIMENSION = 1000
-MAX_ASPECT_RATIO = 10.0
-MIN_ASPECT_RATIO = 0.1
-MAX_LOAD_TIME = 1.0
-MAX_RENDER_TIME = 0.1
 
-LOG = logging.getLogger(__name__)
-
-
-def _load_example_sprite(sprite_file):
-    """Load an example sprite.
-
-    Returns:
-        The sprite, or None after an expected load error (logged). An unexpected error fails
-        the test.
-
-    """
-    try:
-        sprite = SpriteFactory.load_sprite(filename=str(sprite_file))
-    except (ValueError, FileNotFoundError, AttributeError) as e:
-        LOG.warning('Skipping sprite %s due to expected error: %s', sprite_file.name, e)
-        return None
-    except (TypeError, KeyError, OSError) as e:
-        pytest.fail(f'Unexpected error loading sprite {sprite_file.name}: {e}')
-    return sprite
-
-
-class TestExamplesSprites:
-    """Test example sprites from the glitchygames/examples/resources/sprites directory."""
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        pygame.init()
-        set_display_mode(size=(800, 600))
-        self.temp_dir = tempfile.mkdtemp()
-        self.temp_path = Path(self.temp_dir)
-
-        # Path to the examples sprites directory
-        self.sprites_dir = ENGINE_PACKAGE_DIRECTORY / 'examples' / 'resources' / 'sprites'
-
-        # Get all TOML files in the directory
-        self.toml_files = []
-        if self.sprites_dir.exists():
-            for file_path in self.sprites_dir.glob('*.toml'):
-                self.toml_files.append(file_path)
-
-    def test_load_all_toml_sprites(self):
-        """Test that all TOML sprite files can be loaded."""
-        if not self.sprites_dir.exists():
-            pytest.skip(f'Sprites directory {self.sprites_dir} not found')
-
-        loaded_count = 0
-
-        for sprite_file in self.toml_files:
-            # Load the sprite
-            sprite = _load_example_sprite(sprite_file)
-            if sprite is None:
-                continue
-
-            # Verify basic properties
-            assert sprite.image is not None, f'Sprite {sprite_file.name} should have an image'
-            assert isinstance(sprite.image, pygame.Surface), (
-                f'Sprite {sprite_file.name} image should be a Surface'
-            )
-
-            # Check dimensions
-            width, height = sprite.image.get_size()
-            assert width > 0, f'Sprite {sprite_file.name} width should be positive'
-            assert height > 0, f'Sprite {sprite_file.name} height should be positive'
-
-            loaded_count += 1
-
-        # Verify we loaded at least some sprites
-        assert loaded_count > 0, 'Should load at least one example sprite'
-
-    def test_sprite_pixel_integrity(self):
-        """Test pixel data integrity for a sample of sprites."""
-        if not self.sprites_dir.exists():
-            pytest.skip(f'Sprites directory {self.sprites_dir} not found')
-
-        # Test a sample of sprites for pixel integrity
-        test_sprites = [
-            'battle_axe.toml',
-            'berry_bush.toml',
-            'big_heart.toml',
-            'book.toml',
-            'colors.toml',
-        ]
-
-        for sprite_name in test_sprites:
-            sprite_file = self.sprites_dir / sprite_name
-            if not sprite_file.exists():
-                continue
-
-            # Load sprite
-            sprite = _load_example_sprite(sprite_file)
-            if sprite is None:
-                continue
-
-            # Test pixel integrity: every visible pixel is drawn as it is, and transparent
-            # pixels (magenta keyed out, alpha 0) show the background (BUGS.md #133)
-            assert sprite.image is not None
-            background_color = (0, 0, 0)
-            original_pixels = self._expected_drawn_pixels(
-                surface=sprite.image, background_color=background_color
-            )
-
-            # Draw to a test surface: 32-bit without per-pixel alpha, so the result does not
-            # depend on the display's pixel format
-            test_surface = pygame.Surface(sprite.image.get_size(), depth=32)
-            test_surface.fill(background_color)
-            test_surface.blit(sprite.image, (0, 0))
-
-            drawn_pixels = self._extract_pixel_data(test_surface)
-
-            # Calculate match percentage
-            pixel_matches = np.all(original_pixels == drawn_pixels, axis=2)
-            match_percentage = float(pixel_matches.mean()) * 100
-
-            assert match_percentage >= PIXEL_INTEGRITY_THRESHOLD, (
-                f'Pixel integrity too low for {sprite_name}: {match_percentage:.1f}%'
-            )
-
-    def test_sprite_dimensions_consistency(self):
-        """Test that sprite dimensions are consistent and reasonable."""
-        if not self.sprites_dir.exists():
-            pytest.skip(f'Sprites directory {self.sprites_dir} not found')
-
-        # Test a sample of sprites
-        test_sprites = [
-            'battle_axe.toml',
-            'berry_bush.toml',
-            'big_heart.toml',
-            'book.toml',
-            'colors.toml',
-            'dirt.toml',
-            'grass1.toml',
-            'key.toml',
-            'sword.toml',
-        ]
-
-        for sprite_name in test_sprites:
-            sprite_file = self.sprites_dir / sprite_name
-            if not sprite_file.exists():
-                continue
-
-            sprite = _load_example_sprite(sprite_file)
-            if sprite is None:
-                continue
-            assert sprite.image is not None
-            width, height = sprite.image.get_size()
-
-            # Check dimensions are reasonable
-            assert width > 0, f'{sprite_name} width should be positive'
-            assert height > 0, f'{sprite_name} height should be positive'
-            assert width < MAX_REASONABLE_DIMENSION, f'{sprite_name} width should be reasonable'
-            assert height < MAX_REASONABLE_DIMENSION, f'{sprite_name} height should be reasonable'
-
-            # Check aspect ratio is reasonable
-            aspect_ratio = width / height if height > 0 else 1
-            assert aspect_ratio < MAX_ASPECT_RATIO, f'{sprite_name} aspect ratio too wide'
-            assert aspect_ratio > MIN_ASPECT_RATIO, f'{sprite_name} aspect ratio too tall'
-
-    def test_animated_sprites(self):
-        """Test animated sprites in the examples directory."""
-        if not self.sprites_dir.exists():
-            pytest.skip(f'Sprites directory {self.sprites_dir} not found')
-
-        # Look for animated sprites (colors.toml is known to be animated)
-        animated_sprites = ['colors.toml']
-
-        for sprite_name in animated_sprites:
-            sprite_file = self.sprites_dir / sprite_name
-            if not sprite_file.exists():
-                continue
-
-            sprite = _load_example_sprite(sprite_file)
-            if sprite is None:
-                continue
-
-            # Check if it's an animated sprite
-            if hasattr(sprite, 'animations'):
-                assert sprite.animations is not None, (
-                    f'Animated sprite {sprite_name} should have animations'
-                )
-                assert len(sprite.animations) > 0, (
-                    f'Animated sprite {sprite_name} should have at least one animation'
-                )
-
-                # Check each animation
-                for anim_name, frames in sprite.animations.items():
-                    assert frames is not None, f'Animation {anim_name} should have frames'
-                    assert len(frames) > 0, f'Animation {anim_name} should have at least one frame'
-
-                    # Check each frame
-                    for i, frame in enumerate(frames):
-                        assert frame.image is not None, (
-                            f'Frame {i} in {anim_name} should have an image'
-                        )
-                        assert isinstance(frame.image, pygame.Surface), (
-                            f'Frame {i} in {anim_name} should be a Surface'
-                        )
-
-    def test_sprite_performance(self):
-        """Test sprite loading and rendering performance."""
-        if not self.sprites_dir.exists():
-            pytest.skip(f'Sprites directory {self.sprites_dir} not found')
-
-        # Test a sample of sprites for performance
-        test_sprites = [
-            'battle_axe.toml',
-            'berry_bush.toml',
-            'big_heart.toml',
-            'book.toml',
-            'colors.toml',
-        ]
-
-        for sprite_name in test_sprites:
-            sprite_file = self.sprites_dir / sprite_name
-            if not sprite_file.exists():
-                continue
-
-            # Time the loading
-            start_time = time.time()
-            sprite = _load_example_sprite(sprite_file)
-            if sprite is None:
-                continue
-            load_time = time.time() - start_time
-
-            # Time the rendering
-            assert sprite.image is not None
-            start_time = time.time()
-            test_surface = pygame.Surface(sprite.image.get_size(), depth=32)
-            test_surface.blit(sprite.image, (0, 0))
-            render_time = time.time() - start_time
-
-            # Verify performance is reasonable
-            assert load_time < MAX_LOAD_TIME, f'{sprite_name} loading too slow: {load_time:.3f}s'
-            assert render_time < MAX_RENDER_TIME, (
-                f'{sprite_name} rendering too slow: {render_time:.3f}s'
-            )
-
-    @staticmethod
-    def _expected_drawn_pixels(*, surface, background_color):
-        """Return the RGB pixels a surface should draw over an opaque background.
-
-        A fully transparent pixel (alpha 0, or the surface's colorkey) shows the background;
-        any other pixel keeps its own RGB (the sampled sprites have no translucent colors).
-
-        Returns:
-            np.ndarray: The expected pixels, a (width, height, 3) array.
-
-        """
-        rgb_pixels = pygame.surfarray.array3d(surface)
-        is_transparent = np.zeros(surface.get_size(), dtype=bool)
-        if surface.get_flags() & pygame.SRCALPHA:
-            is_transparent |= pygame.surfarray.array_alpha(surface) == 0
-        colorkey = surface.get_colorkey()
-        if colorkey is not None:
-            is_transparent |= np.all(rgb_pixels == colorkey[:3], axis=2)
-        rgb_pixels[is_transparent] = background_color
-        return rgb_pixels
-
-    @staticmethod
-    def _extract_pixel_data(surface):
-        """Extract a surface's RGB pixels in bulk.
-
-        Returns:
-            np.ndarray: A (width, height, 3) array.
-
-        """
-        return pygame.surfarray.array3d(surface)
-
-
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
-
-
-# The engine's sprites. A game moved into its own package checks its sprites with these tests
-# from its own tests (Papyrus's: src/games/brave-adventurer/tests/papyrus/)
-BUNDLED_SPRITE_FILES = sorted([
-    *(ENGINE_PACKAGE_DIRECTORY / 'examples').glob('**/sprites/*.toml'),
-    *(ENGINE_PACKAGE_DIRECTORY / 'assets').glob('*.toml'),
-])
+# The engine's sprites. A package with sprites of its own checks them with these tests from its
+# own tests (Papyrus's: src/games/brave-adventurer/tests/papyrus/; Bitmappy's sprite library:
+# src/apps/bitmappy/tests/test_bitmappy_sprite_library.py)
+BUNDLED_SPRITE_FILES = sorted((ENGINE_PACKAGE_DIRECTORY / 'assets').glob('*.toml'))
 
 
 def _sprite_file_test_id(sprite_file: Path) -> str:
@@ -355,11 +71,35 @@ def test_bundled_sprite_rows_have_equal_lengths(sprite_file):
         assert len(row_lengths) <= 1, f'{sprite_file} {label}: row lengths {sorted(row_lengths)}'
 
 
+# The engine's own sprite test data. The engine bundles no animated sprite, so the animated-sprite
+# checks also run on these fixtures (colors.toml and girl.toml are animated)
+TESTS_DIRECTORY = Path(__file__).resolve().parents[1]
+SPRITE_FIXTURES_DIRECTORY = TESTS_DIRECTORY / 'fixtures' / 'sprites'
 ANIMATED_SPRITE_FILES = [
     sprite_file
-    for sprite_file in BUNDLED_SPRITE_FILES
+    for sprite_file in [*BUNDLED_SPRITE_FILES, *sorted(SPRITE_FIXTURES_DIRECTORY.glob('*.toml'))]
     if '[[animation]]' in sprite_file.read_text(encoding='utf-8')
 ]
+
+
+def _animated_sprite_file_test_id(sprite_file: Path) -> str:
+    """Name an animated sprite file: a bundled one inside the engine, a fixture inside tests/.
+
+    Returns:
+        str: ``assets/<name>.toml`` for a bundled sprite, ``fixtures/sprites/<name>.toml`` for a
+        fixture.
+
+    """
+    if sprite_file.is_relative_to(ENGINE_PACKAGE_DIRECTORY):
+        return _sprite_file_test_id(sprite_file)
+    return sprite_file.relative_to(TESTS_DIRECTORY).as_posix()
+
+
+def test_the_animated_sprite_checks_have_sprites_to_run_on():
+    """The animated-sprite checks never run on nothing (an empty parameter set only skips)."""
+    assert ANIMATED_SPRITE_FILES
+
+
 DEFAULT_TOML_FRAME_INTERVAL = 0.5
 
 
@@ -392,7 +132,7 @@ def real_display():
 
 
 @pytest.mark.usefixtures('real_display')
-@pytest.mark.parametrize('sprite_file', ANIMATED_SPRITE_FILES, ids=_sprite_file_test_id)
+@pytest.mark.parametrize('sprite_file', ANIMATED_SPRITE_FILES, ids=_animated_sprite_file_test_id)
 def test_bundled_animation_timings_survive_a_save_round_trip(sprite_file, tmp_path):
     """Load -> save writes each animation's frame_interval, loop and per-frame overrides back.
 
