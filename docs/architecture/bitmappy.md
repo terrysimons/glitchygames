@@ -25,7 +25,12 @@ replay, which names the remedy; `--replay-trace OLD --rebaseline NEW --headless`
   `test_bitmappy_*.py`.
 - **The Load and Save dialogs** (the engine's `glitchygames.ui` dialog scenes) treat every file the
   same: the name is used as given, with surrounding whitespace trimmed, and a sprite in the
-  library is opened by its path. The `example:` prefix they once understood is gone.
+  library is opened by its path. The `example:` prefix they once understood is gone, and Save
+  refuses a `:` in a file name (a Windows drive letter such as `C:\` or `C:/` at the start is
+  the one exception): on Windows NTFS a `:` names an alternate data stream, so a typed
+  `examples:foo.toml` would leave an empty file called `examples`. The refusal is shown in the
+  editor's debug text and nothing is written; Load is unchanged (a missing name is reported as
+  "File not found").
 
 ## Bootstrap & Main Loop
 

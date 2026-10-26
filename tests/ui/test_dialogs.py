@@ -31,6 +31,7 @@ from glitchygames.ui.dialogs import (
     LoadDialogScene,
     NewCanvasDialogScene,
     SaveDialogScene,
+    _file_name_problem,
     _get_load_path,
     _get_save_path,
 )
@@ -87,6 +88,13 @@ class _RecordingCanvas:
         if self.save_error is not None:
             raise self.save_error
         self.saved_paths.append(path)
+
+
+class _RecordingDebugText:
+    """Stands in for the editor's debug text box: holds the message shown."""
+
+    def __init__(self):
+        self.text = ''
 
 
 class _RecordingUserFiles:
@@ -411,12 +419,51 @@ class TestFileNames:
         assert _get_save_path('  test.toml  ') == Path('test.toml')
         assert _get_load_path('  test.toml  ') == Path('test.toml')
 
-    def test_an_examples_prefix_is_not_special(self):
-        """'examples:' and 'example:' are ordinary characters of a file name."""
+    def test_an_examples_prefix_is_not_special_to_a_load(self):
+        """'examples:' and 'example:' are ordinary characters of a name a load is given."""
         assert _get_load_path('examples:heart.toml') == Path('examples:heart.toml')
-        assert _get_save_path('examples:heart.toml') == Path('examples:heart.toml')
         assert _get_load_path('example:heart.toml') == Path('example:heart.toml')
-        assert _get_save_path('example:heart.toml') == Path('example:heart.toml')
+
+
+class TestFileNameProblem:
+    """A file name containing ':' is refused, except a Windows drive letter at its start."""
+
+    @pytest.mark.parametrize(
+        'filename', ['examples:foo.toml', 'sprites/a:b.toml', 'a:', ':foo.toml', 'ab:foo.toml']
+    )
+    def test_a_colon_is_refused(self, filename):
+        """':' anywhere other than after a single leading ASCII letter is a problem."""
+        problem = _file_name_problem(filename)
+
+        assert problem is not None
+        assert "':' is not allowed in a file name" in problem
+        assert "'examples:' prefix was removed" in problem
+
+    @pytest.mark.parametrize(
+        'filename',
+        [
+            'foo.toml',
+            'sprites/foo.toml',
+            'C:\\sprites\\foo.toml',
+            'C:/sprites/foo.toml',
+            'z:/a.toml',
+        ],
+    )
+    def test_a_name_without_a_colon_or_with_a_drive_letter_is_allowed(self, filename):
+        """A plain name, and a drive letter followed by a separator, pass."""
+        assert _file_name_problem(filename) is None
+
+    def test_a_second_colon_after_a_drive_letter_is_refused(self):
+        """Only the drive letter's colon is excepted."""
+        assert _file_name_problem('C:/sprites/a:b.toml') is not None
+
+    def test_a_drive_letter_without_a_separator_is_refused(self):
+        """'C:foo.toml' is a drive-relative path, which is not accepted."""
+        assert _file_name_problem('C:foo.toml') is not None
+
+    def test_a_digit_is_not_a_drive_letter(self):
+        """A drive letter is a single ASCII letter."""
+        assert _file_name_problem('1:/foo.toml') is not None
 
 
 class TestDialogSceneSetupCleanupDismiss:
@@ -867,14 +914,41 @@ class TestSaveDialogConfirm:
 
         assert previous_scene.canvas.saved_paths == ['output.toml']
 
-    def test_an_examples_prefixed_name_is_saved_as_an_ordinary_name(self, previous_scene):
-        """'examples:star.toml' reaches the canvas as given."""
+    @pytest.mark.parametrize('filename', ['examples:star.toml', 'sprites/a:b.toml'])
+    def test_a_name_with_a_colon_is_refused_and_nothing_is_saved(self, previous_scene, filename):
+        """A ':' name shows the reason, saves nothing, hands nothing over and closes the dialog."""
+        user_files = _RecordingUserFiles()
+        install_user_files(user_files=user_files)
+        previous_scene.debug_text = _RecordingDebugText()
+        dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        dialog.dialog.input_box.text = filename
+
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert previous_scene.canvas.saved_paths == []
+        assert not user_files.saved_files
+        assert "':' is not allowed in a file name" in previous_scene.debug_text.text
+        assert dialog.next_scene is previous_scene
+
+    def test_a_refused_name_writes_no_file(self, previous_scene, tmp_path, monkeypatch):
+        """Nothing is created in the working directory for a refused name."""
+        monkeypatch.chdir(tmp_path)
         dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
         dialog.dialog.input_box.text = 'examples:star.toml'
 
         dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
 
-        assert previous_scene.canvas.saved_paths == ['examples:star.toml']
+        assert list(tmp_path.iterdir()) == []
+
+    def test_a_refused_name_without_a_debug_text_is_only_dismissed(self, previous_scene):
+        """A scene with no debug text box still closes the dialog without saving."""
+        dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        dialog.dialog.input_box.text = 'examples:star.toml'
+
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert previous_scene.canvas.saved_paths == []
+        assert dialog.next_scene is previous_scene
 
     def test_without_user_files_nothing_is_handed_over(self, previous_scene):
         """On the desktop the saved file is already the player's own."""

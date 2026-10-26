@@ -8,6 +8,7 @@ for various operations like saving, loading, and creating new files.
 from __future__ import annotations
 
 import logging
+import string
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, override
 
@@ -25,6 +26,43 @@ from glitchygames.user_files import installed_user_files
 
 LOG = logging.getLogger('game.ui.dialogs')
 LOG.addHandler(logging.NullHandler())
+
+# A Windows drive prefix: the letter, the ':' and the separator
+DRIVE_PREFIX_LENGTH = 3
+
+
+def _file_name_problem(filename: str) -> str | None:
+    r"""Say why a file name cannot be saved, or None when it can.
+
+    A ':' is refused anywhere in the name, except the one that follows a Windows drive letter at
+    the start (a single ASCII letter, then ':' and a backslash or '/', as in 'C:\a.toml' or
+    'C:/a.toml'). On Windows NTFS a ':' in a file name names an alternate data stream, so
+    'examples:foo.toml' would leave an empty file called 'examples' with a hidden stream.
+
+    Args:
+        filename: The file name, already stripped of surrounding whitespace
+
+    Returns:
+        str | None: The message to show the user, or None when the name is acceptable
+
+    """
+    after_drive_letter = filename
+    starts_with_drive_letter = (
+        len(filename) >= DRIVE_PREFIX_LENGTH
+        and filename[0] in string.ascii_letters
+        and filename[1] == ':'
+        and filename[2] in {'\\', '/'}
+    )
+    if starts_with_drive_letter:
+        after_drive_letter = filename[DRIVE_PREFIX_LENGTH:]
+
+    if ':' not in after_drive_letter:
+        return None
+
+    return (
+        "':' is not allowed in a file name. The 'examples:' prefix was removed: "
+        "type the sprite's path instead."
+    )
 
 
 def _get_save_path(filename: str) -> Path:
@@ -362,6 +400,13 @@ class SaveDialogScene(InputConfirmationDialogScene):
         self.log.info('Save File: event: %s, trigger: %s', event, trigger)
         # Get the filename from the input box
         filename = self.dialog.input_box.text
+        # A name with a ':' is refused before anything is written
+        problem = _file_name_problem(filename.strip())
+        if problem is not None:
+            self._show_save_error(message=problem)
+            self.dismiss()
+            return
+
         # The name is used as given, apart from surrounding whitespace
         save_path = _get_save_path(filename)
         LOG.info('Processed save path: %s', save_path)
