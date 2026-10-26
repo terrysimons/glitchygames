@@ -14,6 +14,7 @@ members = [
     "clockwork-keep",
     "glitchygames",
     "mr-muncher",
+    "paddleslap",
 ]
 overrides = [{ name = "docstring-parser", specifier = ">=0.16" }]
 
@@ -1116,6 +1117,7 @@ games = [
     { name = "brave-adventurer" },
     { name = "clockwork-keep" },
     { name = "mr-muncher" },
+    { name = "paddleslap" },
 ]
 
 [package.dev-dependencies]
@@ -1123,6 +1125,7 @@ dev = [
     { name = "brave-adventurer" },
     { name = "clockwork-keep" },
     { name = "mr-muncher" },
+    { name = "paddleslap" },
 ]
 
 [package.metadata]
@@ -1154,6 +1157,7 @@ requires-dist = [
     { name = "mr-muncher", marker = "extra == 'games'", editable = "src/games/mr-muncher" },
     { name = "nox", extras = ["uv"], marker = "extra == 'dev'" },
     { name = "numpy" },
+    { name = "paddleslap", marker = "extra == 'games'", editable = "src/games/paddleslap" },
     { name = "pillow" },
     { name = "pillow", marker = "extra == 'dev'" },
     { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.10.0" },
@@ -1188,6 +1192,7 @@ dev = [
     { name = "brave-adventurer", editable = "src/games/brave-adventurer" },
     { name = "clockwork-keep", editable = "src/games/clockwork-keep" },
     { name = "mr-muncher", editable = "src/games/mr-muncher" },
+    { name = "paddleslap", editable = "src/games/paddleslap" },
 ]
 
 [[package]]
@@ -2539,6 +2544,17 @@ sdist = { url = "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce89
 wheels = [
     { url = "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl", hash = "sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c", size = 129956, upload-time = "2026-08-04T18:15:27.159Z" },
 ]
+
+[[package]]
+name = "paddleslap"
+version = "1.0.0"
+source = { editable = "src/games/paddleslap" }
+dependencies = [
+    { name = "glitchygames" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "glitchygames", editable = "." }]
 
 [[package]]
 name = "paginate"

@@ -83,8 +83,12 @@ GIT_TIMEOUT_SECONDS = 30.0
 # the same series (performance_series groups by the new path), so a recording's history
 # continues across its move (plans/2026-10-24-workspace-packages.md)
 RECORDING_PATH_RENAMES: dict[str, str] = {
+    # The rally demo moved twice (into src/, then into its member): a line from each old path
     'glitchygames/examples/paddleslap_demos/rally.jsonl.gz': (
-        'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+        'src/games/paddleslap/paddleslap/demos/rally.jsonl.gz'
+    ),
+    'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz': (
+        'src/games/paddleslap/paddleslap/demos/rally.jsonl.gz'
     ),
     'tests/fixtures/replays/mr-muncher/golden.jsonl.gz': (
         'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz'
@@ -97,6 +101,9 @@ RECORDING_PATH_RENAMES: dict[str, str] = {
     ),
     'tests/fixtures/replays/clockwork-keep/golden.jsonl.gz': (
         'src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz'
+    ),
+    'tests/fixtures/replays/paddleslap/golden.jsonl.gz': (
+        'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
     ),
 }
 

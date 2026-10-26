@@ -174,7 +174,12 @@ any tool's configuration.
   it at one not yet moved, and add the moved game to
   `test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures`.
   `tests/engine/test_engine_lifecycle.py` `GAME_CONSOLE_SCRIPTS` lists every game's console script
-  (unchanged by a move, which keeps the script's name).
+  (unchanged by a move, which keeps the script's name). Tests that use a game as their example
+  of the root layout or of the engine's several console scripts (`tests/replay/test_replay_plugin.py`,
+  `tests/replay/test_golden_replays.py`, `tests/test_build_browser_bundle.py`,
+  `tests/test_code_tree.py`) need one still in the root layout too.
+- Paths built with `/` (`REPLAY_FIXTURE_DIRECTORY / '<game>' / ...`) escape the grep below: also
+  grep for `'<console-script>' /` and `/ '<console-script>'`.
 - `git grep` for the old package path and the old golden path across the repository: engine tests
   that borrow a game (a collision test using its sprites), benchmarks reading its golden, scripts
   importing it. Point each at the member, or move the test into the member when it is really the
@@ -266,9 +271,17 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
 - **A game that is one module** (PaddleSlap's `paddleslap.py`): its recordings name
   `games.paddleslap:Game`, so `Game` must stay defined in the package itself (`paddleslap/__init__.py`),
   not in a `paddleslap/game.py` it re-exports: a re-export does not change `Game.__module__`, and
-  the logical name would become `games.paddleslap.game:Game`.
-- **Bundled demos** ship inside the package, `<package>/demos/<name>.jsonl.gz`, found by
-  `glitchygames/testing/replays.py` `bundled_demo_paths`.
+  the logical name would become `games.paddleslap.game:Game`. Ruff's `non-empty-init-module`
+  (RUF067) is ignored for that file in `pyproject.toml`. A package's `__init__` never runs as
+  `__main__`, so the module's `if __name__ == '__main__'` moves to `<package>/__main__.py`
+  (`python -m paddleslap`, as `python -m glitchygames.examples.paddleslap` was).
+- **Bundled demos** ship inside the package as package data, `<package>/demos/<name>.jsonl.gz`
+  (PaddleSlap's `paddleslap/demos/rally.jsonl.gz`, read through `Path(__file__).parent`).
+  `glitchygames/testing/replays.py` `bundled_demo_paths` finds them where each `MEMBER_LAYERS`
+  package is installed (`importlib.util.find_spec`; a bookmarked copy is no demo), and
+  `scripts/replay_metrics.py` finds them in the repository's members (`package_demo_paths`), since
+  the ledger names a recording by its repository path. A demo moved twice needs a
+  `RECORDING_PATH_RENAMES` line from each old path.
 - **Engine-private names**: a member uses only the engine's public API. Where a game reaches
   into the engine, give the engine a public read-only API first, then move the game. PaddleSlap
   needed no private name once the engine offered `BallSprite.trajectory` and

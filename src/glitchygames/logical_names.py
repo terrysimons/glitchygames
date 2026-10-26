@@ -21,7 +21,6 @@ EXAMPLES_PACKAGE = 'glitchygames.examples'
 # Games and demos not yet moved out of glitchygames/examples/: package name there -> layer
 # (the user, 2026-10-25; Part 2 of the workspace plan deletes it)
 EXAMPLES_LAYERS: dict[str, str] = {
-    'paddleslap': 'games',
     'drawing_fire': 'games',
     'dt_demo': 'demos',
     'joystick_demo': 'demos',
@@ -36,6 +35,7 @@ MEMBER_LAYERS: dict[str, str] = {
     'brave_adventurer_papyrus': 'games',
     'brave_adventurer_modes': 'games',
     'clockwork_keep': 'games',
+    'paddleslap': 'games',
 }
 
 
@@ -43,7 +43,7 @@ def logical_module_name(*, module: str) -> str:
     """Return a module's logical name: its layer and its path inside its package.
 
     Args:
-        module: A module's import path (``glitchygames.examples.paddleslap``, ``mr_muncher.game``).
+        module: A module's import path (``paddleslap``, ``mr_muncher.game``).
 
     Returns:
         ``<layer>.<path from the package>`` (``games.paddleslap``), or the module itself when it
@@ -79,7 +79,7 @@ def module_for_logical_module(*, logical_module: str) -> str:
         logical_module: A logical module (``games.paddleslap``).
 
     Returns:
-        The import path (``glitchygames.examples.paddleslap``, ``mr_muncher.game``), or the name
+        The import path (``paddleslap``, ``mr_muncher.game``), or the name
         itself when its first part is not a layer.
 
     """

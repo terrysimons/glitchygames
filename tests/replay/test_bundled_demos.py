@@ -1,7 +1,7 @@
 """Every demo bundled in a game's package replays without divergence (spec 5.3).
 
-A bundled demo is an ordinary recording shipped in the game's package
-(``glitchygames/examples/<game>_demos/<name>.jsonl.gz``). The suite collects only ``tests/``, so
+A bundled demo is an ordinary recording shipped in a workspace member's package, as package data
+(``<package>/demos/<name>.jsonl.gz``). The suite collects only ``tests/``, so
 the demos are reached through this module: one headless replay per demo
 (``bundled_demo_paths``, ``replay_recording_headless``; glitchygames/testing/replays.py), so a
 change that makes a demo diverge fails here before it ships. PaddleSlap's demo is also played the
@@ -16,11 +16,11 @@ from scripts.record_golden_traces import FRAME_SECONDS
 # Loaded on purpose: its scene is also named Game, so the playback below must tell PaddleSlap's
 # apart by module (glitchygames/replay/playback.py, find_scene_class)
 from glitchygames.examples import joystick_demo
-from glitchygames.examples.paddleslap import PADDLESLAP_DEMO_PATH, Game
 from glitchygames.exit_codes import ExitCode
 from glitchygames.live_sources import LiveSources
 from glitchygames.testing.replays import bundled_demo_paths, replay_recording_headless
 from glitchygames.tracing import FRAMES_FIELD, read_trace_result
+from paddleslap import PADDLESLAP_DEMO_PATH, Game
 from tests.replay.playback_fixtures import step_finishing
 from tests.world.test_frame_integration import running_scene
 

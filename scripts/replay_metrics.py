@@ -14,7 +14,7 @@ here wait in ``PENDING_LEDGER_PATH`` (gitignored) until a deploy publishes them.
    ``--skip-dirty`` (measure nothing and succeed: what docs-deploy passes);
 2. for each golden replay (``tests/fixtures/replays/<console-script>/golden.jsonl.gz``, and each
    workspace member's ``<member>/tests/fixtures/replays/golden.jsonl.gz``) and bundled demo
-   (``glitchygames/examples/<game>_demos/*.jsonl.gz``) not already measured for this commit on
+   (a member package's ``<package>/demos/*.jsonl.gz``) not already measured for this commit on
    this machine (published or pending; ``--force`` measures again): rebaselines it
    headless into a temporary file through its console script
    (``glitchygames.testing.replays.rebaseline_recording_headless``), so the run measures every
@@ -48,6 +48,7 @@ installed is reported on one line naming the fix, ``uv sync --all-packages``
 from __future__ import annotations
 
 import argparse
+import operator
 import sys
 import tempfile
 import time
@@ -77,7 +78,8 @@ from glitchygames.recording_metrics import (
 )
 from glitchygames.replay.processing import machine_description
 from glitchygames.testing.replays import (
-    bundled_demo_paths,
+    console_script_in_module,
+    package_demo_paths,
     rebaseline_recording_headless,
     recording_console_script,
 )
@@ -97,7 +99,6 @@ PENDING_LEDGER_PATH = PROJECT_ROOT / PENDING_LEDGER_RELATIVE_PATH
 # and golden-papyrus; docs/architecture/game_packages.md)
 ENGINE_GOLDEN_REPLAYS_GLOB = 'tests/fixtures/replays/*/golden.jsonl.gz'
 MEMBER_GOLDEN_REPLAYS_GLOB = 'golden*.jsonl.gz'
-EXAMPLES_PATH = Path('src') / 'glitchygames' / 'examples'
 # How many of a failed child's last output lines are shown
 FAILURE_OUTPUT_LINES = 10
 MILLISECONDS_PER_SECOND = 1000.0
@@ -171,8 +172,8 @@ class MetricRecordings(BaseModel):
     Attributes:
         replayable: ``(console script, path)`` pairs: the golden replays, then the demos, each
             by path.
-        unreplayable: The golden replays no installed console script replays: reported and
-            counted as failures, while the others are still measured.
+        unreplayable: The golden replays and demos no installed console script replays:
+            reported and counted as failures, while the others are still measured.
 
     """
 
@@ -211,8 +212,33 @@ def metric_recordings(*, project_root: Path) -> MetricRecordings:
             # with: the failure line names the recording
             reason = str(error.args[0]).removeprefix(f'{path}: ')
             unreplayable.append(UnreplayableRecording(path=path, reason=reason))
-    demos = bundled_demo_paths(examples_directory=project_root / EXAMPLES_PATH)
-    return MetricRecordings(replayable=(*goldens, *demos), unreplayable=tuple(unreplayable))
+    # The bundled demos in this repository's members (not glitchygames.testing.replays
+    # bundled_demo_paths, which finds them where the packages are installed: a built copy's are
+    # in site-packages, and the ledger names a recording by its repository path)
+    demos: list[tuple[str, Path]] = []
+    for member in workspace_members(project_root=project_root):
+        for package, package_directory in zip(
+            member.import_packages, member.package_directories, strict=True
+        ):
+            demo_paths = package_demo_paths(package_directory=package_directory)
+            if not demo_paths:
+                continue
+            console_script = console_script_in_module(module=package)
+            if console_script is None:
+                reason = (
+                    f'no installed console script has its entry point in {package}: is '
+                    f'{member.distribution!r} installed? Install every member with '
+                    '`uv sync --all-packages`'
+                )
+                unreplayable.extend(
+                    UnreplayableRecording(path=path, reason=reason) for path in demo_paths
+                )
+                continue
+            demos.extend((console_script, path) for path in demo_paths)
+    return MetricRecordings(
+        replayable=(*goldens, *sorted(demos, key=operator.itemgetter(1))),
+        unreplayable=tuple(unreplayable),
+    )
 
 
 def this_machine() -> str:

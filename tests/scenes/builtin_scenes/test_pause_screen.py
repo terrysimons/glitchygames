@@ -14,10 +14,10 @@ import pygame
 import pytest
 
 from glitchygames import events
-from glitchygames.examples.paddleslap import Game
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.testing.keys import qwerty_scancode
+from paddleslap import Game
 
 LOG = logging.getLogger(__name__)
 

@@ -9,10 +9,10 @@ This module tests the three types of collisions:
 import math
 
 from glitchygames.collision.layers import CollisionManager
-from glitchygames.examples.paddleslap import PADDLESLAP_SPEED_UP, Game
 from glitchygames.game_objects import BallSprite
 from glitchygames.game_objects.ball import speed_up_step_ratio
 from glitchygames.movement import Speed
+from paddleslap import PADDLESLAP_SPEED_UP, Game
 from tests.game_objects.ball_helpers import drawn_position
 
 # Constants for magic values

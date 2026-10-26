@@ -25,6 +25,7 @@ _CODE_DIRS = [
     'src/games/mr-muncher',
     'src/games/brave-adventurer',
     'src/games/clockwork-keep',
+    'src/games/paddleslap',
     'scripts',
     'tests',
 ]
@@ -37,11 +38,12 @@ _SOURCE_PACKAGE_DIRS = [
     'src/games/brave-adventurer/src/brave_adventurer_papyrus',
     'src/games/brave-adventurer/src/brave_adventurer_modes',
     'src/games/clockwork-keep/clockwork_keep',
+    'src/games/paddleslap/paddleslap',
 ]
 # The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
 # through scripts/workspace_packages.py: CI runs nox through uvx, whose interpreter has neither
 # pydantic nor the engine; tests/test_workspace_config.py keeps the list equal to the workspace
-_MEMBER_DISTRIBUTIONS = ['mr-muncher', 'brave-adventurer', 'clockwork-keep']
+_MEMBER_DISTRIBUTIONS = ['mr-muncher', 'brave-adventurer', 'clockwork-keep', 'paddleslap']
 
 
 # ---------------------------------------------------------------------------

@@ -31,13 +31,13 @@ from scripts.record_golden_traces import (
     release,
 )
 
+import paddleslap
 from glitchygames import live_sources as live_sources_module
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
-from glitchygames.examples import paddleslap
 from glitchygames.input.state import InputSnapshot, current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode

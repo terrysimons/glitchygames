@@ -192,10 +192,21 @@ class TestGeneratedFiles:
 
         assert not any(path.parts[:2] == ('examples', moved_package) for path in files)
 
+    def test_the_engine_archive_no_longer_holds_paddleslap_or_its_demo(self):
+        """PaddleSlap was one module (examples/paddleslap.py) with its demo folder beside it."""
+        files = {
+            path.as_posix() for path in bundled_package_files(package_directory=PACKAGE_DIRECTORY)
+        }
+
+        assert 'examples/paddleslap.py' not in files
+        assert not any(name.startswith('examples/paddleslap_demos/') for name in files)
+
     def test_only_member_games_name_member_packages(self):
         assert GAMES['mr-muncher'].member_packages == ('mr_muncher',)
         assert GAMES['clockwork-keep'].member_packages == ('clockwork_keep',)
+        assert GAMES['paddleslap'].member_packages == ('paddleslap',)
         assert [name for name, game in GAMES.items() if game.member_packages] == [
+            'paddleslap',
             'brave-adventurer',
             'clockwork-keep',
             'mr-muncher',
@@ -349,6 +360,7 @@ class TestMain:
             'browser_user_files.py',
             'glitchygames.zip',
             'index.html',
+            'paddleslap.zip',
             'pyscript.toml',
             'touch_controls.js',
             'wheels',
@@ -420,9 +432,21 @@ class TestMain:
         wheel = tmp_path / WHEEL_NAME
         wheel.write_bytes(b'wheel')
 
+        main(['drawing-fire', '--wheel', str(wheel), '--output', str(tmp_path / 'fire')])
+
+        assert [path.name for path in (tmp_path / 'fire').glob('*.zip')] == ['glitchygames.zip']
+
+    def test_paddleslaps_bundle_ships_its_demo_in_its_package(self, tmp_path):
+        """The attract-mode demo is package data: it ships in paddleslap.zip, not the engine's."""
+        wheel = tmp_path / WHEEL_NAME
+        wheel.write_bytes(b'wheel')
+
         main(['paddleslap', '--wheel', str(wheel), '--output', str(tmp_path / 'slap')])
 
-        assert not list((tmp_path / 'slap').glob('mr_muncher*'))
+        with zipfile.ZipFile(tmp_path / 'slap' / 'paddleslap.zip') as archive:
+            member_names = set(archive.namelist())
+        assert {'paddleslap/__init__.py', 'paddleslap/demos/rally.jsonl.gz'} <= member_names
+        assert '"./paddleslap.zip" = "./*"' in (tmp_path / 'slap' / 'pyscript.toml').read_text()
 
     def test_main_replaces_an_earlier_bundle(self, tmp_path):
         wheel = tmp_path / WHEEL_NAME

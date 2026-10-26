@@ -202,10 +202,10 @@ def test_every_game_has_a_fixture_location():
     """Every scripted game has a console script: tests/fixtures/replays/<console-script>/."""
     assert sorted(GAME_CONSOLE_SCRIPTS) == sorted(SCRIPT_BUILDERS)
 
-    path = fixture_path(game_key='paddleslap', name='golden')
+    path = fixture_path(game_key='drawing_fire', name='golden')
 
     assert path.relative_to(PROJECT_ROOT).as_posix() == (
-        'tests/fixtures/replays/paddleslap/golden.jsonl.gz'
+        'tests/fixtures/replays/drawing-fire/golden.jsonl.gz'
     )
 
 
@@ -244,7 +244,11 @@ def test_both_brave_adventurer_games_are_replayed_by_the_launcher():
 
 @pytest.mark.parametrize(
     ('game_key', 'member_directory'),
-    [('mr_muncher', 'mr-muncher'), ('clockwork_keep', 'clockwork-keep')],
+    [
+        ('mr_muncher', 'mr-muncher'),
+        ('clockwork_keep', 'clockwork-keep'),
+        ('paddleslap', 'paddleslap'),
+    ],
 )
 def test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures(
     game_key, member_directory

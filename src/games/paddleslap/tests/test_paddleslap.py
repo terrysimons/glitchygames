@@ -7,7 +7,6 @@ import logging
 import math
 import os
 import random
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -16,22 +15,9 @@ import pygame
 import pytest
 from scripts.record_golden_traces import GoldenTraceEngine, GoldenTraceSceneManager, command_line
 
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
+import paddleslap
 from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.events.base import HashableEvent
-from glitchygames.examples import paddleslap
-from glitchygames.examples.paddleslap import (
-    GAME_OVER_IDLE_SECONDS,
-    PADDLESLAP_DEMO_PATH,
-    PADDLESLAP_SERVE,
-    PADDLESLAP_SPAWN_SERVE,
-    PADDLESLAP_SPEED_UP,
-    Game,
-    PaddleSlapGameOverScene,
-)
-from glitchygames.examples.paddleslap import log as paddleslap_log
 from glitchygames.exit_codes import ExitCode
 from glitchygames.game_objects.ball import (
     BallSpawnMode,
@@ -45,6 +31,16 @@ from glitchygames.randomness import RANDOM_STREAM_KIND, reset_streams, stream_se
 from glitchygames.sources import advance_frame_clock
 from glitchygames.state import DiskSaveManager
 from glitchygames.world import position_world_sprites
+from paddleslap import (
+    GAME_OVER_IDLE_SECONDS,
+    PADDLESLAP_DEMO_PATH,
+    PADDLESLAP_SERVE,
+    PADDLESLAP_SPAWN_SERVE,
+    PADDLESLAP_SPEED_UP,
+    Game,
+    PaddleSlapGameOverScene,
+)
+from paddleslap import log as paddleslap_log
 
 if TYPE_CHECKING:
     from pytest_mock import MockType
@@ -1172,9 +1168,8 @@ def test_version_flag_prints_the_version_and_exits(mocker, capsys, version_flag)
     start.assert_not_called()
 
 
-GOLDEN_REPLAY_PATH = (
-    Path(__file__).parent.parent / 'fixtures' / 'replays' / 'paddleslap' / 'golden.jsonl.gz'
-)
+# The member's golden replay, directly in its tests/fixtures/replays/
+GOLDEN_REPLAY_PATH = Path(__file__).parent / 'fixtures' / 'replays' / 'golden.jsonl.gz'
 
 
 def test_main_runs_the_game_through_the_engine(mocker, capsys):

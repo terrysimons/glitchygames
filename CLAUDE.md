@@ -161,7 +161,8 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 ```
 
 ### Example Games
-`uv run paddleslap`, `brave-adventurer` (both editions, Classic and Papyrus, one workspace
+`uv run paddleslap` (its own workspace package `src/games/paddleslap/`, one module: `Game` is
+defined in `paddleslap/__init__.py`), `brave-adventurer` (both editions, Classic and Papyrus, one workspace
 package, `src/games/brave-adventurer/`, sharing `brave_adventurer_core`; its launcher,
 `brave_adventurer_modes`, shows a title screen, or starts one with `--game classic|papyrus`, or
 the game a `--replay-trace` recording names), `clockwork-keep` (a steampunk tower climb, its own
@@ -502,9 +503,12 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   logged at WARNING ("No demo: ...") and nothing starts; a divergence ends it and logs WARNING
   `demo diverged: <describe()>`; a cut-off file plays to its cut-off and ends `truncated`
   (INFO). Check `last_playback_outcome` for how it ended
-- Bundled demos (Part 3 Task 4): `glitchygames/examples/<game>_demos/<name>.jsonl.gz` ships in
-  the wheel (hatch includes every file in the package; no pyproject change). PaddleSlap has no
-  title screen, so its game-over screen (`PaddleSlapGameOverScene`) plays
+- Bundled demos (Part 3 Task 4): a workspace member's `<package>/demos/<name>.jsonl.gz` ships in
+  its wheel as package data (hatch includes every file in the package; no pyproject change;
+  `bundled_demo_paths` finds them in each `MEMBER_LAYERS` package, scripts/replay_metrics.py in
+  the repository's members). PaddleSlap's is
+  `src/games/paddleslap/paddleslap/demos/rally.jsonl.gz`. PaddleSlap has no title screen, so its
+  game-over screen (`PaddleSlapGameOverScene`) plays
   `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS` (10) of game time without a key or
   button press. `tests/replay/test_bundled_demos.py` replays every demo headless
   (`bundled_demo_paths`, `replay_recording_headless` in `glitchygames/testing/replays.py`) and

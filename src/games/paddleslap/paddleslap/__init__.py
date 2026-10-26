@@ -78,8 +78,9 @@ COLOR_CHANNEL_LEVELS = 256
 # any press ends, returning to the game-over screen. The demo was recorded with
 # scripts/record_scripted_session.py --game paddleslap --frames 450 --script-only (before the
 # golden script pauses; no controls tail, so it never quits), and
-# tests/replay/test_bundled_demos.py replays it.
-PADDLESLAP_DEMO_PATH = Path(__file__).parent / 'paddleslap_demos' / 'rally.jsonl.gz'
+# tests/replay/test_bundled_demos.py replays it. It ships inside the package (package data,
+# found by glitchygames/testing/replays.py bundled_demo_paths).
+PADDLESLAP_DEMO_PATH = Path(__file__).parent / 'demos' / 'rally.jsonl.gz'
 GAME_OVER_IDLE_SECONDS = 10.0
 
 # Paddle hits speed the ball up along a logarithmic curve: big early boosts that taper
@@ -1187,7 +1188,3 @@ class PaddleSlapGameOverScene(GameOverScene):
 def main() -> None:
     """Run the main function."""
     GameEngine(game=Game).start()
-
-
-if __name__ == '__main__':
-    main()

@@ -251,7 +251,10 @@ def touch_controls_config(
 
 GAMES: dict[str, GameSpecification] = {
     'paddleslap': GameSpecification(
-        module='glitchygames.examples.paddleslap', scene_class='Game', title='Paddle Slap'
+        module='paddleslap',
+        scene_class='Game',
+        title='Paddle Slap',
+        member_packages=('paddleslap',),
     ),
     # Both Brave Adventurer games, Classic (drawn in code) and Papyrus (sprite-sheet art), from
     # the launcher's title screen: its four packages, the shared core first and the launcher last

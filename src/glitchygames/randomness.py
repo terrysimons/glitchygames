@@ -28,7 +28,7 @@ on first use); a stream only the capture holds is made in its captured state.
 
 Streams in use: ``'shake'`` (glitchygames/effects/shake.py), ``'ball.serve'``
 (glitchygames/game_objects/ball.py), ``'paddleslap.spawn'`` and ``'paddleslap.colors'``
-(glitchygames/examples/paddleslap.py), ``'audio.controller_noise'``
+(src/games/paddleslap/paddleslap/__init__.py), ``'audio.controller_noise'``
 (glitchygames/audio/controller_audio.py), and the numpy streams ``'audio.live'`` and
 ``'audio.synth'`` (glitchygames/audio/live.py, synth.py). ``glitchygames/audio/recipes.py``
 seeds its noise with the constant ``RECIPE_NOISE_SEED`` so a recipe sounds the same every time;

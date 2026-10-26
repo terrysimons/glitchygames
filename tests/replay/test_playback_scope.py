@@ -15,10 +15,11 @@ import pygame
 import pytest
 from scripts.record_golden_traces import FRAME_SECONDS, press, release
 
+import paddleslap
 from glitchygames.audio.live import VoiceState
 from glitchygames.audio.synth import Waveform
 from glitchygames.events import FPSEVENT, GAMEEVENT
-from glitchygames.examples import joystick_demo, paddleslap
+from glitchygames.examples import joystick_demo
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, ReplayDeviceRegistry
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.live_sources import LiveSources
@@ -470,10 +471,7 @@ class TestPlaybackErrors:
     def test_the_module_picks_one_of_two_loaded_scenes_named_alike(self):
         """PaddleSlap's and the joystick demo's scenes are both named Game."""
         assert paddleslap.Game.__name__ == joystick_demo.Game.__name__ == 'Game'
-        assert (
-            find_scene_class(name='Game', module='glitchygames.examples.paddleslap')
-            is paddleslap.Game
-        )
+        assert find_scene_class(name='Game', module='paddleslap') is paddleslap.Game
         assert (
             find_scene_class(name='Game', module='glitchygames.examples.joystick_demo')
             is joystick_demo.Game

@@ -28,11 +28,7 @@ from scripts.record_golden_traces import (
     record_trace,
     replay_golden_recording,
 )
-from scripts.record_scripted_session import (
-    REPLAY_FIXTURE_DIRECTORY,
-    REPLAY_FIXTURE_SUFFIX,
-    record_scripted_session,
-)
+from scripts.record_scripted_session import fixture_path, record_scripted_session
 
 from glitchygames import logical_names, recording_history
 from glitchygames.build_info import RevisionSource, engine_source_revision
@@ -1452,25 +1448,25 @@ class TestRecordedGameCheck:
 
     def test_the_recorded_games_module_and_name_are_accepted(self):
         check_recorded_game(
-            header={'game_class': 'Game', 'game_module': 'glitchygames.examples.paddleslap'},
-            game_class=stand_in_game(name='Game', module='glitchygames.examples.paddleslap'),
+            header={'game_class': 'Game', 'game_module': 'paddleslap'},
+            game_class=stand_in_game(name='Game', module='paddleslap'),
         )
 
     def test_another_game_of_the_same_name_is_refused(self):
         with pytest.raises(ReplayRefusedError, match=r'glitchygames\.examples\.joystick_demo'):
             check_recorded_game(
                 header={'game_class': 'Game', 'game_module': 'glitchygames.examples.joystick_demo'},
-                game_class=stand_in_game(name='Game', module='glitchygames.examples.paddleslap'),
+                game_class=stand_in_game(name='Game', module='paddleslap'),
             )
 
     def test_a_recording_naming_the_games_logical_name_is_accepted(self):
-        game = stand_in_game(name='Game', module='glitchygames.examples.paddleslap')
+        game = stand_in_game(name='Game', module='paddleslap')
         check_recorded_game(
             header={'game_class': 'Game', 'game': 'games.paddleslap:Game'}, game_class=game
         )
 
     def test_a_logical_name_of_another_game_is_refused(self):
-        game = stand_in_game(name='Game', module='glitchygames.examples.paddleslap')
+        game = stand_in_game(name='Game', module='paddleslap')
         with pytest.raises(ReplayRefusedError, match=r'demos\.joystick_demo:Game'):
             check_recorded_game(
                 header={'game_class': 'Game', 'game': 'demos.joystick_demo:Game'}, game_class=game
@@ -1533,10 +1529,10 @@ class TestRecordedGameCheck:
         ('header', 'game_module'),
         [
             # Recorded before headers held the module
-            ({'game_class': 'Game'}, 'glitchygames.examples.paddleslap'),
+            ({'game_class': 'Game'}, 'paddleslap'),
             # The same game file run as a script (python paddleslap.py), either way round
-            ({'game_class': 'Game', 'game_module': '__main__'}, 'glitchygames.examples.paddleslap'),
-            ({'game_class': 'Game', 'game_module': 'glitchygames.examples.paddleslap'}, '__main__'),
+            ({'game_class': 'Game', 'game_module': '__main__'}, 'paddleslap'),
+            ({'game_class': 'Game', 'game_module': 'paddleslap'}, '__main__'),
         ],
     )
     def test_without_both_modules_the_name_alone_is_checked(self, header, game_module):
@@ -5248,12 +5244,12 @@ class TestAuditOption:
 
     def test_a_golden_recording_passes_the_real_audit(self):
         """End to end: a deterministic game's recording passes --audit (two child replays)."""
-        recording_path = REPLAY_FIXTURE_DIRECTORY / 'paddleslap' / f'golden{REPLAY_FIXTURE_SUFFIX}'
+        recording_path = fixture_path(game_key='paddleslap')
         audit_run = run_child(
             command=[
                 sys.executable,
                 '-m',
-                'glitchygames.examples.paddleslap',
+                'paddleslap',
                 '--log-level',
                 'error',
                 '--replay-trace',
@@ -5625,7 +5621,7 @@ class TestRebaselinedHeader:
         """NEW names the game that ran, not OLD's header: how old recordings are converted."""
         from glitchygames.replay.rebaseline import rebaseline_header
 
-        game = stand_in_game(name='Game', module='glitchygames.examples.paddleslap')
+        game = stand_in_game(name='Game', module='paddleslap')
         header = rebaseline_header(
             original_header={'random_seed': 5, 'game_class': 'Game', 'game_module': 'old.module'},
             original_path=tmp_path / 'old.jsonl.gz',
@@ -5634,7 +5630,7 @@ class TestRebaselinedHeader:
         )
 
         assert header['game'] == 'games.paddleslap:Game'
-        assert header['game_module'] == 'glitchygames.examples.paddleslap'
+        assert header['game_module'] == 'paddleslap'
 
 
 class TestRebaselineHistory:

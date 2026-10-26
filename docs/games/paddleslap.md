@@ -63,9 +63,9 @@ PaddleSlap has two scenes of its own and one built in.
 
 | Scene | Module | Role |
 | --- | --- | --- |
-| `Game` | `glitchygames/examples/paddleslap.py` | The court: paddles, balls, collisions, rally count, high scores |
+| `Game` | `src/games/paddleslap/paddleslap/__init__.py` | The court: paddles, balls, collisions, rally count, high scores |
 | `PauseScene` | `glitchygames/scenes/builtin_scenes/pause_scene.py` | The engine's pause screen: the game's last frame dimmed with PAUSED over it |
-| `PaddleSlapGameOverScene` | `glitchygames/examples/paddleslap.py` | `GameOverScene` (score, top 5 high scores) plus the attract-mode demo, and a resume that always starts a new `Game` |
+| `PaddleSlapGameOverScene` | `src/games/paddleslap/paddleslap/__init__.py` | `GameOverScene` (score, top 5 high scores) plus the attract-mode demo, and a resume that always starts a new `Game` |
 
 In the diagram, the Engine box holds what the engine provides (its pause screen and the playback
 scope the demo runs in); the PaddleSlap box holds the game's own scenes.
@@ -113,7 +113,7 @@ stateDiagram-v2
 PaddleSlap has no title screen (a game starts serving at once), so its idle screen is the
 game-over screen. `PaddleSlapGameOverScene.dt_tick` compares its `game_time` with
 `idle_since_game_time`; after `GAME_OVER_IDLE_SECONDS` (10.0) it plays the bundled recording
-`PADDLESLAP_DEMO_PATH` (`glitchygames/examples/paddleslap_demos/rally.jsonl.gz`) with
+`PADDLESLAP_DEMO_PATH` (`src/games/paddleslap/paddleslap/demos/rally.jsonl.gz`, package data) with
 `SceneManager.play_recording(path=..., then=self)`. In the diagram, the PaddleSlap box is the
 game's own screen and the Engine box is what plays the demo; the player is outside both.
 
@@ -149,9 +149,22 @@ sequenceDiagram
 - A demo that cannot play is logged at WARNING ("No demo: ...") and nothing starts. A divergence
   ends it with a WARNING `demo diverged: ...`.
 
+## Its package
+
+PaddleSlap is a package of its own beside the engine, `src/games/paddleslap/` (distribution
+`paddleslap`, import package `paddleslap`). How such a package is laid out, installed, tested and
+built, and how a game is moved into one, is in
+[Games as Their Own Packages](../architecture/game_packages.md).
+
+PaddleSlap is one module, so `Game` is defined in the package itself (`paddleslap/__init__.py`):
+its recordings name it `games.paddleslap:Game`, which a `Game` defined in a submodule would
+change. Its golden replay is `src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz`, its bundled demo ships inside the package
+(`src/games/paddleslap/paddleslap/demos/rally.jsonl.gz`, package data), its golden trace stays with the engine's trace tests
+(`tests/world/golden/paddleslap.jsonl.gz`), and its browser bundle ships `paddleslap.zip`.
+
 ## Classes
 
-PaddleSlap's own code is two classes in `glitchygames/examples/paddleslap.py`: `Game` and
+PaddleSlap's own code is two classes in `src/games/paddleslap/paddleslap/__init__.py`: `Game` and
 `PaddleSlapGameOverScene`. Everything else it uses comes from the engine: `Scene` and the
 built-in `PauseScene` and `GameOverScene` (`glitchygames.scenes`), `Sprite`
 (`glitchygames.sprites`), and the paddles and balls of the engine's game-object library
@@ -574,8 +587,8 @@ Two sound effects, loaded with `glitchygames.game_objects.load_sound` from
 | Recording | What it is | Checked by |
 | --- | --- | --- |
 | `tests/world/golden/paddleslap.jsonl.gz` | Golden trace: the scripted run recorded before the world-space change, by `scripts/record_golden_traces.py` | `tests/world/test_golden_traces.py` compares every sprite's rect and visibility frame by frame; each difference must be explained by one `ExpectedDifference` |
-| `tests/fixtures/replays/paddleslap/golden.jsonl.gz` | Golden replay: 622 frames at 800×480, seed 20261018, recorded through the real engine loop by `scripts/record_scripted_session.py --game paddleslap --frames 600` | The replay plugin (`glitchygames/testing/replays.py`) replays it with `paddleslap --replay-trace ... --headless` and fails unless it exits `SUCCESS`; `tests/replay/test_golden_replays.py` checks the fixture set and the controls rule |
-| `glitchygames/examples/paddleslap_demos/rally.jsonl.gz` | Bundled demo: 450 frames of `Game`, recorded with `--frames 450 --script-only` (before the script's pause, no quit) | `tests/replay/test_bundled_demos.py` replays it headless and plays it through `play_recording` inside a running game |
+| `src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz` | Golden replay: 622 frames at 800×480, seed 20261018, recorded through the real engine loop by `scripts/record_scripted_session.py --game paddleslap --frames 600` | The replay plugin (`glitchygames/testing/replays.py`) replays it with `paddleslap --replay-trace ... --headless` and fails unless it exits `SUCCESS`; `tests/replay/test_golden_replays.py` checks the fixture set and the controls rule |
+| `src/games/paddleslap/paddleslap/demos/rally.jsonl.gz` | Bundled demo: 450 frames of `Game`, recorded with `--frames 450 --script-only` (before the script's pause, no quit) | `tests/replay/test_bundled_demos.py` replays it headless and plays it through `play_recording` inside a running game |
 
 The golden script (`paddleslap_script` in `scripts/record_golden_traces.py`) steers both paddles
 with a `PaddleTracker`: each paddle holds its up or down key to follow the nearest ball moving
@@ -592,7 +605,7 @@ docstring of `scripts/record_scripted_session.py`). Replay performance for both 
 
 | File | What it pins |
 | --- | --- |
-| `tests/examples/test_paddleslap.py` | The game: construction, options and spawn modes, random streams (colours, spawn positions, global `random` untouched), serves and speed-ups, same-frame paddle bounces, collisions in `dt_tick` (not `update()`), dead balls, spawn triggers and the shared cooldown, ball-ball edge cases (500 px/s cap, playable-ball rule), high scores, the game-over demo and idle wait, scancode bindings, gamepads, and `main()` replaying the golden recording |
+| `src/games/paddleslap/tests/test_paddleslap.py` | The game: construction, options and spawn modes, random streams (colours, spawn positions, global `random` untouched), serves and speed-ups, same-frame paddle bounces, collisions in `dt_tick` (not `update()`), dead balls, spawn triggers and the shared cooldown, ball-ball edge cases (500 px/s cap, playable-ball rule), high scores, the game-over demo and idle wait, scancode bindings, gamepads, and `main()` replaying the golden recording |
 | `tests/collision/test_ball_paddle_collision.py` | `handle_paddle_collision`: the circle-versus-rectangle test, the face decision and the response, on real surfaces |
 | `tests/game_objects/test_ball*.py`, `test_multi_ball_*.py`, `test_collision_*.py`, `test_diagonal_collision.py`, `test_zero_speed.py` | `BallSprite`: wall bounces, speed-up curves and schedules, serves, multi-ball physics at many frame rates, energy conservation |
 | `tests/game_objects/test_paddle.py`, `test_paddle_dt_tick.py` | Paddles: sub-pixel movement and the screen clamp |
@@ -604,8 +617,9 @@ docstring of `scripts/record_scripted_session.py`). Replay performance for both 
 
 | File | Contents |
 | --- | --- |
-| `glitchygames/examples/paddleslap.py` | `Game`, `PaddleSlapGameOverScene`, `main()` (the `paddleslap` console script), the serve, speed-up and demo constants |
-| `glitchygames/examples/paddleslap_demos/rally.jsonl.gz` | The bundled attract-mode demo |
+| `src/games/paddleslap/paddleslap/__init__.py` | `Game`, `PaddleSlapGameOverScene`, `main()` (the `paddleslap` console script), the serve, speed-up and demo constants |
+| `src/games/paddleslap/paddleslap/__main__.py` | `python -m paddleslap` |
+| `src/games/paddleslap/paddleslap/demos/rally.jsonl.gz` | The bundled attract-mode demo |
 | `glitchygames/game_objects/ball.py` | `BallSprite`, `BallSpawnMode`, `ServeSettings`, `SpeedUpSettings` and their enums |
 | `glitchygames/game_objects/paddle.py` | `BasePaddle`, `VerticalPaddle`, `HorizontalPaddle` |
 | `glitchygames/game_objects/sounds.py`, `snd_files/` | `SFX`, `load_sound`, the two WAV files |
@@ -614,6 +628,6 @@ docstring of `scripts/record_scripted_session.py`). Replay performance for both 
 | `glitchygames/input/action_map.py` | `ActionMap` |
 | `scripts/record_golden_traces.py` | The golden script (`paddleslap_script`, `PaddleTracker`) and the golden trace recorder |
 | `scripts/record_scripted_session.py` | The golden replay and demo recorder, and the controls tail |
-| `tests/fixtures/replays/paddleslap/golden.jsonl.gz` | The golden replay |
+| `src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz` | The golden replay |
 | `tests/world/golden/paddleslap.jsonl.gz` | The golden trace baseline |
-| `tests/examples/test_paddleslap.py` | The game's tests |
+| `src/games/paddleslap/tests/test_paddleslap.py`, `src/games/paddleslap/tests/test_paddleslap_after_the_move.py` | The game's tests |

@@ -11,7 +11,7 @@ import pygame
 sys.path.insert(0, str(Path(__file__).parent / '../../../glitchygames'))
 
 from glitchygames.display_mode import set_display_mode
-from glitchygames.examples.paddleslap import Game
+from paddleslap import Game
 
 LOG = logging.getLogger(__name__)
 

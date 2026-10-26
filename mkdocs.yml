@@ -59,6 +59,7 @@ nav:
     - brave_adventurer_papyrus: "brave_adventurer_papyrus/index.md"
     - brave_adventurer_modes: "brave_adventurer_modes/index.md"
     - clockwork_keep: "clockwork_keep/index.md"
+    - paddleslap: "paddleslap/index.md"
 
 extra_css:
   - css/full-width.css
@@ -153,7 +154,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          paths: [src, src/games/mr-muncher, src/games/brave-adventurer/src, src/games/clockwork-keep]
+          paths: [src, src/games/mr-muncher, src/games/brave-adventurer/src, src/games/clockwork-keep, src/games/paddleslap]
           options:
             show_source: true
             # allow_inspection: no

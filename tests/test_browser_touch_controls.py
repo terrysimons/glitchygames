@@ -23,8 +23,8 @@ from brave_adventurer.game import BraveAdventurerScene
 from brave_adventurer_modes.title import TitleScene
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from clockwork_keep.game import ClockworkKeepScene
-from glitchygames.examples.paddleslap import Game as PaddleSlapScene
 from mr_muncher.game import MrMuncherScene
+from paddleslap import Game as PaddleSlapScene
 
 # The pygame scancode of each key a touch button can press (its DOM KeyboardEvent.code)
 SCANCODE_BY_CODE = {

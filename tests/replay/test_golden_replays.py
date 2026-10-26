@@ -42,11 +42,11 @@ from scripts.record_scripted_session import (
 )
 from scripts.workspace_packages import workspace_members
 
+import paddleslap
 from brave_adventurer.game import BraveAdventurerScene
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from clockwork_keep.game import ClockworkKeepScene
 from glitchygames.events import GAMEEVENT
-from glitchygames.examples import paddleslap
 from glitchygames.examples.drawing_fire import players as drawing_fire_players
 from glitchygames.examples.drawing_fire.game import (
     SEAT_CHANGED_SUBTYPE,
@@ -121,9 +121,14 @@ def test_a_members_golden_replay_is_replayed_by_the_members_console_script():
     assert recording_console_script(path=golden) == 'mr-muncher'
     assert (
         recording_console_script(
-            path=PROJECT_ROOT / 'tests' / 'fixtures' / 'replays' / 'paddleslap' / 'golden.jsonl.gz'
+            path=PROJECT_ROOT
+            / 'tests'
+            / 'fixtures'
+            / 'replays'
+            / 'drawing-fire'
+            / 'golden.jsonl.gz'
         )
-        == 'paddleslap'
+        == 'drawing-fire'
     )
 
 
@@ -137,7 +142,7 @@ def test_a_recording_of_a_folder_that_is_no_member_is_refused(tmp_path):
 
 def test_a_tampered_golden_replay_is_reported_at_its_frame(mocker, capsys, tmp_path):
     """The golden replays really compare: a fixture moved by one pixel diverges there."""
-    path = REPLAY_FIXTURE_DIRECTORY / 'paddleslap' / f'golden{REPLAY_FIXTURE_SUFFIX}'
+    path = fixture_path(game_key='paddleslap')
     tampered_path = tmp_path / path.name
     tampered_path.write_bytes(path.read_bytes())
     tamper_first_sprite_rect(recording_path=tampered_path, frame_number=TAMPERED_FRAME)
@@ -157,7 +162,7 @@ def test_a_rebaselined_golden_replay_names_the_tampered_frames_and_replays_clean
     mocker, capsys, tmp_path
 ):
     """--rebaseline of a tampered fixture reports the change, and its output replays exactly."""
-    path = REPLAY_FIXTURE_DIRECTORY / 'paddleslap' / f'golden{REPLAY_FIXTURE_SUFFIX}'
+    path = fixture_path(game_key='paddleslap')
     tampered_path = tmp_path / path.name
     tampered_path.write_bytes(path.read_bytes())
     tamper_first_sprite_rect(recording_path=tampered_path, frame_number=TAMPERED_FRAME)

@@ -54,12 +54,12 @@ os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
 
+import paddleslap
 from brave_adventurer.game import BraveAdventurerScene
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from clockwork_keep.game import ClockworkKeepScene
 from glitchygames.engine import GameEngine
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
-from glitchygames.examples import paddleslap
 from glitchygames.examples.drawing_fire.game import DrawingFireScene
 from glitchygames.examples.drawing_fire.seats import LEAVE_HOLD_SECONDS, Stage
 from glitchygames.scenes import SceneManager
@@ -120,7 +120,7 @@ GAME_MODULES: dict[str, str] = {
     'clockwork_keep': 'clockwork_keep',
     'brave_adventurer': 'brave_adventurer',
     'brave_adventurer_papyrus': 'brave_adventurer_papyrus',
-    'paddleslap': 'glitchygames.examples.paddleslap',
+    'paddleslap': 'paddleslap',
     'mr_muncher': 'mr_muncher',
     'drawing_fire': 'glitchygames.examples.drawing_fire',
 }

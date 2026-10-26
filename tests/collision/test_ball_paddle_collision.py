@@ -297,7 +297,7 @@ class TestBallPairDistance:
 
     def test_collision_distance_is_the_sum_of_visible_radii(self):
         """Two real balls collide when their radius-5 circles touch (10 px apart)."""
-        from glitchygames.examples.paddleslap import Game
+        from paddleslap import Game
 
         first_ball = make_ball(world_x=100, world_y=100)
         second_ball = make_ball(world_x=108, world_y=106)
@@ -319,7 +319,7 @@ def make_ball_pair_game(*balls):
 
     """
     from glitchygames.collision.layers import CollisionManager
-    from glitchygames.examples.paddleslap import Game
+    from paddleslap import Game
 
     game = Game.__new__(Game)
     game.collisions = CollisionManager()

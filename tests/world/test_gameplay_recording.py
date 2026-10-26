@@ -33,11 +33,11 @@ from scripts.record_golden_traces import (
     record_trace,
 )
 
+import paddleslap
 from glitchygames.effects.shake import Shake, ShakeStyle
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
 from glitchygames.events.controller import ControllerEventManager
-from glitchygames.examples import paddleslap
 from glitchygames.exit_codes import ExitCode
 from glitchygames.host import HostSources
 from glitchygames.input import devices as devices_module
