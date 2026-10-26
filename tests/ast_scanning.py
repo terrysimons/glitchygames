@@ -99,7 +99,7 @@ def scanned_source_files(*, project_root: Path) -> list[tuple[str, Path]]:
     """Return every Python file the guards scan, with the key the allowlists spell it by.
 
     The engine's files are keyed relative to ``src/glitchygames/`` (``clock.py``); a workspace
-    member's files relative to the repository (``src/games/mr-muncher/mr_muncher/game.py``), so
+    member's files relative to the repository (``src/games/mr-muncher/src/mr_muncher/game.py``), so
     the two never clash.
 
     Args:

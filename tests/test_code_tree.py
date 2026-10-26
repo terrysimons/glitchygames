@@ -120,7 +120,7 @@ def test_ledger_rows_never_change_the_code_tree(repository):
     'relative_path',
     [
         'src/glitchygames/world.py',
-        'src/games/mr-muncher/mr_muncher/game.py',
+        'src/games/mr-muncher/src/mr_muncher/game.py',
         'src/demos/joystick-demo/joystick_demo/demo.py',
         'src/apps/bitmappy/bitmappy/editor.py',
         # A recording at the root (no game's since every game is a member; a stand-in's path)

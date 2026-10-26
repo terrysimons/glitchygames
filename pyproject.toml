@@ -217,7 +217,7 @@ omit = [
 # The imported copy (nox: site-packages, not editable; uv sync: src/ itself) is reported as the
 # repository's src/glitchygames, so the report and its 100% gate name the files in git
 glitchygames = ["src/glitchygames", "*/site-packages/glitchygames"]
-mr_muncher = ["src/games/mr-muncher/mr_muncher", "*/site-packages/mr_muncher"]
+mr_muncher = ["src/games/mr-muncher/src/mr_muncher", "*/site-packages/mr_muncher"]
 brave_adventurer_core = [
   "src/games/brave-adventurer/src/brave_adventurer_core",
   "*/site-packages/brave_adventurer_core",
@@ -235,12 +235,12 @@ brave_adventurer_modes = [
   "*/site-packages/brave_adventurer_modes",
 ]
 clockwork_keep = [
-  "src/games/clockwork-keep/clockwork_keep",
+  "src/games/clockwork-keep/src/clockwork_keep",
   "*/site-packages/clockwork_keep",
 ]
 paddleslap = ["src/games/paddleslap/paddleslap", "*/site-packages/paddleslap"]
 drawing_fire = [
-  "src/games/drawing-fire/drawing_fire",
+  "src/games/drawing-fire/src/drawing_fire",
   "*/site-packages/drawing_fire",
 ]
 bitmappy = ["src/apps/bitmappy/bitmappy", "*/site-packages/bitmappy"]
@@ -276,11 +276,11 @@ src = [
   "src",
   "tests",
   "scripts",
-  "src/games/mr-muncher",
+  "src/games/mr-muncher/src",
   "src/games/brave-adventurer/src",
-  "src/games/clockwork-keep",
+  "src/games/clockwork-keep/src",
   "src/games/paddleslap",
-  "src/games/drawing-fire",
+  "src/games/drawing-fire/src",
   "src/apps/bitmappy",
   "src/apps/bitmappy/tests",
 ]
@@ -507,11 +507,11 @@ python-version = "3.14"
 root = [
   "src",
   ".",
-  "src/games/mr-muncher",
+  "src/games/mr-muncher/src",
   "src/games/brave-adventurer/src",
-  "src/games/clockwork-keep",
+  "src/games/clockwork-keep/src",
   "src/games/paddleslap",
-  "src/games/drawing-fire",
+  "src/games/drawing-fire/src",
   "src/apps/bitmappy",
 ]
 extra-paths = ["scripts"]

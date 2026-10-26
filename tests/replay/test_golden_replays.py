@@ -388,11 +388,11 @@ PAUSE_SCENE_CONTROLS: tuple[Control, ...] = (
     ),
 )
 
-# Drawing Fire's controls (src/games/drawing-fire/drawing_fire/players.py), read from the frame's
-# snapshot, not an ActionMap: the keyboard's START, BACK, LEFT and RIGHT keys (each key of the
-# players module's own scancode lists), the mouse's aim and left button, and the controller's
-# sticks, trigger and buttons; and Q, which quits on its release (the base Scene: Drawing Fire
-# ignores only Escape's release, its BACK)
+# Drawing Fire's controls (src/games/drawing-fire/src/drawing_fire/players.py), read from the
+# frame's snapshot, not an ActionMap: the keyboard's START, BACK, LEFT and RIGHT keys (each key
+# of the players module's own scancode lists), the mouse's aim and left button, and the
+# controller's sticks, trigger and buttons; and Q, which quits on its release (the base Scene:
+# Drawing Fire ignores only Escape's release, its BACK)
 DRAWING_FIRE_CONTROLS: tuple[Control, ...] = (
     *(
         _scancode_control(scene=DrawingFireScene, action=action, scancode=scancode)

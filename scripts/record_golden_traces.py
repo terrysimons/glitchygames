@@ -505,7 +505,7 @@ def paddleslap_script() -> InputScript:
 class MuncherSteering:
     """Hold the arrow key for the way Mr. Muncher's autopilot asks for, frame by frame.
 
-    The autopilot (src/games/mr-muncher/mr_muncher/autopilot.py) reads the scene and names a
+    The autopilot (src/games/mr-muncher/src/mr_muncher/autopilot.py) reads the scene and names a
     direction; this presses that direction's arrow key (releasing the one held before). A key
     is pressed again when the player still wants another way after MR_MUNCHER_REPRESS_FRAMES
     (a new life starts heading left, whatever key is held). Nothing is pressed while another
@@ -600,7 +600,7 @@ class DrawingFireMouse:
     """The keyboard player's mouse: it aims at the nearest enemy and presses the fire button.
 
     Drawing Fire's keyboard player aims at the mouse and fires with its left button
-    (src/games/drawing-fire/drawing_fire/players.py). While the player drives a soldier, the
+    (src/games/drawing-fire/src/drawing_fire/players.py). While the player drives a soldier, the
     mouse moves onto the chest of the living enemy nearest him whenever that chest is more than
     DRAWING_FIRE_AIM_SLACK_PIXELS away, as a player tracking a target would (no motion while he
     is not playing). The left button goes down or up before each frame ``button_changes``

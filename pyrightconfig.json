@@ -64,11 +64,11 @@
       "extraPaths": [
         ".",
         "src",
-        "src/games/mr-muncher",
+        "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
-        "src/games/clockwork-keep",
+        "src/games/clockwork-keep/src",
         "src/games/paddleslap",
-        "src/games/drawing-fire",
+        "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
       "reportArgumentType": false,
@@ -100,11 +100,11 @@
       "extraPaths": [
         ".",
         "src",
-        "src/games/mr-muncher",
+        "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
-        "src/games/clockwork-keep",
+        "src/games/clockwork-keep/src",
         "src/games/paddleslap",
-        "src/games/drawing-fire",
+        "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
       "reportArgumentType": false,
@@ -133,18 +133,18 @@
     },
     {
       "root": "src/games/mr-muncher",
-      "extraPaths": ["src"]
+      "extraPaths": ["src", "src/games/mr-muncher/src"]
     },
     {
       "root": "src/games/brave-adventurer/tests",
       "extraPaths": [
         ".",
         "src",
-        "src/games/mr-muncher",
+        "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
-        "src/games/clockwork-keep",
+        "src/games/clockwork-keep/src",
         "src/games/paddleslap",
-        "src/games/drawing-fire",
+        "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
       "reportArgumentType": false,
@@ -180,11 +180,11 @@
       "extraPaths": [
         ".",
         "src",
-        "src/games/mr-muncher",
+        "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
-        "src/games/clockwork-keep",
+        "src/games/clockwork-keep/src",
         "src/games/paddleslap",
-        "src/games/drawing-fire",
+        "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
       "reportArgumentType": false,
@@ -213,18 +213,18 @@
     },
     {
       "root": "src/games/clockwork-keep",
-      "extraPaths": ["src"]
+      "extraPaths": ["src", "src/games/clockwork-keep/src"]
     },
     {
       "root": "src/games/paddleslap/tests",
       "extraPaths": [
         ".",
         "src",
-        "src/games/mr-muncher",
+        "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
-        "src/games/clockwork-keep",
+        "src/games/clockwork-keep/src",
         "src/games/paddleslap",
-        "src/games/drawing-fire",
+        "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
       "reportArgumentType": false,
@@ -260,11 +260,11 @@
       "extraPaths": [
         ".",
         "src",
-        "src/games/mr-muncher",
+        "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
-        "src/games/clockwork-keep",
+        "src/games/clockwork-keep/src",
         "src/games/paddleslap",
-        "src/games/drawing-fire",
+        "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
       "reportArgumentType": false,
@@ -293,18 +293,18 @@
     },
     {
       "root": "src/games/drawing-fire",
-      "extraPaths": ["src"]
+      "extraPaths": ["src", "src/games/drawing-fire/src"]
     },
     {
       "root": "src/apps/bitmappy/tests",
       "extraPaths": [
         ".",
         "src",
-        "src/games/mr-muncher",
+        "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
-        "src/games/clockwork-keep",
+        "src/games/clockwork-keep/src",
         "src/games/paddleslap",
-        "src/games/drawing-fire",
+        "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
       "reportArgumentType": false,

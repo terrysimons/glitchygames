@@ -62,3 +62,16 @@ def test_the_old_example_package_is_gone():
 def test_clockwork_keeps_golden_keeps_its_history():
     """Clockwork Keep's golden moved into its member: its rows from before the move follow."""
     assert RECORDING_PATH_RENAMES[GOLDEN_FORMER_PATH] == GOLDEN_REPOSITORY_PATH
+
+
+def test_clockwork_keep_is_imported_from_its_src_directory():
+    """Clockwork Keep's package is under its member's src/ (or site-packages in a wheel install)."""
+    import clockwork_keep
+
+    member_source_directory = Path(__file__).resolve().parents[1] / 'src'
+    package_directory = Path(clockwork_keep.__file__).resolve().parent
+
+    assert (
+        package_directory.parent == member_source_directory
+        or 'site-packages' in package_directory.parts
+    ), f'{package_directory} is not under {member_source_directory} or site-packages'

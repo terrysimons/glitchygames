@@ -34,14 +34,14 @@ _CODE_DIRS = [
 # The source packages vulture and bandit scan: the engine's and each workspace member's
 _SOURCE_PACKAGE_DIRS = [
     'src/glitchygames',
-    'src/games/mr-muncher/mr_muncher',
+    'src/games/mr-muncher/src/mr_muncher',
     'src/games/brave-adventurer/src/brave_adventurer_core',
     'src/games/brave-adventurer/src/brave_adventurer',
     'src/games/brave-adventurer/src/brave_adventurer_papyrus',
     'src/games/brave-adventurer/src/brave_adventurer_modes',
-    'src/games/clockwork-keep/clockwork_keep',
+    'src/games/clockwork-keep/src/clockwork_keep',
     'src/games/paddleslap/paddleslap',
-    'src/games/drawing-fire/drawing_fire',
+    'src/games/drawing-fire/src/drawing_fire',
     'src/apps/bitmappy/bitmappy',
 ]
 # The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read

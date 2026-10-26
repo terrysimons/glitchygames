@@ -8,7 +8,7 @@ game.
 
 Everything is drawn from pygame primitives (no image files), every sound is synthesized, and the
 game is small enough to read in one sitting (about 2,700 lines in
-`src/games/clockwork-keep/clockwork_keep/`). It is also one of the engine's reference games: its
+`src/games/clockwork-keep/src/clockwork_keep/`). It is also one of the engine's reference games: its
 golden trace and golden replay pin world space, transitions, pausing and replay, so the page
 below shows both how the game works and which engine features it leans on.
 
@@ -149,7 +149,7 @@ engine's trace tests (`tests/world/golden/clockwork_keep.jsonl.gz`), and its bro
 ## Classes
 
 Clockwork Keep's own code is the scene, five sprite classes and the floor data, all in
-`src/games/clockwork-keep/clockwork_keep/`. The rest comes from the engine: `Scene` and the built-in
+`src/games/clockwork-keep/src/clockwork_keep/`. The rest comes from the engine: `Scene` and the built-in
 `PauseScene` and `GameOverScene` (`glitchygames.scenes`), `Sprite` (`glitchygames.sprites`) and
 `PhysicsBody` (`glitchygames.physics`). In the diagram, the Engine box is what every game gets; the
 Clockwork Keep box is what this game adds. Solid arrows are inheritance, pointing at the base
@@ -686,14 +686,14 @@ the native-driver comparison while iterating).
 
 | File | Holds |
 |---|---|
-| `src/games/clockwork-keep/clockwork_keep/__init__.py` | `main` (the `clockwork-keep` console script in the member's `pyproject.toml`) |
-| `src/games/clockwork-keep/clockwork_keep/game.py` | `ClockworkKeepScene` (floors, input, collision, elevator, death, saves, HUD), `CogCollectible`, the arrival shakes, `main()` |
-| `src/games/clockwork-keep/clockwork_keep/player.py` | `Tinker`: physics body, state machine, the pose rule, wall fitting |
-| `src/games/clockwork-keep/clockwork_keep/terrain.py` | `Platform`, `Elevator`, `MovingGear` |
-| `src/games/clockwork-keep/clockwork_keep/levels.py` | `FloorData`, `MovingGearData`, the three floors, `ALL_FLOORS` |
-| `src/games/clockwork-keep/clockwork_keep/drawing.py` | Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, `clock_hand_angles` |
-| `src/games/clockwork-keep/clockwork_keep/sounds.py` | The six `SoundRecipe`s, `ALL_RECIPES` |
-| `src/games/clockwork-keep/clockwork_keep/constants.py` | Screen, physics, layers, gameplay, colours, elevator ride feel, the clock |
+| `src/games/clockwork-keep/src/clockwork_keep/__init__.py` | `main` (the `clockwork-keep` console script in the member's `pyproject.toml`) |
+| `src/games/clockwork-keep/src/clockwork_keep/game.py` | `ClockworkKeepScene` (floors, input, collision, elevator, death, saves, HUD), `CogCollectible`, the arrival shakes, `main()` |
+| `src/games/clockwork-keep/src/clockwork_keep/player.py` | `Tinker`: physics body, state machine, the pose rule, wall fitting |
+| `src/games/clockwork-keep/src/clockwork_keep/terrain.py` | `Platform`, `Elevator`, `MovingGear` |
+| `src/games/clockwork-keep/src/clockwork_keep/levels.py` | `FloorData`, `MovingGearData`, the three floors, `ALL_FLOORS` |
+| `src/games/clockwork-keep/src/clockwork_keep/drawing.py` | Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, `clock_hand_angles` |
+| `src/games/clockwork-keep/src/clockwork_keep/sounds.py` | The six `SoundRecipe`s, `ALL_RECIPES` |
+| `src/games/clockwork-keep/src/clockwork_keep/constants.py` | Screen, physics, layers, gameplay, colours, elevator ride feel, the clock |
 | `src/glitchygames/transitions/elevator.py` | `ElevatorTransition` (engine, written for this game) |
 | `src/glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The pause and game-over screens |
 | `scripts/record_golden_traces.py` | The golden input script (`clockwork_keep_script`) and the golden trace harness |
