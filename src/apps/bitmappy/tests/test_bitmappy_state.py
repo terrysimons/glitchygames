@@ -24,14 +24,18 @@ from bitmappy.sprite_inspection import load_ai_training_data
 class TestSetupAIWorkerLogging:
     """Test _setup_ai_worker_logging function."""
 
-    def test_returns_logger(self):
+    def test_returns_logger(self, mocker):
         """Test that function returns a Logger instance."""
+        mocker.patch.object(logging.getLogger('game.ai'), 'handlers', new=[])
+
         log = _setup_ai_worker_logging()
         assert isinstance(log, logging.Logger)
         assert log.name == 'game.ai'
 
-    def test_logger_has_handlers(self):
+    def test_logger_has_handlers(self, mocker):
         """Test that logger has at least one handler after setup."""
+        mocker.patch.object(logging.getLogger('game.ai'), 'handlers', new=[])
+
         log = _setup_ai_worker_logging()
         assert len(log.handlers) > 0
 
