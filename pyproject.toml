@@ -238,7 +238,7 @@ clockwork_keep = [
   "src/games/clockwork-keep/src/clockwork_keep",
   "*/site-packages/clockwork_keep",
 ]
-paddleslap = ["src/games/paddleslap/paddleslap", "*/site-packages/paddleslap"]
+paddleslap = ["src/games/paddleslap/src/paddleslap", "*/site-packages/paddleslap"]
 drawing_fire = [
   "src/games/drawing-fire/src/drawing_fire",
   "*/site-packages/drawing_fire",
@@ -279,7 +279,7 @@ src = [
   "src/games/mr-muncher/src",
   "src/games/brave-adventurer/src",
   "src/games/clockwork-keep/src",
-  "src/games/paddleslap",
+  "src/games/paddleslap/src",
   "src/games/drawing-fire/src",
   "src/apps/bitmappy",
   "src/apps/bitmappy/tests",
@@ -457,7 +457,7 @@ fixable = ["ALL"]
 "src/glitchygames/examples/joystick_demo.py" = [
   "PLR0913", # Demo widget constructors follow standard UI geometry pattern
 ]
-"src/games/paddleslap/paddleslap/__init__.py" = [
+"src/games/paddleslap/src/paddleslap/__init__.py" = [
   "PLR0913", # Game helper functions need ball geometry and physics params
   # The game is one module: its recordings name games.paddleslap:Game, so Game stays defined in
   # the package itself (docs/architecture/game_packages.md, "A game that is one module")
@@ -510,7 +510,7 @@ root = [
   "src/games/mr-muncher/src",
   "src/games/brave-adventurer/src",
   "src/games/clockwork-keep/src",
-  "src/games/paddleslap",
+  "src/games/paddleslap/src",
   "src/games/drawing-fire/src",
   "src/apps/bitmappy",
 ]

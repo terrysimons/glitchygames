@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 GOLDEN = 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
-DEMO = 'src/games/paddleslap/paddleslap/demos/rally.jsonl.gz'
+DEMO = 'src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz'
 OLDER_COMMITTED_AT = '2026-10-22T12:00:00-07:00'
 OLDER_PROFILE = FrameProfile(
     frame_count=4, max_microseconds=(100, 200, None, 400), scene_runs=((0, 'Game'), (3, 'Pause'))

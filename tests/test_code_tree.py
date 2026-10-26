@@ -81,7 +81,7 @@ def repository(tmp_path: Path) -> Path:
         # The root's recordings (no game's since every game is a member; a stand-in's path)
         ('tests/fixtures/replays/a-game/golden.jsonl.gz', True),
         # A demo bundled in a member's package (package data)
-        ('src/games/paddleslap/paddleslap/demos/rally.jsonl.gz', True),
+        ('src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz', True),
         ('uv.lock', True),
         ('src/games/mr-muncher/tests/test_mr_muncher.py', False),
         ('src/games/mr-muncher/tests/fixtures/sprites.toml', False),

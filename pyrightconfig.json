@@ -67,7 +67,7 @@
         "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep/src",
-        "src/games/paddleslap",
+        "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
@@ -103,7 +103,7 @@
         "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep/src",
-        "src/games/paddleslap",
+        "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
@@ -143,7 +143,7 @@
         "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep/src",
-        "src/games/paddleslap",
+        "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
@@ -183,7 +183,7 @@
         "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep/src",
-        "src/games/paddleslap",
+        "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
@@ -223,7 +223,7 @@
         "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep/src",
-        "src/games/paddleslap",
+        "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
@@ -253,7 +253,7 @@
     },
     {
       "root": "src/games/paddleslap",
-      "extraPaths": ["src"]
+      "extraPaths": ["src", "src/games/paddleslap/src"]
     },
     {
       "root": "src/games/drawing-fire/tests",
@@ -263,7 +263,7 @@
         "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep/src",
-        "src/games/paddleslap",
+        "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],
@@ -303,7 +303,7 @@
         "src/games/mr-muncher/src",
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep/src",
-        "src/games/paddleslap",
+        "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
         "src/apps/bitmappy"
       ],

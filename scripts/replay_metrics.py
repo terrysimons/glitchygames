@@ -243,7 +243,7 @@ def recording_ledger_name(
     """Return the name the ledger gives a recording.
 
     A recording in the repository is named by its repository path
-    (``src/games/paddleslap/paddleslap/demos/rally.jsonl.gz``: what a development install, which
+    (``src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz``: what a development install, which
     is editable, finds). One outside it (a bundled demo of a built install, in
     ``site-packages``) is named by its bundled demo record's install name
     (``paddleslap/demos/rally.jsonl.gz``, ``glitchygames.bundled_demos.BundledDemo.install_name``),

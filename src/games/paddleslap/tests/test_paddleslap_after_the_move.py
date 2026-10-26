@@ -15,10 +15,11 @@ from paddleslap import Game
 # The rally demo ships inside the package (package data), beside its __init__.py
 RALLY_DEMO_PATH = Path(paddleslap.__file__).parent / 'demos' / 'rally.jsonl.gz'
 # Where the rally demo is now, and every path it had before, relative to the repository
-RALLY_DEMO_REPOSITORY_PATH = 'src/games/paddleslap/paddleslap/demos/rally.jsonl.gz'
+RALLY_DEMO_REPOSITORY_PATH = 'src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz'
 RALLY_DEMO_FORMER_PATHS = (
     'glitchygames/examples/paddleslap_demos/rally.jsonl.gz',
     'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz',
+    'src/games/paddleslap/paddleslap/demos/rally.jsonl.gz',
 )
 GOLDEN_REPOSITORY_PATH = 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
 GOLDEN_FORMER_PATH = 'tests/fixtures/replays/paddleslap/golden.jsonl.gz'
@@ -58,3 +59,14 @@ def test_the_rally_demo_keeps_its_whole_history():
 def test_paddleslaps_golden_keeps_its_history():
     """PaddleSlap's golden moved into its member: its rows from before the move follow."""
     assert RECORDING_PATH_RENAMES[GOLDEN_FORMER_PATH] == GOLDEN_REPOSITORY_PATH
+
+
+def test_paddleslap_is_imported_from_its_src_directory():
+    """PaddleSlap's package is under its member's src/ (or site-packages in a wheel install)."""
+    member_source_directory = Path(__file__).resolve().parents[1] / 'src'
+    package_directory = Path(paddleslap.__file__).resolve().parent
+
+    assert (
+        package_directory.parent == member_source_directory
+        or 'site-packages' in package_directory.parts
+    ), f'{package_directory} is not under {member_source_directory} or site-packages'

@@ -523,14 +523,14 @@ class TestPerformanceSeries:
             update={'run': run(commit=NEWER_COMMIT, cpu_model='Intel')}
         )
         other_recording = ledger_row(
-            recording='src/games/paddleslap/paddleslap/demos/rally.jsonl.gz'
+            recording='src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz'
         )
         no_commit = ledger_row(commit=None)
         series = performance_series(
             rows=[remeasured, first, older, other_machine, other_recording, no_commit]
         )
         assert [(entry.recording, entry.machine, entry.paced) for entry in series] == [
-            ('src/games/paddleslap/paddleslap/demos/rally.jsonl.gz', 'Apple M4 Max', False),
+            ('src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz', 'Apple M4 Max', False),
             ('src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz', 'Apple M4 Max', False),
             ('src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz', 'Intel', False),
         ]

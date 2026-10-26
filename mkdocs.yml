@@ -158,7 +158,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          paths: [src, src/games/mr-muncher/src, src/games/brave-adventurer/src, src/games/clockwork-keep/src, src/games/paddleslap, src/games/drawing-fire/src, src/apps/bitmappy]
+          paths: [src, src/games/mr-muncher/src, src/games/brave-adventurer/src, src/games/clockwork-keep/src, src/games/paddleslap/src, src/games/drawing-fire/src, src/apps/bitmappy]
           options:
             show_source: true
             # allow_inspection: no

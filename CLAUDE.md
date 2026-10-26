@@ -531,7 +531,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   and scripts/replay_metrics.py call it. Development installs are editable (`uv sync`; the
   `replay-metrics` nox session runs `uv run --all-packages`), so the ledger names a demo by its
   repository path; outside a repository, by its install name. PaddleSlap's is
-  `src/games/paddleslap/paddleslap/demos/rally.jsonl.gz`. PaddleSlap has no title screen, so its
+  `src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz`. PaddleSlap has no title screen, so its
   game-over screen (`PaddleSlapGameOverScene`) plays
   `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS` (10) of game time without a key or
   button press. `tests/replay/test_bundled_demos.py` replays every demo headless

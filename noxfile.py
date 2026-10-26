@@ -40,7 +40,7 @@ _SOURCE_PACKAGE_DIRS = [
     'src/games/brave-adventurer/src/brave_adventurer_papyrus',
     'src/games/brave-adventurer/src/brave_adventurer_modes',
     'src/games/clockwork-keep/src/clockwork_keep',
-    'src/games/paddleslap/paddleslap',
+    'src/games/paddleslap/src/paddleslap',
     'src/games/drawing-fire/src/drawing_fire',
     'src/apps/bitmappy/bitmappy',
 ]

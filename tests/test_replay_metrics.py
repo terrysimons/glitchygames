@@ -598,7 +598,7 @@ class TestRowsToWrite:
     ):
         repository, landed, _ = landed_repository
         old_path = 'glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
-        new_path = 'src/games/paddleslap/paddleslap/demos/rally.jsonl.gz'
+        new_path = 'src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz'
         held = ledger_row(recording=old_path, commit=landed)
         again = ledger_row(recording=new_path, commit=landed)
         newest = ledger_row(recording=new_path, measured_at='2026-10-25T10:00:00+00:00')

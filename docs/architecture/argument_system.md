@@ -275,7 +275,7 @@ The other games add their own options the same way:
 
 | Game | File | Arguments |
 |------|------|-----------|
-| Paddle Slap | `src/games/paddleslap/paddleslap/__init__.py` | `-v, --version`, `-b, --balls` (int, default 1), `--ball-spawn-mode` (choice, default `paddle_only`) |
+| Paddle Slap | `src/games/paddleslap/src/paddleslap/__init__.py` | `-v, --version`, `-b, --balls` (int, default 1), `--ball-spawn-mode` (choice, default `paddle_only`) |
 | DT Demo | `src/glitchygames/examples/dt_demo.py` | `-v, --version`, `-b, --balls` (int, default 1) |
 | Clockwork Keep | `src/games/clockwork-keep/src/clockwork_keep/game.py` | `--floor` (int, default 0) |
 | Brave Adventurer (both editions) | `src/games/brave-adventurer/src/brave_adventurer/game.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py` | `-v, --version` |
