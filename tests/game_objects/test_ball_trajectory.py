@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Test coverage for BallSprite's public trajectory API."""
 
+import pytest
+
 from glitchygames.game_objects.ball import BallSprite
 
 TRAJECTORY_LIMIT = 5
@@ -59,3 +61,13 @@ class TestBallTrajectory:
         assert isinstance(earlier_read, tuple)
         assert len(earlier_read) == 1
         assert len(ball.trajectory) == 2
+
+    @pytest.mark.parametrize('bad_limit', [0, -3])
+    def test_a_limit_below_one_is_an_error(self, bad_limit):
+        """A limit of 0 or less names the bad value and records nothing."""
+        ball = BallSprite()
+
+        with pytest.raises(ValueError, match=f'got {bad_limit}'):
+            ball.record_trajectory_point(x=1.0, y=1.0, speed_x=0.0, speed_y=0.0, limit=bad_limit)
+
+        assert ball.trajectory == ()

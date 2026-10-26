@@ -473,7 +473,13 @@ class BallSprite(Sprite):
             speed_y: The vertical speed to record.
             limit: The most points to keep.
 
+        Raises:
+            ValueError: If limit is below 1.
+
         """
+        if limit < 1:
+            msg = f'The trajectory limit must be at least 1, got {limit}'
+            raise ValueError(msg)
         self._trajectory.append((x, y, speed_x, speed_y))
         del self._trajectory[:-limit]
 

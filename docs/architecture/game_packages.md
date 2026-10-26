@@ -234,8 +234,9 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
 - **Bundled demos** ship inside the package, `<package>/demos/<name>.jsonl.gz`, found by
   `glitchygames/testing/replays.py` `bundled_demo_paths`.
 - **Engine-private names**: a member uses only the engine's public API. Where a game reaches
-  into the engine (PaddleSlap reads `ball._debug_positions`), give the engine a public read-only
-  API first, then move the game.
+  into the engine, give the engine a public read-only API first, then move the game. PaddleSlap
+  needed no private name once the engine offered `BallSprite.trajectory` and
+  `record_trajectory_point`.
 
 ## Pitfalls
 
