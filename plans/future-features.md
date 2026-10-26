@@ -182,6 +182,18 @@ This document tracks planned future features for the GlitchyGames project. Featu
   plans/2026-10-24-crt-power-on.md); being tested by the user, the stage constants tuned by eye
   from that. The power-on sound and a power-off collapse are follow-ups
 
+### 57. A pygame-examples-Like Demos Experience — TODO (plan later)
+- **Description**: the demos (today `dt_demo.py`, `joystick_demo.py`, `text_input_demo.py` in
+  `src/glitchygames/examples/`) become a browsable set of small, focused examples of what the
+  engine does, in the spirit of pygame's own examples (`python -m pygame.examples.aliens`): easy to
+  list and run, each showing one engine feature. They leave the engine's examples for the demos
+  layer (`src/demos/`, Part 3 of #56) rather than living inside Bitmappy, which takes only its own
+  resources (Part 4)
+- **Use Case**: a newcomer runs one command, sees what the engine can do and reads short code that
+  does it; the demos double as living documentation
+- **Status**: TODO: make a plan later; the user has thoughts to bring to it (2026-10-26)
+- **Priority**: Medium
+
 ### 56. Games, Demos and Apps as Their Own Packages (uv workspace) — IN PROGRESS
 - **Description**: the engine moved to `src/glitchygames`; each game, demo and app becomes a
   uv workspace member under `src/games|demos|apps`, with its tests and recordings beside it;
