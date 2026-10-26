@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import errno
 import functools
 import importlib.metadata
@@ -173,7 +174,7 @@ class TestGeneratedFiles:
 
     def test_a_member_games_package_is_its_own_archive(self):
         """Mr. Muncher's bundle ships mr_muncher.zip beside the engine's archive."""
-        config = pyscript_config(wheel_name=WHEEL_NAME, member_package='mr_muncher')
+        config = pyscript_config(wheel_name=WHEEL_NAME, member_packages=('mr_muncher',))
 
         assert '"./glitchygames.zip" = "./*"' in config
         assert '"./mr_muncher.zip" = "./*"' in config
@@ -187,9 +188,52 @@ class TestGeneratedFiles:
 
         assert not any(path.parts[:2] == ('examples', 'mr_muncher') for path in files)
 
-    def test_only_member_games_name_a_member_package(self):
-        assert GAMES['mr-muncher'].member_package == 'mr_muncher'
-        assert [name for name, game in GAMES.items() if game.member_package] == ['mr-muncher']
+    def test_only_member_games_name_member_packages(self):
+        assert GAMES['mr-muncher'].member_packages == ('mr_muncher',)
+        assert [name for name, game in GAMES.items() if game.member_packages] == ['mr-muncher']
+
+    def test_a_game_depending_on_a_member_ships_both_archives(self, tmp_path, monkeypatch):
+        """A game needing a shared core lists both archives, the one depended on first."""
+        member_packages = ('brave_adventurer_core', 'brave_adventurer_papyrus')
+        config_text = pyscript_config(wheel_name=WHEEL_NAME, member_packages=member_packages)
+        archive_lines = [
+            line.split(' = ')[0].strip('"') for line in config_text.splitlines() if '.zip' in line
+        ]
+
+        assert archive_lines == [
+            './glitchygames.zip',
+            './brave_adventurer_core.zip',
+            './brave_adventurer_papyrus.zip',
+        ]
+
+        written_packages = []
+
+        def record_archive(*, package_directory, archive_path, **_ignored):
+            written_packages.append(archive_path.name)
+            return 0
+
+        game = dataclasses.replace(GAMES['mr-muncher'], member_packages=member_packages)
+        monkeypatch.setitem(GAMES, 'two-archive-game', game)
+        monkeypatch.setattr(build_browser_bundle, 'write_engine_archive', record_archive)
+        monkeypatch.setattr(
+            build_browser_bundle,
+            'member_package_directory',
+            lambda *, import_package: tmp_path / import_package,
+        )
+        wheel_path = tmp_path / WHEEL_NAME
+        wheel_path.write_bytes(b'')
+        build_browser_bundle.write_bundle(
+            game='two-archive-game',
+            output_directory=tmp_path / 'site',
+            wheel_path=wheel_path,
+            arguments=[],
+        )
+
+        assert written_packages == [
+            'glitchygames.zip',
+            'brave_adventurer_core.zip',
+            'brave_adventurer_papyrus.zip',
+        ]
 
     def test_boot_config_names_the_game_and_its_arguments(self):
         assert boot_config(game='mr-muncher', arguments=['--target-fps', '30']) == {

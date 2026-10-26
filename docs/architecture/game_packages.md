@@ -104,7 +104,7 @@ extra; `tests/test_workspace_config.py` keeps each extra equal to its layer's me
 - **Golden replays** live with the member's tests; the golden plugin collects them from every
   member, so the engine's `uv run pytest` replays each one.
 - **The browser build** ships a member's package as its own archive (`<package>.zip`) beside the
-  engine's `glitchygames.zip` (`scripts/build_browser_bundle.py`, `GameSpecification.member_package`).
+  engine's `glitchygames.zip` (`scripts/build_browser_bundle.py`, `GameSpecification.member_packages`).
 - **API reference**: `scripts/gen_ref_pages.py` writes a page per member package
   (`<package>/index.md`), listed under "Games API Reference" in `mkdocs.yml`.
 
@@ -171,9 +171,9 @@ any tool's configuration.
 ### 6. The browser build
 
 In `scripts/build_browser_bundle.py`, its `GAMES` entry's `module` becomes `<package>.game` and
-`member_package` names its package; its `TOUCH_LAYOUTS` entry is unchanged.
-`tests/test_build_browser_bundle.py` pins which games ship a member package. A game that depends
-on another member needs both archives.
+`member_packages` names its package (a tuple, dependencies first); its `TOUCH_LAYOUTS` entry is unchanged.
+`tests/test_build_browser_bundle.py` pins which games ship member packages. A game that depends
+on another member lists both, the one depended on first: each ships as its own archive.
 
 ### 7. The docs
 
