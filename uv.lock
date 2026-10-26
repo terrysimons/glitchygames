@@ -1059,6 +1059,9 @@ docs = [
     { name = "mkdocstrings-python" },
     { name = "pymdown-extensions" },
 ]
+games = [
+    { name = "mr-muncher" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -1089,6 +1092,7 @@ requires-dist = [
     { name = "mkdocs-section-index", marker = "extra == 'docs'" },
     { name = "mkdocstrings", extras = ["crystal", "python"], marker = "extra == 'docs'" },
     { name = "mkdocstrings-python", marker = "extra == 'docs'" },
+    { name = "mr-muncher", marker = "extra == 'games'", editable = "src/games/mr-muncher" },
     { name = "nox", extras = ["uv"], marker = "extra == 'dev'" },
     { name = "numpy" },
     { name = "pillow" },
@@ -1118,7 +1122,7 @@ requires-dist = [
     { name = "wily", marker = "extra == 'dev'", specifier = ">=1.25.0,<2" },
     { name = "yamllint", marker = "extra == 'dev'", specifier = ">=1.38.0" },
 ]
-provides-extras = ["docs", "dev", "api"]
+provides-extras = ["docs", "dev", "api", "games", "demos", "apps"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "mr-muncher", editable = "src/games/mr-muncher" }]

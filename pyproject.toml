@@ -97,6 +97,14 @@ dev = [
   "filelock>=3.32.7",
 ]
 api = []
+# The workspace members by layer (src/<layer>/<member>/, docs/architecture/game_packages.md):
+# `pip install glitchygames[games]` installs the engine and every game. Each member depends on
+# glitchygames, so these are a cycle through an extra, which pip and uv both resolve. Kept equal
+# to the workspace by tests/test_workspace_config.py; an empty layer is an empty extra until its
+# first member moves (demos: Part 3, apps: Part 4)
+games = ["mr-muncher"]
+demos = []
+apps = []
 
 [tool.uv.workspace]
 # Each a package of its own beside the engine, under src/<layer>/

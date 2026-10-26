@@ -58,23 +58,14 @@ screens are engine scenes and check key codes (`event.key`), not scancodes.
 
 ## Its package
 
-Mr. Muncher is a uv workspace member of its own (plan: `plans/2026-10-24-workspace-packages.md`),
-not part of the engine's package: distribution `mr-muncher`, import package `mr_muncher`, all
-under `src/games/mr-muncher/`:
+Mr. Muncher is a package of its own beside the engine, `src/games/mr-muncher/` (distribution
+`mr-muncher`, import package `mr_muncher`), the first game moved out of the engine. How such a
+package is laid out, installed, tested and built, and how a game is moved into one, is in
+[Games as Their Own Packages](../architecture/game_packages.md).
 
-```
-src/games/mr-muncher/
-  pyproject.toml      the member's metadata: depends on glitchygames, the mr-muncher console script
-  README.md
-  mr_muncher/         the game's code (below)
-  tests/              the game's tests and its golden replay (tests/fixtures/replays/golden.jsonl.gz)
-```
-
-From the repository root, `uv sync --all-extras --all-groups --all-packages` installs it, `uv run
-mr-muncher` plays it, and `uv run pytest src/games/mr-muncher/tests` runs its tests (the engine's
-`uv run pytest` runs them too, golden replay included). Its recordings name the game by logical
-names (`games.mr_muncher.game:MrMuncherScene`), so they do not depend on where the code lives.
-In the browser, its bundle ships `mr_muncher.zip` beside the engine's `glitchygames.zip`.
+Its recordings name it `games.mr_muncher.game:MrMuncherScene`, its golden replay is
+`src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz`, and its browser bundle ships
+`mr_muncher.zip`.
 
 ## Where things live
 

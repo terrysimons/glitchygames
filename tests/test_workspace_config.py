@@ -243,6 +243,21 @@ def test_the_engine_knows_no_layer_the_workspace_lacks():
     assert set(logical_names.MEMBER_LAYERS) == workspace_packages
 
 
+def test_each_layer_is_an_extra_naming_exactly_its_members():
+    """`glitchygames[games]`, `[demos]` and `[apps]` install exactly that layer's members.
+
+    Not parametrized: a layer with no member yet is an empty extra, so this holds before its
+    first member moves too.
+    """
+    extras = root_pyproject()['project']['optional-dependencies']
+
+    for layer in logical_names.LAYERS:
+        members_in_layer = sorted(
+            member.distribution for member in MEMBERS if member.layer == layer
+        )
+        assert sorted(extras[layer]) == members_in_layer, layer
+
+
 def test_jsonc_trailing_comma_before_a_comment_is_dropped():
     """A comma, then a // comment, then the closing bracket: the comma is still trailing."""
     text = '{\n  "x": 1, // note\n  "y": [1, 2, // more\n  ],\n}'
