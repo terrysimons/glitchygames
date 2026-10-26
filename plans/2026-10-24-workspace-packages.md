@@ -283,6 +283,46 @@ rewrites and Task 18's references guard are still useful. Part 3 is the mechanic
 (the user, 2026-10-26): the demos experience, `plans/future-features.md` #57, is planned
 afterward, on top of these members.
 
+**Every member in a `src/` layout** (the user, 2026-10-26: "make each game be
+<game>/src/<game>, and each app be <app>/src/<app>, same with demo. This follows best practices
+for package design"; folded into Part 3 at the user's choice). A member's import package lives at
+`<member>/src/<package>/`, never at the member's root, so nothing in the member directory can be
+imported by accident in place of the installed package.
+- **The demos** are created this way: `src/demos/<demo>/src/<package>/`.
+- **The existing members are converted:** Bitmappy (`src/apps/bitmappy/src/bitmappy/`),
+  Clockwork Keep, Drawing Fire, Mr. Muncher and PaddleSlap (`src/games/<game>/src/<package>/`).
+  Brave Adventurer is already laid out this way (`src/games/brave-adventurer/src/`) and is the
+  precedent; `WorkspaceMember.import_roots` (`scripts/workspace_packages.py`) already handles it.
+- **Per member:**
+  - `git mv <member>/<package> <member>/src/<package>`, then `rm -rf` the old directory, since
+    ignored `__pycache__` left behind is importable.
+  - In the member's `pyproject.toml`, hatch `packages = ["src/<package>"]`.
+  - Root configuration:
+    - coverage `[tool.coverage.paths]`
+    - ruff `src`, ty `root` and `src.include`
+    - the pyright environments' `root` and `extraPaths`
+    - `noxfile.py` `_SOURCE_PACKAGE_DIRS`
+    - `wily.cfg` `path`
+    - mkdocstrings `paths`
+  - The checks in `tests/test_workspace_config.py` are written per import root, so they cover
+    every member.
+- **PaddleSlap's bundled demo moves a third time**
+  (`src/games/paddleslap/paddleslap/demos/rally.jsonl.gz` → `.../src/paddleslap/demos/...`), with
+  its bytes unchanged. It needs a `RECORDING_PATH_RENAMES` line from each old path, so its
+  run-ledger history stays one series. Package names don't change, so no logical name or
+  recording changes.
+- **Bitmappy:**
+  - `bitmappy.spec` takes its `datas` from `src/apps/bitmappy/src/bitmappy/resources`.
+  - `scripts/audit_hitboxes.py` `PRIORITY_TIERS` follows.
+  - So do the browser bundle's member package directory (`scripts/build_browser_bundle.py`) and
+    the packaging tests (`test_bitmappy_packaging.py`, `test_bitmappy_after_the_move.py`).
+- **A guard:** every workspace member keeps its import packages under `<member>/src/`, and none
+  at the member's root (`tests/test_workspace_config.py`, read from the workspace), so a future
+  member can't slip back.
+- **Docs:** the recipe's "What a member is" layout and its `pyproject.toml` template
+  (`docs/architecture/game_packages.md`), its flat-layout notes, `CLAUDE.md`, `README.md`, and
+  each `docs/games/<game>.md` file table.
+
 - `src/demos/dt-demo/`, `src/demos/joystick-demo/`, `src/demos/text-input-demo/`, the first
   members of the `demos` layer (its extra, ruff and ty test globs, deptry exclude, and a "Demos
   API Reference" nav section come with the first), each with a console script (`dt-demo`,
