@@ -566,16 +566,60 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
             show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
 
 
-# Defined last among the autouse fixtures. pytest orders a plugin's autouse fixtures of one scope
-# by name, not by where they are defined, so its teardown follows those named after it
-# (fresh_random_streams, reset_*, restore_*)
+@pytest.fixture
+def per_context_state_resets(
+    fresh_random_streams,
+    reset_engine_sources,
+    reset_default_snap_mode,
+    reset_default_background_pattern,
+    reset_singletons,
+):
+    """Group the resets of the state the engine context holds (its slots), for the leak check.
+
+    Args:
+        fresh_random_streams: Requested only to be torn down after the leak check.
+        reset_engine_sources: Requested only to be torn down after the leak check.
+        reset_default_snap_mode: Requested only to be torn down after the leak check.
+        reset_default_background_pattern: Requested only to be torn down after the leak check.
+        reset_singletons: Requested only to be torn down after the leak check.
+
+    """
+
+
+@pytest.fixture
+def engine_service_resets(
+    desktop_user_files, in_process_clipboard, restore_game_engine_class_state
+):
+    """Group the resets of the engine's other installed state, for the leak check.
+
+    Args:
+        desktop_user_files: Requested only to be torn down after the leak check.
+        in_process_clipboard: Requested only to be torn down after the leak check.
+        restore_game_engine_class_state: Requested only to be torn down after the leak check.
+
+    """
+
+
+# Requests (through the two groups above) every autouse fixture that resets or restores engine
+# state, so pytest sets them up before it and tears them down after it: a leaked context is
+# caught and undone before their teardowns run, so they reset the default context's state, not
+# the leaked one's. Definition order cannot do this (pytest orders a plugin's autouse fixtures of
+# one scope by name). A new autouse fixture must join a group, or be listed with its reason in
+# tests/test_engine_context.py PROCESS_STATE_AUTOUSE_FIXTURES (the test there checks both)
 @pytest.fixture(autouse=True)
-def every_test_ends_in_the_default_engine_context():
+def every_test_ends_in_the_default_engine_context(per_context_state_resets, engine_service_resets):
     """Fail a test that leaves another engine context current (glitchygames.engine_context).
 
-    Every test starts in the default context. A switch that never unwound (a context manager
-    entered by hand and never exited) would leave its context current for every later test on
-    the worker, so the leak is undone before the test is failed.
+    Every test starts in the default context. It catches a switch still entered at teardown: a
+    ``context.active()`` entered by hand (``__enter__``) and never exited while something still
+    holds it. A switch abandoned unexited unwinds itself when its generator is collected (its
+    ``finally`` resets the context), so it is not reported. A caught leak would leave its
+    context current for every later test on the worker, so it is undone before the test fails.
+
+    Args:
+        per_context_state_resets: Requested only to be torn down after this check.
+        engine_service_resets: Requested only to be torn down after this check.
+
     """
     yield
     leaked_context = current_context()

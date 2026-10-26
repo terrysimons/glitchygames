@@ -55,6 +55,16 @@ class Holder:
     held = current_context()
 """
 
+# The harness's leak check (tests/harness.py) and the autouse fixtures that need not be torn
+# down after it, each with its reason: every other autouse fixture resets or restores engine
+# state, so the leak check requests it and pytest tears the leak check down first
+LEAK_CHECK_FIXTURE_NAME = 'every_test_ends_in_the_default_engine_context'
+PROCESS_STATE_AUTOUSE_FIXTURES = {
+    'restore_signal_handlers': 'signal handlers are one per process, never per context',
+    'restore_gil_switch_interval': 'the GIL switch interval is one per process',
+    'ensure_pygame_graceful_quit': 'pygame, the display and the mixer are one per process',
+}
+
 
 class SwitchedAwayError(RuntimeError):
     """Raised inside a switch, to see the switch unwind."""
@@ -147,6 +157,67 @@ def import_time_context_reads(*, source_path: Path) -> list[str]:
         if name is not None and (name in CONTEXT_READERS or reads_a_slot):
             reads.append((call.lineno, name))
     return [f'{line}: {name}' for line, name in sorted(reads)]
+
+
+def is_autouse_fixture(function: ast.FunctionDef) -> bool:
+    """Return whether a function is decorated ``@pytest.fixture(autouse=True)``.
+
+    Args:
+        function: The function.
+
+    Returns:
+        True for an autouse fixture.
+
+    """
+    return any(
+        isinstance(decorator, ast.Call)
+        and called_name(decorator) == 'fixture'
+        and any(
+            keyword.arg == 'autouse'
+            and isinstance(keyword.value, ast.Constant)
+            and keyword.value.value is True
+            for keyword in decorator.keywords
+        )
+        for decorator in function.decorator_list
+    )
+
+
+def test_the_harness_leak_check_is_torn_down_before_every_engine_state_reset():
+    """The leak check requests each engine-state reset, so it is caught before they reset.
+
+    pytest orders a plugin's autouse fixtures of one scope by name, not by definition, so only a
+    request puts the leak check's teardown first. A new autouse fixture must be requested by it
+    or listed in PROCESS_STATE_AUTOUSE_FIXTURES with its reason.
+    """
+    tree = ast.parse((PROJECT_ROOT / 'tests' / 'harness.py').read_text(encoding='utf-8'))
+    fixtures = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and any(
+            called_name(decorator) == 'fixture'
+            if isinstance(decorator, ast.Call)
+            else isinstance(decorator, ast.Attribute) and decorator.attr == 'fixture'
+            for decorator in node.decorator_list
+        )
+    }
+    autouse_fixtures = {name for name, node in fixtures.items() if is_autouse_fixture(node)}
+    # Everything the leak check requests, directly or through the fixtures it requests
+    requested: set[str] = set()
+    pending = [LEAK_CHECK_FIXTURE_NAME]
+    while pending:
+        for argument in fixtures[pending.pop()].args.args:
+            if argument.arg in fixtures and argument.arg not in requested:
+                requested.add(argument.arg)
+                pending.append(argument.arg)
+
+    engine_state_fixtures = (
+        autouse_fixtures - {LEAK_CHECK_FIXTURE_NAME} - set(PROCESS_STATE_AUTOUSE_FIXTURES)
+    )
+
+    assert set(PROCESS_STATE_AUTOUSE_FIXTURES) <= autouse_fixtures
+    assert engine_state_fixtures
+    assert requested & autouse_fixtures == engine_state_fixtures
 
 
 def test_the_default_context_is_current_outside_every_switch():
