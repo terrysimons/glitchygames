@@ -1,7 +1,8 @@
 """Brave Adventurer and Papyrus moved from glitchygames/examples into one project.
 
 Their recordings did not change: each scene keeps its logical name, both goldens keep their
-history, and the primitives both games share (brave_adventurer_core) import neither game.
+history, and the primitives both games share (brave_adventurer_core) import neither game. Both
+scenes are built on one base there (BraveAdventurerSceneBase), each game giving only what differs.
 """
 
 from __future__ import annotations
@@ -17,9 +18,17 @@ import pytest
 import brave_adventurer.game
 import brave_adventurer_core
 import brave_adventurer_papyrus.game
+from brave_adventurer.constants import PLAYER_HEIGHT
+from brave_adventurer.enemies import Scarab
+from brave_adventurer.game import BraveAdventurerScene
 from brave_adventurer.levels import ClassicLevelManager
 from brave_adventurer.terrain import GoldScarab
+from brave_adventurer_core.constants import GROUND_Y
 from brave_adventurer_core.levels import LEVEL_1, LevelManager
+from brave_adventurer_core.scene import BraveAdventurerSceneBase
+from brave_adventurer_papyrus.constants import PAPYRUS_PLAYER_HEIGHT
+from brave_adventurer_papyrus.enemies import PapyrusScarab
+from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from brave_adventurer_papyrus.levels import PapyrusLevelManager
 from brave_adventurer_papyrus.terrain import PapyrusGoldScarab
 from glitchygames.display_mode import set_display_mode
@@ -48,6 +57,29 @@ GOLDENS = [
 ]
 # The two games, which the shared primitives must never import
 GAME_PACKAGES = frozenset({'brave_adventurer', 'brave_adventurer_papyrus'})
+# What both scenes play by, defined once on BraveAdventurerSceneBase and by neither game
+SHARED_SCENE_METHODS = (
+    'args',
+    'setup',
+    'dt_tick',
+    '_resolve_player_ground_collision',
+    '_resolve_player_wall_collision',
+    '_player_support_span',
+    '_entered_wall_from_left',
+    '_resolve_enemy_terrain_collisions',
+    '_on_player_enemy_collision',
+    '_on_player_collect',
+    '_player_die',
+    '_save_high_score',
+    '_respawn_player',
+    '_process_movement_input',
+    'on_key_down_event',
+    'on_controller_button_down_event',
+    'on_joy_button_down_event',
+    'render',
+    '_draw_pits',
+    '_draw_hud',
+)
 
 
 def scene_classes(module):
@@ -122,6 +154,49 @@ def imported_modules(*, path: Path) -> set[str]:
         elif isinstance(node, ast.ImportFrom) and node.module is not None:
             modules.add(node.module)
     return modules
+
+
+@pytest.mark.parametrize('scene_class', [BraveAdventurerScene, PapyrusBraveAdventurerScene])
+def test_both_scenes_share_one_base(scene_class):
+    """Each game's scene is the shared base plus its hooks: neither repeats the shared code."""
+    assert issubclass(scene_class, BraveAdventurerSceneBase)
+    assert BraveAdventurerSceneBase.__module__ == 'brave_adventurer_core.scene'
+    repeated = [name for name in SHARED_SCENE_METHODS if name in vars(scene_class)]
+    assert not repeated, f'{scene_class.__name__} repeats {repeated}'
+
+
+@pytest.mark.parametrize(
+    ('scene_class', 'save_name', 'player_start_world_y', 'scarab_class', 'standing_type'),
+    [
+        (BraveAdventurerScene, 'brave-adventurer', GROUND_Y - PLAYER_HEIGHT, Scarab, float),
+        (
+            PapyrusBraveAdventurerScene,
+            'brave-adventurer-papyrus',
+            GROUND_Y - PAPYRUS_PLAYER_HEIGHT,
+            PapyrusScarab,
+            int,
+        ),
+    ],
+    ids=['classic', 'papyrus'],
+)
+def test_each_scene_gives_its_own_hooks(
+    scene_class, save_name, player_start_world_y, scarab_class, standing_type
+):
+    """What differs between the games: each keeps its save, start, scarab and foot line type."""
+    if not pygame.get_init():
+        pygame.init()
+    if pygame.display.get_surface() is None:
+        set_display_mode(size=(800, 480))
+
+    scene = scene_class(options={'input_mode': 'joystick'})
+
+    # The save namespace is players' saved high scores: each game keeps its own
+    assert scene.saves.app_name == save_name
+    assert scene.player.world_y == player_start_world_y
+    assert scene._scarab_class() is scarab_class
+    # Classic stands the player from its hitbox (a float world_y), Papyrus from a fixed height
+    # (an int): each keeps the type its recordings were made with
+    assert type(scene._player_world_y_standing_on(GROUND_Y)) is standing_type
 
 
 def test_the_core_imports_neither_game():

@@ -69,8 +69,9 @@ title screen's frames first, then the game's.
 ### Controls
 
 The gameplay scene binds every control through one `ActionMap`
-(`BraveAdventurerScene._create_action_map`). Keyboard controls are bound by **scancode**, a
-physical key position, so they sit in the same place on every keyboard layout.
+(`BraveAdventurerSceneBase._create_action_map`; the classic edition's adds the mic button).
+Keyboard controls are bound by **scancode**, a physical key position, so they sit in the same
+place on every keyboard layout.
 
 | Action | Keyboard (by position) | Gamepad | Read how |
 |---|---|---|---|
@@ -603,7 +604,7 @@ data, terrain, background drawing, sounds and constants with the classic edition
 
 ### How it is structured
 
-The level manager is shared by subclassing; the scene is a parallel copy. The Engine box is
+The level manager and the scene are both shared by subclassing. The Engine box is
 what both editions get from `glitchygames`, the Core box is what both share
 (`brave_adventurer_core`), the BraveAdventurer box is the classic edition and the
 PapyrusEdition box is what the Papyrus Edition adds. Solid arrows are inheritance, pointing at
@@ -622,6 +623,14 @@ classDiagram
         class GameOverScene
     }
     namespace Core {
+        class BraveAdventurerSceneBase {
+            _scarab_class()*
+            _player_top_and_foot_line()*
+            _player_world_y_standing_on()*
+            _update_voice_assistant()
+            _on_voice_button_down()
+            _on_voice_button_up()
+        }
         class LevelManager {
             _build()
             _get_enemy_class_map()*
@@ -645,19 +654,17 @@ classDiagram
 
     Scene <|-- PauseScene
     Scene <|-- GameOverScene
-    Scene <|-- BraveAdventurerScene
-    Scene <|-- PapyrusBraveAdventurerScene
+    Scene <|-- BraveAdventurerSceneBase
+    BraveAdventurerSceneBase <|-- BraveAdventurerScene
+    BraveAdventurerSceneBase <|-- PapyrusBraveAdventurerScene
     LevelManager <|-- ClassicLevelManager
     LevelManager <|-- PapyrusLevelManager
 
-    PauseScene <.. BraveAdventurerScene : Esc creates
-    GameOverScene <.. BraveAdventurerScene : creates at game over
-    ClassicLevelManager <.. BraveAdventurerScene : uses
-    PapyrusLevelManager <.. PapyrusBraveAdventurerScene : uses
+    PauseScene <.. BraveAdventurerSceneBase : Esc creates
+    GameOverScene <.. BraveAdventurerSceneBase : creates at game over
+    ClassicLevelManager <.. BraveAdventurerScene : LEVEL_MANAGER_CLASS
+    PapyrusLevelManager <.. PapyrusBraveAdventurerScene : LEVEL_MANAGER_CLASS
 ```
-
-`PapyrusBraveAdventurerScene` creates the same engine `PauseScene` and `GameOverScene` as the
-original scene (left out of the diagram to keep it readable).
 
 #### Sprites
 
@@ -702,11 +709,19 @@ classDiagram
 - **`PapyrusLevelManager`** gives `_get_enemy_class_map()` (the Papyrus enemy classes) and
   `_get_collectible_class()` (`PapyrusGoldScarab`); the shared `LevelManager._build()` builds
   them, as `ClassicLevelManager`'s give `Cobra`, `Scarab`, `Scorpion` and `GoldScarab`.
-- **`PapyrusBraveAdventurerScene`** is not a subclass of `BraveAdventurerScene`: it is a copy of
-  the scene (about 960 lines against 1,010) with the Papyrus classes, the fixed foot line in
-  the ground, wall and respawn code (`_snapped_player_top()` + `PAPYRUS_PLAYER_HEIGHT`), and no
-  voice assistant. A change to the shared gameplay has to be made in both files; the tests run
-  most cases against both scenes to keep them in step.
+- **`BraveAdventurerSceneBase`** (`brave_adventurer_core/scene.py`) is the gameplay both
+  scenes play by: the camera and parallax, the level and player built in that order (recordings
+  number sprites by creation order), the controls, the `dt_tick` order, terrain, wall and enemy
+  collision, death, respawn and high scores, the input handlers, `render()`, the pits and the
+  HUD. Each game's scene stays in its own `game.py` under its own name (recordings name a scene
+  by its module and class) and gives only what differs: `NAME`; `LEVEL_MANAGER_CLASS`,
+  `PLAYER_CLASS` and `PLAYER_START_WORLD_Y`; `SAVE_APP_NAME` (`brave-adventurer`,
+  `brave-adventurer-papyrus`); `_scarab_class()` (the enemy that follows the terrain); and the
+  foot line, `_player_top_and_foot_line()` and `_player_world_y_standing_on()`: the classic
+  edition's hitbox bottom (a `float` world y), Papyrus's `_snapped_player_top()` +
+  `PAPYRUS_PLAYER_HEIGHT` (an `int`). The classic edition adds the voice assistant: it is
+  discovered after the shared `__init__`, its mic button is bound after the shared controls,
+  and it fills the base's voice hooks, which Papyrus leaves empty.
 - **`PapyrusPlayer`** has the same `PhysicsBody` and move methods as `Player`. Each `dt_tick`
   ticks physics, evaluates the TOML state machine, advances the TOML animation
   (`AnimatedSprite.update(self, dt)`), rescales the frame (`apply_transparency_and_scale`), and
@@ -737,8 +752,8 @@ classDiagram
 
 Both editions are one package beside the engine, `src/games/brave-adventurer/` (distribution
 `brave-adventurer`), in a src layout of layered import packages: `brave_adventurer_core` (the
-constants, terrain, level data and level manager, background drawing and sounds both games
-share; it imports neither game), `brave_adventurer` (the classic edition),
+constants, terrain, level data and level manager, background drawing, sounds and the gameplay
+scene's base both games share; it imports neither game), `brave_adventurer` (the classic edition),
 `brave_adventurer_papyrus` (the Papyrus Edition) and `brave_adventurer_modes` (the launcher and
 its title screen, the project's one console script). How such a package is laid out, installed,
 tested and built, and how a game is moved into one, is in
@@ -763,15 +778,16 @@ names; and its one browser page, the title screen, ships all four archives, the 
 | `src/games/brave-adventurer/src/brave_adventurer_core/levels.py` | `ScreenData`, `LEVEL_1` (20 screens), `LevelManager` (the shared builder, with the enemy and collectible hooks) |
 | `src/games/brave-adventurer/src/brave_adventurer_core/drawing.py` | The terrain drawing and the four parallax layers |
 | `src/games/brave-adventurer/src/brave_adventurer_core/sounds.py` | The synthesized effects and `GameSounds` |
+| `src/games/brave-adventurer/src/brave_adventurer_core/scene.py` | `BraveAdventurerSceneBase`: camera, parallax, level, controls, `dt_tick` order, terrain and enemy collision, death and respawn, high scores, input handlers, `render()`, pits, HUD; the hooks each game fills |
 | `src/games/brave-adventurer/src/brave_adventurer/__init__.py` | Exports `main` (the launcher's `--game classic`) |
-| `src/games/brave-adventurer/src/brave_adventurer/game.py` | `BraveAdventurerScene`: camera, parallax, level, controls, `dt_tick` order, terrain and enemy collision, death and respawn, high scores, input handlers, `render()`, pits, HUD; `main()` |
+| `src/games/brave-adventurer/src/brave_adventurer/game.py` | `BraveAdventurerScene`: the shared scene's hooks (its sprites, save name, hitbox foot line) and the voice assistant; `main()` |
 | `src/games/brave-adventurer/src/brave_adventurer/player.py` | `Player`: physics body, state machine, the pose drawn in `dt_tick`, the common pose x-range |
 | `src/games/brave-adventurer/src/brave_adventurer/terrain.py` | `GoldScarab` |
 | `src/games/brave-adventurer/src/brave_adventurer/enemies.py` | `Cobra`, `Scarab`, `Scorpion` |
 | `src/games/brave-adventurer/src/brave_adventurer/levels.py` | `ClassicLevelManager` |
 | `src/games/brave-adventurer/src/brave_adventurer/drawing.py` | The classic sprites' primitive drawing: the player, the gold scarab, the enemies |
 | `src/games/brave-adventurer/src/brave_adventurer/constants.py` | The classic sprites' sizes and colours, the arm and leg swing |
-| `src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py` | `PapyrusBraveAdventurerScene` (the scene's parallel copy); `main()` |
+| `src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py` | `PapyrusBraveAdventurerScene`: the shared scene's hooks (its sprites, save name, fixed foot line); `main()` |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/player.py` | `PapyrusPlayer` |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | `PapyrusCobra`, `PapyrusScarab`, `PapyrusScorpion` |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/terrain.py` | `PapyrusGoldScarab`; re-exports the shared `GroundSegment` and `StoneWall` |
