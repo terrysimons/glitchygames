@@ -1,6 +1,6 @@
 # Game Samples: Every Game Plays Itself (design)
 
-Status: DRAFT for the user's review (2026-10-25). Nothing is built from it until it is approved; a
+Status: DRAFT for the user's review (2026-10-25); the four questions answered (2026-10-26). Nothing is built from it until it is approved; a
 plan follows. Decisions marked **(user)** are the user's, from the 2026-10-25 conversation; the rest
 are proposals, marked **(proposal)**, for the user to accept or change.
 
@@ -36,7 +36,8 @@ is obvious in the file name and easy to say.
 
 | Kind | Played by | Rank | Notes |
 |---|---|---|---|
-| **human** | A human, playing normally in record mode | Highest | Precise and hand-tuned: every action is assumed deliberate |
+| **superhuman** | A human plus an ai: the ai's assessment of the human and cpu stimuli, corrected by a human | Highest | Built last (section 9) **(user)** |
+| **human** | A human, playing normally in record mode | High | Precise and hand-tuned: every action is assumed deliberate |
 | **ai** | A model that reads the game state and chooses actions ("dumb mode++") | Middle | Smarter than random; may be taught by human stimuli (section 9) |
 | **cpu** | The engine's explorer: seeded, curious, random within the game's controls | Baseline | Always available, needs nothing from the developer |
 
@@ -129,8 +130,8 @@ has appeared for a while.
 Play the game normally with recording on (`--record-sample`); the engine saves a human stimulus
 and makes its response by playing it back. High fidelity: the human reaches what cpu cannot
 **(user)**. The existing hand-authored scripted runs (Brave Adventurer's, Drawing Fire's, Clockwork
-Keep's input scripts, Mr. Muncher's autopilot) are precise authored input: they are kept as human,
-recorded once more under the new names **(proposal; user to confirm)**.
+Keep's input scripts, Mr. Muncher's autopilot) are cpu stimuli **(user, 2026-10-25)**: the CPU
+generated them; nobody held the controls. A human stimulus is only one recorded with a person driving.
 
 ## 8. The options (every game, from the engine) **(proposal)**
 
@@ -146,12 +147,40 @@ recorded once more under the new names **(proposal; user to confirm)**.
 | `--random-seed N` / `--random-seed random` | The engine owns the seed **(user)**; each target's default is a fixed seed the engine derives from its target name, so runs repeat with nothing set **(user)** |
 | `--no-samples` (and a project setting) | The disable switch: on by default, off for developers who want it off **(user)** |
 
-## 9. Human stimuli teach the ai player (a note for later) **(user)**
+## 9. Later: the ai and superhuman kinds (plans, not built) **(user)**
 
-Human stimuli are rated highest. A model can compare a human run with the game state frame by
-frame and ask why: "an event happened here in the human game: the player jumped with a scarab two tiles
-ahead; why?". Because human stimuli are precise and tuned by hand, every action is assumed to have a
-reason (no double-jumps by accident). The answers teach the ai player what matters in the game.
+The ai layer is not built yet **(user)**. Two kinds come after human and cpu:
+
+| Kind | Made by | Adds |
+|---|---|---|
+| **ai** | a model reasoning about the human and cpu stimuli (and their responses) | the why: why the human acted, what the cpu kept missing |
+| **superhuman** **(user)** | the ai's assessment of the human and cpu behaviour, written up, then corrected by a human | reviewed understanding: claims a person confirmed or fixed |
+
+Human stimuli are rated highest; because they are precise and tuned by hand, every action is
+assumed to have a reason (no double-jumps by accident). Ideas (proposals, 2026-10-25):
+
+1. Frame-linked claims, not prose: the assessment is a list of claims tied to frames ("frame 412:
+   jumped because a scarab was two tiles ahead"); the human marks each confirmed, wrong (with the
+   right reason) or unsure; the corrections are kept beside the target's samples and seed the next
+   assessment.
+2. Mine the disagreements: the engine finds frames where human and cpu meet similar states but act
+   differently, or where cpu dies and the human does not; the ai asks about those first.
+3. Counterfactual replays: replays are deterministic, so at a human decision frame the engine can
+   replay with another input (no jump) and show what would have happened: evidence for the why,
+   and quicker corrections.
+4. Confirmed intent becomes a test of meaning ("the player clears the scarab around frame 412"),
+   checked as a condition rather than a pixel match: it survives art and timing changes that a
+   frame-exact response cannot.
+5. A reachability map: which states only the human reached, only the cpu, neither; it tells the ai
+   where to explore and where a new human recording adds most.
+6. Difficulty signals: where cpu dies repeatedly or the human hesitates, the report flags likely
+   difficulty spikes.
+7. Lineage: every stimulus's header records what it was made from (which human and cpu stimuli,
+   which assessment, which round of corrections).
+
+Rank **(user, 2026-10-26)**: superhuman ranks above human: it is a human plus an ai (the ai's
+assessment, corrected by a human), which is why it is super. The order, highest first:
+superhuman, human, ai, cpu.
 
 ## 10. Running many samples in one process
 
@@ -189,8 +218,8 @@ Brave Adventurer launcher) are filled.
 ## 13. Open questions for the user
 
 1. Names: settled (the user, 2026-10-25): stimulus and response; human, ai, cpu.
-2. The existing hand-authored scripted runs: human (section 7)?
-3. The ai player's model: which model and where it runs (local, an API), and is ai in the first plan
-   or after human and cpu?
-4. The order: build cpu and human (with the runner, the options, discovery and the layout) first,
-   ai after?
+2. The existing scripted runs: settled (the user, 2026-10-25): cpu stimuli (section 7).
+3. The ai and superhuman kinds: later plans (section 9); the ai layer is not built yet (the user).
+4. The order: settled (the user, 2026-10-25): human and cpu first, with what they share (the runner
+   and its leak guard, the engine options, discovery, the layout, the pre-push hook); then ai;
+   then superhuman, last of all (the user, 2026-10-26).
