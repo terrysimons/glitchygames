@@ -4,6 +4,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 232. The Sprite Loader Ignores `frame_index`
+- **Description**: The saver writes `frame_index = ...` for every frame (`src/glitchygames/sprites/animated.py`, around line 2335), but on load `_process_toml_animation` sorts the frames with `frames.sort(key=lambda f: getattr(f, 'frame_index', 0))` (around line 1559), and `SpriteFrame` (`src/glitchygames/sprites/frame.py`) has no `frame_index` attribute. The key is 0 for every frame, the stable sort keeps the file order, and the TOML `frame_index` never reorders frames
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found in the workspace-packages Part 3, Task B1 review
+- **Date Reported**: 2026-10-26
+- **Details**: `_create_toml_frame` (around line 1573) reads `frame_index` only for logging and a dimension message (around lines 1586-1598). The sort line is dead and misleading. Expected: decide one of two fixes. Either honor `frame_index` on load (set it on the frame and sort by it), or stop writing it and delete the dead sort (the file order is the order). `glitchygames.testing.sprite_files` was corrected to compare frames in the loader's file order (`test_frames_are_compared_in_the_order_the_loader_gives_them`). Filed, not fixed, by the owner's decision
+- **Files**: `src/glitchygames/sprites/animated.py`, `src/glitchygames/sprites/frame.py`
+
 ### 231. A Refused Save Closes the Dialog Instead of Letting the Name Be Retyped
 - **Description**: When Save refuses a file name (for example a ':' on macOS, or on Windows outside the drive designator), `SaveDialogScene.on_confirm_event` (`src/glitchygames/ui/dialogs.py`) shows the message through `_show_save_error` in the editor's status (debug) text, as a failed save does, and then dismisses the dialog. The user has to reopen Save and retype the name
 - **Status**: Active
