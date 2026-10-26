@@ -4,6 +4,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 226. The Spin-Only Timer Accuracy Test Can Fail on a Shared Windows CI Machine
+- **Description**: `tests/timing/test_fast_timer_os.py::test_fast_timer_spin_tighten_accuracy` failed once in CircleCI's Windows job on PR #107 (2026-10-25; a docs-only branch): `assert 1855900 < 1000000`. It takes a confidence upper bound on the median of paired differences (a spin-only `FastTimer` wait minus the OS's own 1 ms sleep) and requires it under `PAIRED_TOLERANCE_NS` (1 ms). A spin-only wait should never trail the OS sleep, so a 1.86 ms bound means the spinning thread was pre-empted for long stretches on the shared Windows virtual machine, many samples in a row. Linux and macOS passed the same commit
+- **Status**: Active
+- **Priority**: Low (a CI flake; reruns pass; nothing in the timer changed)
+- **Reporter**: PR #107's CI run (job 2269)
+- **Date Reported**: 2026-10-25
+- **Details**: Options: measure on Windows with a higher-priority thread or process during the test (the engine's own pacing does not, so the test would measure something else), widen the tolerance only where the machine reports itself as a VM (`src/glitchygames/machine_state.py`, `nox -s timer-report` already detects a VM), or mark it `flaky`-retried on Windows CI only. Decide with more failures in hand: none recorded before this one
+- **Files**: `tests/timing/test_fast_timer_os.py`
+
 ### 225. A World-Space Test Failed Once on the Native Driver: `WorldSprite` Has No `on_mouse_focus_event`
 - **Description**: In one full `uv run pytest` run on the docs scrub branch (2026-10-25, macOS), the native (cocoa) child run failed `test_world_sprite_is_positioned_before_render` with `AttributeError: 'WorldSprite' object has no attribute 'on_mouse_focus_event'`. It did not reproduce in the harness's re-run of the differing test or in a second full run (20,524 passed, 0 driver differences). The branch changed only docs and a docs guard test, so this is an existing order-dependent failure: likely a mouse focus event (cocoa's live window gains or loses focus) reaching a test sprite that does not implement the handler, depending on which test ran before it on that worker
 - **Status**: Active
