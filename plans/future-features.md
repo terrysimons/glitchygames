@@ -1218,6 +1218,26 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Editing and Workflow Features
 
+### 58. Game Project Workspaces — TODO (a future PR)
+- **Description**: A way to manage a game's project space: a **workspace** the tools open, holding
+  the game's own files (sprites, levels, sounds, recordings), instead of the tools reaching into
+  directories inside the engine or an app. Starting a project means creating a **new workspace**,
+  and that is where the starter material is bundled (for example, the sprite library that
+  Bitmappy ships today as package data).
+- **Use Case**: The user (2026-10-26): "we need a way to manage a game project space, and since
+  we're going to be migrating to a much more fully featured tool, we need to add workspace support
+  and then we'll just bundle that stuff with a 'new workspace'." The more fully featured tool is
+  Glitchy Studio (`plans/2026-10-18-level-tools.md`).
+- **Status**: TODO (requested 2026-10-26); not started
+- **Priority**: Medium
+- **Context**:
+  - Workspace packages Part 4 (`plans/2026-10-26-workspace-packages-4-bitmappy.md`) removed the
+    engine dialogs' special `examples:` file-name prefix (the user: "We shouldn't treat examples
+    specially anymore"). Files are opened by their path, and Bitmappy's sprite library is its own
+    package data. A new workspace is where such starter files would come from instead.
+- **Later (not now)**: templates for a new workspace (the user: "We could even have templates...
+  but for now, this is ok").
+
 ### 28. Sprite Format Linter
 - **Description**: Comprehensive validation and linting tool for TOML sprite files to ensure format compliance and catch common errors
 - **Use Case**: Essential for maintaining sprite file quality, catching format errors early, and ensuring compatibility across different sprite formats
