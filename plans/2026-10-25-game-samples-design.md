@@ -78,10 +78,16 @@ Nothing is unmarked: every file names its target and kind **(user: human, ai, cp
   <target>.human.response.jsonl.gz       what playing it back must produce
   <target>.ai.stimulus.jsonl.gz          (when a model has played it)
   <target>.ai.response.jsonl.gz
-  <target>.cpu.stimulus.jsonl.gz         (always: the engine's explorer)
-  <target>.cpu.response.jsonl.gz
+  <target>.cpu.scripted.stimulus.jsonl.gz    (when the game has a robot player: its scripted run)
+  <target>.cpu.scripted.response.jsonl.gz
+  <target>.cpu.explorer.stimulus.jsonl.gz    (always: the engine's explorer)
+  <target>.cpu.explorer.response.jsonl.gz
   demos/<name>.stimulus.jsonl.gz         (a stimulus shown, not only checked)
 ```
+
+A target can hold both kinds of cpu stimulus, so cpu names carry how it was made **(user,
+2026-10-26)**: `cpu.scripted` (the game's own robot player: moves chosen in advance by whoever wrote
+it) and `cpu.explorer` (the engine's explorer: needs nothing from the developer).
 
 A target is one thing a person can start: a game, or a game inside a wrapper. Brave Adventurer has
 three: `brave-adventurer` (the launcher), `brave-adventurer-classic`, `brave-adventurer-papyrus`
