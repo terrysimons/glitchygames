@@ -115,12 +115,26 @@ def test_every_button_presses_a_key_its_game_reads(game):
             assert SCANCODE_BY_CODE[button.code] in readable, (game, button)
 
 
+# The touch codes the Brave Adventurer title screen deliberately ignores, each with why
+TITLE_SCREEN_IGNORED_TOUCH_CODES = {
+    'Escape': 'the Pause button: Escape does nothing on the title screen (the user, 2026-10-25)'
+}
+
+
 def test_the_brave_adventurer_title_screen_takes_the_games_buttons():
-    """On a phone the title screen is driven by the games' buttons: the arrows and Jump."""
+    """On a phone the title screen is driven by the games' buttons, bar the ones it ignores.
+
+    Every button but those in TITLE_SCREEN_IGNORED_TOUCH_CODES is bound on the title screen, and
+    every ignored code really is unbound there (a stale exemption fails too).
+    """
     title_scancodes = bound_scancodes(TitleScene._create_action_map(input_mode='auto'))
 
     for button in layout_buttons(TOUCH_LAYOUTS['brave-adventurer']):
-        assert SCANCODE_BY_CODE[button.code] in title_scancodes, button
+        if button.code not in TITLE_SCREEN_IGNORED_TOUCH_CODES:
+            assert SCANCODE_BY_CODE[button.code] in title_scancodes, button
+
+    for code in TITLE_SCREEN_IGNORED_TOUCH_CODES:
+        assert SCANCODE_BY_CODE[code] not in title_scancodes, code
 
 
 def test_every_touch_key_has_its_scancode_here():
