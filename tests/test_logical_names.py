@@ -65,8 +65,8 @@ def test_a_logical_module_maps_back_to_the_module_that_holds_it(mocker):
     assert module_for_logical_module(logical_module='glitchygames.scenes') == 'glitchygames.scenes'
 
 
-def test_every_example_game_and_demo_has_a_layer():
-    """The owner's table (2026-10-25); Part 2 deletes it when glitchygames/examples is empty."""
+def test_every_example_demo_and_member_has_a_layer():
+    """The owner's tables (2026-10-25): every game is a member; Part 3 moves the demos out."""
     assert logical_names.EXAMPLES_LAYERS == {
         'dt_demo': 'demos',
         'joystick_demo': 'demos',

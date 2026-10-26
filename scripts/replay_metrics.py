@@ -96,7 +96,7 @@ PENDING_LEDGER_PATH = PROJECT_ROOT / PENDING_LEDGER_RELATIVE_PATH
 # are directly in its replay fixtures directory (golden_replay_globs): golden.jsonl.gz, or one
 # golden-<game>.jsonl.gz per game in a member with several (Brave Adventurer's golden-classic
 # and golden-papyrus; docs/architecture/game_packages.md)
-ENGINE_GOLDEN_REPLAYS_GLOB = 'tests/fixtures/replays/*/golden.jsonl.gz'
+ROOT_LAYOUT_GOLDEN_REPLAYS_GLOB = 'tests/fixtures/replays/*/golden.jsonl.gz'
 MEMBER_GOLDEN_REPLAYS_GLOB = 'golden*.jsonl.gz'
 # How many of a failed child's last output lines are shown
 FAILURE_OUTPUT_LINES = 10
@@ -134,11 +134,12 @@ def golden_replay_globs(*, project_root: Path) -> list[str]:
         project_root: The repository.
 
     Returns:
-        The engine's glob, then each workspace member's.
+        The root layout's glob (other projects' layout; it matches nothing here), then each
+        workspace member's.
 
     """
     return [
-        ENGINE_GOLDEN_REPLAYS_GLOB,
+        ROOT_LAYOUT_GOLDEN_REPLAYS_GLOB,
         *(
             (
                 member.replay_fixtures_directory.relative_to(project_root)

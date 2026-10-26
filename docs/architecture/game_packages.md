@@ -12,8 +12,10 @@ Four layers, all under `src/`:
 
 ```
 src/
-  glitchygames/        the engine (distribution glitchygames); examples/ holds what has not moved yet
-  games/<game>/        one member per game (Mr. Muncher first: src/games/mr-muncher/)
+  glitchygames/        the engine (distribution glitchygames); examples/ holds the demos and
+                       Bitmappy's resources, which have not moved yet
+  games/<game>/        one member per game: every game (mr-muncher, clockwork-keep,
+                       brave-adventurer, paddleslap, drawing-fire)
   demos/<demo>/        one member per demo
   apps/<app>/          one member per application (Bitmappy)
 tests/                 the engine's own tests
@@ -99,8 +101,8 @@ extra; `tests/test_workspace_config.py` keeps each extra equal to its layer's me
   (`games.mr_muncher.game:MrMuncherScene`). A recording therefore does not depend on where the
   code lives, and moving a game changes no recording. The layers are data in the engine,
   `glitchygames/logical_names.py`: `MEMBER_LAYERS` for members (kept equal to the workspace by
-  `tests/test_workspace_config.py`) and `EXAMPLES_LAYERS` for games and demos still in
-  `glitchygames/examples/`.
+  `tests/test_workspace_config.py`) and `EXAMPLES_LAYERS` for the demos still in
+  `glitchygames/examples/` (every game has moved; Part 3 moves the demos).
 - **Golden replays** live with the member's tests; the golden plugin collects them from every
   member, so the engine's `uv run pytest` replays each one.
 - **The browser build** ships a member's package as its own archive (`<package>.zip`) beside the
@@ -211,8 +213,8 @@ any tool's configuration.
 ### 6. The browser build
 
 In `scripts/build_browser_bundle.py`, its `GAMES` entry's `module` becomes `<package>.game` and
-`member_packages` names its package (a tuple, dependencies first); its `TOUCH_LAYOUTS` entry is unchanged.
-`tests/test_build_browser_bundle.py` pins which games ship member packages. A game that depends
+`member_packages` names its package (a tuple, dependencies first); its `TOUCH_LAYOUTS` entry is
+unchanged. `tests/test_build_browser_bundle.py` pins which games ship member packages. A game that depends
 on another member lists both, the one depended on first: each ships as its own archive.
 
 ### 7. The docs

@@ -2,16 +2,20 @@
 
 Status: IN PROGRESS. Part 1 DONE on feature/workspace-packages-foundation (2026-10-25: the
 src/ layout, Mr. Muncher as a member, logical names; commits e864215c..73a60265, 22 commits, verified
-by Task 12; not yet merged). Plan written 2026-10-24; amended 2026-10-25: everything under `src/`,
+by Task 12; merged as #105, b29f85fc). Part 2 DONE on feature/workspace-packages-2-games
+(2026-10-25: every game is its own package, five members under `src/games/`: mr-muncher (Part 1),
+clockwork-keep, brave-adventurer (one project: core, Classic, Papyrus and a launcher), paddleslap
+and drawing-fire; commits 46a6ca20 to "Workspace packages, Part 2: every game is its own
+package", `git log origin/main..HEAD`, 26 commits, verified by Task 9; not yet merged). Plan written 2026-10-24; amended 2026-10-25: everything under `src/`,
 decision 7; logical names in recordings, decision 8; where recordings live, decision 9.
 Part 1 has a full implementation plan; Parts 2-5 are outlined here and get theirs when each
 starts, written against how Part 1 turned out.
 
 Sub-plans:
 - Part 1: [Foundation and the Mr. Muncher pilot](2026-10-24-workspace-packages-1-foundation.md)
-- Part 2: [The other five games](2026-10-25-workspace-packages-2-games.md) (the four below and
-  Drawing Fire, which postdates the outline; the move recipe is
-  `docs/architecture/game_packages.md`)
+- Part 2 (DONE): [The other five games](2026-10-25-workspace-packages-2-games.md) (Clockwork
+  Keep, Brave Adventurer with Papyrus as one project, PaddleSlap and Drawing Fire, which postdates
+  the outline; the move recipe is `docs/architecture/game_packages.md`)
 - Part 3: The three demos (outline below)
 - Part 4: Bitmappy as an app (outline below)
 - Part 5: A browser IDE on each game's page (outline below)
@@ -42,8 +46,10 @@ src/
     mr-muncher/                pyproject.toml (distribution mr-muncher), mr_muncher/, tests/
     paddleslap/
     clockwork-keep/
-    brave-adventurer/
-    brave-adventurer-papyrus/  depends on brave-adventurer (it reuses its code)
+    brave-adventurer/          one project (Part 2): brave_adventurer_core, brave_adventurer
+                               (Classic), brave_adventurer_papyrus and the launcher
+                               brave_adventurer_modes, its one console script
+    drawing-fire/              added in Part 2 (it postdates this outline)
   demos/
     dt-demo/  joystick-demo/  text-input-demo/
   apps/
@@ -140,7 +146,8 @@ golden replay directly in `tests/fixtures/replays/` (`golden.jsonl.gz`; decision
   one conversion; a move changes no recording's bytes.
 - Recordings live where decision 9 puts them: a member's goldens in
   `<member>/tests/fixtures/replays/`, its demos in `<package>/demos/`, the root `tests/` only
-  the engine's own (plus, until Part 2 ends, the goldens of games not yet moved).
+  the engine's own (since Part 2: none; `tests/test_workspace_packages.py` checks that no
+  game's is there).
 
 ## Parts
 
@@ -161,9 +168,16 @@ from the member). Task order: 1-4 (done), 5 logical names, 6 the conversion, 7 t
 `src/`, 8 the configuration checks, 9 Mr. Muncher, 10 the browser build, 11 docs, 12
 verification.
 
-### Part 2: The other five games (outline)
+### Part 2: The other five games (DONE)
 
 Full plan: [2026-10-25-workspace-packages-2-games.md](2026-10-25-workspace-packages-2-games.md).
+Done 2026-10-25 (commits 46a6ca20 to "Workspace packages, Part 2: every game is its own
+package"). The games are mr-muncher (Part 1), clockwork-keep, brave-adventurer, paddleslap and
+drawing-fire. As built, Brave Adventurer and Papyrus became one project, not two members: one
+member, `src/games/brave-adventurer/`, with four import packages (`brave_adventurer_core`,
+`brave_adventurer`, `brave_adventurer_papyrus`, `brave_adventurer_modes`) and one console script,
+the launcher `brave-adventurer` (`--game classic|papyrus`); `brave-adventurer-papyrus` is gone.
+The outline as written:
 
 - Clockwork Keep, then Brave Adventurer, then Brave Adventurer Papyrus (depends on
   `brave-adventurer`: a member depending on a member; its sprite TOMLs ship as package data),

@@ -17,17 +17,22 @@ script that imports `scripts.*` runs as `uv run python -m scripts.<name>` from t
 
 ```bash
 # Install dependencies (uv manages the virtual environment automatically); --all-packages
-# installs the workspace members too (src/games/mr-muncher, src/games/brave-adventurer,
-# src/games/clockwork-keep). A
-# plain `uv sync` keeps them as well: the root's dev dependency group (installed by default)
+# installs the workspace members too: every game is its own package (src/games/mr-muncher,
+# src/games/clockwork-keep, src/games/brave-adventurer, src/games/paddleslap,
+# src/games/drawing-fire). A plain `uv sync` keeps them as well: the root's dev dependency group (installed by default)
 # names every member as a workspace source (tests/test_workspace_config.py checks it)
 uv sync --all-packages
 
 # Install with dev extras (for testing/linting)
 uv sync --extra dev --all-packages
 
-# Install with all extras
-uv sync --all-extras --all-packages
+# Install with all extras: the engine, every game and the dev tools (what development uses)
+uv sync --all-extras --all-groups --all-packages
+
+# Outside the repository: the engine alone, or with every game (the `games` extra names each
+# game's distribution; tests/test_workspace_config.py keeps it equal to src/games/)
+pip install glitchygames
+pip install "glitchygames[games]"
 
 # Optional: trust the project's .envrc (direnv); on entering the repo it runs
 # `uv sync --all-extras --all-groups --all-packages` (the locked versions) and, on macOS,
@@ -161,10 +166,14 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 ```
 
 ### Example Games
-`uv run paddleslap` (its own workspace package `src/games/paddleslap/`, one module: `Game` is
-defined in `paddleslap/__init__.py`), `brave-adventurer` (both editions, Classic and Papyrus, one workspace
-package, `src/games/brave-adventurer/`, sharing `brave_adventurer_core`; its launcher,
-`brave_adventurer_modes`, shows a title screen, or starts one with `--game classic|papyrus`, or
+Every game is its own workspace package under `src/games/` (Part 2 of
+plans/2026-10-24-workspace-packages.md; the recipe is docs/architecture/game_packages.md), with
+its code, tests and golden replay; `src/glitchygames/examples/` keeps only the three demos and
+Bitmappy's resources. `uv run paddleslap` (its own workspace package `src/games/paddleslap/`, one module: `Game` is
+defined in `paddleslap/__init__.py`), `brave-adventurer` (one project holding both editions, Classic and Papyrus,
+`src/games/brave-adventurer/`: four import packages, `brave_adventurer_core` (what both share),
+`brave_adventurer` (Classic), `brave_adventurer_papyrus` and the launcher `brave_adventurer_modes`,
+its one console script, which shows a title screen, or starts one with `--game classic|papyrus`, or
 the game a `--replay-trace` recording names), `clockwork-keep` (a steampunk tower climb, its own
 workspace package `src/games/clockwork-keep/`),
 `mr-muncher` (a maze chase at the movies, its own workspace package `src/games/mr-muncher/`) and

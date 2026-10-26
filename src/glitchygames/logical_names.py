@@ -10,7 +10,7 @@ third-party game's, ``__main__``) keeps its module path.
 The layers are data here, not read from the workspace: an installed engine has no workspace to
 read, and the engine never imports scripts/. ``MEMBER_LAYERS`` is kept equal to the workspace
 (scripts/workspace_packages.py) by tests/test_workspace_config.py; ``EXAMPLES_LAYERS`` covers
-the games and demos still inside glitchygames/examples/ and goes when that directory does.
+the demos still inside glitchygames/examples/ and goes when they move out (Part 3).
 A leaf module: it imports nothing from the engine.
 """
 
@@ -18,8 +18,8 @@ from __future__ import annotations
 
 LAYERS: tuple[str, ...] = ('games', 'demos', 'apps')
 EXAMPLES_PACKAGE = 'glitchygames.examples'
-# Games and demos not yet moved out of glitchygames/examples/: package name there -> layer
-# (the user, 2026-10-25; Part 2 of the workspace plan deletes it)
+# Demos not yet moved out of glitchygames/examples/ (every game has: Part 2): package name
+# there -> layer (the user, 2026-10-25; Part 3 of the workspace plan moves the demos and deletes it)
 EXAMPLES_LAYERS: dict[str, str] = {
     'dt_demo': 'demos',
     'joystick_demo': 'demos',
