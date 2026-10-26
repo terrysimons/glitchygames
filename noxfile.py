@@ -1425,8 +1425,8 @@ def _build_binary(session: nox.Session) -> None:
 
 
 def _build_wheel(session: nox.Session) -> None:
-    """Build a wheel package with uv build."""
-    session.run('uv', 'build', '--wheel', '--out-dir', 'dist', external=True)
+    """Build the engine's wheel and every workspace member's with uv build."""
+    session.run('uv', 'build', '--all-packages', '--wheel', '--out-dir', 'dist', external=True)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='build-binary', default=False)

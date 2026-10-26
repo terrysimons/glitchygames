@@ -280,3 +280,15 @@ def test_the_performance_session_benchmarks_every_testpath():
     pytest_command = next(command for command in session.commands if command[0] == 'pytest')
     assert '--benchmark-only' in pytest_command
     assert not [argument for argument in pytest_command if argument.startswith('tests')]
+
+
+def test_the_wheel_build_builds_every_workspace_package(mocker):
+    """The wheel build covers the engine and every workspace member, not the root project alone."""
+    import noxfile
+
+    session = mocker.Mock()
+    noxfile._build_wheel(session)
+
+    session.run.assert_called_once_with(
+        'uv', 'build', '--all-packages', '--wheel', '--out-dir', 'dist', external=True
+    )
