@@ -9,9 +9,11 @@ GlitchyGames is a Python 3.14 game engine built on Pygame with an event-driven a
 The engine's source is `src/glitchygames/` (members: `src/games/`, `src/demos/`, `src/apps/`;
 plans/2026-10-24-workspace-packages.md). Nothing at the repository root is importable as our
 package: tests and tools import the installed engine (`uv sync`: editable, its `.pth` naming
-`src/`; nox: not editable). Paths like `glitchygames/clock.py` in this file, the docs and
-comments name the file inside the package (`src/glitchygames/clock.py` in the repository). A
-script that imports `scripts.*` runs as `uv run python -m scripts.<name>` from the root.
+`src/`; nox: not editable). Repository paths in these docs are written from the repository root
+(the engine at `src/glitchygames/`); finished plans and resolved BUGS.md entries name the
+locations as they were when written (before #105, the engine was the root-level `glitchygames`
+directory). A script that imports `scripts.*` runs as `uv run python -m scripts.<name>` from the
+root.
 
 ## Development Setup
 
@@ -131,7 +133,7 @@ nox -s build               # Build binary (PyInstaller) + wheel
 nox -s build-binary        # Build standalone Bitmappy binary only
 nox -s build-wheel         # Build wheel (.whl) only
 # build, build-wheel, build-binary and test stamp the engine's commit into the package first
-# (glitchygames/_build_info.json, removed after; glitchygames/build_info.py): test's installed
+# (src/glitchygames/_build_info.json, removed after; src/glitchygames/build_info.py): test's installed
 # copy is not editable, so the stamp is how it names its commit
 
 # --- Docs ---
@@ -186,13 +188,13 @@ games.
 
 ### Core Engine Components
 
-**GameEngine** (`glitchygames/engine/__init__.py`)
+**GameEngine** (`src/glitchygames/engine/__init__.py`)
 - Singleton orchestrator extending `EventManager`
 - Handles pygame initialization, display management, event routing
 - Bootstraps command-line arguments for all games
 - Pre-computes `EVENT_HANDLERS` dict for O(1) event dispatch
 
-**SceneManager** (`glitchygames/scenes/__init__.py`)
+**SceneManager** (`src/glitchygames/scenes/__init__.py`)
 - Singleton running the main game loop; each frame (`_run_scene_frame`), in order:
   1. **Begin**: `camera.begin_frame()` (clears the camera's manual-update and shake-advance flags)
   2. **Logic**: `Scene.dt_tick(dt)` (game logic, physics and collision)
@@ -217,9 +219,9 @@ games.
   `request_transition`/`transition_to` raise `TypeError` for anything else
   (`scenes.scene.required_scene`), so the manager reads the attributes `Scene` declares
   (`camera`, `scene_start_capture`, `PIXEL_SNAP_MODE`, ...) directly. `SceneInterface`
-  (`glitchygames/interfaces`) stays as the base both `SceneManager` and `Scene` implement
+  (`src/glitchygames/interfaces`) stays as the base both `SceneManager` and `Scene` implement
 
-**Game Host** (`glitchygames/host.py`; design `plans/2026-10-23-game-host-and-browser-runner.md`)
+**Game Host** (`src/glitchygames/host.py`; design `plans/2026-10-23-game-host-and-browser-runner.md`)
 - An outer game on top of every live run (`GameEngine.host`; None in a replay, whose viewer is
   its outer game). It is transparent today; later it is where AI input and event/call injection
   go without the game knowing
@@ -242,12 +244,12 @@ games.
 - `GameEngine.start_async(wait_for_tick=...)` runs a live game that way inside the same crash
   boundary as `start()` (`_crash_boundary`, a context manager both share: the same teardown and
   exit codes). A watched replay runs through `run_watched_replay_async`
-  (`glitchygames/replay/viewer.py`: one viewer tick per awaited tick, `ticks_externally`, steps
+  (`src/glitchygames/replay/viewer.py`: one viewer tick per awaited tick, `ticks_externally`, steps
   until `SceneManager.last_step_was_held`); a headless replay raises RuntimeError. Replay
   restarts need a new process, so in a browser they only show a message (`RESTARTS_AVAILABLE`). `_prepare_run()` is everything up to the first
   frame
 
-**Exit Codes** (`glitchygames/exit_codes.py`; `ExitCode` IntEnum, re-exported by
+**Exit Codes** (`src/glitchygames/exit_codes.py`; `ExitCode` IntEnum, re-exported by
 `glitchygames.engine`; never write the number in code or tests)
 - 0 `SUCCESS` (replay matched, audit deterministic), 1 `REPLAY_DIVERGED`, 2
   `ARGUMENT_PARSER_ERROR` (argparse's own; the engine never exits with it), 3
@@ -275,7 +277,7 @@ games.
   Exceptions before `start()` (in `__init__`) exit with Python's default 1. Tests:
   `tests/signal_handlers.py` (autouse fixture) restores signal handlers after every test
 
-**Frame Pacing** (`glitchygames/timing.py`)
+**Frame Pacing** (`src/glitchygames/timing.py`)
 - Two timer backends (`--timer-backend auto`, the default, is `FastTimer` with a measured sleep
   model, below):
   - `FastTimer`: High-resolution `time.perf_counter_ns()` with sleep+spin hybrid: it
@@ -300,7 +302,7 @@ games.
   machine's sleep accuracy
 - Paced frame time (`dt`, FPS tracking) is always measured with `time.perf_counter()`, and
   `target_fps` may be fractional (the period is `round(1e9 / target_fps)` ns)
-- Default target 60.01 FPS (`DEFAULT_TARGET_FPS` in `glitchygames/timing.py`, re-exported by
+- Default target 60.01 FPS (`DEFAULT_TARGET_FPS` in `src/glitchygames/timing.py`, re-exported by
   `glitchygames.engine`); `--target-fps 0` is uncapped for every game
 - A game scene may set `TARGET_FPS` (class attribute, like `NAME`/`VERSION`; `0.0` = uncapped,
   `None` = engine default). Resolution order: explicit `--target-fps` > scene `TARGET_FPS` > 60.01
@@ -319,7 +321,7 @@ games.
 - Configurable sleep granularity for tight frame pacing
 - Windows timer resolution control via WinMM
 
-**World Space** (`glitchygames/world.py`, `glitchygames/camera.py`)
+**World Space** (`src/glitchygames/world.py`, `src/glitchygames/camera.py`)
 - A sprite declares `COORDINATE_SPACE = CoordinateSpace.WORLD` and keeps float `world_x`/`world_y`;
   the engine is then the only writer of its `rect` (it checks only `COORDINATE_SPACE` at runtime;
   `WorldPositioned` is the Protocol for read-only `world_x`/`world_y`, the type of a camera
@@ -363,7 +365,7 @@ games.
   be explained by exactly one `ExpectedDifference` entry whose rule proves it exactly (an entry
   that explains nothing fails too); never re-record the baselines to make a change pass
 
-**Clocks** (`glitchygames/clock.py`, a leaf module): every time read in `glitchygames/` comes from
+**Clocks** (`src/glitchygames/clock.py`, a leaf module): every time read in `src/glitchygames/` comes from
 here or from `Scene.game_time`, so a replay serves the same values. Pick by purpose:
 - `Scene.game_time`: gameplay timers and cooldowns. The sum of the (`MAX_FRAME_SECONDS`-capped) dt
   the scene's `dt_tick` received; it stops while the scene is paused or switched away
@@ -388,19 +390,20 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - A recorded run's wall clock (and its replay's) is the header's `recorded_at` plus the frame
   clock (`RecordingSources.wall_clock_time`)
 
-**Gameplay Recording and Replay** (`glitchygames/sources.py`, `glitchygames/live_sources.py`,
-`glitchygames/recording.py`, `glitchygames/replay/`, `glitchygames/randomness.py`; design
+**Gameplay Recording and Replay** (`src/glitchygames/sources.py`, `src/glitchygames/live_sources.py`,
+`src/glitchygames/recording.py`, `src/glitchygames/replay/`, `src/glitchygames/randomness.py`; design
 `plans/2026-10-19-gameplay-replay.md`, plans `plans/2026-10-19-gameplay-replay-*.md`)
 - Doors: the engine takes events, frame time, polled input, devices, saves, the clocks and the
-  random seed only through the active `EngineSources`. `glitchygames/sources.py` is the leaf
-  registry: `active_sources()`, `install_sources(sources=...)` (only before the first frame,
+  random seed only through the active `EngineSources`. `src/glitchygames/sources.py` is the leaf
+  registry (one per engine context): `active_sources()`, `install_sources(sources=...)` (only
+  before the context's first frame,
   else `SourcesAlreadyRunningError`), `reset_sources()` (called by `GameEngine.__init__`), and the
   frame clock. It has no engine imports, which avoids an engine/scenes import cycle. Providers:
-  `LiveSources` (`glitchygames/live_sources.py`: pygame's queue, the measured dt, pygame polling,
-  real devices, `DiskSaveManager`, the real wall clock), `HostSources` (`glitchygames/host.py`:
+  `LiveSources` (`src/glitchygames/live_sources.py`: pygame's queue, the measured dt, pygame polling,
+  real devices, `DiskSaveManager`, the real wall clock), `HostSources` (`src/glitchygames/host.py`:
   the game host's forwarding layer around the live doors), `RecordingSources`
-  (`glitchygames/recording.py`: wraps the host's doors under `--record-trace` and records what
-  passes through) and `ReplaySources` (`glitchygames/replay/driver.py`: serves the recording)
+  (`src/glitchygames/recording.py`: wraps the host's doors under `--record-trace` and records what
+  passes through) and `ReplaySources` (`src/glitchygames/replay/driver.py`: serves the recording)
 - Guard: `tests/test_engine_doors.py` AST-scans the package. Raw clock reads, pygame key/mouse
   polling, `pygame.event.get`/`post` and joystick/controller enumeration or construction outside
   the doors fail. The only exceptions are `ALLOWED_BYPASSES` (by file) and
@@ -416,14 +419,14 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   ...)` by `CONTROLLER_AXIS_*`/`CONTROLLER_BUTTON_*` id, on pygame's int scale). Never poll pygame
   or a device directly. Recordings also hold the held keys' key codes (`held_key_codes`), so a
   replay answers `key_pressed(K_*)` as the recording machine's keyboard layout did
-- Devices: `active_sources().devices()` (`glitchygames/input/devices.py`) is the only way to
+- Devices: `active_sources().devices()` (`src/glitchygames/input/devices.py`) is the only way to
   enumerate (`joystick_count`, `controller_count`, `is_controller`, `name_for_index`) and open
   (`open_joystick`, `open_controller`, `joystick_for_instance`, `descriptor_for_instance`)
   devices. Live answers, failures included, and each opened device's descriptor are recorded. A
   replay answers with the recorded answers (a recorded failure is raised again as `pygame.error`)
   and with `ReplayJoystick` / `ReplayController` stand-ins: their positions come from the
   snapshot, rumble is dropped, and the replay never sees real hardware
-- Input devices (`glitchygames/input/input_devices.py`, its docstring the rules): games read
+- Input devices (`src/glitchygames/input/input_devices.py`, its docstring the rules): games read
   `GameEngine.input_devices` / `Scene.input_devices`, one `InputDevice` per physical device by
   instance id (the door's `descriptor`, a `joystick` layer, a `controller` layer for a mapped
   pad, both read from the snapshot; `on_input_device_added/removed(device=...)` on the active
@@ -433,7 +436,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   press arrives once. `--input-mode` filters: `auto` (default) all, `joystick` joystick layers
   only (controller events blocked), `controller` mapped pads only. Tests use stand-in devices
   through the door (`tests/input/stand_in_devices.py`). `--list-input-devices`
-  (`glitchygames/input/device_listing.py`) replaces the run: it counts devices before SDL's
+  (`src/glitchygames/input/device_listing.py`) replaces the run: it counts devices before SDL's
   queue is pumped (what the managers' startup count sees), listens a second keeping each
   device added/removed event with its time (macOS reports connected pads as device-added
   events), opens every device through the door and prints each one's index, instance id, name,
@@ -442,12 +445,12 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `--replay-trace` or `--record-trace`
 - Saves: `glitchygames.state.open_saves(app_name=...)` returns a `SaveManager` (the base class
   holds every rule of the save format): `DiskSaveManager` live, `MemorySaveManager`
-  (`glitchygames/state/sandbox.py`) in a replay, seeded from the recorded snapshot
+  (`src/glitchygames/state/sandbox.py`) in a replay, seeded from the recorded snapshot
   (`save_namespace_snapshot`). Replay writes stay in memory; real saves are never touched.
-  `observe_disk_save_changes(observer=...)` (`glitchygames/state/manager.py`) calls an observer
+  `observe_disk_save_changes(observer=...)` (`src/glitchygames/state/manager.py`) calls an observer
   with each slot file's path after a `DiskSaveManager` writes or deletes it (a browser flushes
   IndexedDB there)
-- Supervisor hook (`glitchygames/supervision.py`): `SceneManager.add_supervisor(supervisor=...)`
+- Supervisor hook (`src/glitchygames/supervision.py`): `SceneManager.add_supervisor(supervisor=...)`
   calls `on_frame(frame_number=..., scene=...)` once per frame, after logic and events and before
   frame services, camera aim and positioning. `SceneManager.record_control_event(kind=...,
   data=...)` records a supervisor action in the frame (the frame's `control_events`) and runs the
@@ -455,7 +458,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   control events at the same frame's supervisor slot. `GameEngine.__init__` calls
   `SceneManager.begin_run()` (frame 0, `reset_supervision()`, quit/pacing/shake/playback state
   cleared). A future cheat device plugs in here
-- `--record-trace PATH`: record the session as a gzip JSON Lines trace (`glitchygames/tracing.py`
+- `--record-trace PATH`: record the session as a gzip JSON Lines trace (`src/glitchygames/tracing.py`
   format version 3; versions 2 and 3 are readable), off by default. Each frame line holds `dt`,
   the raw `event_batches` read at `GameEngine._pump_events` (the only reader of SDL's queue,
   except a watched replay's viewer ticks, which drain it for the viewer's keys; each event tagged
@@ -468,8 +471,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   recordings can mark them internal; code driving the game from outside its logic (a
   supervisor, a harness) posts with `post_input_event`, recorded external whatever its type, so
   every replay serves it and drops a copy the replayed code posts (BUGS.md #84). The format is
-  described in `glitchygames/recording.py`
-- Scene starts (`glitchygames/scene_start.py`, a leaf: scenes never import the replay package;
+  described in `src/glitchygames/recording.py`
+- Scene starts (`src/glitchygames/scene_start.py`, a leaf: scenes never import the replay package;
   Part 3 Task 1): while the active doors' `captures_scene_starts` is True (`--record-trace` runs
   from their start, `--rebaseline`, the playback scope) or the class sets
   `INSTANT_REPLAY_SECONDS`, and unless it sets `CAPTURES_SCENE_START = False` (`PauseScene`),
@@ -486,7 +489,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   write `scene_start` on that frame (a scene that never runs logic has none). `rebuild_scene(start=..., scene_class=...,
   options=...)` restores the construction streams and clock, constructs, then restores the setup
   ones (no `setup()`); it sets global state the caller must restore. Live play captures nothing
-- Playback scope (`glitchygames/replay/playback.py`, whose docstring is the contract; Part 3 Task
+- Playback scope (`src/glitchygames/replay/playback.py`, whose docstring is the contract; Part 3 Task
   2): `start_playback(manager=..., header=..., frames=..., then=..., options=PlaybackOptions(...))`
   (or `start_playback_from_recording(path=...)`) requests a scope from a frame holding a
   `scene_start` with its `first_logic_frame`; `SceneManager._run_frame` enters it at the next
@@ -524,10 +527,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   game-over screen (`PaddleSlapGameOverScene`) plays
   `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS` (10) of game time without a key or
   button press. `tests/replay/test_bundled_demos.py` replays every demo headless
-  (`bundled_demo_paths`, `replay_recording_headless` in `glitchygames/testing/replays.py`) and
+  (`bundled_demo_paths`, `replay_recording_headless` in `src/glitchygames/testing/replays.py`) and
   plays PaddleSlap's through `play_recording` (stepped with `step_finishing`: the golden harness's
   `step` never gives a playback the recording's dt). A recording names its game (header `game`)
-  and each scene start (`scene`) by logical names (`glitchygames/logical_names.py`: the layer,
+  and each scene start (`scene`) by logical names (`src/glitchygames/logical_names.py`: the layer,
   the module path inside the package, `:` and the `__qualname__`, e.g.
   `games.mr_muncher.game:MrMuncherScene`; a module in no layer keeps its path), unchanged when
   a game's code moves; the header check (`check_recorded_game`) and the playback's lookup
@@ -536,7 +539,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   refused), except under `--rebaseline`, the backward-compatibility path (no table of former
   locations): there the qualified name alone decides, so a game or scene that moved since is
   accepted (ambiguity still refused; one rule, `modules_not_compared` in
-  `glitchygames/replay/driver.py`), and NEW holds the current logical names. Record a demo with `scripts/record_scripted_session.py --script-only --output PATH` (it runs
+  `src/glitchygames/replay/driver.py`), and NEW holds the current logical names. Record a demo with `scripts/record_scripted_session.py --script-only --output PATH` (it runs
   `--record-trace`, so frame 0 holds the scene start); PaddleSlap's is `--frames 450`, before the
   golden script's pause
 - `--random-seed INT`: the run's master seed (default: 64 random bits, kept in recordings). All
@@ -545,7 +548,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `random_stream('engine')`, `reset_streams(seed=...)` reseeds (tests, replay). Never use
   `secrets`, `random.SystemRandom`, global `random.*` functions or an unseeded
   `np.random.default_rng()` in gameplay (`tests/test_randomness.py` scans for them)
-- `--replay-trace PATH` (`glitchygames/replay/driver.py`; its module docstring lists the rules):
+- `--replay-trace PATH` (`src/glitchygames/replay/driver.py`; its module docstring lists the rules):
   replay a recording exactly through the real engine. `ReplaySources` serve its events, dt,
   polled input, devices, in-memory saves, clocks and seed, and every frame's sprites are compared
   with the recorded frame. Refusals log the reason and exit with an `ExitCode` (see Exit Codes):
@@ -561,9 +564,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `UNUSABLE_INPUT` (a header without one keeps `--resolution`, with a warning). The first
   divergence (kinds `scene`, `sprite`, `event`, `length`) stops a `--headless` replay, as does
   the last recorded frame; closing the window stops any replay. A watched replay (no `--headless`) is a read-only game inside a game
-  (`glitchygames/replay/viewer.py` documents the contract): the OUTER `ReplayViewer` ticks at
+  (`src/glitchygames/replay/viewer.py` documents the contract): the OUTER `ReplayViewer` ticks at
   60 Hz real time (`clock.measured_seconds`), reads the viewer's keys (`ReplayControls`,
-  `glitchygames/replay/controls.py`: once per press; `.` repeats after 300 ms at 10/s) and
+  `src/glitchygames/replay/controls.py`: once per press; `.` repeats after 300 ms at 10/s) and
   presents the latest frame with a status bar (`EngineSources.draws_overlay`/`draw_overlay`,
   never in screenshots or traces); the INNER recorded game runs N full frames per tick from an
   accumulator (real time x speed, consumed by recorded dt, at most `MAX_INNER_FRAMES_PER_TICK`
@@ -572,10 +575,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   unpresented (`EngineSources.presents_frames` False). It drives the loop through
   `EngineSources.hold_frame` (held = present an outer frame, run nothing, consume no recorded
   batch). It holds at a "Press Spacebar to Start Game Replay" screen after frame 0 (the pause
-  screen's `MessageScreen`, `glitchygames/ui/message_screen.py`) and pauses at a divergence or
+  screen's `MessageScreen`, `src/glitchygames/ui/message_screen.py`) and pauses at a divergence or
   its end with the debug overlay on; Space pauses, `.` steps, `]`/`[` change speed, Esc quits.
   `,` (paused; held: one frame back per repeat, restarting on release), Home and D (divergence)
-  restart the replay process (`glitchygames/replay/rebuild.py`) with `--replay-pause-at-frame N`
+  restart the replay process (`src/glitchygames/replay/rebuild.py`) with `--replay-pause-at-frame N`
   and the viewer state (`--replay-viewer-state`: speed, panel, divergence frame): it rebuilds
   frames 0..N-1 unpresented, unpaced and silent (sounds stopped after each frame, music paused),
   then pauses; the first process supervises later restarts through `--replay-restart-handoff`
@@ -596,7 +599,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   overlay's performance panel use the recorded frame times (exact, compared) or this machine's
   measured ones (FPS events then not compared); logic always gets the recorded `dt`
 - Real input, device and window events are blocked at SDL during a replay
-  (`glitchygames/replay/input_blocking.py`; never QUIT, the window close event or custom types;
+  (`src/glitchygames/replay/input_blocking.py`; never QUIT, the window close event or custom types;
   re-blocked every pump, as event managers made mid-run allow their types; each type's prior
   blocked state is restored exactly when the replay ends, normally or after an error). Caveat:
   posts of a blocked type are refused too, so game code that fakes input by posting e.g. KEYDOWN
@@ -633,7 +636,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   They are recorded through the
   real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).
-  Each is a pytest item of its own: the plugin `glitchygames/testing/replays.py` (root
+  Each is a pytest item of its own: the plugin `src/glitchygames/testing/replays.py` (root
   `conftest.py` `pytest_plugins`) collects every `.../fixtures/replays/<console-script>/*.jsonl.gz`,
   replays it in a child process through the console script's entry point with
   `--replay-trace PATH --headless`, and fails with the exit code and the printed report unless it
@@ -660,7 +663,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   hashes. A game whose state is drawn rather than kept in sprites must post an internal event
   (`post_event`) for what matters, or its replay compares nothing of it: Drawing Fire posts a
   GAMEEVENT per death and seat change. Demos are recorded `--script-only` (no tail, no quit)
-- `--replay-trace PATH --audit` (`glitchygames/replay/audit.py`): instead of replaying, runs the
+- `--replay-trace PATH --audit` (`src/glitchygames/replay/audit.py`): instead of replaying, runs the
   same command twice as child processes (`--no-audit --headless --replay-digest <temp>`,
   `PYTHONHASHSEED` 1 and 2) and compares each run with the recording and the two
   per-frame digest streams (`--replay-digest PATH`: a SHA-256 per replayed frame, then the
@@ -677,11 +680,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - Outputs: an unwritable `--record-trace`, `--rebaseline` partial or `--replay-digest` file is
   refused before the run (`CANNOT_WRITE_OUTPUT`, one line; a recording whose writes fail part
   way, the disk filling, also ends the run `CANNOT_WRITE_OUTPUT` with one line, keeping the
-  frames written: `recording.RecordingWriteError`; `glitchygames/output_files.py`, which
+  frames written: `recording.RecordingWriteError`; `src/glitchygames/output_files.py`, which
   also holds the one write-aside-then-replace helper); a game's own `sys.exit(0)` that cuts a
   replay short exits `REPLAY_DIVERGED` (under `--rebaseline` it is the game ending early, as
   `quit_game()` is: NEW is written, exit `REBASELINE_INPUT_LOST`); a malformed header or start frame is `UNUSABLE_INPUT`
-- Processing time (`glitchygames/replay/processing.py`, whose docstring is the contract): each
+- Processing time (`src/glitchygames/replay/processing.py`, whose docstring is the contract): each
   recorded frame holds a diagnostic `processing_seconds` (its work from the top of
   `SceneManager._run_frame_steps`, minus `_present_frame`, without the doors' `end_frame` or
   pacing; `clock.measured_seconds`), passed to the doors as `end_frame(processing_seconds=...)`,
@@ -693,13 +696,13 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `--headless`, with `--audit` or `--rebaseline` (whose NEW records its own times). Paced frames
   process slower (the CPU idles between them), so the fair baseline is a `--rebaseline` made on
   the checking machine (latest run's `processing_paced` False); the report notes a paced baseline
-- Frame histories (`glitchygames/recording_history.py`, the contract; design
+- Frame histories (`src/glitchygames/recording_history.py`, the contract; design
   `plans/2026-10-20-recording-content-hash-and-history.md`): every recorded frame holds
   newest-first `content_hash` (64 bits of SHA-256 of its content fields as JSON decodes them,
   re-encoded compact and key-sorted, scheme 1; each frame field is content or a measurement, enforced) and `processing_seconds`
   lists, and the header `measurement_runs` (each run's provenance: machine, paced and its pacing timer, versions, the
   engine's `source_revision` (see Source revision), the `machine_state`
-  (`glitchygames/machine_state.py`: CPU, memory, mains or battery, macOS thermal report, CI),
+  (`src/glitchygames/machine_state.py`: CPU, memory, mains or battery, macOS thermal report, CI),
   a `summary` (`RunSummary`: processing p50/p95/p99/max, worst frame and scene, frames over the
   target FPS budget, the live run's frame times; filled in when the next run stacks, since a
   header is written first; `recording_run_summaries` computes the newest's),
@@ -708,7 +711,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   is run `i` everywhere, each list capped at its depth constant (10). A rebaseline stacks its run
   in front (same hashes when behaviour is unchanged); `recording_content_hash` derives a
   recording's hash for any run. Never compared by a replay, never served
-- Recording metrics (`glitchygames/recording_metrics.py`, a leaf; design
+- Recording metrics (`src/glitchygames/recording_metrics.py`, a leaf; design
   `plans/2026-10-23-recording-metrics.md`, Parts 1 and 2 done): `behaviour_changes` (adjacent
   runs' frames whose `content_hash` differs, as spans with the first frame's scene and both
   commits), `processing_comparisons` (same-work frames only, equal hashes, that got slower or
@@ -718,7 +721,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `plans/2026-10-25-measured-rows-in-the-repository.md`): the `replay-metrics` pre-commit hook
   (`scripts/measure_staged_replays.py`, its docstring the rules; installed by `.envrc` when
   missing) measures every golden replay and bundled demo when this machine has no rows for the
-  staged code tree (`glitchygames/code_tree.py`: a git tree of only `MEASURED_PATHS`,
+  staged code tree (`src/glitchygames/code_tree.py`: a git tree of only `MEASURED_PATHS`,
   `src/` (the engine, games, demos, apps; less the members' `tests/` but for their
   `tests/fixtures/replays/`: `is_measured_path`), recordings, `uv.lock`, `pyproject.toml`), so
   code that arrived by
@@ -747,8 +750,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   (header `bookmarked_copy_of`; only such a file is updated in place) with a
   `{"kind": "breakpoint", "label": "bookmark"}` control event in frame N - 1 per bookmark N; a
   watched replay of the copy pauses at each, and a step back with bookmarks saves and replays the
-  copy (rule 16 of `glitchygames/replay/driver.py`)
-- `--replay-trace OLD --rebaseline NEW --headless` (`glitchygames/replay/rebaseline.py`, whose
+  copy (rule 16 of `src/glitchygames/replay/driver.py`)
+- `--replay-trace OLD --rebaseline NEW --headless` (`src/glitchygames/replay/rebaseline.py`, whose
   docstring is the contract): replays OLD on the current code without stopping at divergences
   (`ReplayOptions.stop_on_divergence=False`; it alone accepts an old-format recording of a game
   that moved, matched by qualified name, and so converts it to logical names), records the run into NEW through
@@ -768,7 +771,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `--audit`, `--replay-digest` or `--replay-fps real`. NEW replays clean; a truncated OLD gives a
   `source_truncated` NEW (replays `UNUSABLE_INPUT`, not auditable, not a golden fixture);
   replacing a golden fixture with NEW stays a reviewed step
-- Instant replay (contract: `glitchygames/instant_replay.py`, a leaf, and rule 7 of
+- Instant replay (contract: `src/glitchygames/instant_replay.py`, a leaf, and rule 7 of
   `replay/playback.py`): `Scene.INSTANT_REPLAY_SECONDS` opts in (an in-memory journal of the
   scene's frames, ~0.5-1.5 MB/min), `MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS` (60) is the
   budget, `scene_manager.instant_replay() -> bool` plays it; end it early only from a
@@ -781,24 +784,48 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   doors' re-applied control events apply, the played recording's never; a playback never
   rumbles real devices, and the voices of the live scene (and of the game behind a pause
   screen it began from) pause behind it
-- Ghosts (contract: `glitchygames/replay/ghosts.py`): `GhostRecorder(sprite=..., scene=...)`
+- Ghosts (contract: `src/glitchygames/replay/ghosts.py`): `GhostRecorder(sprite=..., scene=...)`
   (a supervisor; `finish()` -> frozen pydantic `GhostTrack`, `to_json`/`from_json`, store in
   saves), `GhostSprite(track=..., image_for=images_from_animated_sprite(sprite))` with
   `ghost.scene = scene` (a WORLD sprite following `scene.game_time`; no hitbox)
 - Part 2 and Part 3 are done; follow-ups (state snapshots, cheat device) are in
   `plans/future-work.md`. User docs: `docs/architecture/gameplay_replay.md`
 
-**Source revision** (`glitchygames/build_info.py`, the contract): `source_revision()` names the
+**Engine Context** (`src/glitchygames/engine_context.py`; design `plans/2026-10-25-engine-context.md`)
+- The state one running game owns, so several games can run in one process (the Arcade's demo
+  tiles). Ordinary games never create one and run in the default context
+  (`default_context()`), exactly as before. Only the slots below are per context today; the rest
+  of the process-wide state (`GameEngine` and its `OPTIONS`, `SceneManager.OPTIONS`,
+  `FontManager`, `ResourceManager`, the event managers, other audit rows) is later sub-plans,
+  and the engine does not switch contexts yet (nothing in `src/` calls `.active()`; tests do)
+- Per-context state is a `ContextSlot(name=..., factory=...)` declared once at module level in
+  the module that owns it; code reads `current_context().value(slot=...)` when it needs it,
+  never at import (`tests/test_engine_context.py` scans the engine and every member).
+  `ContextSlot` is internal to the engine: engine modules declare slots, games keep state on
+  their scenes (the tests' `COUNTER_SLOT` only tests the class)
+- `with context.active():` switches (a `contextvars.ContextVar`: per thread and asyncio task;
+  nests; restores on exceptions). Slots today: the default snap mode, the default background,
+  the polled input, the random streams, the doors with the frame clock and observers, and the
+  `SceneManager` singleton; each has an isolation check in `tests/test_engine_context.py`
+  (`ISOLATION_CHECKS`), and a slot without one fails the suite
+- The harness fails a test that leaves another context current
+  (`every_test_ends_in_the_default_engine_context`). A new autouse fixture that resets engine
+  state must join a group (`per_context_state_resets` or `engine_service_resets` in
+  `tests/harness.py`) that the leak check requests, or be listed in
+  `PROCESS_STATE_AUTOUSE_FIXTURES` (`tests/test_engine_context.py`) with its reason; a guard
+  test enforces it for the autouse fixtures defined in `tests/harness.py`
+
+**Source revision** (`src/glitchygames/build_info.py`, the contract): `source_revision()` names the
 engine's commit and how it is known, first answer wins: a git checkout (git: HEAD, its date,
 uncommitted changes to tracked files; only when git tracks the package's files, so a copy
 installed in another repository's `.venv` does not count), a git archive
-(`glitchygames/_git_archival.txt`, `export-subst` in `.gitattributes`: `git archive` and GitHub's
+(`src/glitchygames/_git_archival.txt`, `export-subst` in `.gitattributes`: `git archive` and GitHub's
 source zips write the commit in), a build stamp (`_build_info.json`, written by
 `scripts/write_build_stamp.py` around `nox -s build-wheel`/`build-binary`/`test`, gitignored, packaged
 through hatch `artifacts`), else unknown. Every recorded run holds it
 (`MeasurementRun.source_revision`; `engine_source_revision()` looks it up once per process)
 
-**Screen Shake and Rumble** (`glitchygames/effects/shake.py`, `glitchygames/input/rumble.py`)
+**Screen Shake and Rumble** (`src/glitchygames/effects/shake.py`, `src/glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`
 - Styles: `NOISE` (trauma model), `JITTER`, `BOUNCE`; shakes stack and are capped
 - WORLD shakes world-space sprites and parallax layers (HUD stays still); SCREEN shifts the
@@ -811,7 +838,7 @@ through hatch `artifacts`), else unknown. Every recorded run holds it
   joystick modes
 - `--screen-shake-intensity`, `--rumble-intensity` (0.0-1.0)
 
-**Sound Synthesis** (`glitchygames/audio/synth.py`, `recipes.py`, `live.py`)
+**Sound Synthesis** (`src/glitchygames/audio/synth.py`, `recipes.py`, `live.py`)
 - Toolkit: oscillators (PolyBLEP square/saw), pitch curves via easing, envelopes, FIR filters,
   mixing, `to_sound()`
 - Recipes: `Tone`/`SoundRecipe` (TOML-loadable) played through `SoundBank`
@@ -823,11 +850,11 @@ through hatch `artifacts`), else unknown. Every recorded run holds it
 - Microphone: `uv run python scripts/microphone_capture_check.py [--duration 3] [--device NAME]`
   captures from it with miniaudio and reports bytes, frames and levels (exit codes in its docstring)
 
-**Transitions** (`glitchygames/transitions/`): `on_update` callback, `add_cue(progress, callback)`,
+**Transitions** (`src/glitchygames/transitions/`): `on_update` callback, `add_cue(progress, callback)`,
 `eased_velocity_at(progress)`; cues run after the old scene's cleanup, so they may use only
 SceneManager services
 
-**Debug Overlay** (`glitchygames/debug/`): `--debug-overlay` or F3 shows it, F4 cycles panels
+**Debug Overlay** (`src/glitchygames/debug/`): `--debug-overlay` or F3 shows it, F4 cycles panels
 (collision hitboxes by layer, physics velocities and ground state, camera panel with world edges
 and mouse world position (bounds clamp the camera's top-left, so right/bottom edges are max +
 screen size - 1), performance HUD with FPS, frame time, 1% low and a frame-time graph with a target
@@ -837,7 +864,7 @@ Vera Sans font on translucent cached backings. Scenes or sprites can add annotat
 itself; `PauseScene` returns the paused game, so its hitboxes line up with the frozen picture and
 the HUD shows `| paused: <name>`).
 
-**Scene backgrounds** (`glitchygames/backgrounds.py`): a scene that sets no background shows the
+**Scene backgrounds** (`src/glitchygames/backgrounds.py`): a scene that sets no background shows the
 default pattern instead of black (black cannot be told from "nothing rendered"): the SMPTE-style TV
 test pattern, or the channel 3 blue screen with `--default-background channel-3`
 (`BackgroundPattern`; drawn at any size, cached per size). `Scene.background_color = ...` keeps
@@ -845,17 +872,17 @@ working (scenes that want black name it: PaddleSlap, GameOverScene, PauseScene, 
 dialogs); `Scene.background_pattern = BackgroundPattern.CHANNEL_THREE` picks a pattern. A new
 engine display is painted with the default before the first frame. Then, before the game is built
 (every game started through `GameEngine`, Bitmappy included), the CRT power-on sequence plays on
-that canvas (`glitchygames/crt_power_on.py`): a dot, a line, the picture opening, warm-up flicker
+that canvas (`src/glitchygames/crt_power_on.py`): a dot, a line, the picture opening, warm-up flicker
 from fixed tables (no randomness), settling on exactly that default; any key or button skips it, a
 window closed during it quits the game. `--crt-power-on auto` (default) skips it on SDL's dummy
 driver (`--headless`, every test) and before a replay, audit, rebaseline or recording
 
-**Pixel snapping** (`glitchygames/pixel_snap.py`): `PixelSnapMode` and `snap_to_pixel` convert
+**Pixel snapping** (`src/glitchygames/pixel_snap.py`): `PixelSnapMode` and `snap_to_pixel` convert
 sub-pixel world positions to drawn whole pixels (NEAREST_HALF_UP for smooth-motion games, FLOOR
 for retro/platformer games), shared by sprites, collision and the debug overlay. A scene picks its
 mode with `Scene.PIXEL_SNAP_MODE`; a sprite may override it with `pixel_snap_mode` (the ball does).
 
-**Opaque frames** (`glitchygames/opacity.py`, BUGS.md #142): on macOS (cocoa) the display has
+**Opaque frames** (`src/glitchygames/opacity.py`, BUGS.md #142): on macOS (cocoa) the display has
 per-pixel alpha and the window shows alpha 0 as black; a plain `pygame.Surface(size)` there takes
 the display's format (alpha mask, no SRCALPHA flag), so blending text onto it leaves alpha 0 and
 blitting it copies that alpha. The scene background is opaque (`background_color` refuses alpha
@@ -872,10 +899,10 @@ display before every present. The test guard judges what the window shows
 - Audio, Controller, Keyboard, Mouse, Window, Touch, Joystick, MIDI
 - Custom: `FPSEVENT`, `GAMEEVENT`, `MENUEVENT`
 
-**Event Managers** (`glitchygames/events/`):
+**Event Managers** (`src/glitchygames/events/`):
 - Specialized classes: `MouseEventManager`, `KeyboardEventManager`, `ControllerEventManager`
 - Scenes override `on_*_event()` methods to handle specific events
-- `HashableEvent` (`glitchygames/events/base.py`): the hashable, immutable wrapper every handler
+- `HashableEvent` (`src/glitchygames/events/base.py`): the hashable, immutable wrapper every handler
   gets (dispatch: `HashableEvent.from_pygame`). `HashableEvent(type, **fields)` builds the type's
   class from `EVENT_CLASSES` (`KeyEvent`, `MouseMotionEvent`, `MouseButtonEvent`, `JoyAxisEvent`,
   `ControllerButtonEvent`, `WindowEvent`, `FpsEvent`, `GameEvent`, ...: field declarations only;
@@ -889,20 +916,20 @@ display before every present. The test guard judges what the window shows
 
 ### Sprite and Animation System
 
-**Sprite Hierarchy** (`glitchygames/sprites/`):
+**Sprite Hierarchy** (`src/glitchygames/sprites/`):
 - `RootSprite`: Base with mouse events and `pygame.sprite.DirtySprite`
 - `Sprite`: General-purpose with coordinates, name, parent tracking
 - `BitmappySprite`: Loaded from TOML files
 - `AnimatedSprite`: Multi-frame animation support
 - `FocusableSingletonBitmappySprite`: UI widgets with keyboard focus
 
-**Animation** (`glitchygames/sprites/animated.py`):
-- `FrameManager` (`glitchygames/sprites/frame.py`): Centralized frame state with observer pattern
+**Animation** (`src/glitchygames/sprites/animated.py`):
+- `FrameManager` (`src/glitchygames/sprites/frame.py`): Centralized frame state with observer pattern
 - Multiple named animation sequences per sprite
 - Per-frame timing overrides
 - TOML format with RGBA/RGB support (magenta key: 255,0,255)
 
-**Hitboxes** (`glitchygames/collision/`): default to the image's visible pixels (alpha/colorkey
+**Hitboxes** (`src/glitchygames/collision/`): default to the image's visible pixels (alpha/colorkey
 trimmed, `collision/bounds.py`, measured every query so redrawn images are fine);
 `TRIM_TRANSPARENT_HITBOX = False` opts out and TOML hitboxes win (native pixels times
 `AnimatedSprite.hitbox_scale`; `hitbox_flip_x = True` mirrors them for a sprite drawn facing
@@ -925,7 +952,7 @@ adds it to `rect` itself.
 - Sprites with `dirty=1` force redraw; `dirty=0` skips rendering
 - Film strip sprites update every frame for animation preview
 
-### UI Subsystem (`glitchygames/ui/`)
+### UI Subsystem (`src/glitchygames/ui/`)
 
 Components: `MenuBar`, `MenuItem`, `TextSprite`, `MultiLineTextBox`, `SliderSprite`, `TabControlSprite`, `ColorWellSprite`
 
@@ -933,7 +960,7 @@ Dialogs: `LoadDialogScene`, `SaveDialogScene`, `NewCanvasDialogScene`
 
 **Focus Model**: Focusable sprites intercept keyboard input via `active` attribute
 
-### Bitmappy Pixel Art Editor (`glitchygames/bitmappy/`)
+### Bitmappy Pixel Art Editor (`src/glitchygames/bitmappy/`)
 
 Features:
 - Canvas-based pixel editing with undo/redo (`UndoRedoManager`)
@@ -949,10 +976,10 @@ Features:
 - PNG drag-and-drop
 - Runs in the browser: `nox -s browser -- bitmappy` (its bundle alone includes `bitmappy/`; the builder runs as `python -m scripts.build_browser_bundle`, and a workspace member's game ships its package as its own archive, `mr_muncher.zip` beside `glitchygames.zip`).
   There Load opens the browser's file picker and Save downloads the saved file, through the
-  installed user files (`glitchygames/user_files.py`; the page's `browser/browser_user_files.py`).
+  installed user files (`src/glitchygames/user_files.py`; the page's `browser/browser_user_files.py`).
   On the desktop nothing is installed and the dialogs ask for file names as always
 
-**Clipboard and the player's files** (`glitchygames/clipboard.py`, `glitchygames/user_files.py`)
+**Clipboard and the player's files** (`src/glitchygames/clipboard.py`, `src/glitchygames/user_files.py`)
 - Text widgets copy and paste through `system_clipboard()`: the installed clipboard, else
   `create_clipboard()`'s choice (`PyperclipClipboard`, else `InProcessClipboard` without
   pyperclip). A clipboard that cannot be used raises `ClipboardUnavailableError`. Tests get a
@@ -979,17 +1006,17 @@ Features:
 
 ### Resource Management
 
-**Fonts** (`glitchygames/fonts/`): `FontManager` singleton with Bitstream Vera fonts
+**Fonts** (`src/glitchygames/fonts/`): `FontManager` singleton with Bitstream Vera fonts
 
-**Colors** (`glitchygames/color/`): Palettes (NES, SYSTEM, VGA) and constants
+**Colors** (`src/glitchygames/color/`): Palettes (NES, SYSTEM, VGA) and constants
 
-**Game Objects** (`glitchygames/game_objects/`): Physics objects (Ball, Paddle)
+**Game Objects** (`src/glitchygames/game_objects/`): Physics objects (Ball, Paddle)
 
-**Performance** (`glitchygames/performance/`): `AdaptiveClamping` for FPS monitoring
+**Performance** (`src/glitchygames/performance/`): `AdaptiveClamping` for FPS monitoring
 
 ## Design Patterns
 
-- **Singleton**: `SceneManager`, `FontManager`
+- **Singleton**: `SceneManager` (one per engine context), `FontManager`
 - **Observer**: `FrameManager` for animation frame changes
 - **Strategy**: Timer backends, display update modes, controller modes
 - **Proxy**: Event routing through `SceneManager` to `Scene`
@@ -1011,7 +1038,7 @@ Features:
   so tests see only their stand-ins (`tests/input/stand_in_devices.py`); set one to `1` yourself
   to test with a real pad. Windows' and Linux's joystick drivers are not covered
 - Driver comparison (`tests/driver_comparison.py`; frames recorded by
-  `glitchygames/testing/frame_fingerprints.py`, compared by `scripts/compare_driver_frames.py`):
+  `src/glitchygames/testing/frame_fingerprints.py`, compared by `scripts/compare_driver_frames.py`):
   outside CI, `uv run pytest` (and `nox -s test`) also starts the same command on the native
   driver (macOS cocoa + coreaudio, Windows windows, Linux wayland or x11 with dummy audio) as a
   child run, the usual workers split between them (native two thirds), then compares every frame
@@ -1057,7 +1084,7 @@ Features:
 
 **Supported Format**: TOML only (YAML and INI support removed)
 
-**Sprite Loading** (`glitchygames/sprites/factory.py`, re-exported by `glitchygames.sprites`):
+**Sprite Loading** (`src/glitchygames/sprites/factory.py`, re-exported by `glitchygames.sprites`):
 - `SpriteFactory.load_sprite(filename=...)` - Automatic type detection
 - Supports static sprites (single frame) and animated sprites (multi-frame); both load as an
   `AnimatedSprite` (a static one as a single frame)

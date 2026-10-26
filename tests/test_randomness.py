@@ -17,7 +17,10 @@ import numpy as np
 import pytest
 
 from glitchygames import randomness
+from glitchygames.engine_context import EngineContext
 from glitchygames.randomness import (
+    NUMPY_STREAM_KIND,
+    RANDOM_STREAM_KIND,
     SEED_BITS,
     capture_stream_states,
     engine_random,
@@ -528,3 +531,115 @@ def test_unseeded_randomness_scan_finds_every_kind(offending_randomness_file):
         f'{path}:30 random.random',
         f'{path}:31 random.uniform',
     ]
+
+
+# Master seeds of the two contexts below, and the streams they draw from
+FIRST_CONTEXT_SEED = 5
+SECOND_CONTEXT_SEED = 6
+CONTEXT_DRAWS_STREAM = 'tests.context_draws'
+CONTEXT_NOISE_STREAM = 'tests.context_noise'
+CONTEXT_DRAW_COUNT = 3
+# The range of the numpy draws below: integers(low=..., high=...)
+CONTEXT_NOISE_LOW = 0
+CONTEXT_NOISE_HIGH = 1000
+
+
+def reference_random(*, master_seed: int) -> random.Random:
+    """Return the draws stream as a fresh process with this master seed would make it.
+
+    Args:
+        master_seed: The master seed.
+
+    Returns:
+        A new random.Random.
+
+    """
+    return random.Random(
+        stream_seed(kind=RANDOM_STREAM_KIND, master_seed=master_seed, name=CONTEXT_DRAWS_STREAM)
+    )
+
+
+def test_each_engine_context_has_its_own_master_seed_and_streams():
+    """A seed and its streams in one context are never another's (audit C4)."""
+    second = EngineContext(name='second')
+    reset_streams(seed=FIRST_CONTEXT_SEED)
+    default_stream = random_stream(name=CONTEXT_DRAWS_STREAM)
+
+    with second.active():
+        reset_streams(seed=SECOND_CONTEXT_SEED)
+        second_stream = random_stream(name=CONTEXT_DRAWS_STREAM)
+        assert second_stream is not default_stream
+        assert engine_random_seed() == SECOND_CONTEXT_SEED
+
+    assert engine_random_seed() == FIRST_CONTEXT_SEED
+    assert random_stream(name=CONTEXT_DRAWS_STREAM) is default_stream
+
+
+def test_interleaved_draws_in_two_contexts_equal_each_context_drawing_alone():
+    """Drawing in turn in two contexts gives each the numbers it would draw on its own."""
+    second = EngineContext(name='second')
+    reset_streams(seed=FIRST_CONTEXT_SEED)
+    with second.active():
+        reset_streams(seed=SECOND_CONTEXT_SEED)
+
+    default_draws: list[float] = []
+    second_draws: list[float] = []
+    default_noise: list[int] = []
+    second_noise: list[int] = []
+    for _ in range(CONTEXT_DRAW_COUNT):
+        default_draws.append(random_stream(name=CONTEXT_DRAWS_STREAM).random())
+        default_noise.append(
+            int(
+                numpy_stream(name=CONTEXT_NOISE_STREAM).integers(
+                    low=CONTEXT_NOISE_LOW, high=CONTEXT_NOISE_HIGH
+                )
+            )
+        )
+        with second.active():
+            second_draws.append(random_stream(name=CONTEXT_DRAWS_STREAM).random())
+            second_noise.append(
+                int(
+                    numpy_stream(name=CONTEXT_NOISE_STREAM).integers(
+                        low=CONTEXT_NOISE_LOW, high=CONTEXT_NOISE_HIGH
+                    )
+                )
+            )
+
+    default_reference = reference_random(master_seed=FIRST_CONTEXT_SEED)
+    second_reference = reference_random(master_seed=SECOND_CONTEXT_SEED)
+    assert default_draws == [default_reference.random() for _ in range(CONTEXT_DRAW_COUNT)]
+    assert second_draws == [second_reference.random() for _ in range(CONTEXT_DRAW_COUNT)]
+    for master_seed, noise in (
+        (FIRST_CONTEXT_SEED, default_noise),
+        (SECOND_CONTEXT_SEED, second_noise),
+    ):
+        noise_reference = np.random.default_rng(
+            stream_seed(kind=NUMPY_STREAM_KIND, master_seed=master_seed, name=CONTEXT_NOISE_STREAM)
+        )
+        assert noise == [
+            int(noise_reference.integers(low=CONTEXT_NOISE_LOW, high=CONTEXT_NOISE_HIGH))
+            for _ in range(CONTEXT_DRAW_COUNT)
+        ]
+
+
+def test_restoring_stream_states_in_one_context_never_touches_another_contexts_streams():
+    """Review Focus 5: a restore works in place, on the current context's streams only."""
+    second = EngineContext(name='second')
+    reset_streams(seed=FIRST_CONTEXT_SEED)
+    default_stream = random_stream(name=CONTEXT_DRAWS_STREAM)
+    default_stream.random()
+    default_state_before = default_stream.getstate()
+    captured = capture_stream_states()
+
+    with second.active():
+        restore_stream_states(states=captured)
+        second_stream = random_stream(name=CONTEXT_DRAWS_STREAM)
+        assert second_stream is not default_stream
+        assert second_stream.getstate() == default_state_before
+        second_stream.random()
+        restore_stream_states(states=captured)
+        assert random_stream(name=CONTEXT_DRAWS_STREAM) is second_stream
+        assert engine_random_seed() == FIRST_CONTEXT_SEED
+
+    assert random_stream(name=CONTEXT_DRAWS_STREAM) is default_stream
+    assert default_stream.getstate() == default_state_before

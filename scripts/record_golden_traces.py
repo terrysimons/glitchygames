@@ -61,8 +61,10 @@ from clockwork_keep.game import ClockworkKeepScene
 from drawing_fire.game import DrawingFireScene
 from drawing_fire.seats import LEAVE_HOLD_SECONDS, Stage
 from glitchygames.engine import GameEngine
+from glitchygames.engine_context import current_context
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
 from glitchygames.scenes import SceneManager
+from glitchygames.scenes.scene import SCENE_MANAGERS_SLOT
 from glitchygames.state import manager as save_manager_module
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.tracing import StableSpriteIds, sample_scene_frame, write_trace
@@ -808,7 +810,9 @@ class GoldenTraceSceneManager(SceneManager):
         SceneManager._reset()
         cls._reset()
         manager = cls()
-        SceneManager._instance = manager
+        # Stored as the current engine context's entry for SceneManager in the scene managers
+        # slot, so a plain SceneManager() call answers with it too
+        current_context().value(slot=SCENE_MANAGERS_SLOT)[SceneManager] = manager
         return manager
 
     @classmethod

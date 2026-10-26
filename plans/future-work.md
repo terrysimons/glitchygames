@@ -15,7 +15,7 @@ local branches are deleted. The decisions made on the way, for the record:
   differing frames alone still exit `SUCCESS` (`ReplayResult.has_lost_input`).
 - ~~**Delete the stale `glitchygames.egg-info/`**~~ **Done** 2026-10-20 (BUGS.md #78).
   `game_entry_point`'s search of every installed distribution in
-  `glitchygames/testing/replays.py` is kept as a guard against the next stray egg-info.
+  `src/glitchygames/testing/replays.py` is kept as a guard against the next stray egg-info.
 - **The final review fix round's behaviour decisions** (reviewed with the user 2026-10-20):
   - A game's own `sys.exit(0)` during `--rebaseline`: **changed**; it writes NEW and exits
     `REBASELINE_INPUT_LOST` (a plain replay still exits `REPLAY_DIVERGED`).
@@ -61,19 +61,19 @@ local branches are deleted. The decisions made on the way, for the record:
 
 | Item | Where | Notes |
 |---|---|---|
-| Undoing an animation delete loses its per-frame hitboxes and rebuilds frames on surfaces without SRCALPHA (alpha lost); frame-add and animation-create undo captures still copy `frame.pixels`, which is fragile | `glitchygames/bitmappy/history/commands.py` | Found while fixing BUGS.md #53; same family as #51/#53. |
-| `CollisionManager.check_overlap` computes each sprite's rect once per pass, so a callback that moves a sprite leaves later pairs using its old rect | `glitchygames/collision/layers.py` (documented in the docstring) | Harmless in PaddleSlap; matters for generic reuse. |
-| Frame-anchor reference cache doesn't notice a frame hitbox edited in place (only frame add/remove/replace) | `glitchygames/sprites/animated.py` (documented) | Nothing edits in place today. |
-| Frames loaded from TOML keep magenta (255, 0, 255) opaque (no colorkey, alpha 255), so the visible-pixel hitbox fallback of a magenta-keyed sprite is its whole frame (ghosty: `Rect(0, 0, 32, 32)`) | `glitchygames/sprites/animated.py` (loader), `glitchygames/collision/bounds.py` | Found while testing the viewport-save hitbox rule; confirm whether games rely on explicit hitboxes or set a colorkey themselves. |
+| Undoing an animation delete loses its per-frame hitboxes and rebuilds frames on surfaces without SRCALPHA (alpha lost); frame-add and animation-create undo captures still copy `frame.pixels`, which is fragile | `src/glitchygames/bitmappy/history/commands.py` | Found while fixing BUGS.md #53; same family as #51/#53. |
+| `CollisionManager.check_overlap` computes each sprite's rect once per pass, so a callback that moves a sprite leaves later pairs using its old rect | `src/glitchygames/collision/layers.py` (documented in the docstring) | Harmless in PaddleSlap; matters for generic reuse. |
+| Frame-anchor reference cache doesn't notice a frame hitbox edited in place (only frame add/remove/replace) | `src/glitchygames/sprites/animated.py` (documented) | Nothing edits in place today. |
+| Frames loaded from TOML keep magenta (255, 0, 255) opaque (no colorkey, alpha 255), so the visible-pixel hitbox fallback of a magenta-keyed sprite is its whole frame (ghosty: `Rect(0, 0, 32, 32)`) | `src/glitchygames/sprites/animated.py` (loader), `src/glitchygames/collision/bounds.py` | Found while testing the viewport-save hitbox rule; confirm whether games rely on explicit hitboxes or set a colorkey themselves. |
 | A real AI request has not been run in the packaged binary (needs an API key or network) | `dist/bitmappy` | Do once by hand to fully close BUGS.md #47. |
 | `scripts/raw_sprite_loader.py` cannot start: `BitmappyLegacySprite` calls `Sprite.__init__` without x and y, and `inflate` draws zero-size rects (nothing) | `scripts/raw_sprite_loader.py:~41, ~84` | Found while deleting `legacy_sprite_loader.py` (BUGS.md #46). Tests use only its `deflate`; fix or fold into Galimore import (sub-plan E). |
-| ~~`FrameAddCommand._add_frame` copies pixels through `PixelArray.flat` (pygame-ce has no `.flat`), so undoing a frame delete / redoing a frame add fails whenever the frame has pixels~~ | `glitchygames/bitmappy/history/commands.py` | Same bug fixed in `AnimationAddCommand` for BUGS.md #51 (use `SpriteFrame.set_pixel_data`). **Done** (#93, `606fa59b`): `FrameAddCommand._insert_frame` (the method's name now) uses `set_pixel_data` on an SRCALPHA frame and restores an explicit hitbox. |
-| Undoing an animation delete restores the sprite data but only refreshes existing film strip widgets, so the restored animation appears to get no film strip until strips are rebuilt (`on_sprite_loaded`) | `glitchygames/bitmappy/history/commands.py` (`AnimationAddCommand._add_animation`) | Found while fixing BUGS.md #51; not checked in the running app. |
-| The animation-delete undo capture keeps frame pixels and durations but not per-frame hitboxes | `glitchygames/bitmappy/film_strip_coordinator.py` (`_capture_animation_deletion_for_undo`) | Found while fixing BUGS.md #51. |
-| PaddleSlap's `_separate_overlapping_balls` runs after wall and paddle handling, so a ball can sit 1–3 px inside a paddle or past a wall for one frame | `glitchygames/examples/paddleslap.py` | Pre-existing, self-correcting next frame. |
+| ~~`FrameAddCommand._add_frame` copies pixels through `PixelArray.flat` (pygame-ce has no `.flat`), so undoing a frame delete / redoing a frame add fails whenever the frame has pixels~~ | `src/glitchygames/bitmappy/history/commands.py` | Same bug fixed in `AnimationAddCommand` for BUGS.md #51 (use `SpriteFrame.set_pixel_data`). **Done** (#93, `606fa59b`): `FrameAddCommand._insert_frame` (the method's name now) uses `set_pixel_data` on an SRCALPHA frame and restores an explicit hitbox. |
+| Undoing an animation delete restores the sprite data but only refreshes existing film strip widgets, so the restored animation appears to get no film strip until strips are rebuilt (`on_sprite_loaded`) | `src/glitchygames/bitmappy/history/commands.py` (`AnimationAddCommand._add_animation`) | Found while fixing BUGS.md #51; not checked in the running app. |
+| The animation-delete undo capture keeps frame pixels and durations but not per-frame hitboxes | `src/glitchygames/bitmappy/film_strip_coordinator.py` (`_capture_animation_deletion_for_undo`) | Found while fixing BUGS.md #51. |
+| PaddleSlap's `_separate_overlapping_balls` runs after wall and paddle handling, so a ball can sit 1–3 px inside a paddle or past a wall for one frame | `src/games/paddleslap/paddleslap/__init__.py` | Pre-existing, self-correcting next frame. |
 | Papyrus sprites keep their unscaled native rect size | BUGS.md #59 | Latent; fixing it needs its own golden expected-difference class. |
 | Brave Adventurer's ground and walls stay drawn only because the parallax layers dirty the whole screen | BUGS.md #60 | Fragile; make the terrain `dirty = 2` or document the dependency. |
-| Brave Adventurer's and Papyrus's enemies (Cobra, Scarab, Scorpion) still draw in `update()` | `examples/brave_adventurer/enemies.py` | Harmless while their hitboxes do not depend on the pose (the scarab's bounds are the same at every roll angle); move drawing into `dt_tick` (the pose rule) if they ever do. |
+| Brave Adventurer's and Papyrus's enemies (Cobra, Scarab, Scorpion) still draw in `update()` | `src/games/brave-adventurer/src/brave_adventurer/enemies.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | Harmless while their hitboxes do not depend on the pose (the scarab's bounds are the same at every roll angle); move drawing into `dt_tick` (the pose rule) if they ever do. |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
@@ -168,7 +168,7 @@ local branches are deleted. The decisions made on the way, for the record:
   The recording-level hash is derived from the frame hashes, not stored.
 - ~~**Processing-time comparison**~~ **Done** 2026-10-20: `processing_seconds` per recorded
   frame, `--compare-processing` and `--max-processing-slowdown PERCENT` (exit
-  `PROCESSING_SLOWER`, 8); contract in `glitchygames/replay/processing.py`, user docs in
+  `PROCESSING_SLOWER`, 8); contract in `src/glitchygames/replay/processing.py`, user docs in
   `docs/architecture/gameplay_replay.md`. Follow-ups: a CI job that keeps a baseline recording
   per runner and checks it; the golden fixtures and bundled demo hold no processing times until
   they are re-recorded (the scancode TODO's re-record would add them).
@@ -178,8 +178,8 @@ Design: `plans/2026-10-19-gameplay-replay.md`. Master plan:
 and Replay").
 
 - ~~**Part 1, replay core**~~ **Done** on `feature/gameplay-replay`
-  (`plans/2026-10-19-gameplay-replay-core.md`): the doors (`glitchygames/sources.py`,
-  `live_sources.py`, `RecordingSources`, `ReplaySources`), the clocks (`glitchygames/clock.py`,
+  (`plans/2026-10-19-gameplay-replay-core.md`): the doors (`src/glitchygames/sources.py`,
+  `live_sources.py`, `RecordingSources`, `ReplaySources`), the clocks (`src/glitchygames/clock.py`,
   `Scene.game_time`), input snapshots, the devices and saves doors, the supervisor hook and
   control events, trace format 3, `--replay-trace`, `--replay-fps`, `--audit`, golden replay
   fixtures and the doors guard (`tests/test_engine_doors.py`). This replaces the old "Gameplay
@@ -199,18 +199,18 @@ and Replay").
   bookmarks (Task 4: B bookmarks the frame shown, S saves `x.bookmarked.jsonl.gz` with
   `breakpoint` control events that pause a watched replay of the copy; a restart with bookmarks
   saves and replays the copy); the pytest plugin for recordings (Task 5:
-  `glitchygames/testing/replays.py`); `--rebaseline` (Task 6: `--replay-trace OLD --rebaseline NEW
+  `src/glitchygames/testing/replays.py`); `--rebaseline` (Task 6: `--replay-trace OLD --rebaseline NEW
   --headless` replays OLD's inputs on the current code without stopping at divergences, writes
   NEW atomically with OLD's inputs and the current sprites, prints a summary of the frames and
-  sprites that changed and exits `SUCCESS`; `glitchygames/replay/rebaseline.py`).
+  sprites that changed and exits `SUCCESS`; `src/glitchygames/replay/rebaseline.py`).
 - ~~**Part 3, in-game playback**~~ **Done** (`plans/2026-10-19-gameplay-replay-playback.md`):
-  scene starts (`glitchygames/scene_start.py`, `replay_arguments`, `CAPTURES_SCENE_START`), the
-  playback scope (`glitchygames/replay/playback.py`; does not block real input at SDL; real
+  scene starts (`src/glitchygames/scene_start.py`, `replay_arguments`, `CAPTURES_SCENE_START`), the
+  playback scope (`src/glitchygames/replay/playback.py`; does not block real input at SDL; real
   input reaches only its "exit playback" check), demos (`play_recording` and the bundled
   PaddleSlap demo, played by its game-over screen when idle, replay-tested by
-  `tests/replay/test_bundled_demos.py`), instant replay (`glitchygames/instant_replay.py`,
+  `tests/replay/test_bundled_demos.py`), instant replay (`src/glitchygames/instant_replay.py`,
   `INSTANT_REPLAY_SECONDS`, `end_playback` from a supervisor, repeated replays through the
-  resume bridge) and ghosts (`glitchygames/replay/ghosts.py`).
+  resume bridge) and ghosts (`src/glitchygames/replay/ghosts.py`).
 - **Plain recording over a replay (`--record-trace` with `--replay-trace`) stays refused**
   (`ExitCode.OPTIONS_REFUSED`, 64; `GameEngine._refuse_an_unsound_recording_over_the_replay`),
   pointing at `--rebaseline NEW --headless`, which wires `ReplaySources.last_batch_origins()` and
@@ -231,7 +231,7 @@ Follow-ups (not in any plan yet):
   hook (`SceneManager.add_supervisor`: it runs after the frame's logic and events, so a change
   is drawn that frame and seen by collision on the next) and records each action as a control
   event (`record_control_event(kind='cheat', data=...)`), which a replay must re-apply on the
-  same frame: add its kind to `REAPPLIED_CONTROL_EVENT_KINDS` (glitchygames/supervision.py),
+  same frame: add its kind to `REAPPLIED_CONTROL_EVENT_KINDS` (src/glitchygames/supervision.py),
   as `breakpoint` is, and apply it in a control event handler. Its reads should go through the
   same named fields the external control API would expose (spec section 2, out of scope).
 - ~~**Supervisor posts outside a playback scope** (BUGS.md #84)~~ **Done:**
@@ -250,11 +250,11 @@ Follow-ups (not in any plan yet):
 - Deferred review notes still open: no test pins the first FPS log waiting one interval;
   `selection.get_state_summary` can return `-inf` for `last_update_time` (not strict JSON);
   `ControlEvent` is unhashable; `tests/test_tracing.py`'s `test_unknown_version_is_refused`
-  duplicates `test_unknown_format_version_is_rejected_on_open`; `glitchygames/tracing.py` uses
+  duplicates `test_unknown_format_version_is_rejected_on_open`; `src/glitchygames/tracing.py` uses
   `cast('int', format_version)` where narrowing would do; `open_controller`'s
-  `controller.quit()` inside its `except` (`glitchygames/input/devices.py`) could hide the
+  `controller.quit()` inside its `except` (`src/glitchygames/input/devices.py`) could hide the
   original error if `quit` itself raises; a save's metadata `version` 1.9 is accepted as 1
-  through `int()` (`glitchygames/state/manager.py` `_metadata_version`, pre-existing). Resolved by Part 3: `push_scoped_sources` refuses the installed
+  through `int()` (`src/glitchygames/state/manager.py` `_metadata_version`, pre-existing). Resolved by Part 3: `push_scoped_sources` refuses the installed
   sources (`SourcesAlreadyInstalledError`), so `reset_sources` never uninstalls one object
   twice; `start_trace_recording` can only run before the first frame (`install_sources` raises
   `SourcesAlreadyRunningError` after it), when no playback scope can be active, so it always
@@ -302,7 +302,7 @@ and "audio buffer ready" flags.
   which is what an AI consumer needs) requires the engine to render each frame's audio slice
   itself: an offline, per-frame mixing path. pygame's mixer runs on its own real-time thread even
   with the dummy driver, so it cannot simply be tapped while the engine waits. The synth and
-  live-voice code (`glitchygames/audio/synth.py`, `live.py`) already generates samples; sounds
+  live-voice code (`src/glitchygames/audio/synth.py`, `live.py`) already generates samples; sounds
   played through `pygame.mixer` (`SoundBank`, loaded sound files) would need the offline path too.
   **This is the main design question.**
 - **Free-running mode** (the engine never waits): the latch covers frames only. Audio is a
@@ -315,10 +315,10 @@ and "audio buffer ready" flags.
 - **Observe:** raw pixels (full or downscaled); sprite state as data (the trace sample,
   `glitchygames.tracing.sample_scene_frame`); declared game state such as score, lives and level
   (shared with the future cheat device's named fields); the frame's audio packet and the sounds and
-  voices started this frame; frame hashes (`glitchygames/replay/audit.py`'s `frame_digest`).
+  voices started this frame; frame hashes (`src/glitchygames/replay/audit.py`'s `frame_digest`).
 - **Act:** input injection through the doors, as an "external input" source alongside live and
-  replay (`glitchygames/sources.py`); scripted supervisor actions at the existing hook
-  (`glitchygames/supervision.py`); time control (pause, step, speed, reset with a seed); save and
+  replay (`src/glitchygames/sources.py`); scripted supervisor actions at the existing hook
+  (`src/glitchygames/supervision.py`); time control (pause, step, speed, reset with a seed); save and
   load state (needs state snapshots); scene control.
 - **Output:** draw pixels, lines, rects, text and sprites to an overlay layer that is never in
   traces unless asked for; play a voice from a waveform equation or a preset, with duration, pitch
@@ -328,7 +328,7 @@ and "audio buffer ready" flags.
 - **Shape:** a Gymnasium-style environment wrapper, `reset(seed)` and
   `step(actions) -> (observation, reward, done, info)`, built on lockstep mode and the seeded
   doors. Transports: shared memory locally, WebSocket or HTTP remotely. Check what
-  `glitchygames/api/` already provides (today a FastAPI server and client for AI sprite
+  `src/glitchygames/api/` already provides (today a FastAPI server and client for AI sprite
   generation, `glitchygames-server` / `glitchygames-client`). Security: authentication for remote
   input, rate limits, a read-only spectator mode.
 
@@ -345,7 +345,7 @@ and "audio buffer ready" flags.
 ### Prerequisites already built (replay Part 1)
 
 The doors, deterministic simulation, recordings, the supervisor hook, the input-blocking helper
-(`glitchygames/replay/input_blocking.py`), the golden fixtures and `--headless` (any run, not
+(`src/glitchygames/replay/input_blocking.py`), the golden fixtures and `--headless` (any run, not
 only replays; Part 2 Task 1).
 
 ## Trace format ideas (pending a user decision)
@@ -420,7 +420,7 @@ only replays; Part 2 Task 1).
 ## Assets and art
 
 - Ghosty sprite: frames 1–7 have inferred outer outlines; canvas screenshots of each frame would
-  make them exact (`examples/resources/sprites/ghosty.toml`).
+  make them exact (`src/glitchygames/examples/resources/sprites/ghosty.toml`).
 - Papyrus player art could be redrawn bottom-aligned, after which `frame_anchor` is unnecessary.
 
 ## Galimore
@@ -462,7 +462,7 @@ drafted issue text. Not posted yet:
   SceneManager extraction below) rather than squeezing more in.
 
 - **Extract the playback scope's bookkeeping out of `SceneManager`** (final review of
-  `feature/gameplay-replay`, item C6; deferred). `glitchygames/scenes/scene.py`'s `SceneManager`
+  `feature/gameplay-replay`, item C6; deferred). `src/glitchygames/scenes/scene.py`'s `SceneManager`
   carries the scope's entry and exit (`_enter_playback`, `_exit_playback`, the stashed live rumble,
   scope-owned supervisors and handlers, discarded scope posts) and the instant-replay journal's
   begin/resume/journal steps. Split them into collaborators the scene manager calls at fixed
@@ -474,16 +474,16 @@ drafted issue text. Not posted yet:
   optional, not done). Adding `recording_sha256` (of a demo file's bytes) to the marker's data would
   make a session replay whose demo was re-recorded since diverge at the scope's first frame, naming
   the cause, instead of at a later sprite. Needs the marker's shape changed in
-  `glitchygames/recording.py`'s docs and the tests that assert it; instant replays (in memory, same
+  `src/glitchygames/recording.py`'s docs and the tests that assert it; instant replays (in memory, same
   run) gain nothing from it.
 - **Audit dataclasses for conversion to pydantic** (user request, 2026-10-20; lean yes unless there's
-  a good reason not to). `glitchygames/` has ~49 `@dataclasses.dataclass` structures across ~30 files
+  a good reason not to). `src/glitchygames/` has ~49 `@dataclasses.dataclass` structures across ~30 files
   (`git grep -n "@dataclasses.dataclass\|@dataclass" -- glitchygames`). New data classes already use
   pydantic `BaseModel` (frozen where immutable, `extra='forbid'`; house style in
-  `glitchygames/api/models/sprite_models.py` and `glitchygames/bitmappy/models.py`). For each existing
+  `src/glitchygames/api/models/sprite_models.py` and `src/glitchygames/bitmappy/models.py`). For each existing
   one, decide convert or keep and record why:
   - Convert by default — validation at construction and JSON serialization for free; highest value
-    first: replay and recording data (`glitchygames/replay/`, `recording.py`, `input/state.py`
+    first: replay and recording data (`src/glitchygames/replay/`, `recording.py`, `input/state.py`
     `InputSnapshot`, `input/devices.py` descriptors and enumeration answers, `supervision.py`
     `ControlEvent`), configuration (`services/config.py`), save data (`state/`).
   - Good reasons to keep a dataclass: a per-frame hot path where pydantic construction cost is
@@ -495,33 +495,34 @@ drafted issue text. Not posted yet:
     unchanged).
   - Output: a short table (class, file, decision, reason, benchmark if any) in this file or the task
     report, then the conversions in reviewed commits.
-- **Move the package to a `src/` layout** (user request, 2026-10-20): `glitchygames/glitchygames/` →
-  `glitchygames/src/glitchygames/`. Why: tests and scripts then import the installed package (via
-  `uv sync`), never a stray copy from the repository root, which catches packaging mistakes (missing
-  package data, wrong includes) before release; it is the layout the Python Packaging Authority
-  recommends. Things to move or update together, in one reviewed change:
+- **Move the package to a `src/` layout** (user request, 2026-10-20) — DONE (#105, 2026-10-25):
+  the engine package moved from the repository root into `src/glitchygames/`, and the games,
+  demos and apps got `src/games/`, `src/demos/` and `src/apps/` beside it (design:
+  `plans/2026-10-24-workspace-packages.md`). Why: tests and scripts then import the installed
+  package (via `uv sync`), never a stray copy from the repository root, which catches packaging
+  mistakes (missing package data, wrong includes) before release; it is the layout the Python
+  Packaging Authority recommends. What moved or was updated together, in one reviewed change:
   - the build configuration in `pyproject.toml` (package discovery, package data such as fonts,
-    sprites and TOML assets, console-script entry points) — this is build config, not lint config,
-    but the ruff/pyright/ty/vulture/bandit/coverage path settings will also need `src/`; agree that
-    with the user when the task starts (the standing rule is not to change linter or type-checker
-    config without asking);
-  - `noxfile.py` session paths and every documented command (`ruff format glitchygames tests scripts
-    noxfile.py`, `vulture glitchygames …`), CI configs (CircleCI, GitHub Actions);
+    sprites and TOML assets, console-script entry points) and the ruff/pyright/ty/vulture/bandit/
+    coverage path settings, agreed with the user (the standing rule is not to change linter or
+    type-checker config without asking);
+  - `noxfile.py` session paths and every documented command (`ruff format src tests scripts
+    noxfile.py`), CI configs (CircleCI, GitHub Actions);
   - path-based code and tests: the doors guard (`tests/test_engine_doors.py` scans the package
-    directory), the randomness guard, the recording guard, `glitchygames/sprites` asset lookups,
-    bundled demos, golden harness and fixture paths, `scripts/` that reference `glitchygames/…`;
-  - the PyInstaller spec (`bitmappy.spec`, at the root), mkdocs/mkdocstrings
-    source paths, CLAUDE.md, docs and plans that name `glitchygames/...` file paths;
-  - verify: `uv sync`, full suite, lint/type checks, mkdocs strict, `nox -s build` (wheel contents
-    unchanged apart from paths; assets still included), golden traces and golden replay fixtures
-    unchanged.
+    directory), the randomness guard, the recording guard, `src/glitchygames/sprites` asset
+    lookups, bundled demos, golden harness and fixture paths, `scripts/` that reference engine
+    files;
+  - the PyInstaller spec (`bitmappy.spec`, at the root), mkdocs/mkdocstrings source paths,
+    CLAUDE.md, docs and plans that name `src/glitchygames/...` file paths (the docs scrub after
+    #105 wrote them in full and added a guard, `tests/test_suite_collection.py`);
+  - verified: `uv sync`, full suite, lint/type checks, mkdocs strict, `nox -s build`.
 - **Lint ignores cleanup** (user request, 2026-10-20): planned in
   [`plans/2026-10-20-lint-ignores-cleanup.md`](2026-10-20-lint-ignores-cleanup.md). Phases 1-2
   done 2026-10-21 (the dead `EM101`/`EM102` ignores removed, the `COM812` comment corrected, the
   50 unused `ty: ignore` comments deleted so ty reports nothing, `S311` scoped to
-  `glitchygames/randomness.py` and the tests). Phase 3 part 1 done 2026-10-21: the 36 broad try
+  `src/glitchygames/randomness.py` and the tests). Phase 3 part 1 done 2026-10-21: the 36 broad try
   blocks outside Bitmappy narrowed. Left, carried forward by the user's choice (2026-10-21):
-  Bitmappy's 62 `PLW0717` sites (`glitchygames/bitmappy/`, `glitchygames/sprites/bitmappy_sprite.py`,
+  Bitmappy's 62 `PLW0717` sites (`src/glitchygames/bitmappy/`, `src/glitchygames/sprites/bitmappy_sprite.py`,
   `tests/tools/`; BUGS.md #19), then removing the ignore; `ANN401`; and a decision on `G004`.
   Phase 3 done 2026-10-22 (ignore removed); phase 4: 151 of 152 typed, the last (`events/base.py`'s
   `__getattr__`) waiting on the typed events plan (see the plan); phase 5 done (all logging lazy,
@@ -534,7 +535,7 @@ drafted issue text. Not posted yet:
   events, a hardware check).
 - ~~**Typed events** (proposed 2026-10-22, for review)~~ **Done 2026-10-22** (`a8cbd953`):
   [`plans/2026-10-22-typed-events.md`](2026-10-22-typed-events.md): per-family `HashableEvent`
-  subclasses so handlers get real field types (`glitchygames/events/base.py`; events immutable).
+  subclasses so handlers get real field types (`src/glitchygames/events/base.py`; events immutable).
 - ~~**Tests that never run in CI**~~ **Done** by 2026-10-22 (`d1afcb9b`, `6861d0c5`, `80b1900f`,
   `1411160d`; no `pytest.skip` is left in those files): the placeholders were rewritten or removed, the voice and mixed-content tests run,
   `test_transparency_fix.py` is deleted, and the indicator update test runs on one thread (the

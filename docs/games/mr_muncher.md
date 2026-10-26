@@ -612,7 +612,7 @@ with rounded corners, the second the velvet inside it. The door is a bar across 
 ### `make_opaque` on the backgrounds
 
 After the maze is blitted onto each background, `_draw_maze_backgrounds` calls
-`make_opaque(surface=background)` (`glitchygames/opacity.py`). The reason is
+`make_opaque(surface=background)` (`src/glitchygames/opacity.py`). The reason is
 [BUGS.md #142](https://github.com/terrysimons/glitchygames/blob/main/BUGS.md). On a display
 with per-pixel alpha (macOS cocoa), a plain `pygame.Surface` takes the display's format,
 including its alpha channel. Alpha-blending a per-pixel-alpha picture such as the smooth-scaled
@@ -634,7 +634,7 @@ wanted size down to 8) at which each panel's longest text fits.
 
 ## Sound
 
-`sounds.py` defines every sound as a synth `SoundRecipe` (`glitchygames/audio/recipes.py`).
+`sounds.py` defines every sound as a synth `SoundRecipe` (`src/glitchygames/audio/recipes.py`).
 `shared_sound_bank()` builds one `SoundBank(ALL_RECIPES)` for the whole process
 (`functools.cache`), and `setup()` calls `sounds.prerender()`, so no sound is rendered in the
 middle of a frame.
@@ -744,7 +744,7 @@ exercised. The gamepad controls (D-pad, stick, Start and the hat, listed as `ste
 excused in `UNEXERCISED_CONTROLS`, because the scripted session runs on the dummy driver,
 which has no gamepad.
 
-The pytest plugin `glitchygames/testing/replays.py` replays the fixture in a child process
+The pytest plugin `src/glitchygames/testing/replays.py` replays the fixture in a child process
 (`mr-muncher --replay-trace ... --headless`), and the test fails unless it exits `SUCCESS`.
 Re-record the fixture only deliberately (the commands are in the script's docstring), never just
 to make a failing replay pass.

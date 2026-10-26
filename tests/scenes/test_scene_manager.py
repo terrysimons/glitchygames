@@ -11,6 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames import events
+from glitchygames.engine_context import EngineContext
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import Sprite
 from glitchygames.transitions import FadeTransition
@@ -731,3 +732,50 @@ class TestInputDeviceNotices:
         # The default notices do nothing
         scene.on_input_device_added(device=self._device())
         scene.on_input_device_removed(device=self._device())
+
+
+class SubclassedSceneManager(SceneManager):
+    """A scene manager subclass (tests/world/test_finish_frame.py makes one too)."""
+
+
+def test_each_engine_context_has_its_own_scene_manager():
+    """SceneManager() is one per context; resetting one never touches another's (audit C6)."""
+    second = EngineContext(name='second')
+    default_manager = SceneManager()
+    default_manager.frame_number = 7
+
+    with second.active():
+        second_manager = SceneManager()
+        assert second_manager is not default_manager
+        assert second_manager.frame_number == 0
+        assert SceneManager() is second_manager
+        SceneManager._reset()
+        assert SceneManager() is not second_manager
+
+    assert SceneManager() is default_manager
+    assert default_manager.frame_number == 7
+    assert default_manager._initialized
+
+
+def test_a_scene_manager_subclass_keeps_the_singleton_rules_of_the_class_attribute():
+    """Review Focus 4: the class attribute's inherited lookup, kept exactly.
+
+    A subclass with no entry of its own answers with its base class's manager; its _reset()
+    uninitializes the manager it answered with and gives it an entry of its own (None).
+    """
+    base_manager = SceneManager()
+    assert SubclassedSceneManager() is base_manager
+
+    SubclassedSceneManager._reset()
+    assert not base_manager._initialized
+    subclass_manager = SubclassedSceneManager()
+    assert type(subclass_manager) is SubclassedSceneManager
+    assert SceneManager() is base_manager
+    assert base_manager._initialized
+
+    SubclassedSceneManager._reset()
+    assert not subclass_manager._initialized
+    assert base_manager._initialized
+    assert SceneManager() is base_manager
+    assert SubclassedSceneManager() is not subclass_manager
+    SubclassedSceneManager._reset()

@@ -64,7 +64,7 @@ PaddleSlap has two scenes of its own and one built in.
 | Scene | Module | Role |
 | --- | --- | --- |
 | `Game` | `src/games/paddleslap/paddleslap/__init__.py` | The court: paddles, balls, collisions, rally count, high scores |
-| `PauseScene` | `glitchygames/scenes/builtin_scenes/pause_scene.py` | The engine's pause screen: the game's last frame dimmed with PAUSED over it |
+| `PauseScene` | `src/glitchygames/scenes/builtin_scenes/pause_scene.py` | The engine's pause screen: the game's last frame dimmed with PAUSED over it |
 | `PaddleSlapGameOverScene` | `src/games/paddleslap/paddleslap/__init__.py` | `GameOverScene` (score, top 5 high scores) plus the attract-mode demo, and a resume that always starts a new `Game` |
 
 In the diagram, the Engine box holds what the engine provides (its pause screen and the playback
@@ -271,8 +271,8 @@ classDiagram
 ```
 
 PaddleSlap defines no sprite classes: both paddles are the engine's `VerticalPaddle`
-(`glitchygames/game_objects/paddle.py`) and every ball is its `BallSprite`
-(`glitchygames/game_objects/ball.py`). The game creates them, wires the balls' callbacks
+(`src/glitchygames/game_objects/paddle.py`) and every ball is its `BallSprite`
+(`src/glitchygames/game_objects/ball.py`). The game creates them, wires the balls' callbacks
 (`on_paddle_collision`, `on_wall_bounce`) to its rally count and sounds, and resolves collisions
 in `Game.dt_tick`. `HorizontalPaddle` is not used by PaddleSlap; it is shown because it shares
 `BasePaddle`.
@@ -303,7 +303,7 @@ in `Game.dt_tick`. `HorizontalPaddle` is not used by PaddleSlap; it is shown bec
 ### Hitboxes
 
 The collision manager has two layers, `balls` and `paddles` (the debug overlay's hitbox panel
-draws them). Hitboxes are the default visible-pixel trim (`glitchygames/collision/bounds.py`):
+draws them). Hitboxes are the default visible-pixel trim (`src/glitchygames/collision/bounds.py`):
 
 - A ball's hitbox is its **visible circle's 10×10 box**, offset (5, 5) from the drawn position,
   not its 20×20 image. `BallSprite._visible_rect()` returns that box with its offset, and every
@@ -434,7 +434,7 @@ The logarithmic curve gives big early boosts that taper off, `s0 × (1 + 0.15 ×
 
 ## Ball spawning
 
-`BallSpawnMode` (`glitchygames/game_objects/ball.py`) is a set of bit flags: **triggers** (which
+`BallSpawnMode` (`src/glitchygames/game_objects/ball.py`) is a set of bit flags: **triggers** (which
 events may spawn), **conditions** (cooldown, speed check, random position, speed and colour) and
 **frequency** (the cooldown length). `--ball-spawn-mode` picks one combination:
 
@@ -496,7 +496,7 @@ flowchart TB
 
 ## Input
 
-Each player has an `ActionMap` (`glitchygames/input/action_map.py`) with `up` and `down`; a third
+Each player has an `ActionMap` (`src/glitchygames/input/action_map.py`) with `up` and `down`; a third
 holds `pause`. `_create_action_maps` binds, per player, a scancode, a D-pad button and the left
 stick's vertical axis at a ±0.3 threshold, filtered to the gamepad with **instance id** 0 (player 1)
 or 1 (player 2). The keyboard bindings have no instance filter. In the diagram, the Engine boxes are
@@ -548,7 +548,7 @@ flowchart TB
 ## Sound
 
 Two sound effects, loaded with `glitchygames.game_objects.load_sound` from
-`glitchygames/game_objects/snd_files/` at volume 0.25 (`pygame.mixer.Sound`, not the synthesiser):
+`src/glitchygames/game_objects/snd_files/` at volume 0.25 (`pygame.mixer.Sound`, not the synthesiser):
 
 | Sound | File | Played when |
 | --- | --- | --- |
@@ -587,7 +587,7 @@ Two sound effects, loaded with `glitchygames.game_objects.load_sound` from
 | Recording | What it is | Checked by |
 | --- | --- | --- |
 | `tests/world/golden/paddleslap.jsonl.gz` | Golden trace: the scripted run recorded before the world-space change, by `scripts/record_golden_traces.py` | `tests/world/test_golden_traces.py` compares every sprite's rect and visibility frame by frame; each difference must be explained by one `ExpectedDifference` |
-| `src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz` | Golden replay: 622 frames at 800×480, seed 20261018, recorded through the real engine loop by `scripts/record_scripted_session.py --game paddleslap --frames 600` | The replay plugin (`glitchygames/testing/replays.py`) replays it with `paddleslap --replay-trace ... --headless` and fails unless it exits `SUCCESS`; `tests/replay/test_golden_replays.py` checks the fixture set and the controls rule |
+| `src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz` | Golden replay: 622 frames at 800×480, seed 20261018, recorded through the real engine loop by `scripts/record_scripted_session.py --game paddleslap --frames 600` | The replay plugin (`src/glitchygames/testing/replays.py`) replays it with `paddleslap --replay-trace ... --headless` and fails unless it exits `SUCCESS`; `tests/replay/test_golden_replays.py` checks the fixture set and the controls rule |
 | `src/games/paddleslap/paddleslap/demos/rally.jsonl.gz` | Bundled demo: 450 frames of `Game`, recorded with `--frames 450 --script-only` (before the script's pause, no quit) | `tests/replay/test_bundled_demos.py` replays it headless and plays it through `play_recording` inside a running game |
 
 The golden script (`paddleslap_script` in `scripts/record_golden_traces.py`) steers both paddles
@@ -620,12 +620,12 @@ docstring of `scripts/record_scripted_session.py`). Replay performance for both 
 | `src/games/paddleslap/paddleslap/__init__.py` | `Game`, `PaddleSlapGameOverScene`, `main()` (the `paddleslap` console script), the serve, speed-up and demo constants |
 | `src/games/paddleslap/paddleslap/__main__.py` | `python -m paddleslap` |
 | `src/games/paddleslap/paddleslap/demos/rally.jsonl.gz` | The bundled attract-mode demo |
-| `glitchygames/game_objects/ball.py` | `BallSprite`, `BallSpawnMode`, `ServeSettings`, `SpeedUpSettings` and their enums |
-| `glitchygames/game_objects/paddle.py` | `BasePaddle`, `VerticalPaddle`, `HorizontalPaddle` |
-| `glitchygames/game_objects/sounds.py`, `snd_files/` | `SFX`, `load_sound`, the two WAV files |
-| `glitchygames/scenes/builtin_scenes/pause_scene.py` | `PauseScene` |
-| `glitchygames/scenes/builtin_scenes/game_over_scene.py` | `GameOverScene`, `TextSprite` |
-| `glitchygames/input/action_map.py` | `ActionMap` |
+| `src/glitchygames/game_objects/ball.py` | `BallSprite`, `BallSpawnMode`, `ServeSettings`, `SpeedUpSettings` and their enums |
+| `src/glitchygames/game_objects/paddle.py` | `BasePaddle`, `VerticalPaddle`, `HorizontalPaddle` |
+| `src/glitchygames/game_objects/sounds.py`, `snd_files/` | `SFX`, `load_sound`, the two WAV files |
+| `src/glitchygames/scenes/builtin_scenes/pause_scene.py` | `PauseScene` |
+| `src/glitchygames/scenes/builtin_scenes/game_over_scene.py` | `GameOverScene`, `TextSprite` |
+| `src/glitchygames/input/action_map.py` | `ActionMap` |
 | `scripts/record_golden_traces.py` | The golden script (`paddleslap_script`, `PaddleTracker`) and the golden trace recorder |
 | `scripts/record_scripted_session.py` | The golden replay and demo recorder, and the controls tail |
 | `src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz` | The golden replay |

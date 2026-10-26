@@ -358,7 +358,7 @@ When the response includes TOML content, the client automatically displays a col
 
 ### Exit Codes
 
-The client exits with an `ExitCode` (`glitchygames/exit_codes.py`; the module docstring of `glitchygames/api/client.py` lists them): `SUCCESS` (0), `GENERATION_REJECTED` (4) / `EXTRACTION_REJECTED` (5) when the server refuses the request, `SERVICE_UNAVAILABLE` (69) when it cannot be reached or answers 503, `OPTIONS_REFUSED` (64) for an unusable `--server-url`, `MISSING_INPUT` (66) / `UNUSABLE_INPUT` (65) for a missing or unreadable APNG or a malformed response, `CANNOT_WRITE_OUTPUT` (73), `INTERNAL_ERROR` (70) for a client bug, and argparse's `ARGUMENT_PARSER_ERROR` (2) for a usage error.
+The client exits with an `ExitCode` (`src/glitchygames/exit_codes.py`; the module docstring of `src/glitchygames/api/client.py` lists them): `SUCCESS` (0), `GENERATION_REJECTED` (4) / `EXTRACTION_REJECTED` (5) when the server refuses the request, `SERVICE_UNAVAILABLE` (69) when it cannot be reached or answers 503, `OPTIONS_REFUSED` (64) for an unusable `--server-url`, `MISSING_INPUT` (66) / `UNUSABLE_INPUT` (65) for a missing or unreadable APNG or a malformed response, `CANNOT_WRITE_OUTPUT` (73), `INTERNAL_ERROR` (70) for a client bug, and argparse's `ARGUMENT_PARSER_ERROR` (2) for a usage error.
 
 ## Output Directory Structure
 
@@ -412,7 +412,7 @@ print(img.info["ExtractScale"]) # 8
 ## Architecture
 
 ```
-glitchygames/api/
+src/glitchygames/api/
   __init__.py              # Package exports, usage docstring
   main.py                  # FastAPI app factory, lifespan, uvicorn entry point
   client.py                # CLI client, file saving, ASCII preview
@@ -425,7 +425,7 @@ glitchygames/api/
     health.py              # GET / and GET /health
     sprites.py             # POST /sprites/generate, /refine, /extract-frames
 
-glitchygames/services/
+src/glitchygames/services/
   __init__.py              # Re-exports all services and exceptions
   config.py                # ServiceConfig (env vars, defaults)
   exceptions.py            # SpriteServiceError, AIProviderError,

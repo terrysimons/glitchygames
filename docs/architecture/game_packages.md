@@ -100,9 +100,9 @@ extra; `tests/test_workspace_config.py` keeps each extra equal to its layer's me
 - **Recordings name games by logical names**: `<layer>.<module path inside the package>:<class>`
   (`games.mr_muncher.game:MrMuncherScene`). A recording therefore does not depend on where the
   code lives, and moving a game changes no recording. The layers are data in the engine,
-  `glitchygames/logical_names.py`: `MEMBER_LAYERS` for members (kept equal to the workspace by
+  `src/glitchygames/logical_names.py`: `MEMBER_LAYERS` for members (kept equal to the workspace by
   `tests/test_workspace_config.py`) and `EXAMPLES_LAYERS` for the demos still in
-  `glitchygames/examples/` (every game has moved; Part 3 moves the demos).
+  `src/glitchygames/examples/` (every game has moved; Part 3 moves the demos).
 - **Golden replays** live with the member's tests; the golden plugin collects them from every
   member, so the engine's `uv run pytest` replays each one.
 - **The browser build** ships a member's package as its own archive (`<package>.zip`) beside the
@@ -164,10 +164,10 @@ any tool's configuration.
 
 ### 4. Update the engine's tables
 
-- `glitchygames/logical_names.py`: move its package from `EXAMPLES_LAYERS` to `MEMBER_LAYERS`.
+- `src/glitchygames/logical_names.py`: move its package from `EXAMPLES_LAYERS` to `MEMBER_LAYERS`.
   Its recordings need nothing else (their logical names do not change); `tests/test_logical_names.py`
   pins both tables.
-- `glitchygames/recording_metrics.py` `RECORDING_PATH_RENAMES`: one line per moved recording, old
+- `src/glitchygames/recording_metrics.py` `RECORDING_PATH_RENAMES`: one line per moved recording, old
   path to new, so its run-ledger history stays connected. Each lookup is one step: a recording
   that has already moved once needs a line from each of its old paths.
 
@@ -202,11 +202,12 @@ any tool's configuration.
 
   ```bash
   git grep -n \
-      "glitchygames.examples.<package>\|glitchygames/examples/<package>\|fixtures/replays/<game>" \
+      "glitchygames.examples.<package>\|fixtures/replays/<game>" \
       -- ':!plans' ':!quality' ':!BUGS.md'
   ```
 
-  prints only the `RECORDING_PATH_RENAMES` line and its test in `tests/test_recording_metrics.py`
+  (grep's `.` matches any character, so the dotted pattern finds the slashed path too) prints
+  only the `RECORDING_PATH_RENAMES` line and its test in `tests/test_recording_metrics.py`
   (the old path is their point), and the member's after-the-move test (its old-package check and
   docstring). `plans/`, `quality/` (ledger rows) and `BUGS.md` are history and keep the old paths.
 
@@ -275,7 +276,7 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
   plugin's one console script per member replays every game's golden; the goldens are named
   apart (`golden-<game>.jsonl.gz`). A member that keeps several console scripts instead has each
   recording replayed through the one whose entry point's module holds the game its header names
-  (`glitchygames/testing/replays.py`, `recorded_games_console_script`).
+  (`src/glitchygames/testing/replays.py`, `recorded_games_console_script`).
   `scripts/record_scripted_session.py` names each such game's golden (`GOLDEN_FIXTURE_NAMES`)
   and keys its console scripts by game (`GAME_CONSOLE_SCRIPTS`), as
   tests/replay/test_golden_replays.py keys each golden's controls: one script can replay

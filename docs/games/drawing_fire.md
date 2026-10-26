@@ -252,7 +252,7 @@ In the game, `drawing.load_soldier_frames` loads the frames with the engine's `A
 loader, scales them up by whole pixels (so the exact colours survive), adds mirrored copies for
 a soldier facing left, and `draw_soldier` asks for his army's livery
 (`ARMY_LIVERIES[soldier.side]`). Nothing in `swatches.py` names the game: it is written to move
-into `glitchygames/sprites/`. What that would take is entry 55 in `plans/future-features.md`.
+into `src/glitchygames/sprites/`. What that would take is entry 55 in `plans/future-features.md`.
 
 ## The pencil look
 
@@ -321,7 +321,7 @@ One limit, noted in `plans/future-features.md` entry 54: the fixture is about 18
 100 KB the other games keep. The first frame holds every random stream's state (19 of them,
 twice), about 125 KB compressed on its own.
 
-The pytest plugin `glitchygames/testing/replays.py` replays the fixture in a child process
+The pytest plugin `src/glitchygames/testing/replays.py` replays the fixture in a child process
 (`drawing-fire --replay-trace ... --headless`), and the test fails unless it exits `SUCCESS`.
 Re-record the fixture only deliberately (the commands are in the script's docstring), never just
 to make a failing replay pass. A re-recording without the player's death and takeover fails the

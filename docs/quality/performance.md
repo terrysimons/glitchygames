@@ -33,7 +33,7 @@ changes". They stay in the pending file after a deploy, so they remain visible l
 
 1. **Every commit carries the measurements of its code.** A pre-commit hook
    (`scripts/measure_staged_replays.py`, installed by `.envrc`) works out the *code tree* of what
-   is being committed (`glitchygames/code_tree.py`: only what can change how the replays run,
+   is being committed (`src/glitchygames/code_tree.py`: only what can change how the replays run,
    the engine, games, demos, apps, recordings, `uv.lock` and `pyproject.toml`). When this machine
    has not measured that code yet, it measures every golden replay and bundled demo on it and
    adds one small file per recording to the commit, under `quality/replay-ledger/`. A docs commit

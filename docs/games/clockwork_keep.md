@@ -125,7 +125,7 @@ pending", so `quit` goes through `scene_manager.quit()`.
 
 The engine's default is `{}`, which rebuilds a scene from options alone. That works for the first
 floor but not for the others: a floor the elevator built would be rebuilt as the `--floor` floor
-with score 0 and 3 lives. A scene start (`glitchygames/scene_start.py`) keeps these arguments,
+with score 0 and 3 lives. A scene start (`src/glitchygames/scene_start.py`) keeps these arguments,
 and `rebuild_scene(start=..., scene_class=..., options=...)` passes them back to the constructor,
 so a playback scope (a demo, an instant replay) that starts on floor 2 rebuilds floor 2 with the
 score and lives it began with. The values are the ones the floor **began** with
@@ -527,7 +527,7 @@ sequenceDiagram
     SM->>New: the ride ends, Floor N+1 is active
 ```
 
-The ride is `glitchygames/transitions/elevator.py`: a tall composite of the old floor, a shaft and
+The ride is `src/glitchygames/transitions/elevator.py`: a tall composite of the old floor, a shaft and
 the new floor scrolls up while the car and the Tinker (a copy of its image) stay pinned at the
 screen's centre. `ease_in_sine` arrives at full speed, so the stop reads as a slam. The car's
 speed is the easing's slope (`transition.eased_velocity_at(progress)`), divided by its peak
@@ -694,8 +694,8 @@ the native-driver comparison while iterating).
 | `src/games/clockwork-keep/clockwork_keep/drawing.py` | Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, `clock_hand_angles` |
 | `src/games/clockwork-keep/clockwork_keep/sounds.py` | The six `SoundRecipe`s, `ALL_RECIPES` |
 | `src/games/clockwork-keep/clockwork_keep/constants.py` | Screen, physics, layers, gameplay, colours, elevator ride feel, the clock |
-| `glitchygames/transitions/elevator.py` | `ElevatorTransition` (engine, written for this game) |
-| `glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The pause and game-over screens |
+| `src/glitchygames/transitions/elevator.py` | `ElevatorTransition` (engine, written for this game) |
+| `src/glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The pause and game-over screens |
 | `scripts/record_golden_traces.py` | The golden input script (`clockwork_keep_script`) and the golden trace harness |
 | `scripts/record_scripted_session.py` | Records the golden replay (`clockwork_keep_controls` is its tail) |
 | `tests/world/golden/clockwork_keep.jsonl.gz` | Golden trace baseline |

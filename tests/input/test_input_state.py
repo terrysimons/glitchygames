@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 import pygame
 import pytest
 
+from glitchygames.engine_context import EngineContext
 from glitchygames.input import state as state_module
 from glitchygames.input.state import (
     IDLE_INPUT,
@@ -19,6 +20,7 @@ from glitchygames.input.state import (
     capture_live_snapshot,
     current_input,
     held_key_codes,
+    reset_current_input,
     set_current_input,
     snapshot_changes,
 )
@@ -27,6 +29,9 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 LEFT_ARROW_SCANCODE = 80  # SDL_SCANCODE_LEFT; pygame.K_LEFT maps to it
+# SDL scancodes of Space and Return (physical positions, the same on every layout)
+SPACE_SCANCODE = 44
+RETURN_SCANCODE = 40
 
 
 @pytest.fixture(autouse=True)
@@ -348,3 +353,20 @@ class TestChanges:
         )
         changes = snapshot_changes(previous=previous, current=IDLE_INPUT)
         assert apply_snapshot_changes(previous=previous, changes=changes) == IDLE_INPUT
+
+
+def test_each_engine_context_has_its_own_polled_input():
+    """A frame's snapshot in one context is never another context's input (audit C3)."""
+    second = EngineContext(name='second')
+    set_current_input(snapshot=snapshot_with(pressed_scancodes=frozenset({SPACE_SCANCODE})))
+
+    with second.active():
+        assert current_input() is IDLE_INPUT
+        set_current_input(snapshot=snapshot_with(pressed_scancodes=frozenset({RETURN_SCANCODE})))
+        assert current_input().pressed_scancodes == frozenset({RETURN_SCANCODE})
+
+    assert current_input().pressed_scancodes == frozenset({SPACE_SCANCODE})
+    reset_current_input()
+    assert current_input() is IDLE_INPUT
+    with second.active():
+        assert current_input().pressed_scancodes == frozenset({RETURN_SCANCODE})

@@ -16,6 +16,9 @@ seed, adding a draw in one subsystem never shifts another subsystem's numbers.
 replay); code must therefore look a stream up when it draws (or when the thing that draws is
 created), not keep one from import time. ``engine_random()`` is ``random_stream('engine')``.
 
+The master seed and the streams belong to the current engine context
+(glitchygames.engine_context): each context has its own, made unseeded the first time it draws.
+
 ``capture_stream_states()``/``restore_stream_states(states=...)`` save and restore every stream
 exactly (in-game playback, plans/2026-10-19-gameplay-replay-playback.md): the master seed and
 each created stream's state, JSON-safe, so a scene rebuilt from its start
@@ -50,6 +53,8 @@ from typing import Any
 
 import numpy as np
 
+from glitchygames.engine_context import ContextSlot, current_context
+
 # Bits drawn from secrets when no seed is given
 SEED_BITS = 64
 # Digest size of the stream seed hash: a 128-bit stream seed
@@ -76,7 +81,20 @@ class EngineRandomState:
     numpy_streams: dict[str, np.random.Generator] = dataclasses.field(default_factory=dict)
 
 
-_STATE = EngineRandomState()
+# Each engine context's master seed and streams (glitchygames.engine_context)
+ENGINE_RANDOM_STATE_SLOT: ContextSlot[EngineRandomState] = ContextSlot(
+    name='glitchygames.randomness.streams', factory=EngineRandomState
+)
+
+
+def _engine_random_state() -> EngineRandomState:
+    """Return the current engine context's master seed and streams.
+
+    Returns:
+        The state (made unseeded on first read).
+
+    """
+    return current_context().value(slot=ENGINE_RANDOM_STATE_SLOT)
 
 
 def stream_seed(*, kind: str, master_seed: int, name: str) -> int:
@@ -109,9 +127,10 @@ def reset_streams(*, seed: int) -> None:
         seed: The new master seed.
 
     """
-    _STATE.seed = seed
-    _STATE.random_streams.clear()
-    _STATE.numpy_streams.clear()
+    engine_state = _engine_random_state()
+    engine_state.seed = seed
+    engine_state.random_streams.clear()
+    engine_state.numpy_streams.clear()
 
 
 def seed_engine_random(*, seed: int | None = None) -> int:
@@ -136,7 +155,7 @@ def engine_random_seed() -> int:
         The seed.
 
     """
-    seed = _STATE.seed
+    seed = _engine_random_state().seed
     if seed is None:
         seed = seed_engine_random()
     return seed
@@ -152,12 +171,13 @@ def random_stream(name: str) -> random.Random:
         The stream; the same object until the next ``reset_streams``.
 
     """
-    generator = _STATE.random_streams.get(name)
+    random_streams = _engine_random_state().random_streams
+    generator = random_streams.get(name)
     if generator is None:
         generator = random.Random(
             stream_seed(kind=RANDOM_STREAM_KIND, master_seed=engine_random_seed(), name=name)
         )
-        _STATE.random_streams[name] = generator
+        random_streams[name] = generator
     return generator
 
 
@@ -171,12 +191,13 @@ def numpy_stream(name: str) -> np.random.Generator:
         The stream; the same object until the next ``reset_streams``.
 
     """
-    generator = _STATE.numpy_streams.get(name)
+    numpy_streams = _engine_random_state().numpy_streams
+    generator = numpy_streams.get(name)
     if generator is None:
         generator = np.random.default_rng(
             stream_seed(kind=NUMPY_STREAM_KIND, master_seed=engine_random_seed(), name=name)
         )
-        _STATE.numpy_streams[name] = generator
+        numpy_streams[name] = generator
     return generator
 
 
@@ -202,17 +223,18 @@ def capture_stream_states() -> dict[str, Any]:
         The states, for ``restore_stream_states``.
 
     """
+    engine_state = _engine_random_state()
     random_states: dict[str, Any] = {}
-    for name, generator in _STATE.random_streams.items():
+    for name, generator in engine_state.random_streams.items():
         version, internal_state, gauss_next = generator.getstate()
         random_states[name] = [version, list(internal_state), gauss_next]
     return {
-        SEED_STATE_FIELD: _STATE.seed,
+        SEED_STATE_FIELD: engine_state.seed,
         RANDOM_STATES_FIELD: random_states,
         NUMPY_STATES_FIELD: {
             # default_rng's PCG64 state is a dict of Python ints and strings, JSON-safe as is
             name: generator.bit_generator.state
-            for name, generator in _STATE.numpy_streams.items()
+            for name, generator in engine_state.numpy_streams.items()
         },
     }
 
@@ -232,33 +254,34 @@ def restore_stream_states(*, states: dict[str, Any]) -> None:
         states: What ``capture_stream_states()`` returned (or its JSON read back).
 
     """
+    engine_state = _engine_random_state()
     seed: int | None = states[SEED_STATE_FIELD]
-    _STATE.seed = seed
+    engine_state.seed = seed
     random_states: dict[str, Any] = states[RANDOM_STATES_FIELD]
     numpy_states: dict[str, Any] = states[NUMPY_STATES_FIELD]
-    for name in [name for name in _STATE.random_streams if name not in random_states]:
+    for name in [name for name in engine_state.random_streams if name not in random_states]:
         if seed is None:
-            del _STATE.random_streams[name]
+            del engine_state.random_streams[name]
         else:
-            _STATE.random_streams[name].seed(
+            engine_state.random_streams[name].seed(
                 stream_seed(kind=RANDOM_STREAM_KIND, master_seed=seed, name=name)
             )
-    for name in [name for name in _STATE.numpy_streams if name not in numpy_states]:
+    for name in [name for name in engine_state.numpy_streams if name not in numpy_states]:
         if seed is None:
-            del _STATE.numpy_streams[name]
+            del engine_state.numpy_streams[name]
         else:
-            _STATE.numpy_streams[name].bit_generator.state = np.random.default_rng(
+            engine_state.numpy_streams[name].bit_generator.state = np.random.default_rng(
                 stream_seed(kind=NUMPY_STREAM_KIND, master_seed=seed, name=name)
             ).bit_generator.state
     for name, (version, internal_state, gauss_next) in random_states.items():
-        generator = _STATE.random_streams.get(name)
+        generator = engine_state.random_streams.get(name)
         if generator is None:
             generator = random.Random(RESTORED_STREAM_PLACEHOLDER_SEED)
-            _STATE.random_streams[name] = generator
+            engine_state.random_streams[name] = generator
         generator.setstate((version, tuple(internal_state), gauss_next))
     for name, bit_generator_state in numpy_states.items():
-        numpy_generator = _STATE.numpy_streams.get(name)
+        numpy_generator = engine_state.numpy_streams.get(name)
         if numpy_generator is None:
             numpy_generator = np.random.default_rng(RESTORED_STREAM_PLACEHOLDER_SEED)
-            _STATE.numpy_streams[name] = numpy_generator
+            engine_state.numpy_streams[name] = numpy_generator
         numpy_generator.bit_generator.state = bit_generator_state
