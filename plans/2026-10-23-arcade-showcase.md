@@ -4,6 +4,9 @@ Status: SPEC (agreed with the user 2026-10-25; drafted 2026-10-23), not started.
 feature #43 in `plans/future-features.md`. This is the master plan: each piece below gets its own
 sub-plan, linked both ways from here (sub-plans link back to this file).
 
+Mockup (the owner's, 2026-10-25): https://claude.ai/artifact/3QKddtTADVqC1LVpvDSQSD, the screen with
+real frames from each game's golden replay (a 5x2 grid of ten tiles; the tile count is still open).
+
 ## What it is
 
 A `glitchygames` console script, from the Arcade app at `src/apps/arcade/` (its own workspace
@@ -222,8 +225,9 @@ sprite being drawn; the joystick demo's shows its readout answering a recorded p
 
 ## Sub-plans (each written before its work starts, linked both ways)
 
-1. **Engine context** (its own master plan with sub-plans): `EngineContext`, the default context,
-   switching, the isolation tests. First.
+1. **Engine context** (its own master plan with sub-plans,
+   [2026-10-25-engine-context.md](2026-10-25-engine-context.md)): `EngineContext`, the default
+   context, switching, the isolation tests. First.
 2. **Audit and refactor playback into one core, then `DemoPlayer`:** the audit, the shared
    inner-game runner, the viewer and playback scope on it, fast-forward, the frame budget,
    poster frames.
