@@ -8,7 +8,6 @@ those checks run here on every sprite in the library too, as Papyrus's do on its
 """
 
 import logging
-import time
 
 import numpy as np
 import pygame
@@ -24,8 +23,6 @@ PIXEL_INTEGRITY_THRESHOLD = 100.0  # every pixel draws exactly as expected
 MAX_REASONABLE_DIMENSION = 1000
 MAX_ASPECT_RATIO = 10.0
 MIN_ASPECT_RATIO = 0.1
-MAX_LOAD_TIME = 1.0
-MAX_RENDER_TIME = 0.1
 # The library's size when it moved with Bitmappy (2026-10-26)
 SPRITE_LIBRARY_FILE_COUNT = 71
 
@@ -199,23 +196,15 @@ class TestBitmappySpriteLibrary:
             sprite_file = self.sprites_dir / sprite_name
             assert sprite_file.exists(), f'The named sample {sprite_name} is not in the library'
 
-            # Time the loading
-            start_time = time.time()
+            # Load and render; the timing lives in test_bitmappy_benchmarks.py
             sprite = _load_example_sprite(sprite_file)
-            load_time = time.time() - start_time
-
-            # Time the rendering
             assert sprite.image is not None
-            start_time = time.time()
+            width, height = sprite.image.get_size()
+            assert width > 0, f'{sprite_name} loaded with no width'
+            assert height > 0, f'{sprite_name} loaded with no height'
             test_surface = pygame.Surface(sprite.image.get_size(), depth=32)
             test_surface.blit(sprite.image, (0, 0))
-            render_time = time.time() - start_time
-
-            # Verify performance is reasonable
-            assert load_time < MAX_LOAD_TIME, f'{sprite_name} loading too slow: {load_time:.3f}s'
-            assert render_time < MAX_RENDER_TIME, (
-                f'{sprite_name} rendering too slow: {render_time:.3f}s'
-            )
+            assert test_surface.get_size() == (width, height)
 
     @staticmethod
     def _expected_drawn_pixels(*, surface, background_color):

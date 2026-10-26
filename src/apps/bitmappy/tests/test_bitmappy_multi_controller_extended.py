@@ -13,7 +13,7 @@ from bitmappy.controllers.manager import (
 )
 from bitmappy.controllers.selection import ControllerSelection
 from bitmappy.indicators.collision import IndicatorShape, VisualCollisionManager
-from glitchygames.clock import elapsed_seconds, measured_seconds
+from glitchygames.clock import elapsed_seconds
 from glitchygames.sources import advance_frame_clock
 
 
@@ -233,8 +233,7 @@ class TestVisualCollisionEdgeCases:
 
     def test_performance_with_many_indicators(self):
         """Test performance with many visual indicators."""
-        # Add many indicators
-        start_time = measured_seconds()
+        # Add many indicators (timing lives in test_bitmappy_benchmarks.py)
         for i in range(50):
             self.manager.add_controller_indicator(
                 controller_id=i,
@@ -242,10 +241,6 @@ class TestVisualCollisionEdgeCases:
                 color=(255, 0, 0),
                 position=(i * 10, i * 10),
             )
-        end_time = measured_seconds()
-
-        # Should complete quickly (less than 1 second)
-        assert end_time - start_time < 1.0
 
         # Verify all indicators were added
         assert len(self.manager.indicators) == 50
@@ -534,18 +529,16 @@ class TestPerformanceScenarios:
         self.manager.assigned_controllers[0] = 0
 
         # Process many rapid events
-        start_time = measured_seconds()
+        assert self.manager.controllers[0].last_activity is None
         for _ in range(1000):
             self.manager.update_controller_activity(0)
-        end_time = measured_seconds()
 
-        # Should complete quickly
-        assert end_time - start_time < 1.0
+        # The activity timestamp was stamped (timing lives in test_bitmappy_benchmarks.py)
+        assert self.manager.controllers[0].last_activity is not None
 
     def test_collision_calculation_performance(self):
         """Test collision calculation performance with many indicators."""
         # Add many indicators at same position
-        start_time = measured_seconds()
         for i in range(20):
             self.visual_manager.add_controller_indicator(
                 controller_id=i,
@@ -553,10 +546,6 @@ class TestPerformanceScenarios:
                 color=(255, 0, 0),
                 position=(100, 100),
             )
-        end_time = measured_seconds()
-
-        # Should complete quickly
-        assert end_time - start_time < 1.0
 
         # Verify collision avoidance was applied
         assert (100, 100) in self.visual_manager.film_strip_collision_groups

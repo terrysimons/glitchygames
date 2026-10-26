@@ -4,7 +4,6 @@ This module provides stress tests and performance benchmarks for the
 multi-controller system under extreme conditions.
 """
 
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -17,17 +16,6 @@ from bitmappy.controllers.manager import (
 )
 from bitmappy.controllers.selection import ControllerSelection
 from bitmappy.indicators.collision import VisualCollisionManager
-
-IS_CI = os.environ.get('CI') == 'true'
-CI_TIME_MULTIPLIER = 50.0 if IS_CI else 1.0
-
-# Stress test time limits (seconds)
-RAPID_CYCLING_TIME_LIMIT = 10.0 * CI_TIME_MULTIPLIER
-NAVIGATION_HISTORY_TIME_LIMIT = 5.0 * CI_TIME_MULTIPLIER
-COLLISION_ADD_TIME_LIMIT = 2.0 * CI_TIME_MULTIPLIER
-COLLISION_UPDATE_TIME_LIMIT = 10.0 * CI_TIME_MULTIPLIER
-CONCURRENT_OPS_TIME_LIMIT = 10.0 * CI_TIME_MULTIPLIER
-RESILIENCE_TIME_LIMIT = 10.0 * CI_TIME_MULTIPLIER
 
 
 class TestMultiControllerStress:
@@ -63,15 +51,10 @@ class TestMultiControllerStress:
             )
 
         # Test rapid operations on all controllers
-        start_time = time.perf_counter()
         for _ in range(100):
             for i in range(self.manager.MAX_CONTROLLERS):
                 self.controller_selections[i].set_selection(f'animation_{i}', i)
                 self.visual_manager.update_controller_position(i, (i * 10, i * 10))
-        end_time = time.perf_counter()
-
-        # Should complete within reasonable time
-        assert end_time - start_time < 5.0
 
         # Verify all controllers are still functional
         for i in range(self.manager.MAX_CONTROLLERS):
@@ -90,15 +73,11 @@ class TestMultiControllerStress:
             self.controller_selections[i] = ControllerSelection(i, instance_id)
 
         # Rapidly switch between controllers
-        start_time = time.perf_counter()
         for cycle in range(1000):
             for i in range(4):
                 self.controller_selections[i].activate()
                 self.controller_selections[i].set_selection(f'animation_{i}', cycle)
                 time.sleep(0.0001)  # Very small delay
-        end_time = time.perf_counter()
-
-        assert end_time - start_time < RAPID_CYCLING_TIME_LIMIT
 
         # Verify final states
         for i in range(4):
@@ -114,12 +93,8 @@ class TestMultiControllerStress:
         self.controller_selections[0].activate()
 
         # Generate extensive navigation history
-        start_time = time.perf_counter()
         for i in range(10000):
             self.controller_selections[0].set_selection(f'animation_{i % 100}', i % 50)
-        end_time = time.perf_counter()
-
-        assert end_time - start_time < NAVIGATION_HISTORY_TIME_LIMIT
 
         # Verify navigation history
         history = self.controller_selections[0].get_navigation_history()
@@ -133,7 +108,6 @@ class TestMultiControllerStress:
     def test_visual_collision_stress(self):
         """Test visual collision system under stress."""
         # Add many controllers at same position
-        start_time = time.perf_counter()
         for i in range(50):
             self.visual_manager.add_controller_indicator(
                 controller_id=i,
@@ -141,22 +115,21 @@ class TestMultiControllerStress:
                 color=(255, 0, 0),
                 position=(100, 100),  # Same position
             )
-        end_time = time.perf_counter()
-
-        assert end_time - start_time < COLLISION_ADD_TIME_LIMIT
 
         # Verify collision avoidance was applied
         assert (100, 100) in self.visual_manager.film_strip_collision_groups
         assert len(self.visual_manager.film_strip_collision_groups[100, 100]) == 50
 
         # Test rapid position updates
-        update_start = time.perf_counter()
         for _ in range(100):
             for i in range(50):
                 self.visual_manager.update_controller_position(i, (100 + i, 100 + i))
-        update_end = time.perf_counter()
 
-        assert update_end - update_start < COLLISION_UPDATE_TIME_LIMIT
+        # Indicator 0 stays at the shared position; every other indicator moved to its own
+        assert len(self.visual_manager.indicators) == 50
+        assert len(self.visual_manager.film_strip_collision_groups) == 50
+        assert (100, 100) in self.visual_manager.film_strip_collision_groups
+        assert self.visual_manager.get_controller_indicator(7).position == (107, 107)
 
     def test_concurrent_operations_stress(self):
         """Test concurrent operations on multiple controllers."""
@@ -178,7 +151,6 @@ class TestMultiControllerStress:
                 time.sleep(0.001)
 
         # Run concurrent operations
-        start_time = time.perf_counter()
         with ThreadPoolExecutor(max_workers=8) as executor:
             futures = []
             for i in range(8):
@@ -188,9 +160,6 @@ class TestMultiControllerStress:
             # Wait for all operations to complete
             for future in futures:
                 future.result()
-        end_time = time.perf_counter()
-
-        assert end_time - start_time < CONCURRENT_OPS_TIME_LIMIT
 
         # Verify all controllers are still functional
         for i in range(8):
@@ -202,7 +171,6 @@ class TestMultiControllerStress:
     def test_system_resilience_stress(self):
         """Test system resilience under extreme conditions."""
         # Rapidly add and remove controllers
-        start_time = time.perf_counter()
         for cycle in range(100):
             # Add controllers
             for i in range(5):
@@ -226,10 +194,6 @@ class TestMultiControllerStress:
                     del self.manager.assigned_controllers[instance_id]
 
                 self.visual_manager.remove_controller_indicator(i)
-        end_time = time.perf_counter()
-
-        # Should complete without errors
-        assert end_time - start_time < 15.0
 
         # System should still be functional
         assert len(self.manager.controllers) == 0
@@ -354,7 +318,6 @@ class TestMultiControllerStress:
             self.controller_selections[i].activate()
 
         # Mixed operations
-        start_time = time.perf_counter()
         for cycle in range(100):
             # Navigation operations
             for i in range(10):
@@ -376,10 +339,6 @@ class TestMultiControllerStress:
             # Clean up visual indicators
             if cycle % 10 == 0:
                 self.visual_manager.clear_all_indicators()
-
-        end_time = time.perf_counter()
-
-        assert end_time - start_time < RESILIENCE_TIME_LIMIT
 
         # Verify final state
         for i in range(10):

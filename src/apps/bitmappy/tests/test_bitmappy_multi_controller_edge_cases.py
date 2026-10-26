@@ -403,9 +403,7 @@ class TestMemoryAndPerformanceEdgeCases:
             self.controller_selections[i] = ControllerSelection(i, instance_id)
             self.controller_selections[i].activate()
 
-        # Perform many operations
-        start_time = time.time()
-
+        # Perform many operations (timing lives in test_bitmappy_benchmarks.py)
         # Navigation operations
         for _ in range(1000):
             for i in range(10):
@@ -416,10 +414,10 @@ class TestMemoryAndPerformanceEdgeCases:
             for i in range(10):
                 self.visual_manager.update_controller_position(i, (i * 10, i * 10))
 
-        end_time = time.time()
-
-        # Should complete within reasonable time
-        assert end_time - start_time < 10.0  # Should complete in under 10 seconds
+        # Every controller ends on its last selection, and no indicator was ever created
+        for i in range(10):
+            assert self.controller_selections[i].get_selection() == (f'animation_{i}', i % 20)
+        assert len(self.visual_manager.indicators) == 0
 
     def test_concurrent_access_patterns(self, mocker):
         """Test concurrent access patterns that could cause issues."""
