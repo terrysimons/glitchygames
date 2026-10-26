@@ -17,10 +17,6 @@ from typing import Any, ClassVar
 
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from scripts.record_golden_traces import GoldenTraceEngine, command_line
 from scripts.workspace_packages import declared_console_scripts
 

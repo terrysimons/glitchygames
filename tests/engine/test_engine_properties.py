@@ -7,14 +7,9 @@ stood in for (no test machine has joysticks attached).
 
 import os
 import sys
-from pathlib import Path
 
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from scripts.record_golden_traces import GoldenTraceEngine
 
 from glitchygames.events.joystick import JoystickEventManager

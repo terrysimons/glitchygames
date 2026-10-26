@@ -4,7 +4,6 @@ This module tests that animated sprites properly utilize per-frame timing
 and that the animation system respects individual frame intervals.
 """
 
-import sys
 import time
 from pathlib import Path
 
@@ -12,9 +11,6 @@ import pygame
 import pytest
 
 from glitchygames.sprites import SpriteFactory
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # The engine's own sprite test data (Bitmappy keeps its sprite library)
 SPRITE_FIXTURES_DIRECTORY = Path(__file__).resolve().parents[1] / 'fixtures' / 'sprites'

@@ -17,15 +17,10 @@ real events.
 import argparse
 import dataclasses
 import math
-import sys
-from pathlib import Path
 from typing import Any, Self
 
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events import (
     HashableEvent,

@@ -12,9 +12,6 @@ from pathlib import Path
 import pytest
 from hypothesis import settings
 
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 # Importing tests.sdl_defaults defaults the SDL drivers to dummy (keeping any value the invoker
 # set); it must come before pygame is imported/initialized in any test worker
 from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip

@@ -4,7 +4,6 @@ These tests are designed to expose bugs and missing functionality
 in the animation system before implementing fixes.
 """
 
-import sys
 from pathlib import Path
 
 import pygame
@@ -12,9 +11,6 @@ import pytest
 
 from glitchygames.sprites import SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # The engine's own sprite test data (Bitmappy keeps its sprite library)
 SPRITE_FIXTURES_DIRECTORY = Path(__file__).resolve().parents[1] / 'fixtures' / 'sprites'

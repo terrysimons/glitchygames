@@ -6,14 +6,9 @@ when their methods are invoked, covering all EventStubs classes.
 
 import abc
 import logging
-import sys
-from pathlib import Path
 
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.events import HashableEvent, UnhandledEventError
 from glitchygames.events.input_event_interfaces import (

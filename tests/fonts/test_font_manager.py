@@ -7,7 +7,6 @@ table (the fake_system_fonts fixture), so they never depend on the fonts this ma
 """
 
 import argparse
-import sys
 import types
 import warnings
 from pathlib import Path
@@ -17,9 +16,6 @@ import pygame.font
 import pygame.freetype
 import pygame.sysfont
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.display_mode import set_display_mode
 from glitchygames.fonts import FontManager

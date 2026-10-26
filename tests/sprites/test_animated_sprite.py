@@ -3,7 +3,6 @@
 import logging
 import math
 import shutil
-import sys
 import tempfile
 import tomllib
 from io import StringIO
@@ -40,8 +39,6 @@ from glitchygames.sprites.pixel_utils import (
     normalize_pixel_for_color_map,
 )
 from tests.harness import imported_engine_directory
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # The imported engine's directory (installed: never the source tree by accident)
 ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()

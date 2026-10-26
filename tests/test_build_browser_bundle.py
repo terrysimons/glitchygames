@@ -8,7 +8,6 @@ import functools
 import importlib.metadata
 import json
 import socket
-import sys
 import threading
 import tomllib
 import urllib.request
@@ -17,9 +16,6 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
 from scripts import build_browser_bundle
 from scripts.build_browser_bundle import (
     GAMES,

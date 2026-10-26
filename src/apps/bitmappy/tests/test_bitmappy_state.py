@@ -35,6 +35,16 @@ class TestSetupAIWorkerLogging:
         log = _setup_ai_worker_logging()
         assert len(log.handlers) > 0
 
+    def test_a_second_setup_adds_no_second_handler(self, mocker):
+        """Setting up twice leaves one handler (the already-set-up branch, in any test order)."""
+        mocker.patch.object(logging.getLogger('game.ai'), 'handlers', new=[])
+
+        first_log = _setup_ai_worker_logging()
+        second_log = _setup_ai_worker_logging()
+
+        assert second_log is first_log
+        assert len(second_log.handlers) == 1
+
 
 class TestCheckOllamaModelStatus:
     """Test _check_ollama_model_status function."""

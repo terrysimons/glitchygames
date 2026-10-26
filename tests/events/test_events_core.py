@@ -12,15 +12,11 @@ import sys
 import types
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from pathlib import Path
 
 import pygame
 import pytest
 
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from glitchygames.events import (  # ruff: ignore[unsorted-imports]
+from glitchygames.events import (
     EVENT_CLASSES,
     FPSEVENT,
     GAMEEVENT,
@@ -32,16 +28,15 @@ from glitchygames.events import (  # ruff: ignore[unsorted-imports]
     MouseButtonEvent,
     MouseMotionEvent,
     ResourceManager,
+    UnhandledEventError,
     WindowEvent,
     WindowGeometryEvent,
     supported_events,
     unhandled_event,
-    UnhandledEventError,
 )
 from glitchygames.events.mouse import MouseEventManager
 from glitchygames.process import run_command
 from glitchygames.tracing import TraceFormatError
-
 
 # Constants for magic values
 MIN_ATTRIBUTES_1 = 1

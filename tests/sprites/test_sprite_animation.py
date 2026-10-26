@@ -1,15 +1,11 @@
 """Animated sprite functionality tests."""
 
-import sys
 import tomllib
 from pathlib import Path
 
 import numpy as np
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.sprites.animated import (
     AnimatedSprite,

@@ -4,15 +4,9 @@ This module tests TextSprite cursor blinking, input handling, and visual updates
 the real font on real surfaces.
 """
 
-import sys
-from pathlib import Path
-
 import numpy as np
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.color import WHITE
 from glitchygames.fonts import FontManager

@@ -11,17 +11,11 @@ real: the event managers and proxies, real Scenes receiving the events, real eve
 
 import logging
 import math
-import sys
-from pathlib import Path
 from typing import Any, Self
 
 import pygame
 import pygame._sdl2.controller
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from scripts.record_golden_traces import (
     GoldenTraceEngine,
     GoldenTraceSceneManager,

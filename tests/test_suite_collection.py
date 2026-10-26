@@ -14,6 +14,7 @@ import re
 import tomllib
 from pathlib import Path
 
+from tests.ast_scanning import import_bindings, qualified_name
 from tests.harness import CHECKOUT_ENGINE_DIRECTORY, imported_engine_directory
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -820,3 +821,64 @@ def test_a_misnamed_bitmappy_test_module_in_a_subdirectory_is_found(tmp_path):
         (tmp_path / relative).write_text('', encoding='utf-8')
 
     assert misnamed_bitmappy_test_modules(tests_directory=tmp_path) == ['canvas/test_canvas.py']
+
+
+SYS_PATH_EDITS = frozenset({'sys.path.insert', 'sys.path.append'})
+
+
+def sys_path_edits(*, project_root: Path, roots: list[Path]) -> list[str]:
+    """Return every call of ``sys.path.insert`` or ``sys.path.append`` below the test roots.
+
+    Tests import the installed packages; a path edit can put the repository (or ``src/``) ahead
+    of the installed copy, so a non-editable run would test the source tree. ``from sys import
+    path`` and ``import sys as s`` spellings are followed.
+
+    Args:
+        project_root: The repository.
+        roots: The test roots to scan.
+
+    Returns:
+        ``<file>:<line>`` for each call, sorted.
+
+    """
+    findings: list[str] = []
+    for _root, python_file in _python_files(roots=roots):
+        module = ast.parse(python_file.read_text(encoding='utf-8'), filename=str(python_file))
+        bindings = import_bindings(tree=module, watched_modules=frozenset({'sys'}))
+        findings.extend(
+            f'{python_file.relative_to(project_root).as_posix()}:{node.lineno}'
+            for node in ast.walk(module)
+            if isinstance(node, ast.Call)
+            and qualified_name(
+                node=node.func, bindings=bindings, watched_modules=frozenset({'sys'})
+            )
+            in SYS_PATH_EDITS
+        )
+    return sorted(findings)
+
+
+def test_no_test_edits_sys_path():
+    """No test file, in the engine's tests or any member's, edits ``sys.path``."""
+    assert sys_path_edits(project_root=PROJECT_ROOT, roots=collected_test_roots()) == []
+
+
+def test_a_test_editing_sys_path_is_found(tmp_path):
+    """Every spelling of a path edit is reported; reading ``sys.path`` and list inserts are not."""
+    roots = write_member_test_root(project_root=tmp_path)
+    (tmp_path / 'tests' / 'test_root_edit.py').write_text(
+        'import sys\nsys.path.insert(0, "x")\n', encoding='utf-8'
+    )
+    (tmp_path / MEMBER_TESTS / 'test_member_edit.py').write_text(
+        'import sys as system\nfrom sys import path\n'
+        'system.path.append("y")\npath.insert(0, "z")\n',
+        encoding='utf-8',
+    )
+    (tmp_path / MEMBER_TESTS / 'test_innocent.py').write_text(
+        'import sys\nitems = []\nitems.insert(0, 1)\nprint(sys.path[0])\n', encoding='utf-8'
+    )
+
+    assert sys_path_edits(project_root=tmp_path, roots=roots) == [
+        'src/games/space-game/tests/test_member_edit.py:3',
+        'src/games/space-game/tests/test_member_edit.py:4',
+        'tests/test_root_edit.py:2',
+    ]

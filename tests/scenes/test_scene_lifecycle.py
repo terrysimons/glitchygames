@@ -8,12 +8,6 @@ This module tests the lifecycle of scenes including:
 - Scene state management
 """
 
-import sys
-from pathlib import Path
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from glitchygames.scenes import Scene, SceneManager
 
 

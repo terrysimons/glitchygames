@@ -1,8 +1,6 @@
 """Tests for the Game Over scene functionality."""
 
-import sys
 import types
-from pathlib import Path
 
 import pygame
 import pytest
@@ -12,9 +10,6 @@ from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.testing.keys import qwerty_scancode
 from paddleslap import Game, PaddleSlapGameOverScene
-
-# Add the project root to the path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def _key_event(*, event_type: int, key: int) -> pygame.event.Event:

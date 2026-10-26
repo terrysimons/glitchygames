@@ -1,12 +1,8 @@
 """Tests for terminal_utils module - terminal capability detection and color mapping."""
 
 import sys
-from pathlib import Path
 
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.tools.terminal_utils import (
     ANSI_256_GRAYSCALE_RAMP_THRESHOLD,

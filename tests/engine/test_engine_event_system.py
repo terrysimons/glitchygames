@@ -8,15 +8,10 @@ receives. Only the joystick hardware is stood in for (no test machine has one at
 
 import os
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from scripts.record_golden_traces import GoldenTraceEngine
 
 from glitchygames import events

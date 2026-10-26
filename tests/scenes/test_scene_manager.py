@@ -1,14 +1,9 @@
 """Tests for SceneManager class functionality."""
 
 import contextlib
-import sys
-from pathlib import Path
 
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames import events
 from glitchygames.engine_context import EngineContext

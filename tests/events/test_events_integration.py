@@ -7,15 +7,8 @@ its frame loop) and hands the engine's pump a scripted batch of real pygame even
 event door (``ScriptedBatchSources``). The engine's own managers route each event to the scene.
 """
 
-import sys
-from pathlib import Path
-
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from scripts.record_golden_traces import GoldenTraceEngine, GoldenTraceSceneManager, command_line
 
 from glitchygames.engine import GameEngine

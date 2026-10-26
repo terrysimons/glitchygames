@@ -4,14 +4,8 @@ This module tests the MenuBar class functionality including initialization,
 menu item management, event handling and drawing, on real surfaces and sprite groups.
 """
 
-import sys
-from pathlib import Path
-
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames.ui import MenuBar, MenuItem
 

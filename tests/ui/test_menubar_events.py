@@ -6,14 +6,8 @@ real sprite group, so the collisions are pygame's own: a menu item "collides" be
 event's position is inside its rect.
 """
 
-import sys
-from pathlib import Path
-
 import pygame
 import pytest
-
-# Add project root so direct imports work in isolated runs
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from glitchygames import events
 from glitchygames.ui import MenuBar, MenuItem

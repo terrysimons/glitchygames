@@ -2,13 +2,8 @@
 """Test script to verify Game Over functionality."""
 
 import logging
-import sys
-from pathlib import Path
 
 import pygame
-
-# Add the glitchygames package to the path
-sys.path.insert(0, str(Path(__file__).parent / '../../../glitchygames'))
 
 from glitchygames.display_mode import set_display_mode
 from paddleslap import Game
