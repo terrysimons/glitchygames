@@ -6,8 +6,7 @@ from typing import Any, Self, override
 
 import pygame
 
-from glitchygames.collision.layers import collision_rect_offset
-from glitchygames.examples.brave_adventurer_papyrus.constants import (
+from brave_adventurer_papyrus.constants import (
     GRAVITY,
     JUMP_VELOCITY,
     LAYER_PLAYER,
@@ -18,10 +17,11 @@ from glitchygames.examples.brave_adventurer_papyrus.constants import (
     SPRITES_DIR,
     STARTING_LIVES,
 )
-from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
+from brave_adventurer_papyrus.sprite_utils import (
     apply_transparency_and_scale,
     prepare_papyrus_sprite,
 )
+from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.physics import (
     AccelerationBehavior,
     BoundsConstraint,

@@ -19,8 +19,8 @@ from scripts.build_browser_bundle import (
     touch_controls_config,
 )
 
-from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
-from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+from brave_adventurer.game import BraveAdventurerScene
+from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.examples.paddleslap import Game as PaddleSlapScene
 from mr_muncher.game import MrMuncherScene

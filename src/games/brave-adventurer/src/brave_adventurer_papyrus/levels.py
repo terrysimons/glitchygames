@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from typing import override
 
-from glitchygames.examples.brave_adventurer.levels import LEVEL_1, LevelManager, ScreenData
-from glitchygames.examples.brave_adventurer.terrain import GroundSegment, StoneWall
-from glitchygames.examples.brave_adventurer_papyrus.constants import SCREEN_WIDTH
-from glitchygames.examples.brave_adventurer_papyrus.terrain import PapyrusGoldScarab
+from brave_adventurer.levels import LEVEL_1, LevelManager, ScreenData
+from brave_adventurer.terrain import GroundSegment, StoneWall
+from brave_adventurer_papyrus.constants import SCREEN_WIDTH
+from brave_adventurer_papyrus.terrain import PapyrusGoldScarab
 
 # Re-export for use by game.py
 __all__ = ['LEVEL_1', 'PapyrusLevelManager', 'ScreenData']
@@ -32,7 +32,7 @@ class PapyrusLevelManager(LevelManager):
             Dict mapping string names to papyrus enemy sprite classes.
 
         """
-        from glitchygames.examples.brave_adventurer_papyrus.enemies import (
+        from brave_adventurer_papyrus.enemies import (
             PapyrusCobra,
             PapyrusScarab,
             PapyrusScorpion,

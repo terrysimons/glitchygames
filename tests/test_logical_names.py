@@ -64,15 +64,17 @@ def test_every_example_game_and_demo_has_a_layer():
     """The owner's table (2026-10-25); Part 2 deletes it when glitchygames/examples is empty."""
     assert logical_names.EXAMPLES_LAYERS == {
         'paddleslap': 'games',
-        'brave_adventurer': 'games',
-        'brave_adventurer_papyrus': 'games',
         'clockwork_keep': 'games',
         'drawing_fire': 'games',
         'dt_demo': 'demos',
         'joystick_demo': 'demos',
         'text_input_demo': 'demos',
     }
-    assert logical_names.MEMBER_LAYERS == {'mr_muncher': 'games'}
+    assert logical_names.MEMBER_LAYERS == {
+        'mr_muncher': 'games',
+        'brave_adventurer': 'games',
+        'brave_adventurer_papyrus': 'games',
+    }
 
 
 def test_a_logical_module_of_an_unknown_package_is_left_as_it_is():

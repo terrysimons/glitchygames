@@ -19,13 +19,25 @@ if TYPE_CHECKING:
 # managed by uv, without touching the project's .venv.
 nox.options.default_venv_backend = 'uv'
 
-_CODE_DIRS = ['noxfile.py', 'src/glitchygames', 'src/games/mr-muncher', 'scripts', 'tests']
+_CODE_DIRS = [
+    'noxfile.py',
+    'src/glitchygames',
+    'src/games/mr-muncher',
+    'src/games/brave-adventurer',
+    'scripts',
+    'tests',
+]
 # The source packages vulture and bandit scan: the engine's and each workspace member's
-_SOURCE_PACKAGE_DIRS = ['src/glitchygames', 'src/games/mr-muncher/mr_muncher']
+_SOURCE_PACKAGE_DIRS = [
+    'src/glitchygames',
+    'src/games/mr-muncher/mr_muncher',
+    'src/games/brave-adventurer/src/brave_adventurer',
+    'src/games/brave-adventurer/src/brave_adventurer_papyrus',
+]
 # The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
 # through scripts/workspace_packages.py: CI runs nox through uvx, whose interpreter has neither
 # pydantic nor the engine; tests/test_workspace_config.py keeps the list equal to the workspace
-_MEMBER_DISTRIBUTIONS = ['mr-muncher']
+_MEMBER_DISTRIBUTIONS = ['mr-muncher', 'brave-adventurer']
 
 
 # ---------------------------------------------------------------------------

@@ -17,18 +17,11 @@ from scripts.record_golden_traces import (
     press,
     release,
 )
-from scripts.record_scripted_session import REPLAY_FIXTURE_DIRECTORY
 
-from glitchygames.animation.state_machine import AnimationStateMachine
-from glitchygames.audio import VoiceAssistant
-from glitchygames.camera import FollowAxes
-from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
-from glitchygames.display_mode import set_display_mode
-from glitchygames.events.base import HashableEvent
-from glitchygames.examples import brave_adventurer as brave_adventurer_package
-from glitchygames.examples import brave_adventurer_papyrus as papyrus_package
-from glitchygames.examples.brave_adventurer import game as brave_adventurer_game
-from glitchygames.examples.brave_adventurer.constants import (
+import brave_adventurer as brave_adventurer_package
+import brave_adventurer_papyrus as papyrus_package
+from brave_adventurer import game as brave_adventurer_game
+from brave_adventurer.constants import (
     COLLECTIBLE_SCORE_BONUS,
     DEATH_RUMBLE_DURATION,
     DEATH_RUMBLE_HIGH,
@@ -45,7 +38,7 @@ from glitchygames.examples.brave_adventurer.constants import (
     SCREEN_WIDTH,
     STONE_WALL_WIDTH,
 )
-from glitchygames.examples.brave_adventurer.drawing import (
+from brave_adventurer.drawing import (
     draw_cobra,
     draw_dunes_and_oasis,
     draw_near_ground_details,
@@ -55,36 +48,42 @@ from glitchygames.examples.brave_adventurer.drawing import (
     draw_scorpion,
     draw_sky,
 )
-from glitchygames.examples.brave_adventurer.enemies import Cobra, Scarab, Scorpion
-from glitchygames.examples.brave_adventurer.game import (
+from brave_adventurer.enemies import Cobra, Scarab, Scorpion
+from brave_adventurer.game import (
     MIC_BUTTON_CONTROLLER,
     MIC_BUTTON_JOYSTICK,
     BraveAdventurerScene,
 )
-from glitchygames.examples.brave_adventurer.levels import LEVEL_1, LevelManager, ScreenData
-from glitchygames.examples.brave_adventurer.player import Player
-from glitchygames.examples.brave_adventurer.terrain import GoldScarab, GroundSegment, StoneWall
-from glitchygames.examples.brave_adventurer_papyrus import game as papyrus_game
-from glitchygames.examples.brave_adventurer_papyrus.constants import (
+from brave_adventurer.levels import LEVEL_1, LevelManager, ScreenData
+from brave_adventurer.player import Player
+from brave_adventurer.terrain import GoldScarab, GroundSegment, StoneWall
+from brave_adventurer_papyrus import game as papyrus_game
+from brave_adventurer_papyrus.constants import (
     FALLING_VELOCITY_THRESHOLD as PAPYRUS_FALLING_VELOCITY_THRESHOLD,
 )
-from glitchygames.examples.brave_adventurer_papyrus.constants import (
+from brave_adventurer_papyrus.constants import (
     PAPYRUS_PLAYER_HEIGHT,
     SPRITES_DIR,
 )
-from glitchygames.examples.brave_adventurer_papyrus.enemies import (
+from brave_adventurer_papyrus.enemies import (
     PapyrusCobra,
     PapyrusScarab,
     PapyrusScorpion,
 )
-from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
-from glitchygames.examples.brave_adventurer_papyrus.levels import PapyrusLevelManager
-from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
-from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
+from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+from brave_adventurer_papyrus.levels import PapyrusLevelManager
+from brave_adventurer_papyrus.player import PapyrusPlayer
+from brave_adventurer_papyrus.sprite_utils import (
     apply_transparency_and_scale,
     prepare_papyrus_sprite,
 )
-from glitchygames.examples.brave_adventurer_papyrus.terrain import PapyrusGoldScarab
+from brave_adventurer_papyrus.terrain import PapyrusGoldScarab
+from glitchygames.animation.state_machine import AnimationStateMachine
+from glitchygames.audio import VoiceAssistant
+from glitchygames.camera import FollowAxes
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.display_mode import set_display_mode
+from glitchygames.events.base import HashableEvent
 from glitchygames.exit_codes import ExitCode
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode, snap_to_pixel
 from glitchygames.scenes import SceneManager
@@ -95,6 +94,8 @@ from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.world import CoordinateSpace, position_world_sprites, screen_position_for
 
 FRAME_SECONDS = 1 / 60
+# The member's golden replays: golden-classic.jsonl.gz, golden-papyrus.jsonl.gz
+REPLAY_FIXTURES_DIRECTORY = Path(__file__).parent / 'fixtures' / 'replays'
 BRAVE_ADVENTURER_PACKAGE = Path(brave_adventurer_package.__file__).parent
 BRAVE_WORLD_SPRITE_CLASSES = (Player, GroundSegment, StoneWall, GoldScarab, Cobra, Scarab, Scorpion)
 PAPYRUS_PACKAGE = Path(papyrus_package.__file__).parent
@@ -332,12 +333,12 @@ def _make_scarab(scene):
 
     """
     if isinstance(scene, PapyrusBraveAdventurerScene):
-        from glitchygames.examples.brave_adventurer_papyrus.enemies import PapyrusScarab
+        from brave_adventurer_papyrus.enemies import PapyrusScarab
 
         scarab = PapyrusScarab(500.0, pygame.sprite.LayeredDirty())
         scarab.dt_tick(0.0)
     else:
-        from glitchygames.examples.brave_adventurer.enemies import Scarab
+        from brave_adventurer.enemies import Scarab
 
         scarab = Scarab(500.0, pygame.sprite.LayeredDirty())
         scarab.update()
@@ -1898,17 +1899,17 @@ class TestMain:
     """
 
     @pytest.mark.parametrize(
-        ('console_script', 'game_module'),
-        [('brave-adventurer', brave_adventurer_game), ('brave-adventurer-papyrus', papyrus_game)],
+        ('golden_name', 'game_module'),
+        [('golden-classic', brave_adventurer_game), ('golden-papyrus', papyrus_game)],
     )
-    def test_main_replays_the_golden_recording(self, mocker, console_script, game_module):
+    def test_main_replays_the_golden_recording(self, mocker, golden_name, game_module):
         mocker.patch.object(game_module, 'GameEngine', GoldenTraceEngine)
         # GameEngine._shutdown quits pygame; later tests on this worker still need it
         mocker.patch('pygame.quit')
         mocker.patch('pygame.display.quit')
         # --headless sets the SDL driver variables; the test's own values come back afterwards
         mocker.patch.dict(os.environ)
-        recording = REPLAY_FIXTURE_DIRECTORY / console_script / 'golden.jsonl.gz'
+        recording = REPLAY_FIXTURES_DIRECTORY / f'{golden_name}.jsonl.gz'
         SceneManager._reset()  # the engine starts from a fresh scene manager, as a process does
         try:
             with (
@@ -2063,7 +2064,7 @@ class TestVoiceAssistantNeverStartsInAReplay:
         mocker.patch('pygame.quit')
         mocker.patch('pygame.display.quit')
         mocker.patch.dict(os.environ)  # --headless sets the SDL driver variables
-        recording = REPLAY_FIXTURE_DIRECTORY / 'brave-adventurer' / 'golden.jsonl.gz'
+        recording = REPLAY_FIXTURES_DIRECTORY / 'golden-classic.jsonl.gz'
         SceneManager._reset()
         try:
             with (

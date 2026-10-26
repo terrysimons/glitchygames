@@ -6,7 +6,7 @@ from typing import Any, Self, override
 
 import pygame
 
-from glitchygames.examples.brave_adventurer_papyrus.constants import (
+from brave_adventurer_papyrus.constants import (
     GRAVITY,
     GROUND_Y,
     LAYER_ENEMIES,
@@ -16,7 +16,7 @@ from glitchygames.examples.brave_adventurer_papyrus.constants import (
     PAPYRUS_SCORPION_HEIGHT,
     SPRITES_DIR,
 )
-from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
+from brave_adventurer_papyrus.sprite_utils import (
     apply_transparency_and_scale,
     prepare_papyrus_sprite,
 )

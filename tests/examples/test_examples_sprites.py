@@ -13,6 +13,7 @@ import numpy as np
 import pygame
 import pytest
 
+from brave_adventurer_papyrus.constants import SPRITES_DIR as PAPYRUS_SPRITES_DIRECTORY
 from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import SpriteFactory
 from tests.harness import imported_engine_directory
@@ -300,20 +301,26 @@ if __name__ == '__main__':
     pytest.main([__file__, '-v'])
 
 
+# The engine's sprites, then the Papyrus Edition's (in its own package since it moved into
+# src/games/brave-adventurer)
 BUNDLED_SPRITE_FILES = sorted([
     *(ENGINE_PACKAGE_DIRECTORY / 'examples').glob('**/sprites/*.toml'),
     *(ENGINE_PACKAGE_DIRECTORY / 'assets').glob('*.toml'),
+    *PAPYRUS_SPRITES_DIRECTORY.glob('*.toml'),
 ])
 
 
 def _sprite_file_test_id(sprite_file: Path) -> str:
-    """Name a bundled sprite file relative to the engine (the same id under nox and uv run).
+    """Name a bundled sprite file relative to its package (the same id under nox and uv run).
 
     Returns:
-        str: The file's path inside the engine package, e.g. ``assets/eraser.toml``.
+        str: The file's path inside the engine package, e.g. ``assets/eraser.toml``, or a game
+        package's file by its package (``brave_adventurer_papyrus/sprites/cobra.toml``).
 
     """
-    return sprite_file.relative_to(ENGINE_PACKAGE_DIRECTORY).as_posix()
+    if sprite_file.is_relative_to(ENGINE_PACKAGE_DIRECTORY):
+        return sprite_file.relative_to(ENGINE_PACKAGE_DIRECTORY).as_posix()
+    return sprite_file.relative_to(PAPYRUS_SPRITES_DIRECTORY.parent.parent).as_posix()
 
 
 def _pixel_blocks(sprite_data: dict) -> list[tuple[str, str]]:
@@ -568,11 +575,7 @@ def test_bundled_transitions_survive_a_save_round_trip(sprite_file, tmp_path):
     ('sprite_file', 'expected_pairs'),
     [
         (
-            ENGINE_PACKAGE_DIRECTORY
-            / 'examples'
-            / 'brave_adventurer_papyrus'
-            / 'sprites'
-            / 'player.toml',
+            PAPYRUS_SPRITES_DIRECTORY / 'player.toml',
             [
                 ('idle', 'running'),
                 ('running', 'idle'),
@@ -587,11 +590,7 @@ def test_bundled_transitions_survive_a_save_round_trip(sprite_file, tmp_path):
             ],
         ),
         (
-            ENGINE_PACKAGE_DIRECTORY
-            / 'examples'
-            / 'brave_adventurer_papyrus'
-            / 'sprites'
-            / 'cobra.toml',
+            PAPYRUS_SPRITES_DIRECTORY / 'cobra.toml',
             [('idle', 'strike'), ('strike', 'idle')],
         ),
     ],

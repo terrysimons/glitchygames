@@ -6,6 +6,6 @@ Egyptian-themed enemies, and all graphics drawn from primitives.
 
 from __future__ import annotations
 
-from glitchygames.examples.brave_adventurer.game import main
+from brave_adventurer.game import main
 
 __all__ = ['main']

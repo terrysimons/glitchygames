@@ -9,11 +9,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from glitchygames.examples.brave_adventurer.constants import (
+from brave_adventurer.constants import (
     SCREEN_WIDTH,
 )
-from glitchygames.examples.brave_adventurer.enemies import Cobra, Scarab, Scorpion
-from glitchygames.examples.brave_adventurer.terrain import (
+from brave_adventurer.enemies import Cobra, Scarab, Scorpion
+from brave_adventurer.terrain import (
     GoldScarab,
     GroundSegment,
     StoneWall,

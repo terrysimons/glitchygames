@@ -156,6 +156,13 @@ REPLAY_FIXTURE_DIRECTORIES: dict[str, Path] = {
 }
 REPLAY_FIXTURE_SUFFIX = '.jsonl.gz'
 DEFAULT_FIXTURE_NAME = 'golden'
+# Game key -> its golden's name, for the games of a workspace member that holds several: their
+# goldens share the member's fixtures directory, so each is named apart (golden-<game>;
+# docs/architecture/game_packages.md, "Several games in one project")
+GOLDEN_FIXTURE_NAMES: dict[str, str] = {
+    'brave_adventurer': 'golden-classic',
+    'brave_adventurer_papyrus': 'golden-papyrus',
+}
 
 # The live doors' one polling function (glitchygames/live_sources.py), which a session replaces
 # so its snapshots show the posted input (polled_input_follows)
@@ -387,12 +394,13 @@ CONSOLE_SCRIPT_GAME_KEYS: dict[str, str] = {
 }
 
 
-def fixture_path(*, game_key: str, name: str = DEFAULT_FIXTURE_NAME) -> Path:
+def fixture_path(*, game_key: str, name: str | None = None) -> Path:
     """Return where a game's golden replay fixture is stored.
 
     Args:
         game_key: Which game (a key of GAME_SCENES).
-        name: The fixture's name, without the suffix.
+        name: The fixture's name, without the suffix; by default the game's golden
+            (``GOLDEN_FIXTURE_NAMES``, else ``DEFAULT_FIXTURE_NAME``).
 
     Returns:
         ``<member>/tests/fixtures/replays/<name>.jsonl.gz`` for a game in a workspace member
@@ -400,6 +408,8 @@ def fixture_path(*, game_key: str, name: str = DEFAULT_FIXTURE_NAME) -> Path:
         ``tests/fixtures/replays/<console-script>/<name>.jsonl.gz``.
 
     """
+    if name is None:
+        name = GOLDEN_FIXTURE_NAMES.get(game_key, DEFAULT_FIXTURE_NAME)
     if game_key in REPLAY_FIXTURE_DIRECTORIES:
         return REPLAY_FIXTURE_DIRECTORIES[game_key] / f'{name}{REPLAY_FIXTURE_SUFFIX}'
     (console_script,) = (

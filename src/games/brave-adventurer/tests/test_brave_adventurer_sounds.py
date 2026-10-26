@@ -6,8 +6,8 @@ import numpy as np
 import pygame
 import pytest
 
+from brave_adventurer import sounds
 from glitchygames.audio import synth
-from glitchygames.examples.brave_adventurer import sounds
 
 GOLDEN = Path(__file__).parent / 'brave_adventurer_golden'
 RATE = 44100

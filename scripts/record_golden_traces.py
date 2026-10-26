@@ -54,11 +54,11 @@ os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
 
+from brave_adventurer.game import BraveAdventurerScene
+from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.engine import GameEngine
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
 from glitchygames.examples import paddleslap
-from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
-from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.examples.drawing_fire.game import DrawingFireScene
 from glitchygames.examples.drawing_fire.seats import LEAVE_HOLD_SECONDS, Stage
@@ -115,8 +115,8 @@ GAME_SCENES: dict[str, type[Scene]] = {
 # a game moved into its own package names its package (plans/2026-10-24-workspace-packages.md)
 GAME_MODULES: dict[str, str] = {
     'clockwork_keep': 'glitchygames.examples.clockwork_keep',
-    'brave_adventurer': 'glitchygames.examples.brave_adventurer',
-    'brave_adventurer_papyrus': 'glitchygames.examples.brave_adventurer_papyrus',
+    'brave_adventurer': 'brave_adventurer',
+    'brave_adventurer_papyrus': 'brave_adventurer_papyrus',
     'paddleslap': 'glitchygames.examples.paddleslap',
     'mr_muncher': 'mr_muncher',
     'drawing_fire': 'glitchygames.examples.drawing_fire',

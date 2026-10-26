@@ -1,9 +1,4 @@
-"""Brave Adventurer: Papyrus Edition - TOML sprite art variant.
-
-Same gameplay as the primitives edition, but all character and entity
-sprites use the GlitchyGames TOML animation system with hand-drawn
-pixel art. Backgrounds and terrain keep primitives.
-"""
+"""Main game scene for Brave Adventurer - a Pitfall clone set in ancient Egypt."""
 
 from __future__ import annotations
 
@@ -12,29 +7,16 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
-from glitchygames.camera import Camera2D, FollowAxes
-from glitchygames.collision.detection import snapped_world_position
-from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
-from glitchygames.engine import GameEngine
-from glitchygames.examples.brave_adventurer.constants import (
+from brave_adventurer.constants import (
+    CAMERA_LEAD,
+    COLLECTIBLE_SCORE_BONUS,
     DEATH_RUMBLE_DURATION,
     DEATH_RUMBLE_HIGH,
     DEATH_RUMBLE_LOW,
+    DISTANCE_SCORE_DIVISOR,
     GAME_OVER_RUMBLE_DURATION,
     GAME_OVER_RUMBLE_HIGH,
     GAME_OVER_RUMBLE_LOW,
-)
-from glitchygames.examples.brave_adventurer.drawing import (
-    draw_dunes_and_oasis,
-    draw_near_ground_details,
-    draw_pyramids,
-    draw_sky,
-)
-from glitchygames.examples.brave_adventurer.sounds import GameSounds
-from glitchygames.examples.brave_adventurer_papyrus.constants import (
-    CAMERA_LEAD,
-    COLLECTIBLE_SCORE_BONUS,
-    DISTANCE_SCORE_DIVISOR,
     GROUND_Y,
     HUD_SHADOW_COLOR,
     HUD_TEXT_COLOR,
@@ -42,7 +24,6 @@ from glitchygames.examples.brave_adventurer_papyrus.constants import (
     LAYER_MID_BACKGROUND,
     LAYER_NEAR_BACKGROUND,
     LAYER_SKY,
-    PAPYRUS_PLAYER_HEIGHT,
     PARALLAX_FAR,
     PARALLAX_MID,
     PARALLAX_NEAR,
@@ -52,48 +33,64 @@ from glitchygames.examples.brave_adventurer_papyrus.constants import (
     PIT_FLOOR_COLOR,
     PIT_WALL_COLOR,
     PIT_WALL_SHADOW,
+    PLAYER_HEIGHT,
     RESPAWN_OFFSET,
     SCREEN_HEIGHT,
     SKY_COLOR,
     STONE_WALL_WIDTH,
 )
-from glitchygames.examples.brave_adventurer_papyrus.levels import LEVEL_1, PapyrusLevelManager
-from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
+from brave_adventurer.drawing import (
+    draw_dunes_and_oasis,
+    draw_near_ground_details,
+    draw_pyramids,
+    draw_sky,
+)
+from brave_adventurer.levels import LEVEL_1, LevelManager
+from brave_adventurer.player import Player
+from brave_adventurer.sounds import GameSounds
+from glitchygames.audio import VoiceAssistant
+from glitchygames.camera import Camera2D, FollowAxes
+from glitchygames.collision.detection import snapped_world_position
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.engine import GameEngine
 from glitchygames.input import ActionMap
+from glitchygames.input.devices import LiveDeviceRegistry
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.sources import active_sources
 from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 
 if TYPE_CHECKING:
     import argparse
 
+    from brave_adventurer.enemies import Cobra, Scarab, Scorpion
+    from brave_adventurer.terrain import GoldScarab, GroundSegment, StoneWall
     from glitchygames.events.base import (
         ControllerButtonEvent,
         JoyAxisEvent,
         JoyButtonEvent,
         KeyEvent,
     )
-    from glitchygames.examples.brave_adventurer.terrain import GroundSegment, StoneWall
-    from glitchygames.examples.brave_adventurer_papyrus.enemies import (
-        PapyrusCobra,
-        PapyrusScarab,
-        PapyrusScorpion,
-    )
-    from glitchygames.examples.brave_adventurer_papyrus.terrain import PapyrusGoldScarab
 
 log = logging.getLogger('game')
 
+# DualSense mic mute button indices differ between APIs:
+# SDL Game Controller API reports button 15
+# Raw joystick API reports button 16
+MIC_BUTTON_CONTROLLER = 15
+MIC_BUTTON_JOYSTICK = 16
 
-class PapyrusBraveAdventurerScene(Scene):
-    """Papyrus Edition game scene.
 
-    Identical gameplay to the primitives edition, but uses TOML sprite
-    animations for the player, enemies, and collectibles. Backgrounds
-    and terrain reuse the primitives drawing system.
+class BraveAdventurerScene(Scene):
+    """Main gameplay scene for Brave Adventurer.
+
+    Orchestrates the player, camera, terrain, enemies, parallax backgrounds,
+    and HUD. The game is a Pitfall-style side-scrolling platformer set in
+    ancient Egypt.
     """
 
-    NAME = 'Brave Adventurer: Papyrus Edition'
+    NAME = 'Brave Adventurer'
     VERSION = '1.0'
 
     def __init__(
@@ -149,8 +146,8 @@ class PapyrusBraveAdventurerScene(Scene):
             groups=self.all_sprites,
         )
 
-        # Build the level (papyrus enemies + collectibles, primitive terrain)
-        self.level_manager = PapyrusLevelManager(
+        # Build the level (creates ground, walls, enemies, collectibles)
+        self.level_manager = LevelManager(
             level_data=LEVEL_1,
             groups=self.all_sprites,
         )
@@ -159,14 +156,14 @@ class PapyrusBraveAdventurerScene(Scene):
         self.enemy_sprites = self.level_manager.enemy_sprites
         self.collectible_sprites = self.level_manager.collectible_sprites
 
-        # Player (papyrus TOML sprite)
-        self.player = PapyrusPlayer(
+        # Player (on top of sprites so it renders above terrain)
+        self.player = Player(
             world_x=100.0,
-            world_y=GROUND_Y - PAPYRUS_PLAYER_HEIGHT,
+            world_y=GROUND_Y - PLAYER_HEIGHT,
             groups=self.all_sprites,
         )
 
-        # Collision layers -- uses TOML hitboxes for accurate collision
+        # Collision layers
         player_collision_layer = self.collisions.add_layer('player')
         enemy_collision_layer = self.collisions.add_layer('enemies')
         collectible_collision_layer = self.collisions.add_layer('collectibles')
@@ -182,9 +179,9 @@ class PapyrusBraveAdventurerScene(Scene):
         self._enemy_hit_this_pass: bool = False
 
         # Persistence
-        self.saves: SaveManager = open_saves(app_name='brave-adventurer-papyrus')
+        self.saves: SaveManager = open_saves(app_name='brave-adventurer')
 
-        # Sound effects (shared from original edition)
+        # Sound effects (generated from waveforms, initialized in setup)
         self.sounds = GameSounds()
 
         # Track whether player was airborne last frame (for land sound)
@@ -196,9 +193,31 @@ class PapyrusBraveAdventurerScene(Scene):
         # Input action mapping (unifies keyboard + controller)
         self.actions = self._create_action_map(input_mode=self.options.get('input_mode', 'auto'))
 
+        # Voice assistant: a controller's mic and speaker, found through miniaudio (live play
+        # only: see _discover_voice_assistant)
+        self.voice_assistant: VoiceAssistant | None = self._discover_voice_assistant()
+
+    @staticmethod
+    def _discover_voice_assistant() -> VoiceAssistant | None:
+        """Find a controller's microphone and speaker, unless the engine's doors are a replay's.
+
+        A replay never touches real devices (BUGS.md #208): the doors of a replay (or of a
+        rebaseline or playback) serve recorded devices, and there the voice assistant is not
+        started, so a recorded mic press neither listens nor calls the AI service. Live play
+        (and a recording, whose doors wrap the live ones) has the real device registry.
+
+        Returns:
+            The voice assistant, or None in a replay or when no controller has audio.
+
+        """
+        if not isinstance(active_sources().devices(), LiveDeviceRegistry):
+            log.info('Replaying: the voice assistant stays off (a replay uses no real devices)')
+            return None
+        return VoiceAssistant.discover()
+
     @staticmethod
     def _create_action_map(*, input_mode: str) -> ActionMap:
-        """Bind the controls: arrows, SPACE, ESC and Q by position; a gamepad's D-pad and A.
+        """Bind the controls: arrows, SPACE, ESC and Q by position; a gamepad's D-pad, A, mic.
 
         Args:
             input_mode: Gamepad event family ('joystick', 'controller' or 'auto').
@@ -228,6 +247,13 @@ class PapyrusBraveAdventurerScene(Scene):
         actions.bind('jump', scancode=pygame.KSCAN_UP)
         actions.bind('pause', scancode=pygame.KSCAN_ESCAPE)
         actions.bind('quit', scancode=pygame.KSCAN_Q)
+
+        # Mic mute button — bind both APIs since button indices differ
+        actions.bind(
+            'mic_toggle',
+            controller_button=MIC_BUTTON_CONTROLLER,
+            joystick_button=MIC_BUTTON_JOYSTICK,
+        )
         return actions
 
     @classmethod
@@ -256,7 +282,7 @@ class PapyrusBraveAdventurerScene(Scene):
         # The engine aims the camera at the player each frame (x only: the camera stays at the
         # top of the world) and places every world sprite from it
         self.camera.follow(target=self.player, axes=FollowAxes.X)
-        log.info('Brave Adventurer: Papyrus Edition setup complete')
+        log.info('Brave Adventurer setup complete')
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
@@ -271,8 +297,9 @@ class PapyrusBraveAdventurerScene(Scene):
         if self.game_over_triggered:
             return
 
-        # 0. Process held-state input actions (movement)
+        # 0. Process input and voice assistant
         self._process_movement_input()
+        self._update_voice_assistant()
 
         # 1. Track airborne state before physics (for landing sound)
         was_airborne_before = not self.player.on_ground
@@ -291,24 +318,24 @@ class PapyrusBraveAdventurerScene(Scene):
         # 5. Wall collision
         self._resolve_player_wall_collision()
 
-        # 5b. Enemy terrain collision (scarabs follow ground/walls)
+        # 6. Enemy terrain collision (scarabs follow ground/walls)
         self._resolve_enemy_terrain_collisions()
 
-        # 6. Pit death check (skip during respawn animation)
+        # 7. Pit death check (skip during respawn animation)
         if (
             not self.player.is_respawning
             and self.player.world_y > self.screen_height + PIT_DEATH_THRESHOLD
         ):
             self._player_die()
 
-        # 7. Enemy collision (skip during respawn invincibility)
+        # 8. Enemy collision (skip during respawn invincibility)
         if not self.player.is_respawning:
             self._check_enemy_collisions()
 
-        # 8. Collectible pickup
+        # 9. Collectible pickup
         self._check_collectible_collisions()
 
-        # 9. Update the score (the engine aims the camera and places the sprites after
+        # 10. Update the score (the engine aims the camera and places the sprites after
         # this tick)
         # The score is the distance score plus every gold scarab's bonus (BUGS.md #204)
         self.player.max_distance = max(self.player.max_distance, self.player.world_x)
@@ -328,19 +355,6 @@ class PapyrusBraveAdventurerScene(Scene):
         """
         snapped_x, _ = snapped_world_position(terrain_sprite, terrain_sprite.world_x, 0.0)
         return snapped_x
-
-    def _snapped_player_top(self: Self) -> int:
-        """Return the player's world y snapped as the engine draws it (before draw_offset).
-
-        Papyrus stands the player on a fixed foot line PAPYRUS_PLAYER_HEIGHT below this; each
-        anchored frame is drawn its draw_offset lower, so its visible feet meet that line.
-
-        Returns:
-            int: The snapped world y.
-
-        """
-        _, snapped_y = snapped_world_position(self.player, self.player.world_x, self.player.world_y)
-        return snapped_y
 
     def _get_trailing_foot_x(self: Self, body_x: int, body_width: int, velocity_x: float) -> int:
         """Get the X coordinate of the trailing foot for ground checks.
@@ -364,6 +378,16 @@ class PapyrusBraveAdventurerScene(Scene):
             return left + body_width
         return left + body_width // 2
 
+    def _player_feet_below_world_y(self: Self) -> int:
+        """Return how far below world_y the player's hitbox bottom (visible feet) is.
+
+        Returns:
+            int: The hitbox's offset from the snapped world y plus its height.
+
+        """
+        _, player_offset_y = collision_rect_offset(self.player)
+        return player_offset_y + get_sprite_collision_rect(self.player).height
+
     def _resolve_player_ground_collision(self: Self) -> None:
         """Check if the player lands on ground and snap to the surface."""
         self.player.on_ground = False
@@ -378,34 +402,36 @@ class PapyrusBraveAdventurerScene(Scene):
             body_width=support_right - support_left,
             velocity_x=self.player.velocity_x,
         )
-        player_bottom = self._snapped_player_top() + PAPYRUS_PLAYER_HEIGHT
+        # Vertical contact uses the hitbox bottom: the figure's visible feet end 1 px above
+        # its 48 px image, so standing on PLAYER_HEIGHT floated it
+        player_feet = self._player_feet_below_world_y()
+        player_bottom = player_rect.bottom
 
         if self.ground_sprites:
             for ground_segment in self.ground_sprites:
                 segment_left = self._snapped_terrain_left(ground_segment)
                 segment_right = segment_left + ground_segment.segment_width
 
+                # Player's trailing foot must still be over this segment
                 feet_over_segment = (
                     trailing_foot_x >= segment_left and trailing_foot_x < segment_right
                 )
                 feet_on_surface = player_bottom >= GROUND_Y
 
                 if feet_over_segment and feet_on_surface and self.player.velocity_y >= 0:
-                    self.player.world_y = GROUND_Y - PAPYRUS_PLAYER_HEIGHT
+                    self.player.world_y = float(GROUND_Y - player_feet)
                     self.player.velocity_y = 0.0
                     self.player.on_ground = True
                     break
         elif player_bottom >= GROUND_Y and self.player.velocity_y >= 0:
-            self.player.world_y = GROUND_Y - PAPYRUS_PLAYER_HEIGHT
+            # Fallback: infinite flat ground when no segments defined
+            self.player.world_y = float(GROUND_Y - player_feet)
             self.player.velocity_y = 0.0
             self.player.on_ground = True
 
         # If the player is in a pit (below ground, not on ground), the edges
         # of adjacent ground segments act as walls to prevent climbing out.
-        if (
-            not self.player.on_ground
-            and self._snapped_player_top() + PAPYRUS_PLAYER_HEIGHT > GROUND_Y
-        ):
+        if not self.player.on_ground and get_sprite_collision_rect(self.player).bottom > GROUND_Y:
             player_rect = get_sprite_collision_rect(self.player)
             player_offset_x, _ = collision_rect_offset(self.player)
             player_left = player_rect.left
@@ -415,6 +441,7 @@ class PapyrusBraveAdventurerScene(Scene):
                 segment_left = self._snapped_terrain_left(ground_segment)
                 segment_right = segment_left + ground_segment.segment_width
 
+                # Moving right into the left edge of a segment
                 if (
                     self.player.velocity_x > 0
                     and player_right > segment_left
@@ -426,6 +453,7 @@ class PapyrusBraveAdventurerScene(Scene):
                     )
                     break
 
+                # Moving left into the right edge of a segment
                 if (
                     self.player.velocity_x < 0
                     and player_left < segment_right
@@ -438,14 +466,18 @@ class PapyrusBraveAdventurerScene(Scene):
     def _resolve_player_wall_collision(self: Self) -> None:
         """Check if the player collides with stone walls.
 
-        Handles landing on top (treated like ground) and side collision
-        (horizontal push-back). The on-top check runs first.
+        Handles two cases:
+        1. Landing on top of a wall (treated like ground)
+        2. Walking into the side of a wall (horizontal push-back)
+
+        The "on top" check must run first, otherwise a player standing
+        on a wall gets pushed sideways when they try to walk.
         """
         # Left/right edges come from the collision rect (hitbox), not the drawn width
         player_rect = get_sprite_collision_rect(self.player)
         player_offset_x, _ = collision_rect_offset(self.player)
-        player_top = self._snapped_player_top()
-        player_bottom = player_top + PAPYRUS_PLAYER_HEIGHT
+        player_top = player_rect.top
+        player_bottom = player_rect.bottom
 
         support_left, support_right = self._player_support_span()
 
@@ -454,6 +486,7 @@ class PapyrusBraveAdventurerScene(Scene):
             wall_right = wall_left + STONE_WALL_WIDTH
             wall_bottom = wall_top + wall.wall_height
 
+            # Check horizontal overlap (needed for both top and side collisions)
             horizontally_overlapping = (
                 player_rect.right > wall_left and player_rect.left < wall_right
             )
@@ -461,9 +494,10 @@ class PapyrusBraveAdventurerScene(Scene):
             if not horizontally_overlapping:
                 continue
 
-            # Only count as "on top" if feet are within a small margin of
-            # the wall surface. Prevents walking through short walls when
-            # the player's head is above the wall top at ground level.
+            # Case 1: Landing on top of the wall.
+            # Feet must be within a small margin of the wall surface to count
+            # as "on top". Prevents walking through short walls when the player
+            # is taller than the wall.
             landing_tolerance = 16
             standing_on_top = (
                 player_bottom >= wall_top
@@ -476,11 +510,13 @@ class PapyrusBraveAdventurerScene(Scene):
             )
 
             if standing_on_top:
-                self.player.world_y = wall_top - PAPYRUS_PLAYER_HEIGHT
+                self.player.world_y = float(wall_top - self._player_feet_below_world_y())
                 self.player.velocity_y = 0.0
                 self.player.on_ground = True
                 continue
 
+            # Case 2: Side collision (walking into the wall).
+            # Only applies when the player overlaps vertically with the wall body.
             vertically_overlapping = player_bottom > wall_top and player_top < wall_bottom
 
             if vertically_overlapping:
@@ -533,11 +569,15 @@ class PapyrusBraveAdventurerScene(Scene):
         return player_rect.centerx < (wall_left + wall_right) / 2
 
     def _resolve_enemy_terrain_collisions(self: Self) -> None:
-        """Resolve enemy-terrain collisions so scarabs follow the ground."""
-        from glitchygames.examples.brave_adventurer_papyrus.enemies import PapyrusScarab
+        """Resolve enemy-terrain collisions so scarabs follow the ground.
+
+        Scarabs land on ground segments (including pit floors) and are
+        blocked by stone walls.
+        """
+        from brave_adventurer.enemies import Scarab
 
         for enemy in self.enemy_sprites:
-            if not isinstance(enemy, PapyrusScarab):
+            if not isinstance(enemy, Scarab):
                 continue
 
             # Vertical contact uses the hitbox bottom (the visible underside), not the image
@@ -579,6 +619,7 @@ class PapyrusBraveAdventurerScene(Scene):
                 scarab_offset_x, _ = collision_rect_offset(enemy)
 
                 if scarab_rect.right > wall_left and scarab_rect.left < wall_right:
+                    # Scarab is overlapping wall -- reverse direction
                     if enemy.roll_speed < 0:
                         enemy.world_x = float(wall_right - scarab_offset_x)
                     else:
@@ -588,8 +629,7 @@ class PapyrusBraveAdventurerScene(Scene):
     def _check_enemy_collisions(self: Self) -> None:
         """Check if the player touches any enemy (results in death).
 
-        Uses the collision manager with TOML hitboxes for accurate
-        sprite-vs-sprite detection.
+        Uses the collision manager for hitbox-aware detection.
         """
         self._enemy_hit_this_pass = False
         self.collisions.check_overlap(
@@ -599,7 +639,7 @@ class PapyrusBraveAdventurerScene(Scene):
         )
 
     def _on_player_enemy_collision(
-        self: Self, _player: PapyrusPlayer, _enemy: PapyrusCobra | PapyrusScarab | PapyrusScorpion
+        self: Self, _player: Player, _enemy: Cobra | Scarab | Scorpion
     ) -> None:
         """Handle player-enemy collision by triggering death, once per collision pass.
 
@@ -614,8 +654,7 @@ class PapyrusBraveAdventurerScene(Scene):
     def _check_collectible_collisions(self: Self) -> None:
         """Check if the player picks up any gold scarabs.
 
-        Uses the collision manager with TOML hitboxes for accurate
-        sprite-vs-sprite detection.
+        Uses the collision manager for hitbox-aware detection.
         """
         self.collisions.check_overlap(
             'player',
@@ -623,9 +662,7 @@ class PapyrusBraveAdventurerScene(Scene):
             callback=self._on_player_collect,
         )
 
-    def _on_player_collect(
-        self: Self, _player: PapyrusPlayer, collectible: PapyrusGoldScarab
-    ) -> None:
+    def _on_player_collect(self: Self, _player: Player, collectible: GoldScarab) -> None:
         """Handle player-collectible collision by awarding bonus points (kept in the score)."""
         self.player.bonus_points += COLLECTIBLE_SCORE_BONUS
         self.sounds.play_collect()
@@ -694,17 +731,17 @@ class PapyrusBraveAdventurerScene(Scene):
         self.player.is_respawning = True
         self.player.velocity_x = 0.0
         self.player.velocity_y = 0.0
-        # Clear the walk target too: movement input is skipped while respawning, so the
-        # player would walk on during the fade (BUGS.md #206)
-        self.player.stop_horizontal()
+        self.player.stop_horizontal()  # Clear AccelerationBehavior target
 
+        # Fade out, reposition, fade in
         respawn_x = max(0, self.player.world_x - RESPAWN_OFFSET)
 
         def _reposition_and_fade_in() -> None:
             self.player.world_x = respawn_x
-            self.player.world_y = GROUND_Y - PAPYRUS_PLAYER_HEIGHT
+            self.player.world_y = float(GROUND_Y - self._player_feet_below_world_y())
             self.player.on_ground = True
             self.player.is_respawning = False
+            # Fade back in
             self.tweens.tween(
                 target=self.player,
                 property_name='alpha',
@@ -714,6 +751,7 @@ class PapyrusBraveAdventurerScene(Scene):
                 on_complete=self._restore_input_after_respawn,
             )
 
+        # Fade out
         self.tweens.tween(
             target=self.player,
             property_name='alpha',
@@ -751,6 +789,11 @@ class PapyrusBraveAdventurerScene(Scene):
             self.player.move_left()
         else:
             self.player.stop_horizontal()
+
+    def _update_voice_assistant(self: Self) -> None:
+        """Check for completed voice assistant responses."""
+        if self.voice_assistant is not None:
+            self.voice_assistant.update()
 
     @override
     def on_key_down_event(self: Self, event: KeyEvent) -> None:
@@ -802,6 +845,8 @@ class PapyrusBraveAdventurerScene(Scene):
             if self.player.on_ground:
                 self.sounds.play_jump()
             self.player.jump()
+        elif action == 'mic_toggle' and self.voice_assistant is not None:
+            self.voice_assistant.start_listening()
 
     @override
     def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
@@ -812,6 +857,9 @@ class PapyrusBraveAdventurerScene(Scene):
 
         """
         self.actions.handle_event(event)
+        action = self.actions.get_action(event)
+        if action == 'mic_toggle' and self.voice_assistant is not None:
+            self.voice_assistant.stop_listening_and_respond()
 
     @override
     def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
@@ -827,6 +875,8 @@ class PapyrusBraveAdventurerScene(Scene):
             if self.player.on_ground:
                 self.sounds.play_jump()
             self.player.jump()
+        elif action == 'mic_toggle' and self.voice_assistant is not None:
+            self.voice_assistant.start_listening()
 
     @override
     def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
@@ -837,6 +887,9 @@ class PapyrusBraveAdventurerScene(Scene):
 
         """
         self.actions.handle_event(event)
+        action = self.actions.get_action(event)
+        if action == 'mic_toggle' and self.voice_assistant is not None:
+            self.voice_assistant.stop_listening_and_respond()
 
     @override
     def on_joy_axis_motion_event(self: Self, event: JoyAxisEvent) -> None:
@@ -856,13 +909,22 @@ class PapyrusBraveAdventurerScene(Scene):
     def render(self: Self, screen: pygame.Surface) -> None:
         """Render the game scene.
 
+        Draws background, sprites, and HUD overlay.
+
         Args:
             screen: The display surface to render to.
 
         """
+        # Fill with sky color
         screen.fill(SKY_COLOR)
+
+        # Draw all sprites via the engine's LayeredDirty system
         self.all_sprites.clear(screen, self.background)
         self.rects = self.all_sprites.draw(screen)
+
+        # Draw pits AFTER sprites so they render on top of the parallax sand,
+        # but only in gaps between ground segments (ground sprites are opaque
+        # and already drawn, so they mask the pit fill where ground exists).
         pit_rects = self._draw_pits(screen)
         # Re-draw enemies in a pit and the player on top of the pits, so they're visible when
         # they fall in (the pit fill is drawn after the sprites)
@@ -870,7 +932,11 @@ class PapyrusBraveAdventurerScene(Scene):
             if enemy.visible and enemy.rect.collidelist(pit_rects) != -1:
                 screen.blit(enemy.image, enemy.rect)
         screen.blit(self.player.image, self.player.rect)
+
+        # Draw HUD on top
         self._draw_hud(screen)
+
+        # Force a full-screen update: the parallax layers and the pits move with the camera
         self.rects = None
 
     def _draw_pits(self: Self, screen: pygame.Surface) -> list[pygame.Rect]:
@@ -919,7 +985,7 @@ class PapyrusBraveAdventurerScene(Scene):
                 (gap_left_screen, GROUND_Y, gap_width, pit_depth),
             )
 
-            # Thin edge lines
+            # Thin edge lines for definition
             pygame.draw.line(
                 screen,
                 PIT_EDGE_COLOR,
@@ -957,6 +1023,7 @@ class PapyrusBraveAdventurerScene(Scene):
         score_text = f'Score: {self.player.score}'
         lives_text = f'Lives: {self.player.lives}'
 
+        # Shadow for readability
         antialias = True
         shadow_surface = self.hud_font.render(score_text, antialias, HUD_SHADOW_COLOR)
         screen.blit(shadow_surface, (11, 11))
@@ -970,8 +1037,8 @@ class PapyrusBraveAdventurerScene(Scene):
 
 
 def main() -> None:
-    """Run Brave Adventurer: Papyrus Edition."""
-    GameEngine(game=PapyrusBraveAdventurerScene).start()
+    """Run the Brave Adventurer game."""
+    GameEngine(game=BraveAdventurerScene).start()
 
 
 if __name__ == '__main__':

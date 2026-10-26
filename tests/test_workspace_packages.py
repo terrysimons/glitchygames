@@ -129,6 +129,34 @@ def test_a_src_layout_package_keeps_its_declared_path(tmp_path):
 
     assert member.import_packages == ('space_game',)
     assert member.package_directories == (member_directory / 'src' / 'space_game',)
+    assert member.import_roots == (member_directory / 'src',)
+
+
+def test_a_flat_members_import_root_is_its_directory(tmp_path):
+    """Packages = ["space_game"] at the member's root: imports resolve from the member itself."""
+    write_workspace(tmp_path)
+
+    (member,) = workspace_members(project_root=tmp_path)
+
+    assert member.import_roots == (tmp_path / 'src' / 'games' / 'space-game',)
+
+
+def test_a_src_layout_with_several_packages_has_one_import_root(tmp_path):
+    """Two packages under one src/ share their import root, listed once."""
+    write_workspace(tmp_path)
+    member_directory = tmp_path / 'src' / 'games' / 'space-game'
+    (member_directory / 'space_game').rmdir()
+    for package in ('space_core', 'space_game'):
+        (member_directory / 'src' / package).mkdir(parents=True)
+    (member_directory / 'pyproject.toml').write_text(
+        MEMBER_PYPROJECT.replace('["space_game"]', '["src/space_core", "src/space_game"]'),
+        encoding='utf-8',
+    )
+
+    (member,) = workspace_members(project_root=tmp_path)
+
+    assert member.import_packages == ('space_core', 'space_game')
+    assert member.import_roots == (member_directory / 'src',)
 
 
 @pytest.mark.parametrize('members', ['"src/games/space-game"', '[1]'])

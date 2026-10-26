@@ -6,6 +6,9 @@ from typing import Any
 
 import pytest
 
+from brave_adventurer.constants import (
+    FALLING_VELOCITY_THRESHOLD as BRAVE_ADVENTURER_FALLING_VELOCITY_THRESHOLD,
+)
 from glitchygames.animation.expressions import (
     MAXIMUM_NESTING_DEPTH,
     AndExpr,
@@ -20,9 +23,6 @@ from glitchygames.animation.expressions import (
 )
 from glitchygames.animation.scheduler import BehaviorScheduler
 from glitchygames.animation.state_machine import AnimationStateMachine
-from glitchygames.examples.brave_adventurer.constants import (
-    FALLING_VELOCITY_THRESHOLD as BRAVE_ADVENTURER_FALLING_VELOCITY_THRESHOLD,
-)
 from glitchygames.examples.clockwork_keep.constants import (
     FALLING_VELOCITY_THRESHOLD as CLOCKWORK_KEEP_FALLING_VELOCITY_THRESHOLD,
 )

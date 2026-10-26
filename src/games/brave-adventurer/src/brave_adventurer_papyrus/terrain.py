@@ -10,12 +10,12 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, Self, override
 
-from glitchygames.examples.brave_adventurer.terrain import GroundSegment, StoneWall
-from glitchygames.examples.brave_adventurer_papyrus.constants import (
+from brave_adventurer.terrain import GroundSegment, StoneWall
+from brave_adventurer_papyrus.constants import (
     LAYER_COLLECTIBLES,
     SPRITES_DIR,
 )
-from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
+from brave_adventurer_papyrus.sprite_utils import (
     apply_transparency_and_scale,
     prepare_papyrus_sprite,
 )

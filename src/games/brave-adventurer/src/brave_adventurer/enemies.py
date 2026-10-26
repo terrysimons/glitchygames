@@ -12,7 +12,7 @@ from typing import Self, override
 
 import pygame
 
-from glitchygames.examples.brave_adventurer.constants import (
+from brave_adventurer.constants import (
     COBRA_HEIGHT,
     COBRA_WIDTH,
     GRAVITY,
@@ -24,7 +24,7 @@ from glitchygames.examples.brave_adventurer.constants import (
     SCORPION_HEIGHT,
     SCORPION_WIDTH,
 )
-from glitchygames.examples.brave_adventurer.drawing import (
+from brave_adventurer.drawing import (
     draw_cobra,
     draw_scarab,
     draw_scorpion,

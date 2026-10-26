@@ -182,15 +182,27 @@ class TestGeneratedFiles:
             './mr_muncher.zip' not in tomllib.loads(pyscript_config(wheel_name=WHEEL_NAME))['files']
         )
 
-    def test_the_engine_archive_no_longer_holds_the_moved_game(self):
-        """The moved game's code is not under src/glitchygames/ any more."""
+    @pytest.mark.parametrize(
+        'moved_package', ['mr_muncher', 'brave_adventurer', 'brave_adventurer_papyrus']
+    )
+    def test_the_engine_archive_no_longer_holds_the_moved_game(self, moved_package):
+        """The moved games' code is not under src/glitchygames/ any more."""
         files = bundled_package_files(package_directory=PACKAGE_DIRECTORY)
 
-        assert not any(path.parts[:2] == ('examples', 'mr_muncher') for path in files)
+        assert not any(path.parts[:2] == ('examples', moved_package) for path in files)
 
     def test_only_member_games_name_member_packages(self):
         assert GAMES['mr-muncher'].member_packages == ('mr_muncher',)
-        assert [name for name, game in GAMES.items() if game.member_packages] == ['mr-muncher']
+        assert GAMES['brave-adventurer'].member_packages == ('brave_adventurer',)
+        assert GAMES['brave-adventurer-papyrus'].member_packages == (
+            'brave_adventurer',
+            'brave_adventurer_papyrus',
+        )
+        assert [name for name, game in GAMES.items() if game.member_packages] == [
+            'brave-adventurer',
+            'brave-adventurer-papyrus',
+            'mr-muncher',
+        ]
 
     def test_a_game_depending_on_a_member_ships_both_archives(self, tmp_path, monkeypatch):
         """A game needing a shared core lists both archives, the one depended on first."""

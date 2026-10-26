@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Re-export all shared constants from the original edition.
 # Physics, camera, layers, parallax, scoring, terrain colors, HUD colors.
-from glitchygames.examples.brave_adventurer.constants import (
+from brave_adventurer.constants import (
     ANIMATION_SPEED,
     CAMERA_LEAD,
     COLLECTIBLE_SCORE_BONUS,

@@ -11,7 +11,7 @@ import math
 
 import pygame
 
-from glitchygames.examples.brave_adventurer.constants import (
+from brave_adventurer.constants import (
     ANIMATION_SPEED,
     ARM_SWING_AMPLITUDE,
     COBRA_BODY,

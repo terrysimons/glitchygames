@@ -10,6 +10,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "brave-adventurer",
     "glitchygames",
     "mr-muncher",
 ]
@@ -346,6 +347,17 @@ sdist = { url = "https://files.pythonhosted.org/packages/d4/b8/3e55154ddaf1a6d1d
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9c/ce/61b39a8e7a69af5ea43c1c3e1b0065a4866b42ccddf107e16686a3143614/botocore-1.43.118-py3-none-any.whl", hash = "sha256:a45d7ae570674161e4a3542d8c68633bf7503f92d1de781ef7361b79488eda6f", size = 16122016, upload-time = "2026-10-22T19:22:00.414Z" },
 ]
+
+[[package]]
+name = "brave-adventurer"
+version = "1.0.0"
+source = { editable = "src/games/brave-adventurer" }
+dependencies = [
+    { name = "glitchygames" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "glitchygames", editable = "." }]
 
 [[package]]
 name = "cachecontrol"
@@ -1089,11 +1101,13 @@ docs = [
     { name = "pymdown-extensions" },
 ]
 games = [
+    { name = "brave-adventurer" },
     { name = "mr-muncher" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "brave-adventurer" },
     { name = "mr-muncher" },
 ]
 
@@ -1104,6 +1118,7 @@ requires-dist = [
     { name = "bandit", marker = "extra == 'dev'" },
     { name = "basedpyright", marker = "extra == 'dev'" },
     { name = "bokeh" },
+    { name = "brave-adventurer", marker = "extra == 'games'", editable = "src/games/brave-adventurer" },
     { name = "cookiecutter" },
     { name = "deptry", marker = "extra == 'dev'", specifier = ">=0.25.1" },
     { name = "fastapi" },
@@ -1154,7 +1169,10 @@ requires-dist = [
 provides-extras = ["docs", "dev", "api", "games", "demos", "apps"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "mr-muncher", editable = "src/games/mr-muncher" }]
+dev = [
+    { name = "brave-adventurer", editable = "src/games/brave-adventurer" },
+    { name = "mr-muncher", editable = "src/games/mr-muncher" },
+]
 
 [[package]]
 name = "google-auth"

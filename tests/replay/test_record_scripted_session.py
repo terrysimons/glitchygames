@@ -201,10 +201,10 @@ def test_every_game_has_a_fixture_location():
     """Every scripted game maps to tests/fixtures/replays/<console-script>/."""
     assert sorted(CONSOLE_SCRIPT_GAME_KEYS.values()) == sorted(SCRIPT_BUILDERS)
 
-    path = fixture_path(game_key='brave_adventurer_papyrus', name='golden')
+    path = fixture_path(game_key='clockwork_keep', name='golden')
 
     assert path.relative_to(PROJECT_ROOT).as_posix() == (
-        'tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz'
+        'tests/fixtures/replays/clockwork-keep/golden.jsonl.gz'
     )
 
 
@@ -223,6 +223,20 @@ def test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures():
     assert path.relative_to(PROJECT_ROOT).as_posix() == (
         'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz'
     )
+
+
+@pytest.mark.parametrize(
+    ('game_key', 'golden'),
+    [('brave_adventurer', 'golden-classic'), ('brave_adventurer_papyrus', 'golden-papyrus')],
+)
+def test_the_games_of_a_member_with_several_name_their_goldens_apart(game_key, golden):
+    """Brave Adventurer's two games share their member's fixtures: golden-<game>.jsonl.gz."""
+    path = fixture_path(game_key=game_key)
+
+    assert path.relative_to(PROJECT_ROOT).as_posix() == (
+        f'src/games/brave-adventurer/tests/fixtures/replays/{golden}.jsonl.gz'
+    )
+    assert path.is_file()
 
 
 def posted_key_events() -> list[tuple[int, int]]:

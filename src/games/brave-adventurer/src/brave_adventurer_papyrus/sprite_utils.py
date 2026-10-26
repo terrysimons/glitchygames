@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import pygame
 
-from glitchygames.examples.brave_adventurer_papyrus.constants import MAGENTA_KEY, SPRITE_SCALE
+from brave_adventurer_papyrus.constants import MAGENTA_KEY, SPRITE_SCALE
 
 if TYPE_CHECKING:
     from glitchygames.sprites import AnimatedSprite

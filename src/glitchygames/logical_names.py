@@ -22,8 +22,6 @@ EXAMPLES_PACKAGE = 'glitchygames.examples'
 # (the user, 2026-10-25; Part 2 of the workspace plan deletes it)
 EXAMPLES_LAYERS: dict[str, str] = {
     'paddleslap': 'games',
-    'brave_adventurer': 'games',
-    'brave_adventurer_papyrus': 'games',
     'clockwork_keep': 'games',
     'drawing_fire': 'games',
     'dt_demo': 'demos',
@@ -32,7 +30,11 @@ EXAMPLES_LAYERS: dict[str, str] = {
 }
 # Workspace members: top-level import package -> layer (src/<layer>/<member>/); equal to the
 # workspace, checked by tests/test_workspace_config.py
-MEMBER_LAYERS: dict[str, str] = {'mr_muncher': 'games'}
+MEMBER_LAYERS: dict[str, str] = {
+    'mr_muncher': 'games',
+    'brave_adventurer': 'games',
+    'brave_adventurer_papyrus': 'games',
+}
 
 
 def logical_module_name(*, module: str) -> str:

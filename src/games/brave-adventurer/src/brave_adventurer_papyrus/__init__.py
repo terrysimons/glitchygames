@@ -7,6 +7,6 @@ pixel art.
 
 from __future__ import annotations
 
-from glitchygames.examples.brave_adventurer_papyrus.game import main
+from brave_adventurer_papyrus.game import main
 
 __all__ = ['main']

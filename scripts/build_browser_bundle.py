@@ -254,16 +254,18 @@ GAMES: dict[str, GameSpecification] = {
         module='glitchygames.examples.paddleslap', scene_class='Game', title='Paddle Slap'
     ),
     'brave-adventurer': GameSpecification(
-        module='glitchygames.examples.brave_adventurer.game',
+        module='brave_adventurer.game',
         scene_class='BraveAdventurerScene',
         title='Brave Adventurer',
+        member_packages=('brave_adventurer',),
     ),
     # A separate game from Brave Adventurer: the same adventure drawn in GlitchyGames' modern
     # style (TOML sprites), beside the primitive old-school pygame one
     'brave-adventurer-papyrus': GameSpecification(
-        module='glitchygames.examples.brave_adventurer_papyrus.game',
+        module='brave_adventurer_papyrus.game',
         scene_class='PapyrusBraveAdventurerScene',
         title='Brave Adventurer: Papyrus Edition',
+        member_packages=('brave_adventurer', 'brave_adventurer_papyrus'),
     ),
     'clockwork-keep': GameSpecification(
         module='glitchygames.examples.clockwork_keep.game',

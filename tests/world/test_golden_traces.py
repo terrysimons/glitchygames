@@ -30,14 +30,14 @@ import pygame
 import pytest
 from scripts.record_golden_traces import GOLDEN_TRACE_GAMES, golden_path, record_trace
 
-from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
-from glitchygames.examples.brave_adventurer import constants as brave_constants
-from glitchygames.examples.brave_adventurer.drawing import draw_player, draw_scarab
-from glitchygames.examples.brave_adventurer.player import Player as AdventurerPlayer
-from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
-from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
+from brave_adventurer import constants as brave_constants
+from brave_adventurer.drawing import draw_player, draw_scarab
+from brave_adventurer.player import Player as AdventurerPlayer
+from brave_adventurer_papyrus.player import PapyrusPlayer
+from brave_adventurer_papyrus.sprite_utils import (
     apply_transparency_and_scale,
 )
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.examples.clockwork_keep.constants import PLAYER_HEIGHT, PLAYER_WIDTH
 from glitchygames.examples.clockwork_keep.drawing import draw_tinker
 from glitchygames.examples.clockwork_keep.player import Tinker

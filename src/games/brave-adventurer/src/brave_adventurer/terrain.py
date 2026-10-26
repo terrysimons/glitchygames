@@ -7,7 +7,7 @@ from typing import Self, override
 
 import pygame
 
-from glitchygames.examples.brave_adventurer.constants import (
+from brave_adventurer.constants import (
     GOLD_SCARAB_SIZE,
     GROUND_HEIGHT,
     GROUND_Y,
@@ -15,7 +15,7 @@ from glitchygames.examples.brave_adventurer.constants import (
     LAYER_TERRAIN,
     STONE_WALL_WIDTH,
 )
-from glitchygames.examples.brave_adventurer.drawing import (
+from brave_adventurer.drawing import (
     draw_gold_scarab,
     draw_ground_segment,
     draw_stone_wall,
