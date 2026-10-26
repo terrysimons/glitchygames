@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from enum import Enum
 from typing import assert_never
+
+from glitchygames.engine_context import ContextSlot, current_context
 
 # Fractional pixel at which NEAREST_HALF_UP snapping rounds up
 HALF_PIXEL = 0.5
@@ -58,30 +61,37 @@ def snap_to_pixel(value: float, mode: PixelSnapMode) -> int:
             assert_never(mode)
 
 
-class _ActiveSnapSettings:
-    """Holds the engine-wide default snap mode (the running scene's PIXEL_SNAP_MODE)."""
+@dataclasses.dataclass
+class _SnapSettings:
+    """Holds an engine context's default snap mode (the running scene's PIXEL_SNAP_MODE)."""
 
     default_mode: PixelSnapMode = PixelSnapMode.NEAREST_HALF_UP
 
 
+# Each engine context's default snap mode (glitchygames.engine_context)
+SNAP_SETTINGS_SLOT: ContextSlot[_SnapSettings] = ContextSlot(
+    name='glitchygames.pixel_snap.default_mode', factory=_SnapSettings
+)
+
+
 def set_active_default_snap_mode(mode: PixelSnapMode) -> None:
-    """Set the snap mode used by sprites that do not choose their own.
+    """Set the snap mode used by sprites that do not choose their own, in this engine context.
 
     Args:
         mode: The new default (normally the active scene's PIXEL_SNAP_MODE).
 
     """
-    _ActiveSnapSettings.default_mode = mode
+    current_context().value(slot=SNAP_SETTINGS_SLOT).default_mode = mode
 
 
 def active_default_snap_mode() -> PixelSnapMode:
-    """Return the snap mode used by sprites that do not choose their own.
+    """Return the snap mode used by sprites that do not choose their own, in this engine context.
 
     Returns:
         PixelSnapMode: The active default (initially NEAREST_HALF_UP).
 
     """
-    return _ActiveSnapSettings.default_mode
+    return current_context().value(slot=SNAP_SETTINGS_SLOT).default_mode
 
 
 def resolve_snap_mode(sprite: object) -> PixelSnapMode:
@@ -100,4 +110,4 @@ def resolve_snap_mode(sprite: object) -> PixelSnapMode:
     sprite_mode = getattr(sprite, 'pixel_snap_mode', None)
     if isinstance(sprite_mode, PixelSnapMode):
         return sprite_mode
-    return _ActiveSnapSettings.default_mode
+    return current_context().value(slot=SNAP_SETTINGS_SLOT).default_mode

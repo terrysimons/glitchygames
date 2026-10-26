@@ -373,7 +373,7 @@ def reset_engine_sources():
 def reset_default_snap_mode():
     """Start and end each test with the engine default snap mode (NEAREST_HALF_UP).
 
-    The active default is process-global (glitchygames/pixel_snap.py) and scene setup sets it
+    The active default is per engine context (glitchygames.pixel_snap) and scene setup sets it
     from Scene.PIXEL_SNAP_MODE; without this, one test's scene would change snapping for the
     next test on the worker.
     """
