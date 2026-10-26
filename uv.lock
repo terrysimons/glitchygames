@@ -12,6 +12,7 @@ resolution-markers = [
 members = [
     "brave-adventurer",
     "clockwork-keep",
+    "drawing-fire",
     "glitchygames",
     "mr-muncher",
     "paddleslap",
@@ -919,6 +920,17 @@ wheels = [
 ]
 
 [[package]]
+name = "drawing-fire"
+version = "1.0.0"
+source = { editable = "src/games/drawing-fire" }
+dependencies = [
+    { name = "glitchygames" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "glitchygames", editable = "." }]
+
+[[package]]
 name = "eval-type-backport"
 version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1116,6 +1128,7 @@ docs = [
 games = [
     { name = "brave-adventurer" },
     { name = "clockwork-keep" },
+    { name = "drawing-fire" },
     { name = "mr-muncher" },
     { name = "paddleslap" },
 ]
@@ -1124,6 +1137,7 @@ games = [
 dev = [
     { name = "brave-adventurer" },
     { name = "clockwork-keep" },
+    { name = "drawing-fire" },
     { name = "mr-muncher" },
     { name = "paddleslap" },
 ]
@@ -1139,6 +1153,7 @@ requires-dist = [
     { name = "clockwork-keep", marker = "extra == 'games'", editable = "src/games/clockwork-keep" },
     { name = "cookiecutter" },
     { name = "deptry", marker = "extra == 'dev'", specifier = ">=0.25.1" },
+    { name = "drawing-fire", marker = "extra == 'games'", editable = "src/games/drawing-fire" },
     { name = "fastapi" },
     { name = "filelock", marker = "extra == 'dev'", specifier = ">=3.32.7" },
     { name = "hidapi", specifier = ">=0.15.0" },
@@ -1191,6 +1206,7 @@ provides-extras = ["docs", "dev", "api", "games", "demos", "apps"]
 dev = [
     { name = "brave-adventurer", editable = "src/games/brave-adventurer" },
     { name = "clockwork-keep", editable = "src/games/clockwork-keep" },
+    { name = "drawing-fire", editable = "src/games/drawing-fire" },
     { name = "mr-muncher", editable = "src/games/mr-muncher" },
     { name = "paddleslap", editable = "src/games/paddleslap" },
 ]

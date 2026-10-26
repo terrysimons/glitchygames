@@ -6,8 +6,8 @@ import math
 
 import pygame
 
-from glitchygames.examples.drawing_fire.battle import Intent
-from glitchygames.examples.drawing_fire.players import (
+from drawing_fire.battle import Intent
+from drawing_fire.players import (
     KEYBOARD,
     Button,
     ButtonEdges,

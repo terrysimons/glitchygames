@@ -105,6 +105,9 @@ RECORDING_PATH_RENAMES: dict[str, str] = {
     'tests/fixtures/replays/paddleslap/golden.jsonl.gz': (
         'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
     ),
+    'tests/fixtures/replays/drawing-fire/golden.jsonl.gz': (
+        'src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz'
+    ),
 }
 
 

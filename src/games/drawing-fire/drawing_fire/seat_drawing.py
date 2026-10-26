@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 
 import pygame
 
-from glitchygames.examples.drawing_fire.battle import ARMY_NAMES, Side
-from glitchygames.examples.drawing_fire.drawing import (
+from drawing_fire.battle import ARMY_NAMES, Side
+from drawing_fire.drawing import (
     ARMY_COLORS,
     HATCH_COLOR,
     PENCIL_COLOR,
@@ -21,14 +21,14 @@ from glitchygames.examples.drawing_fire.drawing import (
     text_surface,
     wobble,
 )
-from glitchygames.examples.drawing_fire.seats import SideChoice, Stage
+from drawing_fire.seats import SideChoice, Stage
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from glitchygames.examples.drawing_fire.battle import Soldier
-    from glitchygames.examples.drawing_fire.drawing import Color
-    from glitchygames.examples.drawing_fire.seats import PlayerSeat
+    from drawing_fire.battle import Soldier
+    from drawing_fire.drawing import Color
+    from drawing_fire.seats import PlayerSeat
 
 # A pale sticky note and a white index card, both unlike the paper and either army's colour
 NOTE_COLOR: Color = (255, 241, 168)

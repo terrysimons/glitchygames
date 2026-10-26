@@ -11,7 +11,7 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from glitchygames.examples.drawing_fire.battle import (
+from drawing_fire.battle import (
     MUZZLE_DISTANCE,
     PISTOL_RANGE,
     Battle,
@@ -21,13 +21,13 @@ from glitchygames.examples.drawing_fire.battle import (
     Soldier,
     sandbag_positions,
 )
-from glitchygames.examples.drawing_fire.terrain import build_terrain
+from drawing_fire.terrain import build_terrain
 from glitchygames.randomness import random_stream
 
 if TYPE_CHECKING:
     from random import Random
 
-    from glitchygames.examples.drawing_fire.terrain import Terrain
+    from drawing_fire.terrain import Terrain
 
 # Standard deviation (radians) of the aim error, drawn from a normal distribution
 AIM_ERROR_RADIANS = 0.08

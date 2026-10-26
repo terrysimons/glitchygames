@@ -5,8 +5,8 @@ from __future__ import annotations
 from scripts import simulate_drawing_fire
 from scripts.simulate_drawing_fire import MAX_BATTLE_SECONDS, SimulationResult, simulate
 
-from glitchygames.examples.drawing_fire.battle import SOLDIERS_PER_SIDE, Side
-from glitchygames.examples.drawing_fire.drivers import computer_intents, muster_battle
+from drawing_fire.battle import SOLDIERS_PER_SIDE, Side
+from drawing_fire.drivers import computer_intents, muster_battle
 from glitchygames.randomness import seed_engine_random
 
 # Small armies keep the battles in these tests quick

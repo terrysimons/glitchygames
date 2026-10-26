@@ -333,10 +333,18 @@ def test_a_member_test_reassigning_a_pygame_constant_is_found(tmp_path):
     ]
 
 
-def test_the_shared_harness_is_a_plugin_loaded_before_any_other():
-    """Every package's tests get the harness: SDL defaults set before anything imports pygame."""
-    import conftest as root_conftest
+def test_the_shared_harness_is_a_plugin_loaded_before_any_other(pytestconfig):
+    """Every package's tests get the harness: SDL defaults set before anything imports pygame.
 
+    The root conftest is looked up as pytest registered it, by its path: ``import conftest``
+    finds whichever conftest pytest imported last under that bare name, and a member's
+    tests/conftest.py (not in a package: Drawing Fire's) is one.
+    """
+    root_conftest = pytestconfig.pluginmanager.get_plugin(
+        str(PROJECT_ROOT.resolve() / 'conftest.py')
+    )
+
+    assert root_conftest is not None, 'the root conftest.py is not a registered plugin'
     assert root_conftest.pytest_plugins[0] == 'tests.harness'
     assert not (TESTS_ROOT / 'conftest.py').exists(), 'the harness lives in tests/harness.py'
 

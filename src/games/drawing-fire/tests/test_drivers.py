@@ -6,7 +6,7 @@ import dataclasses
 import math
 import random
 
-from glitchygames.examples.drawing_fire.battle import (
+from drawing_fire.battle import (
     MUZZLE_DISTANCE,
     PISTOL_COOLDOWN,
     PISTOL_RANGE,
@@ -19,7 +19,7 @@ from glitchygames.examples.drawing_fire.battle import (
     Sandbag,
     Side,
 )
-from glitchygames.examples.drawing_fire.drivers import (
+from drawing_fire.drivers import (
     ADVANCE_RANGE_FRACTION,
     AIM_ERROR_RADIANS,
     REACTION_SECONDS_RANGE,
@@ -34,7 +34,7 @@ from glitchygames.examples.drawing_fire.drivers import (
     muster_battle,
     soldier_stream_name,
 )
-from glitchygames.examples.drawing_fire.terrain import Terrain
+from drawing_fire.terrain import Terrain
 from glitchygames.randomness import random_stream, reset_streams
 
 FIELD_WIDTH = 800

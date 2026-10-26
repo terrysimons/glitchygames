@@ -199,38 +199,34 @@ def test_the_supervisor_posts_the_next_frames_input_and_stops_the_last_frame(sce
 
 
 def test_every_game_has_a_fixture_location():
-    """Every scripted game has a console script: tests/fixtures/replays/<console-script>/."""
+    """Every scripted game has a console script and its fixtures in its workspace member."""
     assert sorted(GAME_CONSOLE_SCRIPTS) == sorted(SCRIPT_BUILDERS)
+    assert sorted(REPLAY_FIXTURE_DIRECTORIES) == sorted(SCRIPT_BUILDERS)
 
-    path = fixture_path(game_key='drawing_fire', name='golden')
 
-    assert path.relative_to(PROJECT_ROOT).as_posix() == (
-        'tests/fixtures/replays/drawing-fire/golden.jsonl.gz'
-    )
+def test_a_game_no_member_holds_has_no_fixture_location():
+    """No game is left in the root layout: a game outside every member is refused, by name."""
+    with pytest.raises(KeyError, match='no_such_game'):
+        fixture_path(game_key='no_such_game')
 
 
 def test_each_fixture_directory_is_the_games_console_script_in_pyproject():
-    """The mapping follows [project.scripts] (the root's and the members').
+    """The mapping follows the members' [project.scripts].
 
-    A game in the engine's examples: the script's entry point is in the game's module. A game
-    in a workspace member: the member's script, its entry point in one of the member's packages
-    (Brave Adventurer's launcher, brave_adventurer_modes, starts both its games).
+    Each game's console script is its workspace member's, its entry point in one of the
+    member's packages (Brave Adventurer's launcher, brave_adventurer_modes, starts both its
+    games).
     """
     console_scripts = declared_console_scripts(project_root=PROJECT_ROOT)
     members = workspace_members(project_root=PROJECT_ROOT)
     for game_key, console_script in GAME_CONSOLE_SCRIPTS.items():
         entry_point_module = console_scripts[console_script].split(':')[0]
         game_module = GAME_MODULES[game_key]
-        if game_key in REPLAY_FIXTURE_DIRECTORIES:
-            (member,) = [
-                member
-                for member in members
-                if game_module.partition('.')[0] in member.import_packages
-            ]
-            assert entry_point_module.partition('.')[0] in member.import_packages, game_key
-            assert REPLAY_FIXTURE_DIRECTORIES[game_key] == member.replay_fixtures_directory
-        else:
-            assert entry_point_module == game_module, game_key
+        (member,) = [
+            member for member in members if game_module.partition('.')[0] in member.import_packages
+        ]
+        assert entry_point_module.partition('.')[0] in member.import_packages, game_key
+        assert REPLAY_FIXTURE_DIRECTORIES[game_key] == member.replay_fixtures_directory
 
 
 def test_both_brave_adventurer_games_are_replayed_by_the_launcher():
@@ -248,6 +244,7 @@ def test_both_brave_adventurer_games_are_replayed_by_the_launcher():
         ('mr_muncher', 'mr-muncher'),
         ('clockwork_keep', 'clockwork-keep'),
         ('paddleslap', 'paddleslap'),
+        ('drawing_fire', 'drawing-fire'),
     ],
 )
 def test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures(

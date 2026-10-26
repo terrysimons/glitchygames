@@ -168,7 +168,7 @@ package, `src/games/brave-adventurer/`, sharing `brave_adventurer_core`; its lau
 the game a `--replay-trace` recording names), `clockwork-keep` (a steampunk tower climb, its own
 workspace package `src/games/clockwork-keep/`),
 `mr-muncher` (a maze chase at the movies, its own workspace package `src/games/mr-muncher/`) and
-`drawing-fire` (a pencil-on-paper stick-figure battle, `src/glitchygames/examples/drawing_fire/`:
+`drawing-fire` (a pencil-on-paper stick-figure battle, its own workspace package `src/games/drawing-fire/`:
 computer battles that one or two local players join with START or Enter; its new mechanic is
 swatches, recolouring a sprite by palette swap; docs/games/drawing_fire.md) start the example
 games.
@@ -611,8 +611,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   check key codes (`event.key`). Both screens answer a gamepad too, on either event layer
   (`scenes/builtin_scenes/gamepad_choice.py`): Start or A goes on (resume, restart) on its
   release after a press there, as SPACE does; B or Back quits on its press, as ESC does
-- Golden replays: the engine's own live in `tests/fixtures/replays/<console-script>/golden.jsonl.gz`;
-  a workspace member's in `<member>/tests/fixtures/replays/<name>.jsonl.gz` (Mr. Muncher's:
+- Golden replays: every game is a workspace member, so each golden lives in
+  `<member>/tests/fixtures/replays/<name>.jsonl.gz` (the replay plugin still collects another
+  project's `fixtures/replays/<console-script>/<name>.jsonl.gz`; no game's is there) (Mr. Muncher's:
   `src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz`), replayed through the member's
   console script (`recording_console_script`: its one, or for a member with several, the one
   starting the game the recording's header names). Brave Adventurer has one, its launcher,

@@ -184,7 +184,13 @@ class TestGeneratedFiles:
 
     @pytest.mark.parametrize(
         'moved_package',
-        ['mr_muncher', 'brave_adventurer', 'brave_adventurer_papyrus', 'clockwork_keep'],
+        [
+            'mr_muncher',
+            'brave_adventurer',
+            'brave_adventurer_papyrus',
+            'clockwork_keep',
+            'drawing_fire',
+        ],
     )
     def test_the_engine_archive_no_longer_holds_the_moved_game(self, moved_package):
         """The moved games' code is not under src/glitchygames/ any more."""
@@ -205,11 +211,13 @@ class TestGeneratedFiles:
         assert GAMES['mr-muncher'].member_packages == ('mr_muncher',)
         assert GAMES['clockwork-keep'].member_packages == ('clockwork_keep',)
         assert GAMES['paddleslap'].member_packages == ('paddleslap',)
+        assert GAMES['drawing-fire'].member_packages == ('drawing_fire',)
         assert [name for name, game in GAMES.items() if game.member_packages] == [
             'paddleslap',
             'brave-adventurer',
             'clockwork-keep',
             'mr-muncher',
+            'drawing-fire',
         ]
 
     def test_brave_adventurer_starts_its_title_screen_with_both_games(self):
@@ -428,13 +436,26 @@ class TestMain:
         assert not any(name.startswith('mr_muncher/') for name in engine_names)
         assert '"./mr_muncher.zip" = "./*"' in (tmp_path / 'muncher' / 'pyscript.toml').read_text()
 
-    def test_a_game_of_the_engine_has_no_member_archive(self, tmp_path):
+    def test_an_app_of_the_engine_has_no_member_archive(self, tmp_path):
+        """Every game is a member now; Bitmappy, still in the engine, ships the engine alone."""
+        wheel = tmp_path / WHEEL_NAME
+        wheel.write_bytes(b'wheel')
+
+        main(['bitmappy', '--wheel', str(wheel), '--output', str(tmp_path / 'bitmappy')])
+
+        assert [path.name for path in (tmp_path / 'bitmappy').glob('*.zip')] == ['glitchygames.zip']
+
+    def test_drawing_fires_bundle_ships_its_sprite_in_its_package(self, tmp_path):
+        """The soldier sprite is package data: it ships in drawing_fire.zip, not the engine's."""
         wheel = tmp_path / WHEEL_NAME
         wheel.write_bytes(b'wheel')
 
         main(['drawing-fire', '--wheel', str(wheel), '--output', str(tmp_path / 'fire')])
 
-        assert [path.name for path in (tmp_path / 'fire').glob('*.zip')] == ['glitchygames.zip']
+        with zipfile.ZipFile(tmp_path / 'fire' / 'drawing_fire.zip') as archive:
+            member_names = set(archive.namelist())
+        assert {'drawing_fire/game.py', 'drawing_fire/sprites/soldier.toml'} <= member_names
+        assert '"./drawing_fire.zip" = "./*"' in (tmp_path / 'fire' / 'pyscript.toml').read_text()
 
     def test_paddleslaps_bundle_ships_its_demo_in_its_package(self, tmp_path):
         """The attract-mode demo is package data: it ships in paddleslap.zip, not the engine's."""

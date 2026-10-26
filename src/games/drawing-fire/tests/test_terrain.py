@@ -6,7 +6,7 @@ import random
 
 import pytest
 
-from glitchygames.examples.drawing_fire.terrain import (
+from drawing_fire.terrain import (
     GROUND_BASELINE_FRACTION,
     HILL_HEIGHT_FRACTION_RANGE,
     build_terrain,

@@ -7,9 +7,9 @@ import random
 import pygame
 import pytest
 
-from glitchygames.examples.drawing_fire.battle import Battle, Side
-from glitchygames.examples.drawing_fire.players import KEYBOARD, Button, ButtonEdges, Device
-from glitchygames.examples.drawing_fire.seats import (
+from drawing_fire.battle import Battle, Side
+from drawing_fire.players import KEYBOARD, Button, ButtonEdges, Device
+from drawing_fire.seats import (
     COMPUTER_DRIVER_NAME,
     LEAVE_HOLD_SECONDS,
     SEAT_LOG_LENGTH,
@@ -19,7 +19,7 @@ from glitchygames.examples.drawing_fire.seats import (
     SideChoice,
     Stage,
 )
-from glitchygames.examples.drawing_fire.terrain import Terrain
+from drawing_fire.terrain import Terrain
 from glitchygames.input.state import InputSnapshot
 
 FIELD_WIDTH = 800

@@ -5,14 +5,10 @@ from __future__ import annotations
 import pygame
 import pytest
 
-from glitchygames.camera import Camera2D
-from glitchygames.display_mode import set_display_mode
-from glitchygames.events import GAMEEVENT
-from glitchygames.events.base import GameEvent
-from glitchygames.examples import drawing_fire
-from glitchygames.examples.drawing_fire import drawing as drawing_module
-from glitchygames.examples.drawing_fire import game as drawing_fire_game
-from glitchygames.examples.drawing_fire.battle import (
+import drawing_fire
+from drawing_fire import drawing as drawing_module
+from drawing_fire import game as drawing_fire_game
+from drawing_fire.battle import (
     ARMY_NAMES,
     SAND_PER_HIT,
     SOLDIERS_PER_SIDE,
@@ -21,9 +17,9 @@ from glitchygames.examples.drawing_fire.battle import (
     Bullet,
     Side,
 )
-from glitchygames.examples.drawing_fire.drawing import ARMY_COLORS, ARMY_LIVERIES, PENCIL_COLOR
-from glitchygames.examples.drawing_fire.drivers import ComputerSoldier
-from glitchygames.examples.drawing_fire.game import (
+from drawing_fire.drawing import ARMY_COLORS, ARMY_LIVERIES, PENCIL_COLOR
+from drawing_fire.drivers import ComputerSoldier
+from drawing_fire.game import (
     COMPUTER_COUNT_MARK,
     DRAW_LINES,
     NO_SOLDIER_ID,
@@ -36,8 +32,8 @@ from glitchygames.examples.drawing_fire.game import (
     held_keys_line,
     seats_panel_lines,
 )
-from glitchygames.examples.drawing_fire.players import KEYBOARD, Device
-from glitchygames.examples.drawing_fire.seat_drawing import (
+from drawing_fire.players import KEYBOARD, Device
+from drawing_fire.seat_drawing import (
     CARD_COLOR,
     NOTE_COLOR,
     SEAT_TAG_ABOVE_FEET_PIXELS,
@@ -48,14 +44,18 @@ from glitchygames.examples.drawing_fire.seat_drawing import (
     seat_card_rect,
     seats_panel_rect,
 )
-from glitchygames.examples.drawing_fire.seats import (
+from drawing_fire.seats import (
     LEAVE_HOLD_SECONDS,
     PlayerSeat,
     SeatChange,
     SeatLogEntry,
     Stage,
 )
-from glitchygames.examples.drawing_fire.terrain import Terrain
+from drawing_fire.terrain import Terrain
+from glitchygames.camera import Camera2D
+from glitchygames.display_mode import set_display_mode
+from glitchygames.events import GAMEEVENT
+from glitchygames.events.base import GameEvent
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.randomness import reset_streams
 

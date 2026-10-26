@@ -7,7 +7,7 @@ import random
 
 import pytest
 
-from glitchygames.examples.drawing_fire.battle import (
+from drawing_fire.battle import (
     ARMY_NAMES,
     MUZZLE_DISTANCE,
     PISTOL_COOLDOWN,
@@ -29,7 +29,7 @@ from glitchygames.examples.drawing_fire.battle import (
     SoldierKilled,
     sandbag_positions,
 )
-from glitchygames.examples.drawing_fire.terrain import Terrain, build_terrain
+from drawing_fire.terrain import Terrain, build_terrain
 
 FIELD_WIDTH = 800
 FIELD_HEIGHT = 480

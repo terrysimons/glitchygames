@@ -14,16 +14,14 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 
-from glitchygames.engine import GameEngine
-from glitchygames.events import GAMEEVENT
-from glitchygames.examples.drawing_fire.battle import (
+from drawing_fire.battle import (
     ARMY_NAMES,
     SOLDIERS_PER_SIDE,
     Battle,
     Side,
     SoldierKilled,
 )
-from glitchygames.examples.drawing_fire.drawing import (
+from drawing_fire.drawing import (
     draw_banner,
     draw_bullet,
     draw_hud,
@@ -32,18 +30,18 @@ from glitchygames.examples.drawing_fire.drawing import (
     draw_terrain,
     load_soldier_frames,
 )
-from glitchygames.examples.drawing_fire.drivers import (
+from drawing_fire.drivers import (
     ComputerSoldier,
     computer_intents,
     muster_battle,
 )
-from glitchygames.examples.drawing_fire.players import (
+from drawing_fire.players import (
     KEYBOARD,
     ButtonEdges,
     connected_devices,
     device_intent,
 )
-from glitchygames.examples.drawing_fire.seat_drawing import (
+from drawing_fire.seat_drawing import (
     SEAT_TAG_ABOVE_FEET_PIXELS,
     SEAT_TAG_STAGGER_PIXELS,
     draw_join_prompt,
@@ -52,12 +50,14 @@ from glitchygames.examples.drawing_fire.seat_drawing import (
     draw_seats_panel,
     draw_soldier_highlight,
 )
-from glitchygames.examples.drawing_fire.seats import (
+from drawing_fire.seats import (
     COMPUTER_DRIVER_NAME,
     SeatLogEntry,
     Seats,
     Stage,
 )
+from glitchygames.engine import GameEngine
+from glitchygames.events import GAMEEVENT
 from glitchygames.input.state import current_input
 from glitchygames.randomness import random_stream
 from glitchygames.recording import post_event
@@ -66,11 +66,11 @@ from glitchygames.scenes import Scene
 if TYPE_CHECKING:
     from random import Random
 
+    from drawing_fire.players import Device
+    from drawing_fire.seats import PlayerSeat
+    from drawing_fire.terrain import Terrain
     from glitchygames.camera import Camera2D
     from glitchygames.events.base import GameEvent, KeyEvent
-    from glitchygames.examples.drawing_fire.players import Device
-    from glitchygames.examples.drawing_fire.seats import PlayerSeat
-    from glitchygames.examples.drawing_fire.terrain import Terrain
     from glitchygames.input.state import InputSnapshot
 
 PAPER_COLOR = (251, 248, 239)

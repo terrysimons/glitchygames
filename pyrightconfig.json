@@ -6,6 +6,7 @@
     "src/games/brave-adventurer",
     "src/games/clockwork-keep",
     "src/games/paddleslap",
+    "src/games/drawing-fire",
     "tests",
     "scripts"
   ],
@@ -65,7 +66,8 @@
         "src/games/mr-muncher",
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep",
-        "src/games/paddleslap"
+        "src/games/paddleslap",
+        "src/games/drawing-fire"
       ],
       "reportArgumentType": false,
       "reportCallIssue": false,
@@ -99,7 +101,8 @@
         "src/games/mr-muncher",
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep",
-        "src/games/paddleslap"
+        "src/games/paddleslap",
+        "src/games/drawing-fire"
       ],
       "reportArgumentType": false,
       "reportCallIssue": false,
@@ -137,7 +140,8 @@
         "src/games/mr-muncher",
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep",
-        "src/games/paddleslap"
+        "src/games/paddleslap",
+        "src/games/drawing-fire"
       ],
       "reportArgumentType": false,
       "reportCallIssue": false,
@@ -175,7 +179,8 @@
         "src/games/mr-muncher",
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep",
-        "src/games/paddleslap"
+        "src/games/paddleslap",
+        "src/games/drawing-fire"
       ],
       "reportArgumentType": false,
       "reportCallIssue": false,
@@ -213,7 +218,8 @@
         "src/games/mr-muncher",
         "src/games/brave-adventurer/src",
         "src/games/clockwork-keep",
-        "src/games/paddleslap"
+        "src/games/paddleslap",
+        "src/games/drawing-fire"
       ],
       "reportArgumentType": false,
       "reportCallIssue": false,
@@ -241,6 +247,45 @@
     },
     {
       "root": "src/games/paddleslap",
+      "extraPaths": ["src"]
+    },
+    {
+      "root": "src/games/drawing-fire/tests",
+      "extraPaths": [
+        ".",
+        "src",
+        "src/games/mr-muncher",
+        "src/games/brave-adventurer/src",
+        "src/games/clockwork-keep",
+        "src/games/paddleslap",
+        "src/games/drawing-fire"
+      ],
+      "reportArgumentType": false,
+      "reportCallIssue": false,
+      "reportFunctionMemberAccess": false,
+      "reportGeneralTypeIssues": false,
+      "reportIncompatibleMethodOverride": false,
+      "reportReturnType": false,
+      "reportUnnecessaryTypeIgnoreComment": false,
+      "reportUnknownMemberType": false,
+      "reportUnknownVariableType": false,
+      "reportUnknownArgumentType": false,
+      "reportUnknownParameterType": false,
+      "reportPrivateUsage": false,
+      "reportAttributeAccessIssue": false,
+      "reportOptionalMemberAccess": false,
+      "reportMissingTypeArgument": false,
+      "reportUnusedCallResult": false,
+      "reportImplicitOverride": false,
+      "reportImplicitStringConcatenation": false,
+      "reportMissingParameterType": false,
+      "reportUninitializedInstanceVariable": false,
+      "reportUnknownLambdaType": false,
+      "reportUnusedVariable": false,
+      "reportUnusedFunction": false
+    },
+    {
+      "root": "src/games/drawing-fire",
       "extraPaths": ["src"]
     }
   ]

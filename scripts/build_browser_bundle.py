@@ -282,9 +282,10 @@ GAMES: dict[str, GameSpecification] = {
         member_packages=('mr_muncher',),
     ),
     'drawing-fire': GameSpecification(
-        module='glitchygames.examples.drawing_fire.game',
+        module='drawing_fire.game',
         scene_class='DrawingFireScene',
         title='Drawing Fire',
+        member_packages=('drawing_fire',),
     ),
     # The pixel-art editor: its AI sprite generation is off in browser builds (the
     # glitchygames.bitmappy.constants.AI_FEATURES_ENABLED feature flag)

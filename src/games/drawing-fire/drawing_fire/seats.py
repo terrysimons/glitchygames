@@ -18,15 +18,15 @@ import enum
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from glitchygames.examples.drawing_fire.battle import Side
-from glitchygames.examples.drawing_fire.players import Button
+from drawing_fire.battle import Side
+from drawing_fire.players import Button
 
 if TYPE_CHECKING:
     import random
     from collections.abc import Sequence
 
-    from glitchygames.examples.drawing_fire.battle import Battle, Soldier
-    from glitchygames.examples.drawing_fire.players import ButtonEdges, Device
+    from drawing_fire.battle import Battle, Soldier
+    from drawing_fire.players import ButtonEdges, Device
 
 # BACK held this long (s) leaves: timed by the seconds the frames advance, never by counting
 # frames, so it is a second at 30 frames a second (the browser) as at 60

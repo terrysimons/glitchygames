@@ -358,21 +358,53 @@ def write_header_only_recording(*, path: Path, header: dict[str, object]) -> Non
         recording.write(json.dumps({'format_version': TRACE_FORMAT_VERSION, **header}) + '\n')
 
 
+def write_stand_in_distribution(
+    *, directory: Path, distribution: str, console_scripts: dict[str, str]
+) -> None:
+    """Write an installed distribution's metadata (a dist-info), holding only console scripts.
+
+    With ``directory`` on ``sys.path``, ``importlib.metadata.distribution`` finds it as it finds
+    an installed member's.
+
+    Args:
+        directory: Where it is installed (a sys.path entry).
+        distribution: Its name.
+        console_scripts: Console script name -> entry point (``package:function``).
+
+    """
+    dist_info = directory / f'{distribution.replace("-", "_")}-1.0.0.dist-info'
+    dist_info.mkdir(parents=True)
+    (dist_info / 'METADATA').write_text(
+        f'Metadata-Version: 2.1\nName: {distribution}\nVersion: 1.0.0\n', encoding='utf-8'
+    )
+    entry_points = ''.join(f'{name} = {value}\n' for name, value in console_scripts.items())
+    (dist_info / 'entry_points.txt').write_text(
+        f'[{CONSOLE_SCRIPTS_GROUP}]\n{entry_points}', encoding='utf-8'
+    )
+
+
 def test_a_member_with_several_console_scripts_replays_through_the_recorded_games_script(
-    tmp_path,
+    tmp_path, monkeypatch
 ):
     """The header's game (a logical name) names the module, whose console script replays it.
 
-    The engine's own distribution has several console scripts; a Drawing Fire recording (the
-    last game still in the engine's examples) is replayed by the one whose entry point's
-    package holds Drawing Fire's game module.
+    A stand-in member with a console script per game (every real game is now a member with
+    one script, or a launcher): its Papyrus recording is replayed by the script whose entry
+    point's package holds the Papyrus game module.
     """
-    recording = member_recording_path(tmp_path=tmp_path, distribution='glitchygames')
+    installed = tmp_path / 'site-packages'
+    write_stand_in_distribution(
+        directory=installed,
+        distribution='space-games',
+        console_scripts={'classic': 'space_game:main', 'papyrus': 'space_game_papyrus:main'},
+    )
+    monkeypatch.syspath_prepend(installed)
+    recording = member_recording_path(tmp_path=tmp_path, distribution='space-games')
     write_header_only_recording(
-        path=recording, header={'game': 'games.drawing_fire.game:DrawingFireScene'}
+        path=recording, header={'game': 'space_game_papyrus.game:PapyrusScene'}
     )
 
-    assert recording_console_script(path=recording) == 'drawing-fire'
+    assert recording_console_script(path=recording) == 'papyrus'
 
 
 def test_a_game_module_inside_the_entry_points_package_is_its_game():

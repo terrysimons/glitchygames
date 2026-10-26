@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 import pygame
 
-from glitchygames.examples.drawing_fire.battle import Intent
+from drawing_fire.battle import Intent
 
 if TYPE_CHECKING:
     from glitchygames.input.state import InputSnapshot

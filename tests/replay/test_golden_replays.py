@@ -1,6 +1,6 @@
-"""Checks on the golden replays under tests/fixtures/replays.
+"""Checks on the golden replays in the workspace members' tests/fixtures/replays.
 
-A fixture is ``tests/fixtures/replays/<console-script>/<name>.jsonl.gz``, recorded through the
+A fixture is ``<member>/tests/fixtures/replays/<name>.jsonl.gz``, recorded through the
 real engine by scripts/record_scripted_session.py. Each fixture is itself a test item: the replay
 plugin (glitchygames/testing/replays.py, loaded by the root conftest) replays it headless through
 the game's console script entry point (``--replay-trace PATH --headless``: GameEngine +
@@ -36,7 +36,6 @@ from pydantic import BaseModel, ConfigDict
 from scripts.record_golden_traces import PROJECT_ROOT
 from scripts.record_scripted_session import (
     GAME_CONSOLE_SCRIPTS,
-    REPLAY_FIXTURE_DIRECTORY,
     REPLAY_FIXTURE_SUFFIX,
     fixture_path,
 )
@@ -46,14 +45,14 @@ import paddleslap
 from brave_adventurer.game import BraveAdventurerScene
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from clockwork_keep.game import ClockworkKeepScene
-from glitchygames.events import GAMEEVENT
-from glitchygames.examples.drawing_fire import players as drawing_fire_players
-from glitchygames.examples.drawing_fire.game import (
+from drawing_fire import players as drawing_fire_players
+from drawing_fire.game import (
     SEAT_CHANGED_SUBTYPE,
     SOLDIER_KILLED_SUBTYPE,
     DrawingFireScene,
 )
-from glitchygames.examples.drawing_fire.seats import SeatChange
+from drawing_fire.seats import SeatChange
+from glitchygames.events import GAMEEVENT
 from glitchygames.exit_codes import ExitCode
 from glitchygames.logical_names import logical_name
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, INTERNAL_ORIGIN
@@ -73,23 +72,18 @@ if TYPE_CHECKING:
 # The frame a tampered copy of a fixture first differs from the engine at
 TAMPERED_FRAME = 10
 
-# The engine's (tests/fixtures/replays/<console-script>/) and each workspace member's (directly in
-# <member>/tests/fixtures/replays/)
-REPLAY_FIXTURES = sorted([
-    *REPLAY_FIXTURE_DIRECTORY.glob(f'*/*{REPLAY_FIXTURE_SUFFIX}'),
-    *(
-        path
-        for member in workspace_members(project_root=PROJECT_ROOT)
-        for path in member.replay_fixtures_directory.glob(f'*{REPLAY_FIXTURE_SUFFIX}')
-    ),
-])
+# Each workspace member's (directly in <member>/tests/fixtures/replays/): every game is in a
+# member, so no golden is in the root's tests/fixtures/replays/<console-script>/ layout
+REPLAY_FIXTURES = sorted(
+    path
+    for member in workspace_members(project_root=PROJECT_ROOT)
+    for path in member.replay_fixtures_directory.glob(f'*{REPLAY_FIXTURE_SUFFIX}')
+)
 
 
 def test_the_fixture_directory_holds_golden_replays():
     """A missing fixture set fails here instead of collecting zero replay cases."""
-    assert REPLAY_FIXTURES, (
-        f'no {REPLAY_FIXTURE_SUFFIX} recordings under {REPLAY_FIXTURE_DIRECTORY}'
-    )
+    assert REPLAY_FIXTURES, f"no {REPLAY_FIXTURE_SUFFIX} recordings in the members' fixtures"
 
 
 def test_every_fixture_directory_is_a_game_console_script():
@@ -109,27 +103,23 @@ def test_every_golden_replay_is_replayed_by_its_games_console_script(game):
     )
 
 
-def test_a_members_golden_replay_is_replayed_by_the_members_console_script():
-    """<member>/tests/fixtures/replays/<name>.jsonl.gz: the member distribution names the game."""
+def test_a_members_golden_replay_is_replayed_by_the_members_console_script(tmp_path):
+    """<member>/tests/fixtures/replays/<name>.jsonl.gz: the member distribution names the game.
+
+    The plugin's other layout, ``fixtures/replays/<console-script>/<name>.jsonl.gz`` (another
+    project's, and no game's here since every game is a member), is named by its folder: a
+    stand-in path under tmp_path, its folder an installed console script.
+    """
     (member,) = [
         member
         for member in workspace_members(project_root=PROJECT_ROOT)
         if member.distribution == 'mr-muncher'
     ]
     golden = member.replay_fixtures_directory / 'golden.jsonl.gz'
+    root_layout_golden = tmp_path / 'fixtures' / 'replays' / 'drawing-fire' / 'golden.jsonl.gz'
 
     assert recording_console_script(path=golden) == 'mr-muncher'
-    assert (
-        recording_console_script(
-            path=PROJECT_ROOT
-            / 'tests'
-            / 'fixtures'
-            / 'replays'
-            / 'drawing-fire'
-            / 'golden.jsonl.gz'
-        )
-        == 'drawing-fire'
-    )
+    assert recording_console_script(path=root_layout_golden) == 'drawing-fire'
 
 
 def test_a_recording_of_a_folder_that_is_no_member_is_refused(tmp_path):
@@ -398,7 +388,7 @@ PAUSE_SCENE_CONTROLS: tuple[Control, ...] = (
     ),
 )
 
-# Drawing Fire's controls (glitchygames/examples/drawing_fire/players.py), read from the frame's
+# Drawing Fire's controls (src/games/drawing-fire/drawing_fire/players.py), read from the frame's
 # snapshot, not an ActionMap: the keyboard's START, BACK, LEFT and RIGHT keys (each key of the
 # players module's own scancode lists), the mouse's aim and left button, and the controller's
 # sticks, trigger and buttons; and Q, which quits on its release (the base Scene: Drawing Fire

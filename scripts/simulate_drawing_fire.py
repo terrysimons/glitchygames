@@ -16,8 +16,8 @@ import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from glitchygames.examples.drawing_fire.battle import ARMY_NAMES, SOLDIERS_PER_SIDE, Side
-from glitchygames.examples.drawing_fire.drivers import computer_intents, muster_battle
+from drawing_fire.battle import ARMY_NAMES, SOLDIERS_PER_SIDE, Side
+from drawing_fire.drivers import computer_intents, muster_battle
 from glitchygames.randomness import seed_engine_random
 
 if TYPE_CHECKING:

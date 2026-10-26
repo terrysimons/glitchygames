@@ -21,7 +21,6 @@ EXAMPLES_PACKAGE = 'glitchygames.examples'
 # Games and demos not yet moved out of glitchygames/examples/: package name there -> layer
 # (the user, 2026-10-25; Part 2 of the workspace plan deletes it)
 EXAMPLES_LAYERS: dict[str, str] = {
-    'drawing_fire': 'games',
     'dt_demo': 'demos',
     'joystick_demo': 'demos',
     'text_input_demo': 'demos',
@@ -36,6 +35,7 @@ MEMBER_LAYERS: dict[str, str] = {
     'brave_adventurer_modes': 'games',
     'clockwork_keep': 'games',
     'paddleslap': 'games',
+    'drawing_fire': 'games',
 }
 
 

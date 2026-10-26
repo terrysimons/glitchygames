@@ -1,7 +1,7 @@
 r"""Record a scripted session of a game through the real engine (GameEngine.start).
 
-Used for the golden replay fixtures under ``tests/fixtures/replays/`` and the workspace
-members' ``<member>/tests/fixtures/replays/`` (and later for bundled demos). The game's golden
+Used for the golden replay fixtures in the workspace members'
+``<member>/tests/fixtures/replays/`` (and later for bundled demos). The game's golden
 input script (scripts/record_golden_traces.py: SCRIPT_BUILDERS) is played by a supervisor
 (glitchygames/supervision.py): at the supervisor slot of frame N it posts the script's key events
 and per-frame input for frame N + 1 with ``glitchygames.recording.post_input_event``, so the
@@ -66,7 +66,7 @@ dt included: plans/2026-10-20-recording-content-hash-and-history.md.) Then, one 
         --game brave_adventurer_papyrus --frames 400
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python -m scripts.record_scripted_session \
         --game mr_muncher --frames 1950
-    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_scripted_session.py \
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python -m scripts.record_scripted_session \
         --game drawing_fire --frames 1600
 
 With their controls tails the recordings hold 622 (PaddleSlap), 532 (Clockwork Keep), 472 (each
@@ -85,9 +85,8 @@ session's live snapshots show the supervisor's posted input (PostedPolledInput,
 polled_input_follows), as a real player's would. Only for them: every other game's session
 records the snapshots it always did, so its re-recordings keep their content hashes.
 
-Without ``--output`` the recording goes to
-``tests/fixtures/replays/<console-script>/golden.jsonl.gz``, or for a game in a workspace member
-to ``<member>/tests/fixtures/replays/golden.jsonl.gz`` (``golden-<game>.jsonl.gz`` for each game
+Without ``--output`` the recording goes to its game's workspace member,
+``<member>/tests/fixtures/replays/golden.jsonl.gz`` (``golden-<game>.jsonl.gz`` for each game
 of a member holding several: ``GOLDEN_FIXTURE_NAMES``; ``fixture_path``). Keep each fixture
 under 100 KB.
 """
@@ -109,7 +108,6 @@ os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 import pygame
 
 from glitchygames import live_sources
-from glitchygames.bundled_demos import console_script_in_module
 from glitchygames.input.state import MOUSE_BUTTON_COUNT
 from glitchygames.recording import post_input_event
 from glitchygames.testing.replays import recording_console_script
@@ -145,11 +143,11 @@ INPUT_ONLY_PLACEMENT_GAMES = frozenset({'paddleslap'})
 # content hashes, and the metrics ledger's behaviour changes, stay as they were
 POLLED_INPUT_GAMES = frozenset({'drawing_fire'})
 
-# Golden replay fixtures: tests/fixtures/replays/<console-script>/<name>.jsonl.gz, except a
-# workspace member's, directly in its own replay fixtures directory (REPLAY_FIXTURE_DIRECTORIES)
-REPLAY_FIXTURE_DIRECTORY = PROJECT_ROOT / 'tests' / 'fixtures' / 'replays'
-# Game key -> the fixtures directory of the workspace member whose package holds the game
-# (src/games/mr-muncher/tests/fixtures/replays); a game key not in it uses the root layout
+# Golden replay fixtures: each game's are directly in its workspace member's replay fixtures
+# directory. Game key -> the fixtures directory of the workspace member whose package holds the
+# game (src/games/mr-muncher/tests/fixtures/replays); every game is in one since Drawing Fire,
+# the last in the engine's examples, moved (the root's tests/fixtures/replays/<console-script>/
+# layout, which the replay plugin still collects, holds no game's golden)
 REPLAY_FIXTURE_DIRECTORIES: dict[str, Path] = {
     game_key: member.replay_fixtures_directory
     for member in workspace_members(project_root=PROJECT_ROOT)
@@ -396,49 +394,45 @@ def fixture_path(*, game_key: str, name: str | None = None) -> Path:
             (``GOLDEN_FIXTURE_NAMES``, else ``DEFAULT_FIXTURE_NAME``).
 
     Returns:
-        ``<member>/tests/fixtures/replays/<name>.jsonl.gz`` for a game in a workspace member
-        (``REPLAY_FIXTURE_DIRECTORIES``), else
-        ``tests/fixtures/replays/<console-script>/<name>.jsonl.gz``.
+        ``<member>/tests/fixtures/replays/<name>.jsonl.gz``: every game is in a workspace member
+        (``REPLAY_FIXTURE_DIRECTORIES``).
+
+    Raises:
+        KeyError: If no workspace member's package holds the game (its member is missing from
+            the workspace, or the game from GAME_MODULES).
 
     """
+    if game_key not in REPLAY_FIXTURE_DIRECTORIES:
+        message = f'{game_key!r}: no workspace member holds this game, so it has no fixtures'
+        raise KeyError(message)
     if name is None:
         name = GOLDEN_FIXTURE_NAMES.get(game_key, DEFAULT_FIXTURE_NAME)
-    if game_key in REPLAY_FIXTURE_DIRECTORIES:
-        return REPLAY_FIXTURE_DIRECTORIES[game_key] / f'{name}{REPLAY_FIXTURE_SUFFIX}'
-    return (
-        REPLAY_FIXTURE_DIRECTORY / GAME_CONSOLE_SCRIPTS[game_key] / f'{name}{REPLAY_FIXTURE_SUFFIX}'
-    )
+    return REPLAY_FIXTURE_DIRECTORIES[game_key] / f'{name}{REPLAY_FIXTURE_SUFFIX}'
 
 
-def game_console_script(*, game_key: str) -> str | None:
+def game_console_script(*, game_key: str) -> str:
     """Return the installed console script that replays a game's golden replay.
 
-    It is found as the replay pytest plugin finds it, so [project.scripts] is the one list. A
-    game in a workspace member is replayed by the member's console script
-    (``recording_console_script``): one console script may start several games (Brave
-    Adventurer's launcher starts Classic and Papyrus, choosing by the recording's header). A
-    game still in the engine's examples is replayed by the console script whose entry point is
-    in its module (GAME_MODULES).
+    It is found as the replay pytest plugin finds it, so [project.scripts] is the one list: a
+    game is replayed by its workspace member's console script (``recording_console_script``),
+    and one console script may start several games (Brave Adventurer's launcher starts Classic
+    and Papyrus, choosing by the recording's header).
 
     Args:
         game_key: Which game (a key of GAME_SCENES).
 
     Returns:
-        The console script, or None if no installed console script is in the game's module.
+        The console script.
 
     """
-    if game_key in REPLAY_FIXTURE_DIRECTORIES:
-        return recording_console_script(path=fixture_path(game_key=game_key))
-    return console_script_in_module(module=GAME_MODULES[game_key])
+    return recording_console_script(path=fixture_path(game_key=game_key))
 
 
 # Game key -> the console script (a pyproject.toml's [project.scripts]) that replays its golden
 # replay (game_console_script). Keyed by game, not by console script: Classic and Papyrus share
 # the member's one script, brave-adventurer
 GAME_CONSOLE_SCRIPTS: dict[str, str] = {
-    game_key: console_script
-    for game_key in SCRIPT_BUILDERS
-    if (console_script := game_console_script(game_key=game_key)) is not None
+    game_key: game_console_script(game_key=game_key) for game_key in SCRIPT_BUILDERS
 }
 
 

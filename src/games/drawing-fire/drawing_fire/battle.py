@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from random import Random
 
-    from glitchygames.examples.drawing_fire.terrain import Terrain
+    from drawing_fire.terrain import Terrain
 
 SOLDIERS_PER_SIDE = 8
 SOLDIER_HEALTH = 6

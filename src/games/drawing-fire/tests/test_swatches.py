@@ -7,8 +7,8 @@ from pathlib import Path
 import pygame
 import pytest
 
-from glitchygames.examples import drawing_fire
-from glitchygames.examples.drawing_fire.swatches import (
+import drawing_fire
+from drawing_fire.swatches import (
     RecoloredFrames,
     Scheme,
     SwatchError,

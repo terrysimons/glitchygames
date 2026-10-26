@@ -13,12 +13,12 @@ from typing import TYPE_CHECKING, cast
 
 import pygame
 
-from glitchygames.examples.drawing_fire.battle import (
+from drawing_fire.battle import (
     ARMY_NAMES,
     MUZZLE_DISTANCE,
     Side,
 )
-from glitchygames.examples.drawing_fire.swatches import (
+from drawing_fire.swatches import (
     RecoloredFrames,
     Scheme,
     SwatchError,
@@ -32,8 +32,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    from glitchygames.examples.drawing_fire.battle import Battle, Bullet, Sandbag, Soldier
-    from glitchygames.examples.drawing_fire.terrain import Terrain
+    from drawing_fire.battle import Battle, Bullet, Sandbag, Soldier
+    from drawing_fire.terrain import Terrain
 
 type Color = tuple[int, int, int]
 

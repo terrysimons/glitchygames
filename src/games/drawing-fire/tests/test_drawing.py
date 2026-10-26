@@ -9,9 +9,9 @@ from pathlib import Path
 import pygame
 import pytest
 
-from glitchygames.examples import drawing_fire
-from glitchygames.examples.drawing_fire import drawing as drawing_module
-from glitchygames.examples.drawing_fire.battle import (
+import drawing_fire
+from drawing_fire import drawing as drawing_module
+from drawing_fire.battle import (
     ARMY_NAMES,
     MUZZLE_DISTANCE,
     SANDBAG_HEIGHT,
@@ -23,7 +23,7 @@ from glitchygames.examples.drawing_fire.battle import (
     Sandbag,
     Side,
 )
-from glitchygames.examples.drawing_fire.drawing import (
+from drawing_fire.drawing import (
     ARMY_COLORS,
     ARMY_LIVERIES,
     BANNER_HEIGHT_FRACTION,
@@ -43,8 +43,8 @@ from glitchygames.examples.drawing_fire.drawing import (
     text_surface,
     wobble,
 )
-from glitchygames.examples.drawing_fire.swatches import SwatchError, load_swatch_sets
-from glitchygames.examples.drawing_fire.terrain import Terrain
+from drawing_fire.swatches import SwatchError, load_swatch_sets
+from drawing_fire.terrain import Terrain
 from glitchygames.fonts import FontManager
 
 # Beside the game's own package (the installed copy), wherever that package lives
