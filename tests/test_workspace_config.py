@@ -7,8 +7,8 @@ import configparser
 import json
 import re
 import tomllib
-from pathlib import Path
-from typing import Any
+from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING, Any
 
 import noxfile
 import pytest
@@ -18,6 +18,9 @@ from scripts.workspace_packages import WorkspaceMember, workspace_members
 
 from glitchygames import logical_names
 from tests.ast_scanning import import_bindings, scanned_source_files
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BITMAPPY_PACKAGE = 'glitchygames.bitmappy'
@@ -31,9 +34,9 @@ JSONC_COMMENTS = re.compile(r'(?P<string>"(?:\\.|[^"\\])*")|//[^\n]*|/\*.*?\*/',
 JSONC_TRAILING_COMMAS = re.compile(r'(?P<string>"(?:\\.|[^"\\])*")|,(?=\s*[}\]])')
 
 
-def root_pyproject() -> dict[str, Any]:
+def root_pyproject(*, project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
     """The root pyproject.toml."""
-    with (PROJECT_ROOT / 'pyproject.toml').open('rb') as pyproject_file:
+    with (project_root / 'pyproject.toml').open('rb') as pyproject_file:
         return tomllib.load(pyproject_file)
 
 
@@ -55,9 +58,9 @@ def parse_jsonc(*, text: str) -> dict[str, Any]:
     return json.loads(plain_json)
 
 
-def pyright_configuration() -> dict[str, Any]:
+def pyright_configuration(*, project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
     """pyrightconfig.json, which is JSON with comments and trailing commas (JSONC)."""
-    return parse_jsonc(text=(PROJECT_ROOT / 'pyrightconfig.json').read_text(encoding='utf-8'))
+    return parse_jsonc(text=(project_root / 'pyrightconfig.json').read_text(encoding='utf-8'))
 
 
 def repository_path(path: Path) -> str:
@@ -186,9 +189,9 @@ MkdocsConfigurationLoader.add_multi_constructor(
 )
 
 
-def mkdocs_configuration() -> dict[str, Any]:
+def mkdocs_configuration(*, project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
     """mkdocs.yml."""
-    loader = MkdocsConfigurationLoader((PROJECT_ROOT / 'mkdocs.yml').read_text(encoding='utf-8'))
+    loader = MkdocsConfigurationLoader((project_root / 'mkdocs.yml').read_text(encoding='utf-8'))
     try:
         return loader.get_single_data()
     finally:
@@ -426,3 +429,284 @@ def test_the_guard_finds_each_way_to_point_into_bitmappy(tmp_path, source, expec
     assert len(offences) == 1
     assert offences[0].startswith('outside.py: ')
     assert expected_offence in offences[0]
+
+
+@pytest.mark.xfail(strict=True, reason='Stage A converts the flat members')
+def test_every_member_keeps_its_packages_under_src():
+    """Every member's import packages are under <member>/src/ (Brave Adventurer's precedent)."""
+    assert members_with_packages_outside_src(members=MEMBERS) == []
+
+
+def members_with_packages_outside_src(*, members: Sequence[WorkspaceMember]) -> list[str]:
+    """List each member package directory that is not under its member's ``src/``.
+
+    Args:
+        members: The workspace's members.
+
+    Returns:
+        ``<distribution>: <package directory below the member>`` for each offence, in member order.
+
+    """
+    return [
+        f'{member.distribution}: {package_directory.relative_to(member.directory).as_posix()}'
+        for member in members
+        for package_directory in member.package_directories
+        if not package_directory.is_relative_to(member.directory / 'src')
+    ]
+
+
+def test_the_src_layout_guard_names_each_package_outside_src(tmp_path):
+    """A flat package is reported with its distribution; src and mixed members are judged apart."""
+    flat_member = WorkspaceMember(
+        directory=tmp_path / 'src' / 'games' / 'flat-game',
+        distribution='flat-game',
+        import_packages=('flat_game',),
+        console_scripts=(),
+    )
+    src_member = WorkspaceMember(
+        directory=tmp_path / 'src' / 'games' / 'src-game',
+        distribution='src-game',
+        import_packages=('src_game',),
+        package_relative_paths=(Path('src') / 'src_game',),
+        console_scripts=(),
+    )
+    mixed_member = WorkspaceMember(
+        directory=tmp_path / 'src' / 'games' / 'mixed-game',
+        distribution='mixed-game',
+        import_packages=('mixed_game', 'mixed_game_extra'),
+        package_relative_paths=(Path('mixed_game'), Path('src') / 'mixed_game_extra'),
+        console_scripts=(),
+    )
+
+    offences = members_with_packages_outside_src(members=[flat_member, src_member, mixed_member])
+
+    assert offences == ['flat-game: flat_game', 'mixed-game: mixed_game']
+
+
+def load_noxfile_source_package_directories(*, project_root: Path) -> list[str]:
+    """Read ``_SOURCE_PACKAGE_DIRS`` from the project's noxfile.py without executing it.
+
+    Importing a second copy of a noxfile registers its sessions again (a FutureWarning, an error
+    here), and the synthetic project in a test has no importable noxfile, so the list literal is
+    read from the syntax tree.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        The noxfile's list.
+
+    Raises:
+        LookupError: If the noxfile assigns no ``_SOURCE_PACKAGE_DIRS``.
+
+    """
+    tree = ast.parse((project_root / 'noxfile.py').read_text(encoding='utf-8'))
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == '_SOURCE_PACKAGE_DIRS'
+        ):
+            return list(ast.literal_eval(node.value))
+    message = 'noxfile.py assigns no _SOURCE_PACKAGE_DIRS'
+    raise LookupError(message)
+
+
+def configuration_lists_naming_member_paths(
+    *, project_root: Path
+) -> list[tuple[str, bool, list[str]]]:
+    """Read the root configuration lists that name member paths.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        ``(where, takes_member_directory, entries)`` for each list: ``where`` names the file and
+        key; ``takes_member_directory`` is whether the member directory itself is a valid entry.
+
+    """
+    pyproject = root_pyproject(project_root=project_root)
+    coverage_paths: list[str] = [
+        entry for entries in pyproject['tool']['coverage']['paths'].values() for entry in entries
+    ]
+    configuration_lists: list[tuple[str, bool, list[str]]] = [
+        ('pyproject.toml [tool.ruff] src', False, pyproject['tool']['ruff']['src']),
+        (
+            'pyproject.toml [tool.ty.environment] root',
+            False,
+            pyproject['tool']['ty']['environment']['root'],
+        ),
+        ('pyproject.toml [tool.coverage.paths]', False, coverage_paths),
+        (
+            'noxfile.py _SOURCE_PACKAGE_DIRS',
+            False,
+            load_noxfile_source_package_directories(project_root=project_root),
+        ),
+    ]
+    environments = pyright_configuration(project_root=project_root)['executionEnvironments']
+    configuration_lists.append((
+        'pyrightconfig.json executionEnvironments root',
+        True,
+        [environment['root'] for environment in environments],
+    ))
+    configuration_lists.extend(
+        (
+            f'pyrightconfig.json executionEnvironments[{environment["root"]}] extraPaths',
+            False,
+            environment.get('extraPaths', []),
+        )
+        for environment in environments
+    )
+    mkdocs = mkdocs_configuration(project_root=project_root)
+    configuration_lists.extend(
+        (
+            'mkdocs.yml plugins mkdocstrings handlers python paths',
+            False,
+            plugin['mkdocstrings']['handlers']['python']['paths'],
+        )
+        for plugin in mkdocs['plugins']
+        if isinstance(plugin, dict) and 'mkdocstrings' in plugin
+    )
+    return configuration_lists
+
+
+def stale_member_paths_in_configuration(
+    *, project_root: Path, members: Sequence[WorkspaceMember]
+) -> list[str]:
+    """List the configuration entries inside a member that the workspace does not derive.
+
+    An entry inside a member's directory is derived when it is one of that member's import roots,
+    package directories or tests directory, or (in a list that takes it) the member directory.
+
+    Args:
+        project_root: The repository, whose configuration files are read.
+        members: The workspace's members, with directories under ``project_root``.
+
+    Returns:
+        ``<file and key>: <entry>`` for each stale entry, in list order.
+
+    """
+    stale_entries: list[str] = []
+    for where, takes_member_directory, entries in configuration_lists_naming_member_paths(
+        project_root=project_root
+    ):
+        for entry in entries:
+            entry_path = PurePosixPath(entry)
+            for member in members:
+                member_path = PurePosixPath(member.directory.relative_to(project_root).as_posix())
+                if entry_path != member_path and member_path not in entry_path.parents:
+                    continue
+                derived = {
+                    *(
+                        path.relative_to(project_root).as_posix()
+                        for path in (
+                            *member.import_roots,
+                            *member.package_directories,
+                            member.tests_directory,
+                        )
+                    ),
+                    *([member_path.as_posix()] if takes_member_directory else []),
+                }
+                if entry not in derived:
+                    stale_entries.append(f'{where}: {entry}')
+    return stale_entries
+
+
+def test_no_configuration_entry_names_a_member_path_the_workspace_does_not_derive():
+    """Every ruff/ty/pyright/nox/mkdocs/coverage entry inside a member is one it derives.
+
+    A flat path left beside the new src one (src/games/clockwork-keep next to
+    src/games/clockwork-keep/src) would otherwise slip through every guard above, which only
+    check that the right entries are present.
+    """
+    assert stale_member_paths_in_configuration(project_root=PROJECT_ROOT, members=MEMBERS) == []
+
+
+def write_synthetic_workspace(*, project_root: Path, stale: bool) -> list[WorkspaceMember]:
+    """Write a one-member src-layout project's configuration, optionally with stale entries.
+
+    Args:
+        project_root: Where to write it.
+        stale: Whether to plant the old flat path (the member directory) in each list.
+
+    Returns:
+        The project's members.
+
+    """
+    member = WorkspaceMember(
+        directory=project_root / 'src' / 'games' / 'fake-game',
+        distribution='fake-game',
+        import_packages=('fake_game',),
+        package_relative_paths=(Path('src') / 'fake_game',),
+        console_scripts=(),
+    )
+    member_path = 'src/games/fake-game'
+    derived = f'{member_path}/src'
+    old = member_path if stale else f'{member_path}/src'
+    (project_root / 'pyproject.toml').write_text(
+        '[tool.ruff]\n'
+        f'src = ["src", "{derived}", "{old}"]\n'
+        '[tool.ty.environment]\n'
+        f'root = ["src", "{derived}", "{old}"]\n'
+        '[tool.coverage.paths]\n'
+        f'fake_game = ["{derived}/fake_game", "*/site-packages/fake_game", "{old}/fake_game"]\n',
+        encoding='utf-8',
+    )
+    (project_root / 'pyrightconfig.json').write_text(
+        json.dumps({
+            'executionEnvironments': [
+                {'root': f'{member_path}/tests', 'extraPaths': ['src', derived, old]},
+                {'root': member_path, 'extraPaths': ['src', derived]},
+            ]
+        }),
+        encoding='utf-8',
+    )
+    (project_root / 'noxfile.py').write_text(
+        f'_SOURCE_PACKAGE_DIRS = ["src/glitchygames", "{derived}/fake_game", "{old}/fake_game"]\n',
+        encoding='utf-8',
+    )
+    (project_root / 'mkdocs.yml').write_text(
+        'plugins:\n'
+        '  - search\n'
+        '  - mkdocstrings:\n'
+        '      handlers:\n'
+        '        python:\n'
+        f'          paths: [src, {derived}, {old}]\n',
+        encoding='utf-8',
+    )
+    return [member]
+
+
+def test_the_stale_path_guard_passes_a_configuration_that_names_only_derived_paths(tmp_path):
+    """Import roots, package directories, the tests directory and the pyright member root pass."""
+    members = write_synthetic_workspace(project_root=tmp_path, stale=False)
+
+    assert stale_member_paths_in_configuration(project_root=tmp_path, members=members) == []
+
+
+def test_the_stale_path_guard_names_the_file_and_key_of_each_planted_flat_path(tmp_path):
+    """The old flat member directory (and a path under it) is reported in every list it is in."""
+    members = write_synthetic_workspace(project_root=tmp_path, stale=True)
+
+    stale_entries = stale_member_paths_in_configuration(project_root=tmp_path, members=members)
+
+    tests_extra_paths = (
+        'pyrightconfig.json executionEnvironments[src/games/fake-game/tests] extraPaths'
+    )
+    assert stale_entries == [
+        'pyproject.toml [tool.ruff] src: src/games/fake-game',
+        'pyproject.toml [tool.ty.environment] root: src/games/fake-game',
+        'pyproject.toml [tool.coverage.paths]: src/games/fake-game/fake_game',
+        'noxfile.py _SOURCE_PACKAGE_DIRS: src/games/fake-game/fake_game',
+        f'{tests_extra_paths}: src/games/fake-game',
+        'mkdocs.yml plugins mkdocstrings handlers python paths: src/games/fake-game',
+    ]
+
+
+def test_a_noxfile_without_the_source_package_list_is_an_error(tmp_path):
+    """The guard refuses to pass on a list it cannot find."""
+    (tmp_path / 'noxfile.py').write_text('_CODE_DIRS = []\n', encoding='utf-8')
+
+    with pytest.raises(LookupError, match='_SOURCE_PACKAGE_DIRS'):
+        load_noxfile_source_package_directories(project_root=tmp_path)
