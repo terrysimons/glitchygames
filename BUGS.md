@@ -4,6 +4,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 233. The Demos Render Their Text Without Antialiasing
+- **Description**: The demos draw their text with pygame's antialias flag off, so it looks blocky ("the fonts are garbage": the user, 2026-10-26, running the demos by hand). Every such call: in `src/demos/dt-demo/src/dt_demo/__init__.py`, the scene's (`Game`) `update()` renders the countdown (around line 118, `self.font.render(..., False, ...)`), the FPS line (around line 123) and the record time (around line 130) with `False` as the second (antialias) argument; in `src/demos/joystick-demo/src/joystick_demo/__init__.py`, `_draw_line` draws every readout line with `self.font.render(text, antialias=False, color=color)` (around line 159). The text-input demo is not affected: its `InputBox` renders with antialiasing on (`src/glitchygames/ui/inputs.py`, around lines 106 and 171).
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: The user, running the demos by hand (workspace packages Part 3)
+- **Date Reported**: 2026-10-26
+- **Details**: Both demos use the bundled Vera (`DEFAULT_FONT_NAME`) through `FontManager.pygame_font`. Pre-existing: the calls came with the demos when they moved into `src/demos/`, so the move did not cause it. Expected: render with antialiasing on. It belongs with the demos-experience work (`plans/future-features.md` #57).
+- **Files**: `src/demos/dt-demo/src/dt_demo/__init__.py`, `src/demos/joystick-demo/src/joystick_demo/__init__.py`
+
 ### 232. The Sprite Loader Ignores `frame_index`
 - **Description**: The saver writes `frame_index = ...` for every frame (`src/glitchygames/sprites/animated.py`, around line 2335), but on load `_process_toml_animation` sorts the frames with `frames.sort(key=lambda f: getattr(f, 'frame_index', 0))` (around line 1559), and `SpriteFrame` (`src/glitchygames/sprites/frame.py`) has no `frame_index` attribute. The key is 0 for every frame, the stable sort keeps the file order, and the TOML `frame_index` never reorders frames
 - **Status**: Active
