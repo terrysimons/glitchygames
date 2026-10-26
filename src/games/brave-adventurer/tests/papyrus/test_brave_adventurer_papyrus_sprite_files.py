@@ -1,8 +1,9 @@
 """The Papyrus Edition's TOML sprites pass the engine's checks of a bundled sprite file.
 
-The engine's tests check its own sprite files (tests/examples/test_examples_sprites.py); these
-run the same checks on Papyrus's, which moved out of the engine with the game. The state
-machines' transitions are only Papyrus's (no engine sprite has any).
+The engine's tests check its own sprite files (tests/sprites/test_engine_sprite_files.py, with
+glitchygames.testing.sprite_files); these run the same checks on Papyrus's, which moved out of
+the engine with the game. The state machines' transitions are only Papyrus's (no engine sprite
+has any).
 """
 
 import pygame
@@ -11,7 +12,7 @@ import pytest
 from brave_adventurer_papyrus.constants import SPRITES_DIR
 from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import AnimatedSprite
-from tests.examples import test_examples_sprites as engine_sprite_checks
+from glitchygames.testing import sprite_files
 
 PAPYRUS_SPRITE_FILES = sorted(SPRITES_DIR.glob('*.toml'))
 PAPYRUS_ANIMATED_SPRITE_FILES = [
@@ -54,15 +55,15 @@ def test_every_papyrus_sprite_is_checked():
 @pytest.mark.parametrize('sprite_file', PAPYRUS_SPRITE_FILES, ids=sprite_file_id)
 def test_rows_have_equal_lengths(sprite_file):
     """Every pixel row of a Papyrus sprite is the same width."""
-    engine_sprite_checks.test_bundled_sprite_rows_have_equal_lengths(sprite_file)
+    sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)
 
 
 @pytest.mark.usefixtures('display')
 @pytest.mark.parametrize('sprite_file', PAPYRUS_ANIMATED_SPRITE_FILES, ids=sprite_file_id)
 def test_animation_timings_survive_a_save_round_trip(sprite_file, tmp_path):
     """Save writes each animation's timing back."""
-    engine_sprite_checks.test_bundled_animation_timings_survive_a_save_round_trip(
-        sprite_file, tmp_path
+    sprite_files.check_animation_timings_survive_a_save_round_trip(
+        sprite_file=sprite_file, directory=tmp_path
     )
 
 
@@ -70,8 +71,8 @@ def test_animation_timings_survive_a_save_round_trip(sprite_file, tmp_path):
 @pytest.mark.parametrize('sprite_file', PAPYRUS_SPRITE_FILES, ids=sprite_file_id)
 def test_hitboxes_survive_a_save_round_trip_unchanged(sprite_file, tmp_path):
     """Save writes exactly the hitboxes the file defined."""
-    engine_sprite_checks.test_bundled_hitboxes_survive_a_save_round_trip_unchanged(
-        sprite_file, tmp_path
+    sprite_files.check_hitboxes_survive_a_save_round_trip_unchanged(
+        sprite_file=sprite_file, directory=tmp_path
     )
 
 
@@ -79,15 +80,15 @@ def test_hitboxes_survive_a_save_round_trip_unchanged(sprite_file, tmp_path):
 @pytest.mark.parametrize('sprite_file', PAPYRUS_SPRITE_FILES, ids=sprite_file_id)
 def test_pixels_survive_a_save_round_trip(sprite_file, tmp_path):
     """Load, save and reload give every frame the same pixels."""
-    engine_sprite_checks.test_bundled_sprite_pixels_survive_a_save_round_trip(sprite_file, tmp_path)
+    sprite_files.check_pixels_survive_a_save_round_trip(sprite_file=sprite_file, directory=tmp_path)
 
 
 @pytest.mark.usefixtures('display')
 @pytest.mark.parametrize('sprite_file', PAPYRUS_SPRITE_FILES, ids=sprite_file_id)
 def test_metadata_survives_a_save_round_trip(sprite_file, tmp_path):
     """Name, description, frame_anchor and hitbox survive a save."""
-    engine_sprite_checks.test_bundled_sprite_metadata_survives_a_save_round_trip(
-        sprite_file, tmp_path
+    sprite_files.check_metadata_survives_a_save_round_trip(
+        sprite_file=sprite_file, directory=tmp_path
     )
 
 
@@ -95,7 +96,9 @@ def test_metadata_survives_a_save_round_trip(sprite_file, tmp_path):
 @pytest.mark.parametrize('sprite_file', PAPYRUS_SPRITE_FILES, ids=sprite_file_id)
 def test_transitions_survive_a_save_round_trip(sprite_file, tmp_path):
     """Every [[transition]] is written back in order."""
-    engine_sprite_checks.test_bundled_transitions_survive_a_save_round_trip(sprite_file, tmp_path)
+    sprite_files.check_transitions_survive_a_save_round_trip(
+        sprite_file=sprite_file, directory=tmp_path
+    )
 
 
 @pytest.mark.usefixtures('display')
