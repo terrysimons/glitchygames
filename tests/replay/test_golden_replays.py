@@ -16,7 +16,10 @@ it maps each recording's external input events to controls through the game's ow
 ActionMaps, built by the game's ``_create_action_map(s)``) plus the controls the engine's scenes
 hard-code (``ENGINE_SCENE_CONTROLS``), and fails on a control no event exercised unless
 ``UNEXERCISED_CONTROLS`` names it with its reason (an entry that names an exercised control, or
-none, fails too). A game that reads its controls from the frame's polled input instead of an
+none, fails too). The tables are keyed by game (scripts/record_golden_traces.py's game keys, one
+golden each), not by console script: one console script can replay several games' goldens
+(Brave Adventurer's launcher replays Classic's and Papyrus's), each checked against its own
+game's controls. A game that reads its controls from the frame's polled input instead of an
 ActionMap (Drawing Fire) lists them all in ``ENGINE_SCENE_CONTROLS``, each by the event that
 changes what is polled (a key's press, the mouse's motion, a button's press). A game with no
 pause (``GAMES_WITHOUT_A_PAUSE``) is exempt from pausing, with its reason.
@@ -32,7 +35,7 @@ import pytest
 from pydantic import BaseModel, ConfigDict
 from scripts.record_golden_traces import PROJECT_ROOT
 from scripts.record_scripted_session import (
-    CONSOLE_SCRIPT_GAME_KEYS,
+    GAME_CONSOLE_SCRIPTS,
     REPLAY_FIXTURE_DIRECTORY,
     REPLAY_FIXTURE_SUFFIX,
     fixture_path,
@@ -52,6 +55,7 @@ from glitchygames.examples.drawing_fire.game import (
 )
 from glitchygames.examples.drawing_fire.seats import SeatChange
 from glitchygames.exit_codes import ExitCode
+from glitchygames.logical_names import logical_name
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, INTERNAL_ORIGIN
 from glitchygames.replay.driver import SPRITE_DIVERGENCE
 from glitchygames.scenes.builtin_scenes.gamepad_choice import GamepadChoice, GamepadChoiceButtons
@@ -92,9 +96,17 @@ def test_every_fixture_directory_is_a_game_console_script():
     """Each fixture's place names a game's console script (so the replay knows the game)."""
     unknown_console_scripts = sorted(
         {recording_console_script(path=path) for path in REPLAY_FIXTURES}
-        - set(CONSOLE_SCRIPT_GAME_KEYS)
+        - set(GAME_CONSOLE_SCRIPTS.values())
     )
     assert not unknown_console_scripts
+
+
+@pytest.mark.parametrize('game', sorted(GAME_CONSOLE_SCRIPTS))
+def test_every_golden_replay_is_replayed_by_its_games_console_script(game):
+    """Each game's golden is collected under the console script that starts that game."""
+    assert (
+        recording_console_script(path=fixture_path(game_key=game)) == (GAME_CONSOLE_SCRIPTS[game])
+    )
 
 
 def test_a_members_golden_replay_is_replayed_by_the_members_console_script():
@@ -343,26 +355,26 @@ def _paddleslap_action_maps(input_mode: str) -> dict[str, ActionMap]:
     return {'player1 ': player1_actions, 'player2 ': player2_actions, '': pause_actions}
 
 
-# Console script -> (its gameplay scene, its ActionMaps by prefix for an input mode), built by
-# the game's own binding code
+# Game (its golden's game key) -> (its gameplay scene, its ActionMaps by prefix for an input
+# mode), built by the game's own binding code
 GAMEPLAY_ACTION_MAPS: dict[str, tuple[type, Callable[[str], dict[str, ActionMap]]]] = {
-    'brave-adventurer': (
+    'brave_adventurer': (
         BraveAdventurerScene,
         lambda input_mode: {'': BraveAdventurerScene._create_action_map(input_mode=input_mode)},
     ),
-    'brave-adventurer-papyrus': (
+    'brave_adventurer_papyrus': (
         PapyrusBraveAdventurerScene,
         lambda input_mode: {
             '': PapyrusBraveAdventurerScene._create_action_map(input_mode=input_mode)
         },
     ),
-    'clockwork-keep': (
+    'clockwork_keep': (
         ClockworkKeepScene,
         lambda input_mode: {'': ClockworkKeepScene._create_action_map(input_mode=input_mode)},
     ),
     # Drawing Fire binds no ActionMap: DRAWING_FIRE_CONTROLS lists what it reads from the snapshot
-    'drawing-fire': (DrawingFireScene, lambda _input_mode: {}),
-    'mr-muncher': (
+    'drawing_fire': (DrawingFireScene, lambda _input_mode: {}),
+    'mr_muncher': (
         MrMuncherScene,
         lambda input_mode: {'': MrMuncherScene._create_action_map(input_mode=input_mode)},
     ),
@@ -442,16 +454,16 @@ DRAWING_FIRE_CONTROLS: tuple[Control, ...] = (
     _key_control(scene=DrawingFireScene, action='quit', event_type=pygame.KEYUP, key=pygame.K_q),
 )
 
-# Console script -> the controls its scenes hard-code in handlers (no ActionMap): the pause
+# Game -> the controls its scenes hard-code in handlers (no ActionMap): the pause
 # screen's, PaddleSlap's quit (the base Scene quits on the release of Q or ESC: PaddleSlap binds
 # no quit of its own), Mr. Muncher's joystick hat (on_joy_hat_motion_event) and every one of
 # Drawing Fire's (it has no pause screen)
 ENGINE_SCENE_CONTROLS: dict[str, tuple[Control, ...]] = {
-    'brave-adventurer': PAUSE_SCENE_CONTROLS,
-    'brave-adventurer-papyrus': PAUSE_SCENE_CONTROLS,
-    'clockwork-keep': PAUSE_SCENE_CONTROLS,
-    'drawing-fire': DRAWING_FIRE_CONTROLS,
-    'mr-muncher': (
+    'brave_adventurer': PAUSE_SCENE_CONTROLS,
+    'brave_adventurer_papyrus': PAUSE_SCENE_CONTROLS,
+    'clockwork_keep': PAUSE_SCENE_CONTROLS,
+    'drawing_fire': DRAWING_FIRE_CONTROLS,
+    'mr_muncher': (
         *PAUSE_SCENE_CONTROLS,
         Control(
             scene=MrMuncherScene.__name__,
@@ -475,46 +487,46 @@ NO_GAMEPAD_IN_THE_SESSION = (
     '(InputDevices.dispatches), so a supervisor cannot post them (a stand-in device recorded '
     'through the devices door would be needed: plans/future-features.md #44)'
 )
-# Console script -> why the game never pauses (so its golden replay cannot pause and resume)
+# Game -> why it never pauses (so its golden replay cannot pause and resume)
 GAMES_WITHOUT_A_PAUSE: dict[str, str] = {
-    'drawing-fire': (
+    'drawing_fire': (
         'Drawing Fire has no pause in its MVP: players drop into and out of a battle that runs '
         'on (the next one starts on its own), and Escape is Back on the keyboard, held to '
         'leave a seat (plans/2026-10-25-drawing-fire-design.md, sections 4.1 and 4.4)'
     ),
 }
 # The games whose golden replays go through the engine's pause screen
-PAUSING_CONSOLE_SCRIPTS = sorted(set(GAMEPLAY_ACTION_MAPS) - set(GAMES_WITHOUT_A_PAUSE))
+PAUSING_GAMES = sorted(set(GAMEPLAY_ACTION_MAPS) - set(GAMES_WITHOUT_A_PAUSE))
 QUITS_ONCE = (
     "a session quits once, and it quits from the game's scene with the game's own quit "
     'control; the pause screen quits through the same QUIT event (tests/scenes cover it)'
 )
 
-# (console script, scene, action, kind) -> why no golden replay exercises that action's
-# controls of that kind
+# (game, scene, action, kind) -> why its golden replay never exercises that action's controls
+# of that kind
 UNEXERCISED_CONTROLS: dict[tuple[str, str, str, InputKind], str] = {
     **{
-        (console_script, scene.__name__, action, InputKind.GAMEPAD): NO_GAMEPAD_IN_THE_SESSION
-        for console_script, scene, actions in (
-            ('brave-adventurer', BraveAdventurerScene, ('move_right', 'move_left', 'jump')),
-            ('brave-adventurer', BraveAdventurerScene, ('mic_toggle',)),
+        (game, scene.__name__, action, InputKind.GAMEPAD): NO_GAMEPAD_IN_THE_SESSION
+        for game, scene, actions in (
+            ('brave_adventurer', BraveAdventurerScene, ('move_right', 'move_left', 'jump')),
+            ('brave_adventurer', BraveAdventurerScene, ('mic_toggle',)),
             (
-                'brave-adventurer-papyrus',
+                'brave_adventurer_papyrus',
                 PapyrusBraveAdventurerScene,
                 ('move_right', 'move_left', 'jump'),
             ),
             (
-                'clockwork-keep',
+                'clockwork_keep',
                 ClockworkKeepScene,
                 ('move_right', 'move_left', 'jump', 'interact', 'run'),
             ),
             (
-                'drawing-fire',
+                'drawing_fire',
                 DrawingFireScene,
                 ('move', 'aim', 'fire', 'start', 'back', 'left', 'right'),
             ),
             (
-                'mr-muncher',
+                'mr_muncher',
                 MrMuncherScene,
                 ('move_up', 'move_left', 'move_down', 'move_right', 'pause', 'steer'),
             ),
@@ -527,29 +539,31 @@ UNEXERCISED_CONTROLS: dict[tuple[str, str, str, InputKind], str] = {
         for action in actions
     },
     **{
-        (console_script, PauseScene.__name__, 'quit', InputKind.KEYBOARD): QUITS_ONCE
-        for console_script in PAUSING_CONSOLE_SCRIPTS
+        (game, PauseScene.__name__, 'quit', InputKind.KEYBOARD): QUITS_ONCE
+        for game in PAUSING_GAMES
     },
     **{
-        (console_script, PauseScene.__name__, choice, InputKind.GAMEPAD): NO_GAMEPAD_IN_THE_SESSION
-        for console_script in PAUSING_CONSOLE_SCRIPTS
+        (game, PauseScene.__name__, choice, InputKind.GAMEPAD): NO_GAMEPAD_IN_THE_SESSION
+        for game in PAUSING_GAMES
         for choice in GamepadChoice
     },
 }
 
 
-def golden_recording(console_script: str) -> dict[str, Any]:
+def golden_recording(game: str) -> dict[str, Any]:
     """Read a game's golden replay.
 
     Not cached: the six decoded recordings are about 200 MB, which a cache kept for the rest
     of the test run (the Linux CI job has 2 GB); reading them all again takes about 0.5 s.
 
+    Args:
+        game: The game's key (scripts/record_golden_traces.py), which names its golden.
+
     Returns:
         The decoded trace: header fields and ``frames``.
 
     """
-    game_key = CONSOLE_SCRIPT_GAME_KEYS[console_script]
-    return read_trace_result(path=fixture_path(game_key=game_key)).trace
+    return read_trace_result(path=fixture_path(game_key=game)).trace
 
 
 def received_events(*, recording: dict[str, Any]) -> list[tuple[int, str, dict[str, Any]]]:
@@ -577,24 +591,32 @@ def received_events(*, recording: dict[str, Any]) -> list[tuple[int, str, dict[s
     return events
 
 
-GOLDEN_CONSOLE_SCRIPTS = sorted(GAMEPLAY_ACTION_MAPS)
+GOLDEN_GAMES = sorted(GAMEPLAY_ACTION_MAPS)
 
 
 def test_every_game_with_a_golden_replay_has_its_controls_listed():
     """A new game's golden replay fails here until its bindings are listed above."""
-    assert sorted(CONSOLE_SCRIPT_GAME_KEYS) == GOLDEN_CONSOLE_SCRIPTS
-    assert sorted(ENGINE_SCENE_CONTROLS) == GOLDEN_CONSOLE_SCRIPTS
+    assert sorted(GAME_CONSOLE_SCRIPTS) == GOLDEN_GAMES
+    assert sorted(ENGINE_SCENE_CONTROLS) == GOLDEN_GAMES
+    assert {game for game, _scene, _action, _kind in UNEXERCISED_CONTROLS} <= set(GOLDEN_GAMES)
 
 
-@pytest.mark.parametrize('console_script', GOLDEN_CONSOLE_SCRIPTS)
-def test_every_golden_replay_exercises_every_control(console_script):
+def test_each_golden_is_its_own_games_recording():
+    """A game's golden names that game's scene, so its controls are checked against its own."""
+    for game, (gameplay_scene, _action_maps_for) in GAMEPLAY_ACTION_MAPS.items():
+        recording = golden_recording(game)
+        assert recording['game'] == logical_name(scene_class=gameplay_scene), game
+
+
+@pytest.mark.parametrize('game', GOLDEN_GAMES)
+def test_every_golden_replay_exercises_every_control(game):
     """Each bound control is pressed in the game's golden replay, or listed with its reason."""
-    recording = golden_recording(console_script)
-    gameplay_scene, action_maps_for = GAMEPLAY_ACTION_MAPS[console_script]
+    recording = golden_recording(game)
+    gameplay_scene, action_maps_for = GAMEPLAY_ACTION_MAPS[game]
     action_maps = action_maps_for(recording['options']['input_mode'])
     controls = [
         *_controls_from_action_maps(scene=gameplay_scene, action_maps=action_maps),
-        *ENGINE_SCENE_CONTROLS[console_script],
+        *ENGINE_SCENE_CONTROLS[game],
     ]
     external_events = [
         (scene, record)
@@ -610,8 +632,8 @@ def test_every_golden_replay_exercises_every_control(console_script):
     ]
     allowlist = {
         (scene, action, kind): reason
-        for (script, scene, action, kind), reason in UNEXERCISED_CONTROLS.items()
-        if script == console_script
+        for (listed_game, scene, action, kind), reason in UNEXERCISED_CONTROLS.items()
+        if listed_game == game
     }
 
     def allowlist_key(control: Control) -> tuple[str, str, InputKind]:
@@ -630,35 +652,34 @@ def test_every_golden_replay_exercises_every_control(console_script):
         for key in allowlist
         if not any(allowlist_key(control) == key for control in controls)
     )
-    assert not missing, f'{console_script} golden replay never exercises: {missing}'
+    assert not missing, f'{game} golden replay never exercises: {missing}'
     assert not exercised_but_allowlisted, (
-        f'{console_script}: UNEXERCISED_CONTROLS lists exercised controls: '
-        f'{exercised_but_allowlisted}'
+        f'{game}: UNEXERCISED_CONTROLS lists exercised controls: {exercised_but_allowlisted}'
     )
     assert not allowlisted_but_unbound, (
-        f'{console_script}: UNEXERCISED_CONTROLS lists controls the game does not bind: '
+        f'{game}: UNEXERCISED_CONTROLS lists controls the game does not bind: '
         f'{allowlisted_but_unbound}'
     )
 
 
-@pytest.mark.parametrize('console_script', GOLDEN_CONSOLE_SCRIPTS)
-def test_every_golden_replay_pauses_resumes_and_ends_with_the_games_own_quit(console_script):
+@pytest.mark.parametrize('game', GOLDEN_GAMES)
+def test_every_golden_replay_pauses_resumes_and_ends_with_the_games_own_quit(game):
     """The game pauses and comes back, and the recording ends on a QUIT the game posted.
 
     No QUIT comes from outside (the recorder never ends the run itself: the tail's quit control
     does), so a replay whose game no longer quits misses the recorded internal QUIT and diverges.
     A game in GAMES_WITHOUT_A_PAUSE must never reach the pause screen instead.
     """
-    recording = golden_recording(console_script)
+    recording = golden_recording(game)
     frames = recording['frames']
-    gameplay_scene, _action_maps_for = GAMEPLAY_ACTION_MAPS[console_script]
+    gameplay_scene, _action_maps_for = GAMEPLAY_ACTION_MAPS[game]
     scenes = [frame['scene'] for frame in frames]
-    if console_script in GAMES_WITHOUT_A_PAUSE:
-        assert PauseScene.__name__ not in scenes, f'{console_script} has no pause, yet paused'
+    if game in GAMES_WITHOUT_A_PAUSE:
+        assert PauseScene.__name__ not in scenes, f'{game} has no pause, yet paused'
     else:
-        assert PauseScene.__name__ in scenes, f'{console_script} golden replay never pauses'
+        assert PauseScene.__name__ in scenes, f'{game} golden replay never pauses'
         first_pause = scenes.index(PauseScene.__name__)
-        assert gameplay_scene.__name__ in scenes[first_pause:], f'{console_script} never resumes'
+        assert gameplay_scene.__name__ in scenes[first_pause:], f'{game} never resumes'
     assert scenes[-1] == gameplay_scene.__name__
     quit_name = pygame.event.event_name(pygame.QUIT)
     quits = [
@@ -666,7 +687,7 @@ def test_every_golden_replay_pauses_resumes_and_ends_with_the_games_own_quit(con
         for frame_number, _scene, record in received_events(recording=recording)
         if record['name'] == quit_name
     ]
-    assert quits, f'{console_script} golden replay never quits'
+    assert quits, f'{game} golden replay never quits'
     assert {origin for _frame_number, origin in quits} == {INTERNAL_ORIGIN}
     assert {frame_number for frame_number, _origin in quits} == {frames[-1]['frame']}
 
@@ -681,7 +702,7 @@ def test_the_drawing_fire_golden_replay_holds_a_death_and_a_takeover():
     game_events = [
         record['attributes']
         for _frame_number, _scene, record in received_events(
-            recording=golden_recording('drawing-fire')
+            recording=golden_recording('drawing_fire')
         )
         if record['type'] == GAMEEVENT and record['origin'] == INTERNAL_ORIGIN
     ]

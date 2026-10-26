@@ -8,8 +8,9 @@ layouts (``recording_console_script`` tells which console script replays it):
   ``[project.scripts]``, for example ``paddleslap`` or ``clockwork-keep``);
 - ``<member>/tests/fixtures/replays/<name>.jsonl.gz``, a workspace member's golden replays
   (``src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz``): the member's directory is
-  named after its distribution, whose console script replays them: its one, or, for a member
-  with several games, the one starting the game the recording's header names
+  named after its distribution, whose console script replays them: its one (Brave Adventurer's
+  is a launcher that starts the game the recording's header names), or, for a member with a
+  console script per game, the one starting the game the recording's header names
   (``recorded_games_console_script``).
 
 The item replays the recording headless through the real engine in a child process (started
@@ -131,7 +132,8 @@ def recording_console_script(*, path: Path) -> str:
     Two layouts: a workspace member's recordings lie directly in
     ``<member>/tests/fixtures/replays/`` and are replayed by the member distribution's console
     script (the member's directory is named after its distribution: ``src/games/mr-muncher``):
-    its one, or, for a member with several games (``src/games/brave-adventurer``), the one that
+    its one (``src/games/brave-adventurer``'s launcher starts whichever of its games the
+    recording's header names), or, for a member with a console script per game, the one that
     starts the game the recording's header names (``recorded_games_console_script``); the
     engine's own (and the games not yet moved) lie in ``tests/fixtures/replays/<console-script>/``,
     whose folder names the script.
@@ -198,8 +200,8 @@ def console_script_for_game_module(
     """Return the console script among several whose entry point starts a game module.
 
     A console script starts the game whose module is its entry point's module or inside it:
-    ``brave_adventurer:main`` starts ``brave_adventurer.game``, not
-    ``brave_adventurer_papyrus.game``.
+    ``brave_adventurer:main`` (Brave Adventurer's Classic, before its launcher) starts
+    ``brave_adventurer.game``, not ``brave_adventurer_papyrus.game``.
 
     Args:
         entry_points: The console scripts' entry points (``value`` is ``'module:function'``).

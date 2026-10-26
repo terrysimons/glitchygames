@@ -160,8 +160,10 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 ```
 
 ### Example Games
-`uv run paddleslap`, `brave-adventurer`, `brave-adventurer-papyrus` (both editions one workspace
-package, `src/games/brave-adventurer/`, sharing `brave_adventurer_core`), `clockwork-keep`,
+`uv run paddleslap`, `brave-adventurer` (both editions, Classic and Papyrus, one workspace
+package, `src/games/brave-adventurer/`, sharing `brave_adventurer_core`; its launcher,
+`brave_adventurer_modes`, shows a title screen, or starts one with `--game classic|papyrus`, or
+the game a `--replay-trace` recording names), `clockwork-keep`,
 `mr-muncher` (a maze chase at the movies, its own workspace package `src/games/mr-muncher/`) and
 `drawing-fire` (a pencil-on-paper stick-figure battle, `src/glitchygames/examples/drawing_fire/`:
 computer battles that one or two local players join with START or Enter; its new mechanic is
@@ -602,9 +604,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - Golden replays: the engine's own live in `tests/fixtures/replays/<console-script>/golden.jsonl.gz`;
   a workspace member's in `<member>/tests/fixtures/replays/<name>.jsonl.gz` (Mr. Muncher's:
   `src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz`), replayed through the member's
-  console script (`recording_console_script`: its one, or for a member with several games, the
-  one starting the game the recording's header names: Brave Adventurer's
-  `golden-classic.jsonl.gz` and `golden-papyrus.jsonl.gz`), and its bundled demos in
+  console script (`recording_console_script`: its one, or for a member with several, the one
+  starting the game the recording's header names). Brave Adventurer has one, its launcher,
+  which starts the game each header names: `golden-classic.jsonl.gz` and
+  `golden-papyrus.jsonl.gz` (scripts/record_scripted_session.py keys games by game, not console
+  script: `GAME_CONSOLE_SCRIPTS`), and its bundled demos in
   `<package>/demos/`.
   They are recorded through the
   real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden

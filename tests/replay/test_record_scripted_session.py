@@ -16,10 +16,11 @@ from scripts.record_golden_traces import (
     release,
 )
 from scripts.record_scripted_session import (
-    CONSOLE_SCRIPT_GAME_KEYS,
     CONTROLS_TAIL_BUILDERS,
+    GAME_CONSOLE_SCRIPTS,
     POLLED_INPUT_GAMES,
     QUIT_WAIT_FRAMES,
+    REPLAY_FIXTURE_DIRECTORIES,
     GameDidNotQuitError,
     PostedPolledInput,
     ScriptedInputSupervisor,
@@ -27,7 +28,7 @@ from scripts.record_scripted_session import (
     polled_input_follows,
     record_scripted_session,
 )
-from scripts.workspace_packages import declared_console_scripts
+from scripts.workspace_packages import declared_console_scripts, workspace_members
 
 from glitchygames import live_sources
 from glitchygames.events import GAMEEVENT
@@ -198,8 +199,8 @@ def test_the_supervisor_posts_the_next_frames_input_and_stops_the_last_frame(sce
 
 
 def test_every_game_has_a_fixture_location():
-    """Every scripted game maps to tests/fixtures/replays/<console-script>/."""
-    assert sorted(CONSOLE_SCRIPT_GAME_KEYS.values()) == sorted(SCRIPT_BUILDERS)
+    """Every scripted game has a console script: tests/fixtures/replays/<console-script>/."""
+    assert sorted(GAME_CONSOLE_SCRIPTS) == sorted(SCRIPT_BUILDERS)
 
     path = fixture_path(game_key='clockwork_keep', name='golden')
 
@@ -209,11 +210,36 @@ def test_every_game_has_a_fixture_location():
 
 
 def test_each_fixture_directory_is_the_games_console_script_in_pyproject():
-    """The mapping follows [project.scripts] (the root's and the members'): each in its module."""
+    """The mapping follows [project.scripts] (the root's and the members').
+
+    A game in the engine's examples: the script's entry point is in the game's module. A game
+    in a workspace member: the member's script, its entry point in one of the member's packages
+    (Brave Adventurer's launcher, brave_adventurer_modes, starts both its games).
+    """
     console_scripts = declared_console_scripts(project_root=PROJECT_ROOT)
-    for console_script, game_key in CONSOLE_SCRIPT_GAME_KEYS.items():
+    members = workspace_members(project_root=PROJECT_ROOT)
+    for game_key, console_script in GAME_CONSOLE_SCRIPTS.items():
         entry_point_module = console_scripts[console_script].split(':')[0]
-        assert entry_point_module == GAME_MODULES[game_key]
+        game_module = GAME_MODULES[game_key]
+        if game_key in REPLAY_FIXTURE_DIRECTORIES:
+            (member,) = [
+                member
+                for member in members
+                if game_module.partition('.')[0] in member.import_packages
+            ]
+            assert entry_point_module.partition('.')[0] in member.import_packages, game_key
+            assert REPLAY_FIXTURE_DIRECTORIES[game_key] == member.replay_fixtures_directory
+        else:
+            assert entry_point_module == game_module, game_key
+
+
+def test_both_brave_adventurer_games_are_replayed_by_the_launcher():
+    """One console script for the member's two games (its goldens are named apart)."""
+    assert GAME_CONSOLE_SCRIPTS['brave_adventurer'] == 'brave-adventurer'
+    assert GAME_CONSOLE_SCRIPTS['brave_adventurer_papyrus'] == 'brave-adventurer'
+    assert declared_console_scripts(project_root=PROJECT_ROOT)['brave-adventurer'] == (
+        'brave_adventurer_modes:main'
+    )
 
 
 def test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures():

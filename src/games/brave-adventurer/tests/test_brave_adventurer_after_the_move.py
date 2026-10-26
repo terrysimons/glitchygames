@@ -31,8 +31,9 @@ from glitchygames.testing.replays import recording_console_script
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 MEMBER_DIRECTORY = Path(__file__).resolve().parents[1]
 REPLAY_FIXTURES_DIRECTORY = MEMBER_DIRECTORY / 'tests' / 'fixtures' / 'replays'
-# Each game's golden replay: where it was in the engine's tests, where it is now, and the
-# console script that replays it
+# Each game's golden replay: where it was in the engine's tests (named after the console script
+# that replayed it then), where it is now, and the console script that replays it now: the
+# launcher, for both
 GOLDENS = [
     (
         'tests/fixtures/replays/brave-adventurer/golden.jsonl.gz',
@@ -42,7 +43,7 @@ GOLDENS = [
     (
         'tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz',
         'golden-papyrus.jsonl.gz',
-        'brave-adventurer-papyrus',
+        'brave-adventurer',
     ),
 ]
 # The two games, which the shared primitives must never import

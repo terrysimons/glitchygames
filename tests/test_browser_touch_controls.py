@@ -20,6 +20,7 @@ from scripts.build_browser_bundle import (
 )
 
 from brave_adventurer.game import BraveAdventurerScene
+from brave_adventurer_modes.title import TitleScene
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
 from glitchygames.examples.paddleslap import Game as PaddleSlapScene
@@ -59,18 +60,19 @@ def bound_scancodes(*action_maps) -> set[int]:
     }
 
 
+# Each page's scenes that take its buttons, by the scancodes each reads: a button must work on
+# every one of them (Brave Adventurer's page runs its title screen, then either game)
 GAME_SCANCODES = {
-    'paddleslap': lambda: bound_scancodes(*PaddleSlapScene._create_action_maps()),
-    'brave-adventurer': lambda: bound_scancodes(
-        BraveAdventurerScene._create_action_map(input_mode='auto')
-    ),
-    'brave-adventurer-papyrus': lambda: bound_scancodes(
-        PapyrusBraveAdventurerScene._create_action_map(input_mode='auto')
-    ),
-    'clockwork-keep': lambda: bound_scancodes(
-        ClockworkKeepScene._create_action_map(input_mode='auto')
-    ),
-    'mr-muncher': lambda: bound_scancodes(MrMuncherScene._create_action_map(input_mode='auto')),
+    'paddleslap': lambda: [bound_scancodes(*PaddleSlapScene._create_action_maps())],
+    'brave-adventurer': lambda: [
+        bound_scancodes(TitleScene._create_action_map(input_mode='auto')),
+        bound_scancodes(BraveAdventurerScene._create_action_map(input_mode='auto')),
+        bound_scancodes(PapyrusBraveAdventurerScene._create_action_map(input_mode='auto')),
+    ],
+    'clockwork-keep': lambda: [
+        bound_scancodes(ClockworkKeepScene._create_action_map(input_mode='auto'))
+    ],
+    'mr-muncher': lambda: [bound_scancodes(MrMuncherScene._create_action_map(input_mode='auto'))],
 }
 
 
@@ -105,10 +107,20 @@ def test_every_game_has_touch_controls_or_a_reason_not():
 @pytest.mark.parametrize('game', sorted(GAME_SCANCODES))
 def test_every_button_presses_a_key_its_game_reads(game):
     """A button whose key nothing reads would do nothing (the keys drift with the games)."""
-    readable = GAME_SCANCODES[game]() | {SCANCODE_BY_CODE[code] for code in SHARED_SCREEN_CODES}
+    shared = {SCANCODE_BY_CODE[code] for code in SHARED_SCREEN_CODES}
+    for scene_scancodes in GAME_SCANCODES[game]():
+        readable = scene_scancodes | shared
 
-    for button in layout_buttons(TOUCH_LAYOUTS[game]):
-        assert SCANCODE_BY_CODE[button.code] in readable, (game, button)
+        for button in layout_buttons(TOUCH_LAYOUTS[game]):
+            assert SCANCODE_BY_CODE[button.code] in readable, (game, button)
+
+
+def test_the_brave_adventurer_title_screen_takes_the_games_buttons():
+    """On a phone the title screen is driven by the games' buttons: the arrows and Jump."""
+    title_scancodes = bound_scancodes(TitleScene._create_action_map(input_mode='auto'))
+
+    for button in layout_buttons(TOUCH_LAYOUTS['brave-adventurer']):
+        assert SCANCODE_BY_CODE[button.code] in title_scancodes, button
 
 
 def test_every_touch_key_has_its_scancode_here():

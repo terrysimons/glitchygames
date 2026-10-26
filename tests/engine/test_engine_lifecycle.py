@@ -730,11 +730,12 @@ class TestCrtPowerOnBeforeEveryGame:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 # Every game's console script (the root's and the members' [project.scripts]): the power-on
-# sequence must play before each
+# sequence must play before each (brave-adventurer's, Brave Adventurer's launcher, before its
+# title screen: one sequence for both its games, as the engine plays it once, before the first
+# scene)
 GAME_CONSOLE_SCRIPTS = (
     'bitmappy',
     'brave-adventurer',
-    'brave-adventurer-papyrus',
     'clockwork-keep',
     'drawing-fire',
     'mr-muncher',

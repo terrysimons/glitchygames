@@ -217,11 +217,13 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
   `brave_adventurer_papyrus`), and a launcher (`brave_adventurer_modes`) as the member's one
   console script. The launcher starts the game a recording's header names, so the golden-replay
   plugin's one console script per member replays every game's golden; the goldens are named
-  apart (`golden-<game>.jsonl.gz`). Until the launcher, the member keeps each game's console
-  script, and the plugin replays a recording through the one whose entry point's module holds
-  the game its header names (`glitchygames/testing/replays.py`, `recorded_games_console_script`);
-  `scripts/record_scripted_session.py` names each such game's golden
-  (`GOLDEN_FIXTURE_NAMES`). Share only by mechanical moves: recordings and golden traces
+  apart (`golden-<game>.jsonl.gz`). A member that keeps several console scripts instead has each
+  recording replayed through the one whose entry point's module holds the game its header names
+  (`glitchygames/testing/replays.py`, `recorded_games_console_script`).
+  `scripts/record_scripted_session.py` names each such game's golden (`GOLDEN_FIXTURE_NAMES`)
+  and keys its console scripts by game (`GAME_CONSOLE_SCRIPTS`), as
+  tests/replay/test_golden_replays.py keys each golden's controls: one script can replay
+  several games' goldens. Share only by mechanical moves: recordings and golden traces
   name sprites by class name and creation order, so a class may change module but not name, and
   nothing may be created in a different order. Its browser bundle lists every archive a game
   needs, the shared ones first.

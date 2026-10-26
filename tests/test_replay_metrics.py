@@ -200,19 +200,17 @@ class TestTheRecordings:
         assert all(console_script for console_script, _ in recordings.replayable)
         assert not recordings.unreplayable
 
-    @pytest.mark.parametrize(
-        ('console_script', 'golden'),
-        [
-            ('brave-adventurer', 'golden-classic.jsonl.gz'),
-            ('brave-adventurer-papyrus', 'golden-papyrus.jsonl.gz'),
-        ],
-    )
-    def test_each_game_of_a_member_with_several_is_measured(self, console_script, golden):
-        """Brave Adventurer's goldens are named apart (golden-<game>): each is measured."""
+    @pytest.mark.parametrize('golden', ['golden-classic.jsonl.gz', 'golden-papyrus.jsonl.gz'])
+    def test_each_game_of_a_member_with_several_is_measured(self, golden):
+        """Brave Adventurer's goldens are named apart (golden-<game>): each is measured.
+
+        Both through the member's one console script, the launcher, which starts the game the
+        recording's header names.
+        """
         recordings = metric_recordings(project_root=PROJECT_ROOT)
 
         assert (
-            console_script,
+            'brave-adventurer',
             PROJECT_ROOT / 'src/games/brave-adventurer/tests/fixtures/replays' / golden,
         ) in recordings.replayable
 

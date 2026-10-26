@@ -57,6 +57,7 @@ nav:
     - brave_adventurer_core: "brave_adventurer_core/index.md"
     - brave_adventurer: "brave_adventurer/index.md"
     - brave_adventurer_papyrus: "brave_adventurer_papyrus/index.md"
+    - brave_adventurer_modes: "brave_adventurer_modes/index.md"
 
 extra_css:
   - css/full-width.css

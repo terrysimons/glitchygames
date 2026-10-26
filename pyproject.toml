@@ -151,7 +151,7 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "-n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "-n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
@@ -170,6 +170,7 @@ source = [
   "brave_adventurer_core",
   "brave_adventurer",
   "brave_adventurer_papyrus",
+  "brave_adventurer_modes",
 ]
 branch = true
 parallel = true
@@ -197,6 +198,10 @@ brave_adventurer = [
 brave_adventurer_papyrus = [
   "src/games/brave-adventurer/src/brave_adventurer_papyrus",
   "*/site-packages/brave_adventurer_papyrus",
+]
+brave_adventurer_modes = [
+  "src/games/brave-adventurer/src/brave_adventurer_modes",
+  "*/site-packages/brave_adventurer_modes",
 ]
 
 [tool.coverage.report]
@@ -400,6 +405,7 @@ known-first-party = [
   "brave_adventurer_core",
   "brave_adventurer",
   "brave_adventurer_papyrus",
+  "brave_adventurer_modes",
 ]
 
 ## basedpyright config lives in pyrightconfig.json (supports per-environment overrides)
@@ -449,6 +455,7 @@ known_first_party = [
   "brave_adventurer_core",
   "brave_adventurer",
   "brave_adventurer_papyrus",
+  "brave_adventurer_modes",
 ]
 
 [tool.deptry.per_rule_ignores]

@@ -87,8 +87,9 @@ records the snapshots it always did, so its re-recordings keep their content has
 
 Without ``--output`` the recording goes to
 ``tests/fixtures/replays/<console-script>/golden.jsonl.gz``, or for a game in a workspace member
-to ``<member>/tests/fixtures/replays/golden.jsonl.gz`` (``fixture_path``).
-Keep each fixture under 100 KB.
+to ``<member>/tests/fixtures/replays/golden.jsonl.gz`` (``golden-<game>.jsonl.gz`` for each game
+of a member holding several: ``GOLDEN_FIXTURE_NAMES``; ``fixture_path``). Keep each fixture
+under 100 KB.
 """
 
 from __future__ import annotations
@@ -110,7 +111,7 @@ import pygame
 from glitchygames import live_sources
 from glitchygames.input.state import MOUSE_BUTTON_COUNT
 from glitchygames.recording import post_input_event
-from glitchygames.testing.replays import console_script_in_module
+from glitchygames.testing.replays import console_script_in_module, recording_console_script
 from scripts.record_golden_traces import (
     GAME_MODULES,
     GAME_SCENES,
@@ -384,15 +385,6 @@ CONTROLS_TAIL_BUILDERS: dict[str, Callable[[], InputScript]] = {
     'drawing_fire': drawing_fire_controls,
 }
 
-# Console script (a pyproject.toml's [project.scripts]) -> game key: the installed console
-# script whose entry point is in the game's module (GAME_MODULES), found as the replay pytest
-# plugin finds it, so [project.scripts] is the one list
-CONSOLE_SCRIPT_GAME_KEYS: dict[str, str] = {
-    console_script: game_key
-    for game_key in SCRIPT_BUILDERS
-    if (console_script := console_script_in_module(module=GAME_MODULES[game_key])) is not None
-}
-
 
 def fixture_path(*, game_key: str, name: str | None = None) -> Path:
     """Return where a game's golden replay fixture is stored.
@@ -412,10 +404,41 @@ def fixture_path(*, game_key: str, name: str | None = None) -> Path:
         name = GOLDEN_FIXTURE_NAMES.get(game_key, DEFAULT_FIXTURE_NAME)
     if game_key in REPLAY_FIXTURE_DIRECTORIES:
         return REPLAY_FIXTURE_DIRECTORIES[game_key] / f'{name}{REPLAY_FIXTURE_SUFFIX}'
-    (console_script,) = (
-        script for script, key in CONSOLE_SCRIPT_GAME_KEYS.items() if key == game_key
+    return (
+        REPLAY_FIXTURE_DIRECTORY / GAME_CONSOLE_SCRIPTS[game_key] / f'{name}{REPLAY_FIXTURE_SUFFIX}'
     )
-    return REPLAY_FIXTURE_DIRECTORY / console_script / f'{name}{REPLAY_FIXTURE_SUFFIX}'
+
+
+def game_console_script(*, game_key: str) -> str | None:
+    """Return the installed console script that replays a game's golden replay.
+
+    It is found as the replay pytest plugin finds it, so [project.scripts] is the one list. A
+    game in a workspace member is replayed by the member's console script
+    (``recording_console_script``): one console script may start several games (Brave
+    Adventurer's launcher starts Classic and Papyrus, choosing by the recording's header). A
+    game still in the engine's examples is replayed by the console script whose entry point is
+    in its module (GAME_MODULES).
+
+    Args:
+        game_key: Which game (a key of GAME_SCENES).
+
+    Returns:
+        The console script, or None if no installed console script is in the game's module.
+
+    """
+    if game_key in REPLAY_FIXTURE_DIRECTORIES:
+        return recording_console_script(path=fixture_path(game_key=game_key))
+    return console_script_in_module(module=GAME_MODULES[game_key])
+
+
+# Game key -> the console script (a pyproject.toml's [project.scripts]) that replays its golden
+# replay (game_console_script). Keyed by game, not by console script: Classic and Papyrus share
+# the member's one script, brave-adventurer
+GAME_CONSOLE_SCRIPTS: dict[str, str] = {
+    game_key: console_script
+    for game_key in SCRIPT_BUILDERS
+    if (console_script := game_console_script(game_key=game_key)) is not None
+}
 
 
 class ScriptedInputSupervisor:

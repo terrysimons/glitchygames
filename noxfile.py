@@ -34,6 +34,7 @@ _SOURCE_PACKAGE_DIRS = [
     'src/games/brave-adventurer/src/brave_adventurer_core',
     'src/games/brave-adventurer/src/brave_adventurer',
     'src/games/brave-adventurer/src/brave_adventurer_papyrus',
+    'src/games/brave-adventurer/src/brave_adventurer_modes',
 ]
 # The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
 # through scripts/workspace_packages.py: CI runs nox through uvx, whose interpreter has neither

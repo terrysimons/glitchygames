@@ -112,10 +112,11 @@ class GameSpecification:
         title: The page title.
         included_subpackages: Subpackages of EXCLUDED_SUBPACKAGES this one needs (Bitmappy).
         member_packages: The import packages of the workspace members holding the game's code,
-            the one depended on first. A game in one member names one
-            (``('mr_muncher',)``); a game depending on a shared core names both
-            (``('brave_adventurer_core', 'brave_adventurer_papyrus')``). The bundle ships each
-            as ``<package>.zip``, apart from the engine's archive. Empty for a game inside the
+            the ones depended on first. A game in one package names it (``('mr_muncher',)``);
+            a project of layered packages names every one it starts, the shared core first
+            (Brave Adventurer's launcher: ``('brave_adventurer_core', 'brave_adventurer',
+            'brave_adventurer_papyrus', 'brave_adventurer_modes')``). The bundle ships each as
+            ``<package>.zip``, apart from the engine's archive. Empty for a game inside the
             engine package.
 
     """
@@ -197,10 +198,9 @@ TOUCH_LAYOUTS: dict[str, TouchLayout] = {
         center=((TouchButton('Pause', 'Space'),),),
         right=((UP,), (DOWN,)),
     ),
+    # Both games, and the title screen choosing between them: the arrows choose a game there
+    # and Jump (Space) starts it
     'brave-adventurer': TouchLayout(
-        left=((LEFT, RIGHT),), center=((PAUSE_ESCAPE,),), right=((JUMP,),)
-    ),
-    'brave-adventurer-papyrus': TouchLayout(
         left=((LEFT, RIGHT),), center=((PAUSE_ESCAPE,),), right=((JUMP,),)
     ),
     'clockwork-keep': TouchLayout(
@@ -253,19 +253,18 @@ GAMES: dict[str, GameSpecification] = {
     'paddleslap': GameSpecification(
         module='glitchygames.examples.paddleslap', scene_class='Game', title='Paddle Slap'
     ),
+    # Both Brave Adventurer games, Classic (drawn in code) and Papyrus (sprite-sheet art), from
+    # the launcher's title screen: its four packages, the shared core first and the launcher last
     'brave-adventurer': GameSpecification(
-        module='brave_adventurer.game',
-        scene_class='BraveAdventurerScene',
+        module='brave_adventurer_modes.title',
+        scene_class='TitleScene',
         title='Brave Adventurer',
-        member_packages=('brave_adventurer_core', 'brave_adventurer'),
-    ),
-    # A separate game from Brave Adventurer: the same adventure drawn in GlitchyGames' modern
-    # style (TOML sprites), beside the primitive old-school pygame one
-    'brave-adventurer-papyrus': GameSpecification(
-        module='brave_adventurer_papyrus.game',
-        scene_class='PapyrusBraveAdventurerScene',
-        title='Brave Adventurer: Papyrus Edition',
-        member_packages=('brave_adventurer_core', 'brave_adventurer_papyrus'),
+        member_packages=(
+            'brave_adventurer_core',
+            'brave_adventurer',
+            'brave_adventurer_papyrus',
+            'brave_adventurer_modes',
+        ),
     ),
     'clockwork-keep': GameSpecification(
         module='glitchygames.examples.clockwork_keep.game',

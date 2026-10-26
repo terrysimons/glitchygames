@@ -41,7 +41,7 @@ from scripts.build_browser_bundle import (
     touch_controls_config,
     write_engine_archive,
 )
-from scripts.workspace_packages import declared_console_scripts
+from scripts.workspace_packages import declared_console_scripts, workspace_members
 
 COMMIT = 'a' * 40
 WHEEL_NAME = 'pygame_ce-2.5.8.post1-cp314-cp314-pyemscripten_2026_0_wasm32.whl'
@@ -193,19 +193,31 @@ class TestGeneratedFiles:
 
     def test_only_member_games_name_member_packages(self):
         assert GAMES['mr-muncher'].member_packages == ('mr_muncher',)
-        assert GAMES['brave-adventurer'].member_packages == (
-            'brave_adventurer_core',
-            'brave_adventurer',
-        )
-        assert GAMES['brave-adventurer-papyrus'].member_packages == (
-            'brave_adventurer_core',
-            'brave_adventurer_papyrus',
-        )
         assert [name for name, game in GAMES.items() if game.member_packages] == [
             'brave-adventurer',
-            'brave-adventurer-papyrus',
             'mr-muncher',
         ]
+
+    def test_brave_adventurer_starts_its_title_screen_with_both_games(self):
+        """One page for both games: the launcher's title screen, and all four packages."""
+        brave_adventurer = GAMES['brave-adventurer']
+
+        assert (brave_adventurer.module, brave_adventurer.scene_class) == (
+            'brave_adventurer_modes.title',
+            'TitleScene',
+        )
+        assert brave_adventurer.member_packages == (
+            'brave_adventurer_core',
+            'brave_adventurer',
+            'brave_adventurer_papyrus',
+            'brave_adventurer_modes',
+        )
+        (member,) = [
+            member
+            for member in workspace_members(project_root=REPOSITORY_DIRECTORY)
+            if member.distribution == 'brave-adventurer'
+        ]
+        assert set(brave_adventurer.member_packages) == set(member.import_packages)
 
     def test_a_game_depending_on_a_member_ships_both_archives(self, tmp_path, monkeypatch):
         """A game needing a shared core lists both archives, the one depended on first."""
@@ -556,8 +568,8 @@ NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-clien
 def test_every_game_has_a_browser_build():
     """Each game's console script is a page under play/ (Papyrus was once left out).
 
-    The two Brave Adventurer editions are separate games: the primitive old-school pygame style
-    and the modern GlitchyGames style.
+    Brave Adventurer's two games are one console script and one page: the launcher's title
+    screen offers both.
     """
     scripts = declared_console_scripts(project_root=REPOSITORY_DIRECTORY)
 

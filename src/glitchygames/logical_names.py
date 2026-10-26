@@ -35,6 +35,7 @@ MEMBER_LAYERS: dict[str, str] = {
     'brave_adventurer_core': 'games',
     'brave_adventurer': 'games',
     'brave_adventurer_papyrus': 'games',
+    'brave_adventurer_modes': 'games',
 }
 
 

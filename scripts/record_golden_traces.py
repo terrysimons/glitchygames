@@ -111,8 +111,11 @@ GAME_SCENES: dict[str, type[Scene]] = {
     'drawing_fire': DrawingFireScene,
 }
 
-# Game key -> the module holding its main() (where its console script's entry point is):
-# a game moved into its own package names its package (plans/2026-10-24-workspace-packages.md)
+# Game key -> the module holding its main() (where its console script's entry point is, for a
+# game in the engine's examples): a game moved into its own package names its package
+# (plans/2026-10-24-workspace-packages.md). A member's console script may be a launcher instead
+# (Brave Adventurer's, brave_adventurer_modes, starts both its games; scripts/
+# record_scripted_session.py GAME_CONSOLE_SCRIPTS)
 GAME_MODULES: dict[str, str] = {
     'clockwork_keep': 'glitchygames.examples.clockwork_keep',
     'brave_adventurer': 'brave_adventurer',
