@@ -1,6 +1,6 @@
 """Papyrus Edition constants.
 
-Re-exports shared physics/gameplay constants from the original edition,
+Re-exports shared physics/gameplay constants from brave_adventurer_core,
 and defines papyrus-specific sprite dimensions for TOML pixel art.
 """
 
@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# Re-export all shared constants from the original edition.
+# Re-export all shared constants from brave_adventurer_core.
 # Physics, camera, layers, parallax, scoring, terrain colors, HUD colors.
-from brave_adventurer.constants import (
+from brave_adventurer_core.constants import (
     ANIMATION_SPEED,
     CAMERA_LEAD,
     COLLECTIBLE_SCORE_BONUS,

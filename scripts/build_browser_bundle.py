@@ -257,7 +257,7 @@ GAMES: dict[str, GameSpecification] = {
         module='brave_adventurer.game',
         scene_class='BraveAdventurerScene',
         title='Brave Adventurer',
-        member_packages=('brave_adventurer',),
+        member_packages=('brave_adventurer_core', 'brave_adventurer'),
     ),
     # A separate game from Brave Adventurer: the same adventure drawn in GlitchyGames' modern
     # style (TOML sprites), beside the primitive old-school pygame one
@@ -265,7 +265,7 @@ GAMES: dict[str, GameSpecification] = {
         module='brave_adventurer_papyrus.game',
         scene_class='PapyrusBraveAdventurerScene',
         title='Brave Adventurer: Papyrus Edition',
-        member_packages=('brave_adventurer', 'brave_adventurer_papyrus'),
+        member_packages=('brave_adventurer_core', 'brave_adventurer_papyrus'),
     ),
     'clockwork-keep': GameSpecification(
         module='glitchygames.examples.clockwork_keep.game',

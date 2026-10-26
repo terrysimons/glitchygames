@@ -1,6 +1,6 @@
 """Papyrus Edition terrain sprites.
 
-GroundSegment and StoneWall are reused from the original edition (they use
+GroundSegment and StoneWall are the shared ones from brave_adventurer_core (they use
 variable-width primitives which don't suit TOML pixel art). GoldScarab is
 replaced with a TOML animated version.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, Self, override
 
-from brave_adventurer.terrain import GroundSegment, StoneWall
+from brave_adventurer_core.terrain import GroundSegment, StoneWall
 from brave_adventurer_papyrus.constants import (
     LAYER_COLLECTIBLES,
     SPRITES_DIR,

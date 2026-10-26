@@ -161,7 +161,7 @@ uv run glitchygames-client "blue dragon" --animation-language-model anthropic:cl
 
 ### Example Games
 
-`uv run paddleslap`, `uv run brave-adventurer`, `uv run brave-adventurer-papyrus`, `uv run clockwork-keep`, `uv run mr-muncher` and `uv run drawing-fire` start the example games: Mr. Muncher is its own package in `src/games/mr-muncher/`, the others are still in `src/glitchygames/examples/`.
+`uv run paddleslap`, `uv run brave-adventurer`, `uv run brave-adventurer-papyrus`, `uv run clockwork-keep`, `uv run mr-muncher` and `uv run drawing-fire` start the example games: Mr. Muncher is its own package in `src/games/mr-muncher/`, both Brave Adventurer editions are one package in `src/games/brave-adventurer/`, the others are still in `src/glitchygames/examples/`.
 
 ## Engine Options
 

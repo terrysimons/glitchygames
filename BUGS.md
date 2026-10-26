@@ -128,7 +128,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Priority**: Medium
 - **Reporter**: Found rewriting the animation hardware tests
 - **Date Reported**: 2026-10-21
-- **Details**: The example games avoid it by animating in `dt_tick` and making `update()` a no-op (`examples/brave_adventurer_papyrus/enemies.py:86`). A fix changes animation timing in games and recordings, so it needs the golden replays checked
+- **Details**: The example games avoid it by animating in `dt_tick` and making `update()` a no-op (`src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py:86`). A fix changes animation timing in games and recordings, so it needs the golden replays checked
 - **Files**: `glitchygames/scenes/scene.py:2968-2978`, `glitchygames/sprites/animated.py:2520`
 
 ### 119. Frames Inserted or Removed Through the Film Strip Never Reach the Coordinator
@@ -354,7 +354,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Reporter**: Found on feature/engine-world-space (Task 8)
 - **Date Reported**: 2026-10-18
 - **Details**: Predates the branch. Latent today: every Papyrus sprite is `dirty = 2`, the scene renders the full screen, the image overhangs the rect by at most 28 px (less than `CULL_MARGIN_PIXELS`, 32), and hitboxes and the debug overlay use collision rects. It would surface with mouse picking (`sprites_at_position`, `pygame.sprite.spritecollide`), a non-dirty Papyrus sprite, or `pygame.display.update(rects)`. Fixing it (sizing rect from the scaled image in `apply_transparency_and_scale` / `prepare_papyrus_sprite`) changes every Papyrus rect size in the golden trace, so it needs its own expected-difference class in `tests/world/test_golden_traces.py`
-- **Files**: `glitchygames/examples/brave_adventurer_papyrus/sprite_utils.py`
+- **Files**: `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py`
 
 ### 60. Brave Adventurer Ground and Walls Stay Drawn Only Because the Parallax Layers Dirty the Screen
 - **Description**: The shared `GroundSegment` and `StoneWall` (both editions) are `dirty = 1` and are dirtied again only when they move. With a still camera they stay on screen only because the full-screen `dirty = 2` ParallaxLayers make the whole screen dirty every frame
@@ -363,7 +363,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Reporter**: Found by the Task 8 review on feature/engine-world-space
 - **Date Reported**: 2026-10-18
 - **Details**: If the parallax layers stop redrawing the full screen (made static, partially sized, or removed), a still camera would let other sprites' clearing erase the terrain. Either make the terrain `dirty = 2` or document the dependency where the layers are built
-- **Files**: `glitchygames/examples/brave_adventurer/terrain.py`, `glitchygames/examples/brave_adventurer/game.py`, `glitchygames/examples/brave_adventurer_papyrus/game.py`
+- **Files**: `src/games/brave-adventurer/src/brave_adventurer_core/terrain.py`, `src/games/brave-adventurer/src/brave_adventurer/game.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py`
 
 ### 67. Bitmappy's Joystick-Event Trigger Conversion Assumes pygame 1's Integer Axis Scale
 - **Description**: `ControllerEventHandler._read_joystick_trigger_values` converts trigger axes with `(raw + 32768) / 65535`, but pygame 2 reports joystick axes as -1.0..1.0, so both triggers always read about 0.5 whatever their position
@@ -497,7 +497,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
   4. Bitmappy: `FilmStripOperationTracker.add_frame_selection` (`history/operations.py`) falls back to a hard-coded `('strip_1', 0)` when no current frame is known; undoing that first selection on a sprite without `strip_1` targets an animation that does not exist (latent now that #150 keeps the current frame)
   5. Bitmappy: every load records a "Selected frame" step before #150's reset clears it (harmless now; wasted work)
   6. Fixed 2026-10-23: Clockwork Keep's victory played the elevator clank; it now plays its own `victory` chime (`sounds.py`; test `TestClockFaceVictory::test_the_victory_plays_its_own_fanfare`)
-  7. `tests/examples/test_brave_adventurer_game.py`'s `_start_display()` keeps whatever display exists (not always 800x480 under pytest); the scenes size the pit floor from it, so pit tests set the display themselves
+  7. The Brave Adventurer tests' `_start_display()` (`src/games/brave-adventurer/tests/`) keeps whatever display exists (not always 800x480 under pytest); the scenes size the pit floor from it, so pit tests set the display themselves
 - **Files**: see each item
 
 ## Resolved Bugs

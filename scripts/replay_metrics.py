@@ -92,9 +92,11 @@ if TYPE_CHECKING:
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PENDING_LEDGER_PATH = PROJECT_ROOT / PENDING_LEDGER_RELATIVE_PATH
 # The engine's golden replays (tests/fixtures/replays/<console-script>/); each workspace member's
-# are directly in its replay fixtures directory (golden_replay_globs)
+# are directly in its replay fixtures directory (golden_replay_globs): golden.jsonl.gz, or one
+# golden-<game>.jsonl.gz per game in a member with several (Brave Adventurer's golden-classic
+# and golden-papyrus; docs/architecture/game_packages.md)
 ENGINE_GOLDEN_REPLAYS_GLOB = 'tests/fixtures/replays/*/golden.jsonl.gz'
-MEMBER_GOLDEN_REPLAYS_GLOB = 'golden.jsonl.gz'
+MEMBER_GOLDEN_REPLAYS_GLOB = 'golden*.jsonl.gz'
 EXAMPLES_PATH = Path('src') / 'glitchygames' / 'examples'
 # How many of a failed child's last output lines are shown
 FAILURE_OUTPUT_LINES = 10

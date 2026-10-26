@@ -6,7 +6,9 @@ from typing import Self, override
 
 import pygame
 
-from brave_adventurer.constants import (
+from brave_adventurer.constants import PLAYER_HEIGHT, PLAYER_WIDTH
+from brave_adventurer.drawing import draw_player
+from brave_adventurer_core.constants import (
     FALLING_VELOCITY_THRESHOLD,
     GRAVITY,
     JUMP_VELOCITY,
@@ -14,12 +16,9 @@ from brave_adventurer.constants import (
     MAX_FALL_SPEED,
     PLAYER_ACCELERATION,
     PLAYER_DECELERATION,
-    PLAYER_HEIGHT,
     PLAYER_RUN_SPEED,
-    PLAYER_WIDTH,
     STARTING_LIVES,
 )
-from brave_adventurer.drawing import draw_player
 from glitchygames.collision.bounds import opaque_bounds
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.physics import (

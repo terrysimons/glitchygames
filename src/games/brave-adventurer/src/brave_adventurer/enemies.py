@@ -15,20 +15,13 @@ import pygame
 from brave_adventurer.constants import (
     COBRA_HEIGHT,
     COBRA_WIDTH,
-    GRAVITY,
-    GROUND_Y,
-    LAYER_ENEMIES,
-    MAX_FALL_SPEED,
     SCARAB_HEIGHT,
     SCARAB_WIDTH,
     SCORPION_HEIGHT,
     SCORPION_WIDTH,
 )
-from brave_adventurer.drawing import (
-    draw_cobra,
-    draw_scarab,
-    draw_scorpion,
-)
+from brave_adventurer.drawing import draw_cobra, draw_scarab, draw_scorpion
+from brave_adventurer_core.constants import GRAVITY, GROUND_Y, LAYER_ENEMIES, MAX_FALL_SPEED
 from glitchygames.sprites import Sprite
 from glitchygames.world import CoordinateSpace
 

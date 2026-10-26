@@ -135,7 +135,7 @@ blue = 255  # Magenta: the transparency key
 - **`[animation.frame.hitbox]`** (optional): Per-frame hitbox (`offset_x`, `offset_y`, `width`, `height`)
 
 #### `[[transition]]` Section (optional)
-- **`from`**, **`to`**, **`when`**: Animation state machine transitions (`glitchygames/animation/state_machine.py`); see `glitchygames/examples/brave_adventurer_papyrus/sprites/cobra.toml`
+- **`from`**, **`to`**, **`when`**: Animation state machine transitions (`glitchygames/animation/state_machine.py`); see `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprites/cobra.toml`
 
 ### Animation-Frame Relationship
 

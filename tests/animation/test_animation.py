@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from brave_adventurer.constants import (
+from brave_adventurer_core.constants import (
     FALLING_VELOCITY_THRESHOLD as BRAVE_ADVENTURER_FALLING_VELOCITY_THRESHOLD,
 )
 from glitchygames.animation.expressions import (

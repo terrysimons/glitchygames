@@ -33,6 +33,7 @@ from scripts.record_golden_traces import GOLDEN_TRACE_GAMES, golden_path, record
 from brave_adventurer import constants as brave_constants
 from brave_adventurer.drawing import draw_player, draw_scarab
 from brave_adventurer.player import Player as AdventurerPlayer
+from brave_adventurer_core import constants as brave_core_constants
 from brave_adventurer_papyrus.player import PapyrusPlayer
 from brave_adventurer_papyrus.sprite_utils import (
     apply_transparency_and_scale,
@@ -579,7 +580,7 @@ def _scarab_is_dropping_from_its_spawn_height(sprite: SpriteWorldSample) -> bool
         True while the scarab is strictly between the two heights.
 
     """
-    spawn_world_y = brave_constants.GROUND_Y - brave_constants.SCARAB_HEIGHT
+    spawn_world_y = brave_core_constants.GROUND_Y - brave_constants.SCARAB_HEIGHT
     return spawn_world_y < sprite.world_y < spawn_world_y + scarab_feet_margin_pixels()
 
 
@@ -621,7 +622,7 @@ def scarab_dropping_from_its_spawn_height(
     sprite = _sprite_sample(difference, frame)
     if sprite is None or not _scarab_is_dropping_from_its_spawn_height(sprite):
         return False
-    spawn_world_y = brave_constants.GROUND_Y - brave_constants.SCARAB_HEIGHT
+    spawn_world_y = brave_core_constants.GROUND_Y - brave_constants.SCARAB_HEIGHT
     return _old_sprite_stood_higher_by(
         difference, frame, margin_pixels=sprite.world_y - spawn_world_y
     )

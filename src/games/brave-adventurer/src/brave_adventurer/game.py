@@ -7,7 +7,10 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
-from brave_adventurer.constants import (
+from brave_adventurer.constants import PLAYER_HEIGHT
+from brave_adventurer.levels import ClassicLevelManager
+from brave_adventurer.player import Player
+from brave_adventurer_core.constants import (
     CAMERA_LEAD,
     COLLECTIBLE_SCORE_BONUS,
     DEATH_RUMBLE_DURATION,
@@ -33,21 +36,19 @@ from brave_adventurer.constants import (
     PIT_FLOOR_COLOR,
     PIT_WALL_COLOR,
     PIT_WALL_SHADOW,
-    PLAYER_HEIGHT,
     RESPAWN_OFFSET,
     SCREEN_HEIGHT,
     SKY_COLOR,
     STONE_WALL_WIDTH,
 )
-from brave_adventurer.drawing import (
+from brave_adventurer_core.drawing import (
     draw_dunes_and_oasis,
     draw_near_ground_details,
     draw_pyramids,
     draw_sky,
 )
-from brave_adventurer.levels import LEVEL_1, LevelManager
-from brave_adventurer.player import Player
-from brave_adventurer.sounds import GameSounds
+from brave_adventurer_core.levels import LEVEL_1
+from brave_adventurer_core.sounds import GameSounds
 from glitchygames.audio import VoiceAssistant
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.detection import snapped_world_position
@@ -65,7 +66,8 @@ if TYPE_CHECKING:
     import argparse
 
     from brave_adventurer.enemies import Cobra, Scarab, Scorpion
-    from brave_adventurer.terrain import GoldScarab, GroundSegment, StoneWall
+    from brave_adventurer.terrain import GoldScarab
+    from brave_adventurer_core.terrain import GroundSegment, StoneWall
     from glitchygames.events.base import (
         ControllerButtonEvent,
         JoyAxisEvent,
@@ -147,7 +149,7 @@ class BraveAdventurerScene(Scene):
         )
 
         # Build the level (creates ground, walls, enemies, collectibles)
-        self.level_manager = LevelManager(
+        self.level_manager = ClassicLevelManager(
             level_data=LEVEL_1,
             groups=self.all_sprites,
         )

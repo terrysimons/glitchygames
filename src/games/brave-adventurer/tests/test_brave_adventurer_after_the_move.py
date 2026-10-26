@@ -1,19 +1,28 @@
 """Brave Adventurer and Papyrus moved from glitchygames/examples into one project.
 
-Their recordings did not change: each scene keeps its logical name and both goldens keep their
-history.
+Their recordings did not change: each scene keeps its logical name, both goldens keep their
+history, and the primitives both games share (brave_adventurer_core) import neither game.
 """
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import inspect
 from pathlib import Path
 
+import pygame
 import pytest
 
 import brave_adventurer.game
+import brave_adventurer_core
 import brave_adventurer_papyrus.game
+from brave_adventurer.levels import ClassicLevelManager
+from brave_adventurer.terrain import GoldScarab
+from brave_adventurer_core.levels import LEVEL_1, LevelManager
+from brave_adventurer_papyrus.levels import PapyrusLevelManager
+from brave_adventurer_papyrus.terrain import PapyrusGoldScarab
+from glitchygames.display_mode import set_display_mode
 from glitchygames.logical_names import logical_name
 from glitchygames.recording_metrics import RECORDING_PATH_RENAMES
 from glitchygames.scenes import Scene
@@ -36,6 +45,8 @@ GOLDENS = [
         'brave-adventurer-papyrus',
     ),
 ]
+# The two games, which the shared primitives must never import
+GAME_PACKAGES = frozenset({'brave_adventurer', 'brave_adventurer_papyrus'})
 
 
 def scene_classes(module):
@@ -93,3 +104,62 @@ def test_both_goldens_keep_their_history(old_path, new_name, console_script):
     assert not (PROJECT_ROOT / old_path).exists()
     assert RECORDING_PATH_RENAMES[old_path] == new_path.relative_to(PROJECT_ROOT).as_posix()
     assert recording_console_script(path=new_path) == console_script
+
+
+def imported_modules(*, path: Path) -> set[str]:
+    """Return every module a source file imports, at any depth (functions included).
+
+    Returns:
+        The imported modules' names (``from x import y`` gives ``x``).
+
+    """
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            modules.add(node.module)
+    return modules
+
+
+def test_the_core_imports_neither_game():
+    """brave_adventurer_core is below both games: no module of it imports either."""
+    core_directory = Path(brave_adventurer_core.__file__).parent
+    core_modules = sorted(core_directory.rglob('*.py'))
+
+    assert core_modules
+    for path in core_modules:
+        game_imports = {
+            module
+            for module in imported_modules(path=path)
+            if module.partition('.')[0] in GAME_PACKAGES
+        }
+        assert not game_imports, f'{path.name} imports {sorted(game_imports)}'
+
+
+@pytest.mark.parametrize(
+    ('manager_class', 'collectible_class'),
+    [(ClassicLevelManager, GoldScarab), (PapyrusLevelManager, PapyrusGoldScarab)],
+    ids=['ClassicLevelManager', 'PapyrusLevelManager'],
+)
+def test_each_level_manager_builds_its_own_gold_scarab(manager_class, collectible_class):
+    """The shared LevelManager builds each game's collectible through its hook."""
+    if not pygame.get_init():
+        pygame.init()
+    if pygame.display.get_surface() is None:
+        set_display_mode(size=(800, 480))
+
+    manager = manager_class(level_data=LEVEL_1, groups=pygame.sprite.LayeredDirty())
+
+    assert manager.collectible_sprites
+    assert {type(collectible) for collectible in manager.collectible_sprites} == {collectible_class}
+    # One _build, the shared one: Papyrus's copy is gone
+    assert issubclass(manager_class, LevelManager)
+    assert '_build' not in vars(manager_class)
+
+
+def test_the_shared_level_manager_needs_a_game():
+    """The core knows no game's sprites: only a game's level manager can be built."""
+    with pytest.raises(TypeError, match='abstract'):
+        LevelManager(level_data=LEVEL_1, groups=pygame.sprite.LayeredDirty())  # type: ignore[abstract]

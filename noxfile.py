@@ -31,6 +31,7 @@ _CODE_DIRS = [
 _SOURCE_PACKAGE_DIRS = [
     'src/glitchygames',
     'src/games/mr-muncher/mr_muncher',
+    'src/games/brave-adventurer/src/brave_adventurer_core',
     'src/games/brave-adventurer/src/brave_adventurer',
     'src/games/brave-adventurer/src/brave_adventurer_papyrus',
 ]

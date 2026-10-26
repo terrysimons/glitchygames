@@ -6,7 +6,7 @@ import numpy as np
 import pygame
 import pytest
 
-from brave_adventurer import sounds
+from brave_adventurer_core import sounds
 from glitchygames.audio import synth
 
 GOLDEN = Path(__file__).parent / 'brave_adventurer_golden'

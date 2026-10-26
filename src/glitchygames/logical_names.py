@@ -32,6 +32,7 @@ EXAMPLES_LAYERS: dict[str, str] = {
 # workspace, checked by tests/test_workspace_config.py
 MEMBER_LAYERS: dict[str, str] = {
     'mr_muncher': 'games',
+    'brave_adventurer_core': 'games',
     'brave_adventurer': 'games',
     'brave_adventurer_papyrus': 'games',
 }

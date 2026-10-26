@@ -193,9 +193,12 @@ class TestGeneratedFiles:
 
     def test_only_member_games_name_member_packages(self):
         assert GAMES['mr-muncher'].member_packages == ('mr_muncher',)
-        assert GAMES['brave-adventurer'].member_packages == ('brave_adventurer',)
-        assert GAMES['brave-adventurer-papyrus'].member_packages == (
+        assert GAMES['brave-adventurer'].member_packages == (
+            'brave_adventurer_core',
             'brave_adventurer',
+        )
+        assert GAMES['brave-adventurer-papyrus'].member_packages == (
+            'brave_adventurer_core',
             'brave_adventurer_papyrus',
         )
         assert [name for name, game in GAMES.items() if game.member_packages] == [

@@ -195,6 +195,22 @@ class TestTheRecordings:
         assert all(console_script for console_script, _ in recordings.replayable)
         assert not recordings.unreplayable
 
+    @pytest.mark.parametrize(
+        ('console_script', 'golden'),
+        [
+            ('brave-adventurer', 'golden-classic.jsonl.gz'),
+            ('brave-adventurer-papyrus', 'golden-papyrus.jsonl.gz'),
+        ],
+    )
+    def test_each_game_of_a_member_with_several_is_measured(self, console_script, golden):
+        """Brave Adventurer's goldens are named apart (golden-<game>): each is measured."""
+        recordings = metric_recordings(project_root=PROJECT_ROOT)
+
+        assert (
+            console_script,
+            PROJECT_ROOT / 'src/games/brave-adventurer/tests/fixtures/replays' / golden,
+        ) in recordings.replayable
+
     def test_a_member_that_is_not_installed_is_named_with_the_fix(self, tmp_path):
         """A plain `uv sync` uninstalls the members: one line naming `uv sync --all-packages`."""
         write_uninstalled_member(project_root=tmp_path)

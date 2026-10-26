@@ -72,6 +72,7 @@ def test_every_example_game_and_demo_has_a_layer():
     }
     assert logical_names.MEMBER_LAYERS == {
         'mr_muncher': 'games',
+        'brave_adventurer_core': 'games',
         'brave_adventurer': 'games',
         'brave_adventurer_papyrus': 'games',
     }

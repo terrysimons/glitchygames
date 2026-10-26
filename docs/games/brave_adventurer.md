@@ -20,9 +20,10 @@ uv run brave-adventurer            # the primitives edition
 uv run brave-adventurer-papyrus    # the Papyrus Edition (TOML pixel art)
 ```
 
-Both console scripts are declared in `pyproject.toml` and call `main()`, which runs
+Both console scripts are declared in the game's own `pyproject.toml`
+(`src/games/brave-adventurer/`, see [Its package](#its-package)) and call `main()`, which runs
 `GameEngine(game=BraveAdventurerScene).start()` (or `PapyrusBraveAdventurerScene`). The window
-is 800 x 480 (`SCREEN_WIDTH`, `SCREEN_HEIGHT` in `constants.py`).
+is 800 x 480 (`SCREEN_WIDTH`, `SCREEN_HEIGHT` in `brave_adventurer_core/constants.py`).
 
 ### Controls
 
@@ -134,7 +135,8 @@ then positions the sprites (frame steps 5 and 6 in the next section).
 ### Parallax layers
 
 Four background layers are added with `camera.add_background_layer(...)`, drawn by the
-functions in `drawing.py`. Each draw function depends only on its arguments (the layer's
+functions in `brave_adventurer_core/drawing.py` (both editions draw the same backgrounds). Each
+draw function depends only on its arguments (the layer's
 offset), so the engine redraws a layer only when its offset changes; none needs
 `animated=True`.
 
@@ -146,7 +148,7 @@ offset), so the engine redraws a layer only when its offset changes; none needs
 | 3 | near | `PARALLAX_NEAR` = 0.7 | `draw_near_ground_details` | Rocks and grass tufts every 60 px, placed by a hash of the world x (no randomness) |
 
 The sprites sit above them on layers 4 to 7: terrain, collectibles, enemies, then the player
-(`LAYER_*` in `constants.py`).
+(`LAYER_*` in `brave_adventurer_core/constants.py`).
 
 ### Levels and screens
 
@@ -163,9 +165,13 @@ screen-local x (and y for collectibles):
 `LEVEL_1` ("The Path of the Pharaoh") has 20 screens of rising difficulty: flat ground with
 scarabs to collect, a first short wall (screen 2), a first pit (screen 4), the first cobra
 (5), scarab (7) and scorpion (10), then combinations, a triple pit (16), a gauntlet (18) and a
-collectible run (19). `LevelManager` builds it once, in the scene's `__init__`. The level data,
-the builder and the terrain code are the game's; the sprite group and the collision layers they
-feed are the engine's `Scene` services:
+collectible run (19). The scene's level manager (`ClassicLevelManager`, `PapyrusLevelManager`)
+builds it once, in the scene's `__init__`: the shared `LevelManager._build()` (in
+`brave_adventurer_core/levels.py`) makes each screen's ground segments, walls, enemies and
+collectibles in that order, and each game gives its enemy classes (`_get_enemy_class_map()`)
+and its gold scarab (`_get_collectible_class()`). The level data, the builder and the terrain
+code are the game's; the sprite group and the collision layers they feed are the engine's
+`Scene` services:
 
 ```mermaid
 flowchart TB
@@ -422,7 +428,7 @@ mic button as 15 on the controller API and 16 on the raw joystick API, so both a
 
 ## Sound
 
-`sounds.py` generates five effects once, in `setup()` (`GameSounds.initialize()`), with the
+`brave_adventurer_core/sounds.py` generates five effects once, in `setup()` (`GameSounds.initialize()`), with the
 engine's synthesizer toolkit (`glitchygames.audio.synth`: `oscillator`, `frequency_curve`,
 `apply_envelope`, `concatenate`, `to_sound`), at the mixer's sample rate:
 
@@ -482,7 +488,7 @@ Two kinds of golden test pin the game's behaviour frame by frame:
 
 | Golden | File | Made by | What it checks |
 |---|---|---|---|
-| Golden replay | `tests/fixtures/replays/brave-adventurer/golden.jsonl.gz` (and `brave-adventurer-papyrus/`) | `scripts/record_scripted_session.py --game brave_adventurer --frames 400` through the real engine loop: the golden input script, then a controls tail (walk left, jump with Space, quit with Q): 472 frames | Replayed in a child process with `--replay-trace PATH --headless` by the replay pytest plugin; any divergence fails. `tests/replay/test_golden_replays.py` also checks that every bound control is exercised, or listed with the reason it is not (no gamepad on the dummy driver) |
+| Golden replay | `src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz` (and `golden-papyrus.jsonl.gz`), each replayed through its game's console script | `scripts/record_scripted_session.py --game brave_adventurer --frames 400` through the real engine loop: the golden input script, then a controls tail (walk left, jump with Space, quit with Q): 472 frames | Replayed in a child process with `--replay-trace PATH --headless` by the replay pytest plugin; any divergence fails. `tests/replay/test_golden_replays.py` also checks that every bound control is exercised, or listed with the reason it is not (no gamepad on the dummy driver) |
 | Golden trace | `tests/world/golden/brave_adventurer.jsonl.gz` (and `brave_adventurer_papyrus.jsonl.gz`) | `scripts/record_golden_traces.py`, before the world-space change | `tests/world/test_golden_traces.py` replays the script and compares every sprite's rect and visibility with that baseline; every difference must be explained by exactly one `ExpectedDifference` rule (engine culling, separate snapping, the pose fix, scarabs resting on their drawn underside, and the player falling into the screen-4 pit in its falling pose instead of its running pose) |
 
 The golden script (`brave_adventurer_script()` in `scripts/record_golden_traces.py`) runs right
@@ -495,8 +501,12 @@ deliberately, after finding out why it changed (the scripts' docstrings give the
 
 | Test file | What it pins |
 |---|---|
-| `tests/examples/test_brave_adventurer_game.py` | Both editions (most fixtures are parametrized over both scenes): rumble on death and game over; terrain from the hitbox (walls flush, wider frames pushed back out, fast players pushed back the way they came, ledges); the world left edge; feet on the ground; stable support at ledge and wall-top edges; Papyrus facing-left hitboxes and foot anchoring; one death per hit; Papyrus falling transitions in TOML; world space (every sprite class declares it, no module positions or culls sprites itself, the camera follows on x and stops at game over); the pose rule (`TestPoseBeforeCollision`); culled enemies keep animating; pits meet the ground at a half-pixel camera; scancode controls; parallax layer pixel digests; game over freezes the world; high scores; jump, quit, D-pad hold and mic buttons; the HUD; both `main()` entry points replaying their golden recordings; the score keeping gold scarab bonuses; respawn standing still; no voice assistant in a replay; scarabs in a pit drawn over it; enemy poses drawn in `dt_tick`; running to falling; `-v/--version` |
-| `tests/examples/test_brave_adventurer_sounds.py` | The synthesized sounds against stored goldens (`tests/examples/brave_adventurer_golden/*.npy`): length, envelope and pitch; silent play without a mixer |
+| `src/games/brave-adventurer/tests/core/test_brave_adventurer_both_editions.py` | Both editions (the scene fixtures are parametrized over both scenes): rumble on death and game over; terrain from the hitbox (walls flush, wider frames pushed back out, fast players pushed back the way they came, ledges); the world left edge; feet on the ground; stable support at ledge and wall-top edges; one death per hit; world space at the scene (the camera follows on x and stops at game over, terrain snaps as drawn); the pose rule (`TestPoseBeforeCollision`); pits meet the ground at a half-pixel camera; scancode controls; game over freezes the world; high scores; jump, quit and D-pad hold; the HUD; both `main()` entry points replaying their golden recordings; both level managers; the score keeping gold scarab bonuses; respawn standing still; scarabs in a pit drawn over it; running to falling; `-v/--version` |
+| `src/games/brave-adventurer/tests/core/test_brave_adventurer_core.py` | The shared primitives: the terrain sprites are world sprites; parallax layer pixel digests |
+| `src/games/brave-adventurer/tests/core/test_brave_adventurer_sounds.py` | The synthesized sounds against stored goldens (`tests/core/brave_adventurer_golden/*.npy`): length, envelope and pitch; silent play without a mixer |
+| `src/games/brave-adventurer/tests/classic/test_brave_adventurer_classic.py` | The classic edition: its sprites declare world space and no module (its own or the core's) positions or culls sprites; culled enemies keep animating; the mic button and no voice assistant in a replay; enemy poses drawn in `dt_tick`; its player's running to falling |
+| `src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus.py` | The Papyrus Edition: facing-left hitboxes and foot anchoring; falling transitions in TOML; world space (its sprites, and no module of its own or the core's positions, culls or rounds); the sprite utilities; its player's running to falling |
+| `src/games/brave-adventurer/tests/test_brave_adventurer_after_the_move.py` | The move into one project: both scenes keep their logical names, the old example packages are gone, both goldens keep their history, the core imports neither game, each level manager builds its own gold scarab |
 | `tests/world/test_golden_traces.py` | The golden traces above |
 | `tests/replay/test_golden_replays.py` and the golden replay items | The golden replays above, and which controls they exercise |
 | `tests/collision/test_collision.py` | The Cobra's hitbox follows its drawing; Papyrus hitboxes scale with `SPRITE_SCALE` |
@@ -504,11 +514,11 @@ deliberately, after finding out why it changed (the scripts' docstrings give the
 
 ## The Papyrus Edition
 
-`brave_adventurer_papyrus` keeps the game and changes its characters. It imports the original
-package's level data, terrain, drawing, sounds and constants, and replaces the sprites that
-have pixel art.
+`brave_adventurer_papyrus` keeps the game and changes its characters. It shares the level
+data, terrain, background drawing, sounds and constants with the classic edition
+(`brave_adventurer_core`, below both games), and replaces the sprites that have pixel art.
 
-| Shared with the original (imported, unchanged) | Changed in Papyrus |
+| Shared with the classic edition (`brave_adventurer_core`, unchanged) | Changed in Papyrus |
 |---|---|
 | `LEVEL_1` and `ScreenData` (re-exported by its `levels.py`) | The player, the three enemies and the gold scarab are `AnimatedSprite`s loaded from TOML files in `sprites/` |
 | `GroundSegment` and `StoneWall` (variable-width primitives, which do not suit fixed pixel art) | Sprites are scaled 2x (`SPRITE_SCALE`); TOML hitboxes are in native pixels, so `hitbox_scale` is set to 2 |
@@ -519,12 +529,13 @@ have pixel art.
 
 ### How it is structured
 
-The level manager is reused by subclassing; the scene is a parallel copy. The Engine box is
-what both editions get from `glitchygames`, the BraveAdventurer box is the original game, and
-the PapyrusEdition box is what the edition adds on top of it. Solid arrows are inheritance,
-pointing at the base class; dotted arrows are runtime use (one class building or calling
-another). Both scenes also import the original's `drawing.py`, `sounds.py` and constants (left
-out to keep the diagrams readable).
+The level manager is shared by subclassing; the scene is a parallel copy. The Engine box is
+what both editions get from `glitchygames`, the Core box is what both share
+(`brave_adventurer_core`), the BraveAdventurer box is the classic edition and the
+PapyrusEdition box is what the Papyrus Edition adds. Solid arrows are inheritance, pointing at
+the base class; dotted arrows are runtime use (one class building or calling another). Both
+scenes also import the core's `drawing.py`, `sounds.py` and constants (left out to keep the
+diagrams readable).
 
 #### Scenes
 
@@ -536,18 +547,25 @@ classDiagram
         class PauseScene
         class GameOverScene
     }
-    namespace BraveAdventurer {
-        class BraveAdventurerScene
+    namespace Core {
         class LevelManager {
             _build()
+            _get_enemy_class_map()*
+            _get_collectible_class()*
+        }
+    }
+    namespace BraveAdventurer {
+        class BraveAdventurerScene
+        class ClassicLevelManager {
             _get_enemy_class_map()
+            _get_collectible_class()
         }
     }
     namespace PapyrusEdition {
         class PapyrusBraveAdventurerScene
         class PapyrusLevelManager {
-            _build()
             _get_enemy_class_map()
+            _get_collectible_class()
         }
     }
 
@@ -555,11 +573,12 @@ classDiagram
     Scene <|-- GameOverScene
     Scene <|-- BraveAdventurerScene
     Scene <|-- PapyrusBraveAdventurerScene
+    LevelManager <|-- ClassicLevelManager
     LevelManager <|-- PapyrusLevelManager
 
     PauseScene <.. BraveAdventurerScene : Esc creates
     GameOverScene <.. BraveAdventurerScene : creates at game over
-    LevelManager <.. BraveAdventurerScene : uses
+    ClassicLevelManager <.. BraveAdventurerScene : uses
     PapyrusLevelManager <.. PapyrusBraveAdventurerScene : uses
 ```
 
@@ -576,10 +595,12 @@ classDiagram
         class AnimatedSprite
         class PhysicsBody
     }
-    namespace BraveAdventurer {
-        class SpritesLevelManager["LevelManager"]
-        class Player
+    namespace Core {
         class TerrainSprites["GroundSegment, StoneWall"]
+    }
+    namespace BraveAdventurer {
+        class SpritesLevelManager["ClassicLevelManager"]
+        class Player
         class PrimitiveSprites["Cobra, Scarab, Scorpion, GoldScarab"]
     }
     namespace PapyrusEdition {
@@ -604,10 +625,9 @@ classDiagram
     PapyrusSprites <.. SpritesPapyrusLevelManager : builds
 ```
 
-- **`PapyrusLevelManager`** overrides `_get_enemy_class_map()` to return the Papyrus enemy
-  classes. It also overrides `_build()`, a copy of the original's loop that builds
-  `PapyrusGoldScarab` instead of `GoldScarab`, because the base class has no hook for the
-  collectible class.
+- **`PapyrusLevelManager`** gives `_get_enemy_class_map()` (the Papyrus enemy classes) and
+  `_get_collectible_class()` (`PapyrusGoldScarab`); the shared `LevelManager._build()` builds
+  them, as `ClassicLevelManager`'s give `Cobra`, `Scarab`, `Scorpion` and `GoldScarab`.
 - **`PapyrusBraveAdventurerScene`** is not a subclass of `BraveAdventurerScene`: it is a copy of
   the scene (about 960 lines against 1,010) with the Papyrus classes, the fixed foot line in
   the ground, wall and respawn code (`_snapped_player_top()` + `PAPYRUS_PLAYER_HEIGHT`), and no
@@ -639,29 +659,50 @@ classDiagram
 
 `scripts/audit_hitboxes.py` audits the Papyrus sprites' hitboxes against their pixels.
 
+## Its package
+
+Both editions are one package beside the engine, `src/games/brave-adventurer/` (distribution
+`brave-adventurer`), in a src layout of layered import packages: `brave_adventurer_core` (the
+constants, terrain, level data and level manager, background drawing and sounds both games
+share; it imports neither game), `brave_adventurer` (the classic edition) and
+`brave_adventurer_papyrus` (the Papyrus Edition). How such a package is laid out, installed,
+tested and built, and how a game is moved into one, is in
+[Games as Their Own Packages](../architecture/game_packages.md).
+
+Its recordings name the scenes `games.brave_adventurer.game:BraveAdventurerScene` and
+`games.brave_adventurer_papyrus.game:PapyrusBraveAdventurerScene`, as before the move; its
+golden replays are `src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz`
+and `golden-papyrus.jsonl.gz`, each replayed by the console script that starts the game its
+header names; and each browser bundle ships `brave_adventurer_core.zip` and its game's archive.
+
 ## Where things live
 
 | File | What it holds |
 |---|---|
-| `glitchygames/examples/brave_adventurer/__init__.py` | Exports `main` (the `brave-adventurer` console script) |
-| `glitchygames/examples/brave_adventurer/game.py` | `BraveAdventurerScene`: camera, parallax, level, controls, `dt_tick` order, terrain and enemy collision, death and respawn, high scores, input handlers, `render()`, pits, HUD; `main()` |
-| `glitchygames/examples/brave_adventurer/player.py` | `Player`: physics body, state machine, the pose drawn in `dt_tick`, the common pose x-range |
-| `glitchygames/examples/brave_adventurer/terrain.py` | `GroundSegment`, `StoneWall`, `GoldScarab` |
-| `glitchygames/examples/brave_adventurer/enemies.py` | `Cobra`, `Scarab`, `Scorpion` |
-| `glitchygames/examples/brave_adventurer/levels.py` | `ScreenData`, `LEVEL_1` (20 screens), `LevelManager` |
-| `glitchygames/examples/brave_adventurer/drawing.py` | Every primitive drawing: the player, enemies, terrain, the four parallax layers |
-| `glitchygames/examples/brave_adventurer/sounds.py` | The synthesized effects and `GameSounds` |
-| `glitchygames/examples/brave_adventurer/constants.py` | Screen, physics, camera, parallax, layer, size, scoring, colour and rumble constants |
-| `glitchygames/examples/brave_adventurer_papyrus/game.py` | `PapyrusBraveAdventurerScene` (the scene's parallel copy); `main()` |
-| `glitchygames/examples/brave_adventurer_papyrus/player.py` | `PapyrusPlayer` |
-| `glitchygames/examples/brave_adventurer_papyrus/enemies.py` | `PapyrusCobra`, `PapyrusScarab`, `PapyrusScorpion` |
-| `glitchygames/examples/brave_adventurer_papyrus/terrain.py` | `PapyrusGoldScarab`; re-exports the shared `GroundSegment` and `StoneWall` |
-| `glitchygames/examples/brave_adventurer_papyrus/levels.py` | `PapyrusLevelManager`; re-exports `LEVEL_1` |
-| `glitchygames/examples/brave_adventurer_papyrus/sprite_utils.py` | Colour key to alpha, 2x scaling, `hitbox_scale` |
-| `glitchygames/examples/brave_adventurer_papyrus/constants.py` | Re-exports the shared constants; `SPRITE_SCALE`, the Papyrus heights, `SPRITES_DIR` |
-| `glitchygames/examples/brave_adventurer_papyrus/sprites/*.toml` | The pixel art, hitboxes and state machines |
+| `src/games/brave-adventurer/pyproject.toml` | The project: distribution `brave-adventurer`, both console scripts, the three packages |
+| `src/games/brave-adventurer/src/brave_adventurer_core/constants.py` | Screen, physics, camera, parallax, layer, scoring, terrain and background colour, HUD, lives and rumble constants both games share |
+| `src/games/brave-adventurer/src/brave_adventurer_core/terrain.py` | `GroundSegment`, `StoneWall` |
+| `src/games/brave-adventurer/src/brave_adventurer_core/levels.py` | `ScreenData`, `LEVEL_1` (20 screens), `LevelManager` (the shared builder, with the enemy and collectible hooks) |
+| `src/games/brave-adventurer/src/brave_adventurer_core/drawing.py` | The terrain drawing and the four parallax layers |
+| `src/games/brave-adventurer/src/brave_adventurer_core/sounds.py` | The synthesized effects and `GameSounds` |
+| `src/games/brave-adventurer/src/brave_adventurer/__init__.py` | Exports `main` (the `brave-adventurer` console script) |
+| `src/games/brave-adventurer/src/brave_adventurer/game.py` | `BraveAdventurerScene`: camera, parallax, level, controls, `dt_tick` order, terrain and enemy collision, death and respawn, high scores, input handlers, `render()`, pits, HUD; `main()` |
+| `src/games/brave-adventurer/src/brave_adventurer/player.py` | `Player`: physics body, state machine, the pose drawn in `dt_tick`, the common pose x-range |
+| `src/games/brave-adventurer/src/brave_adventurer/terrain.py` | `GoldScarab` |
+| `src/games/brave-adventurer/src/brave_adventurer/enemies.py` | `Cobra`, `Scarab`, `Scorpion` |
+| `src/games/brave-adventurer/src/brave_adventurer/levels.py` | `ClassicLevelManager` |
+| `src/games/brave-adventurer/src/brave_adventurer/drawing.py` | The classic sprites' primitive drawing: the player, the gold scarab, the enemies |
+| `src/games/brave-adventurer/src/brave_adventurer/constants.py` | The classic sprites' sizes and colours, the arm and leg swing |
+| `src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py` | `PapyrusBraveAdventurerScene` (the scene's parallel copy); `main()` |
+| `src/games/brave-adventurer/src/brave_adventurer_papyrus/player.py` | `PapyrusPlayer` |
+| `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | `PapyrusCobra`, `PapyrusScarab`, `PapyrusScorpion` |
+| `src/games/brave-adventurer/src/brave_adventurer_papyrus/terrain.py` | `PapyrusGoldScarab`; re-exports the shared `GroundSegment` and `StoneWall` |
+| `src/games/brave-adventurer/src/brave_adventurer_papyrus/levels.py` | `PapyrusLevelManager`; re-exports `LEVEL_1` |
+| `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py` | Colour key to alpha, 2x scaling, `hitbox_scale` |
+| `src/games/brave-adventurer/src/brave_adventurer_papyrus/constants.py` | Re-exports the shared constants; `SPRITE_SCALE`, the Papyrus heights, `SPRITES_DIR` |
+| `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprites/*.toml` | The pixel art, hitboxes and state machines |
 | `glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The engine's pause and game-over screens |
-| `tests/examples/test_brave_adventurer_game.py`, `test_brave_adventurer_sounds.py` | The game's tests |
-| `tests/fixtures/replays/brave-adventurer*/golden.jsonl.gz` | The golden replays |
+| `src/games/brave-adventurer/tests/` (`core/`, `classic/`, `papyrus/`) | The games' tests |
+| `src/games/brave-adventurer/tests/fixtures/replays/golden-*.jsonl.gz` | The golden replays |
 | `tests/world/golden/brave_adventurer*.jsonl.gz` | The golden traces |
 | `scripts/record_scripted_session.py`, `scripts/record_golden_traces.py` | The scripts that record them, with the input scripts |

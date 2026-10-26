@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
-from brave_adventurer.constants import (
+from brave_adventurer_core.constants import (
     DEATH_RUMBLE_DURATION,
     DEATH_RUMBLE_HIGH,
     DEATH_RUMBLE_LOW,
@@ -20,13 +20,13 @@ from brave_adventurer.constants import (
     GAME_OVER_RUMBLE_HIGH,
     GAME_OVER_RUMBLE_LOW,
 )
-from brave_adventurer.drawing import (
+from brave_adventurer_core.drawing import (
     draw_dunes_and_oasis,
     draw_near_ground_details,
     draw_pyramids,
     draw_sky,
 )
-from brave_adventurer.sounds import GameSounds
+from brave_adventurer_core.sounds import GameSounds
 from brave_adventurer_papyrus.constants import (
     CAMERA_LEAD,
     COLLECTIBLE_SCORE_BONUS,
@@ -68,7 +68,7 @@ from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 if TYPE_CHECKING:
     import argparse
 
-    from brave_adventurer.terrain import GroundSegment, StoneWall
+    from brave_adventurer_core.terrain import GroundSegment, StoneWall
     from brave_adventurer_papyrus.enemies import (
         PapyrusCobra,
         PapyrusScarab,
@@ -184,7 +184,7 @@ class PapyrusBraveAdventurerScene(Scene):
         # Persistence
         self.saves: SaveManager = open_saves(app_name='brave-adventurer-papyrus')
 
-        # Sound effects (shared from original edition)
+        # Sound effects (shared with the classic edition: brave_adventurer_core)
         self.sounds = GameSounds()
 
         # Track whether player was airborne last frame (for land sound)
