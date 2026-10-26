@@ -4,6 +4,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 231. A Refused Save Closes the Dialog Instead of Letting the Name Be Retyped
+- **Description**: When Save refuses a file name (for example a ':' on macOS, or on Windows outside the drive designator), `SaveDialogScene.on_confirm_event` (`src/glitchygames/ui/dialogs.py`) shows the message through `_show_save_error` in the editor's status (debug) text, as a failed save does, and then dismisses the dialog. The user has to reopen Save and retype the name
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: Found in the workspace-packages Part 4 final review
+- **Date Reported**: 2026-10-26
+- **Details**: Expected: the dialog stays open with the name still editable and the message shown, so the name can be corrected in place. The refusal path in `on_confirm_event` calls `self.dismiss()` after `_show_save_error`; keeping the dialog open means showing the message inside the dialog (`_show_save_error` writes to the previous scene's debug text, which is behind the dialog). Filed, not fixed, by the owner's decision
+- **Files**: `src/glitchygames/ui/dialogs.py`
+
 ### 230. Brave Adventurer's Respawn Clamp Can Make the Player's X the Int 0
 - **Description**: `BraveAdventurerScene._respawn_player` (`src/games/brave-adventurer/src/brave_adventurer_core/scene.py`, around line 750) computes `respawn_x = max(0, self.player.world_x - RESPAWN_OFFSET)`. When the player dies within `RESPAWN_OFFSET` (200) pixels of the start, `max` returns the int `0`, not a float, and that int becomes `self.player.world_x`, which is a float everywhere else
 - **Status**: Active
