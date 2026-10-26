@@ -6,8 +6,8 @@ sub-plan, linked both ways from here (sub-plans link back to this file).
 
 ## What it is
 
-A `glitchygames` console script (`[project.scripts] glitchygames = "glitchygames.arcade:main"`)
-and a browser bundle (`nox -s browser -- glitchygames`) that open an arcade front end for every
+A `glitchygames` console script, from the Arcade app at `src/apps/arcade/` (its own workspace
+package, distribution `arcade`; the owner, 2026-10-25), and a browser bundle (`nox -s browser -- glitchygames`) that open an arcade front end for every
 game the engine ships. One screen, one process (the browser cannot start child processes:
 Pyodide has no subprocesses, which is why Bitmappy's AI worker is off there and replay restarts
 only show a message there).
@@ -137,7 +137,7 @@ lists "inner frames handed to a sink rather than presented" as a later user of t
 
 ### 3. The Arcade
 
-`src/glitchygames/arcade/`, an ordinary outer game: its scene holds nine `DemoPlayer`s, draws the
+`src/apps/arcade/arcade/` (the app's package), an ordinary outer game: its scene holds nine `DemoPlayer`s, draws the
 top frame, separator and grid, runs the reel (bars, chime, demo) and the highlight, and shares
 the frame budget. One Arcade frame:
 
@@ -156,18 +156,21 @@ only, as the watched replay's controls get it today.
 
 ### 4. Launching in the same process
 
-A registry of the games (console script or module, display name, demo recording, the game's
-scene and its startup: options, `NAME`, `TARGET_FPS`), derived from `[project.scripts]` as
-`glitchygames.testing.replays.console_script_in_module` does, plus the three small demos
-(`src/glitchygames/examples/dt_demo.py`, `joystick_demo.py`, `text_input_demo.py`), which have no
-console script. Launching builds the game in a fresh context and runs it until it quits; then
+The Arcade's `pyproject.toml` lists every game, demo and app it shows as a dependency (workspace
+sources), so installing the Arcade installs them; a test keeps that list equal to the games,
+demos and apps layers (adding a game without adding it to the Arcade fails the suite). Each of
+them declares itself through an entry point (e.g. `[project.entry-points."glitchygames.games"]
+paddleslap = "paddleslap:GAME"`: display name, demo recording, scene and startup: options,
+`NAME`, `TARGET_FPS`), and the Arcade discovers them that way, knowing no module names (the
+owner, 2026-10-25; it fits the recording ids of plans/future-features.md #55). The exact
+entry-point contract is this sub-plan's to define. Launching builds the game in a fresh context and runs it until it quits; then
 the Arcade's context comes back. The window takes the game's resolution, and the Arcade's again
 after.
 
 ### 5. Demos for all nine
 
-One recording per game, bundled (`src/glitchygames/examples/<game>_demos/<name>.jsonl.gz`, as
-PaddleSlap's `rally.jsonl.gz`), recorded with `scripts/record_scripted_session.py --script-only
+One recording per game, bundled inside each game's own package (`<package>/demos/<name>.jsonl.gz`,
+e.g. `src/games/paddleslap/paddleslap/demos/rally.jsonl.gz` after the migration), recorded with `scripts/record_scripted_session.py --script-only
 --output PATH`, each replayed headless by `tests/replay/test_bundled_demos.py`. Bitmappy's shows a
 sprite being drawn; the joystick demo's shows its readout answering a recorded pad.
 
@@ -225,12 +228,22 @@ sprite being drawn; the joystick demo's shows its readout answering a recorded p
    inner-game runner, the viewer and playback scope on it, fast-forward, the frame budget,
    poster frames.
 3. **Demos for all nine games** (can run beside 1 and 2).
-4. **The Arcade screen, reel and chime:** `src/glitchygames/arcade/`, the console script, layout,
+4. **The Arcade screen, reel and chime:** the app `src/apps/arcade/`, the console script, layout,
    highlight, input, idle time-out, the chime recipe.
-5. **Launching in the same process:** the registry, fresh contexts for games, return, window size.
+5. **Launching in the same process:** discovery by entry point, fresh contexts for games, return,
+   window size.
 6. **The browser bundle:** `nox -s browser -- glitchygames`.
 
 ## Decisions (the user, 2026-10-23 and 2026-10-25)
+
+- The Arcade is an app, `src/apps/arcade/` (2026-10-25): not in the engine (the engine cannot
+  depend on the games that depend on it) and not in `src/games/` (it is not a game, so every
+  "for each game" rule stays exceptionless). It depends on every game, demo and app it shows,
+  kept equal to the layers by a test, and discovers them by entry point. Where it appears in the
+  showcase (first on the play page) is presentation, not its directory.
+- **Open:** the tile count. The grid was drawn as 3x3 for nine (five games, Bitmappy, three
+  demos); Drawing Fire makes ten. To decide before the screen sub-plan: a 4x3 grid with two
+  empty cells, a scrolling grid, or which entries get a tile.
 
 - One process, in-process engine contexts (D1); child processes are not a fallback (the browser
   has none). Launching a game is in-process too.

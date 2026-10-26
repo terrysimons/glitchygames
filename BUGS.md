@@ -4,6 +4,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 225. A World-Space Test Failed Once on the Native Driver: `WorldSprite` Has No `on_mouse_focus_event`
+- **Description**: In one full `uv run pytest` run on the docs scrub branch (2026-10-25, macOS), the native (cocoa) child run failed `test_world_sprite_is_positioned_before_render` with `AttributeError: 'WorldSprite' object has no attribute 'on_mouse_focus_event'`. It did not reproduce in the harness's re-run of the differing test or in a second full run (20,524 passed, 0 driver differences). The branch changed only docs and a docs guard test, so this is an existing order-dependent failure: likely a mouse focus event (cocoa's live window gains or loses focus) reaching a test sprite that does not implement the handler, depending on which test ran before it on that worker
+- **Status**: Active
+- **Priority**: Medium (an intermittent failure on the native run fails the whole `pytest` command)
+- **Reporter**: The docs scrub's verification run
+- **Date Reported**: 2026-10-25
+- **Details**: The first run's log was kept outside the repository (the scrub's scratch `scrub-fix-suite-run1.log`). To investigate: find which test sprite class is named `WorldSprite` in the world-space tests, whether the scene routes window focus events to its sprites, and whether a test before it on the same worker leaves the window focused or a focus event queued (the display canvas fixture presents between tests)
+- **Files**: the world-space tests (`test_world_sprite_is_positioned_before_render`), the scene's mouse focus event routing
+
 ### 224. Smaller Findings From the Workspace Packages Part 1 Reviews
 - **Description**: The task reviews and the final whole-branch review of workspace packages Part 1 (plans/2026-10-24-workspace-packages-1-foundation.md, 2026-10-25) recorded these minor findings; the final reviewer triaged them and none blocks the merge. The critical and important findings were fixed on the branch. Before Part 2 adds more members, item 31 (members' test helper modules colliding by basename) should be settled
 - **Status**: Active
