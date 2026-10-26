@@ -10,7 +10,7 @@ import copy
 import logging
 import math
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, cast, override
+from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
     import argparse
@@ -262,22 +262,21 @@ class Game(Scene):
         """
         # Track trajectory over time to detect curving (BallSprite starts the history empty)
         drawn_x, drawn_y = snapped_world_position(ball, ball.world_x, ball.world_y)
-        ball._debug_positions.append((drawn_x, drawn_y, ball.speed.x, ball.speed.y))  # type: ignore[attr-defined]
-
-        # Keep only last positions for trajectory analysis
-        if len(ball._debug_positions) > DEBUG_TRAJECTORY_HISTORY_SIZE:  # type: ignore[attr-defined]
-            ball._debug_positions.pop(0)  # type: ignore[attr-defined]
+        ball.record_trajectory_point(
+            x=drawn_x,
+            y=drawn_y,
+            speed_x=ball.speed.x,
+            speed_y=ball.speed.y,
+            limit=DEBUG_TRAJECTORY_HISTORY_SIZE,
+        )
 
         # Check for upward curving pattern
-        if len(ball._debug_positions) >= MIN_TRAJECTORY_POSITIONS_FOR_CURVE:  # type: ignore[attr-defined]
-            positions = cast(
-                'list[tuple[int, int, float, float]]',
-                ball._debug_positions,  # type: ignore[attr-defined]
-            )
+        positions = ball.trajectory
+        if len(positions) >= MIN_TRAJECTORY_POSITIONS_FOR_CURVE:
             # Calculate if ball is curving upward
-            y_positions: list[int] = [pos[1] for pos in positions]
+            y_positions: list[float] = [pos[1] for pos in positions]
             if len(set(y_positions)) > 1:  # Only if Y is changing
-                y_trend: int = y_positions[-1] - y_positions[0]
+                y_trend: float = y_positions[-1] - y_positions[0]
                 if y_trend < UPWARD_CURVE_Y_TREND_THRESHOLD:  # Moving upward significantly
                     log.debug(
                         'BALL %s UPWARD CURVE DETECTED: '

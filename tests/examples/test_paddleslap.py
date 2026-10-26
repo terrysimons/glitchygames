@@ -462,7 +462,7 @@ class TestPaddleslapBallTrajectoryLogging:
             for _ in range(3):
                 game.dt_tick(0.01)
 
-        assert ball._debug_positions == []
+        assert ball.trajectory == ()
         assert 'BALL 1 BEFORE' not in caplog.text
         assert 'BALL 1 AFTER' not in caplog.text
         assert 'BALL 1 COLLISION CHECK' not in caplog.text
@@ -480,7 +480,7 @@ class TestPaddleslapBallTrajectoryLogging:
             for _ in range(7):
                 game.dt_tick(0.01)
 
-        assert len(ball._debug_positions) == 7
+        assert len(ball.trajectory) == 7
         assert 'BALL 1 BEFORE: pos=(' in caplog.text
         assert 'BALL 1 AFTER:  pos=(' in caplog.text
         assert 'BALL 1 COLLISION CHECK: pos=(' in caplog.text
@@ -706,8 +706,8 @@ class TestPaddleslapDebugLoggingDetails:
             for _ in range(12):
                 game.dt_tick(0.01)
 
-        assert len(ball._debug_positions) == 10
-        assert {position[1] for position in ball._debug_positions} == {300}
+        assert len(ball.trajectory) == 10
+        assert {position[1] for position in ball.trajectory} == {300}
         assert 'UPWARD CURVE DETECTED' not in caplog.text
 
     def test_dead_balls_are_not_logged(self, caplog):
@@ -725,7 +725,7 @@ class TestPaddleslapDebugLoggingDetails:
         assert 'BALL 2 AFTER' not in caplog.text
         assert 'BALL 2 COLLISION CHECK' not in caplog.text
         assert dead_ball not in game.balls
-        assert dead_ball._debug_positions == []
+        assert dead_ball.trajectory == ()
 
 
 class TestPaddleslapHighScores:
