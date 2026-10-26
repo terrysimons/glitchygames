@@ -7,12 +7,32 @@ import multiprocessing
 import types
 from datetime import UTC, datetime, timedelta
 
+import pygame
 import pytest
 
 from glitchygames import clock
+from glitchygames.engine_context import EngineContext
+from glitchygames.input.devices import JOYSTICK_COUNT_CALL, EnumerationAnswer
 from glitchygames.live_sources import LiveSources
+from glitchygames.randomness import seed_engine_random
 from glitchygames.replay.driver import ReplaySources
-from glitchygames.sources import advance_frame_clock, install_sources
+from glitchygames.sources import (
+    SourcesAlreadyRunningError,
+    active_sources,
+    advance_frame_clock,
+    has_scoped_sources,
+    install_sources,
+    mark_frames_started,
+    notify_device_answer,
+    notify_save_store_opened,
+    observe_device_answers,
+    observe_save_store_openings,
+    pending_redelivered_events,
+    push_scoped_sources,
+    redeliver_events,
+    reset_sources,
+)
+from glitchygames.state import MemorySaveManager
 
 # Every door and clock module, each imported first and alone in a fresh interpreter: an import
 # cycle between them fails here instead of at game start (layering rule, core Task 2)
@@ -132,3 +152,92 @@ def test_clock_exports_read_the_active_sources():
     install_sources(sources=FixedClockSources(random_seed=1))
     advance_frame_clock(seconds=2.0)
     assert clock.wall_clock_time() == FixedClockSources.START + timedelta(seconds=2)
+
+
+# Master seeds of the contexts' doors below
+DEFAULT_DOORS_SEED = 11
+SECOND_DOORS_SEED = 22
+
+
+class HeardAnswers:
+    """Keeps every save-store opening and device answer it is told of."""
+
+    def __init__(self) -> None:
+        """Start having heard nothing."""
+        self.save_namespaces: list[str] = []
+        self.device_answers: list[EnumerationAnswer] = []
+
+    def on_save_store_opened(self, *, namespace, store) -> None:
+        """Keep the namespace."""
+        self.save_namespaces.append(namespace)
+
+    def on_device_answer(self, *, answer, opened) -> None:
+        """Keep the answer."""
+        self.device_answers.append(answer)
+
+
+def test_each_engine_context_has_its_own_doors_frame_clock_and_held_events():
+    """Doors, frames started, the frame clock and held events are per context (audit C5)."""
+    second = EngineContext(name='second')
+    default_doors = LiveSources(random_seed=DEFAULT_DOORS_SEED)
+    install_sources(sources=default_doors)
+    advance_frame_clock(seconds=0.25)
+    mark_frames_started()
+    redeliver_events(events=[(pygame.event.Event(pygame.USEREVENT, code=1), 'internal')])
+
+    with second.active():
+        assert clock.frame_clock_seconds() == 0.0
+        assert pending_redelivered_events() == []
+        # This context's frames have not started, whatever the default context's did
+        second_doors = LiveSources(random_seed=SECOND_DOORS_SEED)
+        install_sources(sources=second_doors)
+        push_scoped_sources(sources=FixedClockSources(random_seed=SECOND_DOORS_SEED))
+        assert has_scoped_sources()
+        advance_frame_clock(seconds=1.0)
+
+    assert active_sources() is default_doors
+    assert not has_scoped_sources()
+    assert clock.frame_clock_seconds() == 0.25
+    assert [event.code for event, _origin in pending_redelivered_events()] == [1]
+    with pytest.raises(SourcesAlreadyRunningError):
+        install_sources(sources=LiveSources(random_seed=DEFAULT_DOORS_SEED))
+    with second.active():
+        assert has_scoped_sources()
+        assert clock.frame_clock_seconds() == 1.0
+        reset_sources()
+        assert active_sources() is not second_doors
+
+
+def test_a_contexts_first_live_doors_take_that_contexts_master_seed():
+    """Review Focus 5: doors made on first use read the master seed of their own context."""
+    second = EngineContext(name='second')
+    seed_engine_random(seed=DEFAULT_DOORS_SEED)
+
+    with second.active():
+        seed_engine_random(seed=SECOND_DOORS_SEED)
+        assert active_sources().random_seed == SECOND_DOORS_SEED
+        reset_sources()
+
+    assert active_sources().random_seed == DEFAULT_DOORS_SEED
+
+
+def test_observers_hear_only_their_own_contexts_openings_and_answers():
+    """A save-store or device-answer observer is told only of its own context's."""
+    second = EngineContext(name='second')
+    heard = HeardAnswers()
+    observe_save_store_openings(observer=heard)
+    observe_device_answers(observer=heard)
+    answer = EnumerationAnswer(call=JOYSTICK_COUNT_CALL, device_index=None, value=1)
+
+    with second.active():
+        notify_save_store_opened(
+            namespace='second-game', store=MemorySaveManager(app_name='second-game', snapshot={})
+        )
+        notify_device_answer(answer=answer, opened=None)
+    notify_save_store_opened(
+        namespace='default-game', store=MemorySaveManager(app_name='default-game', snapshot={})
+    )
+    notify_device_answer(answer=answer, opened=None)
+
+    assert heard.save_namespaces == ['default-game']
+    assert heard.device_answers == [answer]
