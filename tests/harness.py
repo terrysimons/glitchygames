@@ -22,10 +22,11 @@ from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
 import pygame
 from scripts.workspace_packages import ENGINE_DIRECTORY
 
-from glitchygames import pixel_snap, randomness, sources
+from glitchygames import engine_context, pixel_snap, randomness, sources
 from glitchygames.backgrounds import set_active_default_background_pattern
 from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
+from glitchygames.engine_context import current_context, default_context
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
 from glitchygames.input.state import reset_current_input
@@ -563,3 +564,23 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
             # driver it would stay black (under the last scene's caption) while the worker waits
             # for its next test, or for the run to end
             show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+
+# Defined last among the autouse fixtures. pytest orders a plugin's autouse fixtures of one scope
+# by name, not by where they are defined, so its teardown follows those named after it
+# (fresh_random_streams, reset_*, restore_*)
+@pytest.fixture(autouse=True)
+def every_test_ends_in_the_default_engine_context():
+    """Fail a test that leaves another engine context current (glitchygames.engine_context).
+
+    Every test starts in the default context. A switch that never unwound (a context manager
+    entered by hand and never exited) would leave its context current for every later test on
+    the worker, so the leak is undone before the test is failed.
+    """
+    yield
+    leaked_context = current_context()
+    if leaked_context is not default_context():
+        # A test-isolation reset, not an API: there is deliberately no public way to drop a
+        # switch without unwinding it (glitchygames.engine_context rule 5)
+        engine_context._CURRENT_CONTEXT.set(None)
+        pytest.fail(f'the test left the engine context {leaked_context.name!r} current')
