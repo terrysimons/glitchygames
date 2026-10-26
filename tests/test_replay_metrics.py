@@ -40,12 +40,17 @@ from glitchygames.recording_metrics import (
     read_ledger_file,
     read_row_files,
 )
-from glitchygames.tracing import read_trace
+from glitchygames.replay.driver import write_bookmarked_copy
+from glitchygames.tracing import is_bookmarked_copy, read_trace
 from tests.replay.test_replay_plugin import REPO_FIXTURE
 from tests.test_recording_metrics import ledger_row, with_uncommitted_changes
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 GIT_TIMEOUT_SECONDS = 60.0
+# A real golden to copy into a stand-in member (its header names the classic game)
+BRAVE_ADVENTURER_GOLDEN = (
+    PROJECT_ROOT / 'src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz'
+)
 
 
 def clean_revision() -> SourceRevision:
@@ -210,6 +215,33 @@ class TestTheRecordings:
             console_script,
             PROJECT_ROOT / 'src/games/brave-adventurer/tests/fixtures/replays' / golden,
         ) in recordings.replayable
+
+    def test_a_bookmarked_copy_beside_a_members_golden_is_not_measured(self, tmp_path):
+        """golden-classic.bookmarked.jsonl.gz matches golden*: it is a copy, not a golden."""
+        member = tmp_path / 'src' / 'games' / 'brave-adventurer'
+        (member / 'src' / 'brave_adventurer').mkdir(parents=True)
+        (tmp_path / 'pyproject.toml').write_text(
+            '[project]\nname = "stand-in"\n\n[tool.uv.workspace]\n'
+            'members = ["src/games/brave-adventurer"]\n',
+            encoding='utf-8',
+        )
+        (member / 'pyproject.toml').write_text(
+            '[project]\nname = "brave-adventurer"\n\n'
+            '[tool.hatch.build.targets.wheel]\npackages = ["src/brave_adventurer"]\n',
+            encoding='utf-8',
+        )
+        fixtures = member / 'tests' / 'fixtures' / 'replays'
+        fixtures.mkdir(parents=True)
+        golden = fixtures / 'golden-classic.jsonl.gz'
+        shutil.copy(BRAVE_ADVENTURER_GOLDEN, golden)
+        bookmarked = fixtures / 'golden-classic.bookmarked.jsonl.gz'
+        write_bookmarked_copy(recording_path=golden, bookmarks=[1], destination=bookmarked)
+        assert is_bookmarked_copy(path=bookmarked)
+
+        recordings = metric_recordings(project_root=tmp_path)
+
+        assert recordings.replayable == (('brave-adventurer', golden),)
+        assert not recordings.unreplayable
 
     def test_a_member_that_is_not_installed_is_named_with_the_fix(self, tmp_path):
         """A plain `uv sync` uninstalls the members: one line naming `uv sync --all-packages`."""

@@ -19,7 +19,6 @@ from scripts.sprite_stack import (
 
 import glitchygames.sprites
 import glitchygames.sprites.frame as frame_module
-from brave_adventurer_papyrus.constants import SPRITES_DIR as PAPYRUS_SPRITES_DIRECTORY
 from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import (
     AnimatedSpriteInterface,
@@ -3162,7 +3161,8 @@ blue = 0
 
     def test_frame_anchor_survives_a_save_and_reload(self, tmp_path):
         """[sprite] frame_anchor is written back (the path Bitmappy's save uses) and reloads."""
-        source = PAPYRUS_SPRITES_DIRECTORY / 'player.toml'
+        # The engine's running girl: four animations, each frame with its own hitbox
+        source = ENGINE_PACKAGE_DIRECTORY / 'examples' / 'resources' / 'sprites' / 'girl.toml'
         toml_file = tmp_path / 'anchored.toml'
         toml_file.write_text(
             source.read_text(encoding='utf-8').replace(

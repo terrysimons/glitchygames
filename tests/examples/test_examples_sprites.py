@@ -13,7 +13,6 @@ import numpy as np
 import pygame
 import pytest
 
-from brave_adventurer_papyrus.constants import SPRITES_DIR as PAPYRUS_SPRITES_DIRECTORY
 from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import SpriteFactory
 from tests.harness import imported_engine_directory
@@ -301,26 +300,22 @@ if __name__ == '__main__':
     pytest.main([__file__, '-v'])
 
 
-# The engine's sprites, then the Papyrus Edition's (in its own package since it moved into
-# src/games/brave-adventurer)
+# The engine's sprites. A game moved into its own package checks its sprites with these tests
+# from its own tests (Papyrus's: src/games/brave-adventurer/tests/papyrus/)
 BUNDLED_SPRITE_FILES = sorted([
     *(ENGINE_PACKAGE_DIRECTORY / 'examples').glob('**/sprites/*.toml'),
     *(ENGINE_PACKAGE_DIRECTORY / 'assets').glob('*.toml'),
-    *PAPYRUS_SPRITES_DIRECTORY.glob('*.toml'),
 ])
 
 
 def _sprite_file_test_id(sprite_file: Path) -> str:
-    """Name a bundled sprite file relative to its package (the same id under nox and uv run).
+    """Name a bundled sprite file relative to the engine (the same id under nox and uv run).
 
     Returns:
-        str: The file's path inside the engine package, e.g. ``assets/eraser.toml``, or a game
-        package's file by its package (``brave_adventurer_papyrus/sprites/cobra.toml``).
+        str: The file's path inside the engine package, e.g. ``assets/eraser.toml``.
 
     """
-    if sprite_file.is_relative_to(ENGINE_PACKAGE_DIRECTORY):
-        return sprite_file.relative_to(ENGINE_PACKAGE_DIRECTORY).as_posix()
-    return sprite_file.relative_to(PAPYRUS_SPRITES_DIRECTORY.parent.parent).as_posix()
+    return sprite_file.relative_to(ENGINE_PACKAGE_DIRECTORY).as_posix()
 
 
 def _pixel_blocks(sprite_data: dict) -> list[tuple[str, str]]:
@@ -568,47 +563,6 @@ def test_bundled_transitions_survive_a_save_round_trip(sprite_file, tmp_path):
 
     saved_data = tomllib.loads(saved_file.read_text(encoding='utf-8'))
     assert saved_data.get('transition', []) == original_data.get('transition', [])
-
-
-@pytest.mark.usefixtures('real_display')
-@pytest.mark.parametrize(
-    ('sprite_file', 'expected_pairs'),
-    [
-        (
-            PAPYRUS_SPRITES_DIRECTORY / 'player.toml',
-            [
-                ('idle', 'running'),
-                ('running', 'idle'),
-                ('idle', 'jumping'),
-                ('running', 'jumping'),
-                ('falling', 'idle'),
-                ('jumping', 'idle'),
-                # Expressions phase 2 moved the falling transitions into the TOML, appended last
-                ('idle', 'falling'),
-                ('jumping', 'falling'),
-                ('running', 'falling'),
-            ],
-        ),
-        (
-            PAPYRUS_SPRITES_DIRECTORY / 'cobra.toml',
-            [('idle', 'strike'), ('strike', 'idle')],
-        ),
-    ],
-    ids=['papyrus-player', 'cobra'],
-)
-def test_state_machine_transitions_reload_in_order(sprite_file, expected_pairs, tmp_path):
-    """The reloaded sprite's state machine has the same transitions in the same order."""
-    from glitchygames.sprites import AnimatedSprite
-
-    saved_file = tmp_path / sprite_file.name
-    AnimatedSprite(str(sprite_file)).save(str(saved_file), 'toml')
-    reloaded_sprite = AnimatedSprite(str(saved_file))
-
-    assert reloaded_sprite.state_machine is not None
-    assert [
-        (transition.from_state, transition.to_state)
-        for transition in reloaded_sprite.state_machine._transitions
-    ] == expected_pairs
 
 
 @pytest.mark.usefixtures('real_display')

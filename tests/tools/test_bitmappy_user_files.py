@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import shutil
 
-from brave_adventurer_papyrus.constants import SPRITES_DIR as PAPYRUS_SPRITES_DIRECTORY
 from glitchygames.user_files import install_user_files
+from tests.harness import imported_engine_directory
 
-# A real sprite file, named 'scarab' in its [sprite] table
-SPRITE_FILE = PAPYRUS_SPRITES_DIRECTORY / 'scarab.toml'
+# A real sprite file of the engine's own (installed: never the source tree by accident), named
+# 'bttlaxe.get' in its [sprite] table
+SPRITE_FILE = imported_engine_directory() / 'examples' / 'resources' / 'sprites' / 'battle_axe.toml'
 
 
 class RecordingUserFiles:
@@ -55,4 +56,4 @@ class TestLoadThroughUserFiles:
         bitmap_editor.load_opened_file(opened_copy)
 
         assert bitmap_editor.canvas.animated_sprite is not sprite_before
-        assert bitmap_editor.canvas.animated_sprite.name == 'scarab'
+        assert bitmap_editor.canvas.animated_sprite.name == 'bttlaxe.get'

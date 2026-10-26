@@ -510,7 +510,7 @@ deliberately, after finding out why it changed (the scripts' docstrings give the
 | `tests/world/test_golden_traces.py` | The golden traces above |
 | `tests/replay/test_golden_replays.py` and the golden replay items | The golden replays above, and which controls they exercise |
 | `tests/collision/test_collision.py` | The Cobra's hitbox follows its drawing; Papyrus hitboxes scale with `SPRITE_SCALE` |
-| `tests/examples/test_examples_sprites.py` | The Papyrus TOML sprites load, and their `[[transition]]` sections survive a save round trip |
+| `src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus_sprite_files.py` | The Papyrus TOML sprites pass the engine's sprite-file checks (`tests/examples/test_examples_sprites.py`: equal rows; timings, hitboxes, pixels, metadata and `[[transition]]` sections survive a save round trip), and their state machines reload in order |
 
 ## The Papyrus Edition
 

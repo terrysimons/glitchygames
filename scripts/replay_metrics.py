@@ -81,7 +81,7 @@ from glitchygames.testing.replays import (
     rebaseline_recording_headless,
     recording_console_script,
 )
-from glitchygames.tracing import read_trace
+from glitchygames.tracing import is_bookmarked_copy, read_trace
 from scripts.workspace_packages import workspace_members
 
 if TYPE_CHECKING:
@@ -190,15 +190,19 @@ def metric_recordings(*, project_root: Path) -> MetricRecordings:
 
     Returns:
         The recordings: those a console script replays, and those none does (a workspace member
-        not installed: ``uv sync --all-packages`` installs every member).
+        not installed: ``uv sync --all-packages`` installs every member). Bookmarked copies
+        (``glitchygames.tracing.is_bookmarked_copy``) are left out.
 
     """
     goldens: list[tuple[str, Path]] = []
     unreplayable: list[UnreplayableRecording] = []
+    # A bookmarked copy (S saves one beside a recording a watched replay plays:
+    # golden-classic.bookmarked.jsonl.gz) matches a member's glob but is no golden
     for path in sorted(
         path
         for glob in golden_replay_globs(project_root=project_root)
         for path in project_root.glob(glob)
+        if not is_bookmarked_copy(path=path)
     ):
         try:
             goldens.append((recording_console_script(path=path), path))
