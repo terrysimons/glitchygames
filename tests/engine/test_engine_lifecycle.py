@@ -734,6 +734,7 @@ GAME_CONSOLE_SCRIPTS = (
     'brave-adventurer',
     'clockwork-keep',
     'drawing-fire',
+    'dt-demo',
     'mr-muncher',
     'paddleslap',
 )

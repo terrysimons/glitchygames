@@ -18,8 +18,8 @@ from glitchygames.events.base import HashableEvent
 from glitchygames.examples import text_input_demo
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
+from tests.demo_runs import engine_run_environment, run_demo_main
 from tests.display_canvas import show_canvas_on_new_display
-from tests.examples.demo_runs import engine_run_environment, run_demo_main
 
 if TYPE_CHECKING:
     from collections.abc import Generator

@@ -27,6 +27,7 @@ _CODE_DIRS = [
     'src/games/clockwork-keep',
     'src/games/paddleslap',
     'src/games/drawing-fire',
+    'src/demos/dt-demo',
     'src/apps/bitmappy',
     'scripts',
     'tests',
@@ -42,6 +43,7 @@ _SOURCE_PACKAGE_DIRS = [
     'src/games/clockwork-keep/src/clockwork_keep',
     'src/games/paddleslap/src/paddleslap',
     'src/games/drawing-fire/src/drawing_fire',
+    'src/demos/dt-demo/src/dt_demo',
     'src/apps/bitmappy/src/bitmappy',
 ]
 # The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
@@ -53,6 +55,7 @@ _MEMBER_DISTRIBUTIONS = [
     'clockwork-keep',
     'paddleslap',
     'drawing-fire',
+    'dt-demo',
     'bitmappy',
 ]
 

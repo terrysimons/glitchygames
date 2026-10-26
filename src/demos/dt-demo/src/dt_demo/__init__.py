@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
-"""Delta Time Demo."""
+"""Delta Time Demo: a square crossing the screen at a speed independent of the frame rate.
+
+Run it with the ``dt-demo`` console script or ``python -m dt_demo``; Space starts the square.
+"""
 
 from __future__ import annotations
 
@@ -144,7 +146,3 @@ class Game(Scene):
 def main() -> None:
     """Run the main entry point for the game."""
     GameEngine(game=Game).start()
-
-
-if __name__ == '__main__':
-    main()

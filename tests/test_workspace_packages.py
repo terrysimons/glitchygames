@@ -201,13 +201,12 @@ def test_this_repositorys_members_are_read():
 
 
 # Part 2's and Part 4's end state (plans/2026-10-24-workspace-packages.md): every game and
-# Bitmappy are members, so the engine's examples hold only the three demos (Part 3 moves them)
-# and resources/ (which still holds snd/), beside foo2.toml (Part 3 moves it to the one test that
-# reads it)
+# Bitmappy are members, so the engine's examples hold only the demos Part 3 has not moved yet (the
+# dt demo is a member of the demos layer) and resources/ (which still holds snd/), beside
+# foo2.toml (Part 3 moves it to the one test that reads it)
 ENGINE_EXAMPLES_DIRECTORY = PROJECT_ROOT / 'src' / 'glitchygames' / 'examples'
 ENGINE_EXAMPLES_NOT_CHECKED = frozenset({'__init__.py', '__pycache__', 'foo2.toml'})
 ENGINE_EXAMPLES_AFTER_PART_2 = frozenset({
-    'dt_demo.py',
     'joystick_demo.py',
     'text_input_demo.py',
     'resources',
@@ -256,7 +255,7 @@ def tracked_entry_names(*, directory: Path) -> set[str]:
 
 
 def test_the_engines_examples_hold_only_the_demos_and_their_resources():
-    """The engine's examples are its three demos and resources/: each game moved to its member."""
+    """The engine's examples are its unmoved demos and resources/: each game moved to its member."""
     entries = tracked_entry_names(directory=ENGINE_EXAMPLES_DIRECTORY)
 
     assert entries - ENGINE_EXAMPLES_NOT_CHECKED == ENGINE_EXAMPLES_AFTER_PART_2

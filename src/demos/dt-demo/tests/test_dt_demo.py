@@ -1,8 +1,8 @@
-"""Test the Delta Time demo (glitchygames/examples/dt_demo.py): real pygame, the real display.
+"""Test the Delta Time demo (the dt_demo package): real pygame, the real display.
 
-The demo has no console script; it runs with ``python -m glitchygames.examples.dt_demo``. Space
-starts a white square moving at 300 pixels per second, frame-rate independently; the time it
-takes to cross the screen is shown when it leaves.
+The demo runs with its ``dt-demo`` console script or ``python -m dt_demo``. Space starts a white
+square moving at 300 pixels per second, frame-rate independently; the time it takes to cross the
+screen is shown when it leaves.
 """
 
 from __future__ import annotations
@@ -13,13 +13,13 @@ from typing import TYPE_CHECKING, cast
 import pygame
 import pytest
 
+import dt_demo
 from glitchygames.color import WHITE
 from glitchygames.events.base import HashableEvent
-from glitchygames.examples import dt_demo
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from glitchygames.input.state import InputSnapshot, set_current_input
-from tests.examples.demo_runs import engine_run_environment, run_demo_main
+from tests.demo_runs import engine_run_environment, run_demo_main
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -229,7 +229,7 @@ def test_args_add_the_demos_options() -> None:
 
 @pytest.mark.usefixtures('engine_run')
 def test_main_runs_the_demo_until_it_quits(mocker: MockerFixture) -> None:
-    """``python -m glitchygames.examples.dt_demo`` runs the demo, which draws its first frames."""
+    """``python -m dt_demo`` (and ``dt-demo``) runs the demo, which draws its first frames."""
     script = run_demo_main(mocker=mocker, module=dt_demo, main=dt_demo.main)
 
     assert script.scenes_seen

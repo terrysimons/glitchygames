@@ -1,7 +1,9 @@
-"""Run a small example demo's ``main()`` through the real engine, headless, for a few frames.
+"""Run a small demo's ``main()`` through the real engine, headless, for a few frames.
 
-The demos without a console script (``dt_demo``, ``text_input_demo``) are run with ``python -m``.
-Their ``main()`` builds ``GameEngine(game=Game)`` and starts it; the tests run that same
+A root test helper (it imports ``scripts.record_golden_traces``), shared by the demos' tests: the
+demos layer's members (``src/demos/dt-demo/tests``) and the demos still in glitchygames/examples
+(``tests/examples``). A demo runs with its console script (``dt-demo``) or ``python -m``. Its
+``main()`` builds ``GameEngine(game=Game)`` and starts it; the tests run that same
 ``main()`` with the module's ``GameEngine`` replaced by ``DemoRunEngine``: the real engine
 opening a plain window (SDL's dummy video driver has no renderer for GameEngine's SCALED window,
 and the "no fast renderer available" warning it gives is an error under pytest's
@@ -90,7 +92,8 @@ def run_demo_main(
 
     Args:
         mocker: pytest-mock's fixture.
-        module: The demo module (its ``GameEngine`` is replaced for the run).
+        module: The demo's module or package (its ``GameEngine`` is replaced for the run; its
+            ``__name__`` is the run's program name).
         main: The demo's ``main``.
         events_by_frame: The input script (default: none, so the game quits after frame 1).
         resolution: The display size, as --resolution takes it ('WIDTHxHEIGHT').

@@ -7,6 +7,7 @@
     "src/games/clockwork-keep",
     "src/games/paddleslap",
     "src/games/drawing-fire",
+    "src/demos/dt-demo",
     "src/apps/bitmappy",
     "tests",
     "scripts"
@@ -69,6 +70,7 @@
         "src/games/clockwork-keep/src",
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
+        "src/demos/dt-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -105,6 +107,7 @@
         "src/games/clockwork-keep/src",
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
+        "src/demos/dt-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -145,6 +148,7 @@
         "src/games/clockwork-keep/src",
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
+        "src/demos/dt-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -185,6 +189,7 @@
         "src/games/clockwork-keep/src",
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
+        "src/demos/dt-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -225,6 +230,7 @@
         "src/games/clockwork-keep/src",
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
+        "src/demos/dt-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -265,6 +271,7 @@
         "src/games/clockwork-keep/src",
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
+        "src/demos/dt-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,
@@ -296,6 +303,47 @@
       "extraPaths": ["src", "src/games/drawing-fire/src"]
     },
     {
+      "root": "src/demos/dt-demo/tests",
+      "extraPaths": [
+        ".",
+        "src",
+        "src/games/mr-muncher/src",
+        "src/games/brave-adventurer/src",
+        "src/games/clockwork-keep/src",
+        "src/games/paddleslap/src",
+        "src/games/drawing-fire/src",
+        "src/demos/dt-demo/src",
+        "src/apps/bitmappy/src"
+      ],
+      "reportArgumentType": false,
+      "reportCallIssue": false,
+      "reportFunctionMemberAccess": false,
+      "reportGeneralTypeIssues": false,
+      "reportIncompatibleMethodOverride": false,
+      "reportReturnType": false,
+      "reportUnnecessaryTypeIgnoreComment": false,
+      "reportUnknownMemberType": false,
+      "reportUnknownVariableType": false,
+      "reportUnknownArgumentType": false,
+      "reportUnknownParameterType": false,
+      "reportPrivateUsage": false,
+      "reportAttributeAccessIssue": false,
+      "reportOptionalMemberAccess": false,
+      "reportMissingTypeArgument": false,
+      "reportUnusedCallResult": false,
+      "reportImplicitOverride": false,
+      "reportImplicitStringConcatenation": false,
+      "reportMissingParameterType": false,
+      "reportUninitializedInstanceVariable": false,
+      "reportUnknownLambdaType": false,
+      "reportUnusedVariable": false,
+      "reportUnusedFunction": false
+    },
+    {
+      "root": "src/demos/dt-demo",
+      "extraPaths": ["src", "src/demos/dt-demo/src"]
+    },
+    {
       "root": "src/apps/bitmappy/tests",
       "extraPaths": [
         ".",
@@ -305,6 +353,7 @@
         "src/games/clockwork-keep/src",
         "src/games/paddleslap/src",
         "src/games/drawing-fire/src",
+        "src/demos/dt-demo/src",
         "src/apps/bitmappy/src"
       ],
       "reportArgumentType": false,

@@ -25,7 +25,7 @@ from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from glitchygames.input.devices import ReplayJoystick
 from glitchygames.input.input_devices import CONTROLLER_INPUT_EVENT_TYPES, ConnectedInputDevice
 from glitchygames.input.state import InputSnapshot, set_current_input
-from tests.examples.demo_runs import engine_run_environment, run_demo_main
+from tests.demo_runs import engine_run_environment, run_demo_main
 from tests.input.stand_in_devices import STAND_IN_PAD, STAND_IN_STICK, install_stand_in_devices
 
 if TYPE_CHECKING:

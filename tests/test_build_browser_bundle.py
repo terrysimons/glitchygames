@@ -662,8 +662,16 @@ def test_every_game_has_a_browser_build():
     """Each game's console script is a page under play/ (Papyrus was once left out).
 
     Brave Adventurer's two games are one console script and one page: the launcher's title
-    screen offers both.
+    screen offers both. The demos get no browser build (the user, 2026-10-26): a console script
+    of a member in the demos layer, as the workspace says, is left out.
     """
     scripts = declared_console_scripts(project_root=REPOSITORY_DIRECTORY)
+    demo_console_scripts = {
+        console_script
+        for member in workspace_members(project_root=REPOSITORY_DIRECTORY)
+        if member.layer == 'demos'
+        for console_script in member.console_scripts
+    }
 
-    assert set(GAMES) == set(scripts) - NOT_GAME_CONSOLE_SCRIPTS
+    assert 'dt-demo' in demo_console_scripts
+    assert set(GAMES) == set(scripts) - NOT_GAME_CONSOLE_SCRIPTS - demo_console_scripts
