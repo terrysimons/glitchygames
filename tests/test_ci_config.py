@@ -84,15 +84,19 @@ class RecordingSession:
         """Start with the session's arguments and no commands."""
         self.posargs = posargs
         self.commands: list[tuple[str, ...]] = []
+        # Each command's environment overrides (``env=``), by command
+        self.environments: dict[tuple[str, ...], object] = {}
         self.virtualenv = type('Virtualenv', (), {'location': '.nox/docs-deploy'})()
 
-    def run(self, *command: str, **_options: object) -> None:
-        """Record a command the session runs."""
+    def run(self, *command: str, **options: object) -> None:
+        """Record a command the session runs, and its environment overrides."""
         self.commands.append(command)
+        self.environments[command] = options.get('env')
 
-    def run_install(self, *command: str, **_options: object) -> None:
-        """Record an install command the session runs."""
+    def run_install(self, *command: str, **options: object) -> None:
+        """Record an install command the session runs, and its environment overrides."""
         self.commands.append(command)
+        self.environments[command] = options.get('env')
 
 
 def docs_deploy_commands(*, posargs: list[str]) -> list[tuple[str, ...]]:
@@ -115,6 +119,32 @@ def test_docs_deploy_measures_the_replays_by_default():
 
     assert any('measure' in command for command in commands)
     assert ('mkdocs', 'gh-deploy', '--strict') in commands
+
+
+def test_replay_metrics_runs_on_the_editable_install_of_every_package():
+    """Bundled demos are found where installed: editable, so in the repository, by its paths."""
+    import noxfile
+
+    session = RecordingSession(posargs=['--only', 'rally'])
+    noxfile.replay_metrics(session)
+
+    (command,) = session.commands
+    assert command[:4] == ('uv', 'run', '--frozen', '--all-packages')
+    assert command[-3:] == ('measure', '--only', 'rally')
+    assert '--no-editable' not in command
+    assert session.environments[command] == {'VIRTUAL_ENV': None, 'UV_NO_EDITABLE': None}
+
+
+def test_the_test_sessions_install_stays_built():
+    """The test sessions install the built packages on purpose (what a user installs)."""
+    import noxfile
+
+    session = RecordingSession(posargs=[])
+    noxfile._install_from_lockfile(session)
+
+    (command,) = session.commands
+    assert '--no-editable' in command
+    assert '--all-packages' in command
 
 
 def test_docs_deploy_with_no_measure_measures_nothing():

@@ -2,8 +2,8 @@
 
 The baselines in ``tests/world/golden/`` were recorded by ``scripts/record_golden_traces.py``
 before any world-space engine change (plans/2026-10-18-engine-world-space.md), for the games
-that existed then (``GOLDEN_TRACE_GAMES``; later games are covered by their golden replays under
-``tests/fixtures/replays/``). Each test
+that existed then (``GOLDEN_TRACE_GAMES``; later games are covered by their golden replays in
+their members' ``tests/fixtures/replays/``). Each test
 replays the same scripted, deterministic run and compares every sprite's rect and visibility,
 frame by frame.
 
@@ -30,17 +30,18 @@ import pygame
 import pytest
 from scripts.record_golden_traces import GOLDEN_TRACE_GAMES, golden_path, record_trace
 
-from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
-from glitchygames.examples.brave_adventurer import constants as brave_constants
-from glitchygames.examples.brave_adventurer.drawing import draw_player, draw_scarab
-from glitchygames.examples.brave_adventurer.player import Player as AdventurerPlayer
-from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
-from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
+from brave_adventurer import constants as brave_constants
+from brave_adventurer.drawing import draw_player, draw_scarab
+from brave_adventurer.player import Player as AdventurerPlayer
+from brave_adventurer_core import constants as brave_core_constants
+from brave_adventurer_papyrus.player import PapyrusPlayer
+from brave_adventurer_papyrus.sprite_utils import (
     apply_transparency_and_scale,
 )
-from glitchygames.examples.clockwork_keep.constants import PLAYER_HEIGHT, PLAYER_WIDTH
-from glitchygames.examples.clockwork_keep.drawing import draw_tinker
-from glitchygames.examples.clockwork_keep.player import Tinker
+from clockwork_keep.constants import PLAYER_HEIGHT, PLAYER_WIDTH
+from clockwork_keep.drawing import draw_tinker
+from clockwork_keep.player import Tinker
+from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
 from glitchygames.tracing import (
     TRACE_FORMAT_VERSION,
@@ -579,7 +580,7 @@ def _scarab_is_dropping_from_its_spawn_height(sprite: SpriteWorldSample) -> bool
         True while the scarab is strictly between the two heights.
 
     """
-    spawn_world_y = brave_constants.GROUND_Y - brave_constants.SCARAB_HEIGHT
+    spawn_world_y = brave_core_constants.GROUND_Y - brave_constants.SCARAB_HEIGHT
     return spawn_world_y < sprite.world_y < spawn_world_y + scarab_feet_margin_pixels()
 
 
@@ -621,7 +622,7 @@ def scarab_dropping_from_its_spawn_height(
     sprite = _sprite_sample(difference, frame)
     if sprite is None or not _scarab_is_dropping_from_its_spawn_height(sprite):
         return False
-    spawn_world_y = brave_constants.GROUND_Y - brave_constants.SCARAB_HEIGHT
+    spawn_world_y = brave_core_constants.GROUND_Y - brave_constants.SCARAB_HEIGHT
     return _old_sprite_stood_higher_by(
         difference, frame, margin_pixels=sprite.world_y - spawn_world_y
     )

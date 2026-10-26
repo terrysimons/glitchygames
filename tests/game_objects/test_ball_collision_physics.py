@@ -7,9 +7,9 @@ import math
 import pytest
 
 from glitchygames.collision.layers import CollisionManager
-from glitchygames.examples.paddleslap import Game
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.movement import Speed
+from paddleslap import Game
 from tests.game_objects.ball_helpers import drawn_position, place_ball_center
 
 LOG = logging.getLogger(__name__)

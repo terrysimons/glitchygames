@@ -15,7 +15,7 @@ Every new GlitchyGames game proves a new mechanic for the engine. Drawing Fire p
 liveries (see [Swatches](#swatches-the-mechanic-this-game-proves)).
 
 This page explains how the game is built, for a developer who wants to understand it or write a
-game like it. Everything here comes from `src/glitchygames/examples/drawing_fire/`, and the module
+game like it. Everything here comes from `src/games/drawing-fire/drawing_fire/`, and the module
 docstrings there are the detailed reference. The design, with the full vision and the MVP's
 decisions, is `plans/2026-10-25-drawing-fire-design.md`. What comes after the MVP is entry 54 in
 `plans/future-features.md`.
@@ -70,12 +70,12 @@ is in the MVP (see `plans/future-features.md`, entry 54).
 ## Running it
 
 ```bash
-uv run drawing-fire                      # the console script (pyproject.toml [project.scripts])
+uv run drawing-fire                      # the console script (its member's pyproject.toml)
 uv run drawing-fire --debug-overlay      # start with the debug seats view (F3 toggles it)
 uv run drawing-fire --random-seed 7      # another battlefield and other battles
 uv run drawing-fire --record-trace run.jsonl.gz   # record the session
 uv run drawing-fire --replay-trace run.jsonl.gz   # watch it again, exactly
-uv run python scripts/simulate_drawing_fire.py --seeds 20   # headless battles: lengths and winners
+uv run python -m scripts.simulate_drawing_fire --seeds 20   # headless battles: lengths and winners
 nox -s browser -- drawing-fire           # the browser build
 ```
 
@@ -109,20 +109,20 @@ anyone: players drop into and out of them, and the next one starts on its own.
 
 | File | What it holds |
 |---|---|
-| `src/glitchygames/examples/drawing_fire/__init__.py` | Re-exports `main` (the `drawing-fire` console script's entry point) |
-| `src/glitchygames/examples/drawing_fire/game.py` | `DrawingFireScene` (the frame: seats, drivers, the battle, the victory countdown; rendering; the debug seats view), `Phase`, `seats_panel_lines`, `main` |
-| `src/glitchygames/examples/drawing_fire/battle.py` | The rules: `Battle`, `Soldier`, `Sandbag`, `Bullet`, `Intent`, `Side`, `ARMY_NAMES`, the events `SoldierKilled` and `SandbagFlattened`, and the tuned numbers |
-| `src/glitchygames/examples/drawing_fire/terrain.py` | `Terrain` (a ground y for every x) and `build_terrain` (flat paper with a few seeded hills) |
-| `src/glitchygames/examples/drawing_fire/drivers.py` | The computer driver: `muster_battle` (a battle and every soldier's memory and own random stream), `computer_intents`, `computer_intent`, `ComputerSoldier` |
-| `src/glitchygames/examples/drawing_fire/players.py` | Player input: `Device`, `KEYBOARD`, `connected_devices`, `device_intent` (a device's input as an `Intent`), `Button`, `ButtonEdges` (presses, and holds in frames and seconds, per device) |
-| `src/glitchygames/examples/drawing_fire/seats.py` | `Seats`: joining, choosing a side and a soldier, the takeover on death, leaving, the seat log; `PlayerSeat`, `Stage`, `SideChoice`, `LEAVE_HOLD_SECONDS` |
-| `src/glitchygames/examples/drawing_fire/swatches.py` | Swatches, the mechanic this game proves (written to move into the engine) |
-| `src/glitchygames/examples/drawing_fire/drawing.py` | The pencil look: `wobble`, the terrain, sandbags, soldiers in their liveries (`ARMY_LIVERIES`), bullets, the HUD and the victory banner |
-| `src/glitchygames/examples/drawing_fire/seat_drawing.py` | The join note, the seat cards, the soldier highlight, and the debug seat tags and panel |
-| `src/glitchygames/examples/drawing_fire/sprites/soldier.toml` | The soldier sprite (stand, walk and down), with its `[swatches.livery]` parts |
+| `src/games/drawing-fire/drawing_fire/__init__.py` | Re-exports `main` (the `drawing-fire` console script's entry point) |
+| `src/games/drawing-fire/drawing_fire/game.py` | `DrawingFireScene` (the frame: seats, drivers, the battle, the victory countdown; rendering; the debug seats view), `Phase`, `seats_panel_lines`, `main` |
+| `src/games/drawing-fire/drawing_fire/battle.py` | The rules: `Battle`, `Soldier`, `Sandbag`, `Bullet`, `Intent`, `Side`, `ARMY_NAMES`, the events `SoldierKilled` and `SandbagFlattened`, and the tuned numbers |
+| `src/games/drawing-fire/drawing_fire/terrain.py` | `Terrain` (a ground y for every x) and `build_terrain` (flat paper with a few seeded hills) |
+| `src/games/drawing-fire/drawing_fire/drivers.py` | The computer driver: `muster_battle` (a battle and every soldier's memory and own random stream), `computer_intents`, `computer_intent`, `ComputerSoldier` |
+| `src/games/drawing-fire/drawing_fire/players.py` | Player input: `Device`, `KEYBOARD`, `connected_devices`, `device_intent` (a device's input as an `Intent`), `Button`, `ButtonEdges` (presses, and holds in frames and seconds, per device) |
+| `src/games/drawing-fire/drawing_fire/seats.py` | `Seats`: joining, choosing a side and a soldier, the takeover on death, leaving, the seat log; `PlayerSeat`, `Stage`, `SideChoice`, `LEAVE_HOLD_SECONDS` |
+| `src/games/drawing-fire/drawing_fire/swatches.py` | Swatches, the mechanic this game proves (written to move into the engine) |
+| `src/games/drawing-fire/drawing_fire/drawing.py` | The pencil look: `wobble`, the terrain, sandbags, soldiers in their liveries (`ARMY_LIVERIES`), bullets, the HUD and the victory banner |
+| `src/games/drawing-fire/drawing_fire/seat_drawing.py` | The join note, the seat cards, the soldier highlight, and the debug seat tags and panel |
+| `src/games/drawing-fire/drawing_fire/sprites/soldier.toml` | The soldier sprite (stand, walk and down), with its `[swatches.livery]` parts |
 | `scripts/simulate_drawing_fire.py` | Headless computer-against-computer battles across seeds (the tuning tool) |
-| `tests/examples/drawing_fire/` | The tests, one file per module, plus the simulation's |
-| `tests/fixtures/replays/drawing-fire/golden.jsonl.gz` | The golden replay (1,614 frames) |
+| `src/games/drawing-fire/tests/` | The tests, one file per module, plus the simulation's and `test_drawing_fire_after_the_move.py` |
+| `src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz` | The golden replay (1,614 frames) |
 | `scripts/record_golden_traces.py` | `drawing_fire_script` and `DrawingFireMouse` (the golden replay's player) |
 | `scripts/record_scripted_session.py` | `drawing_fire_controls` (the controls tail: Q) and the command that records the fixture |
 
@@ -280,7 +280,7 @@ once per content, fonts are made once. The colours are the paper (`PAPER_COLOR`)
 Everything that decides what happens runs on the frame's `dt`, the seeded streams and the
 polled input, so a `--record-trace` recording replays exactly with `--replay-trace`.
 
-The golden replay `tests/fixtures/replays/drawing-fire/golden.jsonl.gz` was recorded through the
+The golden replay `src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz` was recorded through the
 real engine loop by `scripts/record_scripted_session.py --game drawing_fire --frames 1600`. The
 keyboard plays the whole session (`drawing_fire_script`): Enter opens a seat at frame 30, the
 right arrow moves the side card to the Platoon and Enter confirms it, D and A move the soldier
@@ -327,18 +327,27 @@ Re-record the fixture only deliberately (the commands are in the script's docstr
 to make a failing replay pass. A re-recording without the player's death and takeover fails the
 test above.
 
+## Its package
+
+Drawing Fire is a package of its own beside the engine, `src/games/drawing-fire/` (distribution
+`drawing-fire`, import package `drawing_fire`). Its soldier sprite ships inside the package as
+package data (`drawing_fire/sprites/soldier.toml`, read through the module's own path), so the
+member's wheel and its browser archive (`drawing_fire.zip`) hold it. How such a package is laid
+out, installed, tested and built, and how a game is moved into one, is in
+[Games as Their Own Packages](../architecture/game_packages.md).
+
 ## Tests
 
 The tests use real pygame on the dummy driver; what is drawn is checked by its pixels.
 
 | File | What it pins |
 |---|---|
-| `tests/examples/drawing_fire/test_battle.py` | Mustering, walking and sandbags, pistols and cooldowns, bullets (hills, range, no tunnelling, never the shooter's own cover), hits and deaths, sandbags losing sand, sandbag placement, the winner and a draw |
-| `tests/examples/drawing_fire/test_terrain.py` | Seeded hills over a flat baseline, any screen width, the ground between pixels |
-| `tests/examples/drawing_fire/test_drivers.py` | The computer driver's rules: targets, stand-offs, cover, sandbags, spacing, held aim, each soldier's own stream |
-| `tests/examples/drawing_fire/test_players.py` | Keyboard and mouse, and controller, input as intents; dead zones; button edges |
-| `tests/examples/drawing_fire/test_seats.py` | Joining, choosing a side and a soldier, the highlight, takeovers on death, waiting, leaving, two players |
-| `tests/examples/drawing_fire/test_swatches.py` | Reading swatch sets and their errors, schemes, shades, recolouring, the frame cache |
-| `tests/examples/drawing_fire/test_drawing.py` | The pencil look by its pixels: wobble, terrain, sandbags, soldiers in their liveries, bullets, HUD, banner |
-| `tests/examples/drawing_fire/test_game.py` | The scene: battles, victory (and a draw) and the next battle, players driving soldiers, the seats drawn, the debug seats view, Escape never quitting |
-| `tests/examples/drawing_fire/test_simulation.py` | `scripts/simulate_drawing_fire.py`'s headless battles |
+| `src/games/drawing-fire/tests/test_drawing_fire_battle.py` | Mustering, walking and sandbags, pistols and cooldowns, bullets (hills, range, no tunnelling, never the shooter's own cover), hits and deaths, sandbags losing sand, sandbag placement, the winner and a draw |
+| `src/games/drawing-fire/tests/test_drawing_fire_terrain.py` | Seeded hills over a flat baseline, any screen width, the ground between pixels |
+| `src/games/drawing-fire/tests/test_drawing_fire_drivers.py` | The computer driver's rules: targets, stand-offs, cover, sandbags, spacing, held aim, each soldier's own stream |
+| `src/games/drawing-fire/tests/test_drawing_fire_players.py` | Keyboard and mouse, and controller, input as intents; dead zones; button edges |
+| `src/games/drawing-fire/tests/test_drawing_fire_seats.py` | Joining, choosing a side and a soldier, the highlight, takeovers on death, waiting, leaving, two players |
+| `src/games/drawing-fire/tests/test_drawing_fire_swatches.py` | Reading swatch sets and their errors, schemes, shades, recolouring, the frame cache |
+| `src/games/drawing-fire/tests/test_drawing_fire_drawing.py` | The pencil look by its pixels: wobble, terrain, sandbags, soldiers in their liveries, bullets, HUD, banner |
+| `src/games/drawing-fire/tests/test_drawing_fire_game.py` | The scene: battles, victory (and a draw) and the next battle, players driving soldiers, the seats drawn, the debug seats view, Escape never quitting |
+| `src/games/drawing-fire/tests/test_drawing_fire_simulation.py` | The headless battles of `python -m scripts.simulate_drawing_fire` (`scripts/simulate_drawing_fire.py`) |

@@ -6,7 +6,7 @@ driver, with no window. One line is printed per seed, then a summary: wins per a
 longest battle. Use it to tune the battle's numbers.
 
 Usage:
-    uv run python scripts/simulate_drawing_fire.py [--seeds N] [--soldiers-per-side N]
+    uv run python -m scripts.simulate_drawing_fire [--seeds N] [--soldiers-per-side N]
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from glitchygames.examples.drawing_fire.battle import ARMY_NAMES, SOLDIERS_PER_SIDE, Side
-from glitchygames.examples.drawing_fire.drivers import computer_intents, muster_battle
+from drawing_fire.battle import ARMY_NAMES, SOLDIERS_PER_SIDE, Side
+from drawing_fire.drivers import computer_intents, muster_battle
 from glitchygames.randomness import seed_engine_random
 
 if TYPE_CHECKING:

@@ -637,7 +637,7 @@ class TestRedrawnGameSprites:
         The pose is drawn when the cobra is made and in dt_tick (before collision), never in
         update(), so its hitbox is never a blank image's or a frame behind (BUGS.md #209.6).
         """
-        from glitchygames.examples.brave_adventurer.enemies import Cobra
+        from brave_adventurer.enemies import Cobra
 
         cobra = Cobra(500.0, pygame.sprite.LayeredDirty())
         idle_rect = get_sprite_collision_rect(cobra)
@@ -665,8 +665,8 @@ class TestPapyrusHitboxScale:
 
     def test_scaled_papyrus_player_collides_at_twice_the_toml_hitbox(self):
         """After its first tick the player's collision rect is the TOML hitbox times 2."""
-        from glitchygames.examples.brave_adventurer_papyrus.constants import SPRITE_SCALE
-        from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
+        from brave_adventurer_papyrus.constants import SPRITE_SCALE
+        from brave_adventurer_papyrus.player import PapyrusPlayer
 
         player = PapyrusPlayer(100.0, 200.0, pygame.sprite.LayeredDirty())
         player.dt_tick(0.0)
@@ -689,14 +689,14 @@ class TestPapyrusHitboxScale:
     )
     def test_freshly_constructed_sprites_have_scaled_hitboxes_before_any_tick(self, sprite_name):
         """No frame ever uses native-size hitboxes: the scale is set when the sprite is built."""
-        from glitchygames.examples.brave_adventurer_papyrus.constants import SPRITE_SCALE
-        from glitchygames.examples.brave_adventurer_papyrus.enemies import (
+        from brave_adventurer_papyrus.constants import SPRITE_SCALE
+        from brave_adventurer_papyrus.enemies import (
             PapyrusCobra,
             PapyrusScarab,
             PapyrusScorpion,
         )
-        from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
-        from glitchygames.examples.brave_adventurer_papyrus.terrain import PapyrusGoldScarab
+        from brave_adventurer_papyrus.player import PapyrusPlayer
+        from brave_adventurer_papyrus.terrain import PapyrusGoldScarab
 
         group = pygame.sprite.LayeredDirty()
         builders = {
@@ -724,8 +724,8 @@ class TestPapyrusHitboxScale:
 
     def test_scale_one_keeps_native_hitbox(self):
         """apply_transparency_and_scale with scale_factor=1 leaves hitboxes native."""
-        from glitchygames.examples.brave_adventurer_papyrus.player import PapyrusPlayer
-        from glitchygames.examples.brave_adventurer_papyrus.sprite_utils import (
+        from brave_adventurer_papyrus.player import PapyrusPlayer
+        from brave_adventurer_papyrus.sprite_utils import (
             apply_transparency_and_scale,
         )
 

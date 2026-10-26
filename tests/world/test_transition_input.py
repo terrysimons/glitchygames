@@ -28,7 +28,7 @@ from scripts.record_golden_traces import (
     stand_on_first_elevator,
 )
 
-from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
+from clockwork_keep.game import ClockworkKeepScene
 from glitchygames.input import ActionMap
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.scenes import Scene

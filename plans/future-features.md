@@ -182,13 +182,53 @@ This document tracks planned future features for the GlitchyGames project. Featu
   plans/2026-10-24-crt-power-on.md); being tested by the user, the stage constants tuned by eye
   from that. The power-on sound and a power-off collapse are follow-ups
 
+### 57. A pygame-examples-Like Demos Experience — TODO (plan later)
+- **Description**: the demos (today `dt_demo.py`, `joystick_demo.py`, `text_input_demo.py` in
+  `src/glitchygames/examples/`) become a browsable set of small, focused examples of what the
+  engine does, in the spirit of pygame's own examples (`python -m pygame.examples.aliens`): easy to
+  list and run, each showing one engine feature. They leave the engine's examples for the demos
+  layer, each its own member (the user, 2026-10-26: `src/demos/dt-demo/`, `src/demos/joystick-demo/`,
+  `src/demos/text-input-demo/`, Part 3 of #56), not inside Bitmappy, which takes only its own
+  resources (Part 4)
+- **Use Case**: a newcomer runs one command, sees what the engine can do and reads short code that
+  does it; the demos double as living documentation
+- **Status**: TODO: make a plan later; the user has thoughts to bring to it (2026-10-26)
+- **Priority**: Medium
+
 ### 56. Games, Demos and Apps as Their Own Packages (uv workspace) — IN PROGRESS
 - **Description**: the engine moved to `src/glitchygames`; each game, demo and app becomes a
   uv workspace member under `src/games|demos|apps`, with its tests and recordings beside it;
   recordings name games by logical names. Master plan: `plans/2026-10-24-workspace-packages.md`
-- **Status**: Part 1 (foundation and the Mr. Muncher pilot) built on
-  `feature/workspace-packages-foundation`; Parts 2-5 (other games, demos, Bitmappy, browser IDE)
-  TODO
+- **Status**: Part 1 (foundation and the Mr. Muncher pilot) merged (#105); Part 2 (every game
+  its own package: mr-muncher, clockwork-keep, brave-adventurer as one project with a launcher,
+  paddleslap, drawing-fire) DONE on `feature/workspace-packages-2-games`; Parts 3-5 (demos,
+  Bitmappy, browser IDE) TODO
+- **Part 2 leftovers** (deferred review findings, 2026-10-25; none blocks the merge):
+  - Brave Adventurer (`src/games/brave-adventurer/`): no golden replay exercises the title
+    screen's controls; `tests/engine/test_engine_lifecycle.py`'s power-on test has no direct
+    `--game papyrus` case; a recording whose header cannot be read is refused through the title
+    flow, so the refusal cannot name a game
+  - Brave Adventurer code noticed while sharing the scenes (behaviour, so left for a change that
+    re-checks the goldens): `brave_adventurer_core/scene.py` sets `_was_airborne` and never reads
+    it; the respawn clamp `max(0, self.player.world_x - RESPAWN_OFFSET)` can make the respawn x
+    the int 0 (both tracked in BUGS.md, #229 and #230); both games' `game.py` import their scarab
+    lazily inside a method although nothing needs it deferred
+  - Member tests use the engine's test seams (`SceneManager._reset`, `FontManager._font_cache`),
+    a known exemption from the public-API rule (`docs/architecture/game_packages.md`); member
+    game code may not. A public testing helper for them (in `src/glitchygames/testing/`) would
+    end the exemption
+  - The core scene's setup log record's `msg` is now a format string (`'%s setup complete'`; the
+    text is unchanged), which a test matching `record.msg` would see
+  - Papyrus's sprite-file test imports the engine's checks from
+    `tests.examples.test_examples_sprites`; if a second game needs them, they belong in
+    `src/glitchygames/testing/` (a sprite-files helper)
+  - With member packages first-party, isort orders `glitchygames` imports after a game's own in
+    member files (cosmetic)
+  - `tests/test_build_browser_bundle.py`'s stand-in `record_archive` takes `**_ignored`: a name
+    saying which keyword arguments it drops would read better
+  - The `replay-metrics` hook measures every installed bundled demo, and a built install
+    (`site-packages`) names a demo by its install name, so its ledger rows form a series apart
+    from the repository path's
 
 ### 55. Recording Naming Convention and Logical Recording Ids — TODO
 - **Goal**: every recording is named and placed by one convention, and has a logical id that
@@ -386,7 +426,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ### 55. Swatches Into the Engine: Recolouring Sprites by Palette Swap — TODO
 - **Goal**: move the mechanic Drawing Fire proved (plans/2026-10-25-drawing-fire-design.md,
-  section 7) from `src/glitchygames/examples/drawing_fire/swatches.py` into the engine, so any
+  section 7) from `src/games/drawing-fire/drawing_fire/swatches.py` into the engine, so any
   game recolours a sprite's parts (a helmet, a uniform) by palette swap, its shades following.
   The user's rule: every new game proves a mechanic, and a proven one is considered for the
   engine
@@ -1071,7 +1111,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 ## Gameplay Features
 
 ### 54. Drawing Fire: Everything After the MVP — TODO
-- **Goal**: grow Drawing Fire (`src/glitchygames/examples/drawing_fire/`, `uv run drawing-fire`)
+- **Goal**: grow Drawing Fire (`src/games/drawing-fire/drawing_fire/`, `uv run drawing-fire`)
   from its MVP into the full vision of its design, plans/2026-10-25-drawing-fire-design.md
   (section 3; the MVP is section 4, docs/games/drawing_fire.md describes it as built)
 - **The MVP, built 2026-10-25**: one battlefield that fits the screen, computer against

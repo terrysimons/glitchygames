@@ -10,7 +10,7 @@ third-party game's, ``__main__``) keeps its module path.
 The layers are data here, not read from the workspace: an installed engine has no workspace to
 read, and the engine never imports scripts/. ``MEMBER_LAYERS`` is kept equal to the workspace
 (scripts/workspace_packages.py) by tests/test_workspace_config.py; ``EXAMPLES_LAYERS`` covers
-the games and demos still inside glitchygames/examples/ and goes when that directory does.
+the demos still inside glitchygames/examples/ and goes when they move out (Part 3).
 A leaf module: it imports nothing from the engine.
 """
 
@@ -18,28 +18,32 @@ from __future__ import annotations
 
 LAYERS: tuple[str, ...] = ('games', 'demos', 'apps')
 EXAMPLES_PACKAGE = 'glitchygames.examples'
-# Games and demos not yet moved out of glitchygames/examples/: package name there -> layer
-# (the user, 2026-10-25; Part 2 of the workspace plan deletes it)
+# Demos not yet moved out of glitchygames/examples/ (every game has: Part 2): package name
+# there -> layer (the user, 2026-10-25; Part 3 of the workspace plan moves the demos and deletes it)
 EXAMPLES_LAYERS: dict[str, str] = {
-    'paddleslap': 'games',
-    'brave_adventurer': 'games',
-    'brave_adventurer_papyrus': 'games',
-    'clockwork_keep': 'games',
-    'drawing_fire': 'games',
     'dt_demo': 'demos',
     'joystick_demo': 'demos',
     'text_input_demo': 'demos',
 }
 # Workspace members: top-level import package -> layer (src/<layer>/<member>/); equal to the
 # workspace, checked by tests/test_workspace_config.py
-MEMBER_LAYERS: dict[str, str] = {'mr_muncher': 'games'}
+MEMBER_LAYERS: dict[str, str] = {
+    'mr_muncher': 'games',
+    'brave_adventurer_core': 'games',
+    'brave_adventurer': 'games',
+    'brave_adventurer_papyrus': 'games',
+    'brave_adventurer_modes': 'games',
+    'clockwork_keep': 'games',
+    'paddleslap': 'games',
+    'drawing_fire': 'games',
+}
 
 
 def logical_module_name(*, module: str) -> str:
     """Return a module's logical name: its layer and its path inside its package.
 
     Args:
-        module: A module's import path (``glitchygames.examples.paddleslap``, ``mr_muncher.game``).
+        module: A module's import path (``paddleslap``, ``mr_muncher.game``).
 
     Returns:
         ``<layer>.<path from the package>`` (``games.paddleslap``), or the module itself when it
@@ -75,7 +79,7 @@ def module_for_logical_module(*, logical_module: str) -> str:
         logical_module: A logical module (``games.paddleslap``).
 
     Returns:
-        The import path (``glitchygames.examples.paddleslap``, ``mr_muncher.game``), or the name
+        The import path (``paddleslap``, ``mr_muncher.game``), or the name
         itself when its first part is not a layer.
 
     """

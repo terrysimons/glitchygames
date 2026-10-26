@@ -129,6 +129,34 @@ def test_a_src_layout_package_keeps_its_declared_path(tmp_path):
 
     assert member.import_packages == ('space_game',)
     assert member.package_directories == (member_directory / 'src' / 'space_game',)
+    assert member.import_roots == (member_directory / 'src',)
+
+
+def test_a_flat_members_import_root_is_its_directory(tmp_path):
+    """Packages = ["space_game"] at the member's root: imports resolve from the member itself."""
+    write_workspace(tmp_path)
+
+    (member,) = workspace_members(project_root=tmp_path)
+
+    assert member.import_roots == (tmp_path / 'src' / 'games' / 'space-game',)
+
+
+def test_a_src_layout_with_several_packages_has_one_import_root(tmp_path):
+    """Two packages under one src/ share their import root, listed once."""
+    write_workspace(tmp_path)
+    member_directory = tmp_path / 'src' / 'games' / 'space-game'
+    (member_directory / 'space_game').rmdir()
+    for package in ('space_core', 'space_game'):
+        (member_directory / 'src' / package).mkdir(parents=True)
+    (member_directory / 'pyproject.toml').write_text(
+        MEMBER_PYPROJECT.replace('["space_game"]', '["src/space_core", "src/space_game"]'),
+        encoding='utf-8',
+    )
+
+    (member,) = workspace_members(project_root=tmp_path)
+
+    assert member.import_packages == ('space_core', 'space_game')
+    assert member.import_roots == (member_directory / 'src',)
 
 
 @pytest.mark.parametrize('members', ['"src/games/space-game"', '[1]'])
@@ -169,3 +197,50 @@ def test_this_repositorys_members_are_read():
     distributions = [member.distribution for member in workspace_members(project_root=PROJECT_ROOT)]
 
     assert 'mr-muncher' in distributions
+
+
+# Part 2's end state (plans/2026-10-24-workspace-packages.md): every game is a member, so the
+# engine's examples hold only the three demos (Part 3 moves them) and Bitmappy's resources
+# (Part 4 moves them), beside foo2.toml (Part 3 moves it to the one test that reads it)
+ENGINE_EXAMPLES_DIRECTORY = PROJECT_ROOT / 'src' / 'glitchygames' / 'examples'
+ENGINE_EXAMPLES_NOT_CHECKED = frozenset({'__init__.py', '__pycache__', 'foo2.toml'})
+ENGINE_EXAMPLES_AFTER_PART_2 = frozenset({
+    'dt_demo.py',
+    'joystick_demo.py',
+    'text_input_demo.py',
+    'resources',
+})
+# A console script a game had before Part 2 and no longer has (Brave Adventurer's launcher
+# replaced it): its old root golden directory is checked too
+FORMER_GAME_CONSOLE_SCRIPTS = ('brave-adventurer-papyrus',)
+ROOT_REPLAY_FIXTURES_DIRECTORY = PROJECT_ROOT / 'tests' / 'fixtures' / 'replays'
+
+
+def test_the_engines_examples_hold_only_the_demos_and_bitmappys_resources():
+    """No game is left in src/glitchygames/examples/: each moved into its own member."""
+    entries = {entry.name for entry in ENGINE_EXAMPLES_DIRECTORY.iterdir()}
+
+    assert entries - ENGINE_EXAMPLES_NOT_CHECKED == ENGINE_EXAMPLES_AFTER_PART_2
+
+
+def test_the_root_goldens_are_the_engines_own():
+    """No game's recording lives under the root tests/: each game's are in its member."""
+    game_members = [
+        member for member in workspace_members(project_root=PROJECT_ROOT) if member.layer == 'games'
+    ]
+    game_names = {
+        name
+        for member in game_members
+        for name in (member.distribution, *member.console_scripts, *member.import_packages)
+    } | set(FORMER_GAME_CONSOLE_SCRIPTS)
+
+    assert {member.distribution for member in game_members} == {
+        'mr-muncher',
+        'clockwork-keep',
+        'brave-adventurer',
+        'paddleslap',
+        'drawing-fire',
+    }
+    assert [
+        name for name in sorted(game_names) if (ROOT_REPLAY_FIXTURES_DIRECTORY / name).exists()
+    ] == []

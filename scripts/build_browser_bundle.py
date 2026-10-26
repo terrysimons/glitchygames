@@ -111,9 +111,13 @@ class GameSpecification:
         scene_class: The scene class GameEngine is constructed with.
         title: The page title.
         included_subpackages: Subpackages of EXCLUDED_SUBPACKAGES this one needs (Bitmappy).
-        member_package: The import package of the workspace member holding the game's code
-            (``mr_muncher``); the bundle ships it as ``<member_package>.zip``, apart from the
-            engine's archive. None for a game inside the engine package.
+        member_packages: The import packages of the workspace members holding the game's code,
+            the ones depended on first. A game in one package names it (``('mr_muncher',)``);
+            a project of layered packages names every one it starts, the shared core first
+            (Brave Adventurer's launcher: ``('brave_adventurer_core', 'brave_adventurer',
+            'brave_adventurer_papyrus', 'brave_adventurer_modes')``). The bundle ships each as
+            ``<package>.zip``, apart from the engine's archive. Empty for a game inside the
+            engine package.
 
     """
 
@@ -121,7 +125,7 @@ class GameSpecification:
     scene_class: str
     title: str
     included_subpackages: frozenset[str] = frozenset()
-    member_package: str | None = None
+    member_packages: tuple[str, ...] = ()
 
 
 # The keys a touch button can press, by DOM KeyboardEvent.code: the event's key, its legacy
@@ -194,10 +198,9 @@ TOUCH_LAYOUTS: dict[str, TouchLayout] = {
         center=((TouchButton('Pause', 'Space'),),),
         right=((UP,), (DOWN,)),
     ),
+    # Both games, and the title screen choosing between them: the arrows choose a game there
+    # and Jump (Space) starts it
     'brave-adventurer': TouchLayout(
-        left=((LEFT, RIGHT),), center=((PAUSE_ESCAPE,),), right=((JUMP,),)
-    ),
-    'brave-adventurer-papyrus': TouchLayout(
         left=((LEFT, RIGHT),), center=((PAUSE_ESCAPE,),), right=((JUMP,),)
     ),
     'clockwork-keep': TouchLayout(
@@ -248,35 +251,41 @@ def touch_controls_config(
 
 GAMES: dict[str, GameSpecification] = {
     'paddleslap': GameSpecification(
-        module='glitchygames.examples.paddleslap', scene_class='Game', title='Paddle Slap'
+        module='paddleslap',
+        scene_class='Game',
+        title='Paddle Slap',
+        member_packages=('paddleslap',),
     ),
+    # Both Brave Adventurer games, Classic (drawn in code) and Papyrus (sprite-sheet art), from
+    # the launcher's title screen: its four packages, the shared core first and the launcher last
     'brave-adventurer': GameSpecification(
-        module='glitchygames.examples.brave_adventurer.game',
-        scene_class='BraveAdventurerScene',
+        module='brave_adventurer_modes.title',
+        scene_class='TitleScene',
         title='Brave Adventurer',
-    ),
-    # A separate game from Brave Adventurer: the same adventure drawn in GlitchyGames' modern
-    # style (TOML sprites), beside the primitive old-school pygame one
-    'brave-adventurer-papyrus': GameSpecification(
-        module='glitchygames.examples.brave_adventurer_papyrus.game',
-        scene_class='PapyrusBraveAdventurerScene',
-        title='Brave Adventurer: Papyrus Edition',
+        member_packages=(
+            'brave_adventurer_core',
+            'brave_adventurer',
+            'brave_adventurer_papyrus',
+            'brave_adventurer_modes',
+        ),
     ),
     'clockwork-keep': GameSpecification(
-        module='glitchygames.examples.clockwork_keep.game',
+        module='clockwork_keep.game',
         scene_class='ClockworkKeepScene',
         title='Clockwork Keep',
+        member_packages=('clockwork_keep',),
     ),
     'mr-muncher': GameSpecification(
         module='mr_muncher.game',
         scene_class='MrMuncherScene',
         title='Mr. Muncher',
-        member_package='mr_muncher',
+        member_packages=('mr_muncher',),
     ),
     'drawing-fire': GameSpecification(
-        module='glitchygames.examples.drawing_fire.game',
+        module='drawing_fire.game',
         scene_class='DrawingFireScene',
         title='Drawing Fire',
+        member_packages=('drawing_fire',),
     ),
     # The pixel-art editor: its AI sprite generation is off in browser builds (the
     # glitchygames.bitmappy.constants.AI_FEATURES_ENABLED feature flag)
@@ -384,13 +393,13 @@ def installed_engine_version() -> str | None:
         return None
 
 
-def pyscript_config(*, wheel_name: str, member_package: str | None = None) -> str:
+def pyscript_config(*, wheel_name: str, member_packages: tuple[str, ...] = ()) -> str:
     """Return pyscript.toml: our pygame-ce wheel, the engine's packages and its archive.
 
     Args:
         wheel_name: The pygame-ce wheel's file name.
-        member_package: The import package of a workspace member game, listed as its own
-            archive beside the engine's.
+        member_packages: The import packages of a workspace member game, each listed as its
+            own archive beside the engine's, in the order given (dependencies first).
 
     Returns:
         The TOML text.
@@ -398,7 +407,7 @@ def pyscript_config(*, wheel_name: str, member_package: str | None = None) -> st
     """
     packages = [f'./wheels/{wheel_name}', *PYODIDE_PACKAGES]
     package_lines = ''.join(f'  "{package}",\n' for package in packages)
-    member_line = '' if member_package is None else f'"./{member_package}.zip" = "./*"\n'
+    member_lines = ''.join(f'"./{package}.zip" = "./*"\n' for package in member_packages)
     module_lines = ''.join(f'"./{module}" = "./{module}"\n' for module in BROWSER_MODULES)
     return (
         '# Written by scripts/build_browser_bundle.py\n'
@@ -406,7 +415,7 @@ def pyscript_config(*, wheel_name: str, member_package: str | None = None) -> st
         '\n'
         '[files]\n'
         '"./glitchygames.zip" = "./*"\n'
-        f'{member_line}'
+        f'{member_lines}'
         f'{module_lines}'
         '"./boot_config.json" = "./boot_config.json"\n'
     )
@@ -540,7 +549,7 @@ def write_bundle(
         render_page(template=template, game=game), encoding='utf-8'
     )
     (output_directory / 'pyscript.toml').write_text(
-        pyscript_config(wheel_name=wheel_path.name, member_package=GAMES[game].member_package),
+        pyscript_config(wheel_name=wheel_path.name, member_packages=GAMES[game].member_packages),
         encoding='utf-8',
     )
     (output_directory / 'boot_config.json').write_text(
@@ -552,8 +561,7 @@ def write_bundle(
         excluded_subpackages=EXCLUDED_SUBPACKAGES - GAMES[game].included_subpackages,
         engine_version=installed_engine_version(),
     )
-    member_package = GAMES[game].member_package
-    if member_package is not None:
+    for member_package in GAMES[game].member_packages:
         write_engine_archive(
             package_directory=member_package_directory(import_package=member_package),
             archive_path=output_directory / f'{member_package}.zip',

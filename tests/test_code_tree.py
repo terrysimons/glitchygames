@@ -78,7 +78,10 @@ def repository(tmp_path: Path) -> Path:
         ('src/glitchygames/world.py', True),
         ('src/games/mr-muncher/src/mr_muncher/game.py', True),
         ('src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz', True),
-        ('tests/fixtures/replays/paddleslap/golden.jsonl.gz', True),
+        # The root's recordings (no game's since every game is a member; a stand-in's path)
+        ('tests/fixtures/replays/a-game/golden.jsonl.gz', True),
+        # A demo bundled in a member's package (package data)
+        ('src/games/paddleslap/paddleslap/demos/rally.jsonl.gz', True),
         ('uv.lock', True),
         ('src/games/mr-muncher/tests/test_mr_muncher.py', False),
         ('src/games/mr-muncher/tests/fixtures/sprites.toml', False),
@@ -120,7 +123,8 @@ def test_ledger_rows_never_change_the_code_tree(repository):
         'src/games/mr-muncher/mr_muncher/game.py',
         'src/demos/joystick-demo/joystick_demo/demo.py',
         'src/apps/bitmappy/bitmappy/editor.py',
-        'tests/fixtures/replays/paddleslap/golden.jsonl.gz',
+        # A recording at the root (no game's since every game is a member; a stand-in's path)
+        'tests/fixtures/replays/a-game/golden.jsonl.gz',
         # A member's golden replay, in its own tests/fixtures/replays/
         'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz',
         'uv.lock',

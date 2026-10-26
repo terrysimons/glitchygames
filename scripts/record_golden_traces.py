@@ -54,15 +54,15 @@ os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
 
+import paddleslap
+from brave_adventurer.game import BraveAdventurerScene
+from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+from clockwork_keep.game import ClockworkKeepScene
+from drawing_fire.game import DrawingFireScene
+from drawing_fire.seats import LEAVE_HOLD_SECONDS, Stage
 from glitchygames.engine import GameEngine
 from glitchygames.engine_context import current_context
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
-from glitchygames.examples import paddleslap
-from glitchygames.examples.brave_adventurer.game import BraveAdventurerScene
-from glitchygames.examples.brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
-from glitchygames.examples.clockwork_keep.game import ClockworkKeepScene
-from glitchygames.examples.drawing_fire.game import DrawingFireScene
-from glitchygames.examples.drawing_fire.seats import LEAVE_HOLD_SECONDS, Stage
 from glitchygames.scenes import SceneManager
 from glitchygames.scenes.scene import SCENE_MANAGERS_SLOT
 from glitchygames.state import manager as save_manager_module
@@ -113,21 +113,24 @@ GAME_SCENES: dict[str, type[Scene]] = {
     'drawing_fire': DrawingFireScene,
 }
 
-# Game key -> the module holding its main() (where its console script's entry point is):
-# a game moved into its own package names its package (plans/2026-10-24-workspace-packages.md)
+# Game key -> the package holding the game: every game is in its own workspace member's package
+# (plans/2026-10-24-workspace-packages.md), which scripts/record_scripted_session.py finds its
+# fixtures directory by. A member's console script may be a launcher instead
+# (Brave Adventurer's, brave_adventurer_modes, starts both its games; scripts/
+# record_scripted_session.py GAME_CONSOLE_SCRIPTS)
 GAME_MODULES: dict[str, str] = {
-    'clockwork_keep': 'glitchygames.examples.clockwork_keep',
-    'brave_adventurer': 'glitchygames.examples.brave_adventurer',
-    'brave_adventurer_papyrus': 'glitchygames.examples.brave_adventurer_papyrus',
-    'paddleslap': 'glitchygames.examples.paddleslap',
+    'clockwork_keep': 'clockwork_keep',
+    'brave_adventurer': 'brave_adventurer',
+    'brave_adventurer_papyrus': 'brave_adventurer_papyrus',
+    'paddleslap': 'paddleslap',
     'mr_muncher': 'mr_muncher',
-    'drawing_fire': 'glitchygames.examples.drawing_fire',
+    'drawing_fire': 'drawing_fire',
 }
 
 # The games whose golden traces (tests/world/golden/) were recorded before the world-space
 # change: tests/world/test_golden_traces.py compares these. Games written after it (Mr. Muncher,
-# Drawing Fire) have no such baseline; their golden replays cover them (Mr. Muncher's in its
-# package, src/games/mr-muncher/tests/fixtures/replays/; Drawing Fire's in tests/fixtures/replays/).
+# Drawing Fire) have no such baseline; their golden replays cover them, each in its member's
+# tests/fixtures/replays/ (src/games/mr-muncher/, src/games/drawing-fire/).
 GOLDEN_TRACE_GAMES: tuple[str, ...] = (
     'clockwork_keep',
     'brave_adventurer',
@@ -597,7 +600,7 @@ class DrawingFireMouse:
     """The keyboard player's mouse: it aims at the nearest enemy and presses the fire button.
 
     Drawing Fire's keyboard player aims at the mouse and fires with its left button
-    (glitchygames/examples/drawing_fire/players.py). While the player drives a soldier, the
+    (src/games/drawing-fire/drawing_fire/players.py). While the player drives a soldier, the
     mouse moves onto the chest of the living enemy nearest him whenever that chest is more than
     DRAWING_FIRE_AIM_SLACK_PIXELS away, as a player tracking a target would (no motion while he
     is not playing). The left button goes down or up before each frame ``button_changes``

@@ -12,9 +12,11 @@ here wait in ``PENDING_LEDGER_PATH`` (gitignored) until a deploy publishes them.
 1. refuses a checkout whose commit is unknown, and one with uncommitted changes unless
    ``--allow-dirty`` (the rows say so; such a trial never counts as measuring its commit) or
    ``--skip-dirty`` (measure nothing and succeed: what docs-deploy passes);
-2. for each golden replay (``tests/fixtures/replays/<console-script>/golden.jsonl.gz``, and each
-   workspace member's ``<member>/tests/fixtures/replays/golden.jsonl.gz``) and bundled demo
-   (``glitchygames/examples/<game>_demos/*.jsonl.gz``) not already measured for this commit on
+2. for each golden replay (each workspace member's
+   ``<member>/tests/fixtures/replays/golden.jsonl.gz``, and any in the root's
+   ``tests/fixtures/replays/<console-script>/``, the plugin's layout for other projects, which
+   holds no game here) and bundled demo
+   (a member package's ``<package>/demos/*.jsonl.gz``) not already measured for this commit on
    this machine (published or pending; ``--force`` measures again): rebaselines it
    headless into a temporary file through its console script
    (``glitchygames.testing.replays.rebaseline_recording_headless``), so the run measures every
@@ -60,8 +62,10 @@ from glitchygames.build_info import (
     SourceRevision,
     source_revision,
 )
+from glitchygames.bundled_demos import bundled_demos
 from glitchygames.code_tree import commit_is_on_origin_main, origin_main_exists
 from glitchygames.exit_codes import ExitCode
+from glitchygames.logical_names import MEMBER_LAYERS
 from glitchygames.machine_state import current_machine_state
 from glitchygames.recording_metrics import (
     PENDING_LEDGER_RELATIVE_PATH,
@@ -76,12 +80,8 @@ from glitchygames.recording_metrics import (
     write_row_files,
 )
 from glitchygames.replay.processing import machine_description
-from glitchygames.testing.replays import (
-    bundled_demo_paths,
-    rebaseline_recording_headless,
-    recording_console_script,
-)
-from glitchygames.tracing import read_trace
+from glitchygames.testing.replays import rebaseline_recording_headless, recording_console_script
+from glitchygames.tracing import is_bookmarked_copy, read_trace
 from scripts.workspace_packages import workspace_members
 
 if TYPE_CHECKING:
@@ -91,11 +91,16 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PENDING_LEDGER_PATH = PROJECT_ROOT / PENDING_LEDGER_RELATIVE_PATH
-# The engine's golden replays (tests/fixtures/replays/<console-script>/); each workspace member's
-# are directly in its replay fixtures directory (golden_replay_globs)
-ENGINE_GOLDEN_REPLAYS_GLOB = 'tests/fixtures/replays/*/golden.jsonl.gz'
-MEMBER_GOLDEN_REPLAYS_GLOB = 'golden.jsonl.gz'
-EXAMPLES_PATH = Path('src') / 'glitchygames' / 'examples'
+# A golden replay's file name, in either layout: golden.jsonl.gz, or one golden-<game>.jsonl.gz
+# per game in a project with several (Brave Adventurer's golden-classic and golden-papyrus;
+# docs/architecture/game_packages.md). A bookmarked copy (golden-classic.bookmarked.jsonl.gz)
+# matches it too: metric_recordings leaves those out
+GOLDEN_REPLAY_NAME_GLOB = 'golden*.jsonl.gz'
+# Golden replays in the root's tests/fixtures/replays/<console-script>/ (the replay plugin's layout
+# for other projects: none here, every game is a member); each workspace member's are directly in
+# its replay fixtures directory (golden_replay_globs)
+ROOT_LAYOUT_GOLDEN_REPLAYS_GLOB = f'tests/fixtures/replays/*/{GOLDEN_REPLAY_NAME_GLOB}'
+MEMBER_GOLDEN_REPLAYS_GLOB = GOLDEN_REPLAY_NAME_GLOB
 # How many of a failed child's last output lines are shown
 FAILURE_OUTPUT_LINES = 10
 MILLISECONDS_PER_SECOND = 1000.0
@@ -132,11 +137,12 @@ def golden_replay_globs(*, project_root: Path) -> list[str]:
         project_root: The repository.
 
     Returns:
-        The engine's glob, then each workspace member's.
+        The root layout's glob (other projects' layout; it matches nothing here), then each
+        workspace member's.
 
     """
     return [
-        ENGINE_GOLDEN_REPLAYS_GLOB,
+        ROOT_LAYOUT_GOLDEN_REPLAYS_GLOB,
         *(
             (
                 member.replay_fixtures_directory.relative_to(project_root)
@@ -169,8 +175,8 @@ class MetricRecordings(BaseModel):
     Attributes:
         replayable: ``(console script, path)`` pairs: the golden replays, then the demos, each
             by path.
-        unreplayable: The golden replays no installed console script replays: reported and
-            counted as failures, while the others are still measured.
+        unreplayable: The golden replays and demos no installed console script replays:
+            reported and counted as failures, while the others are still measured.
 
     """
 
@@ -180,23 +186,38 @@ class MetricRecordings(BaseModel):
     unreplayable: tuple[UnreplayableRecording, ...] = ()
 
 
-def metric_recordings(*, project_root: Path) -> MetricRecordings:
+def metric_recordings(
+    *, project_root: Path, demo_packages: tuple[str, ...] = tuple(MEMBER_LAYERS)
+) -> MetricRecordings:
     """Return every golden replay and bundled demo, with the console script that replays it.
+
+    The goldens are the repository's (``golden_replay_globs``); the demos are the installed
+    packages' (``glitchygames.bundled_demos.bundled_demos``, the lookup the replay plugin uses
+    too): under a development install (editable, as ``uv sync`` installs) they are the
+    repository's files, under a built one ``site-packages``' (``recording_ledger_name`` names
+    either).
 
     Args:
         project_root: The repository.
+        demo_packages: The import packages whose bundled demos are measured: every workspace
+            member's unless given.
 
     Returns:
         The recordings: those a console script replays, and those none does (a workspace member
-        not installed: ``uv sync --all-packages`` installs every member).
+        not installed: ``uv sync --all-packages`` installs every member; a package with demos
+        but no console script). Bookmarked copies (``glitchygames.tracing.is_bookmarked_copy``)
+        are left out.
 
     """
     goldens: list[tuple[str, Path]] = []
     unreplayable: list[UnreplayableRecording] = []
+    # A bookmarked copy (S saves one beside a recording a watched replay plays:
+    # golden-classic.bookmarked.jsonl.gz) matches a member's glob but is no golden
     for path in sorted(
         path
         for glob in golden_replay_globs(project_root=project_root)
         for path in project_root.glob(glob)
+        if not is_bookmarked_copy(path=path)
     ):
         try:
             goldens.append((recording_console_script(path=path), path))
@@ -205,8 +226,52 @@ def metric_recordings(*, project_root: Path) -> MetricRecordings:
             # with: the failure line names the recording
             reason = str(error.args[0]).removeprefix(f'{path}: ')
             unreplayable.append(UnreplayableRecording(path=path, reason=reason))
-    demos = bundled_demo_paths(examples_directory=project_root / EXAMPLES_PATH)
+    demos: list[tuple[str, Path]] = []
+    for demo in bundled_demos(packages=demo_packages):
+        # This caller's reaction to a demo no console script replays: reported, not raised
+        if demo.console_script is None:
+            reason = f'no installed console script has its entry point in {demo.package}'
+            unreplayable.append(UnreplayableRecording(path=demo.path, reason=reason))
+            continue
+        demos.append((demo.console_script, demo.path))
     return MetricRecordings(replayable=(*goldens, *demos), unreplayable=tuple(unreplayable))
+
+
+def recording_ledger_name(
+    *, path: Path, project_root: Path, demo_packages: tuple[str, ...] = tuple(MEMBER_LAYERS)
+) -> str:
+    """Return the name the ledger gives a recording.
+
+    A recording in the repository is named by its repository path
+    (``src/games/paddleslap/paddleslap/demos/rally.jsonl.gz``: what a development install, which
+    is editable, finds). One outside it (a bundled demo of a built install, in
+    ``site-packages``) is named by its bundled demo record's install name
+    (``paddleslap/demos/rally.jsonl.gz``, ``glitchygames.bundled_demos.BundledDemo.install_name``),
+    so the record is the name's one source.
+
+    Args:
+        path: The recording.
+        project_root: The repository.
+        demo_packages: The import packages whose bundled demos may hold a recording outside the
+            repository: every workspace member's unless given (as ``metric_recordings``).
+
+    Returns:
+        The name.
+
+    Raises:
+        ValueError: If the recording is neither in the repository nor a bundled demo of one of
+            those packages.
+
+    """
+    resolved = path.resolve()
+    repository = project_root.resolve()
+    if resolved.is_relative_to(repository):
+        return resolved.relative_to(repository).as_posix()
+    for demo in bundled_demos(packages=demo_packages):
+        if demo.path.resolve() == resolved:
+            return demo.install_name
+    message = f'{path}: neither in the repository {project_root} nor an installed bundled demo'
+    raise ValueError(message)
 
 
 def this_machine() -> str:
@@ -287,7 +352,7 @@ def measure_recording(
         reason is written to standard error).
 
     """
-    recording = path.relative_to(settings.project_root).as_posix()
+    recording = recording_ledger_name(path=path, project_root=settings.project_root)
     completed = rebaseline_recording_headless(
         console_script=console_script, path=path, new_path=new_path
     )
@@ -510,12 +575,14 @@ def measure(
     skipped: list[str] = []
     failures: list[str] = []
     for unreplayable_recording in unreplayable:
-        recording = unreplayable_recording.path.relative_to(settings.project_root).as_posix()
+        recording = recording_ledger_name(
+            path=unreplayable_recording.path, project_root=settings.project_root
+        )
         _failure(recording=recording, message=unreplayable_recording.reason)
         failures.append(recording)
     with tempfile.TemporaryDirectory(prefix='replay-metrics-') as temporary_name:
         for index, (console_script, path) in enumerate(recordings):
-            recording = path.relative_to(settings.project_root).as_posix()
+            recording = recording_ledger_name(path=path, project_root=settings.project_root)
             if not settings.force and _already_measured(
                 settings=settings, rows=known, recording=recording, commit=commit, machine=machine
             ):
@@ -667,7 +734,9 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
         return ExitCode.SUCCESS
 
     def selected(path: Path) -> bool:
-        return options.only is None or options.only in path.relative_to(PROJECT_ROOT).as_posix()
+        return options.only is None or options.only in recording_ledger_name(
+            path=path, project_root=PROJECT_ROOT
+        )
 
     found = metric_recordings(project_root=PROJECT_ROOT)
     recordings = [

@@ -1,0 +1,324 @@
+"""Primitive drawing both Brave Adventurer games share: terrain and the parallax backgrounds.
+
+All drawn from pygame primitives (no external assets). Each function takes a Surface and draws
+onto it. Each game's sprites are drawn in its own package.
+"""
+
+from __future__ import annotations
+
+import itertools
+import math
+
+import pygame
+
+from brave_adventurer_core.constants import (
+    DARK_SAND,
+    GRASS_COLOR,
+    HORIZON_COLOR,
+    OASIS_GREEN,
+    OASIS_TRUNK,
+    OASIS_WATER,
+    PYRAMID_COLOR,
+    PYRAMID_SHADOW,
+    ROCK_COLOR,
+    SAND_COLOR,
+    SKY_COLOR,
+    STONE_COLOR,
+    STONE_MORTAR,
+)
+
+# ---------------------------------------------------------------------------
+# Terrain drawing
+# ---------------------------------------------------------------------------
+
+
+def draw_ground_segment(surface: pygame.Surface, width: int) -> None:
+    """Draw a sand-colored ground segment with a darker top edge.
+
+    Args:
+        surface: The surface to draw onto.
+        width: Width of the ground segment.
+
+    """
+    surface.fill(SAND_COLOR)
+    # Darker top edge to give depth
+    pygame.draw.line(surface, DARK_SAND, (0, 0), (width - 1, 0), 3)
+    # Subtle texture lines
+    for x_position in range(0, width, 40):
+        pygame.draw.line(surface, DARK_SAND, (x_position, 8), (x_position + 20, 8), 1)
+
+
+def draw_stone_wall(surface: pygame.Surface, width: int, height: int) -> None:
+    """Draw a stone wall with a block pattern.
+
+    Args:
+        surface: The surface to draw onto.
+        width: Width of the wall.
+        height: Height of the wall.
+
+    """
+    surface.fill(STONE_COLOR)
+    block_height = 16
+    block_width = 16
+
+    for row in range(0, height, block_height):
+        # Offset every other row for a brick pattern
+        offset = block_width // 2 if (row // block_height) % 2 else 0
+        for column in range(-offset, width, block_width):
+            pygame.draw.rect(
+                surface,
+                STONE_MORTAR,
+                (column, row, block_width, block_height),
+                1,
+            )
+
+
+# ---------------------------------------------------------------------------
+# Background / parallax drawing
+# ---------------------------------------------------------------------------
+
+# Vertical gradients already drawn, keyed by (top color, bottom color, width, rows, pixel
+# format). A layer redraws its gradient by blitting the cached surface instead of drawing one
+# line per row; the few surface sizes a game uses keep this small.
+type _GradientKey = tuple[
+    tuple[int, int, int], tuple[int, int, int], int, int, int, tuple[int, int, int, int]
+]
+_vertical_gradient_cache: dict[_GradientKey, pygame.Surface] = {}
+
+
+def _vertical_gradient(
+    *,
+    top_color: tuple[int, int, int],
+    bottom_color: tuple[int, int, int],
+    rows: int,
+    like: pygame.Surface,
+) -> pygame.Surface:
+    """Return an opaque surface blending top_color (first row) into bottom_color (last row).
+
+    Row r gets top + (bottom - top) * r / max(rows - 1, 1) per channel, rounded: the colors
+    the sky and the far-sand ground plane used to draw one line per row. Built once per
+    colors, size and pixel format and cached. The gradient has like's width and pixel format
+    but no per-pixel alpha blending, so blitting it onto like copies its pixels at full alpha,
+    exactly as drawing the lines did, without converting each pixel.
+
+    Args:
+        top_color: The first row's color.
+        bottom_color: The last row's color.
+        rows: Number of rows.
+        like: The surface the gradient will be blitted onto (its width and pixel format).
+
+    Returns:
+        The cached gradient surface. Callers must not draw on it.
+
+    """
+    width = like.get_width()
+    cache_key = (top_color, bottom_color, width, rows, like.get_bitsize(), like.get_masks())
+    gradient = _vertical_gradient_cache.get(cache_key)
+    if gradient is not None:
+        return gradient
+
+    gradient = pygame.Surface((width, rows), 0, like)
+    top_red, top_green, top_blue = top_color
+    bottom_red, bottom_green, bottom_blue = bottom_color
+    for row in range(rows):
+        interpolation = row / max(rows - 1, 1)
+        red = round(top_red + (bottom_red - top_red) * interpolation)
+        green = round(top_green + (bottom_green - top_green) * interpolation)
+        blue = round(top_blue + (bottom_blue - top_blue) * interpolation)
+        gradient.fill((red, green, blue), (0, row, width, 1))
+    _vertical_gradient_cache[cache_key] = gradient
+    return gradient
+
+
+def draw_sky(surface: pygame.Surface, _camera_x: float, _camera_y: float) -> None:
+    """Draw a gradient sky from blue at top to pale yellow at horizon.
+
+    This is static (scroll_factor=0) so camera position is ignored.
+    Intended to be called once and cached. The gradient itself is built once per surface
+    size (_vertical_gradient) and blitted.
+
+    Args:
+        surface: The surface to draw onto.
+        _camera_x: Horizontal parallax offset (unused for static sky).
+        _camera_y: Vertical parallax offset (unused for static sky).
+
+    """
+    height = surface.get_height()
+    sky_gradient = _vertical_gradient(
+        top_color=SKY_COLOR, bottom_color=HORIZON_COLOR, rows=height, like=surface
+    )
+    surface.blit(sky_gradient, (0, 0))
+
+
+def draw_pyramids(surface: pygame.Surface, camera_x: float, _camera_y: float) -> None:
+    """Draw large pyramids on a distant sand ground plane.
+
+    A horizon-to-sand gradient fills the lower portion of the layer
+    so the pyramids sit naturally on desert ground rather than
+    floating on the sky gradient.
+
+    Pyramids are spaced across a repeating 2400px world segment.
+
+    Args:
+        surface: The surface to draw onto.
+        camera_x: Parallax-adjusted horizontal camera position.
+        _camera_y: Vertical camera position (unused — horizontal game).
+
+    """
+    height = surface.get_height()
+
+    # Draw far-sand ground plane from horizon line down.
+    # This covers the area below where pyramids sit, blending from
+    # horizon haze to warm sand so pyramids don't float on blue sky.
+    # Blend from HORIZON_COLOR (pale haze) to DARK_SAND (warm ground); the gradient does not
+    # scroll, so it is built once per surface size and blitted.
+    horizon_line = 300
+    if height > horizon_line:
+        ground_gradient = _vertical_gradient(
+            top_color=HORIZON_COLOR,
+            bottom_color=DARK_SAND,
+            rows=height - horizon_line,
+            like=surface,
+        )
+        surface.blit(ground_gradient, (0, horizon_line))
+
+    repeat_width = 2400
+
+    pyramid_definitions = [
+        (400, 140, 180),  # (world_x, base_half_width, height)
+        (1000, 100, 130),
+        (1800, 160, 200),
+    ]
+
+    for pyramid_world_x, base_half, pyramid_height in pyramid_definitions:
+        screen_x = (pyramid_world_x - camera_x) % repeat_width - repeat_width // 4
+        base_y = 380
+
+        # Main face (lit side)
+        lit_points = [
+            (round(screen_x - base_half), base_y),
+            (round(screen_x + base_half), base_y),
+            (round(screen_x), base_y - pyramid_height),
+        ]
+        pygame.draw.polygon(surface, PYRAMID_COLOR, lit_points)
+
+        # Shadow face (right side darker)
+        shadow_points = [
+            (round(screen_x), base_y - pyramid_height),
+            (round(screen_x + base_half), base_y),
+            (round(screen_x + base_half // 3), base_y),
+        ]
+        pygame.draw.polygon(surface, PYRAMID_SHADOW, shadow_points)
+
+
+def _dune_top_y(world_x: float) -> int:
+    """Return the screen row where the dune sand starts at a world column.
+
+    Args:
+        world_x: The column's parallax-adjusted world X.
+
+    Returns:
+        The first sand row (360 plus three layered sine waves, rounded).
+
+    """
+    return 360 + round(
+        math.sin(world_x * 0.005) * 20
+        + math.sin(world_x * 0.013) * 10
+        + math.sin(world_x * 0.002) * 15
+    )
+
+
+def draw_dunes_and_oasis(surface: pygame.Surface, camera_x: float, _camera_y: float) -> None:
+    """Draw rolling sand dunes and occasional oases.
+
+    Args:
+        surface: The surface to draw onto.
+        camera_x: Parallax-adjusted horizontal camera position.
+        _camera_y: Vertical camera position (unused — horizontal game).
+
+    """
+    width = surface.get_width()
+    height = surface.get_height()
+
+    # Draw dune shapes using layered sine waves: each column is sand from its dune top down.
+    # Neighbouring columns mostly share a top, so each run of equal tops is one filled rect
+    # (the same pixels as one vertical line per column, at a fraction of the calls).
+    dune_tops = [min(_dune_top_y(x_pixel + camera_x), height) for x_pixel in range(width)]
+    run_start_x = 0
+    for dune_top, run_columns in itertools.groupby(dune_tops):
+        run_width = sum(1 for _ in run_columns)
+        if dune_top < height:
+            surface.fill(SAND_COLOR, (run_start_x, dune_top, run_width, height - dune_top))
+        run_start_x += run_width
+
+    # Draw oases at fixed world positions (repeating every 3000 px)
+    oasis_repeat = 3000
+    for oasis_base_x in [800, 2200]:
+        screen_x = round((oasis_base_x - camera_x) % oasis_repeat - oasis_repeat // 4)
+
+        # Only draw if roughly on screen
+        oasis_draw_margin = 100
+        if -oasis_draw_margin < screen_x < width + oasis_draw_margin:
+            # Small pool of water
+            pygame.draw.ellipse(surface, OASIS_WATER, (screen_x - 30, 370, 60, 15))
+
+            # Palm tree trunk
+            pygame.draw.line(surface, OASIS_TRUNK, (screen_x, 370), (screen_x - 8, 330), 3)
+
+            # Palm fronds (radiating lines with green circles)
+            frond_base_x = screen_x - 8
+            frond_base_y = 330
+            for angle_degrees in [-60, -30, 0, 30, 60]:
+                radians = math.radians(angle_degrees - 90)
+                tip_x = frond_base_x + round(math.cos(radians) * 20)
+                tip_y = frond_base_y + round(math.sin(radians) * 20)
+                frond_start = (frond_base_x, frond_base_y)
+                pygame.draw.line(surface, OASIS_GREEN, frond_start, (tip_x, tip_y), 2)
+                pygame.draw.circle(surface, OASIS_GREEN, (tip_x, tip_y), 5)
+
+
+def draw_near_ground_details(surface: pygame.Surface, camera_x: float, _camera_y: float) -> None:
+    """Draw small rocks and grass tufts on the near ground layer.
+
+    Args:
+        surface: The surface to draw onto.
+        camera_x: Parallax-adjusted horizontal camera position.
+        _camera_y: Vertical camera position (unused — horizontal game).
+
+    """
+    width = surface.get_width()
+
+    # Place rocks and grass at pseudo-random but deterministic positions
+    # based on world position. Use a simple hash-like approach.
+    detail_spacing = 60
+    rounded_offset = round(camera_x)
+    start_world_x = (rounded_offset // detail_spacing) * detail_spacing
+
+    for world_x in range(start_world_x, start_world_x + width + detail_spacing, detail_spacing):
+        screen_x = world_x - rounded_offset
+
+        # Deterministic pseudo-random using world position
+        seed = (world_x * 7919) % 1000
+        detail_y = 392 + (seed % 8)
+
+        if seed % 3 == 0:
+            # Small rock
+            rock_width = 6 + (seed % 5)
+            rock_height = 4 + (seed % 3)
+            pygame.draw.ellipse(
+                surface,
+                ROCK_COLOR,
+                (screen_x, detail_y, rock_width, rock_height),
+            )
+        elif seed % 3 == 1:
+            # Grass tuft
+            for blade in range(3):
+                blade_x = screen_x + blade * 3
+                blade_height = 6 + (seed + blade) % 4
+                pygame.draw.line(
+                    surface,
+                    GRASS_COLOR,
+                    (blade_x, detail_y),
+                    (blade_x + 1, detail_y - blade_height),
+                    1,
+                )

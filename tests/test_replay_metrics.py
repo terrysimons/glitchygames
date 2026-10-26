@@ -20,13 +20,16 @@ from scripts.replay_metrics import (
     MeasureSettings,
     UnreplayableRecording,
     clear_published,
+    golden_replay_globs,
     measure,
     metric_recordings,
+    recording_ledger_name,
     rows_to_write,
     run,
 )
 
 from glitchygames.build_info import RevisionSource, SourceRevision, source_revision
+from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import run_command
 from glitchygames.recording_history import MEASUREMENT_RUNS_HEADER_FIELD
@@ -40,12 +43,19 @@ from glitchygames.recording_metrics import (
     read_ledger_file,
     read_row_files,
 )
-from glitchygames.tracing import read_trace
+from glitchygames.replay.driver import write_bookmarked_copy
+from glitchygames.tracing import is_bookmarked_copy, read_trace
+from paddleslap import PADDLESLAP_DEMO_PATH
 from tests.replay.test_replay_plugin import REPO_FIXTURE
+from tests.test_bundled_demo_discovery import write_stand_in_package
 from tests.test_recording_metrics import ledger_row, with_uncommitted_changes
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 GIT_TIMEOUT_SECONDS = 60.0
+# A real golden to copy into a stand-in member (its header names the classic game)
+BRAVE_ADVENTURER_GOLDEN = (
+    PROJECT_ROOT / 'src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz'
+)
 
 
 def clean_revision() -> SourceRevision:
@@ -63,13 +73,13 @@ def clean_revision() -> SourceRevision:
 
 
 def copied_golden(*, project_root: Path) -> list[tuple[str, Path]]:
-    """Copy PaddleSlap's golden replay into a project tree laid out as this one is.
+    """Copy PaddleSlap's golden replay into a project tree laid out as this one is (its member's).
 
     Returns:
         The recordings to measure.
 
     """
-    target = project_root / 'tests' / 'fixtures' / 'replays' / 'paddleslap' / 'golden.jsonl.gz'
+    target = project_root / 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
     target.parent.mkdir(parents=True)
     shutil.copy(REPO_FIXTURE, target)
     return [('paddleslap', target)]
@@ -185,9 +195,13 @@ class TestTheRecordings:
 
     def test_this_projects_recordings(self):
         recordings = metric_recordings(project_root=PROJECT_ROOT)
-        paths = {path.relative_to(PROJECT_ROOT).as_posix() for _, path in recordings.replayable}
-        assert 'tests/fixtures/replays/paddleslap/golden.jsonl.gz' in paths
-        assert 'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz' in paths
+        paths = {
+            recording_ledger_name(path=path, project_root=PROJECT_ROOT)
+            for _, path in recordings.replayable
+        }
+        assert 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz' in paths
+        # The repository path under an editable install, the install name under a built one
+        assert recording_ledger_name(path=PADDLESLAP_DEMO_PATH, project_root=PROJECT_ROOT) in paths
         assert (
             'mr-muncher',
             PROJECT_ROOT / 'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz',
@@ -195,11 +209,71 @@ class TestTheRecordings:
         assert all(console_script for console_script, _ in recordings.replayable)
         assert not recordings.unreplayable
 
+    @pytest.mark.parametrize('golden', ['golden-classic.jsonl.gz', 'golden-papyrus.jsonl.gz'])
+    def test_each_game_of_a_member_with_several_is_measured(self, golden):
+        """Brave Adventurer's goldens are named apart (golden-<game>): each is measured.
+
+        Both through the member's one console script, the launcher, which starts the game the
+        recording's header names.
+        """
+        recordings = metric_recordings(project_root=PROJECT_ROOT)
+
+        assert (
+            'brave-adventurer',
+            PROJECT_ROOT / 'src/games/brave-adventurer/tests/fixtures/replays' / golden,
+        ) in recordings.replayable
+
+    def test_a_bookmarked_copy_beside_a_members_golden_is_not_measured(self, tmp_path):
+        """golden-classic.bookmarked.jsonl.gz matches golden*: it is a copy, not a golden."""
+        member = tmp_path / 'src' / 'games' / 'brave-adventurer'
+        (member / 'src' / 'brave_adventurer').mkdir(parents=True)
+        (tmp_path / 'pyproject.toml').write_text(
+            '[project]\nname = "stand-in"\n\n[tool.uv.workspace]\n'
+            'members = ["src/games/brave-adventurer"]\n',
+            encoding='utf-8',
+        )
+        (member / 'pyproject.toml').write_text(
+            '[project]\nname = "brave-adventurer"\n\n'
+            '[tool.hatch.build.targets.wheel]\npackages = ["src/brave_adventurer"]\n',
+            encoding='utf-8',
+        )
+        fixtures = member / 'tests' / 'fixtures' / 'replays'
+        fixtures.mkdir(parents=True)
+        golden = fixtures / 'golden-classic.jsonl.gz'
+        shutil.copy(BRAVE_ADVENTURER_GOLDEN, golden)
+        bookmarked = fixtures / 'golden-classic.bookmarked.jsonl.gz'
+        write_bookmarked_copy(recording_path=golden, bookmarks=[1], destination=bookmarked)
+        assert is_bookmarked_copy(path=bookmarked)
+
+        recordings = metric_recordings(project_root=tmp_path, demo_packages=())
+
+        assert recordings.replayable == (('brave-adventurer', golden),)
+        assert not recordings.unreplayable
+
+    def test_the_root_layout_finds_each_games_golden_and_skips_a_bookmarked_copy(self, tmp_path):
+        """The root layout's glob is the member's (golden*): golden-<game> too, not the copies."""
+        # A repository without members: only the root layout's goldens are found
+        (tmp_path / 'pyproject.toml').write_text('[project]\nname = "stand-in"\n', encoding='utf-8')
+        fixtures = tmp_path / 'tests' / 'fixtures' / 'replays' / 'paddleslap'
+        fixtures.mkdir(parents=True)
+        golden = fixtures / 'golden.jsonl.gz'
+        shutil.copy(REPO_FIXTURE, golden)
+        game_golden = fixtures / 'golden-rally.jsonl.gz'
+        shutil.copy(REPO_FIXTURE, game_golden)
+        bookmarked = fixtures / 'golden-rally.bookmarked.jsonl.gz'
+        write_bookmarked_copy(recording_path=game_golden, bookmarks=[1], destination=bookmarked)
+        assert is_bookmarked_copy(path=bookmarked)
+
+        recordings = metric_recordings(project_root=tmp_path, demo_packages=())
+
+        assert recordings.replayable == (('paddleslap', game_golden), ('paddleslap', golden))
+        assert not recordings.unreplayable
+
     def test_a_member_that_is_not_installed_is_named_with_the_fix(self, tmp_path):
         """A plain `uv sync` uninstalls the members: one line naming `uv sync --all-packages`."""
         write_uninstalled_member(project_root=tmp_path)
 
-        recordings = metric_recordings(project_root=tmp_path)
+        recordings = metric_recordings(project_root=tmp_path, demo_packages=())
 
         assert recordings.replayable == ()
         golden = tmp_path / UNINSTALLED_MEMBER_GOLDEN
@@ -209,6 +283,117 @@ class TestTheRecordings:
         assert "'glitchygames-not-installed-game'" in unreplayable.reason
         assert '\n' not in unreplayable.reason
         assert str(golden) not in unreplayable.reason
+
+    def test_a_demo_no_console_script_replays_is_reported_not_raised(self, tmp_path, monkeypatch):
+        """This caller's reaction to such a demo: one unreplayable line; the others are measured."""
+        demo_directory = write_stand_in_package(
+            directory=tmp_path / 'site-packages',
+            package='stand_in_game_without_a_script',
+            demo_names=('rally.jsonl.gz',),
+        )
+        monkeypatch.syspath_prepend(tmp_path / 'site-packages')
+        # A repository without members or goldens: only the demos are found
+        (tmp_path / 'pyproject.toml').write_text('[project]\nname = "stand-in"\n', encoding='utf-8')
+
+        recordings = metric_recordings(
+            project_root=tmp_path, demo_packages=('paddleslap', 'stand_in_game_without_a_script')
+        )
+
+        assert recordings.replayable == (('paddleslap', PADDLESLAP_DEMO_PATH),)
+        [unreplayable_demo] = recordings.unreplayable
+        assert unreplayable_demo.path == demo_directory / 'rally.jsonl.gz'
+        assert unreplayable_demo.reason == (
+            'no installed console script has its entry point in stand_in_game_without_a_script'
+        )
+
+    def test_the_measured_demos_are_exactly_the_engines_bundled_demos(self):
+        """One lookup (glitchygames.bundled_demos), under an editable install or a built one.
+
+        By console script and ledger name: the repository path when the package is installed
+        from it (editable), else its install name (a built install, as nox's test sessions run).
+        """
+        recordings = metric_recordings(project_root=PROJECT_ROOT)
+        goldens = {
+            path
+            for glob in golden_replay_globs(project_root=PROJECT_ROOT)
+            for path in PROJECT_ROOT.glob(glob)
+        }
+        measured_demos = {
+            (console_script, recording_ledger_name(path=path, project_root=PROJECT_ROOT))
+            for console_script, path in recordings.replayable
+            if path not in goldens
+        }
+        engine_demos = {
+            (
+                demo.console_script,
+                demo.path.relative_to(PROJECT_ROOT).as_posix()
+                if demo.path.is_relative_to(PROJECT_ROOT)
+                else demo.install_name,
+            )
+            for demo in bundled_demos()
+        }
+
+        assert measured_demos == engine_demos
+        assert ('paddleslap', 'paddleslap/demos/rally.jsonl.gz') in {
+            (demo.console_script, demo.install_name) for demo in bundled_demos()
+        }
+
+
+class TestRecordingLedgerNames:
+    """A recording in the repository by its repository path, else by its install name."""
+
+    def test_a_recording_in_the_repository_is_named_by_its_repository_path(self):
+        """Inside the repository the repository path wins, whatever import path also holds it."""
+        golden = PROJECT_ROOT / 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
+
+        assert recording_ledger_name(path=golden, project_root=PROJECT_ROOT) == (
+            'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
+        )
+
+    def test_a_recording_in_site_packages_is_named_by_its_install_name(self, tmp_path, monkeypatch):
+        """An installed system with no repository: its bundled demo record's install name."""
+        site_packages = tmp_path / 'lib' / 'site-packages'
+        demo_directory = write_stand_in_package(
+            directory=site_packages, package='stand_in_game', demo_names=('rally.jsonl.gz',)
+        )
+        # The directory above is an import path too: the record names it from the innermost
+        monkeypatch.syspath_prepend(tmp_path)
+        monkeypatch.syspath_prepend(site_packages)
+        (demo,) = bundled_demos(packages=('stand_in_game',))
+
+        name = recording_ledger_name(
+            path=demo_directory / 'rally.jsonl.gz',
+            project_root=tmp_path / 'no-repository',
+            demo_packages=('stand_in_game',),
+        )
+
+        assert name == 'stand_in_game/demos/rally.jsonl.gz' == demo.install_name
+
+    def test_a_recording_under_an_import_path_that_is_no_bundled_demo_is_refused(
+        self, tmp_path, monkeypatch
+    ):
+        """Outside the repository only a bundled demo's record names it, not the import paths."""
+        site_packages = tmp_path / 'site-packages'
+        write_stand_in_package(
+            directory=site_packages, package='stand_in_game', demo_names=('rally.jsonl.gz',)
+        )
+        monkeypatch.syspath_prepend(site_packages)
+        # Under the same import path as the demo, but not in its package's demos/
+        stray = site_packages / 'stand_in_game' / 'rally.jsonl.gz'
+        shutil.copy(REPO_FIXTURE, stray)
+
+        with pytest.raises(ValueError, match='nor an installed bundled demo'):
+            recording_ledger_name(
+                path=stray,
+                project_root=tmp_path / 'no-repository',
+                demo_packages=('stand_in_game',),
+            )
+
+    def test_a_recording_neither_in_the_repository_nor_installed_is_refused(self, tmp_path):
+        with pytest.raises(ValueError, match='neither in the repository'):
+            recording_ledger_name(
+                path=tmp_path / 'elsewhere' / 'rally.jsonl.gz', project_root=tmp_path / 'project'
+            )
 
 
 class TestMeasuringIntoRowFiles:
@@ -413,7 +598,7 @@ class TestRowsToWrite:
     ):
         repository, landed, _ = landed_repository
         old_path = 'glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
-        new_path = 'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+        new_path = 'src/games/paddleslap/paddleslap/demos/rally.jsonl.gz'
         held = ledger_row(recording=old_path, commit=landed)
         again = ledger_row(recording=new_path, commit=landed)
         newest = ledger_row(recording=new_path, measured_at='2026-10-25T10:00:00+00:00')
@@ -508,18 +693,21 @@ class TestMeasuring:
         rows = read_ledger_file(path=pending).rows
         measured, recorded, *older_recorded = rows
         assert measured.origin == LedgerOrigin.REPLAY_METRICS
-        assert measured.recording == 'tests/fixtures/replays/paddleslap/golden.jsonl.gz'
+        assert measured.recording == 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
         assert measured.console_script == 'paddleslap'
         assert measured.commit == revision.commit
         assert measured.rebaseline_exit == ExitCode.SUCCESS.describe()
-        assert measured.frames_changed == 0
+        # The golden was recorded before PaddleSlap moved into its member and is not re-recorded:
+        # its first frame's scene start names the old module (glitchygames.examples.paddleslap),
+        # the rebaseline the new one (paddleslap); nothing else changes
+        assert measured.frames_changed == 1
         assert measured.summary is not None
         assert not measured.run.processing_paced
         assert measured.run.machine_state is not None
         assert recorded.origin == LedgerOrigin.RECORDING
         # One recorded row per run the golden holds, the measurement on top
         assert len(older_recorded) + 1 == self.golden_runs_with_a_commit()
-        assert 'tests/fixtures/replays/paddleslap/golden.jsonl.gz: 622 frames' in (
+        assert 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz: 622 frames' in (
             capsys.readouterr().out
         )
 
@@ -535,7 +723,7 @@ class TestMeasuring:
             published_text='',
         )
         assert again.measured == ()
-        assert again.skipped == ('tests/fixtures/replays/paddleslap/golden.jsonl.gz',)
+        assert again.skipped == ('src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz',)
         assert 'already measured' in capsys.readouterr().out
         assert read_ledger_file(path=pending).rows == rows
 
@@ -575,7 +763,7 @@ class TestMeasuring:
             recordings=recordings,
             published_text=ledger_text(rows=[published]),
         )
-        assert result.skipped == ('tests/fixtures/replays/paddleslap/golden.jsonl.gz',)
+        assert result.skipped == ('src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz',)
 
     def test_uncommitted_changes_are_refused_unless_allowed(self, tmp_path, capsys):
         project_root = tmp_path / 'project'
@@ -630,7 +818,7 @@ class TestMeasuring:
     def test_failures_are_reported_and_measured_rows_kept(self, tmp_path, capsys):
         project_root = tmp_path / 'project'
         recordings = copied_golden(project_root=project_root)
-        broken = project_root / 'tests' / 'fixtures' / 'replays' / 'paddleslap' / 'broken.jsonl.gz'
+        broken = recordings[0][1].with_name('broken.jsonl.gz')
         broken.write_text('not a recording', encoding='utf-8')
         pending = tmp_path / 'pending.jsonl'
         result = measure(
@@ -645,7 +833,7 @@ class TestMeasuring:
             published_text='',
         )
         assert result.exit_code == ExitCode.INTERNAL_ERROR
-        assert result.failures == ('tests/fixtures/replays/paddleslap/broken.jsonl.gz',)
+        assert result.failures == ('src/games/paddleslap/tests/fixtures/replays/broken.jsonl.gz',)
         assert 'UNUSABLE_INPUT' in capsys.readouterr().err
         assert len(read_ledger_file(path=pending).rows) == 1 + self.golden_runs_with_a_commit()
 
@@ -736,11 +924,12 @@ class TestTheCommandLine:
         # deploy that measured this commit on this machine makes the measurement skip it
         mocker.patch.object(replay_metrics, 'published_ledger_text', return_value='')
         pending = tmp_path / 'pending.jsonl'
-        arguments = ['--pending', str(pending), '--only', 'paddleslap_demos']
+        arguments = ['--pending', str(pending), '--only', 'paddleslap/demos']
         assert run(arguments=['measure', *arguments]) == ExitCode.SUCCESS
         rows = read_ledger_file(path=pending).rows
+        # The repository path under an editable install, the install name under a built one
         assert {row.recording for row in rows} == {
-            'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+            recording_ledger_name(path=PADDLESLAP_DEMO_PATH, project_root=PROJECT_ROOT)
         }
         assert 'Measured 1 recording' in capsys.readouterr().out
         # Nothing published: clearing the published rows keeps every pending one
@@ -775,7 +964,7 @@ class TestTheCommandLine:
                 '--rows-directory',
                 str(rows_directory),
                 '--only',
-                'paddleslap_demos',
+                'paddleslap/demos',
             ]
         )
 

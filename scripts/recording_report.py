@@ -20,7 +20,8 @@ stacks one; glitchygames/recording_history.py); this prints, newest first:
 The analysis is glitchygames/recording_metrics.py; this is its command line.
 
 Usage:
-    uv run python scripts/recording_report.py tests/fixtures/replays/paddleslap/golden.jsonl.gz
+    uv run python scripts/recording_report.py \
+        src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz
     uv run python scripts/recording_report.py PATH --threshold 10 --minimum-ms 0.1 --spans 50
 
 Exit codes: ``SUCCESS``; ``MISSING_INPUT`` when the file does not exist; ``UNUSABLE_INPUT`` when

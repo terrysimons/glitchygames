@@ -34,8 +34,16 @@ STATIC_TOML = str(
     ENGINE_PACKAGE_DIRECTORY / 'examples' / 'resources' / 'sprites' / 'static.toml',
 )
 
+# Brave Adventurer's golden replay, in its own package's fixtures since it moved
 BRAVE_ADVENTURER_GOLDEN = (
-    Path(__file__).parent.parent / 'fixtures' / 'replays' / 'brave-adventurer' / 'golden.jsonl.gz'
+    Path(__file__).resolve().parents[2]
+    / 'src'
+    / 'games'
+    / 'brave-adventurer'
+    / 'tests'
+    / 'fixtures'
+    / 'replays'
+    / 'golden-classic.jsonl.gz'
 )
 
 # Frame time at 60 FPS

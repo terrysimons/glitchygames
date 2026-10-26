@@ -55,8 +55,10 @@ from glitchygames.recording_metrics import (
 )
 from glitchygames.tracing import FRAMES_FIELD, read_trace
 
+# PaddleSlap's golden replay, in its workspace member
 GOLDEN_PADDLESLAP = (
-    Path(__file__).resolve().parent / 'fixtures' / 'replays' / 'paddleslap' / 'golden.jsonl.gz'
+    Path(__file__).resolve().parent.parent
+    / 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
 )
 NEWER_COMMIT = 'def5678000000000000000000000000000000000'
 OLDER_COMMIT = 'abc1234000000000000000000000000000000000'
@@ -84,7 +86,7 @@ def run(
         python_version='3.14.8',
         measured_at=measured_at,
         rebaselined_from=fields.pop(
-            'rebaselined_from', 'tests/fixtures/replays/paddleslap/golden.jsonl.gz'
+            'rebaselined_from', 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
         ),
         hash_scheme=CONTENT_HASH_SCHEME,
         source_revision=(
@@ -323,7 +325,7 @@ class TestProcessingComparisons:
 
 def ledger_row(
     *,
-    recording: str = 'tests/fixtures/replays/paddleslap/golden.jsonl.gz',
+    recording: str = 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz',
     commit: str | None = NEWER_COMMIT,
     committed_at: str = '2026-10-23T12:00:00-07:00',
     measured_at: str = '2026-10-23T20:00:00+00:00',
@@ -367,7 +369,7 @@ class TestTheLedger:
     def test_the_key_names_the_recording_the_measurement_and_the_machine(self):
         row = ledger_row()
         assert row.key == (
-            'tests/fixtures/replays/paddleslap/golden.jsonl.gz|2026-10-23T20:00:00+00:00|'
+            'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz|2026-10-23T20:00:00+00:00|'
             'macOS-27.0-arm64-arm-64bit'
         )
         assert row.commit == NEWER_COMMIT
@@ -407,7 +409,7 @@ class TestTheLedger:
             ledger_row(),
             ledger_row(recording='other').model_copy(update={'origin': LedgerOrigin.RECORDING}),
         ]
-        recording = 'tests/fixtures/replays/paddleslap/golden.jsonl.gz'
+        recording = 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
         assert is_measured(
             rows=rows, recording=recording, commit=NEWER_COMMIT, machine='Apple M4 Max'
         )
@@ -458,7 +460,7 @@ class TestRowsFromARebaseline:
             ],
         }
         rows = ledger_rows_from_rebaseline(
-            recording='tests/fixtures/replays/paddleslap/golden.jsonl.gz',
+            recording='src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz',
             console_script='paddleslap',
             trace={**rebaselined_header, FRAMES_FIELD: rebaselined_frames},
             rebaseline_exit='SUCCESS (0)',
@@ -521,16 +523,16 @@ class TestPerformanceSeries:
             update={'run': run(commit=NEWER_COMMIT, cpu_model='Intel')}
         )
         other_recording = ledger_row(
-            recording='src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz'
+            recording='src/games/paddleslap/paddleslap/demos/rally.jsonl.gz'
         )
         no_commit = ledger_row(commit=None)
         series = performance_series(
             rows=[remeasured, first, older, other_machine, other_recording, no_commit]
         )
         assert [(entry.recording, entry.machine, entry.paced) for entry in series] == [
-            ('src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz', 'Apple M4 Max', False),
-            ('tests/fixtures/replays/paddleslap/golden.jsonl.gz', 'Apple M4 Max', False),
-            ('tests/fixtures/replays/paddleslap/golden.jsonl.gz', 'Intel', False),
+            ('src/games/paddleslap/paddleslap/demos/rally.jsonl.gz', 'Apple M4 Max', False),
+            ('src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz', 'Apple M4 Max', False),
+            ('src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz', 'Intel', False),
         ]
         assert series[1].rows == (older, remeasured)
         assert series[1].label == 'Apple M4 Max, unpaced replay'

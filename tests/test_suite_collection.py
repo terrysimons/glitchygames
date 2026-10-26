@@ -334,10 +334,20 @@ def test_a_member_test_reassigning_a_pygame_constant_is_found(tmp_path):
     ]
 
 
-def test_the_shared_harness_is_a_plugin_loaded_before_any_other():
-    """Every package's tests get the harness: SDL defaults set before anything imports pygame."""
-    import conftest as root_conftest
+def test_the_shared_harness_is_a_plugin_loaded_before_any_other(pytestconfig):
+    """Every package's tests get the harness: SDL defaults set before anything imports pygame.
 
+    The root conftest is looked up as pytest registered it, by its path: ``import conftest``
+    finds whichever conftest pytest imported last under that bare name, and a member's
+    tests/conftest.py (not in a package: Drawing Fire's) is one.
+    """
+    # pytest registers a conftest under its path built from the rootdir (not resolved: through
+    # a symlinked checkout the two differ)
+    root_conftest = pytestconfig.pluginmanager.get_plugin(
+        str(pytestconfig.rootpath / 'conftest.py')
+    )
+
+    assert root_conftest is not None, 'the root conftest.py is not a registered plugin'
     assert root_conftest.pytest_plugins[0] == 'tests.harness'
     assert not (TESTS_ROOT / 'conftest.py').exists(), 'the harness lives in tests/harness.py'
 
@@ -374,11 +384,52 @@ def test_every_member_packages_tests_are_collected(pytestconfig):
         )
 
 
+def duplicate_test_file_names(*, project_root: Path, roots: list[Path]) -> list[str]:
+    """Return every test file name used more than once below the roots, with each file using it.
+
+    A member's tests directory is not a package (rootless), so pytest imports each of its test
+    files under its bare file name: a second ``test_game.py`` anywhere, in another member or in
+    the root's tests/, would collide with it (BUGS.md #31). A member names its test files after
+    its package (``test_<package>_<area>.py``).
+
+    Args:
+        project_root: The repository (the files are named relative to it).
+        roots: The test roots (``collected_test_roots``).
+
+    Returns:
+        ``<name>: <file>, <file>[, ...]`` for each name used more than once, sorted.
+
+    """
+    files_by_name: dict[str, list[str]] = {}
+    for root, test_file in _python_files(roots=roots):
+        if fnmatch.fnmatch(test_file.name, 'test_*.py'):
+            files_by_name.setdefault(test_file.name, []).append(
+                test_file.relative_to(project_root).as_posix()
+            )
+    return [
+        f'{name}: {", ".join(files)}'
+        for name, files in sorted(files_by_name.items())
+        if len(files) > 1
+    ]
+
+
 def test_test_file_names_are_unique_across_packages():
     """Member tests are not packages, so pytest imports them by file name: names must differ."""
-    names = [path.name for root in collected_test_roots() for path in root.rglob('test_*.py')]
+    assert not duplicate_test_file_names(project_root=PROJECT_ROOT, roots=collected_test_roots())
 
-    assert len(names) == len(set(names))
+
+def test_a_test_file_name_used_twice_is_found_naming_both_files(tmp_path):
+    """A member's test file and the root's of the same name: both are reported."""
+    roots = write_member_test_root(project_root=tmp_path)
+    (tmp_path / 'tests' / 'test_space_game.py').write_text(
+        'def test_orbits():\n    assert True\n', encoding='utf-8'
+    )
+
+    member_file = (MEMBER_TESTS / 'test_space_game.py').as_posix()
+
+    assert duplicate_test_file_names(project_root=tmp_path, roots=roots) == [
+        f'test_space_game.py: {member_file}, tests/test_space_game.py'
+    ]
 
 
 # Living documentation writes repository paths from the repository root (the engine at

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import errno
 import functools
 import importlib.metadata
@@ -40,7 +41,7 @@ from scripts.build_browser_bundle import (
     touch_controls_config,
     write_engine_archive,
 )
-from scripts.workspace_packages import declared_console_scripts
+from scripts.workspace_packages import declared_console_scripts, workspace_members
 
 COMMIT = 'a' * 40
 WHEEL_NAME = 'pygame_ce-2.5.8.post1-cp314-cp314-pyemscripten_2026_0_wasm32.whl'
@@ -173,7 +174,7 @@ class TestGeneratedFiles:
 
     def test_a_member_games_package_is_its_own_archive(self):
         """Mr. Muncher's bundle ships mr_muncher.zip beside the engine's archive."""
-        config = pyscript_config(wheel_name=WHEEL_NAME, member_package='mr_muncher')
+        config = pyscript_config(wheel_name=WHEEL_NAME, member_packages=('mr_muncher',))
 
         assert '"./glitchygames.zip" = "./*"' in config
         assert '"./mr_muncher.zip" = "./*"' in config
@@ -181,15 +182,107 @@ class TestGeneratedFiles:
             './mr_muncher.zip' not in tomllib.loads(pyscript_config(wheel_name=WHEEL_NAME))['files']
         )
 
-    def test_the_engine_archive_no_longer_holds_the_moved_game(self):
-        """The moved game's code is not under src/glitchygames/ any more."""
+    @pytest.mark.parametrize(
+        'moved_package',
+        [
+            'mr_muncher',
+            'brave_adventurer',
+            'brave_adventurer_papyrus',
+            'clockwork_keep',
+            'drawing_fire',
+        ],
+    )
+    def test_the_engine_archive_no_longer_holds_the_moved_game(self, moved_package):
+        """The moved games' code is not under src/glitchygames/ any more."""
         files = bundled_package_files(package_directory=PACKAGE_DIRECTORY)
 
-        assert not any(path.parts[:2] == ('examples', 'mr_muncher') for path in files)
+        assert not any(path.parts[:2] == ('examples', moved_package) for path in files)
 
-    def test_only_member_games_name_a_member_package(self):
-        assert GAMES['mr-muncher'].member_package == 'mr_muncher'
-        assert [name for name, game in GAMES.items() if game.member_package] == ['mr-muncher']
+    def test_the_engine_archive_no_longer_holds_paddleslap_or_its_demo(self):
+        """PaddleSlap was one module (examples/paddleslap.py) with its demo folder beside it."""
+        files = {
+            path.as_posix() for path in bundled_package_files(package_directory=PACKAGE_DIRECTORY)
+        }
+
+        assert 'examples/paddleslap.py' not in files
+        assert not any(name.startswith('examples/paddleslap_demos/') for name in files)
+
+    def test_only_member_games_name_member_packages(self):
+        assert GAMES['mr-muncher'].member_packages == ('mr_muncher',)
+        assert GAMES['clockwork-keep'].member_packages == ('clockwork_keep',)
+        assert GAMES['paddleslap'].member_packages == ('paddleslap',)
+        assert GAMES['drawing-fire'].member_packages == ('drawing_fire',)
+        assert [name for name, game in GAMES.items() if game.member_packages] == [
+            'paddleslap',
+            'brave-adventurer',
+            'clockwork-keep',
+            'mr-muncher',
+            'drawing-fire',
+        ]
+
+    def test_brave_adventurer_starts_its_title_screen_with_both_games(self):
+        """One page for both games: the launcher's title screen, and all four packages."""
+        brave_adventurer = GAMES['brave-adventurer']
+
+        assert (brave_adventurer.module, brave_adventurer.scene_class) == (
+            'brave_adventurer_modes.title',
+            'TitleScene',
+        )
+        assert brave_adventurer.member_packages == (
+            'brave_adventurer_core',
+            'brave_adventurer',
+            'brave_adventurer_papyrus',
+            'brave_adventurer_modes',
+        )
+        (member,) = [
+            member
+            for member in workspace_members(project_root=REPOSITORY_DIRECTORY)
+            if member.distribution == 'brave-adventurer'
+        ]
+        assert set(brave_adventurer.member_packages) == set(member.import_packages)
+
+    def test_a_game_depending_on_a_member_ships_both_archives(self, tmp_path, monkeypatch):
+        """A game needing a shared core lists both archives, the one depended on first."""
+        member_packages = ('brave_adventurer_core', 'brave_adventurer_papyrus')
+        config_text = pyscript_config(wheel_name=WHEEL_NAME, member_packages=member_packages)
+        archive_lines = [
+            line.split(' = ')[0].strip('"') for line in config_text.splitlines() if '.zip' in line
+        ]
+
+        assert archive_lines == [
+            './glitchygames.zip',
+            './brave_adventurer_core.zip',
+            './brave_adventurer_papyrus.zip',
+        ]
+
+        written_packages = []
+
+        def record_archive(*, package_directory, archive_path, **_ignored):
+            written_packages.append(archive_path.name)
+            return 0
+
+        game = dataclasses.replace(GAMES['mr-muncher'], member_packages=member_packages)
+        monkeypatch.setitem(GAMES, 'two-archive-game', game)
+        monkeypatch.setattr(build_browser_bundle, 'write_engine_archive', record_archive)
+        monkeypatch.setattr(
+            build_browser_bundle,
+            'member_package_directory',
+            lambda *, import_package: tmp_path / import_package,
+        )
+        wheel_path = tmp_path / WHEEL_NAME
+        wheel_path.write_bytes(b'')
+        build_browser_bundle.write_bundle(
+            game='two-archive-game',
+            output_directory=tmp_path / 'site',
+            wheel_path=wheel_path,
+            arguments=[],
+        )
+
+        assert written_packages == [
+            'glitchygames.zip',
+            'brave_adventurer_core.zip',
+            'brave_adventurer_papyrus.zip',
+        ]
 
     def test_boot_config_names_the_game_and_its_arguments(self):
         assert boot_config(game='mr-muncher', arguments=['--target-fps', '30']) == {
@@ -275,6 +368,7 @@ class TestMain:
             'browser_user_files.py',
             'glitchygames.zip',
             'index.html',
+            'paddleslap.zip',
             'pyscript.toml',
             'touch_controls.js',
             'wheels',
@@ -342,13 +436,38 @@ class TestMain:
         assert not any(name.startswith('mr_muncher/') for name in engine_names)
         assert '"./mr_muncher.zip" = "./*"' in (tmp_path / 'muncher' / 'pyscript.toml').read_text()
 
-    def test_a_game_of_the_engine_has_no_member_archive(self, tmp_path):
+    def test_an_app_of_the_engine_has_no_member_archive(self, tmp_path):
+        """Every game is a member now; Bitmappy, still in the engine, ships the engine alone."""
+        wheel = tmp_path / WHEEL_NAME
+        wheel.write_bytes(b'wheel')
+
+        main(['bitmappy', '--wheel', str(wheel), '--output', str(tmp_path / 'bitmappy')])
+
+        assert [path.name for path in (tmp_path / 'bitmappy').glob('*.zip')] == ['glitchygames.zip']
+
+    def test_drawing_fires_bundle_ships_its_sprite_in_its_package(self, tmp_path):
+        """The soldier sprite is package data: it ships in drawing_fire.zip, not the engine's."""
+        wheel = tmp_path / WHEEL_NAME
+        wheel.write_bytes(b'wheel')
+
+        main(['drawing-fire', '--wheel', str(wheel), '--output', str(tmp_path / 'fire')])
+
+        with zipfile.ZipFile(tmp_path / 'fire' / 'drawing_fire.zip') as archive:
+            member_names = set(archive.namelist())
+        assert {'drawing_fire/game.py', 'drawing_fire/sprites/soldier.toml'} <= member_names
+        assert '"./drawing_fire.zip" = "./*"' in (tmp_path / 'fire' / 'pyscript.toml').read_text()
+
+    def test_paddleslaps_bundle_ships_its_demo_in_its_package(self, tmp_path):
+        """The attract-mode demo is package data: it ships in paddleslap.zip, not the engine's."""
         wheel = tmp_path / WHEEL_NAME
         wheel.write_bytes(b'wheel')
 
         main(['paddleslap', '--wheel', str(wheel), '--output', str(tmp_path / 'slap')])
 
-        assert not list((tmp_path / 'slap').glob('mr_muncher*'))
+        with zipfile.ZipFile(tmp_path / 'slap' / 'paddleslap.zip') as archive:
+            member_names = set(archive.namelist())
+        assert {'paddleslap/__init__.py', 'paddleslap/demos/rally.jsonl.gz'} <= member_names
+        assert '"./paddleslap.zip" = "./*"' in (tmp_path / 'slap' / 'pyscript.toml').read_text()
 
     def test_main_replaces_an_earlier_bundle(self, tmp_path):
         wheel = tmp_path / WHEEL_NAME
@@ -497,8 +616,8 @@ NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-clien
 def test_every_game_has_a_browser_build():
     """Each game's console script is a page under play/ (Papyrus was once left out).
 
-    The two Brave Adventurer editions are separate games: the primitive old-school pygame style
-    and the modern GlitchyGames style.
+    Brave Adventurer's two games are one console script and one page: the launcher's title
+    screen offers both.
     """
     scripts = declared_console_scripts(project_root=REPOSITORY_DIRECTORY)
 

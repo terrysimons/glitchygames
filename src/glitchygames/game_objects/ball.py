@@ -436,14 +436,52 @@ class BallSprite(Sprite):
         # Called with the ball after each wall bounce (one call per bounce, corners included)
         self.on_wall_bounce: Callable[[BallSprite], None] | None = None
 
-        # Debug trajectory tracking (PaddleSlap fills it only while DEBUG logging is on)
-        self._debug_positions: list[tuple[float, float, float, float]] = []
+        # Trajectory history (PaddleSlap fills it only while DEBUG logging is on)
+        self._trajectory: list[tuple[float, float, float, float]] = []
 
         self.reset()
 
         # The ball always needs refreshing.
         # This saves us a set on dirty every update.
         self.dirty = 2
+
+    @property
+    def trajectory(self: Self) -> tuple[tuple[float, float, float, float], ...]:
+        """The recorded trajectory points, oldest first.
+
+        Returns:
+            A read-only snapshot of (x, y, speed x, speed y) per recorded point.
+
+        """
+        return tuple(self._trajectory)
+
+    def record_trajectory_point(
+        self: Self,
+        *,
+        x: float,
+        y: float,
+        speed_x: float,
+        speed_y: float,
+        limit: int,
+    ) -> None:
+        """Append a point to the trajectory, dropping the oldest beyond limit.
+
+        Args:
+            x: The x position to record.
+            y: The y position to record.
+            speed_x: The horizontal speed to record.
+            speed_y: The vertical speed to record.
+            limit: The most points to keep.
+
+        Raises:
+            ValueError: If limit is below 1.
+
+        """
+        if limit < 1:
+            msg = f'The trajectory limit must be at least 1, got {limit}'
+            raise ValueError(msg)
+        self._trajectory.append((x, y, speed_x, speed_y))
+        del self._trajectory[:-limit]
 
     @property
     def world_x(self: Self) -> float:

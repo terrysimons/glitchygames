@@ -7,13 +7,9 @@ import shutil
 from glitchygames.user_files import install_user_files
 from tests.harness import imported_engine_directory
 
-# The imported engine's directory (installed: never the source tree by accident)
-ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
-
-# A real sprite file, named 'scarab' in its [sprite] table
-SPRITE_FILE = (
-    ENGINE_PACKAGE_DIRECTORY / 'examples' / 'brave_adventurer_papyrus' / 'sprites' / 'scarab.toml'
-)
+# A real sprite file of the engine's own (installed: never the source tree by accident), named
+# 'bttlaxe.get' in its [sprite] table
+SPRITE_FILE = imported_engine_directory() / 'examples' / 'resources' / 'sprites' / 'battle_axe.toml'
 
 
 class RecordingUserFiles:
@@ -60,4 +56,4 @@ class TestLoadThroughUserFiles:
         bitmap_editor.load_opened_file(opened_copy)
 
         assert bitmap_editor.canvas.animated_sprite is not sprite_before
-        assert bitmap_editor.canvas.animated_sprite.name == 'scarab'
+        assert bitmap_editor.canvas.animated_sprite.name == 'bttlaxe.get'

@@ -16,10 +16,11 @@ from scripts.record_golden_traces import (
     release,
 )
 from scripts.record_scripted_session import (
-    CONSOLE_SCRIPT_GAME_KEYS,
     CONTROLS_TAIL_BUILDERS,
+    GAME_CONSOLE_SCRIPTS,
     POLLED_INPUT_GAMES,
     QUIT_WAIT_FRAMES,
+    REPLAY_FIXTURE_DIRECTORIES,
     GameDidNotQuitError,
     PostedPolledInput,
     ScriptedInputSupervisor,
@@ -27,7 +28,7 @@ from scripts.record_scripted_session import (
     polled_input_follows,
     record_scripted_session,
 )
-from scripts.workspace_packages import declared_console_scripts
+from scripts.workspace_packages import declared_console_scripts, workspace_members
 
 from glitchygames import live_sources
 from glitchygames.events import GAMEEVENT
@@ -198,31 +199,78 @@ def test_the_supervisor_posts_the_next_frames_input_and_stops_the_last_frame(sce
 
 
 def test_every_game_has_a_fixture_location():
-    """Every scripted game maps to tests/fixtures/replays/<console-script>/."""
-    assert sorted(CONSOLE_SCRIPT_GAME_KEYS.values()) == sorted(SCRIPT_BUILDERS)
+    """Every scripted game has a console script and its fixtures in its workspace member."""
+    assert sorted(GAME_CONSOLE_SCRIPTS) == sorted(SCRIPT_BUILDERS)
+    assert sorted(REPLAY_FIXTURE_DIRECTORIES) == sorted(SCRIPT_BUILDERS)
 
-    path = fixture_path(game_key='brave_adventurer_papyrus', name='golden')
 
-    assert path.relative_to(PROJECT_ROOT).as_posix() == (
-        'tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz'
-    )
+def test_a_game_no_member_holds_has_no_fixture_location():
+    """No game is left in the root layout: a game outside every member is refused, by name."""
+    with pytest.raises(KeyError, match='no_such_game'):
+        fixture_path(game_key='no_such_game')
 
 
 def test_each_fixture_directory_is_the_games_console_script_in_pyproject():
-    """The mapping follows [project.scripts] (the root's and the members'): each in its module."""
+    """The mapping follows the members' [project.scripts].
+
+    Each game's console script is its workspace member's, its entry point in one of the
+    member's packages (Brave Adventurer's launcher, brave_adventurer_modes, starts both its
+    games).
+    """
     console_scripts = declared_console_scripts(project_root=PROJECT_ROOT)
-    for console_script, game_key in CONSOLE_SCRIPT_GAME_KEYS.items():
+    members = workspace_members(project_root=PROJECT_ROOT)
+    for game_key, console_script in GAME_CONSOLE_SCRIPTS.items():
         entry_point_module = console_scripts[console_script].split(':')[0]
-        assert entry_point_module == GAME_MODULES[game_key]
+        game_module = GAME_MODULES[game_key]
+        (member,) = [
+            member for member in members if game_module.partition('.')[0] in member.import_packages
+        ]
+        assert entry_point_module.partition('.')[0] in member.import_packages, game_key
+        assert REPLAY_FIXTURE_DIRECTORIES[game_key] == member.replay_fixtures_directory
 
 
-def test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures():
+def test_both_brave_adventurer_games_are_replayed_by_the_launcher():
+    """One console script for the member's two games (its goldens are named apart)."""
+    assert GAME_CONSOLE_SCRIPTS['brave_adventurer'] == 'brave-adventurer'
+    assert GAME_CONSOLE_SCRIPTS['brave_adventurer_papyrus'] == 'brave-adventurer'
+    assert declared_console_scripts(project_root=PROJECT_ROOT)['brave-adventurer'] == (
+        'brave_adventurer_modes:main'
+    )
+
+
+@pytest.mark.parametrize(
+    ('game_key', 'member_directory'),
+    [
+        ('mr_muncher', 'mr-muncher'),
+        ('clockwork_keep', 'clockwork-keep'),
+        ('paddleslap', 'paddleslap'),
+        ('drawing_fire', 'drawing-fire'),
+    ],
+)
+def test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures(
+    game_key, member_directory
+):
     """A game in a workspace member records into <member>/tests/fixtures/replays/<name>.jsonl.gz."""
-    path = fixture_path(game_key='mr_muncher', name='golden')
+    path = fixture_path(game_key=game_key, name='golden')
 
     assert path.relative_to(PROJECT_ROOT).as_posix() == (
-        'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz'
+        f'src/games/{member_directory}/tests/fixtures/replays/golden.jsonl.gz'
     )
+    assert path.is_file()
+
+
+@pytest.mark.parametrize(
+    ('game_key', 'golden'),
+    [('brave_adventurer', 'golden-classic'), ('brave_adventurer_papyrus', 'golden-papyrus')],
+)
+def test_the_games_of_a_member_with_several_name_their_goldens_apart(game_key, golden):
+    """Brave Adventurer's two games share their member's fixtures: golden-<game>.jsonl.gz."""
+    path = fixture_path(game_key=game_key)
+
+    assert path.relative_to(PROJECT_ROOT).as_posix() == (
+        f'src/games/brave-adventurer/tests/fixtures/replays/{golden}.jsonl.gz'
+    )
+    assert path.is_file()
 
 
 def posted_key_events() -> list[tuple[int, int]]:

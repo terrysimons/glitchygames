@@ -21,7 +21,8 @@ class LocalScene(Scene):
     ('module', 'expected'),
     [
         ('mr_muncher.game', 'games.mr_muncher.game'),
-        ('glitchygames.examples.paddleslap', 'games.paddleslap'),
+        ('paddleslap', 'games.paddleslap'),
+        ('drawing_fire.game', 'games.drawing_fire.game'),
         ('glitchygames.examples.joystick_demo', 'demos.joystick_demo'),
         ('glitchygames.scenes.builtin_scenes.pause', 'glitchygames.scenes.builtin_scenes.pause'),
         ('tests.test_logical_names', 'tests.test_logical_names'),
@@ -53,26 +54,34 @@ def test_a_logical_module_maps_back_to_the_module_that_holds_it(mocker):
     """A member's package, else glitchygames/examples, else the name itself."""
     mocker.patch.dict(logical_names.MEMBER_LAYERS, {'space_game': 'games'})
 
-    assert module_for_logical_module(logical_module='games.paddleslap') == (
-        'glitchygames.examples.paddleslap'
+    assert module_for_logical_module(logical_module='games.paddleslap') == 'paddleslap'
+    assert module_for_logical_module(logical_module='games.drawing_fire.game') == (
+        'drawing_fire.game'
+    )
+    assert module_for_logical_module(logical_module='demos.joystick_demo') == (
+        'glitchygames.examples.joystick_demo'
     )
     assert module_for_logical_module(logical_module='games.space_game.game') == 'space_game.game'
     assert module_for_logical_module(logical_module='glitchygames.scenes') == 'glitchygames.scenes'
 
 
-def test_every_example_game_and_demo_has_a_layer():
-    """The owner's table (2026-10-25); Part 2 deletes it when glitchygames/examples is empty."""
+def test_every_example_demo_and_member_has_a_layer():
+    """The owner's tables (2026-10-25): every game is a member; Part 3 moves the demos out."""
     assert logical_names.EXAMPLES_LAYERS == {
-        'paddleslap': 'games',
-        'brave_adventurer': 'games',
-        'brave_adventurer_papyrus': 'games',
-        'clockwork_keep': 'games',
-        'drawing_fire': 'games',
         'dt_demo': 'demos',
         'joystick_demo': 'demos',
         'text_input_demo': 'demos',
     }
-    assert logical_names.MEMBER_LAYERS == {'mr_muncher': 'games'}
+    assert logical_names.MEMBER_LAYERS == {
+        'mr_muncher': 'games',
+        'brave_adventurer_core': 'games',
+        'brave_adventurer': 'games',
+        'brave_adventurer_papyrus': 'games',
+        'brave_adventurer_modes': 'games',
+        'clockwork_keep': 'games',
+        'paddleslap': 'games',
+        'drawing_fire': 'games',
+    }
 
 
 def test_a_logical_module_of_an_unknown_package_is_left_as_it_is():

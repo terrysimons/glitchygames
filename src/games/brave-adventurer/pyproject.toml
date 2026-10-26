@@ -1,0 +1,27 @@
+[project]
+name = "brave-adventurer"
+version = "1.0.0"
+description = "Brave Adventurer and its Papyrus Edition: a Pitfall-style adventure in ancient Egypt, built on GlitchyGames"
+requires-python = ">=3.14,<4.0"
+dependencies = ["glitchygames"]
+
+# The one entry: the launcher (a title screen; --game classic|papyrus; a recording's own game)
+[project.scripts]
+brave-adventurer = "brave_adventurer_modes:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# A src layout of layered import packages: the primitives both games share, each game, then
+# the launcher that starts either
+packages = [
+  "src/brave_adventurer_core",
+  "src/brave_adventurer",
+  "src/brave_adventurer_papyrus",
+  "src/brave_adventurer_modes",
+]
+
+[tool.uv.sources]
+glitchygames = { workspace = true }

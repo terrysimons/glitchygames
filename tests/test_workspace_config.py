@@ -90,18 +90,23 @@ def test_pytest_collects_every_members_tests(member):
 
 @pytest.mark.parametrize('member', MEMBERS, ids=member_name)
 def test_lint_and_type_checks_cover_every_member(member):
-    """ruff, ty, pyright and the nox targets include every member."""
+    """ruff, ty, pyright and the nox targets include every member.
+
+    Imports resolve from the member's import roots: its own directory, or its src/ in a src
+    layout (src/games/brave-adventurer/src); the files checked are the whole member's.
+    """
     pyproject = root_pyproject()
     member_path = repository_path(member.directory)
     pyright = pyright_configuration()
 
-    assert member_path in pyproject['tool']['ruff']['src']
+    for import_root in member.import_roots:
+        assert repository_path(import_root) in pyproject['tool']['ruff']['src']
+        assert repository_path(import_root) in pyproject['tool']['ty']['environment']['root']
     assert f'{member_path}/**/*.py' in pyproject['tool']['ruff']['include']
     assert set(member.import_packages) <= set(
         pyproject['tool']['ruff']['lint']['isort']['known-first-party']
     )
     assert member_path in pyproject['tool']['ty']['src']['include']
-    assert member_path in pyproject['tool']['ty']['environment']['root']
     assert member_path in pyright['include']
     assert member_path in noxfile._CODE_DIRS
 
@@ -131,8 +136,13 @@ def test_member_tests_get_the_tests_relaxations(member):
     assert member_tests == engine_tests
     # Not a package (it would shadow tests/), so ruff is told it is a namespace on purpose
     assert tests_path in root_pyproject()['tool']['ruff']['namespace-packages']
-    assert member_path in engine_tests['extraPaths']
-    assert 'src' in environments[roots.index(member_path)]['extraPaths']
+    member_extra_paths = environments[roots.index(member_path)]['extraPaths']
+    assert 'src' in member_extra_paths
+    for import_root in member.import_roots:
+        assert repository_path(import_root) in engine_tests['extraPaths']
+        # A src layout's packages are not at the member's root, where pyright looks first
+        if import_root != member.directory:
+            assert repository_path(import_root) in member_extra_paths
 
 
 @pytest.mark.parametrize('member', MEMBERS, ids=member_name)
@@ -241,6 +251,21 @@ def test_the_engine_knows_no_layer_the_workspace_lacks():
     workspace_packages = {package for member in MEMBERS for package in member.import_packages}
 
     assert set(logical_names.MEMBER_LAYERS) == workspace_packages
+
+
+def test_each_layer_is_an_extra_naming_exactly_its_members():
+    """`glitchygames[games]`, `[demos]` and `[apps]` install exactly that layer's members.
+
+    Not parametrized: a layer with no member yet is an empty extra, so this holds before its
+    first member moves too.
+    """
+    extras = root_pyproject()['project']['optional-dependencies']
+
+    for layer in logical_names.LAYERS:
+        members_in_layer = sorted(
+            member.distribution for member in MEMBERS if member.layer == layer
+        )
+        assert sorted(extras[layer]) == members_in_layer, layer
 
 
 def test_jsonc_trailing_comma_before_a_comment_is_dropped():

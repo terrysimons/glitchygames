@@ -19,16 +19,25 @@ root.
 
 ```bash
 # Install dependencies (uv manages the virtual environment automatically); --all-packages
-# installs the workspace members too (src/games/mr-muncher). A plain `uv sync` keeps them as
-# well: the root's dev dependency group (installed by default) names every member as a
-# workspace source (tests/test_workspace_config.py checks it)
+# installs the workspace members too: every game is its own package (src/games/mr-muncher,
+# src/games/clockwork-keep, src/games/brave-adventurer, src/games/paddleslap,
+# src/games/drawing-fire). A plain `uv sync` keeps them as well: the root's dev dependency group (installed by default)
+# names every member as a workspace source (tests/test_workspace_config.py checks it)
 uv sync --all-packages
 
 # Install with dev extras (for testing/linting)
 uv sync --extra dev --all-packages
 
-# Install with all extras
-uv sync --all-extras --all-packages
+# Install with all extras: the engine, every game and the dev tools (what development uses)
+uv sync --all-extras --all-groups --all-packages
+
+# Outside the repository: the engine alone, or with every game (the `games` extra names each
+# game's distribution; tests/test_workspace_config.py keeps it equal to src/games/). The names
+# are not yet on PyPI (neither glitchygames nor any game's), so build the wheels and install
+# from them until they are published
+uv build --all-packages
+pip install --find-links dist glitchygames
+pip install --find-links dist "glitchygames[games]"
 
 # Optional: trust the project's .envrc (direnv); on entering the repo it runs
 # `uv sync --all-extras --all-groups --all-packages` (the locked versions) and, on macOS,
@@ -109,7 +118,7 @@ nox -s static-analysis-ty           # Run ty only
 nox -s test                # Run tests with coverage
 nox -s performance-test    # Run performance benchmarks
 nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU share, sleep wakes (diagnostic)
-nox -s replay-metrics      # Rebaseline every golden replay + bundled demo headless; append run-ledger rows to test-results/replay-metrics/pending.jsonl (skips this commit+machine; `-- --force`, `-- --allow-dirty`, `-- --only TEXT`)
+nox -s replay-metrics      # (the project's editable install) Rebaseline every golden replay + bundled demo headless; append run-ledger rows to test-results/replay-metrics/pending.jsonl (skips this commit+machine; `-- --force`, `-- --allow-dirty`, `-- --only TEXT`)
 nox -s test-linux-x11      # Tests on Linux in Docker: X11 windows on XQuartz, sound on the Mac's PulseAudio (starts it; `pulseaudio --kill` stops it; macOS)
 nox -s compare-drivers     # On demand N-way matrix: dummy x2, native, x11-macos, x11-linux (whatever runs here); `-- --drivers a,b`, `-- tests/x`; report test-results/driver-comparison/nox/matrix.md
 nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/Caches/glitchygames/sdl-x11; SDL_DYNAMIC_API loads it) and check it on XQuartz
@@ -162,9 +171,18 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 ```
 
 ### Example Games
-`uv run paddleslap`, `brave-adventurer`, `brave-adventurer-papyrus`, `clockwork-keep`,
+Every game is its own workspace package under `src/games/` (Part 2 of
+plans/2026-10-24-workspace-packages.md; the recipe is docs/architecture/game_packages.md), with
+its code, tests and golden replay; `src/glitchygames/examples/` keeps only the three demos and
+Bitmappy's resources. `uv run paddleslap` (its own workspace package `src/games/paddleslap/`, one module: `Game` is
+defined in `paddleslap/__init__.py`), `brave-adventurer` (one project holding both editions, Classic and Papyrus,
+`src/games/brave-adventurer/`: four import packages, `brave_adventurer_core` (what both share),
+`brave_adventurer` (Classic), `brave_adventurer_papyrus` and the launcher `brave_adventurer_modes`,
+its one console script, which shows a title screen, or starts one with `--game classic|papyrus`, or
+the game a `--replay-trace` recording names), `clockwork-keep` (a steampunk tower climb, its own
+workspace package `src/games/clockwork-keep/`),
 `mr-muncher` (a maze chase at the movies, its own workspace package `src/games/mr-muncher/`) and
-`drawing-fire` (a pencil-on-paper stick-figure battle, `src/glitchygames/examples/drawing_fire/`:
+`drawing-fire` (a pencil-on-paper stick-figure battle, its own workspace package `src/games/drawing-fire/`:
 computer battles that one or two local players join with START or Enter; its new mechanic is
 swatches, recolouring a sprite by palette swap; docs/games/drawing_fire.md) start the example
 games.
@@ -500,12 +518,16 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   logged at WARNING ("No demo: ...") and nothing starts; a divergence ends it and logs WARNING
   `demo diverged: <describe()>`; a cut-off file plays to its cut-off and ends `truncated`
   (INFO). Check `last_playback_outcome` for how it ended
-- Bundled demos (Part 3 Task 4): `src/glitchygames/examples/<game>_demos/<name>.jsonl.gz` for a
-  game still inside the engine; a workspace member's go in the member's import package, e.g.
-  `src/games/mr-muncher/mr_muncher/demos/<name>.jsonl.gz`. Each ships in the wheel of the package
-  that holds it (the engine's, or the member's; hatch includes every file in the package; no
-  pyproject change). PaddleSlap has no
-  title screen, so its game-over screen (`PaddleSlapGameOverScene`) plays
+- Bundled demos (Part 3 Task 4): a workspace member's `<package>/demos/<name>.jsonl.gz` ships in
+  its wheel as package data (hatch includes every file in the package; no pyproject change).
+  One engine lookup finds them in the installed packages,
+  `glitchygames.bundled_demos.bundled_demos()` (`BundledDemo`: console script, path, install
+  name); the replay plugin's `bundled_demo_paths`
+  and scripts/replay_metrics.py call it. Development installs are editable (`uv sync`; the
+  `replay-metrics` nox session runs `uv run --all-packages`), so the ledger names a demo by its
+  repository path; outside a repository, by its install name. PaddleSlap's is
+  `src/games/paddleslap/paddleslap/demos/rally.jsonl.gz`. PaddleSlap has no title screen, so its
+  game-over screen (`PaddleSlapGameOverScene`) plays
   `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS` (10) of game time without a key or
   button press. `tests/replay/test_bundled_demos.py` replays every demo headless
   (`bundled_demo_paths`, `replay_recording_headless` in `src/glitchygames/testing/replays.py`) and
@@ -604,10 +626,16 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   check key codes (`event.key`). Both screens answer a gamepad too, on either event layer
   (`scenes/builtin_scenes/gamepad_choice.py`): Start or A goes on (resume, restart) on its
   release after a press there, as SPACE does; B or Back quits on its press, as ESC does
-- Golden replays: the engine's own live in `tests/fixtures/replays/<console-script>/golden.jsonl.gz`;
-  a workspace member's in `<member>/tests/fixtures/replays/<name>.jsonl.gz` (Mr. Muncher's:
+- Golden replays: every game is a workspace member, so each golden lives in
+  `<member>/tests/fixtures/replays/<name>.jsonl.gz` (the replay plugin still collects another
+  project's `fixtures/replays/<console-script>/<name>.jsonl.gz`; no game's is there) (Mr. Muncher's:
   `src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz`), replayed through the member's
-  console script (`recording_console_script`), and its bundled demos in `<package>/demos/`.
+  console script (`recording_console_script`: its one, or for a member with several, the one
+  starting the game the recording's header names). Brave Adventurer has one, its launcher,
+  which starts the game each header names: `golden-classic.jsonl.gz` and
+  `golden-papyrus.jsonl.gz` (scripts/record_scripted_session.py keys games by game, not console
+  script: `GAME_CONSOLE_SCRIPTS`), and its bundled demos in
+  `<package>/demos/`.
   They are recorded through the
   real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).

@@ -19,13 +19,39 @@ if TYPE_CHECKING:
 # managed by uv, without touching the project's .venv.
 nox.options.default_venv_backend = 'uv'
 
-_CODE_DIRS = ['noxfile.py', 'src/glitchygames', 'src/games/mr-muncher', 'scripts', 'tests']
+_CODE_DIRS = [
+    'noxfile.py',
+    'src/glitchygames',
+    'src/games/mr-muncher',
+    'src/games/brave-adventurer',
+    'src/games/clockwork-keep',
+    'src/games/paddleslap',
+    'src/games/drawing-fire',
+    'scripts',
+    'tests',
+]
 # The source packages vulture and bandit scan: the engine's and each workspace member's
-_SOURCE_PACKAGE_DIRS = ['src/glitchygames', 'src/games/mr-muncher/mr_muncher']
+_SOURCE_PACKAGE_DIRS = [
+    'src/glitchygames',
+    'src/games/mr-muncher/mr_muncher',
+    'src/games/brave-adventurer/src/brave_adventurer_core',
+    'src/games/brave-adventurer/src/brave_adventurer',
+    'src/games/brave-adventurer/src/brave_adventurer_papyrus',
+    'src/games/brave-adventurer/src/brave_adventurer_modes',
+    'src/games/clockwork-keep/clockwork_keep',
+    'src/games/paddleslap/paddleslap',
+    'src/games/drawing-fire/drawing_fire',
+]
 # The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
 # through scripts/workspace_packages.py: CI runs nox through uvx, whose interpreter has neither
 # pydantic nor the engine; tests/test_workspace_config.py keeps the list equal to the workspace
-_MEMBER_DISTRIBUTIONS = ['mr-muncher']
+_MEMBER_DISTRIBUTIONS = [
+    'mr-muncher',
+    'brave-adventurer',
+    'clockwork-keep',
+    'paddleslap',
+    'drawing-fire',
+]
 
 
 # ---------------------------------------------------------------------------
@@ -279,19 +305,25 @@ def _replay_metrics(session: nox.Session, *arguments: str) -> None:
     It imports scripts.workspace_packages, so it runs as ``python -m scripts.replay_metrics``.
 
     The rebaselines it starts must run this checkout's package (the project's editable install)
-    to know their commit: a nox venv's built copy of the package cannot name it.
+    to know their commit: a nox venv's built copy of the package cannot name it. The install is
+    editable, the engine and every member (``--all-packages``; never ``--no-editable``, which
+    only the test sessions' ``_install_from_lockfile`` passes): the bundled demos are found
+    where the packages are installed (glitchygames/bundled_demos.py), so an editable install
+    finds them in the repository and the ledger names them by their repository paths.
     """
     session.run(
         'uv',
         'run',
         '--frozen',
+        '--all-packages',
         'python',
         '-m',
         'scripts.replay_metrics',
         *arguments,
         external=True,
-        # Unset (nox drops None): a session's own venv is not the project's, and uv would warn
-        env={'VIRTUAL_ENV': None},
+        # Unset (nox drops None): a session's own venv is not the project's, and uv would warn;
+        # UV_NO_EDITABLE would make uv's sync of the project's environment build the packages
+        env={'VIRTUAL_ENV': None, 'UV_NO_EDITABLE': None},
     )
 
 

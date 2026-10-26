@@ -8,10 +8,10 @@ import pygame
 import pytest
 
 from glitchygames.events import HashableEvent
-from glitchygames.examples.paddleslap import Game, PaddleSlapGameOverScene
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.testing.keys import qwerty_scancode
+from paddleslap import Game, PaddleSlapGameOverScene
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

@@ -70,6 +70,16 @@ class WorkspaceMember(BaseModel):
         return tuple(self.directory / relative for relative in self.package_relative_paths)
 
     @property
+    def import_roots(self: Self) -> tuple[Path, ...]:
+        """The directories its import packages are found in, each once, in package order.
+
+        The member's own directory (``src/games/mr-muncher``), or its ``src/`` in a src layout
+        (``src/games/brave-adventurer/src``): what a tool resolving imports (ruff's ``src``,
+        ty's ``root``, pyright's ``extraPaths``) needs.
+        """
+        return tuple(dict.fromkeys(directory.parent for directory in self.package_directories))
+
+    @property
     def layer(self: Self) -> str:
         """The workspace layer it belongs to: its directory's parent under src/ (``games``)."""
         return self.directory.parent.name

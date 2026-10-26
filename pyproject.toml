@@ -24,7 +24,11 @@ dependencies = [
   "pygame-ce",
   "cookiecutter",
   "pyperclip",
-  "aisuite[all]>=0.1.14",
+  # Every aisuite provider but `google` (its Vertex AI shim, vertexai 1.71.1, is no longer
+  # published and pins google-cloud-aiplatform to 1.71.1[all], an extra that release lacks).
+  # Google's models stay reachable through the `gemini` provider. The model is a run-time
+  # setting ('provider:model'), so every other provider stays installable as with [all]
+  "aisuite[anthropic,aws,cerebras,cohere,deepgram,deepseek,gemini,groq,lmstudio,mcp,mistral,ollama,openai,postgres,watsonx]>=0.1.14",
   "numpy",
   "miniaudio",
   "speechrecognition",
@@ -49,11 +53,6 @@ dependencies = [
 bitmappy = "glitchygames.bitmappy:main"
 glitchygames-server = "glitchygames.api.main:run"
 glitchygames-client = "glitchygames.api.client:run"
-brave-adventurer = "glitchygames.examples.brave_adventurer:main"
-brave-adventurer-papyrus = "glitchygames.examples.brave_adventurer_papyrus:main"
-paddleslap = "glitchygames.examples.paddleslap:main"
-clockwork-keep = "glitchygames.examples.clockwork_keep:main"
-drawing-fire = "glitchygames.examples.drawing_fire:main"
 
 [project.optional-dependencies]
 docs = [
@@ -97,22 +96,52 @@ dev = [
   "filelock>=3.32.7",
 ]
 api = []
+# The workspace members by layer (src/<layer>/<member>/, docs/architecture/game_packages.md):
+# `pip install glitchygames[games]` installs the engine and every game. Each member depends on
+# glitchygames, so these are a cycle through an extra, which pip and uv both resolve. Kept equal
+# to the workspace by tests/test_workspace_config.py; an empty layer is an empty extra until its
+# first member moves (demos: Part 3, apps: Part 4)
+games = [
+  "mr-muncher",
+  "brave-adventurer",
+  "clockwork-keep",
+  "paddleslap",
+  "drawing-fire",
+]
+demos = []
+apps = []
 
 [tool.uv.workspace]
 # Each a package of its own beside the engine, under src/<layer>/
 # (plans/2026-10-24-workspace-packages.md); listed one by one, never by glob
-members = ["src/games/mr-muncher"]
+members = [
+  "src/games/mr-muncher",
+  "src/games/brave-adventurer",
+  "src/games/clockwork-keep",
+  "src/games/paddleslap",
+  "src/games/drawing-fire",
+]
 
 [tool.uv.sources]
 # Each member from the workspace, never from an index (the dev group below)
 mr-muncher = { workspace = true }
+brave-adventurer = { workspace = true }
+clockwork-keep = { workspace = true }
+paddleslap = { workspace = true }
+drawing-fire = { workspace = true }
 
 [dependency-groups]
 # Every workspace member: `uv sync` installs the dev group and is exact, so without the members
 # here a plain `uv sync` uninstalls what `--all-packages` installed, console scripts included,
 # and the replay-metrics hook can no longer replay their recordings. Checked against the
 # workspace by tests/test_workspace_config.py
-dev = ["mr-muncher"]
+dev = [
+  "mr-muncher",
+  "brave-adventurer",
+  "clockwork-keep",
+  "paddleslap",
+  "drawing-fire",
+]
 
 [tool.hatch.build]
 # The build stamp is gitignored (hatch leaves ignored files out); nox -s build-wheel and
@@ -125,7 +154,14 @@ artifacts = ["src/glitchygames/_build_info.json"]
 packages = ["src/glitchygames"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "src/games/mr-muncher/tests"]
+testpaths = [
+  "tests",
+  "src/games/mr-muncher/tests",
+  "src/games/brave-adventurer/tests",
+  "src/games/clockwork-keep/tests",
+  "src/games/paddleslap/tests",
+  "src/games/drawing-fire/tests",
+]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -140,7 +176,7 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "-n auto --cov=glitchygames --cov=mr_muncher --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "-n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
@@ -153,7 +189,17 @@ filterwarnings = [
 # Note: All tests run with no_unhandled_events=True to catch unhandled events as bugs
 
 [tool.coverage.run]
-source = ["glitchygames", "mr_muncher"]
+source = [
+  "glitchygames",
+  "mr_muncher",
+  "brave_adventurer_core",
+  "brave_adventurer",
+  "brave_adventurer_papyrus",
+  "brave_adventurer_modes",
+  "clockwork_keep",
+  "paddleslap",
+  "drawing_fire",
+]
 branch = true
 parallel = true
 omit = [
@@ -169,6 +215,31 @@ omit = [
 # repository's src/glitchygames, so the report and its 100% gate name the files in git
 glitchygames = ["src/glitchygames", "*/site-packages/glitchygames"]
 mr_muncher = ["src/games/mr-muncher/mr_muncher", "*/site-packages/mr_muncher"]
+brave_adventurer_core = [
+  "src/games/brave-adventurer/src/brave_adventurer_core",
+  "*/site-packages/brave_adventurer_core",
+]
+brave_adventurer = [
+  "src/games/brave-adventurer/src/brave_adventurer",
+  "*/site-packages/brave_adventurer",
+]
+brave_adventurer_papyrus = [
+  "src/games/brave-adventurer/src/brave_adventurer_papyrus",
+  "*/site-packages/brave_adventurer_papyrus",
+]
+brave_adventurer_modes = [
+  "src/games/brave-adventurer/src/brave_adventurer_modes",
+  "*/site-packages/brave_adventurer_modes",
+]
+clockwork_keep = [
+  "src/games/clockwork-keep/clockwork_keep",
+  "*/site-packages/clockwork_keep",
+]
+paddleslap = ["src/games/paddleslap/paddleslap", "*/site-packages/paddleslap"]
+drawing_fire = [
+  "src/games/drawing-fire/drawing_fire",
+  "*/site-packages/drawing_fire",
+]
 
 [tool.coverage.report]
 show_missing = true
@@ -197,10 +268,23 @@ directory = "htmlcov"
 preview = true
 line-length = 100
 output-format = "grouped"
-src = ["src", "tests", "scripts", "src/games/mr-muncher"]
+src = [
+  "src",
+  "tests",
+  "scripts",
+  "src/games/mr-muncher",
+  "src/games/brave-adventurer/src",
+  "src/games/clockwork-keep",
+  "src/games/paddleslap",
+  "src/games/drawing-fire",
+]
 include = [
   "src/glitchygames/*.py",
   "src/games/mr-muncher/**/*.py",
+  "src/games/brave-adventurer/**/*.py",
+  "src/games/clockwork-keep/**/*.py",
+  "src/games/paddleslap/**/*.py",
+  "src/games/drawing-fire/**/*.py",
   "tests/**/*.py",
   "scripts/**/*.py",
   "noxfile.py",
@@ -208,7 +292,13 @@ include = [
 target-version = "py314"
 # A workspace member's tests directory is not a package (pytest imports its files by name; a
 # package named tests would shadow the engine's tests/), so it is a namespace on purpose
-namespace-packages = ["src/games/mr-muncher/tests"]
+namespace-packages = [
+  "src/games/mr-muncher/tests",
+  "src/games/brave-adventurer/tests",
+  "src/games/clockwork-keep/tests",
+  "src/games/paddleslap/tests",
+  "src/games/drawing-fire/tests",
+]
 
 [tool.ruff.lint]
 task-tags = ["HACK", "TODO", "FIXME", "XXX", "NOTE", "BUG", "OPTIMIZE", "WIP"]
@@ -339,8 +429,11 @@ fixable = ["ALL"]
 "src/glitchygames/examples/joystick_demo.py" = [
   "PLR0913", # Demo widget constructors follow standard UI geometry pattern
 ]
-"src/glitchygames/examples/paddleslap.py" = [
+"src/games/paddleslap/paddleslap/__init__.py" = [
   "PLR0913", # Game helper functions need ball geometry and physics params
+  # The game is one module: its recordings name games.paddleslap:Game, so Game stays defined in
+  # the package itself (docs/architecture/game_packages.md, "A game that is one module")
+  "RUF067",
 ]
 "src/glitchygames/services/sprite_generation_service.py" = [
   "PLR0913", # Sprite generation needs provider, model, prompt, and dimension params
@@ -364,7 +457,17 @@ multiline-quotes = "double"
 convention = "google"
 
 [tool.ruff.lint.isort]
-known-first-party = ["glitchygames", "mr_muncher"]
+known-first-party = [
+  "glitchygames",
+  "mr_muncher",
+  "brave_adventurer_core",
+  "brave_adventurer",
+  "brave_adventurer_papyrus",
+  "brave_adventurer_modes",
+  "clockwork_keep",
+  "paddleslap",
+  "drawing_fire",
+]
 
 ## basedpyright config lives in pyrightconfig.json (supports per-environment overrides)
 
@@ -372,11 +475,27 @@ known-first-party = ["glitchygames", "mr_muncher"]
 [tool.ty.environment]
 python-version = "3.14"
 # src/ first: the engine's source package (explicit; ty's automatic src root is not relied on)
-root = ["src", ".", "src/games/mr-muncher"]
+root = [
+  "src",
+  ".",
+  "src/games/mr-muncher",
+  "src/games/brave-adventurer/src",
+  "src/games/clockwork-keep",
+  "src/games/paddleslap",
+  "src/games/drawing-fire",
+]
 extra-paths = ["scripts"]
 
 [tool.ty.src]
-include = ["src/glitchygames", "src/games/mr-muncher", "scripts"]
+include = [
+  "src/glitchygames",
+  "src/games/mr-muncher",
+  "src/games/brave-adventurer",
+  "src/games/clockwork-keep",
+  "src/games/paddleslap",
+  "src/games/drawing-fire",
+  "scripts",
+]
 # Tests excluded: ty doesn't understand pytest-mock's mocker.patch semantics,
 # generating hundreds of false positives on mock attribute access and assignments.
 exclude = ["tests", "src/games/*/tests", ".venv", ".nox"]
@@ -407,7 +526,17 @@ package_module_name_map = { "pygame-ce" = "pygame" }
 extend_exclude = ["third_party", "browser", "src/games"]
 # The engine's own package, under src/, and the workspace members' packages scripts/ imports
 # (deptry guesses first-party modules from the root's direct children only)
-known_first_party = ["glitchygames", "mr_muncher"]
+known_first_party = [
+  "glitchygames",
+  "mr_muncher",
+  "brave_adventurer_core",
+  "brave_adventurer",
+  "brave_adventurer_papyrus",
+  "brave_adventurer_modes",
+  "clockwork_keep",
+  "paddleslap",
+  "drawing_fire",
+]
 
 [tool.deptry.per_rule_ignores]
 # numpy is used indirectly via pygame.surfarray (array3d/array4d) which requires it at runtime

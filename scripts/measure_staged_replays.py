@@ -107,7 +107,10 @@ def _fully_measured_here(
         *(path for _, path in recordings.replayable),
         *(recording.path for recording in recordings.unreplayable),
     ]
-    return all(path.relative_to(repository).as_posix() in measured for path in paths)
+    return all(
+        replay_metrics.recording_ledger_name(path=path, project_root=repository) in measured
+        for path in paths
+    )
 
 
 def _untracked_measured_files(*, repository: Path) -> list[str]:
