@@ -8,7 +8,9 @@ layouts (``recording_console_script`` tells which console script replays it):
   ``[project.scripts]``, for example ``paddleslap`` or ``clockwork-keep``);
 - ``<member>/tests/fixtures/replays/<name>.jsonl.gz``, a workspace member's golden replays
   (``src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz``): the member's directory is
-  named after its distribution, whose one console script replays them.
+  named after its distribution, whose console script replays them: its one, or, for a member
+  with several games, the one starting the game the recording's header names
+  (``recorded_games_console_script``).
 
 The item replays the recording headless through the real engine in a child process (started
 with ``run_command``, glitchygames/process.py: the engine's one child-process launcher):
@@ -28,10 +30,10 @@ output and error together), which holds the divergence report (``Replay diverged
 directory under ``fixtures/replays/`` that is not a console script, a recording directly in
 ``fixtures/replays/`` that is not in a ``tests/`` directory (another project's layout: the
 plugin ships in the engine's wheel) or whose member (the directory above ``tests/``) is not an
-installed distribution with exactly one console script, and a recording nested deeper than a game's
-directory. A bookmarked copy (a header naming its source, ``bookmarked_copy_of``: what S
-saves beside a recording a watched replay plays; glitchygames/replay/driver.py, rule 16) is not
-collected.
+installed distribution with a console script that starts the recorded game, and a recording
+nested deeper than a game's directory. A bookmarked copy (a header naming its source,
+``bookmarked_copy_of``: what S saves beside a recording a watched replay plays;
+glitchygames/replay/driver.py, rule 16) is not collected.
 
 The child replay is ``replay_recording_headless``, which other tests reuse: demos bundled in a
 game's package (``glitchygames/examples/<game>_demos/<name>.jsonl.gz``, listed by
@@ -59,11 +61,12 @@ from typing import TYPE_CHECKING, Protocol, Self, cast, override
 import pytest
 
 from glitchygames.exit_codes import ExitCode
+from glitchygames.logical_names import module_for_logical_module
 from glitchygames.process import run_command, with_options_appended
-from glitchygames.tracing import is_bookmarked_copy
+from glitchygames.tracing import TraceReader, is_bookmarked_copy
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterable, Iterator
 
     from glitchygames.process import CompletedProcess
 
@@ -81,6 +84,10 @@ REPLAY_FIXTURES_LAYOUT = (
 # The exit codes of a replay that refused its recording
 UNUSABLE_RECORDING_EXIT_CODES = frozenset({ExitCode.UNUSABLE_INPUT, ExitCode.MISSING_INPUT})
 CONSOLE_SCRIPTS_GROUP = 'console_scripts'
+# The recording header field naming its game by logical name (glitchygames/logical_names.py),
+# which chooses among a workspace member's several console scripts: replay/driver.py's
+# GAME_HEADER_FIELD, not imported from there (it imports pygame, which this plugin never does)
+GAME_HEADER_FIELD = 'game'
 # Kill a replay child that runs longer than this (a headless replay of a few hundred frames
 # takes a second or two)
 REPLAY_TIMEOUT_SECONDS = 300.0
@@ -122,10 +129,12 @@ def recording_console_script(*, path: Path) -> str:
     """Return the console script that replays a recording under a ``fixtures/replays/`` directory.
 
     Two layouts: a workspace member's recordings lie directly in
-    ``<member>/tests/fixtures/replays/`` and are replayed by the member distribution's one console
-    script (the member's directory is named after its distribution: ``src/games/mr-muncher``);
-    the engine's own (and the games not yet moved) lie in
-    ``tests/fixtures/replays/<console-script>/``, whose folder names the script.
+    ``<member>/tests/fixtures/replays/`` and are replayed by the member distribution's console
+    script (the member's directory is named after its distribution: ``src/games/mr-muncher``):
+    its one, or, for a member with several games (``src/games/brave-adventurer``), the one that
+    starts the game the recording's header names (``recorded_games_console_script``); the
+    engine's own (and the games not yet moved) lie in ``tests/fixtures/replays/<console-script>/``,
+    whose folder names the script.
 
     Args:
         path: The recording.
@@ -137,8 +146,9 @@ def recording_console_script(*, path: Path) -> str:
         KeyError: If a recording directly in ``fixtures/replays/`` is not in a member's
             ``tests/`` (the directory above ``fixtures/`` is not ``tests``: another project's
             layout, whose directory four levels up names no member), the member's distribution
-            is not installed or has not exactly one console script, or the folder names no
-            installed console script.
+            is not installed or has no console script, its several console scripts do not
+            include exactly one starting the recorded game (``recorded_games_console_script``),
+            or the folder names no installed console script.
 
     """
     if path.parent.parts[-len(REPLAY_FIXTURES_PATH_PARTS) :] == REPLAY_FIXTURES_PATH_PARTS:
@@ -162,22 +172,110 @@ def recording_console_script(*, path: Path) -> str:
             )
             raise KeyError(message) from None
         console_scripts = [
-            entry_point.name
+            entry_point
             for entry_point in distribution.entry_points
             if entry_point.group == CONSOLE_SCRIPTS_GROUP
         ]
-        if len(console_scripts) != 1:
-            message = (
-                f'{path}: {distribution_name!r} has {len(console_scripts)} console scripts, not one'
-            )
+        if not console_scripts:
+            message = f'{path}: {distribution_name!r} has no console scripts'
             raise KeyError(message)
-        return console_scripts[0]
+        if len(console_scripts) == 1:
+            return console_scripts[0].name
+        return recorded_games_console_script(
+            path=path, distribution_name=distribution_name, entry_points=console_scripts
+        )
     try:
         game_entry_point(console_script=path.parent.name)
     except KeyError:
         message = f'{path}: the directory {path.parent.name!r} is not a console script'
         raise KeyError(message) from None
     return path.parent.name
+
+
+def console_script_for_game_module(
+    *, entry_points: Iterable[importlib.metadata.EntryPoint], game_module: str
+) -> str:
+    """Return the console script among several whose entry point starts a game module.
+
+    A console script starts the game whose module is its entry point's module or inside it:
+    ``brave_adventurer:main`` starts ``brave_adventurer.game``, not
+    ``brave_adventurer_papyrus.game``.
+
+    Args:
+        entry_points: The console scripts' entry points (``value`` is ``'module:function'``).
+        game_module: The game's module (``brave_adventurer.game``).
+
+    Returns:
+        The console script's name.
+
+    Raises:
+        KeyError: If none of them, or more than one, starts the game module.
+
+    """
+    entry_points = list(entry_points)
+    starting = [
+        entry_point.name
+        for entry_point in entry_points
+        if game_module == (module := entry_point.value.partition(':')[0])
+        or game_module.startswith(f'{module}.')
+    ]
+    if len(starting) == 1:
+        return starting[0]
+    if not starting:
+        names = sorted(entry_point.name for entry_point in entry_points)
+        message = f'none of {names} starts {game_module}'
+        raise KeyError(message)
+    message = f'{sorted(starting)} all start {game_module}'
+    raise KeyError(message)
+
+
+def recorded_games_console_script(
+    *, path: Path, distribution_name: str, entry_points: list[importlib.metadata.EntryPoint]
+) -> str:
+    """Return which of a member's several console scripts replays a recording.
+
+    The recording's header names its game by logical name (``game``:
+    ``games.brave_adventurer.game:BraveAdventurerScene``, glitchygames/logical_names.py); the
+    module holding that logical module today (``brave_adventurer.game``) chooses the script
+    (``console_script_for_game_module``).
+
+    Args:
+        path: The recording.
+        distribution_name: The member's distribution (for the messages).
+        entry_points: The distribution's console scripts' entry points (more than one).
+
+    Returns:
+        The console script's name.
+
+    Raises:
+        KeyError: If the recording's header cannot be read or names no game, or not exactly
+            one of the scripts starts the recorded game.
+
+    """
+    try:
+        with TraceReader(path=path) as reader:
+            header = reader.header
+    # A TraceFormatError is a ValueError
+    except OSError, ValueError:
+        message = (
+            f"{path}: its header cannot be read to choose among {distribution_name!r}'s "
+            f'{len(entry_points)} console scripts'
+        )
+        raise KeyError(message) from None
+    recorded_game = header.get(GAME_HEADER_FIELD)
+    if not isinstance(recorded_game, str):
+        message = (
+            f'{path}: no {GAME_HEADER_FIELD!r} in its header (a recording made before logical '
+            f"names) to choose among {distribution_name!r}'s console scripts by"
+        )
+        raise KeyError(message)
+    logical_module = recorded_game.partition(':')[0]
+    game_module = module_for_logical_module(logical_module=logical_module)
+    try:
+        return console_script_for_game_module(entry_points=entry_points, game_module=game_module)
+    except KeyError as error:
+        message = f'{path}: {distribution_name!r}: {error.args[0]}'
+        raise KeyError(message) from None
 
 
 class ReplayFileFactory(Protocol):

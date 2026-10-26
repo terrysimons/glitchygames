@@ -8,7 +8,10 @@ that it cannot rewrite the plugin's assertions.
 
 from __future__ import annotations
 
+import gzip
+import json
 import shutil
+from importlib.metadata import EntryPoint
 from typing import TYPE_CHECKING
 
 import pytest
@@ -18,13 +21,16 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.driver import write_bookmarked_copy
 from glitchygames.testing.replays import (
     BUNDLED_DEMO_DIRECTORY_SUFFIX,
+    CONSOLE_SCRIPTS_GROUP,
     REPLAY_FIXTURES_PATH_PARTS,
     bundled_demo_paths,
+    console_script_for_game_module,
     game_entry_point,
     rebaseline_recording_headless,
     recording_console_script,
     replay_recording_headless,
 )
+from glitchygames.tracing import TRACE_FORMAT_VERSION
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 
 if TYPE_CHECKING:
@@ -337,13 +343,121 @@ def test_game_entry_point_of_an_unknown_console_script_raises():
         game_entry_point(console_script='no-such-game')
 
 
-def test_a_member_recording_of_a_distribution_without_one_console_script_is_refused(tmp_path):
-    """A member's recordings name one game: a distribution with several scripts names none."""
+def member_recording_path(*, tmp_path: Path, distribution: str) -> Path:
+    """Return where a member distribution's recording goes: <member>/tests/fixtures/replays/.
+
+    Returns:
+        The recording's path (its directory made).
+
+    """
+    directory = tmp_path.joinpath(distribution, 'tests', *REPLAY_FIXTURES_PATH_PARTS)
+    directory.mkdir(parents=True)
+    return directory / 'golden.jsonl.gz'
+
+
+def write_header_only_recording(*, path: Path, header: dict[str, object]) -> None:
+    """Write a recording that is only a header line (all a console script's choice reads).
+
+    Args:
+        path: Where to write it.
+        header: The header's fields, besides ``format_version``.
+
+    """
+    with gzip.open(path, 'wt', encoding='utf-8') as recording:
+        recording.write(json.dumps({'format_version': TRACE_FORMAT_VERSION, **header}) + '\n')
+
+
+def test_a_member_with_several_console_scripts_replays_through_the_recorded_games_script(
+    tmp_path,
+):
+    """The header's game (a logical name) names the module, whose console script replays it.
+
+    The engine's own distribution has several console scripts; a PaddleSlap recording is
+    replayed by the one whose entry point is in PaddleSlap's module.
+    """
+    recording = member_recording_path(tmp_path=tmp_path, distribution='glitchygames')
+    write_header_only_recording(path=recording, header={'game': 'games.paddleslap:Game'})
+
+    assert recording_console_script(path=recording) == 'paddleslap'
+
+
+def test_a_game_module_inside_the_entry_points_package_is_its_game():
+    """A scene in <package>.game is the game of the console script <package>:main."""
+    entry_points = [
+        EntryPoint(name='classic', value='space_game:main', group=CONSOLE_SCRIPTS_GROUP),
+        EntryPoint(name='papyrus', value='space_game_papyrus:main', group=CONSOLE_SCRIPTS_GROUP),
+    ]
+
+    assert (
+        console_script_for_game_module(entry_points=entry_points, game_module='space_game.game')
+        == 'classic'
+    )
+    assert (
+        console_script_for_game_module(
+            entry_points=entry_points, game_module='space_game_papyrus.game'
+        )
+        == 'papyrus'
+    )
+
+
+def test_a_game_module_no_console_script_starts_is_refused():
+    """None of the scripts' entry points holds the game module: no game to replay it with."""
+    entry_points = [
+        EntryPoint(name='classic', value='space_game:main', group=CONSOLE_SCRIPTS_GROUP)
+    ]
+
+    with pytest.raises(KeyError, match=r"none of \['classic'\] starts other_game\.game"):
+        console_script_for_game_module(entry_points=entry_points, game_module='other_game.game')
+
+
+def test_a_game_module_several_console_scripts_start_is_refused():
+    """Two scripts whose entry points both hold the game module: the choice is ambiguous."""
+    entry_points = [
+        EntryPoint(name='game', value='space_game:main', group=CONSOLE_SCRIPTS_GROUP),
+        EntryPoint(name='scene', value='space_game.game:main', group=CONSOLE_SCRIPTS_GROUP),
+    ]
+
+    with pytest.raises(KeyError, match=r"\['game', 'scene'\] all start space_game\.game"):
+        console_script_for_game_module(entry_points=entry_points, game_module='space_game.game')
+
+
+def test_a_member_recording_whose_game_no_console_script_starts_is_refused(tmp_path):
+    """A Mr. Muncher recording among the engine's scripts: none of them starts it."""
+    recording = member_recording_path(tmp_path=tmp_path, distribution='glitchygames')
+    write_header_only_recording(
+        path=recording, header={'game': 'games.mr_muncher.game:MrMuncherScene'}
+    )
+
+    with pytest.raises(KeyError, match=r"'glitchygames': none of .* starts mr_muncher\.game"):
+        recording_console_script(path=recording)
+
+
+def test_a_member_recording_without_a_game_in_its_header_is_refused(tmp_path):
+    """A recording made before logical names names no game to choose a console script by."""
+    recording = member_recording_path(tmp_path=tmp_path, distribution='glitchygames')
+    write_header_only_recording(
+        path=recording, header={'game_module': 'glitchygames.examples.paddleslap'}
+    )
+
+    with pytest.raises(KeyError, match=r"no 'game' in its header"):
+        recording_console_script(path=recording)
+
+
+def test_a_member_recording_that_cannot_be_read_is_refused(tmp_path):
+    """A missing recording of a several-script member: its header cannot choose the script."""
     recording = tmp_path.joinpath(
         'glitchygames', 'tests', *REPLAY_FIXTURES_PATH_PARTS, 'golden.jsonl.gz'
     )
 
-    with pytest.raises(KeyError, match=r"'glitchygames' has \d+ console scripts, not one"):
+    with pytest.raises(KeyError, match=r"header cannot be read to choose among 'glitchygames'"):
+        recording_console_script(path=recording)
+
+
+def test_a_member_distribution_without_console_scripts_is_refused(tmp_path):
+    """An installed distribution with no console script names no game (pytest-mock has none)."""
+    recording = member_recording_path(tmp_path=tmp_path, distribution='pytest-mock')
+
+    with pytest.raises(KeyError, match=r"'pytest-mock' has no console scripts"):
         recording_console_script(path=recording)
 
 
