@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import gzip
 import json
-import operator
 import shutil
 from importlib.metadata import EntryPoint
 from typing import TYPE_CHECKING
@@ -18,16 +17,14 @@ from typing import TYPE_CHECKING
 import pytest
 from scripts.record_scripted_session import fixture_path
 
+from glitchygames.bundled_demos import CONSOLE_SCRIPTS_GROUP, bundled_demos
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.driver import write_bookmarked_copy
 from glitchygames.testing.replays import (
-    BUNDLED_DEMO_DIRECTORY_NAME,
-    CONSOLE_SCRIPTS_GROUP,
     REPLAY_FIXTURES_PATH_PARTS,
     bundled_demo_paths,
     console_script_for_game_module,
     game_entry_point,
-    package_demo_paths,
     rebaseline_recording_headless,
     recording_console_script,
     replay_recording_headless,
@@ -35,6 +32,7 @@ from glitchygames.testing.replays import (
 from glitchygames.tracing import TRACE_FORMAT_VERSION
 from paddleslap import PADDLESLAP_DEMO_PATH
 from tests.replay.replay_helpers import tamper_first_sprite_rect
+from tests.test_bundled_demo_discovery import write_stand_in_package
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -257,46 +255,11 @@ def test_missing_recording_fails_as_unusable(pytester):
     ])
 
 
-def write_stand_in_package(*, directory: Path, package: str, demo_names: tuple[str, ...]) -> Path:
-    """Write an import package with no console script, holding files in its demos/ directory.
-
-    Returns:
-        The package's demos directory.
-
-    """
-    demo_directory = directory / package / BUNDLED_DEMO_DIRECTORY_NAME
-    demo_directory.mkdir(parents=True)
-    (directory / package / '__init__.py').write_text('', encoding='utf-8')
-    for name in demo_names:
-        (demo_directory / name).write_bytes(b'')
-    return demo_directory
-
-
 def test_bundled_demo_paths_pairs_each_demo_with_its_games_console_script():
     """A package's demos/*.jsonl.gz are demos of the console script whose entry point is in it."""
     demos = bundled_demo_paths(packages=('paddleslap',))
 
     assert demos == [('paddleslap', PADDLESLAP_DEMO_PATH)]
-
-
-def test_package_demo_paths_lists_only_recordings_and_leaves_out_bookmarked_copies(tmp_path):
-    """Only demos/*.jsonl.gz, sorted; a bookmarked copy beside a demo is no demo."""
-    demo_directory = write_stand_in_package(
-        directory=tmp_path,
-        package='stand_in_game',
-        demo_names=('serve.jsonl.gz', 'rally.jsonl.gz', 'notes.txt'),
-    )
-    (tmp_path / 'stand_in_game' / 'sprites').mkdir()
-    (tmp_path / 'stand_in_game' / 'sprites' / 'ball.jsonl.gz').write_bytes(b'')
-    write_bookmarked_copy(
-        recording_path=PADDLESLAP_DEMO_PATH,
-        bookmarks=[2],
-        destination=demo_directory / 'rally.bookmarked.jsonl.gz',
-    )
-
-    demos = package_demo_paths(package_directory=tmp_path / 'stand_in_game')
-
-    assert demos == [demo_directory / 'rally.jsonl.gz', demo_directory / 'serve.jsonl.gz']
 
 
 def test_bundled_demo_paths_refuses_a_demo_of_a_game_without_a_console_script(
@@ -312,33 +275,9 @@ def test_bundled_demo_paths_refuses_a_demo_of_a_game_without_a_console_script(
         bundled_demo_paths(packages=('stand_in_game_without_a_script',))
 
 
-def test_bundled_demo_paths_skips_packages_without_demos_and_those_not_installed(
-    tmp_path, monkeypatch
-):
-    """No demos directory, an empty one, a plain module, or a package not installed: no demos."""
-    write_stand_in_package(directory=tmp_path, package='stand_in_game_with_no_demos', demo_names=())
-    (tmp_path / 'stand_in_module.py').write_text('', encoding='utf-8')
-    monkeypatch.syspath_prepend(tmp_path)
-
-    demos = bundled_demo_paths(
-        packages=(
-            'glitchygames',
-            'stand_in_game_with_no_demos',
-            'stand_in_module',
-            'no_such_installed_package',
-        )
-    )
-
-    assert demos == []
-
-
-def test_bundled_demo_paths_reads_every_member_package_by_default():
-    """Without packages, the demos come from every workspace member's (MEMBER_LAYERS)."""
-    demos = bundled_demo_paths()
-
-    assert ('paddleslap', PADDLESLAP_DEMO_PATH) in demos
-    assert all(path.parent.name == BUNDLED_DEMO_DIRECTORY_NAME for _console_script, path in demos)
-    assert demos == sorted(demos, key=operator.itemgetter(1))
+def test_bundled_demo_paths_are_exactly_the_engines_bundled_demos():
+    """The plugin reports the engine's lookup (glitchygames.bundled_demos), nothing of its own."""
+    assert bundled_demo_paths() == [(demo.console_script, demo.path) for demo in bundled_demos()]
 
 
 def test_replay_recording_headless_returns_the_finished_replay(tmp_path):

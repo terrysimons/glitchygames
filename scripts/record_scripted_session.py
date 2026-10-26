@@ -109,9 +109,10 @@ os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 import pygame
 
 from glitchygames import live_sources
+from glitchygames.bundled_demos import console_script_in_module
 from glitchygames.input.state import MOUSE_BUTTON_COUNT
 from glitchygames.recording import post_input_event
-from glitchygames.testing.replays import console_script_in_module, recording_console_script
+from glitchygames.testing.replays import recording_console_script
 from scripts.record_golden_traces import (
     GAME_MODULES,
     GAME_SCENES,

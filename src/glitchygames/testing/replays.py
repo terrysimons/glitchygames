@@ -37,10 +37,11 @@ nested deeper than a game's directory. A bookmarked copy (a header naming its so
 glitchygames/replay/driver.py, rule 16) is not collected.
 
 The child replay is ``replay_recording_headless``, which other tests reuse: demos bundled in a
-workspace member's package (``<package>/demos/<name>.jsonl.gz``, listed by
-``bundled_demo_paths``) are outside the suite's directories, so tests/replay/test_bundled_demos.py
-replays each one through it. ``rebaseline_recording_headless`` runs the same child with
-``--rebaseline NEW`` (scripts/replay_metrics.py measures every recording through it).
+workspace member's package (``<package>/demos/<name>.jsonl.gz``, found by
+``glitchygames.bundled_demos``, listed by ``bundled_demo_paths``) are outside the suite's
+directories, so tests/replay/test_bundled_demos.py replays each one through it.
+``rebaseline_recording_headless`` runs the same child with ``--rebaseline NEW``
+(scripts/replay_metrics.py measures every recording through it).
 
 Loading the plugin: ``pytest_plugins = ['glitchygames.testing.replays']`` in the root conftest
 (this project's ``conftest.py``), or ``pytest -p glitchygames.testing.replays``. Recordings are
@@ -54,15 +55,13 @@ The collector follows pytest's "Working with non-python tests" example
 from __future__ import annotations
 
 import importlib.metadata
-import importlib.util
-import operator
 import os
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self, cast, override
 
 import pytest
 
+from glitchygames.bundled_demos import CONSOLE_SCRIPTS_GROUP, bundled_demos
 from glitchygames.exit_codes import ExitCode
 from glitchygames.logical_names import MEMBER_LAYERS, module_for_logical_module
 from glitchygames.process import run_command, with_options_appended
@@ -70,6 +69,7 @@ from glitchygames.tracing import TraceReader, is_bookmarked_copy
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
+    from pathlib import Path
 
     from glitchygames.process import CompletedProcess
 
@@ -86,7 +86,6 @@ REPLAY_FIXTURES_LAYOUT = (
 )
 # The exit codes of a replay that refused its recording
 UNUSABLE_RECORDING_EXIT_CODES = frozenset({ExitCode.UNUSABLE_INPUT, ExitCode.MISSING_INPUT})
-CONSOLE_SCRIPTS_GROUP = 'console_scripts'
 # The recording header field naming its game by logical name (glitchygames/logical_names.py),
 # which chooses among a workspace member's several console scripts: replay/driver.py's
 # GAME_HEADER_FIELD, not imported from there (it imports pygame, which this plugin never does)
@@ -94,10 +93,6 @@ GAME_HEADER_FIELD = 'game'
 # Kill a replay child that runs longer than this (a headless replay of a few hundred frames
 # takes a second or two)
 REPLAY_TIMEOUT_SECONDS = 300.0
-# Bundled demos: <package>/demos/<name>.jsonl.gz inside a workspace member's import package
-# (package data), the game being the console script whose entry point is in that package. The
-# package is found by importlib.util.find_spec, which imports no game
-BUNDLED_DEMO_DIRECTORY_NAME = 'demos'
 
 
 def game_entry_point(*, console_script: str) -> importlib.metadata.EntryPoint:
@@ -409,36 +404,14 @@ def rebaseline_recording_headless(
     )
 
 
-def package_demo_paths(*, package_directory: Path) -> list[Path]:
-    """Return the demos bundled in an import package: ``<package directory>/demos/*.jsonl.gz``.
-
-    A bookmarked copy (``glitchygames.tracing.is_bookmarked_copy``: what S saves beside a
-    recording a watched replay plays) is no demo, and is left out.
-
-    Args:
-        package_directory: The import package's directory (where its ``__init__.py`` is).
-
-    Returns:
-        The demos' paths, sorted.
-
-    """
-    return sorted(
-        path
-        for path in (package_directory / BUNDLED_DEMO_DIRECTORY_NAME).glob(f'*{RECORDING_SUFFIX}')
-        if not is_bookmarked_copy(path=path)
-    )
-
-
 def bundled_demo_paths(
     *, packages: tuple[str, ...] = tuple(MEMBER_LAYERS)
 ) -> list[tuple[str, Path]]:
     """Return every demo bundled in an installed package, with the console script that replays it.
 
-    Each package's demos are ``package_demo_paths`` of the directory the package is installed
-    in (``importlib.util.find_spec``, which imports no game: package data ships with the
-    package); their game is the console script whose entry point is in the module ``<package>``
-    itself (``paddleslap:main``). A package that is not installed has no demos to find (``uv
-    sync --all-packages`` installs every member).
+    The demos are ``glitchygames.bundled_demos.bundled_demos``'s (the one lookup, which
+    scripts/replay_metrics.py uses too); this caller's reaction to a demo no console script
+    replays is to refuse it.
 
     Args:
         packages: The top-level import packages to search: every workspace member's
@@ -452,41 +425,13 @@ def bundled_demo_paths(
             demo (the demo could not be replayed, so it would go untested).
 
     """
-    demos: list[tuple[str, Path]] = []
-    for package in packages:
-        specification = importlib.util.find_spec(package)
-        if specification is None:
-            continue
-        # None for a plain module, which has no demos directory; a package's own directory
-        for location in specification.submodule_search_locations or ():
-            demo_paths = package_demo_paths(package_directory=Path(location))
-            if not demo_paths:
-                continue
-            console_script = console_script_in_module(module=package)
-            if console_script is None:
-                message = f'{demo_paths[0]}: no console script has its entry point in {package}'
-                raise ValueError(message)
-            demos.extend((console_script, path) for path in demo_paths)
-    return sorted(demos, key=operator.itemgetter(1))
-
-
-def console_script_in_module(*, module: str) -> str | None:
-    """Return the name of the first console script whose entry point is in a module.
-
-    Distributions are searched as ``game_entry_point`` searches them, in ``sys.path`` order.
-
-    Args:
-        module: A module's dotted name, for example ``paddleslap``.
-
-    Returns:
-        The console script's name, or None if no installed console script is in the module.
-
-    """
-    for distribution in importlib.metadata.distributions():
-        for entry_point in distribution.entry_points.select(group=CONSOLE_SCRIPTS_GROUP):
-            if entry_point.module == module:
-                return entry_point.name
-    return None
+    pairs: list[tuple[str, Path]] = []
+    for demo in bundled_demos(packages=packages):
+        if demo.console_script is None:
+            message = f'{demo.path}: no console script has its entry point in {demo.package}'
+            raise ValueError(message)
+        pairs.append((demo.console_script, demo.path))
+    return pairs
 
 
 class ReplayFile(pytest.File):

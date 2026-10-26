@@ -79,7 +79,7 @@ COLOR_CHANNEL_LEVELS = 256
 # scripts/record_scripted_session.py --game paddleslap --frames 450 --script-only (before the
 # golden script pauses; no controls tail, so it never quits), and
 # tests/replay/test_bundled_demos.py replays it. It ships inside the package (package data,
-# found by glitchygames/testing/replays.py bundled_demo_paths).
+# found by glitchygames/bundled_demos.py).
 PADDLESLAP_DEMO_PATH = Path(__file__).parent / 'demos' / 'rally.jsonl.gz'
 GAME_OVER_IDLE_SECONDS = 10.0
 

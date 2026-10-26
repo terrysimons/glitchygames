@@ -48,7 +48,6 @@ installed is reported on one line naming the fix, ``uv sync --all-packages``
 from __future__ import annotations
 
 import argparse
-import operator
 import sys
 import tempfile
 import time
@@ -61,8 +60,10 @@ from glitchygames.build_info import (
     SourceRevision,
     source_revision,
 )
+from glitchygames.bundled_demos import bundled_demos
 from glitchygames.code_tree import commit_is_on_origin_main, origin_main_exists
 from glitchygames.exit_codes import ExitCode
+from glitchygames.logical_names import MEMBER_LAYERS
 from glitchygames.machine_state import current_machine_state
 from glitchygames.recording_metrics import (
     PENDING_LEDGER_RELATIVE_PATH,
@@ -77,12 +78,7 @@ from glitchygames.recording_metrics import (
     write_row_files,
 )
 from glitchygames.replay.processing import machine_description
-from glitchygames.testing.replays import (
-    console_script_in_module,
-    package_demo_paths,
-    rebaseline_recording_headless,
-    recording_console_script,
-)
+from glitchygames.testing.replays import rebaseline_recording_headless, recording_console_script
 from glitchygames.tracing import is_bookmarked_copy, read_trace
 from scripts.workspace_packages import workspace_members
 
@@ -183,16 +179,27 @@ class MetricRecordings(BaseModel):
     unreplayable: tuple[UnreplayableRecording, ...] = ()
 
 
-def metric_recordings(*, project_root: Path) -> MetricRecordings:
+def metric_recordings(
+    *, project_root: Path, demo_packages: tuple[str, ...] = tuple(MEMBER_LAYERS)
+) -> MetricRecordings:
     """Return every golden replay and bundled demo, with the console script that replays it.
+
+    The goldens are the repository's (``golden_replay_globs``); the demos are the installed
+    packages' (``glitchygames.bundled_demos.bundled_demos``, the lookup the replay plugin uses
+    too): under a development install (editable, as ``uv sync`` installs) they are the
+    repository's files, under a built one ``site-packages``' (``recording_ledger_name`` names
+    either).
 
     Args:
         project_root: The repository.
+        demo_packages: The import packages whose bundled demos are measured: every workspace
+            member's unless given.
 
     Returns:
         The recordings: those a console script replays, and those none does (a workspace member
-        not installed: ``uv sync --all-packages`` installs every member). Bookmarked copies
-        (``glitchygames.tracing.is_bookmarked_copy``) are left out.
+        not installed: ``uv sync --all-packages`` installs every member; a package with demos
+        but no console script). Bookmarked copies (``glitchygames.tracing.is_bookmarked_copy``)
+        are left out.
 
     """
     goldens: list[tuple[str, Path]] = []
@@ -212,33 +219,52 @@ def metric_recordings(*, project_root: Path) -> MetricRecordings:
             # with: the failure line names the recording
             reason = str(error.args[0]).removeprefix(f'{path}: ')
             unreplayable.append(UnreplayableRecording(path=path, reason=reason))
-    # The bundled demos in this repository's members (not glitchygames.testing.replays
-    # bundled_demo_paths, which finds them where the packages are installed: a built copy's are
-    # in site-packages, and the ledger names a recording by its repository path)
     demos: list[tuple[str, Path]] = []
-    for member in workspace_members(project_root=project_root):
-        for package, package_directory in zip(
-            member.import_packages, member.package_directories, strict=True
-        ):
-            demo_paths = package_demo_paths(package_directory=package_directory)
-            if not demo_paths:
-                continue
-            console_script = console_script_in_module(module=package)
-            if console_script is None:
-                reason = (
-                    f'no installed console script has its entry point in {package}: is '
-                    f'{member.distribution!r} installed? Install every member with '
-                    '`uv sync --all-packages`'
-                )
-                unreplayable.extend(
-                    UnreplayableRecording(path=path, reason=reason) for path in demo_paths
-                )
-                continue
-            demos.extend((console_script, path) for path in demo_paths)
-    return MetricRecordings(
-        replayable=(*goldens, *sorted(demos, key=operator.itemgetter(1))),
-        unreplayable=tuple(unreplayable),
-    )
+    for demo in bundled_demos(packages=demo_packages):
+        # This caller's reaction to a demo no console script replays: reported, not raised
+        if demo.console_script is None:
+            reason = f'no installed console script has its entry point in {demo.package}'
+            unreplayable.append(UnreplayableRecording(path=demo.path, reason=reason))
+            continue
+        demos.append((demo.console_script, demo.path))
+    return MetricRecordings(replayable=(*goldens, *demos), unreplayable=tuple(unreplayable))
+
+
+def recording_ledger_name(*, path: Path, project_root: Path) -> str:
+    """Return the name the ledger gives a recording.
+
+    A recording in the repository is named by its repository path
+    (``src/games/paddleslap/paddleslap/demos/rally.jsonl.gz``: what a development install, which
+    is editable, finds). One outside it (a bundled demo of a built install, in
+    ``site-packages``) is named by its path relative to the import path it is installed under
+    (``paddleslap/demos/rally.jsonl.gz``, ``glitchygames.bundled_demos.BundledDemo.install_name``).
+
+    Args:
+        path: The recording.
+        project_root: The repository.
+
+    Returns:
+        The name.
+
+    Raises:
+        ValueError: If the recording is neither in the repository nor under an import path.
+
+    """
+    resolved = path.resolve()
+    repository = project_root.resolve()
+    if resolved.is_relative_to(repository):
+        return resolved.relative_to(repository).as_posix()
+    install_roots = [
+        root
+        for root in (Path(entry).resolve() for entry in sys.path if entry)
+        if resolved.is_relative_to(root)
+    ]
+    if not install_roots:
+        message = f'{path}: neither in the repository {project_root} nor under an import path'
+        raise ValueError(message)
+    # The innermost import path: site-packages, not a directory above it on sys.path
+    install_root = max(install_roots, key=lambda root: len(root.parts))
+    return resolved.relative_to(install_root).as_posix()
 
 
 def this_machine() -> str:
@@ -319,7 +345,7 @@ def measure_recording(
         reason is written to standard error).
 
     """
-    recording = path.relative_to(settings.project_root).as_posix()
+    recording = recording_ledger_name(path=path, project_root=settings.project_root)
     completed = rebaseline_recording_headless(
         console_script=console_script, path=path, new_path=new_path
     )
@@ -542,12 +568,14 @@ def measure(
     skipped: list[str] = []
     failures: list[str] = []
     for unreplayable_recording in unreplayable:
-        recording = unreplayable_recording.path.relative_to(settings.project_root).as_posix()
+        recording = recording_ledger_name(
+            path=unreplayable_recording.path, project_root=settings.project_root
+        )
         _failure(recording=recording, message=unreplayable_recording.reason)
         failures.append(recording)
     with tempfile.TemporaryDirectory(prefix='replay-metrics-') as temporary_name:
         for index, (console_script, path) in enumerate(recordings):
-            recording = path.relative_to(settings.project_root).as_posix()
+            recording = recording_ledger_name(path=path, project_root=settings.project_root)
             if not settings.force and _already_measured(
                 settings=settings, rows=known, recording=recording, commit=commit, machine=machine
             ):
@@ -699,7 +727,9 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
         return ExitCode.SUCCESS
 
     def selected(path: Path) -> bool:
-        return options.only is None or options.only in path.relative_to(PROJECT_ROOT).as_posix()
+        return options.only is None or options.only in recording_ledger_name(
+            path=path, project_root=PROJECT_ROOT
+        )
 
     found = metric_recordings(project_root=PROJECT_ROOT)
     recordings = [

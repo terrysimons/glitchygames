@@ -721,10 +721,18 @@ at WARNING and nothing starts. Record a demo with
 its first frame holds the scene start; `--script-only` leaves out the controls tail, whose quit
 would end the demo).
 
-Bundled demos are recordings shipped in the game's package,
-`glitchygames/examples/<game>_demos/<name>.jsonl.gz`. PaddleSlap's game-over screen plays
-`rally.jsonl.gz` after 10 seconds without a press. `tests/replay/test_bundled_demos.py` replays
-every bundled demo headless, so a change that makes a demo diverge fails in CI before it ships.
+Bundled demos are recordings shipped in a game's package as package data,
+`<package>/demos/<name>.jsonl.gz`: PaddleSlap's `paddleslap/demos/rally.jsonl.gz`, which its
+game-over screen plays after 10 seconds without a press. The engine finds them, for any tool or
+installed game, with `glitchygames.bundled_demos.bundled_demos()`: each `BundledDemo` (a frozen
+record) holds the game's console script (None when no installed console script is in the
+package), the demo's installed path and its install name (`paddleslap/demos/rally.jsonl.gz`,
+the same under any install). It searches the installed packages `MEMBER_LAYERS` names
+(`importlib.util.find_spec`, importing no game), leaves out bookmarked copies and sorts them by
+path. `tests/replay/test_bundled_demos.py` replays every one headless (through
+`glitchygames.testing.replays.bundled_demo_paths`, which refuses a demo nothing replays), so a
+change that makes a demo diverge fails in CI before it ships; scripts/replay_metrics.py measures
+the same demos (reporting a demo nothing replays as unreplayable).
 
 ### Instant replay
 

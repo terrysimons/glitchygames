@@ -15,8 +15,9 @@ from typing import TYPE_CHECKING
 import pytest
 from scripts import measure_staged_replays
 from scripts.measure_staged_replays import measure_staged
-from scripts.replay_metrics import metric_recordings
+from scripts.replay_metrics import metric_recordings, recording_ledger_name
 
+from glitchygames.bundled_demos import bundled_demos
 from glitchygames.code_tree import LEDGER_DIRECTORY, staged_code_tree
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_metrics import read_row_files, write_row_files
@@ -31,6 +32,10 @@ MACHINE = ledger_row().machine
 # The recordings the stand-in measurement measures (the repository holds a file for each): their
 # folders are installed games' console scripts, as replay_metrics.metric_recordings requires
 RECORDING_NAMES = ('paddleslap', 'clockwork-keep')
+# What the hook measures: those, and every installed package's bundled demo
+# (glitchygames.bundled_demos finds them where the packages are installed, not in this
+# stand-in repository)
+MEASURED_RECORDING_COUNT = len(RECORDING_NAMES) + len(bundled_demos())
 # The repository's root project: a workspace without members (metric_recordings reads it)
 ROOT_PYPROJECT = '[project]\nname = "stand-in"\n'
 
@@ -84,7 +89,7 @@ def stand_in_measurement(
         }
         written = 0
         for _, path in metric_recordings(project_root=repository).replayable:
-            recording = path.relative_to(repository).as_posix()
+            recording = recording_ledger_name(path=path, project_root=repository)
             if recording in held:
                 continue
             if fail_after is not None and written == fail_after:
@@ -136,7 +141,7 @@ def test_a_code_commit_is_measured_and_its_rows_staged_with_it(mocker, repositor
     assert run_hook(repository=repository) == ExitCode.SUCCESS
 
     measure.assert_called_once()
-    assert len(staged_rows(repository=repository)) == len(RECORDING_NAMES)
+    assert len(staged_rows(repository=repository)) == MEASURED_RECORDING_COUNT
     assert {row.code_tree for row in read_row_files(directory=repository / LEDGER_DIRECTORY)} == {
         tree
     }
@@ -150,7 +155,7 @@ def test_history_rows_the_measurement_wrote_are_staged_with_the_commit(mocker, r
     assert run_hook(repository=repository) == ExitCode.SUCCESS
 
     names = [path.rsplit('/', maxsplit=1)[-1] for path in staged_rows(repository=repository)]
-    assert len(names) == len(RECORDING_NAMES) + 1
+    assert len(names) == MEASURED_RECORDING_COUNT + 1
     assert sum(name.startswith('history-') for name in names) == 1
 
 
@@ -165,7 +170,7 @@ def test_an_unrelated_untracked_file_in_the_rows_directory_is_not_staged(mocker,
     assert run_hook(repository=repository) == ExitCode.SUCCESS
 
     assert not any('stray' in path for path in staged_rows(repository=repository))
-    assert len(staged_rows(repository=repository)) == len(RECORDING_NAMES)
+    assert len(staged_rows(repository=repository)) == MEASURED_RECORDING_COUNT
 
 
 def test_code_that_arrived_without_the_hook_is_measured_by_the_next_commit(mocker, repository):
@@ -217,7 +222,7 @@ def test_a_retry_measures_the_recordings_a_failed_attempt_left_and_stages_everyt
 
     measure.assert_called_once()
     names = [path.rsplit('/', maxsplit=1)[-1] for path in staged_rows(repository=repository)]
-    assert len(names) == 3
+    assert len(names) == MEASURED_RECORDING_COUNT + 1
     assert sum(name.startswith('history-') for name in names) == 1
 
 
@@ -233,7 +238,7 @@ def test_a_retry_where_every_recording_is_measured_does_not_measure_again(mocker
     assert run_hook(repository=repository) == ExitCode.SUCCESS
 
     measure.assert_not_called()
-    assert len(staged_rows(repository=repository)) == len(RECORDING_NAMES)
+    assert len(staged_rows(repository=repository)) == MEASURED_RECORDING_COUNT
 
 
 def test_untracked_files_under_the_measured_paths_refuse_the_commit(mocker, repository, capsys):

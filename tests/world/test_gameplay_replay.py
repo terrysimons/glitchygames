@@ -1474,10 +1474,11 @@ class TestRecordedGameCheck:
 
     def test_a_game_that_moved_still_matches_its_logical_name(self, mocker):
         """The same game reported in a member package (after a move) is the same game."""
-        mocker.patch.dict(logical_names.MEMBER_LAYERS, {'paddleslap': 'games'})
-        moved = stand_in_game(name='Game', module='paddleslap')
+        # A stand-in game the real table does not list, moved into a member package of its own
+        mocker.patch.dict(logical_names.MEMBER_LAYERS, {'space_game': 'games'})
+        moved = stand_in_game(name='Game', module='space_game')
         check_recorded_game(
-            header={'game_class': 'Game', 'game': 'games.paddleslap:Game'}, game_class=moved
+            header={'game_class': 'Game', 'game': 'games.space_game:Game'}, game_class=moved
         )
 
     def test_an_old_format_recording_is_compared_by_its_exact_module(self):
@@ -1530,7 +1531,8 @@ class TestRecordedGameCheck:
         [
             # Recorded before headers held the module
             ({'game_class': 'Game'}, 'paddleslap'),
-            # The same game file run as a script (python paddleslap.py), either way round
+            # The module defining the game run as the script itself, either way round (python
+            # some_game.py; not python -m paddleslap, whose __main__.py imports paddleslap)
             ({'game_class': 'Game', 'game_module': '__main__'}, 'paddleslap'),
             ({'game_class': 'Game', 'game_module': 'paddleslap'}, '__main__'),
         ],

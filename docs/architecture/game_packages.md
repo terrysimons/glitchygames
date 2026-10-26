@@ -276,12 +276,18 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
   `__main__`, so the module's `if __name__ == '__main__'` moves to `<package>/__main__.py`
   (`python -m paddleslap`, as `python -m glitchygames.examples.paddleslap` was).
 - **Bundled demos** ship inside the package as package data, `<package>/demos/<name>.jsonl.gz`
-  (PaddleSlap's `paddleslap/demos/rally.jsonl.gz`, read through `Path(__file__).parent`).
-  `glitchygames/testing/replays.py` `bundled_demo_paths` finds them where each `MEMBER_LAYERS`
-  package is installed (`importlib.util.find_spec`; a bookmarked copy is no demo), and
-  `scripts/replay_metrics.py` finds them in the repository's members (`package_demo_paths`), since
-  the ledger names a recording by its repository path. A demo moved twice needs a
-  `RECORDING_PATH_RENAMES` line from each old path.
+  (PaddleSlap's `paddleslap/demos/rally.jsonl.gz`, read through `Path(__file__).parent`). The
+  engine finds them in the installed packages: `glitchygames.bundled_demos.bundled_demos()`
+  (`find_spec` over `MEMBER_LAYERS`; bookmarked copies left out) returns `BundledDemo` records
+  (console script, installed path, install name). It is the one lookup: the replay plugin's
+  `bundled_demo_paths` (which raises for a demo no console script replays) and
+  `scripts/replay_metrics.py` (which reports it unreplayable) both call it. Development installs
+  are editable (`uv sync`, and the `replay-metrics` nox session's `uv run --all-packages`), so
+  the demos are found in the repository and the ledger names them by repository path; under a
+  built install (`site-packages`, as nox's test sessions install on purpose) a recording outside
+  the repository is named by its install name (`scripts/replay_metrics.py`
+  `recording_ledger_name`). A demo moved twice needs a `RECORDING_PATH_RENAMES` line from each
+  old path.
 - **Engine-private names**: a member uses only the engine's public API. Where a game reaches
   into the engine, give the engine a public read-only API first, then move the game. PaddleSlap
   needed no private name once the engine offered `BallSprite.trajectory` and

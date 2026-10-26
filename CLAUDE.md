@@ -108,7 +108,7 @@ nox -s static-analysis-ty           # Run ty only
 nox -s test                # Run tests with coverage
 nox -s performance-test    # Run performance benchmarks
 nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU share, sleep wakes (diagnostic)
-nox -s replay-metrics      # Rebaseline every golden replay + bundled demo headless; append run-ledger rows to test-results/replay-metrics/pending.jsonl (skips this commit+machine; `-- --force`, `-- --allow-dirty`, `-- --only TEXT`)
+nox -s replay-metrics      # (the project's editable install) Rebaseline every golden replay + bundled demo headless; append run-ledger rows to test-results/replay-metrics/pending.jsonl (skips this commit+machine; `-- --force`, `-- --allow-dirty`, `-- --only TEXT`)
 nox -s test-linux-x11      # Tests on Linux in Docker: X11 windows on XQuartz, sound on the Mac's PulseAudio (starts it; `pulseaudio --kill` stops it; macOS)
 nox -s compare-drivers     # On demand N-way matrix: dummy x2, native, x11-macos, x11-linux (whatever runs here); `-- --drivers a,b`, `-- tests/x`; report test-results/driver-comparison/nox/matrix.md
 nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/Caches/glitchygames/sdl-x11; SDL_DYNAMIC_API loads it) and check it on XQuartz
@@ -504,9 +504,13 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `demo diverged: <describe()>`; a cut-off file plays to its cut-off and ends `truncated`
   (INFO). Check `last_playback_outcome` for how it ended
 - Bundled demos (Part 3 Task 4): a workspace member's `<package>/demos/<name>.jsonl.gz` ships in
-  its wheel as package data (hatch includes every file in the package; no pyproject change;
-  `bundled_demo_paths` finds them in each `MEMBER_LAYERS` package, scripts/replay_metrics.py in
-  the repository's members). PaddleSlap's is
+  its wheel as package data (hatch includes every file in the package; no pyproject change).
+  One engine lookup finds them in the installed packages,
+  `glitchygames.bundled_demos.bundled_demos()` (`BundledDemo`: console script, path, install
+  name); the replay plugin's `bundled_demo_paths`
+  and scripts/replay_metrics.py call it. Development installs are editable (`uv sync`; the
+  `replay-metrics` nox session runs `uv run --all-packages`), so the ledger names a demo by its
+  repository path; outside a repository, by its install name. PaddleSlap's is
   `src/games/paddleslap/paddleslap/demos/rally.jsonl.gz`. PaddleSlap has no title screen, so its
   game-over screen (`PaddleSlapGameOverScene`) plays
   `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS` (10) of game time without a key or
