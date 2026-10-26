@@ -14,6 +14,7 @@ dialogs hand file names to) is a small recording stand-in.
 """
 
 import logging
+import shutil
 import sys
 from pathlib import Path
 
@@ -34,10 +35,8 @@ from glitchygames.ui.dialogs import (
     LoadDialogScene,
     NewCanvasDialogScene,
     SaveDialogScene,
-    _get_examples_dir,
     _get_load_path,
     _get_save_path,
-    _process_example_filename,
 )
 from glitchygames.user_files import install_user_files, installed_user_files
 
@@ -403,98 +402,25 @@ class TestNewCanvasDialogScene:
 # ============================================================================
 
 
-class TestProcessExampleFilename:
-    """Test _process_example_filename helper function."""
+class TestFileNames:
+    """The dialogs use a file name as given, apart from surrounding whitespace."""
 
-    def test_plain_filename(self):
-        """Test processing a plain filename without prefix."""
-        filename, is_example = _process_example_filename('test.toml')
-        assert filename == 'test.toml'
-        assert is_example is False
+    def test_a_plain_name_is_used_as_it_is(self):
+        """A plain name is the path, for a save and for a load."""
+        assert _get_save_path('test.toml') == Path('test.toml')
+        assert _get_load_path('test.toml') == Path('test.toml')
 
-    def test_example_prefix(self):
-        """Test processing filename with 'example:' prefix."""
-        filename, is_example = _process_example_filename('example:test.toml')
-        assert filename == 'test.toml'
-        assert is_example is True
+    def test_surrounding_whitespace_is_trimmed(self):
+        """Spaces around a name are not part of the file name."""
+        assert _get_save_path('  test.toml  ') == Path('test.toml')
+        assert _get_load_path('  test.toml  ') == Path('test.toml')
 
-    def test_examples_prefix(self):
-        """Test processing filename with 'examples:' prefix."""
-        filename, is_example = _process_example_filename('examples:test.toml')
-        assert filename == 'test.toml'
-        assert is_example is True
-
-    def test_whitespace_handling(self):
-        """Test processing filename with whitespace."""
-        filename, is_example = _process_example_filename('  test.toml  ')
-        assert filename == 'test.toml'
-        assert is_example is False
-
-    def test_example_prefix_with_spaces(self):
-        """Test processing filename with 'example:' prefix and extra spaces."""
-        filename, is_example = _process_example_filename('example:  test.toml')
-        assert filename == 'test.toml'
-        assert is_example is True
-
-
-class TestGetExamplesDir:
-    """Test _get_examples_dir helper function."""
-
-    def test_returns_path(self):
-        """Test _get_examples_dir returns a Path object."""
-        result = _get_examples_dir()
-        assert isinstance(result, Path)
-        # Use Path parts for cross-platform compatibility
-        assert result.parts[-3:] == ('examples', 'resources', 'sprites')
-
-    def test_pyinstaller_bundle_path(self, mocker):
-        """Test _get_examples_dir with PyInstaller _MEIPASS."""
-        bundle_path = Path('/tmp/bundle')  # ruff: ignore[hardcoded-temp-file]
-        mocker.patch.object(sys, '_MEIPASS', str(bundle_path), create=True)
-        result = _get_examples_dir()
-        assert isinstance(result, Path)
-        assert bundle_path in result.parents or result.parts[1] == 'tmp'
-        assert result.parts[-3:] == ('examples', 'resources', 'sprites')
-
-
-class TestGetSavePath:
-    """Test _get_save_path helper function."""
-
-    def test_plain_filename(self):
-        """Test _get_save_path with a plain filename."""
-        result = _get_save_path('test.toml')
-        assert result == Path('test.toml')
-
-    def test_example_prefix(self):
-        """Test _get_save_path with 'example:' prefix."""
-        result = _get_save_path('example:test.toml')
-        assert isinstance(result, Path)
-        assert result.name == 'test.toml'
-        # Should be in the examples directory (cross-platform check)
-        assert result.parent.parts[-3:] == ('examples', 'resources', 'sprites')
-
-
-class TestGetLoadPath:
-    """Test _get_load_path helper function."""
-
-    def test_plain_filename(self):
-        """Test _get_load_path with a plain filename."""
-        result = _get_load_path('test.toml')
-        assert result == Path('test.toml')
-
-    def test_example_prefix(self):
-        """Test _get_load_path with 'example:' prefix."""
-        result = _get_load_path('example:test.toml')
-        assert isinstance(result, Path)
-        assert result.name == 'test.toml'
-        assert result.parent.parts[-3:] == ('examples', 'resources', 'sprites')
-
-    def test_examples_prefix(self):
-        """Test _get_load_path with 'examples:' prefix."""
-        result = _get_load_path('examples:heart.toml')
-        assert isinstance(result, Path)
-        assert result.name == 'heart.toml'
-        assert result.parent.parts[-3:] == ('examples', 'resources', 'sprites')
+    def test_an_examples_prefix_is_not_special(self):
+        """'examples:' and 'example:' are ordinary characters of a file name."""
+        assert _get_load_path('examples:heart.toml') == Path('examples:heart.toml')
+        assert _get_save_path('examples:heart.toml') == Path('examples:heart.toml')
+        assert _get_load_path('example:heart.toml') == Path('example:heart.toml')
+        assert _get_save_path('example:heart.toml') == Path('example:heart.toml')
 
 
 class TestDialogSceneSetupCleanupDismiss:
@@ -909,14 +835,28 @@ class TestLoadDialogConfirm:
 
         assert previous_scene.canvas.loaded_paths == ['test.toml']
 
-    def test_confirm_with_example_prefix(self, previous_scene):
-        """Test confirm event processes example: prefix correctly."""
+    def test_confirm_loads_a_sprite_by_its_path(self, previous_scene, tmp_path):
+        """Test confirm event hands the canvas the path of a sprite file."""
+        sprite_path = tmp_path / 'static.toml'
+        shutil.copy(
+            Path(__file__).resolve().parents[1] / 'fixtures' / 'sprites' / 'static.toml',
+            sprite_path,
+        )
         dialog = LoadDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
-        dialog.dialog.input_box.text = 'example:heart.toml'
+        dialog.dialog.input_box.text = str(sprite_path)
 
         dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
 
-        assert previous_scene.canvas.loaded_paths == [str(_get_examples_dir() / 'heart.toml')]
+        assert previous_scene.canvas.loaded_paths == [str(sprite_path)]
+
+    def test_an_examples_prefixed_name_is_loaded_as_an_ordinary_name(self, previous_scene):
+        """'examples:heart.toml' reaches the canvas as given, which reports it missing."""
+        dialog = LoadDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        dialog.dialog.input_box.text = 'examples:heart.toml'
+
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert previous_scene.canvas.loaded_paths == ['examples:heart.toml']
 
 
 class TestSaveDialogConfirm:
@@ -931,14 +871,14 @@ class TestSaveDialogConfirm:
 
         assert previous_scene.canvas.saved_paths == ['output.toml']
 
-    def test_confirm_with_example_prefix(self, previous_scene):
-        """Test confirm event processes example: prefix for save."""
+    def test_an_examples_prefixed_name_is_saved_as_an_ordinary_name(self, previous_scene):
+        """'examples:star.toml' reaches the canvas as given."""
         dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
-        dialog.dialog.input_box.text = 'example:star.toml'
+        dialog.dialog.input_box.text = 'examples:star.toml'
 
         dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
 
-        assert previous_scene.canvas.saved_paths == [str(_get_examples_dir() / 'star.toml')]
+        assert previous_scene.canvas.saved_paths == ['examples:star.toml']
 
     def test_without_user_files_nothing_is_handed_over(self, previous_scene):
         """On the desktop the saved file is already the player's own."""

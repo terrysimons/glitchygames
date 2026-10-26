@@ -29,7 +29,7 @@ from glitchygames.bitmappy.toml_processing import (
     normalize_toml_data,
     parse_toml_robustly,
 )
-from glitchygames.bitmappy.utils import detect_file_format
+from glitchygames.sprites.file_format import detect_file_format
 
 
 class TestDetectFileFormat:

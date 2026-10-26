@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import configparser
 import json
 import re
@@ -16,8 +17,12 @@ from scripts.gen_ref_pages import reference_page_path
 from scripts.workspace_packages import WorkspaceMember, workspace_members
 
 from glitchygames import logical_names
+from tests.ast_scanning import import_bindings, scanned_source_files
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+BITMAPPY_PACKAGE = 'glitchygames.bitmappy'
+# The sprite library's path inside the engine, which Bitmappy owns
+BITMAPPY_SPRITE_PATH_SEGMENTS = "'examples', 'resources', 'sprites'"
 MEMBERS = workspace_members(project_root=PROJECT_ROOT)
 # Each pattern matches a whole string literal first, so a // or ,] inside a string is data
 JSONC_COMMENTS = re.compile(r'(?P<string>"(?:\\.|[^"\\])*")|//[^\n]*|/\*.*?\*/', re.DOTALL)
@@ -310,3 +315,77 @@ def test_the_real_pyright_configuration_parses():
     assert 'tests' in [
         environment['root'] for environment in configuration['executionEnvironments']
     ]
+
+
+def engine_files_pointing_into_bitmappy(*, project_root: Path) -> list[str]:
+    """List the engine files (outside bitmappy/) that import Bitmappy or name its sprite path.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        ``<file>: <what it points at>`` for each offence, in scan order.
+
+    """
+    watched_modules = frozenset({'glitchygames', BITMAPPY_PACKAGE})
+    offences: list[str] = []
+    for key, source_path in scanned_source_files(project_root=project_root):
+        # Keys under src/ are workspace members; the engine's are relative to its package
+        if key.startswith(('src/', 'bitmappy/')):
+            continue
+        source = source_path.read_text(encoding='utf-8')
+        tree = ast.parse(source)
+        bindings = import_bindings(tree=tree, watched_modules=watched_modules)
+        offences.extend(
+            f'{key}: imports {qualified}'
+            for qualified in sorted(set(bindings.values()))
+            if qualified.startswith(BITMAPPY_PACKAGE)
+        )
+        # `import glitchygames.bitmappy.utils` binds only `glitchygames`, so read those directly
+        offences.extend(
+            f'{key}: imports {alias.name}'
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+            if alias.name.startswith(BITMAPPY_PACKAGE)
+        )
+        if BITMAPPY_SPRITE_PATH_SEGMENTS in source:
+            offences.append(f'{key}: names the sprite path {BITMAPPY_SPRITE_PATH_SEGMENTS}')
+    return offences
+
+
+def test_the_engine_outside_bitmappy_points_nowhere_into_it():
+    """No engine file outside bitmappy/ imports Bitmappy or names its sprite library's path."""
+    assert engine_files_pointing_into_bitmappy(project_root=PROJECT_ROOT) == []
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected_offence'),
+    [
+        (
+            'from glitchygames.bitmappy import detect_file_format\n',
+            'imports glitchygames.bitmappy.',
+        ),
+        ('from glitchygames import bitmappy\n', 'imports glitchygames.bitmappy'),
+        ('import glitchygames.bitmappy.utils\n', 'imports glitchygames.bitmappy.utils'),
+        (
+            "PATH = ('examples', 'resources', 'sprites')\n",
+            "names the sprite path 'examples', 'resources', 'sprites'",
+        ),
+    ],
+)
+def test_the_guard_finds_each_way_to_point_into_bitmappy(tmp_path, source, expected_offence):
+    """The guard reports an import (three spellings) and the sprite path, and spares bitmappy/."""
+    engine_directory = tmp_path / 'src' / 'glitchygames'
+    (engine_directory / 'bitmappy').mkdir(parents=True)
+    (engine_directory / 'bitmappy' / 'inside.py').write_text(source, encoding='utf-8')
+    (engine_directory / 'outside.py').write_text(source, encoding='utf-8')
+    (tmp_path / 'pyproject.toml').write_text(
+        '[tool.uv.workspace]\nmembers = []\n', encoding='utf-8'
+    )
+
+    offences = engine_files_pointing_into_bitmappy(project_root=tmp_path)
+
+    assert len(offences) == 1
+    assert offences[0].startswith('outside.py: ')
+    assert expected_offence in offences[0]

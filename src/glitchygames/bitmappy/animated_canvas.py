@@ -10,6 +10,7 @@ from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.input.state import current_input
 from glitchygames.sprites import BitmappySprite, SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
+from glitchygames.sprites.file_format import detect_file_format
 
 from .canvas_interfaces import (
     AnimatedCanvasInterface,
@@ -23,7 +24,6 @@ from .constants import (
 )
 from .panning import PanSession, can_pan_to, shift_pixels
 from .pixel_sprite import BitmapPixelSprite
-from .utils import detect_file_format
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

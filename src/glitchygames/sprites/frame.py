@@ -139,8 +139,8 @@ class FrameManager:
 class SpriteFrame:
     """Represents a single frame of an animated sprite."""
 
-    # Presence-based "image is stale" flag used by the Bitmappy canvas drag fast path
-    # (glitchygames/bitmappy/animated_canvas.py). It is intentionally declared without a
+    # Presence-based "image is stale" flag used by an editor canvas's drag fast path (Bitmappy's
+    # animated canvas sets it while pixels are edited). It is intentionally declared without a
     # value: the attribute only exists while ``pixels`` has been edited ahead of ``_image``,
     # and callers test for it with ``hasattr`` and clear it with ``del``. Leaving it
     # uninitialized is therefore deliberate.

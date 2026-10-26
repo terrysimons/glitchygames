@@ -18,17 +18,16 @@ from glitchygames.sprites.animated import (
     SpriteFrame,
     detect_file_format,
 )
-from tests.harness import imported_engine_directory
 
-# The imported engine's directory (installed: never the source tree by accident)
-ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
+# The engine's own sprite test data (Bitmappy keeps its sprite library)
+SPRITE_FIXTURES_DIRECTORY = Path(__file__).resolve().parents[1] / 'fixtures' / 'sprites'
 
 # Constants for test values
 TEST_FRAME_INDEX = 5
 
 # Path to the static sprite fixture used by TestAnimatedSprite
 STATIC_TOML = str(
-    ENGINE_PACKAGE_DIRECTORY / 'examples' / 'resources' / 'sprites' / 'static.toml',
+    SPRITE_FIXTURES_DIRECTORY / 'static.toml',
 )
 
 

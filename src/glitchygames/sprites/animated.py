@@ -33,6 +33,7 @@ from glitchygames.color import (
 
 from .animated_interface import AnimatedSpriteInterface
 from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
+from .file_format import detect_file_format
 from .frame import FrameManager, SpriteFrame
 from .pixel_utils import (
     convert_pixels_to_rgb_if_possible,
@@ -251,30 +252,6 @@ def _doubled_edge(start: int, size: int, edge: str) -> int:
             return 2 * start + size
         case _:
             return 2 * (start + size)
-
-
-# Import detect_file_format function
-try:
-    from glitchygames.bitmappy import detect_file_format
-except ImportError:
-    # Fallback if bitmappy module is not available
-    def detect_file_format(filename: str) -> str:  # ruff: ignore[unused-function-argument]
-        """Detect file format based on extension.
-
-        Currently only supports TOML format. To add new formats:
-        1. Add file extension detection here
-        2. Add analysis method in _analyze_file()
-        3. Add save/load methods in AnimatedSprite
-        4. Update tests
-        See LOADER_README.md for detailed implementation guide.
-
-        Returns:
-            str: The resulting string.
-
-        """
-        # NOTE: Only TOML format is currently supported.
-        # See LOADER_README.md for adding new format detection.
-        return 'toml'  # Default to TOML only
 
 
 LOG = logging.getLogger('game.sprites.animated')
@@ -1275,7 +1252,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         """Load animated sprite from a file.
 
         Currently only supports TOML format. To add new formats:
-        1. Add format detection in glitchygames.bitmappy.utils.detect_file_format()
+        1. Add format detection in glitchygames.sprites.file_format.detect_file_format()
         2. Add load logic here (e.g., _load_json(), _load_xml())
         3. Add save methods in save()
         4. Update tests
@@ -1804,7 +1781,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         """Save animated sprite to a file.
 
         Currently only supports TOML format. To add new formats:
-        1. Add format detection in glitchygames.bitmappy.utils.detect_file_format()
+        1. Add format detection in glitchygames.sprites.file_format.detect_file_format()
         2. Add save logic here (e.g., _save_json(), _save_xml())
         3. Add load methods in load()
         4. Update tests
@@ -1952,7 +1929,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         This is the main TOML save method for animated sprites. To add new formats:
         1. Create similar methods like _save_json(), _save_xml()
-        2. Add format detection in glitchygames.bitmappy.utils.detect_file_format()
+        2. Add format detection in glitchygames.sprites.file_format.detect_file_format()
         3. Add save logic in save() method
         4. Update tests
         See LOADER_README.md for detailed implementation guide.

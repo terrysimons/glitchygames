@@ -32,9 +32,10 @@ from glitchygames.bitmappy.sprite_inspection import (
     _sprite_has_per_pixel_alpha,
     load_ai_training_data,
 )
-from glitchygames.bitmappy.utils import detect_file_format, resource_path
+from glitchygames.bitmappy.utils import resource_path
 from glitchygames.engine.game_engine import exit_on_signal
 from glitchygames.exit_codes import ExitCode
+from glitchygames.sprites.file_format import detect_file_format
 
 LOG = logging.getLogger('test.bitmappy_coverage')
 

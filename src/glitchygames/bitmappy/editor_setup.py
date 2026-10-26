@@ -14,6 +14,7 @@ import pygame
 
 # glitchygames.events.voice guards its own optional speech_recognition import,
 # so this import always succeeds
+from glitchygames.engine import ASSET_PATH
 from glitchygames.events.voice import VoiceEventManager
 from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
@@ -38,7 +39,6 @@ from .history.operations import (
     FilmStripOperationTracker,
 )
 from .history.undo_redo import UndoRedoManager
-from .utils import resource_path
 
 if TYPE_CHECKING:
     from glitchygames.bitmappy.editor import BitmapEditorScene
@@ -88,7 +88,7 @@ class EditorSetup:
         )
 
         # Add the raspberry icon with its specific height
-        icon_path = resource_path('glitchygames', 'assets', 'raspberry.toml')
+        icon_path = ASSET_PATH / 'raspberry.toml'
         self.editor.menu_icon = MenuItem(
             name=None,
             x=4,  # Add 4px offset from left edge

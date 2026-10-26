@@ -8,7 +8,6 @@ for various operations like saving, loading, and creating new files.
 from __future__ import annotations
 
 import logging
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, override
 
@@ -28,108 +27,33 @@ LOG = logging.getLogger('game.ui.dialogs')
 LOG.addHandler(logging.NullHandler())
 
 
-def _process_example_filename(filename: str) -> tuple[str, bool]:
-    """Process filename that may contain 'example:' or 'examples:' prefix.
-
-    If the filename contains 'example:' or 'examples:', strip it off and return the cleaned
-    filename along with a flag indicating it should be saved to the examples
-    directory.
-
-    Args:
-        filename: The input filename that may contain 'example:' or 'examples:' prefix
-
-    Returns:
-        tuple: (cleaned_filename, is_example) where is_example is True if
-               the filename had 'example:' or 'examples:' prefix
-
-    """
-    is_example = False
-    cleaned_filename = filename.strip()
-
-    if cleaned_filename.startswith('example:'):
-        is_example = True
-        cleaned_filename = cleaned_filename[len('example:') :].strip()
-        LOG.info(
-            "Detected 'example:' prefix. Cleaning filename: '%s' -> '%s'",
-            filename,
-            cleaned_filename,
-        )
-    elif cleaned_filename.startswith('examples:'):
-        is_example = True
-        cleaned_filename = cleaned_filename[len('examples:') :].strip()
-        LOG.info(
-            "Detected 'examples:' prefix. Cleaning filename: '%s' -> '%s'",
-            filename,
-            cleaned_filename,
-        )
-
-    return cleaned_filename, is_example
-
-
-def _get_examples_dir() -> Path:
-    """Get the path to the examples/resources/sprites directory.
-
-    Returns:
-        Path: Path to the examples sprites directory
-
-    """
-    # Use the same logic as resource_path but defined here to avoid circular imports
-    if hasattr(sys, '_MEIPASS'):
-        # Running in PyInstaller bundle
-        base_path = Path(sys._MEIPASS)  # type: ignore[attr-defined]
-        return base_path.joinpath('glitchygames', 'examples', 'resources', 'sprites')
-    # Running in normal Python environment
-    # dialogs.py is in glitchygames/ui, so go up to glitchygames/, then to examples/
-    # Path(__file__) = glitchygames/ui/dialogs.py
-    # .parent = glitchygames/ui/
-    # .parent.parent = glitchygames/
-    # Then join with examples/resources/sprites
-    return Path(__file__).parent.parent.joinpath('examples', 'resources', 'sprites')
-
-
 def _get_save_path(filename: str) -> Path:
-    """Get the full save path for a filename.
+    """Get the path to save to for a filename.
 
     Args:
-        filename: The filename (may contain 'example:' or 'examples:' prefix)
+        filename: The filename, used as given apart from surrounding whitespace
 
     Returns:
-        Path: Full path where the file should be saved
+        Path: The path where the file should be saved
 
     """
-    cleaned_filename, is_example = _process_example_filename(filename)
-
-    if is_example:
-        examples_dir = _get_examples_dir()
-        save_path = examples_dir / cleaned_filename
-        LOG.info('Example save path: %s', save_path)
-        return save_path
-    # Normal save - return just the filename (current behavior)
-    save_path = Path(cleaned_filename)
-    LOG.info('Normal save path: %s', save_path)
+    save_path = Path(filename.strip())
+    LOG.info('Save path: %s', save_path)
     return save_path
 
 
 def _get_load_path(filename: str) -> Path:
-    """Get the full load path for a filename.
+    """Get the path to load from for a filename.
 
     Args:
-        filename: The filename (may contain 'example:' or 'examples:' prefix)
+        filename: The filename, used as given apart from surrounding whitespace
 
     Returns:
-        Path: Full path where the file should be loaded from
+        Path: The path the file should be loaded from
 
     """
-    cleaned_filename, is_example = _process_example_filename(filename)
-
-    if is_example:
-        examples_dir = _get_examples_dir()
-        load_path = examples_dir / cleaned_filename
-        LOG.info('Example load path: %s', load_path)
-        return load_path
-    # Normal load - return just the filename (current behavior)
-    load_path = Path(cleaned_filename)
-    LOG.info('Normal load path: %s', load_path)
+    load_path = Path(filename.strip())
+    LOG.info('Load path: %s', load_path)
     return load_path
 
 
@@ -386,7 +310,7 @@ class LoadDialogScene(InputConfirmationDialogScene):
         self.log.info('Load File: event: %s, trigger: %s', event, trigger)
         # Get the filename from the input box text
         filename = self.dialog.input_box.text
-        # Process example: prefix if present
+        # The name is used as given, apart from surrounding whitespace
         load_path = _get_load_path(filename)
         LOG.info('Processed load path: %s', load_path)
         # Pass the path as string to maintain compatibility
@@ -438,7 +362,7 @@ class SaveDialogScene(InputConfirmationDialogScene):
         self.log.info('Save File: event: %s, trigger: %s', event, trigger)
         # Get the filename from the input box
         filename = self.dialog.input_box.text
-        # Process example: prefix if present
+        # The name is used as given, apart from surrounding whitespace
         save_path = _get_save_path(filename)
         LOG.info('Processed save path: %s', save_path)
         # Pass the path as string to maintain compatibility. The canvas logs a failed save and

@@ -84,7 +84,7 @@ BROWSER_PAGE_SCRIPTS = ('touch_controls.js',)
 # Engine subpackages no game imports: desktop tools only (checked: nothing outside them refers
 # to them, but sprites/animated.py's TOML sprite loading, which no bundled game uses)
 EXCLUDED_SUBPACKAGES = frozenset({'bitmappy', 'api', 'services', 'testing', 'templates'})
-# glitchygames/assets PNGs are Bitmappy's and the window icon (1.7 MB and 1 MB)
+# glitchygames/assets PNGs are the window icon (1 MB)
 EXCLUDED_ASSET_SUFFIXES = frozenset({'.png'})
 # Every archive member gets this timestamp, so the same sources make the same archive
 ARCHIVE_TIMESTAMP = (2026, 1, 1, 0, 0, 0)

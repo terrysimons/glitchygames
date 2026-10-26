@@ -6,6 +6,8 @@ Re-exports all public names from submodules for backwards compatibility.
 from __future__ import annotations
 
 # Extracted modules (canonical imports)
+from glitchygames.sprites.file_format import detect_file_format
+
 from .ai_manager import AIManager
 from .ai_worker import run_ai_worker
 from .animated_canvas import AnimatedCanvasSprite
@@ -143,7 +145,7 @@ from .scroll_arrow import ScrollArrowSprite
 from .slider_manager import SliderManager
 from .sprite_inspection import load_ai_training_data
 from .toml_processing import parse_toml_robustly
-from .utils import SPRITE_CONFIG_DIR, detect_file_format, resource_path
+from .utils import SPRITE_CONFIG_DIR, resource_path
 
 __all__ = [
     'AI_BASE_DELAY',
