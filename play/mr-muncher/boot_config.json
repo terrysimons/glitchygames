@@ -1,6 +1,6 @@
 {
   "game": "mr-muncher",
-  "module": "glitchygames.examples.mr_muncher.game",
+  "module": "mr_muncher.game",
   "scene_class": "MrMuncherScene",
   "title": "Mr. Muncher",
   "arguments": [],

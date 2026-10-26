@@ -139,6 +139,11 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Games API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
+                  </li>
+              </ul>
       </div>
     </div>
     </nav>
@@ -442,7 +447,12 @@ read back from JSON exactly as returned:</p>
 streams with its seed. It refuses, logging the reason and exiting with one of the
 <a href="#exit-codes">exit codes</a>, when:</p>
 <ul>
-<li>the recording is of another game, cannot be read (not gzip, no permission, a directory) or
+<li>the recording is of another game (the header's <code>game</code> and each scene start's <code>scene</code> name
+  their classes by logical names, <code>glitchygames/logical_names.py</code>: the layer, the module path
+  inside the game's package, then <code>:</code> and the qualified name, as in
+  <code>games.mr_muncher.game:MrMuncherScene</code>, which stay the same when the game's code moves; a
+  recording made before logical names is compared by its exact <code>game_module</code> and
+  <code>scene_module</code>, and a <code>--rebaseline</code> of it writes the logical names), cannot be read (not gzip, no permission, a directory) or
   has an unsupported format version: <code>UNUSABLE_INPUT</code> (65);</li>
 <li>the file does not exist: <code>MISSING_INPUT</code> (66);</li>
 <li><code>--record-trace</code> is given too: <code>OPTIONS_REFUSED</code> (64). Recording over a replay is what

@@ -139,6 +139,11 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Games API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
+                  </li>
+              </ul>
       </div>
     </div>
     </nav>
@@ -207,7 +212,7 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    has not measured that code yet, it measures every golden replay and bundled demo on it and
    adds one small file per recording to the commit, under <code>quality/replay-ledger/</code>. A docs commit
    after a measured one is instant; code that arrived by a merge from <code>main</code> or a rebase is
-   measured by the next commit (or by hand: <code>uv run python scripts/measure_staged_replays.py</code>,
+   measured by the next commit (or by hand: <code>uv run python -m scripts.measure_staged_replays</code>,
    then commit). <code>SKIP=replay-metrics git commit ...</code> skips it.</li>
 <li><strong>The site shows what landed on <code>main</code>.</strong> Every docs build reads the repository's row files
    and keeps those whose code tree is the code tree of a commit that added rows: on <code>main</code>, the
@@ -227,7 +232,7 @@ work, by their content hash), and where behaviour changed (the frames whose cont
 differs, with both runs' commits). Design:
 <code>plans/2026-10-23-recording-metrics.md</code> (Parts 1 and 2).</p>
 <p>Until a build generates them, this page has only this text.</p>
-<p>Generated from 38 ledger rows (65 in the repository, 31 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
+<p>Generated from 45 ledger rows (156 in the repository, 38 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
 <h2 id="latest-measurements">Latest measurements<a class="headerlink" href="#latest-measurements" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -244,78 +249,81 @@ differs, with both runs' commits). Design:
 </thead>
 <tbody>
 <tr>
-<td><code>glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code></td>
+<td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>5a694d3</code></td>
+<td><code>b29f85f</code></td>
+<td style="text-align: right;">2072</td>
+<td style="text-align: right;">0.641</td>
+<td style="text-align: right;">0.869</td>
+<td style="text-align: right;">5.807</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code></td>
+<td>Apple M4 Max, unpaced replay</td>
+<td><code>b29f85f</code></td>
 <td style="text-align: right;">450</td>
-<td style="text-align: right;">0.096</td>
-<td style="text-align: right;">0.923</td>
-<td style="text-align: right;">23.667</td>
-<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.082</td>
+<td style="text-align: right;">0.152</td>
+<td style="text-align: right;">0.338</td>
+<td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>5a694d3</code></td>
+<td><code>b29f85f</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">1.907</td>
-<td style="text-align: right;">47.091</td>
-<td style="text-align: right;">111.100</td>
-<td style="text-align: right;">14</td>
+<td style="text-align: right;">1.771</td>
+<td style="text-align: right;">2.295</td>
+<td style="text-align: right;">3.905</td>
+<td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>tests/fixtures/replays/brave-adventurer/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>5a694d3</code></td>
+<td><code>b29f85f</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">1.766</td>
-<td style="text-align: right;">42.487</td>
-<td style="text-align: right;">120.379</td>
-<td style="text-align: right;">8</td>
+<td style="text-align: right;">1.713</td>
+<td style="text-align: right;">1.917</td>
+<td style="text-align: right;">3.877</td>
+<td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>tests/fixtures/replays/clockwork-keep/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>5a694d3</code></td>
+<td><code>b29f85f</code></td>
 <td style="text-align: right;">532</td>
-<td style="text-align: right;">0.447</td>
-<td style="text-align: right;">4.609</td>
-<td style="text-align: right;">91.774</td>
-<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.424</td>
+<td style="text-align: right;">0.743</td>
+<td style="text-align: right;">2.778</td>
+<td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>tests/fixtures/replays/drawing-fire/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>5a694d3</code></td>
+<td><code>b29f85f</code></td>
 <td style="text-align: right;">1614</td>
-<td style="text-align: right;">0.505</td>
-<td style="text-align: right;">18.386</td>
-<td style="text-align: right;">121.960</td>
-<td style="text-align: right;">18</td>
-</tr>
-<tr>
-<td><code>tests/fixtures/replays/mr-muncher/golden.jsonl.gz</code></td>
-<td>Apple M4 Max, unpaced replay</td>
-<td><code>5a694d3</code></td>
-<td style="text-align: right;">2072</td>
-<td style="text-align: right;">0.750</td>
-<td style="text-align: right;">27.191</td>
-<td style="text-align: right;">209.519</td>
-<td style="text-align: right;">30</td>
+<td style="text-align: right;">0.407</td>
+<td style="text-align: right;">0.599</td>
+<td style="text-align: right;">4.767</td>
+<td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>tests/fixtures/replays/paddleslap/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>5a694d3</code></td>
+<td><code>b29f85f</code></td>
 <td style="text-align: right;">622</td>
-<td style="text-align: right;">0.112</td>
-<td style="text-align: right;">2.255</td>
-<td style="text-align: right;">11.718</td>
+<td style="text-align: right;">0.084</td>
+<td style="text-align: right;">0.236</td>
+<td style="text-align: right;">2.764</td>
 <td style="text-align: right;">0</td>
 </tr>
 </tbody>
 </table>
-<h2 id="glitchygamesexamplespaddleslap_demosrallyjsonlgz"><code>glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code><a class="headerlink" href="#glitchygamesexamplespaddleslap_demosrallyjsonlgz" title="Permanent link">#</a></h2>
+<h2 id="srcgamesmr-munchertestsfixturesreplaysgoldenjsonlgz"><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code><a class="headerlink" href="#srcgamesmr-munchertestsfixturesreplaysgoldenjsonlgz" title="Permanent link">#</a></h2>
+<iframe src="../metrics/mr-muncher-golden.html" width="100%" height="1550" frameborder="0"></iframe>
+
+<h2 id="srcglitchygamesexamplespaddleslap_demosrallyjsonlgz"><code>src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz</code><a class="headerlink" href="#srcglitchygamesexamplespaddleslap_demosrallyjsonlgz" title="Permanent link">#</a></h2>
 <iframe src="../metrics/paddleslap-rally.html" width="100%" height="1550" frameborder="0"></iframe>
 
 <h2 id="testsfixturesreplaysbrave-adventurer-papyrusgoldenjsonlgz"><code>tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz</code><a class="headerlink" href="#testsfixturesreplaysbrave-adventurer-papyrusgoldenjsonlgz" title="Permanent link">#</a></h2>
@@ -329,9 +337,6 @@ differs, with both runs' commits). Design:
 
 <h2 id="testsfixturesreplaysdrawing-firegoldenjsonlgz"><code>tests/fixtures/replays/drawing-fire/golden.jsonl.gz</code><a class="headerlink" href="#testsfixturesreplaysdrawing-firegoldenjsonlgz" title="Permanent link">#</a></h2>
 <iframe src="../metrics/drawing-fire-golden.html" width="100%" height="1550" frameborder="0"></iframe>
-
-<h2 id="testsfixturesreplaysmr-munchergoldenjsonlgz"><code>tests/fixtures/replays/mr-muncher/golden.jsonl.gz</code><a class="headerlink" href="#testsfixturesreplaysmr-munchergoldenjsonlgz" title="Permanent link">#</a></h2>
-<iframe src="../metrics/mr-muncher-golden.html" width="100%" height="1550" frameborder="0"></iframe>
 
 <h2 id="testsfixturesreplayspaddleslapgoldenjsonlgz"><code>tests/fixtures/replays/paddleslap/golden.jsonl.gz</code><a class="headerlink" href="#testsfixturesreplayspaddleslapgoldenjsonlgz" title="Permanent link">#</a></h2>
 <iframe src="../metrics/paddleslap-golden.html" width="100%" height="1550" frameborder="0"></iframe>

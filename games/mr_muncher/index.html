@@ -139,6 +139,11 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Games API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
+                  </li>
+              </ul>
       </div>
     </div>
     </nav>
@@ -177,7 +182,7 @@ hunt you. A <strong>snack</strong> (a wrapped candy) gives you a sugar rush: for
 turn dull blue and run away, and you can eat them. Each life is a <strong>take</strong>, a cleared maze is a
 <strong>CUT!</strong>, and the last life ends with <strong>THE END</strong>.</p>
 <p>This page explains how the game is built, for a developer who wants to understand it or write a
-game like it. Everything here comes from <code>glitchygames/examples/mr_muncher/</code>. The module
+game like it. Everything here comes from <code>src/games/mr-muncher/mr_muncher/</code>. The module
 docstrings there are the detailed reference.</p>
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w">                      </span><span class="c1"># the console script (pyproject.toml [project.scripts])</span>
@@ -292,6 +297,21 @@ tied to a key's physical position and works the same on every keyboard layout.</
 </table>
 <p>Note that ESC pauses the game, but ESC on the pause screen quits. The pause and game-over
 screens are engine scenes and check key codes (<code>event.key</code>), not scancodes.</p>
+<h2 id="its-package">Its package<a class="headerlink" href="#its-package" title="Permanent link">#</a></h2>
+<p>Mr. Muncher is a uv workspace member of its own (plan: <code>plans/2026-10-24-workspace-packages.md</code>),
+not part of the engine's package: distribution <code>mr-muncher</code>, import package <code>mr_muncher</code>, all
+under <code>src/games/mr-muncher/</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>src/games/mr-muncher/
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  pyproject.toml      the member's metadata: depends on glitchygames, the mr-muncher console script
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  README.md
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  mr_muncher/         the game's code (below)
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>  tests/              the game's tests and its golden replay (tests/fixtures/replays/golden.jsonl.gz)
+</code></pre></div>
+<p>From the repository root, <code>uv sync --all-extras --all-groups --all-packages</code> installs it, <code>uv run
+mr-muncher</code> plays it, and <code>uv run pytest src/games/mr-muncher/tests</code> runs its tests (the engine's
+<code>uv run pytest</code> runs them too, golden replay included). Its recordings name the game by logical
+names (<code>games.mr_muncher.game:MrMuncherScene</code>), so they do not depend on where the code lives.
+In the browser, its bundle ships <code>mr_muncher.zip</code> beside the engine's <code>glitchygames.zip</code>.</p>
 <h2 id="where-things-live">Where things live<a class="headerlink" href="#where-things-live" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -302,51 +322,51 @@ screens are engine scenes and check key codes (<code>event.key</code>), not scan
 </thead>
 <tbody>
 <tr>
-<td><code>glitchygames/examples/mr_muncher/__init__.py</code></td>
+<td><code>src/games/mr-muncher/mr_muncher/__init__.py</code></td>
 <td>Re-exports <code>main</code> (the <code>mr-muncher</code> console script's entry point)</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/mr_muncher/maze.py</code></td>
+<td><code>src/games/mr-muncher/mr_muncher/maze.py</code></td>
 <td><code>MAZE_LAYOUT</code> (the maze as text), tile characters, <code>Direction</code>, <code>DIRECTION_PREFERENCE</code>, <code>Maze</code> (a frozen pydantic model: tile questions, wrapping, distances)</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/mr_muncher/levels.py</code></td>
+<td><code>src/games/mr-muncher/mr_muncher/levels.py</code></td>
 <td><code>LevelSettings</code> and <code>settings_for_level</code> (the difficulty ramp), the scatter/chase schedule helpers, the frightened flash</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/mr_muncher/actors.py</code></td>
+<td><code>src/games/mr-muncher/mr_muncher/actors.py</code></td>
 <td><code>MazeGeometry</code> (tiles to pixels), <code>MazeActor</code> (tile-to-tile movement), <code>Player</code>, <code>Muncher</code>, <code>MuncherProfile</code>, <code>Personality</code>, <code>MuncherState</code>, <code>ChaseSituation</code>, <code>chase_target</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/mr_muncher/game.py</code></td>
+<td><code>src/games/mr-muncher/mr_muncher/game.py</code></td>
 <td><code>MrMuncherScene</code> (one reel: phases, scoring, input, saves, sound, drawing), <code>Phase</code>, <code>GameProgress</code>, <code>MrMuncherGameOverScene</code>, <code>main</code></td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/mr_muncher/drawing.py</code></td>
+<td><code>src/games/mr-muncher/mr_muncher/drawing.py</code></td>
 <td>Every picture, drawn with pygame primitives and cached with <code>functools.cache</code>: maze, bucket, munchers, eyes, sprockets, snacks, bonus reel, film-strip panels</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/mr_muncher/scenery.py</code></td>
+<td><code>src/games/mr-muncher/mr_muncher/scenery.py</code></td>
 <td>The sprites that never move (<code>Sprocket</code>, <code>Picture</code>, <code>SidePanel</code>) and the text helpers (<code>bundled_font</code>, <code>fitted_font</code>, <code>render_text</code>)</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/mr_muncher/sounds.py</code></td>
+<td><code>src/games/mr-muncher/mr_muncher/sounds.py</code></td>
 <td>The sound effects and jingles as synth <code>SoundRecipe</code>s</td>
 </tr>
 <tr>
-<td><code>glitchygames/examples/mr_muncher/autopilot.py</code></td>
+<td><code>src/games/mr-muncher/mr_muncher/autopilot.py</code></td>
 <td><code>Autopilot</code>, a bot that plays the game. The golden replay's script and the tests use it</td>
 </tr>
 <tr>
-<td><code>tests/examples/test_mr_muncher.py</code></td>
+<td><code>src/games/mr-muncher/tests/test_mr_muncher.py</code></td>
 <td>The scene: game flow, scoring, input, saves, screens, whole games</td>
 </tr>
 <tr>
-<td><code>tests/examples/test_mr_muncher_maze_and_actors.py</code></td>
+<td><code>src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py</code></td>
 <td>The parts: maze, levels, actors, pictures, scenery, sounds, autopilot</td>
 </tr>
 <tr>
-<td><code>tests/fixtures/replays/mr-muncher/golden.jsonl.gz</code></td>
+<td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>The golden replay (2,072 frames)</td>
 </tr>
 <tr>
@@ -401,7 +421,7 @@ holds the game's own scenes (<code>MrMuncherGameOverScene</code> extends the eng
   while the phase is still <code>READY</code>.</li>
 </ul>
 <h3 id="scene-classes">Scene classes<a class="headerlink" href="#scene-classes" title="Permanent link">#</a></h3>
-<p>Mr. Muncher's scenes are two classes in <code>glitchygames/examples/mr_muncher/game.py</code>:
+<p>Mr. Muncher's scenes are two classes in <code>src/games/mr-muncher/mr_muncher/game.py</code>:
 <code>MrMuncherScene</code> and <code>MrMuncherGameOverScene</code>. <code>Scene</code> and the built-in <code>PauseScene</code> and
 <code>GameOverScene</code> come from the engine (<code>glitchygames.scenes</code>). In the diagram, the Engine box is
 what every game gets; the Mr. Muncher box is what this game adds. Solid arrows are inheritance,
@@ -513,30 +533,30 @@ plays once, when its text first appears.</p>
 <p><code>MAZE_LAYOUT</code> is a tuple of strings, one per row of tiles: 27 columns by 24 rows. It is
 symmetric from left to right, every corridor is one tile wide, there are no dead ends, and every
 open tile can be reached from every other. The tests check all four properties.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>###########################
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>#o...........#...........o#
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>#.####.#####.#.#####.####.#
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>#.####.#####.#.#####.####.#
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>T.........................T
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>#.####.##.#######.##.####.#
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>#......##....#....##......#
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>#.####.#####.#.#####.####.#
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>#.#....##         ##....#.#
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>#.#.##.## ###-### ##.##.#.#
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>#...##.   #HHHHH#   .##...#
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>###.##.## #HHHHH# ##.##.###
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>#......## #HHHHH# ##......#
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>#.####.## ####### ##.####.#
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>#.#....##         ##....#.#
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>#.#.##.#####.#.#####.##.#.#
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>#...##.......#.......##...#
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>#.####.#####.#.#####.####.#
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>#o..##.......P.......##..o#
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>###.##.##.#######.##.##.###
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>#......##....#....##......#
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>#.##########.#.##########.#
-<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>T.........................T
-<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>###########################
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>###########################
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>#o...........#...........o#
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>#.####.#####.#.#####.####.#
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>#.####.#####.#.#####.####.#
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>T.........................T
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>#.####.##.#######.##.####.#
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>#......##....#....##......#
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>#.####.#####.#.#####.####.#
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>#.#....##         ##....#.#
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>#.#.##.## ###-### ##.##.#.#
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>#...##.   #HHHHH#   .##...#
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>###.##.## #HHHHH# ##.##.###
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>#......## #HHHHH# ##......#
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>#.####.## ####### ##.####.#
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>#.#....##         ##....#.#
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>#.#.##.#####.#.#####.##.#.#
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>#...##.......#.......##...#
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>#.####.#####.#.#####.####.#
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>#o..##.......P.......##..o#
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>###.##.##.#######.##.##.###
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>#......##....#....##......#
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>#.##########.#.##########.#
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>T.........................T
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>###########################
 </code></pre></div>
 <table>
 <thead>
@@ -1154,9 +1174,9 @@ to ask for in each frame. It has two uses:</p>
   (pressing it again if the player still wants another way after 4 frames). With
   <code>seek_capture_after_seconds=22.0</code> it walks into a muncher once, so the recording includes a
   death and the next take.</li>
-<li><strong>Bot playtests in the tests.</strong> <code>tests/examples/test_mr_muncher.py::TestWholeGames</code> lets it
+<li><strong>Bot playtests in the tests.</strong> <code>src/games/mr-muncher/tests/test_mr_muncher.py::TestWholeGames</code> lets it
   play a last life until game over (setting <code>wanted_direction</code> directly), and
-  <code>TestAutopilot</code> in <code>tests/examples/test_mr_muncher_maze_and_actors.py</code> checks its choices.</li>
+  <code>TestAutopilot</code> in <code>src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py</code> checks its choices.</li>
 </ul>
 <p>How it decides:</p>
 <pre class="mermaid"><code>flowchart TB
@@ -1241,7 +1261,7 @@ four tiles in front of the bucket, or Nibbles' cross jumping to its corner when 
 <h3 id="recording-replay-and-the-golden-replay">Recording, replay and the golden replay<a class="headerlink" href="#recording-replay-and-the-golden-replay" title="Permanent link">#</a></h3>
 <p>Everything that decides what happens runs on game time and the seeded stream, so a
 <code>--record-trace</code> recording replays exactly with <code>--replay-trace</code>.</p>
-<p>The golden replay <code>tests/fixtures/replays/mr-muncher/golden.jsonl.gz</code> was recorded through the
+<p>The golden replay <code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code> was recorded through the
 real engine loop by <code>scripts/record_scripted_session.py --game mr_muncher --frames 1950</code>. Its
 1,950 scripted frames cover the countdown, a pause with ESC at frame 600 and a resume with SPACE
 at frame 660, a snack, munchers and the bonus eaten, and a death at about frame 1650 followed by
@@ -1262,7 +1282,7 @@ to make a failing replay pass.</p>
 <p>Both test files use real pygame, the real 800x480 display and real files (saves go to
 <code>tmp_path</code>). What is drawn is checked by its pixels. The tests patch only sound playback, where
 a test is about which sound plays.</p>
-<p><code>tests/examples/test_mr_muncher_maze_and_actors.py</code> covers the parts:</p>
+<p><code>src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py</code> covers the parts:</p>
 <table>
 <thead>
 <tr>
@@ -1313,7 +1333,7 @@ a test is about which sound plays.</p>
 </tr>
 </tbody>
 </table>
-<p><code>tests/examples/test_mr_muncher.py</code> covers the scene: layout (<code>TestLayout</code>), the countdown and
+<p><code>src/games/mr-muncher/tests/test_mr_muncher.py</code> covers the scene: layout (<code>TestLayout</code>), the countdown and
 messages (<code>TestStartingALevel</code>), input including joystick and controller modes, the hat, pause
 and Q (<code>TestInput</code>), eating, the bonus, the extra life and clearing a reel (<code>TestEating</code>),
 releases, mode reversal, doubling points, catches with their shake and the game's end
@@ -1321,6 +1341,9 @@ releases, mode reversal, doubling points, catches with their shake and the game'
 game-over screen (<code>TestGameOverScreen</code>), whole games through the frame loop (<code>TestWholeGames</code>:
 a cleared reel leads to <code>REEL 2</code> with the score kept, and a game over leads to a new game), and
 <code>main()</code> replaying the golden fixture headless.</p>
+<h2 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">#</a></h2>
+<p>The <code>mr_muncher</code> package's API reference is its own page, <a href="../../mr_muncher/">mr_muncher</a>,
+generated for every workspace member's package (<code>scripts/gen_ref_pages.py</code>).</p>
               
             </div>
           </div><footer>

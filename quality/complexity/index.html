@@ -139,6 +139,11 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Games API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
+                  </li>
+              </ul>
       </div>
     </div>
     </nav>
@@ -173,13 +178,16 @@
 by <a href="https://github.com/tonybaloney/wily">wily</a>. The modules are the 15 with the highest total
 cyclomatic complexity (the sum over their functions and methods) at the published commit. Each
 graph has one line per module (click a module in the legend to hide or show it), with a point at
-each commit that changed the module's value.</p>
+each commit that changed the module's value. wily follows files by path; the engine moved from
+<code>glitchygames/</code> to <code>src/glitchygames/</code> (2026-10-25), so each module's measurements under its former
+path are joined to its current one (<code>MOVED_PATH_PREFIXES</code> in
+<code>scripts/generate_complexity_graphs.py</code>), and its line runs through its whole history.</p>
 <p>The graphs are generated, not kept in git: <code>nox -s docs-deploy</code> generates them before it builds
 the published site. To see them in a local build (<code>mkdocs serve</code>), generate them first with
 <code>uv run python scripts/generate_complexity_graphs.py</code> (or <code>nox -s code-complexity -- --graphs</code>),
 which measures the committed history (HEAD) in a temporary worktree and writes them to
 <code>docs/quality/graphs/</code>; until then this page has only this text.</p>
-<p>Generated at commit <code>5a694d3</code> (2026-10-25) from all 230 commits. The modules, highest total cyclomatic complexity first: <code>glitchygames/scenes/scene.py</code>, <code>glitchygames/sprites/animated.py</code>, <code>glitchygames/bitmappy/film_strip_coordinator.py</code>, <code>glitchygames/engine/game_engine.py</code>, <code>glitchygames/replay/driver.py</code>, <code>glitchygames/bitmappy/animated_canvas.py</code>, <code>glitchygames/bitmappy/editor.py</code>, <code>glitchygames/ui/text_widgets.py</code>, <code>glitchygames/bitmappy/ai_manager.py</code>, <code>glitchygames/examples/mr_muncher/game.py</code>, <code>glitchygames/recording.py</code>, <code>glitchygames/bitmappy/canvas_interfaces.py</code>, <code>glitchygames/bitmappy/toml_processing.py</code>, <code>glitchygames/bitmappy/film_strip_events.py</code>, <code>glitchygames/recording_metrics.py</code>.</p>
+<p>Generated at commit <code>b29f85f</code> (2026-10-25) from all 231 commits. The modules, highest total cyclomatic complexity first: <code>src/glitchygames/scenes/scene.py</code>, <code>src/glitchygames/sprites/animated.py</code>, <code>src/glitchygames/bitmappy/film_strip_coordinator.py</code>, <code>src/glitchygames/engine/game_engine.py</code>, <code>src/glitchygames/replay/driver.py</code>, <code>src/glitchygames/bitmappy/animated_canvas.py</code>, <code>src/glitchygames/bitmappy/editor.py</code>, <code>src/glitchygames/ui/text_widgets.py</code>, <code>src/glitchygames/bitmappy/ai_manager.py</code>, <code>src/glitchygames/recording.py</code>, <code>src/glitchygames/bitmappy/canvas_interfaces.py</code>, <code>src/glitchygames/bitmappy/toml_processing.py</code>, <code>src/glitchygames/bitmappy/film_strip_events.py</code>, <code>src/glitchygames/recording_metrics.py</code>, <code>src/glitchygames/bitmappy/history/undo_redo.py</code>.</p>
 <h2 id="maintainability-index">Maintainability Index<a class="headerlink" href="#maintainability-index" title="Permanent link">#</a></h2>
 <iframe src="../graphs/maintainability_mi.html" width="100%" height="600" frameborder="0"></iframe>
 
