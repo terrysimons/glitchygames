@@ -12,8 +12,8 @@
 
 ## Global Constraints
 
-- Order: Clockwork Keep, then Brave Adventurer, then Brave Adventurer Papyrus (it depends on `brave-adventurer`), then PaddleSlap, then Drawing Fire (added to the outline: it postdates it), each to `src/games/<game>/`.
-- Names (decision 1): directory and distribution = the console script (`clockwork-keep`, `brave-adventurer`, `brave-adventurer-papyrus`, `paddleslap`, `drawing-fire`); import package = the engine's package name today (`clockwork_keep`, `brave_adventurer`, `brave_adventurer_papyrus`, `paddleslap`, `drawing_fire`); console scripts unchanged.
+- Order: Clockwork Keep, then Brave Adventurer and Papyrus as one project (`src/games/brave-adventurer/`: two games and a launcher, the user's decision 2026-10-25, Tasks 4-6), then PaddleSlap, then Drawing Fire (added to the outline: it postdates it), each to `src/games/<game>/`.
+- Names (decision 1): directory and distribution = the console script (`clockwork-keep`, `brave-adventurer`, `paddleslap`, `drawing-fire`); import package = the engine's package name today (`clockwork_keep`, `brave_adventurer` and `brave_adventurer_papyrus` with the new `brave_adventurer_core` and `brave_adventurer_modes`, `paddleslap`, `drawing_fire`); console scripts unchanged but one: `brave-adventurer-papyrus` goes, Papyrus is reached through the `brave-adventurer` launcher (Task 5).
 - Recordings (decisions 8, 9): no recording's bytes change; each game's golden moves to `src/games/<game>/tests/fixtures/replays/golden.jsonl.gz` and replays strictly from there; PaddleSlap's demo moves to `src/games/paddleslap/paddleslap/demos/rally.jsonl.gz`; every moved recording gets a `RECORDING_PATH_RENAMES` line from each path it has had.
 - PaddleSlap keeps the logical name `games.paddleslap:Game`: `Game` stays defined in the package itself (`paddleslap/__init__.py`), never re-exported from a submodule.
 - A member uses only the engine's public API (no `_`-prefixed engine name, no `# type: ignore[attr-defined]` reaching into engine objects).
@@ -23,11 +23,11 @@
 
 ## Review Focus
 
-1. **A leftover example directory** (git-ignored `__pycache__` left in `src/glitchygames/examples/<game>/`) still imports, as an empty namespace package, so stale code can seem to work: each move task asserts the old package is gone (`test_the_old_example_package_is_gone`, Tasks 3-7).
-2. **A golden replay or demo whose run-ledger history breaks** on the move: each move task's `RECORDING_PATH_RENAMES` test asserts the old path maps to the new one; PaddleSlap's demo, already moved once (`glitchygames/examples/...` -> `src/glitchygames/examples/...`), needs a line from both old paths (Task 6, `test_the_rally_demo_keeps_its_whole_history`).
-3. **Papyrus in the browser without Brave Adventurer's code**: its bundle must ship both archives, or it fails at import on the page only (Task 2, `test_a_game_depending_on_a_member_ships_both_archives`; Task 5 sets it).
-4. **An engine test silently testing a moved game through a stale import path** (collision, animation and golden-trace tests borrow these games): every `glitchygames.examples.<game>` reference outside `plans/` is gone after its move (Tasks 3-7: `git grep` in the verify step must print nothing).
-5. **PaddleSlap's recordings renamed by accident**: its `Game.__module__` must stay `paddleslap` (Task 6, `test_paddleslap_game_keeps_its_logical_name`).
+1. **A leftover example directory** (git-ignored `__pycache__` left in `src/glitchygames/examples/<game>/`) still imports, as an empty namespace package, so stale code can seem to work: each move task asserts the old package is gone (`test_the_old_example_package_is_gone`, Tasks 3, 4, 7, 8).
+2. **A golden replay or demo whose run-ledger history breaks** on the move: each move task's `RECORDING_PATH_RENAMES` test asserts the old path maps to the new one; PaddleSlap's demo, already moved once (`glitchygames/examples/...` -> `src/glitchygames/examples/...`), needs a line from both old paths (Task 7, `test_the_rally_demo_keeps_its_whole_history`).
+3. **A Brave Adventurer recording replayed as the wrong game, or the title screen waiting forever in a headless replay**: the launcher must start the game a recording's header names, and refuse a recording of any other game (Task 5, `test_a_recording_starts_its_own_game`, `test_a_recording_of_another_game_is_an_error`); in the browser, a game missing its core archive fails at import on the page only (Task 2, `test_a_game_depending_on_a_member_ships_both_archives`).
+4. **An engine test silently testing a moved game through a stale import path** (collision, animation and golden-trace tests borrow these games): every `glitchygames.examples.<game>` reference outside `plans/` is gone after its move (Tasks 3, 4, 7, 8: `git grep` in the verify step must print nothing).
+5. **PaddleSlap's recordings renamed by accident**: its `Game.__module__` must stay `paddleslap` (Task 7, `test_paddleslap_game_keeps_its_logical_name`).
 
 ---
 
@@ -54,7 +54,7 @@
 **Interfaces:**
 - Produces: `GameSpecification.member_packages: tuple[str, ...] = ()` replacing `member_package: str | None` (each ships as `<package>.zip`, in the order given: dependencies first); `pyscript_config(*, wheel_name: str, member_packages: tuple[str, ...] = ()) -> str`.
 
-- [ ] **Step 1: Write the failing tests** — update the existing ones to `member_packages=('mr_muncher',)`; add `test_a_game_depending_on_a_member_ships_both_archives` (a specification with `member_packages=('brave_adventurer', 'brave_adventurer_papyrus')` lists both zips in its pyscript config, dependency first, and `write_bundle` writes both).
+- [ ] **Step 1: Write the failing tests** — update the existing ones to `member_packages=('mr_muncher',)`; add `test_a_game_depending_on_a_member_ships_both_archives` (a specification with `member_packages=('brave_adventurer_core', 'brave_adventurer_papyrus')` lists both zips in its pyscript config, the one depended on first, and `write_bundle` writes both).
 - [ ] **Step 2: Run** `uv run pytest --dummy-only --no-cov tests/test_build_browser_bundle.py` → FAIL.
 - [ ] **Step 3: Implement**; the docstring's example names both shapes.
 - [ ] **Step 4: Run** the browser tests, then `uv run nox -s browser -- mr-muncher` builds (no page needs playing: the bundle's file list shows `mr_muncher.zip`), then the whole suite → PASS.
@@ -77,39 +77,154 @@
 - [ ] **Step 4: Verify** — the recipe's step 8, plus `git grep -n "glitchygames.examples.clockwork_keep\|glitchygames/examples/clockwork_keep\|fixtures/replays/clockwork-keep" -- ':!plans' ':!quality'` prints nothing.
 - [ ] **Step 5: Commit** (recipe step 9) — `"Workspace packages: Clockwork Keep as its own package"`
 
-### Task 4: Move Brave Adventurer
+### Brave Adventurer: one project, two games, one launcher (Tasks 4-6)
 
-**Files:** the recipe, for package `brave_adventurer`, directory `src/games/brave-adventurer/`. Specifics:
-- Tests: `tests/examples/test_brave_adventurer_sounds.py` and its data `tests/examples/brave_adventurer_golden/*.npy` move together. `tests/examples/test_brave_adventurer_game.py` tests both editions: split it, the Brave Adventurer tests to this member now, the Papyrus tests to `tests/examples/test_brave_adventurer_papyrus_game.py` until Task 5 moves them (it imports this member's package; any helper both need goes in a module named for this member, `brave_adventurer_test_helpers.py`: test helper names must stay unique, BUGS.md #31). It imports `REPLAY_FIXTURE_DIRECTORY` from `scripts.record_scripted_session`: use its own fixture directory instead.
-- Golden: `tests/fixtures/replays/brave-adventurer/golden.jsonl.gz`; `tests/benchmarks/test_benchmarks.py` reads it by path. Golden trace `tests/world/golden/brave_adventurer.jsonl.gz` stays (imports change).
-- Outside users: `tests/collision/test_collision.py`, `tests/animation/test_animation.py`, `tests/world/test_golden_traces.py`, `tests/test_browser_touch_controls.py`.
+Brave Adventurer and its Egyptian edition, Papyrus, become one project built and published
+together (the user, 2026-10-25): distribution `brave-adventurer`, directory
+`src/games/brave-adventurer/`, in a src layout of layered import packages:
+
+```
+src/games/brave-adventurer/
+  pyproject.toml               one distribution; console script brave-adventurer (the launcher)
+  src/
+    brave_adventurer_core/     the primitives both games share
+    brave_adventurer/          Classic: its scene, player, enemies, drawn sprites, voice assistant
+    brave_adventurer_papyrus/  Papyrus: its scene, TOML sprites, sprite_utils
+    brave_adventurer_modes/    the launcher: a title screen, `--game classic|papyrus`
+  tests/
+    core/  classic/  papyrus/  each layer's own tests
+    test_modes.py              the launcher, and both games started through it
+    fixtures/replays/          golden-classic.jsonl.gz, golden-papyrus.jsonl.gz
+```
+
+The rules (the user's): only mechanical DRY moves, with no change to game state, timing,
+randomness, physics, drawing output or recordings; the two games' different sprite behaviours
+stay separate; `brave-adventurer-papyrus` and its `/play/` page go (the launcher is the one
+entry). After every step, run only these games' tests, both golden replays and the Brave
+Adventurer golden trace (never the full suite until Task 9):
+
+```bash
+uv run pytest --dummy-only --no-cov -q src/games/brave-adventurer/tests \
+    tests/world/test_golden_traces.py -k "brave" \
+    tests/replay/test_golden_replays.py -k "brave"
+```
+
+What can move (the audit, 2026-10-25): recordings and golden traces name sprites by class name
+and creation order only (`glitchygames/tracing.py`: `type(sprite).__name__ + '#' + n`), and
+scenes by logical name. So a class may move between modules, but no sprite class is renamed and
+no sprite is created in a different order; each scene class stays in its game's `game.py`.
+
+### Task 4: Move both games into one project, sharing their primitives
+
+**Files:** the recipe (`docs/architecture/game_packages.md`, steps 1-7), for one member with
+four import packages in a src layout (`WorkspaceMember.package_relative_paths`:
+`src/brave_adventurer_core` and so on). Specifics:
+- `brave_adventurer_core` takes what Papyrus already borrows from Classic, moved unchanged
+  (about 950 lines): the shared constants (physics, camera, layers, parallax, scoring, pits,
+  stone, sand, HUD, the player's speeds, lives, wall width, the death and game-over rumbles);
+  `sounds.py`; `GroundSegment`, `StoneWall` and their drawers `draw_ground_segment`,
+  `draw_stone_wall`; the parallax drawing (`_vertical_gradient` and its module-level cache,
+  `draw_sky`, `draw_pyramids`, `_dune_top_y`, `draw_dunes_and_oasis`,
+  `draw_near_ground_details`); `ScreenData`, `LEVEL_1`, `LevelManager`. Classic-only drawing
+  constants (its sprite sizes and colours, arm and leg swing, rock and grass) stay in
+  `brave_adventurer`.
+- `LevelManager` gains a collectible-class hook beside `_get_enemy_class_map`; the core's
+  imports no game's sprites, so each game gives its own (`GoldScarab`, `PapyrusGoldScarab`) and
+  Papyrus's copied `_build` is deleted. Creation order is unchanged.
+- Not shared (behaviour differs, or tangled with each sprite's animation): the players, the
+  enemies' movement, the gold scarabs, the sprite drawers.
+- Tests: `tests/examples/test_brave_adventurer_sounds.py` and `brave_adventurer_golden/*.npy` to
+  `tests/core/`; `tests/examples/test_brave_adventurer_game.py` split into `tests/classic/`,
+  `tests/papyrus/`, and tests parametrized over both editions in `tests/core/` (or kept
+  parametrized in one place: one file per name, BUGS.md #31). Its package scans
+  (`BRAVE_ADVENTURER_PACKAGE.glob`, `PAPYRUS_PACKAGE`) gain the core.
+- Goldens: `tests/fixtures/replays/brave-adventurer/golden.jsonl.gz` and
+  `.../brave-adventurer-papyrus/golden.jsonl.gz` to the member's `tests/fixtures/replays/`
+  as `golden-classic.jsonl.gz` and `golden-papyrus.jsonl.gz` (bytes unchanged; two
+  `RECORDING_PATH_RENAMES` lines). Until Task 5 the member keeps both console scripts, so each
+  still replays through its own.
+- `MEMBER_LAYERS` gains all four packages (`games`); `EXAMPLES_LAYERS` loses both games.
+- Outside users: `tests/collision/test_collision.py`, `tests/animation/test_animation.py`,
+  `tests/sprites/test_animated_sprite.py`, `tests/world/test_golden_traces.py`,
+  `tests/benchmarks/test_benchmarks.py`, `tests/test_browser_touch_controls.py`,
+  `scripts/audit_hitboxes.py`, `scripts/record_golden_traces.py`.
+- Browser: both `GAMES` entries ship `member_packages=('brave_adventurer_core', 'brave_adventurer')`
+  and `('brave_adventurer_core', 'brave_adventurer_papyrus')` (Task 2).
+
+- [ ] **Step 1: Write the failing tests** — `test_both_games_keep_their_logical_names` (each
+  scene class's logical name is unchanged), `test_the_old_example_packages_are_gone`,
+  `test_both_goldens_keep_their_history`, `test_the_core_imports_neither_game` (no module of
+  `brave_adventurer_core` imports `brave_adventurer` or `brave_adventurer_papyrus`),
+  `test_each_level_manager_builds_its_own_gold_scarab`.
+- [ ] **Step 2: Run** → FAIL. **Step 3:** move first (the recipe), then the core extraction,
+  then the `LevelManager` hook, running the games' check above after each.
+- [ ] **Step 4: Verify** — the check above passes, both goldens replaying strictly through their
+  own console scripts; recipe step 8's configuration and lint commands; the `git grep` for
+  `glitchygames.examples.brave_adventurer` prints nothing.
+- [ ] **Step 5: Commit** — `"Workspace packages: Brave Adventurer and Papyrus as one project, sharing their primitives"`
+
+### Task 5: The launcher
+
+**Files:**
+- Create: `src/games/brave-adventurer/src/brave_adventurer_modes/` (`__init__.py` with `main`,
+  `title.py` with the title scene), `tests/test_modes.py`
+- Modify: the member's `pyproject.toml` (one console script, `brave-adventurer =
+  "brave_adventurer_modes:main"`), `scripts/build_browser_bundle.py` (one `GAMES` entry,
+  `brave-adventurer`, shipping all four packages; Papyrus's entry and touch layout go),
+  `scripts/record_scripted_session.py` and `scripts/record_golden_traces.py` (fixture paths),
+  `docs/games/brave_adventurer.md`, the `/play/` pages (Papyrus's goes)
 
 **Interfaces:**
-- Produces: member `brave-adventurer` (import package `brave_adventurer`), which Task 5 depends on.
+- Produces: `brave_adventurer_modes.main() -> None`; `GAMES_BY_NAME: dict[str, Callable[[], None]]`
+  (`'classic'` -> `brave_adventurer.main`, `'papyrus'` -> `brave_adventurer_papyrus.main`);
+  `game_for_recording(*, path: Path) -> str | None` (the name of the game whose scene the
+  recording's header names by logical name, or None when the recording is not one of these
+  games'); `TitleScene` (its own `NAME`; choosing sets `next_scene` to the chosen game's scene).
+- How it starts a game: `--game classic|papyrus` is read with `parse_known_args` and removed from
+  `sys.argv`, then that game's own `main()` runs unchanged (each game's arguments, scene flow,
+  header and recordings stay its own). With a recording to replay among the arguments, the
+  launcher reads its header (`game_for_recording`) and starts that game, skipping the title
+  screen: so a member with one console script replays both goldens
+  (`glitchygames/testing/replays.py` `recording_console_script` is unchanged). With neither, the
+  title screen offers both games, a line each on how they differ.
 
-- [ ] **Step 1: Write the failing tests** — `test_brave_adventurer_keeps_its_logical_names`, `test_the_old_example_package_is_gone`, `test_brave_adventurers_golden_keeps_its_history`, as in Task 3.
-- [ ] **Step 2: Run** → FAIL. **Step 3:** the recipe, steps 1-7, and the test split above.
-- [ ] **Step 4: Verify** — recipe step 8; the `git grep` for `glitchygames.examples.brave_adventurer\b`, `glitchygames/examples/brave_adventurer/` and `fixtures/replays/brave-adventurer/` prints nothing (Papyrus's own paths remain until Task 5).
-- [ ] **Step 5: Commit** — `"Workspace packages: Brave Adventurer as its own package"`
+- [ ] **Step 1: Write the failing tests** — `test_the_game_flag_starts_that_game_without_its_flag`
+  (`--game papyrus` runs Papyrus's `main` with `sys.argv` minus `--game papyrus`),
+  `test_an_unknown_game_is_an_error` (exit status 2 and a message naming both),
+  `test_a_recording_starts_its_own_game` (each golden starts its game, no title screen),
+  `test_a_recording_of_another_game_is_an_error` (a Mr. Muncher recording: a clear error, not
+  the title screen), `test_choosing_on_the_title_screen_starts_that_game`,
+  `test_the_version_flag_still_works`, `test_both_goldens_replay_through_the_launcher`.
+- [ ] **Step 2: Run** → FAIL. **Step 3: Implement**; remove `brave-adventurer-papyrus`.
+- [ ] **Step 4: Verify** — the games' check above; `uv run nox -s browser -- brave-adventurer`
+  builds one page whose bundle holds all four archives.
+- [ ] **Step 5: Commit** — `"Brave Adventurer: one launcher for both games (the Papyrus command goes)"`
 
-### Task 5: Move Brave Adventurer Papyrus
+### Task 6: One scene base for both games
 
-**Files:** the recipe, for package `brave_adventurer_papyrus`, directory `src/games/brave-adventurer-papyrus/`. Specifics:
-- A member depending on a member: `dependencies = ["glitchygames", "brave-adventurer"]`, `[tool.uv.sources] brave-adventurer = { workspace = true }`.
-- Its sprites (`brave_adventurer_papyrus/sprites/*.toml`) ship as package data; it already reads them through `Path(__file__).parent / 'sprites'`. Outside users of that directory: `scripts/audit_hitboxes.py`, `tests/sprites/test_animated_sprite.py`, `tests/collision/test_collision.py`.
-- Tests: `tests/examples/test_brave_adventurer_papyrus_game.py` (from Task 4) moves here.
-- Browser: `GAMES['brave-adventurer-papyrus']` ships `member_packages=('brave_adventurer', 'brave_adventurer_papyrus')`.
-- Golden: `tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz`.
+**Files:**
+- Create: `src/games/brave-adventurer/src/brave_adventurer_core/scene.py` (`BraveAdventurerSceneBase`)
+- Modify: `brave_adventurer/game.py`, `brave_adventurer_papyrus/game.py` (each keeps its
+  concrete scene class, its name and module, and `main`)
 
 **Interfaces:**
-- Consumes: member `brave-adventurer` (Task 4); `GameSpecification.member_packages` (Task 2).
+- Produces: `BraveAdventurerSceneBase(Scene)` holding the two scenes' identical code (about 750
+  lines: terrain snapping, foot and support spans, wall entry, collision callbacks, death and
+  respawn, high scores, pause, input, `render`, pits, HUD, `args`), with hooks for what differs
+  (the audit): the player's foot line (Classic from its hitbox, a `float`; Papyrus from a fixed
+  height, an `int`: each keeps its type), the player's starting y, the scarab class for terrain
+  collisions, the save name, `NAME`, the setup log line, and Classic's voice assistant (a hook
+  Papyrus leaves empty).
+- `__init__` keeps its order exactly: the parallax layers, then the level, then the player.
 
-- [ ] **Step 1: Write the failing tests** — `test_papyrus_keeps_its_logical_names`, `test_the_old_example_package_is_gone`, `test_papyrus_golden_keeps_its_history`; `test_papyrus_ships_brave_adventurers_archive_too` (its `GAMES` entry's `member_packages`, dependency first); `test_papyrus_sprites_ship_in_its_wheel` (`uv build --package brave-adventurer-papyrus`, then the wheel's file list holds every `sprites/*.toml`).
-- [ ] **Step 2: Run** → FAIL. **Step 3:** the recipe, steps 1-7.
-- [ ] **Step 4: Verify** — recipe step 8 (its browser bundle: `uv run nox -s browser -- brave-adventurer-papyrus` lists both zips); the `git grep` for its old paths prints nothing.
-- [ ] **Step 5: Commit** — `"Workspace packages: Brave Adventurer Papyrus as its own package (it depends on Brave Adventurer)"`
+- [ ] **Step 1: Write the failing test** — `test_both_scenes_share_one_base`; the two goldens and
+  the trace are the behavioural test (they replay strictly).
+- [ ] **Step 2: Implement** one hook at a time, running the games' check above after each.
+- [ ] **Step 3: Verify** — the check above passes with both goldens unchanged, and
+  `git diff --stat` shows the duplicate lines gone.
+- [ ] **Step 4: Commit** — `"Brave Adventurer: one scene base for both games (no behaviour change)"`
 
-### Task 6: Move PaddleSlap, and its bundled demo
+### Task 7: Move PaddleSlap, and its bundled demo
 
 **Files:** the recipe, for package `paddleslap`, directory `src/games/paddleslap/`. Specifics:
 - One module becomes a package: `src/glitchygames/examples/paddleslap.py` → `src/games/paddleslap/paddleslap/__init__.py` (`git mv`, so its history follows), `Game` still defined there.
@@ -129,7 +244,7 @@
 - [ ] **Step 4: Verify** — recipe step 8; `uv run python -m scripts.replay_metrics measure --only rally` (or the new `--only` name) measures the demo from its new place; the `git grep` for `glitchygames.examples.paddleslap`, `glitchygames/examples/paddleslap`, `paddleslap_demos` prints nothing outside the ledger history rows.
 - [ ] **Step 5: Commit** — `"Workspace packages: PaddleSlap as its own package, its demo inside it"`
 
-### Task 7: Move Drawing Fire
+### Task 8: Move Drawing Fire
 
 **Files:** the recipe, for package `drawing_fire`, directory `src/games/drawing-fire/`. Specifics:
 - Its sprite `drawing_fire/sprites/soldier.toml` ships as package data (read through `Path(__file__).parent`; its tests use `drawing_fire.__file__`).
@@ -143,7 +258,7 @@
 - [ ] **Step 4: Verify** — recipe step 8; `uv run python -m scripts.simulate_drawing_fire --seeds 2` runs; the `git grep` for its old paths prints nothing.
 - [ ] **Step 5: Commit** — `"Workspace packages: Drawing Fire as its own package"`
 
-### Task 8: Part 2's end state, docs and verification
+### Task 9: Part 2's end state, docs and verification
 
 **Files:**
 - Modify: `src/glitchygames/logical_names.py` (`EXAMPLES_LAYERS` keeps only the three demos; its comment says Part 3 deletes it), `tests/test_logical_names.py`, `docs/glitchygames/examples/index.md` (only the demos), `docs/architecture/game_packages.md` (the layout's examples line; Part 2's lessons, if any changed the recipe), `README.md` and `CLAUDE.md` (every game is its own package), `plans/2026-10-24-workspace-packages.md` (Part 2 DONE, with its commits; Part 2's outline names Drawing Fire), `plans/future-features.md` (anything left over)

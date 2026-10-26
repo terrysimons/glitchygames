@@ -210,8 +210,17 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
 
 ## Special cases
 
-- **A member depending on a member** (Brave Adventurer Papyrus reuses Brave Adventurer's code):
-  move the one depended on first, and list both archives in its browser bundle.
+- **Several games in one project** (Brave Adventurer and its Egyptian edition, Papyrus): one
+  member, built and published together, with layered import packages in its own src layout
+  (`src/games/brave-adventurer/src/`): the primitives both games share
+  (`brave_adventurer_core`), each game on top of them (`brave_adventurer`,
+  `brave_adventurer_papyrus`), and a launcher (`brave_adventurer_modes`) as the member's one
+  console script. The launcher starts the game a recording's header names, so the golden-replay
+  plugin's one console script per member replays every game's golden; the goldens are named
+  apart (`golden-<game>.jsonl.gz`). Share only by mechanical moves: recordings and golden traces
+  name sprites by class name and creation order, so a class may change module but not name, and
+  nothing may be created in a different order. Its browser bundle lists every archive a game
+  needs, the shared ones first.
 - **A game that is one module** (PaddleSlap's `paddleslap.py`): its recordings name
   `games.paddleslap:Game`, so `Game` must stay defined in the package itself (`paddleslap/__init__.py`),
   not in a `paddleslap/game.py` it re-exports: a re-export does not change `Game.__module__`, and
