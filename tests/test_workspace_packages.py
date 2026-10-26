@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 
 import pytest
@@ -10,6 +12,8 @@ from scripts.workspace_packages import (
     source_package_directories,
     workspace_members,
 )
+
+from glitchygames.process import run_command
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -217,11 +221,69 @@ FORMER_GAME_CONSOLE_SCRIPTS = ('brave-adventurer-papyrus',)
 ROOT_REPLAY_FIXTURES_DIRECTORY = PROJECT_ROOT / 'tests' / 'fixtures' / 'replays'
 
 
-def test_the_engines_examples_hold_only_the_demos_and_bitmappys_resources():
-    """No game, and nothing of Bitmappy's, is left in src/glitchygames/examples/: each moved."""
-    entries = {entry.name for entry in ENGINE_EXAMPLES_DIRECTORY.iterdir()}
+def tracked_entry_names(*, directory: Path) -> set[str]:
+    """Return the names directly in a directory that git tracks, ignored and untracked files out.
+
+    A directory counts when git tracks any file below it. A file git ignores (macOS Finder's
+    ``.DS_Store``) or has not been told about is not part of the repository, so it is not here.
+
+    Args:
+        directory: A directory inside a git work tree.
+
+    Returns:
+        The tracked files' and directories' names directly in ``directory``.
+
+    """
+    git_program = shutil.which('git')
+    assert git_program is not None, 'these tests need git'
+    completed = run_command(
+        command=[git_program, 'ls-files', '-z', '--', '.'],
+        environment=os.environ,
+        timeout_seconds=30.0,
+        capture_output=True,
+        working_directory=directory,
+    )
+    assert completed.returncode == 0, completed.stdout
+    return {
+        tracked_path.split('/', maxsplit=1)[0]
+        for tracked_path in completed.stdout.split('\0')
+        if tracked_path
+    }
+
+
+def test_the_engines_examples_hold_only_the_demos_and_their_resources():
+    """The engine's examples are its three demos and resources/: each game moved to its member."""
+    entries = tracked_entry_names(directory=ENGINE_EXAMPLES_DIRECTORY)
 
     assert entries - ENGINE_EXAMPLES_NOT_CHECKED == ENGINE_EXAMPLES_AFTER_PART_2
+
+
+def test_tracked_entry_names_leaves_out_ignored_and_untracked_files(tmp_path):
+    """An ignored .DS_Store and an untracked file are not entries; a tracked directory is one."""
+    git_program = shutil.which('git')
+    assert git_program is not None, 'these tests need git'
+    run_command(
+        command=[git_program, 'init', '--quiet'],
+        environment=os.environ,
+        timeout_seconds=30.0,
+        capture_output=True,
+        working_directory=tmp_path,
+    )
+    (tmp_path / '.gitignore').write_text('.DS_Store\n', encoding='utf-8')
+    (tmp_path / 'demo.py').write_text('', encoding='utf-8')
+    (tmp_path / 'resources').mkdir()
+    (tmp_path / 'resources' / 'tone.wav').write_text('', encoding='utf-8')
+    (tmp_path / '.DS_Store').write_text('', encoding='utf-8')
+    (tmp_path / 'untracked.py').write_text('', encoding='utf-8')
+    run_command(
+        command=[git_program, 'add', '.gitignore', 'demo.py', 'resources'],
+        environment=os.environ,
+        timeout_seconds=30.0,
+        capture_output=True,
+        working_directory=tmp_path,
+    )
+
+    assert tracked_entry_names(directory=tmp_path) == {'.gitignore', 'demo.py', 'resources'}
 
 
 def test_the_root_goldens_are_the_engines_own():
