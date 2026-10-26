@@ -9,14 +9,23 @@ from __future__ import annotations
 import ast
 import asyncio
 import contextvars
+import random
 import re
 import sys
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
+import pygame
 import pytest
+from pydantic import BaseModel, ConfigDict
 from scripts.workspace_packages import ENGINE_DIRECTORY
 
+from glitchygames.backgrounds import (
+    DEFAULT_BACKGROUND_PATTERN,
+    BackgroundPattern,
+    active_default_background_pattern,
+    set_active_default_background_pattern,
+)
 from glitchygames.engine_context import (
     DEFAULT_CONTEXT_NAME,
     ContextSlot,
@@ -26,10 +35,39 @@ from glitchygames.engine_context import (
     declared_context_slots,
     default_context,
 )
+from glitchygames.input.state import IDLE_INPUT, current_input, set_current_input
+from glitchygames.live_sources import LiveSources
+from glitchygames.pixel_snap import (
+    PixelSnapMode,
+    active_default_snap_mode,
+    set_active_default_snap_mode,
+)
+from glitchygames.randomness import (
+    RANDOM_STREAM_KIND,
+    engine_random_seed,
+    random_stream,
+    reset_streams,
+    seed_engine_random,
+    stream_seed,
+)
+from glitchygames.scenes import SceneManager
+from glitchygames.sources import (
+    SourcesAlreadyRunningError,
+    active_sources,
+    advance_frame_clock,
+    frame_clock_seconds,
+    install_sources,
+    mark_frames_started,
+    pending_redelivered_events,
+    redeliver_events,
+    reset_sources,
+)
+from glitchygames.state import MemorySaveManager, SaveManager, open_saves
 from tests.ast_scanning import PROJECT_ROOT, scanned_source_files
+from tests.input.test_input_state import snapshot_with
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
     from pathlib import Path
 
 # A slot of this test module's own (declared once, as the module is imported, like every slot)
@@ -419,3 +457,304 @@ def test_the_engine_context_module_imports_only_the_standard_library():
 
     assert imported
     assert imported <= sys.stdlib_module_names
+
+
+# The two stand-in games' master seeds, and what each holds
+FIRST_SEED = 1
+SECOND_SEED = 2
+DRAWS_STREAM = 'tests.engine_context.draws'
+STAND_IN_GAME = 'stand-in-game'
+SAVE_SLOT = 'progress'
+# SDL scancodes of Space and Return
+SPACE_SCANCODE = 44
+RETURN_SCANCODE = 40
+# Engine slot names start with the engine's package name (this file's own slot does not)
+ENGINE_SLOT_PREFIX = 'glitchygames.'
+
+
+class MemorySavesSources(LiveSources):
+    """Live doors whose saves stay in memory, so no test touches the player's save files."""
+
+    def __init__(self, *, random_seed: int) -> None:
+        """Make the doors with no stores open.
+
+        Args:
+            random_seed: The master seed they report.
+
+        """
+        super().__init__(random_seed=random_seed)
+        self.memory_stores: dict[str, MemorySaveManager] = {}
+
+    @override
+    def saves(self, *, namespace: str) -> SaveManager:
+        """Return the in-memory store for ``namespace``, made empty on first use.
+
+        Args:
+            namespace: The game's save namespace.
+
+        Returns:
+            The store.
+
+        """
+        store = self.memory_stores.get(namespace)
+        if store is None:
+            store = MemorySaveManager(app_name=namespace, snapshot={})
+            self.memory_stores[namespace] = store
+        return store
+
+
+class StandInGame(BaseModel):
+    """One stand-in game's context and the state it sets up in it."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid', arbitrary_types_allowed=True)
+
+    context: EngineContext
+    seed: int
+    snap_mode: PixelSnapMode
+    pattern: BackgroundPattern
+    scancode: int
+
+
+def check_default_snap_mode(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own default snap mode, and the default context its own."""
+    default_mode = active_default_snap_mode()
+    with first.active():
+        set_active_default_snap_mode(mode=PixelSnapMode.FLOOR)
+    with second.active():
+        assert active_default_snap_mode() is PixelSnapMode.NEAREST_HALF_UP
+        set_active_default_snap_mode(mode=PixelSnapMode.CEIL)
+    with first.active():
+        assert active_default_snap_mode() is PixelSnapMode.FLOOR
+    with second.active():
+        assert active_default_snap_mode() is PixelSnapMode.CEIL
+    assert active_default_snap_mode() is default_mode
+
+
+def check_default_background(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own default background, and the default context its own."""
+    default_pattern = active_default_background_pattern()
+    with first.active():
+        set_active_default_background_pattern(pattern=BackgroundPattern.CHANNEL_THREE)
+    with second.active():
+        assert active_default_background_pattern() is DEFAULT_BACKGROUND_PATTERN
+    with first.active():
+        assert active_default_background_pattern() is BackgroundPattern.CHANNEL_THREE
+    assert active_default_background_pattern() is default_pattern
+
+
+def check_current_input(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own polled input, and the default context its own."""
+    default_snapshot = current_input()
+    with first.active():
+        set_current_input(snapshot=snapshot_with(pressed_scancodes=frozenset({SPACE_SCANCODE})))
+    with second.active():
+        assert current_input() is IDLE_INPUT
+        set_current_input(snapshot=snapshot_with(pressed_scancodes=frozenset({RETURN_SCANCODE})))
+    with first.active():
+        assert current_input().pressed_scancodes == frozenset({SPACE_SCANCODE})
+    with second.active():
+        assert current_input().pressed_scancodes == frozenset({RETURN_SCANCODE})
+    assert current_input() is default_snapshot
+
+
+def check_random_streams(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context draws its own numbers, as it would alone, and the default keeps its seed."""
+    default_seed = engine_random_seed()
+    with first.active():
+        reset_streams(seed=FIRST_SEED)
+        first_draw = random_stream(name=DRAWS_STREAM).random()
+    with second.active():
+        reset_streams(seed=SECOND_SEED)
+        second_draw = random_stream(name=DRAWS_STREAM).random()
+    with first.active():
+        assert engine_random_seed() == FIRST_SEED
+        following_first_draw = random_stream(name=DRAWS_STREAM).random()
+    first_reference = random.Random(
+        stream_seed(kind=RANDOM_STREAM_KIND, master_seed=FIRST_SEED, name=DRAWS_STREAM)
+    )
+    second_reference = random.Random(
+        stream_seed(kind=RANDOM_STREAM_KIND, master_seed=SECOND_SEED, name=DRAWS_STREAM)
+    )
+    assert [first_draw, following_first_draw] == [
+        first_reference.random(),
+        first_reference.random(),
+    ]
+    assert second_draw == second_reference.random()
+    assert engine_random_seed() == default_seed
+
+
+def check_doors_and_frame_clock(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own doors, frames started, frame clock and held events."""
+    default_doors = active_sources()
+    default_clock = frame_clock_seconds()
+    with first.active():
+        first_doors = MemorySavesSources(random_seed=FIRST_SEED)
+        install_sources(sources=first_doors)
+        advance_frame_clock(seconds=0.5)
+        mark_frames_started()
+        redeliver_events(
+            events=[(pygame.event.Event(pygame.USEREVENT, code=FIRST_SEED), 'internal')]
+        )
+    with second.active():
+        assert frame_clock_seconds() == 0.0
+        assert pending_redelivered_events() == []
+        second_doors = MemorySavesSources(random_seed=SECOND_SEED)
+        install_sources(sources=second_doors)
+        advance_frame_clock(seconds=2.0)
+    with first.active():
+        assert active_sources() is first_doors
+        assert frame_clock_seconds() == 0.5
+        assert [event.code for event, _origin in pending_redelivered_events()] == [FIRST_SEED]
+        with pytest.raises(SourcesAlreadyRunningError):
+            install_sources(sources=MemorySavesSources(random_seed=FIRST_SEED))
+        reset_sources()
+    with second.active():
+        assert active_sources() is second_doors
+        assert frame_clock_seconds() == 2.0
+        reset_sources()
+    assert active_sources() is default_doors
+    assert frame_clock_seconds() == default_clock
+
+
+def check_scene_managers(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own scene manager, and the default context its own."""
+    default_manager = SceneManager()
+    with first.active():
+        first_manager = SceneManager()
+        first_manager.frame_number = FIRST_SEED
+    with second.active():
+        second_manager = SceneManager()
+        assert second_manager is not first_manager
+        assert second_manager.frame_number == 0
+    with first.active():
+        assert SceneManager() is first_manager
+        assert first_manager.frame_number == FIRST_SEED
+    assert SceneManager() is default_manager
+    assert default_manager is not first_manager
+    assert default_manager is not second_manager
+
+
+# Every engine slot, with the check that proves its values never leak between contexts
+ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
+    'glitchygames.pixel_snap.default_mode': check_default_snap_mode,
+    'glitchygames.backgrounds.default_pattern': check_default_background,
+    'glitchygames.input.state.current_input': check_current_input,
+    'glitchygames.randomness.streams': check_random_streams,
+    'glitchygames.sources.registry': check_doors_and_frame_clock,
+    'glitchygames.scenes.scene.scene_managers': check_scene_managers,
+}
+
+
+def declared_slot_names_in_source(*, source_path: Path) -> list[str]:
+    """Return the name of every ContextSlot a file declares.
+
+    Args:
+        source_path: A Python file.
+
+    Returns:
+        The names, in source order.
+
+    """
+    tree = ast.parse(source_path.read_text(encoding='utf-8'))
+    names: list[str] = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and called_name(node) == 'ContextSlot'):
+            continue
+        name_values = [keyword.value for keyword in node.keywords if keyword.arg == 'name']
+        assert len(name_values) == 1, f'{source_path}:{node.lineno}: a ContextSlot needs name='
+        name_value = name_values[0]
+        assert isinstance(name_value, ast.Constant), (
+            f'{source_path}:{node.lineno}: a ContextSlot name must be a string literal'
+        )
+        assert isinstance(name_value.value, str), (
+            f'{source_path}:{node.lineno}: a ContextSlot name must be a string literal'
+        )
+        names.append(name_value.value)
+    return names
+
+
+def engine_slot_names() -> set[str]:
+    """Return the name of every slot the engine and the workspace members declare.
+
+    Returns:
+        The names.
+
+    """
+    return {
+        name
+        for _allowlist_key, path in scanned_source_files(project_root=PROJECT_ROOT)
+        for name in declared_slot_names_in_source(source_path=path)
+    }
+
+
+def test_every_engine_slot_has_an_isolation_check():
+    """A slot added without a check here fails (every piece of state moved is proven)."""
+    assert engine_slot_names() == set(ISOLATION_CHECKS)
+
+
+def test_the_slot_scan_agrees_with_the_slots_declared_at_run_time():
+    """The scan misses no slot: every engine slot declared at run time is in it."""
+    declared_engine_slot_names = {
+        slot.name for slot in declared_context_slots() if slot.name.startswith(ENGINE_SLOT_PREFIX)
+    }
+
+    assert declared_engine_slot_names == engine_slot_names()
+
+
+@pytest.mark.parametrize('slot_name', sorted(ISOLATION_CHECKS))
+def test_no_slot_value_leaks_between_two_contexts(slot_name):
+    """Two contexts beside the default one: each keeps its own value of the slot."""
+    ISOLATION_CHECKS[slot_name](
+        first=EngineContext(name='first'), second=EngineContext(name='second')
+    )
+
+
+def test_two_contexts_hold_two_games_worth_of_state_without_leaking():
+    """Two stand-in games set up side by side keep every piece apart, saves included."""
+    games = [
+        StandInGame(
+            context=EngineContext(name='first game'),
+            seed=FIRST_SEED,
+            snap_mode=PixelSnapMode.FLOOR,
+            pattern=BackgroundPattern.CHANNEL_THREE,
+            scancode=SPACE_SCANCODE,
+        ),
+        StandInGame(
+            context=EngineContext(name='second game'),
+            seed=SECOND_SEED,
+            snap_mode=PixelSnapMode.CEIL,
+            pattern=BackgroundPattern.TEST_PATTERN,
+            scancode=RETURN_SCANCODE,
+        ),
+    ]
+    default_manager = SceneManager()
+    default_clock = frame_clock_seconds()
+
+    for game in games:
+        with game.context.active():
+            seed_engine_random(seed=game.seed)
+            install_sources(sources=MemorySavesSources(random_seed=game.seed))
+            set_active_default_snap_mode(mode=game.snap_mode)
+            set_active_default_background_pattern(pattern=game.pattern)
+            set_current_input(snapshot=snapshot_with(pressed_scancodes=frozenset({game.scancode})))
+            SceneManager().frame_number = game.seed * 100
+            open_saves(app_name=STAND_IN_GAME).save(slot_name=SAVE_SLOT, data={'seed': game.seed})
+            advance_frame_clock(seconds=game.seed * 0.5)
+
+    for game in games:
+        with game.context.active():
+            assert engine_random_seed() == game.seed
+            assert active_sources().random_seed == game.seed
+            assert active_default_snap_mode() is game.snap_mode
+            assert active_default_background_pattern() is game.pattern
+            assert current_input().pressed_scancodes == frozenset({game.scancode})
+            assert SceneManager().frame_number == game.seed * 100
+            assert open_saves(app_name=STAND_IN_GAME).load(slot_name=SAVE_SLOT) == {
+                'seed': game.seed
+            }
+            assert frame_clock_seconds() == game.seed * 0.5
+            reset_sources()
+
+    assert SceneManager() is default_manager
+    assert frame_clock_seconds() == default_clock
+    assert current_input() is IDLE_INPUT
