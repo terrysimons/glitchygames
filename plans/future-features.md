@@ -1238,6 +1238,42 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Later (not now)**: templates for a new workspace (the user: "We could even have templates...
   but for now, this is ok").
 
+### 59. Bitmappy Tests Organized by Input API and by Module — TODO (a future PR)
+- **Description**: Reorganize Bitmappy's tests (`src/apps/bitmappy/tests/`, rootless, no
+  `__init__.py`) into subdirectories, and decompose them where that reads better:
+
+  ```
+  src/apps/bitmappy/tests/
+    input/
+      controller/   test_bitmappy_pygame_controller_*.py   pygame's game-controller events (CONTROLLER*)
+      joystick/     test_bitmappy_pygame_joystick_*.py     pygame's joystick events (JOY*)
+    controllers/    test_bitmappy_controller_<module>.py   one file per bitmappy/controllers/ module
+  ```
+
+  - Split the input tests by event kind: buttons, axes, hats and balls.
+  - Gather the input-handling tests by API. They are spread across about eight files today
+    (`test_bitmappy_event_handlers.py`, `test_bitmappy_controller_event_handler.py`,
+    `test_bitmappy_bitmap_editor_scene.py`, `test_bitmappy_slider_manager.py`,
+    `test_bitmappy_multi_controller_troubleshooting.py`, `test_bitmappy_multi_controller.py`, ...).
+  - Merge `test_bitmappy_multi_controller_enhancements.py` (coverage filler; its docstring lists
+    source line numbers, which rot) into `test_bitmappy_controller_enhancements.py`: one file for
+    `controllers/enhancements.py`, with classes named for the behavior they pin. Drop any test
+    that only repeats another, keeping coverage at 100%.
+  - Sort the other `test_bitmappy_multi_controller_*` files (stress, performance, edge cases,
+    integration) into the module they test, or keep them as cross-module suites under a clear
+    name.
+- **Use Case**: Readability. The user (2026-10-26): "We could also do a joysticks and separately
+  controllers directory under tests, and make the tests a bit more decomposed if it adds to
+  readability."
+- **Naming**: the `controllers/` test directory mirrors the `bitmappy/controllers/` package, which
+  is the multi-controller *system* (players' cursors and modes, fed by either API). pygame's two
+  APIs live under `input/`, so "controller" never means both. Test file names keep the
+  `test_bitmappy_` prefix in every subdirectory: names must be unique across all test roots
+  (`tests/test_suite_collection.py`), and the member's naming guard must cover subdirectories.
+- **Status**: TODO (requested 2026-10-26). Deliberately not part of workspace packages Part 4,
+  whose commits are pure renames.
+- **Priority**: Low
+
 ### 28. Sprite Format Linter
 - **Description**: Comprehensive validation and linting tool for TOML sprite files to ensure format compliance and catch common errors
 - **Use Case**: Essential for maintaining sprite file quality, catching format errors early, and ensuring compatibility across different sprite formats
