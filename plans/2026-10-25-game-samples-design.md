@@ -97,6 +97,33 @@ Committing samples is the developer's one action **(user)**: the engine writes t
 `samples/`; a developer who does not want them can `.gitignore` it; users can still measure on their
 own systems and report bugs **(user)**.
 
+## 5a. Registration by composition **(user, 2026-10-26)**
+
+A game is registered by whatever runs it, and the engine does all of it **(user)**: games and
+wrappers only declare what they contain. Replaces the entry-point discovery in section 5.
+
+| Node | Registered as a target? | Why |
+|---|---|---|
+| A game (a leaf) | Yes | it is what you play |
+| A multi-game wrapper (wraps two or more: the Brave Adventurer launcher, the Arcade) | Yes | it has behaviour of its own (menus, choosing, hand-offs), so it needs samples of its own |
+| A single wrapper (wraps exactly one) | No: the engine collapses it into its game | it adds nothing to sample |
+
+The engine running a standalone game is itself a single wrapper, so it never registers itself.
+The Arcade, once built, is a multi-game wrapper over every game: `arcade --list-games` lists the
+whole tree. Until it exists, the pre-push hook takes its top-level games from the workspace list,
+inside the quality tooling (never the engine). A guard fails if any workspace game is unreachable
+from that root.
+
+**With and without the wrapper** **(user)**: for every wrapped game the engine plays the same
+stimulus standalone and through each wrapper it lives in.
+
+1. Correctness: the two runs must produce the identical response (strict, pass or fail): being
+   wrapped must never change how a game plays or draws.
+2. Performance: the two runs' frame times are compared and the wrapper's overhead reported and
+   graphed in the run ledger like the other replay metrics, with a budget that only warns
+   **(user)**: starting at 5% at the 99th percentile of frame time. Frame timing varies between
+   machines, so it never fails a run.
+
 ## 6. The explorer (cpu)
 
 **What it presses**: the game's declared controls (its ActionMaps' actions, with their keys and
