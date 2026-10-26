@@ -474,11 +474,20 @@ def living_documentation_lines(*, project_root: Path = PROJECT_ROOT) -> list[tup
 def paths_without_the_source_root(*, project_root: Path = PROJECT_ROOT) -> list[str]:
     """Return 'file:line: text' for each living-documentation path that predates src/."""
     problems: list[str] = []
+    fenced_files: set[str] = set()
     for relative, line_number, line in living_documentation_lines(project_root=project_root):
+        if line.lstrip().startswith('```'):
+            fenced_files ^= {relative}
+            continue
+        # In a fenced layout tree an indented entry is a child of the line above it
+        # (`  glitchygames/` under `src/`), not a path from the repository root
+        indentation = len(line) - len(line.lstrip())
+        tree_entry_start = indentation if relative in fenced_files and indentation else None
         stale = [
             match.group(0)
             for match in ENGINE_PATH_WITHOUT_ROOT.finditer(line)
-            if (project_root / 'src' / match.group(0).rstrip('.,;:)`\'"')).exists()
+            if match.start() != tree_entry_start
+            and (project_root / 'src' / match.group(0).rstrip('.,;:)`\'"')).exists()
         ]
         stale.extend(match.group(0) for match in STALE_LAYER_PATH.finditer(line))
         problems.extend(f'{relative}:{line_number}: {text}' for text in stale)
@@ -525,3 +534,18 @@ def test_the_path_guard_finds_stale_paths_and_leaves_names_and_urls_alone(tmp_pa
         'CLAUDE.md:4: apps/',
         'BUGS.md:4: glitchygames/ui/y.py',
     ]
+
+
+def test_a_layout_tree_entry_is_read_under_its_parent(tmp_path):
+    """In a fenced tree, `  glitchygames/` indented under `src/` is src/glitchygames/.
+
+    A path at the start of an unindented fenced line (a command, a root-level entry) still counts.
+    """
+    (tmp_path / 'src' / 'glitchygames' / 'ui').mkdir(parents=True)
+    (tmp_path / 'docs').mkdir()
+    (tmp_path / 'CLAUDE.md').write_text(
+        '```\nsrc/\n  glitchygames/        the engine\n    ui/\nglitchygames/ui/\n```\n',
+        encoding='utf-8',
+    )
+
+    assert paths_without_the_source_root(project_root=tmp_path) == ['CLAUDE.md:5: glitchygames/ui/']

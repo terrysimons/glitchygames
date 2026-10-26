@@ -33,15 +33,16 @@ wheel. Moving each into its own package beside the engine:
 Four layers, all under `src/` (decision 7):
 
 ```
-src/glitchygames/              the engine (the root project, distribution glitchygames; moved
-                               from ./glitchygames/ in Part 1, first; loses examples/ part by part)
 src/
+  glitchygames/                the engine (the root project, distribution glitchygames; moved
+                               from ./glitchygames/ in Part 1, first; loses examples/ part by part)
   games/
     mr-muncher/                pyproject.toml (distribution mr-muncher), mr_muncher/, tests/
     paddleslap/
     clockwork-keep/
     brave-adventurer/
     brave-adventurer-papyrus/  depends on brave-adventurer (it reuses its code)
+    drawing-fire/
   demos/
     dt-demo/  joystick-demo/  text-input-demo/
   apps/
