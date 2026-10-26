@@ -187,7 +187,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
   `src/glitchygames/examples/`) become a browsable set of small, focused examples of what the
   engine does, in the spirit of pygame's own examples (`python -m pygame.examples.aliens`): easy to
   list and run, each showing one engine feature. They leave the engine's examples for the demos
-  layer (`src/demos/`, Part 3 of #56) rather than living inside Bitmappy, which takes only its own
+  layer, each its own member (the user, 2026-10-26: `src/demos/dt-demo/`, `src/demos/joystick-demo/`,
+  `src/demos/text-input-demo/`, Part 3 of #56), not inside Bitmappy, which takes only its own
   resources (Part 4)
 - **Use Case**: a newcomer runs one command, sees what the engine can do and reads short code that
   does it; the demos double as living documentation
