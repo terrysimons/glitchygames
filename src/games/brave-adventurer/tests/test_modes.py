@@ -356,12 +356,20 @@ class TestTheTitleScreen:
 
             assert isinstance(manager.active_scene, TitleScene)
 
-    @pytest.mark.parametrize('key', [pygame.K_q, pygame.K_ESCAPE])
-    def test_q_and_escape_quit_on_their_press(self, tmp_path, key):
+    def test_q_quits_on_its_press(self, tmp_path):
         with _title_screen(tmp_path) as manager:
-            _run_frames(manager, press(key))
+            _run_frames(manager, press(pygame.K_q))
 
             assert manager.quit_requested
+            assert isinstance(manager.active_scene, TitleScene)
+
+    def test_escape_does_nothing_on_the_title_screen(self, tmp_path):
+        """The browser's touch Pause button sends Escape: it must not end the run from here."""
+        with _title_screen(tmp_path) as manager:
+            _run_frames(manager, press(pygame.K_ESCAPE))
+            _run_frames(manager, release(pygame.K_ESCAPE))
+
+            assert not manager.quit_requested
             assert isinstance(manager.active_scene, TitleScene)
 
     @pytest.mark.parametrize(

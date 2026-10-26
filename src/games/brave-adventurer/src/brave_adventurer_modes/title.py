@@ -10,9 +10,10 @@ Controls, all through the scene's ActionMap (as the games read theirs), keyboard
 - Space or Return (a gamepad's A or Start): start the chosen game, on the release of a press this
   screen saw, as the pause and game-over screens go on (glitchygames/scenes/builtin_scenes/
   gamepad_choice.py): the game then never gets the release of the key that started it.
-- Q or Escape (a gamepad's B or Back): quit, on the press. Q quits on its press in the games too,
-  and Escape (or B or Back) quits on the pause and game-over screens; the title screen has nothing
-  to pause.
+- Q (a gamepad's B or Back): quit, on the press. Q quits on its press in the games too, and
+  Escape (or B or Back) quits on the pause and game-over screens.
+- Escape does nothing here, on its press or its release: the browser build's touch Pause button
+  sends Escape, so a phone player who taps it before choosing a game must not end the run.
 
 Starting a game sets ``next_scene`` to a new scene of that game, built with the run's options,
 in the same engine: the game runs as it does from its own ``main()``, which builds that scene.
@@ -51,7 +52,7 @@ TITLE_SHADOW_OFFSET = 3
 SUBTITLE_TEXT = 'Choose your adventure'
 SUBTITLE_FONT_SIZE = 30
 SUBTITLE_CENTER_Y = 120
-HELP_TEXT = 'Arrows or D-pad: choose    Space or A: start    Q or Esc: quit'
+HELP_TEXT = 'Arrows or D-pad: choose    Return, Space or A: start    Q or Back: quit'
 HELP_FONT_SIZE = 24
 HELP_BOTTOM_MARGIN = 28
 
@@ -328,7 +329,7 @@ class TitleScene(Scene):
             ),
             (
                 QUIT_ACTION,
-                (pygame.KSCAN_Q, pygame.KSCAN_ESCAPE),
+                (pygame.KSCAN_Q,),
                 (pygame.CONTROLLER_BUTTON_B, pygame.CONTROLLER_BUTTON_BACK),
             ),
         ):
@@ -418,7 +419,7 @@ class TitleScene(Scene):
 
     @override
     def on_key_up_event(self: Self, event: KeyEvent) -> None:
-        """Act on a key's release (Q and Escape quit on their press: not again here).
+        """Act on a key's release (Q quits on its press: not again here; Escape does nothing).
 
         Args:
             event: The key up event.

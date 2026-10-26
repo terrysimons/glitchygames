@@ -59,7 +59,7 @@ as the games do:
 |---|---|---|---|
 | choose the other game (wraps round) | Up or Left, Down or Right | D-pad | press |
 | start the chosen game | Space or Return | A or Start | release, after a press on this screen (as the pause and game-over screens go on), so the game never gets that release |
-| quit | Q or Esc | B or Back | press |
+| quit | Q | B or Back | press (Esc does nothing here, on press or release: the browser's touch Pause button sends it) |
 
 Starting a game sets `next_scene` to a new scene of that game, built with the run's options, in
 the same engine: the game then runs as it does from its own `main()`. Its game-over screen
@@ -144,7 +144,7 @@ flowchart TB
     papyrus_main --> papyrus
     title -->|"Classic chosen: next_scene"| classic
     title -->|"Papyrus chosen: next_scene"| papyrus
-    title -->|"Q, Esc, B or Back"| quit_title
+    title -->|"Q, B or Back"| quit_title
 ```
 
 From there each game runs its own scenes:
@@ -580,7 +580,7 @@ deliberately, after finding out why it changed (the scripts' docstrings give the
 | `src/games/brave-adventurer/tests/core/test_brave_adventurer_sounds.py` | The synthesized sounds against stored goldens (`tests/core/brave_adventurer_golden/*.npy`): length, envelope and pitch; silent play without a mixer |
 | `src/games/brave-adventurer/tests/classic/test_brave_adventurer_classic.py` | The classic edition: its sprites declare world space and no module (its own or the core's) positions or culls sprites; culled enemies keep animating; the mic button and no voice assistant in a replay; enemy poses drawn in `dt_tick`; its player's running to falling |
 | `src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus.py` | The Papyrus Edition: facing-left hitboxes and foot anchoring; falling transitions in TOML; world space (its sprites, and no module of its own or the core's positions, culls or rounds); the sprite utilities; its player's running to falling |
-| `src/games/brave-adventurer/tests/test_modes.py` | The launcher: `--game` runs that game's own `main()` without the flag, an unknown game is an error, a recording starts its own game without the title screen (and both goldens replay through `brave-adventurer`), another game's recording is refused; the title screen: its logical name, both cards, choosing with the keyboard (through the real engine) and a gamepad, Q, Esc, B and Back quitting, `-v`, `-h`, and a recording made from it replaying through the launcher |
+| `src/games/brave-adventurer/tests/test_modes.py` | The launcher: `--game` runs that game's own `main()` without the flag, an unknown game is an error, a recording starts its own game without the title screen (and both goldens replay through `brave-adventurer`), another game's recording is refused; the title screen: its logical name, both cards, choosing with the keyboard (through the real engine) and a gamepad, Q, B and Back quitting, Esc doing nothing, `-v`, `-h`, and a recording made from it replaying through the launcher |
 | `src/games/brave-adventurer/tests/test_brave_adventurer_after_the_move.py` | The move into one project: both scenes keep their logical names, the old example packages are gone, both goldens keep their history, the core imports neither game, each level manager builds its own gold scarab |
 | `tests/world/test_golden_traces.py` | The golden traces above |
 | `tests/replay/test_golden_replays.py` and the golden replay items | The golden replays above, and which controls they exercise |
