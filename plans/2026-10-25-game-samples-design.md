@@ -21,26 +21,29 @@ games.
 
 | | What it is | ELI5 |
 |---|---|---|
-| **Recording** | Input: per-frame time, events, input changes, the random streams' states, each scene's logical name (today's "recording" format, version 3) | The tape of button presses |
-| **Trace** | Expected output (the expected playback result): every sprite's world rect, visibility and animation state, per frame (today's "trace" format), produced by playing back exactly that recording | Where everything was on screen, frame by frame |
+| **Stimulus** | Input (what goes in): per-frame time, events, input changes, the random streams' states, each scene's logical name (today's "recording" format, version 3) | The tape of button presses |
+| **Response** | Expected output (what playing the stimulus back must produce): every sprite's world rect, visibility and animation state, per frame (today's "trace" format), produced by playing back exactly that stimulus | Where everything was on screen, frame by frame |
 
-Today's golden replays and demos are both recordings (one type, two roles); today's golden traces
-are traces, but recorded from a separate input script, so the two can drift. Here every trace is
-made by playing back its own recording **(proposal)**, so they cannot. A trace is named for who
-played its recording: a human trace, an ai trace, a cpu trace **(user)**.
+Today's golden replays and demos are both stimuli (one type, two roles: today's "recording"
+format); today's golden traces are responses, but recorded from a separate input script, so the
+two can drift. Here every response is made by playing back its own stimulus **(proposal)**, so they
+cannot. A stimulus and its response are named for who played the stimulus: the human stimulus and
+response, the ai ones, the cpu ones **(user)**. The names (the user, 2026-10-25): stimulus and
+response, chosen over recording/trace, playthrough/sprites and acronyms (PIR/EPR) so that the type
+is obvious in the file name and easy to say.
 
 ## 3. Three kinds, named by who played **(user)**
 
 | Kind | Played by | Rank | Notes |
 |---|---|---|---|
 | **human** | A human, playing normally in record mode | Highest | Precise and hand-tuned: every action is assumed deliberate |
-| **ai** | A model that reads the game state and chooses actions ("dumb mode++") | Middle | Smarter than random; may be taught by human recordings (section 9) |
+| **ai** | A model that reads the game state and chooses actions ("dumb mode++") | Middle | Smarter than random; may be taught by human stimuli (section 9) |
 | **cpu** | The engine's explorer: seeded, curious, random within the game's controls | Baseline | Always available, needs nothing from the developer |
 
-The three are one feature **(user)**: three players behind one runner, one recorder, one trace
-format and one checker. A recording's header records who played it (`player: human | ai | cpu`),
-so its kind is a fact, not a convention; its trace inherits it. It is fine that cpu does not play
-well **(user)**: it finds controls and scenes; human recordings reach the deep states.
+The three are one feature **(user)**: three players behind one runner, one recorder, one response
+format and one checker. A stimulus's header records who played it (`player: human | ai | cpu`),
+so its kind is a fact, not a convention; its response inherits it. It is fine that cpu does not play
+well **(user)**: it finds controls and scenes; human stimuli reach the deep states.
 
 ## 4. Names **(proposal)**
 
@@ -48,13 +51,13 @@ Nothing is unmarked: every file names its target and kind **(user: human, ai, cp
 
 ```
 <package>/samples/
-  <target>.human.recording.jsonl.gz      the inputs a person played
-  <target>.human.trace.jsonl.gz          the expected result of playing them back
-  <target>.ai.recording.jsonl.gz         (when a model has played it)
-  <target>.ai.trace.jsonl.gz
-  <target>.cpu.recording.jsonl.gz        (always: the engine's explorer)
-  <target>.cpu.trace.jsonl.gz
-  demos/<name>.recording.jsonl.gz        (a recording shown, not only checked)
+  <target>.human.stimulus.jsonl.gz       what a person pressed
+  <target>.human.response.jsonl.gz       what playing it back must produce
+  <target>.ai.stimulus.jsonl.gz          (when a model has played it)
+  <target>.ai.response.jsonl.gz
+  <target>.cpu.stimulus.jsonl.gz         (always: the engine's explorer)
+  <target>.cpu.response.jsonl.gz
+  demos/<name>.stimulus.jsonl.gz         (a stimulus shown, not only checked)
 ```
 
 A target is one thing a person can start: a game, or a game inside a wrapper. Brave Adventurer has
@@ -102,7 +105,7 @@ a known, documented limitation, not worked around **(user)**.
 
 **What steers it** is separate from **what is checked** (an adversarial audit, 2026-10-25):
 
-- *Checked*: everything the trace records, every frame: positions, visibility, animation
+- *Checked*: everything the response records, every frame: positions, visibility, animation
   state. Idle animations, walk cycles and blinking are all verified.
 - *Steering*: a coarse per-frame state signature: the scene, which sprites exist, each sprite's
   world position rounded, its animation state *name* (not frame index), visibility, and any score
@@ -123,8 +126,8 @@ has appeared for a while.
 
 ## 7. The human recorder (human)
 
-Play the game normally with recording on (`--record-sample`); the engine saves a human recording
-and makes its trace by playing it back. High fidelity: the human reaches what cpu cannot
+Play the game normally with recording on (`--record-sample`); the engine saves a human stimulus
+and makes its response by playing it back. High fidelity: the human reaches what cpu cannot
 **(user)**. The existing hand-authored scripted runs (Brave Adventurer's, Drawing Fire's, Clockwork
 Keep's input scripts, Mr. Muncher's autopilot) are precise authored input: they are kept as human,
 recorded once more under the new names **(proposal; user to confirm)**.
@@ -135,19 +138,19 @@ recorded once more under the new names **(proposal; user to confirm)**.
 |---|---|
 | `--list-games` | This target and every game it wraps (recursively); a single game lists itself **(user)** |
 | `--list-samples` | Its samples, by kind (human, ai, cpu) and role |
-| `--run-samples` | Plays back every recording strictly and checks its trace; exit status is pass/fail |
+| `--run-samples` | Plays back every stimulus strictly and checks its response; exit status is pass/fail |
 | `--run-demos` | Plays the demos, watched |
 | `--demo NAME` | One demo |
 | `--record-sample` | Human recording mode |
-| `--explore` | Runs the explorer and writes the cpu recording and trace |
+| `--explore` | Runs the explorer and writes the cpu stimulus and response |
 | `--random-seed N` / `--random-seed random` | The engine owns the seed **(user)**; each target's default is a fixed seed the engine derives from its target name, so runs repeat with nothing set **(user)** |
 | `--no-samples` (and a project setting) | The disable switch: on by default, off for developers who want it off **(user)** |
 
-## 9. Human recordings teach the ai player (a note for later) **(user)**
+## 9. Human stimuli teach the ai player (a note for later) **(user)**
 
-Human recordings are rated highest. A model can compare a human run with the game state frame by
+Human stimuli are rated highest. A model can compare a human run with the game state frame by
 frame and ask why: "an event happened here in the human game: the player jumped with a scarab two tiles
-ahead; why?". Because human recordings are precise and tuned by hand, every action is assumed to have a
+ahead; why?". Because human stimuli are precise and tuned by hand, every action is assumed to have a
 reason (no double-jumps by accident). The answers teach the ai player what matters in the game.
 
 ## 10. Running many samples in one process
@@ -156,8 +159,8 @@ A wrapper runs several targets, an arcade dozens: no process per sample, no stat
 
 1. Once per process: pygame and the display are initialised.
 2. Per sample, setup: the engine's random streams, input state and clock reset; a fresh engine and
-   scene from the recording's header.
-3. Run: the recording is streamed, never decoded whole (today's are about 200 MB decoded); each
+   scene from the stimulus's header.
+3. Run: the stimulus is streamed, never decoded whole (today's are about 200 MB decoded); each
    frame is compared as it goes.
 4. Teardown, in a `finally` (a failing sample cannot poison the next): the scene ends, sprite groups
    empty, audio channels stop, scene-owned surfaces and fonts are released, the event queue is
@@ -173,19 +176,19 @@ difference blocks the push and names the target, kind and frame. The commit-time
 (`replay-metrics`) stays: it records performance; this verifies behaviour. Expected time: well under
 a minute (today's replays measure in about 12 s); measured when built.
 
-A guard test walks `--list-games` and fails if any target lacks a cpu recording and trace (always
-possible) or if any recording lacks its trace. Today's gaps (no trace for Mr. Muncher, Drawing Fire, the
+A guard test walks `--list-games` and fails if any target lacks a cpu stimulus and response (always
+possible) or if any stimulus lacks its response. Today's gaps (no response, today's trace, for Mr. Muncher, Drawing Fire, the
 Brave Adventurer launcher) are filled.
 
 ## 12. Known limits
 
-- cpu plays badly by design; deep states need a human (or ai) recording.
+- cpu plays badly by design; deep states need a human (or ai) stimulus.
 - Raw-input games get a weaker explorer (documented per game in its samples).
 - Committed samples grow the repository and each wheel (today about 1 MB compressed in all).
 
 ## 13. Open questions for the user
 
-1. Names: settled (the user, 2026-10-25): recording and trace; human, ai, cpu.
+1. Names: settled (the user, 2026-10-25): stimulus and response; human, ai, cpu.
 2. The existing hand-authored scripted runs: human (section 7)?
 3. The ai player's model: which model and where it runs (local, an API), and is ai in the first plan
    or after human and cpu?
