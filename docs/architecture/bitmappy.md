@@ -32,7 +32,7 @@ replay, which names the remedy; `--replay-trace OLD --rebaseline NEW --headless`
 
   | Platform | `:` in a Save name |
   |---|---|
-  | Windows (`win32`, `cygwin`) | Allowed only in the drive designator (`C:\a.toml`, `C:/a.toml`, `C:a.toml`, `\\?\C:\a.toml`); elsewhere it names an NTFS alternate data stream, so `examples:foo.toml` would leave an empty file called `examples` |
+  | Windows (`win32`, `cygwin`) | Allowed only in a letter-drive designator (`C:\a.toml`, `C:/a.toml`, `C:a.toml`, `\\?\C:\a.toml`, `\\.\C:\a.toml`); anywhere else, including inside a UNC server or share name, it is refused: NTFS would read it as an alternate data stream, so `examples:foo.toml` would leave an empty file called `examples` |
   | macOS (`darwin`) | Refused everywhere: Finder shows `:` as `/` (a Classic Mac OS leftover) |
   | Linux and others | Allowed |
   | Browser (`emscripten`) | Allowed (Save is a download; the browser sanitizes the name) |

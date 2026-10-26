@@ -2,12 +2,19 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** DONE (2026-10-26), commits a97efbe9..through the final-review fix commits (first
-fix commit f0620b6d; the last hash is pinned at merge). Task 7's verification is done: the user's
-manual checks passed (2026-10-26: the frozen binary loads a sprite by path and quits cleanly;
-`uv run bitmappy` load/draw/save/quit; the browser build starts and its Load opens the browser's
-file picker), and a final-review fix pass followed. Open questions 1-9 were answered by the user on 2026-10-26; 10 (the branch name) was
-assumed.
+**Status:** DONE (2026-10-26) on `feature/workspace-packages-4-bitmappy`, not yet merged. The
+commits run from a97efbe9 to the branch tip; the final hash is pinned at merge.
+- **Tasks 1-7 and an added Task 5b,** the user's engine-test path fixes: `sys.path` edits removed
+  and guarded, and the examples check counts only tracked files.
+- **The user's manual checks passed (2026-10-26):** the frozen binary loads a sprite by path and
+  quits cleanly; `uv run bitmappy` load/draw/save/quit works; the browser build starts and its Load
+  opens the browser's file picker.
+- **A final-review fix pass** (from f0620b6d).
+- **The user's per-platform rules for `:` in Save names** (from 66e9bf21; see
+  `docs/architecture/bitmappy.md`), with BUGS.md #231 filed: a refused Save closes the dialog.
+- **The master plan re-reviewed and updated** (257f75ef).
+
+Open questions 1-9 were answered by the user on 2026-10-26; 10 (the branch name) was assumed.
 
 **Goal:** Move Bitmappy out of the engine into its own workspace member,
 `src/apps/bitmappy/` (distribution `bitmappy`, import package `bitmappy`, console script `bitmappy`
