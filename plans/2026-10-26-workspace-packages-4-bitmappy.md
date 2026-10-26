@@ -2,8 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Tasks 1-6 done (2026-10-26); Task 7 (verification, with the user's manual checks)
-pending. Open questions 1-9 were answered by the user on 2026-10-26; 10 (the branch name) was
+**Status:** DONE (2026-10-26), commits a97efbe9..through the final-review fix commits (first
+fix commit f0620b6d; the last hash is pinned at merge). Task 7's verification is done: the user's
+manual checks passed (2026-10-26: the frozen binary loads a sprite by path and quits cleanly;
+`uv run bitmappy` load/draw/save/quit; the browser build starts and its Load opens the browser's
+file picker), and a final-review fix pass followed. Open questions 1-9 were answered by the user on 2026-10-26; 10 (the branch name) was
 assumed.
 
 **Goal:** Move Bitmappy out of the engine into its own workspace member,

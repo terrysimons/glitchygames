@@ -8,7 +8,8 @@ clockwork-keep, brave-adventurer (one project: core, Classic, Papyrus and a laun
 and drawing-fire; commits 46a6ca20 to "Workspace packages, Part 2: every game is its own
 package", 26 commits, verified by Task 9; merged as #109, a97efbe9). Part 4 DONE on
 feature/workspace-packages-4-bitmappy (2026-10-26: Bitmappy is its own package, `src/apps/bitmappy/`;
-commits a97efbe9..the "Docs: Bitmappy is an app" commit, see
+commits a97efbe9..through the final-review fix commits, first fix commit f0620b6d, hash pinned at
+merge; the user's manual checks passed 2026-10-26, see
 [its plan](2026-10-26-workspace-packages-4-bitmappy.md); not yet merged). Plan written 2026-10-24; amended 2026-10-25: everything under `src/`,
 decision 7; logical names in recordings, decision 8; where recordings live, decision 9.
 Part 1 has a full implementation plan; Parts 2-5 are outlined here and get theirs when each
@@ -218,7 +219,8 @@ The outline as written:
 ### Part 4: Bitmappy as an app (DONE)
 
 Full plan: [2026-10-26-workspace-packages-4-bitmappy.md](2026-10-26-workspace-packages-4-bitmappy.md).
-Done 2026-10-26 (commits a97efbe9..the "Docs: Bitmappy is an app" commit). The outline as written:
+Done 2026-10-26 (commits a97efbe9..through the final-review fix commits, first fix commit
+f0620b6d; the hash is pinned at merge; the user's manual checks passed the same day). The outline as written:
 
 - `src/apps/bitmappy/` (distribution `bitmappy`, import package `bitmappy`, console script
   `bitmappy` unchanged) with its sprites. Engine code that points into Bitmappy or its sprites

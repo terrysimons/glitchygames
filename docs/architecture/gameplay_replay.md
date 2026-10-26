@@ -259,7 +259,7 @@ streams with its seed. It refuses, logging the reason and exiting with one of th
   no permission, a directory) or has an unsupported format version: `UNUSABLE_INPUT` (65);
 - the recording's game or scene has the same class name as the one loaded but another logical
   module (any class that moved to another logical module, for instance Bitmappy's scene, which
-  left `glitchygames.examples` for `apps.bitmappy.editor:BitmapEditorScene`): a plain replay
+  left `glitchygames.bitmappy.editor` for `apps.bitmappy.editor:BitmapEditorScene`): a plain replay
   cannot tell a moved class from a different class of that name, so it refuses with
   `UNUSABLE_INPUT` (65) and a message naming the remedy,
   `--replay-trace OLD --rebaseline NEW --headless` (`REBASELINE_REMEDY` in
