@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import os
-import shutil
 from pathlib import Path
 
 import pytest
+from scripts.git_checkout import run_git as scripts_run_git
 from scripts.workspace_packages import (
     WorkspaceMember,
     source_package_directories,
     workspace_members,
 )
-
-from glitchygames.process import run_command
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -221,19 +218,6 @@ FORMER_GAME_CONSOLE_SCRIPTS = ('brave-adventurer-papyrus',)
 ROOT_REPLAY_FIXTURES_DIRECTORY = PROJECT_ROOT / 'tests' / 'fixtures' / 'replays'
 
 
-def environment_without_git_variables() -> dict[str, str]:
-    """Return the environment with every ``GIT_*`` variable removed.
-
-    Inside a git hook, ``GIT_DIR`` and ``GIT_INDEX_FILE`` point at the real repository: a git
-    command run from a temporary directory would act on that repository instead.
-
-    Returns:
-        A copy of ``os.environ`` without the variables git reads.
-
-    """
-    return {name: value for name, value in os.environ.items() if not name.startswith('GIT_')}
-
-
 def run_git(*, arguments: list[str], directory: Path) -> str:
     """Run git in ``directory`` without the ambient ``GIT_*`` variables.
 
@@ -245,17 +229,9 @@ def run_git(*, arguments: list[str], directory: Path) -> str:
         git's standard output.
 
     """
-    git_program = shutil.which('git')
-    assert git_program is not None, 'these tests need git'
-    completed = run_command(
-        command=[git_program, *arguments],
-        environment=environment_without_git_variables(),
-        timeout_seconds=30.0,
-        capture_output=True,
-        working_directory=directory,
-    )
-    assert completed.returncode == 0, completed.stdout
-    return completed.stdout
+    returncode, output = scripts_run_git(arguments=arguments, directory=directory)
+    assert returncode == 0, output
+    return output
 
 
 def tracked_entry_names(*, directory: Path) -> set[str]:

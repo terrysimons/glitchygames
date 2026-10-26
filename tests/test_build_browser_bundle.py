@@ -37,14 +37,21 @@ from scripts.build_browser_bundle import (
     touch_controls_config,
     write_engine_archive,
 )
+from scripts.git_checkout import NotAGitCheckoutError, run_git
 from scripts.workspace_packages import declared_console_scripts, workspace_members
 
 COMMIT = 'a' * 40
 WHEEL_NAME = 'pygame_ce-2.5.8.post1-cp314-cp314-pyemscripten_2026_0_wasm32.whl'
 
 
+def git(*, arguments: list[str], directory: Path) -> None:
+    """Run git in a directory and require it to succeed."""
+    returncode, output = run_git(arguments=arguments, directory=directory)
+    assert returncode == 0, output
+
+
 def make_package(root: Path) -> Path:
-    """Make a small package tree with files that are bundled and files that are not.
+    """Make a small package tree, tracked in a git repository, with files bundled and not.
 
     Returns:
         The package directory.
@@ -65,6 +72,9 @@ def make_package(root: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         # Bytes, not text: write_text would write Windows line endings there
         path.write_bytes(content.encode('utf-8'))
+    # Bundles hold tracked files only, so the tree is a repository with every file added
+    git(arguments=['init', '--quiet'], directory=root)
+    git(arguments=['add', '.'], directory=root)
     return package
 
 
@@ -99,6 +109,35 @@ class TestPackageSelection:
             Path('examples/paddleslap.py'),
             Path('fonts/bitstream_vera/Vera.ttf'),
         ]
+
+    def test_an_ignored_file_is_not_bundled(self, tmp_path):
+        """An ignored .DS_Store and an untracked file stay out of the bundle."""
+        package = make_package(tmp_path)
+        (tmp_path / '.gitignore').write_text('.DS_Store\n', encoding='utf-8')
+        (package / '.DS_Store').write_bytes(b'finder')
+        (package / 'engine' / '.DS_Store').write_bytes(b'finder')
+        (package / 'engine' / 'untracked.py').write_text('UNTRACKED = 1\n', encoding='utf-8')
+
+        files = bundled_package_files(package_directory=package)
+
+        assert Path('.DS_Store') not in files
+        assert Path('engine/.DS_Store') not in files
+        assert Path('engine/untracked.py') not in files
+        assert Path('engine/game_engine.py') in files
+
+    def test_outside_a_checkout_is_an_error(self, tmp_path):
+        package = tmp_path / 'glitchygames'
+        package.mkdir()
+        (package / '__init__.py').write_text('', encoding='utf-8')
+
+        with pytest.raises(NotAGitCheckoutError, match=str(package)):
+            bundled_package_files(package_directory=package)
+
+    def test_a_missing_git_is_an_error(self, tmp_path, mocker):
+        mocker.patch('scripts.git_checkout.shutil.which', return_value=None)
+
+        with pytest.raises(FileNotFoundError, match='git is not on PATH'):
+            bundled_package_files(package_directory=tmp_path)
 
 
 class TestEngineArchive:
