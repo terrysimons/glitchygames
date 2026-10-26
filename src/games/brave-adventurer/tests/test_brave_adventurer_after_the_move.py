@@ -10,6 +10,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import inspect
+import types
 from pathlib import Path
 
 import pygame
@@ -57,29 +58,19 @@ GOLDENS = [
 ]
 # The two games, which the shared primitives must never import
 GAME_PACKAGES = frozenset({'brave_adventurer', 'brave_adventurer_papyrus'})
-# What both scenes play by, defined once on BraveAdventurerSceneBase and by neither game
-SHARED_SCENE_METHODS = (
-    'args',
-    'setup',
-    'dt_tick',
-    '_resolve_player_ground_collision',
-    '_resolve_player_wall_collision',
-    '_player_support_span',
-    '_entered_wall_from_left',
-    '_resolve_enemy_terrain_collisions',
-    '_on_player_enemy_collision',
-    '_on_player_collect',
-    '_player_die',
-    '_save_high_score',
-    '_respawn_player',
-    '_process_movement_input',
-    'on_key_down_event',
-    'on_controller_button_down_event',
-    'on_joy_button_down_event',
-    'render',
-    '_draw_pits',
-    '_draw_hud',
-)
+# The base's hooks: what a game may give its own (every other method of the base is shared and
+# no game redefines it). Classic extends __init__ (its voice assistant) and _create_action_map
+# (its mic button); the rest are the foot line, the scarab and the voice assistant
+SCENE_HOOKS = frozenset({
+    '__init__',
+    '_create_action_map',
+    '_scarab_class',
+    '_player_top_and_foot_line',
+    '_player_world_y_standing_on',
+    '_update_voice_assistant',
+    '_on_voice_button_down',
+    '_on_voice_button_up',
+})
 
 
 def scene_classes(module):
@@ -161,7 +152,16 @@ def test_both_scenes_share_one_base(scene_class):
     """Each game's scene is the shared base plus its hooks: neither repeats the shared code."""
     assert issubclass(scene_class, BraveAdventurerSceneBase)
     assert BraveAdventurerSceneBase.__module__ == 'brave_adventurer_core.scene'
-    repeated = [name for name in SHARED_SCENE_METHODS if name in vars(scene_class)]
+    base_methods = {
+        name
+        for name, member in vars(BraveAdventurerSceneBase).items()
+        if isinstance(member, (types.FunctionType, staticmethod, classmethod))
+    }
+    # The guard follows the base: a hook renamed or removed there must be renamed here too
+    assert base_methods >= SCENE_HOOKS
+    shared_methods = base_methods - SCENE_HOOKS
+    assert {'dt_tick', 'render', 'on_joy_button_up_event', '_pause_game'} <= shared_methods
+    repeated = sorted(name for name in shared_methods if name in vars(scene_class))
     assert not repeated, f'{scene_class.__name__} repeats {repeated}'
 
 
