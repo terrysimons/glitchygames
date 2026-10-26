@@ -4,6 +4,46 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 228. Smaller Findings From the Engine Context Sub-Plan 1 Reviews
+- **Description**: The task reviews and the final whole-branch review of engine context sub-plan 1 (plans/2026-10-25-engine-context-1-state.md, 2026-10-25) recorded these minor findings; the final reviewer triaged them and none blocks the merge. The important findings were fixed on the branch. Item 6 (the positional calls) belongs to sub-plan 2
+- **Status**: Active
+- **Priority**: Low
+- **Reporter**: The task reviews and the final review of engine context sub-plan 1
+- **Date Reported**: 2026-10-25
+- **Details** (task numbers are sub-plan 1's):
+  1. Task 1: the import-time scan catches only literal context reads (not a module-level call to a helper that reads it, nor an alias); rule 2's docstring promises a little more
+  2. Task 1: a kept leaked switch finalised later can reset a later test's context (only after a test already failed)
+  3. Task 1: the leak fixture's docstring says it catches any switch entered by hand; it catches only one still referenced
+  4. Task 1: the autouse-fixture guard parses tests/harness.py only (other pytest_plugins modules have none today)
+  5. Task 1: the guard does not check the grouping fixtures stay empty
+  6. Task 2: positional resolve_snap_mode(sprite) calls in src/glitchygames/world.py:124 and src/glitchygames/collision/detection.py:97, and set_active_default_snap_mode(...) in src/glitchygames/scenes/scene.py:2694 and tests/harness.py:380,382 (keyword-capable: R8 prefers keywords) (belongs to sub-plan 2, the keyword-argument pass)
+  7. Task 3: the slot settings holders (_SnapSettings, _BackgroundSettings) are mutable dataclasses where the owner's rule prefers pydantic for new data classes (frozen pydantic does not fit a mutable holder: decide for all slots together at the final review)
+  8. Task 3: tests/test_backgrounds.py:186 isolation test is module-level beside class-grouped tests
+  9. Task 4: src/glitchygames/sources.py:568 docstring could say reset_current_input() resets the current context only
+  10. Task 5: the restore isolation test covers the random stream only, not a numpy stream's bit-generator state
+  11. Task 6: tests/test_clock.py:218 calls reset_sources() inside the second context, so the seed test cannot tell shared from per-context state (it passed before the change); removing that line makes it discriminate
+  12. Task 6: no cross-context pop_scoped_sources test; no isolation test of discard_scope_posts/without_discarded_scope_posts or the stop_observing functions
+  13. Task 6: reset_sources docstring body is a fragment repeating the summary
+  14. Task 7: cast('Self', instance) at src/glitchygames/scenes/scene.py:241 claims the subclass type when a subclass gets the base manager (as the old ignore did): add a one-line comment
+  15. Task 7: redundant issubclass check at src/glitchygames/scenes/scene.py:218
+  16. Task 7: no test of a subclass made in one context and SceneManager() asked in another
+  17. Task 7: tests/harness.py:259-262 docstring (parent/subclass __instance__) and the sub-plan's line 64-66 claim (only tests checked; scripts/record_golden_traces.py reached _instance) are stale
+  18. Task 8: ISOLATION_CHECKS keyed by name string (a wrong mapping would pass the scan); Callable[..., None] loses the keyword-only signature (comment); duplicated assertion messages in declared_slot_names_in_source
+  19. Task 9: the slots table lists functions unevenly (engine_random missing; sources row a list of concepts); CLAUDE.md's leak-check bullet does not say an abandoned switch goes unreported; the master plan's sentence about adding it to LIVING_PLAN_FILES is stale
+  20. Task 9: CLAUDE.md's guard sentence should say the guard covers autouse fixtures in tests/harness.py; the plan Status says "the documentation commit" (singular)
+  21. Final review: the hot-path cost. Each slot read costs about 70 ns more than the old module global; Brave Adventurer Papyrus does about 295 reads per frame, mostly resolve_snap_mode from src/glitchygames/collision/detection.py:97 and src/glitchygames/world.py:124, about 1% of frame processing, within noise in the measured rows. If the Arcade needs it back, read the default snap mode once per pass and pass it down
+  22. Final review: tests/harness.py:259-264, the _reset_all_singleton_instances docstring reads awkwardly
+- **Files**: see each item
+
+### 227. A Native-Driver-Only Frame Difference in the Rebaseline Early-Exit Test
+- **Description**: During Task 4's verification (sub-plan 1 of the engine context, 2026-10-25, macOS), one full `uv run pytest` run's native (cocoa) child run presented a frame differing from the dummy driver's by 9 pixels in `tests/world/test_gameplay_replay.py::TestRebaselineEndedByTheGamesOwnExit::test_a_games_own_failing_exit_writes_nothing`. It did not reproduce in the harness's re-run of the differing test or in a second full run. The change under test (moving the polled input snapshot into an engine context slot) was judged by its reviewer unable to cause it. Likely kin to #225 (an earlier native-only intermittent failure in a different test): both native run only, both order-dependent-looking
+- **Status**: Active
+- **Priority**: Low-Medium (an intermittent native failure fails the whole `pytest` command)
+- **Reporter**: Engine context sub-plan 1, Task 4 verification
+- **Date Reported**: 2026-10-25
+- **Details**: Investigate together with #225: which test ran before this one on that worker, whether the live window's focus changed or an event was queued, and what the display canvas fixture presented between the tests
+- **Files**: `tests/world/test_gameplay_replay.py` (the test), `src/glitchygames/replay/rebaseline.py` (the early-exit path)
+
 ### 226. The Spin-Only Timer Accuracy Test Can Fail on a Shared Windows CI Machine
 - **Description**: `tests/timing/test_fast_timer_os.py::test_fast_timer_spin_tighten_accuracy` failed once in CircleCI's Windows job on PR #107 (2026-10-25; a docs-only branch): `assert 1855900 < 1000000`. It takes a confidence upper bound on the median of paired differences (a spin-only `FastTimer` wait minus the OS's own 1 ms sleep) and requires it under `PAIRED_TOLERANCE_NS` (1 ms). A spin-only wait should never trail the OS sleep, so a 1.86 ms bound means the spinning thread was pre-empted for long stretches on the shared Windows virtual machine, many samples in a row. Linux and macOS passed the same commit
 - **Status**: Active

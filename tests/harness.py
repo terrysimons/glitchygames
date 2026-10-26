@@ -22,10 +22,11 @@ from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
 import pygame
 from scripts.workspace_packages import ENGINE_DIRECTORY
 
-from glitchygames import pixel_snap, randomness, sources
+from glitchygames import engine_context, pixel_snap, randomness, sources
 from glitchygames.backgrounds import set_active_default_background_pattern
 from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
+from glitchygames.engine_context import current_context, default_context
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
 from glitchygames.input.state import reset_current_input
@@ -257,8 +258,10 @@ def _reset_all_singleton_instances():
 
     Singleton instances (SceneManager, MenuBar, etc.) persist across tests
     and can carry stale state from mocked pygame environments into tests
-    that need real pygame. This resets both parent and subclass __instance__
-    attributes since Python sets cls.__instance__ on the subclass, not the parent.
+    that need real pygame. SceneManager is no longer one of those: it is
+    a slot of the engine context, so SceneManager._reset() clears the current context's
+    managers. This resets the other classes' parent and subclass __instance__ attributes
+    since Python sets cls.__instance__ on the subclass, not the parent.
     """
     SceneManager._reset()
 
@@ -340,13 +343,16 @@ def restore_game_engine_class_state(mocker):
 
 
 @pytest.fixture(autouse=True)
-def fresh_random_streams(mocker):
-    """Give each test an unseeded set of engine random streams (glitchygames/randomness.py).
+def fresh_random_streams():
+    """Give each test an unseeded set of engine random streams (glitchygames.randomness).
 
-    GameEngine and reset_streams() set the process-wide master seed and cache streams; without
-    this, one test's seed and half-used streams would carry into the next test on the worker.
+    GameEngine and reset_streams() set the master seed and cache streams in the current engine
+    context, the default one for every test (glitchygames.engine_context); without this, one
+    test's seed and half-used streams would carry into the next test on the worker.
     """
-    mocker.patch.object(randomness, '_STATE', randomness.EngineRandomState())
+    default_context().reset_value(slot=randomness.ENGINE_RANDOM_STATE_SLOT)
+    yield
+    default_context().reset_value(slot=randomness.ENGINE_RANDOM_STATE_SLOT)
 
 
 @pytest.fixture(autouse=True)
@@ -372,20 +378,20 @@ def reset_engine_sources():
 def reset_default_snap_mode():
     """Start and end each test with the engine default snap mode (NEAREST_HALF_UP).
 
-    The active default is process-global (glitchygames/pixel_snap.py) and scene setup sets it
+    The active default is per engine context (glitchygames.pixel_snap) and scene setup sets it
     from Scene.PIXEL_SNAP_MODE; without this, one test's scene would change snapping for the
     next test on the worker.
     """
-    pixel_snap.set_active_default_snap_mode(pixel_snap.PixelSnapMode.NEAREST_HALF_UP)
+    pixel_snap.set_active_default_snap_mode(mode=pixel_snap.PixelSnapMode.NEAREST_HALF_UP)
     yield
-    pixel_snap.set_active_default_snap_mode(pixel_snap.PixelSnapMode.NEAREST_HALF_UP)
+    pixel_snap.set_active_default_snap_mode(mode=pixel_snap.PixelSnapMode.NEAREST_HALF_UP)
 
 
 @pytest.fixture(autouse=True)
 def reset_default_background_pattern():
     """Start and end each test with the canvas pattern as the default scene background.
 
-    The default is process-global (glitchygames/backgrounds.py) and GameEngine sets it from
+    The default is per engine context (glitchygames.backgrounds) and GameEngine sets it from
     --default-background; without this, one test's engine would change the next test's scenes.
     """
     set_active_default_background_pattern(pattern=CANVAS_PATTERN)
@@ -563,3 +569,67 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
             # driver it would stay black (under the last scene's caption) while the worker waits
             # for its next test, or for the run to end
             show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+
+@pytest.fixture
+def per_context_state_resets(
+    fresh_random_streams,
+    reset_engine_sources,
+    reset_default_snap_mode,
+    reset_default_background_pattern,
+    reset_singletons,
+):
+    """Group the resets of the state the engine context holds (its slots), for the leak check.
+
+    Args:
+        fresh_random_streams: Requested only to be torn down after the leak check.
+        reset_engine_sources: Requested only to be torn down after the leak check.
+        reset_default_snap_mode: Requested only to be torn down after the leak check.
+        reset_default_background_pattern: Requested only to be torn down after the leak check.
+        reset_singletons: Requested only to be torn down after the leak check.
+
+    """
+
+
+@pytest.fixture
+def engine_service_resets(
+    desktop_user_files, in_process_clipboard, restore_game_engine_class_state
+):
+    """Group the resets of the engine's other installed state, for the leak check.
+
+    Args:
+        desktop_user_files: Requested only to be torn down after the leak check.
+        in_process_clipboard: Requested only to be torn down after the leak check.
+        restore_game_engine_class_state: Requested only to be torn down after the leak check.
+
+    """
+
+
+# Requests (through the two groups above) every autouse fixture that resets or restores engine
+# state, so pytest sets them up before it and tears them down after it: a leaked context is
+# caught and undone before their teardowns run, so they reset the default context's state, not
+# the leaked one's. Definition order cannot do this (pytest orders a plugin's autouse fixtures of
+# one scope by name). A new autouse fixture must join a group, or be listed with its reason in
+# tests/test_engine_context.py PROCESS_STATE_AUTOUSE_FIXTURES (the test there checks both)
+@pytest.fixture(autouse=True)
+def every_test_ends_in_the_default_engine_context(per_context_state_resets, engine_service_resets):
+    """Fail a test that leaves another engine context current (glitchygames.engine_context).
+
+    Every test starts in the default context. It catches a switch still entered at teardown: a
+    ``context.active()`` entered by hand (``__enter__``) and never exited while something still
+    holds it. A switch abandoned unexited unwinds itself when its generator is collected (its
+    ``finally`` resets the context), so it is not reported. A caught leak would leave its
+    context current for every later test on the worker, so it is undone before the test fails.
+
+    Args:
+        per_context_state_resets: Requested only to be torn down after this check.
+        engine_service_resets: Requested only to be torn down after this check.
+
+    """
+    yield
+    leaked_context = current_context()
+    if leaked_context is not default_context():
+        # A test-isolation reset, not an API: there is deliberately no public way to drop a
+        # switch without unwinding it (glitchygames.engine_context rule 5)
+        engine_context._CURRENT_CONTEXT.set(None)
+        pytest.fail(f'the test left the engine context {leaked_context.name!r} current')

@@ -391,6 +391,7 @@ LIVING_PLAN_FILES = (
     'plans/future-work.md',
     'plans/2026-10-23-arcade-showcase.md',
     'plans/2026-10-24-workspace-packages.md',
+    'plans/2026-10-25-engine-context.md',
 )
 # An engine path not written from the repository root: `glitchygames/<something>` right after
 # something that makes it part of a longer path or name (a word, '.', '/', '-', '~') is not one,

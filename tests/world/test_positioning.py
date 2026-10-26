@@ -15,6 +15,7 @@ from glitchygames.camera import Camera2D
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.display_mode import set_display_mode
 from glitchygames.effects.shake import ScreenShake
+from glitchygames.engine_context import EngineContext
 from glitchygames.game_objects.ball import BallSprite
 from glitchygames.pixel_snap import (
     PixelSnapMode,
@@ -589,3 +590,17 @@ class TestBallWorldSpace:
             sprites=[ball], camera=identity_camera, screen_size=BALL_DISPLAY_SIZE
         )
         assert drawn_center == ball.rect.center
+
+
+def test_each_engine_context_has_its_own_default_snap_mode():
+    """The running scene's snap mode in one context never changes another's (audit C1)."""
+    second = EngineContext(name='second')
+    set_active_default_snap_mode(mode=PixelSnapMode.FLOOR)
+
+    with second.active():
+        assert active_default_snap_mode() is PixelSnapMode.NEAREST_HALF_UP
+        set_active_default_snap_mode(mode=PixelSnapMode.CEIL)
+        assert resolve_snap_mode(sprite=object()) is PixelSnapMode.CEIL
+
+    assert active_default_snap_mode() is PixelSnapMode.FLOOR
+    assert resolve_snap_mode(sprite=object()) is PixelSnapMode.FLOOR

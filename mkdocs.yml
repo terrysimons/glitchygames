@@ -19,6 +19,7 @@ nav:
     - Event System: "architecture/event_system.md"
     - Argument System: "architecture/argument_system.md"
     - Gameplay Recording and Replay: "architecture/gameplay_replay.md"
+    - Engine Context: "architecture/engine_context.md"
     - Multi-Controller System: "multi_controller_system.md"
     - Code Complexity: "quality/complexity.md"
     - Replay Performance: "quality/performance.md"

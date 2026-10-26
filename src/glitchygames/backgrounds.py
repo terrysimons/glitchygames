@@ -17,12 +17,14 @@ rendering bug (the test suite fails a test that ends on one, tests/harness.py).
 
 Both are drawn procedurally at any size, opaque, and cached per size
 (``background_pattern_surface``): a scene copies the cached surface into its own background,
-which costs about what a fill does. The default is process-wide
-(``set_active_default_background_pattern``); ``--default-background`` sets it for a run.
+which costs about what a fill does. The default belongs to the engine context
+(glitchygames.engine_context; ``set_active_default_background_pattern``);
+``--default-background`` sets it for a run.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 from enum import StrEnum
 from fractions import Fraction
@@ -31,6 +33,7 @@ from typing import TYPE_CHECKING
 
 import pygame
 
+from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.opacity import make_opaque
 
 if TYPE_CHECKING:
@@ -110,30 +113,37 @@ class BackgroundPattern(StrEnum):
 DEFAULT_BACKGROUND_PATTERN = BackgroundPattern.TEST_PATTERN
 
 
-class _ActiveBackgroundSettings:
-    """Holds the process-wide default background (what a scene that sets none gets)."""
+@dataclasses.dataclass
+class _BackgroundSettings:
+    """Holds an engine context's default background (what a scene that sets none gets)."""
 
     default_pattern: BackgroundPattern = DEFAULT_BACKGROUND_PATTERN
 
 
+# Each engine context's default background (glitchygames.engine_context)
+BACKGROUND_SETTINGS_SLOT: ContextSlot[_BackgroundSettings] = ContextSlot(
+    name='glitchygames.backgrounds.default_pattern', factory=_BackgroundSettings
+)
+
+
 def set_active_default_background_pattern(*, pattern: BackgroundPattern) -> None:
-    """Set the background a scene gets when it sets none.
+    """Set the background a scene gets when it sets none, in this engine context.
 
     Args:
         pattern: The new default (the engine sets it from ``--default-background``).
 
     """
-    _ActiveBackgroundSettings.default_pattern = pattern
+    current_context().value(slot=BACKGROUND_SETTINGS_SLOT).default_pattern = pattern
 
 
 def active_default_background_pattern() -> BackgroundPattern:
-    """Return the background a scene gets when it sets none.
+    """Return the background a scene gets when it sets none, in this engine context.
 
     Returns:
         BackgroundPattern: The active default (initially the test pattern).
 
     """
-    return _ActiveBackgroundSettings.default_pattern
+    return current_context().value(slot=BACKGROUND_SETTINGS_SLOT).default_pattern
 
 
 def _scaled_edge(*, length: int, fraction: Fraction) -> int:

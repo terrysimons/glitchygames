@@ -7,16 +7,18 @@ only through the active ``EngineSources``. Live play uses ``LiveSources``
 (glitchygames/replay/driver.py). Everything downstream of the doors runs unchanged, so a replay
 goes through the real engine.
 
-The registry is module state, like glitchygames/randomness.py's streams, so engine code, games
-and widgets reach the active sources without an engine reference. ``install_sources`` may only be
-called before the first frame (a run never mixes live and recorded input); in-game playback pushes
+The registry belongs to the current engine context (glitchygames.engine_context), like
+glitchygames.randomness's streams, so engine code, games and widgets reach the active sources
+without an engine reference, and each context has its own doors, frame clock, held events and
+observers. ``install_sources`` may only be called before the context's first frame (a run never
+mixes live and recorded input); in-game playback pushes
 scoped sources on top instead (``push_scoped_sources``; glitchygames/replay/playback.py), which
 are active until popped (``pop_scoped_sources``). ``GameEngine.__init__`` calls
 ``reset_sources()`` so each run starts with fresh doors.
 
 This module is a leaf (see the layering rule in plans/2026-10-19-gameplay-replay-core.md, Task
 2): any module may import it, and it imports no package module at module level except
-glitchygames.randomness.
+glitchygames.randomness and glitchygames.engine_context (both leaves).
 """
 
 from __future__ import annotations
@@ -25,6 +27,7 @@ import dataclasses
 import weakref
 from typing import TYPE_CHECKING, Any, Protocol
 
+from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.randomness import engine_random_seed
 
 if TYPE_CHECKING:
@@ -262,7 +265,21 @@ class _SourcesRegistry:
     )
 
 
-_REGISTRY = _SourcesRegistry()
+# Each engine context's doors, frame clock, held events and observers, kept in its slot
+# of glitchygames.engine_context
+SOURCES_REGISTRY_SLOT: ContextSlot[_SourcesRegistry] = ContextSlot(
+    name='glitchygames.sources.registry', factory=_SourcesRegistry
+)
+
+
+def _registry() -> _SourcesRegistry:
+    """Return the current engine context's registry.
+
+    Returns:
+        The registry (made empty on first read).
+
+    """
+    return current_context().value(slot=SOURCES_REGISTRY_SLOT)
 
 
 def active_sources() -> EngineSources:
@@ -276,9 +293,10 @@ def active_sources() -> EngineSources:
         The active sources.
 
     """
-    if _REGISTRY.scoped:
-        return _REGISTRY.scoped[-1]
-    if _REGISTRY.installed is None:
+    registry = _registry()
+    if registry.scoped:
+        return registry.scoped[-1]
+    if registry.installed is None:
         # The one function-level import of the door modules, deferred on purpose: this module
         # is a leaf, and live_sources is not. Today live_sources imports only pygame, but later
         # tasks give it the input, devices and saves modules, which import this module, so a
@@ -286,8 +304,8 @@ def active_sources() -> EngineSources:
         # (unit tests, tools).
         from glitchygames.live_sources import LiveSources
 
-        _REGISTRY.installed = LiveSources(random_seed=engine_random_seed())
-    return _REGISTRY.installed
+        registry.installed = LiveSources(random_seed=engine_random_seed())
+    return registry.installed
 
 
 def install_sources(*, sources: EngineSources) -> None:
@@ -306,15 +324,16 @@ def install_sources(*, sources: EngineSources) -> None:
         SourcesAlreadyInstalledError: If ``sources`` are already the installed sources.
 
     """
-    if _REGISTRY.frames_started:
+    registry = _registry()
+    if registry.frames_started:
         message = 'install_sources() is allowed only before the first frame'
         raise SourcesAlreadyRunningError(message)
-    if _REGISTRY.installed is sources:
+    if registry.installed is sources:
         message = 'install_sources() was given the sources that are already installed'
         raise SourcesAlreadyInstalledError(message)
-    if _REGISTRY.installed is not None:
-        _REGISTRY.installed.on_uninstalled()
-    _REGISTRY.installed = sources
+    if registry.installed is not None:
+        registry.installed.on_uninstalled()
+    registry.installed = sources
     sources.on_installed()
 
 
@@ -334,13 +353,14 @@ def push_scoped_sources(*, sources: EngineSources) -> None:
             pushed.
 
     """
-    if sources is _REGISTRY.installed or any(
-        scoped_sources is sources for scoped_sources in _REGISTRY.scoped
+    registry = _registry()
+    if sources is registry.installed or any(
+        scoped_sources is sources for scoped_sources in registry.scoped
     ):
         message = 'push_scoped_sources() was given sources that are already in use'
         raise SourcesAlreadyInstalledError(message)
     sources.on_installed()
-    _REGISTRY.scoped.append(sources)
+    registry.scoped.append(sources)
 
 
 def pop_scoped_sources() -> EngineSources:
@@ -353,10 +373,11 @@ def pop_scoped_sources() -> EngineSources:
         NoScopedSourcesError: If no scoped sources are pushed.
 
     """
-    if not _REGISTRY.scoped:
+    registry = _registry()
+    if not registry.scoped:
         message = 'pop_scoped_sources() was called with no scoped sources pushed'
         raise NoScopedSourcesError(message)
-    sources = _REGISTRY.scoped.pop()
+    sources = registry.scoped.pop()
     sources.on_uninstalled()
     return sources
 
@@ -368,7 +389,7 @@ def has_scoped_sources() -> bool:
         Whether ``active_sources()`` returns scoped sources rather than the installed ones.
 
     """
-    return bool(_REGISTRY.scoped)
+    return bool(_registry().scoped)
 
 
 def redeliver_events(*, events: list[RedeliveredEvent]) -> None:
@@ -386,7 +407,7 @@ def redeliver_events(*, events: list[RedeliveredEvent]) -> None:
             they were pumped.
 
     """
-    _REGISTRY.redelivered_events.extend(events)
+    _registry().redelivered_events.extend(events)
 
 
 def pending_redelivered_events() -> list[RedeliveredEvent]:
@@ -396,7 +417,7 @@ def pending_redelivered_events() -> list[RedeliveredEvent]:
         Each event with its origin, in order.
 
     """
-    return list(_REGISTRY.redelivered_events)
+    return list(_registry().redelivered_events)
 
 
 def take_redelivered_events() -> list[RedeliveredEvent]:
@@ -410,8 +431,9 @@ def take_redelivered_events() -> list[RedeliveredEvent]:
         Each event with its origin, in order (usually none).
 
     """
-    events = list(_REGISTRY.redelivered_events)
-    _REGISTRY.redelivered_events.clear()
+    registry = _registry()
+    events = list(registry.redelivered_events)
+    registry.redelivered_events.clear()
     return events
 
 
@@ -430,7 +452,7 @@ def discard_scope_posts(*, posts: list[tuple[int, dict[str, Any]]]) -> None:
         posts: Each post as (type, attributes), as the internal-post tracker holds it.
 
     """
-    _REGISTRY.discarded_scope_posts.extend(posts)
+    _registry().discarded_scope_posts.extend(posts)
 
 
 def without_discarded_scope_posts(*, events: list[pygame.event.Event]) -> list[pygame.event.Event]:
@@ -448,10 +470,11 @@ def without_discarded_scope_posts(*, events: list[pygame.event.Event]) -> list[p
         The batch without them (the same list when none are discarded).
 
     """
-    if not _REGISTRY.discarded_scope_posts:
+    registry = _registry()
+    if not registry.discarded_scope_posts:
         return events
-    discarded_posts = list(_REGISTRY.discarded_scope_posts)
-    _REGISTRY.discarded_scope_posts.clear()
+    discarded_posts = list(registry.discarded_scope_posts)
+    registry.discarded_scope_posts.clear()
     kept_events: list[pygame.event.Event] = []
     for event in events:
         matching_post = (event.type, event.dict)
@@ -464,12 +487,12 @@ def without_discarded_scope_posts(*, events: list[pygame.event.Event]) -> list[p
 
 def mark_frames_started() -> None:
     """Record that the frame loop has started (install_sources is refused from now on)."""
-    _REGISTRY.frames_started = True
+    _registry().frames_started = True
 
 
 def advance_frame_clock(*, seconds: float) -> None:
     """Add one closed frame's dt to the frame clock (SceneManager._finish_frame)."""
-    _REGISTRY.frame_clock_seconds += seconds
+    _registry().frame_clock_seconds += seconds
 
 
 def observe_save_store_openings(*, observer: SaveStoreOpenedObserver) -> None:
@@ -479,7 +502,7 @@ def observe_save_store_openings(*, observer: SaveStoreOpenedObserver) -> None:
         observer: The observer.
 
     """
-    _REGISTRY.save_store_observers.add(observer)
+    _registry().save_store_observers.add(observer)
 
 
 def stop_observing_save_store_openings(*, observer: SaveStoreOpenedObserver) -> None:
@@ -489,7 +512,7 @@ def stop_observing_save_store_openings(*, observer: SaveStoreOpenedObserver) -> 
         observer: The observer.
 
     """
-    _REGISTRY.save_store_observers.discard(observer)
+    _registry().save_store_observers.discard(observer)
 
 
 def notify_save_store_opened(*, namespace: str, store: SaveManager) -> None:
@@ -501,7 +524,7 @@ def notify_save_store_opened(*, namespace: str, store: SaveManager) -> None:
 
     """
     # A copy: an observer may stop observing while it is told
-    for observer in list(_REGISTRY.save_store_observers):
+    for observer in list(_registry().save_store_observers):
         observer.on_save_store_opened(namespace=namespace, store=store)
 
 
@@ -512,7 +535,7 @@ def observe_device_answers(*, observer: DeviceAnswerObserver) -> None:
         observer: The observer.
 
     """
-    _REGISTRY.device_answer_observers.add(observer)
+    _registry().device_answer_observers.add(observer)
 
 
 def stop_observing_device_answers(*, observer: DeviceAnswerObserver) -> None:
@@ -522,7 +545,7 @@ def stop_observing_device_answers(*, observer: DeviceAnswerObserver) -> None:
         observer: The observer.
 
     """
-    _REGISTRY.device_answer_observers.discard(observer)
+    _registry().device_answer_observers.discard(observer)
 
 
 def notify_device_answer(*, answer: EnumerationAnswer, opened: DeviceDescriptor | None) -> None:
@@ -534,7 +557,7 @@ def notify_device_answer(*, answer: EnumerationAnswer, opened: DeviceDescriptor 
 
     """
     # A copy: an observer may stop observing while it is told
-    for observer in list(_REGISTRY.device_answer_observers):
+    for observer in list(_registry().device_answer_observers):
         observer.on_device_answer(answer=answer, opened=opened)
 
 
@@ -545,7 +568,7 @@ def set_frame_clock_seconds(*, seconds: float) -> None:
         seconds: The frame clock's new reading.
 
     """
-    _REGISTRY.frame_clock_seconds = seconds
+    _registry().frame_clock_seconds = seconds
 
 
 def frame_clock_seconds() -> float:
@@ -558,23 +581,27 @@ def frame_clock_seconds() -> float:
         Seconds.
 
     """
-    return _REGISTRY.frame_clock_seconds
+    return _registry().frame_clock_seconds
 
 
 def reset_sources() -> None:
-    """Forget every installed and scoped source and the frame clock (a new run, or a test).
+    """Forget the current engine context's sources, frame clock and observers (a new run, a test).
+
+    Its installed and scoped sources, frame clock, held events and observers; other contexts keep
+    theirs.
 
     The frame's polled input is not reset here (this leaf may not import glitchygames.input):
     callers also call glitchygames.input.state.reset_current_input().
     """
-    for sources in [*_REGISTRY.scoped, _REGISTRY.installed]:
+    registry = _registry()
+    for sources in [*registry.scoped, registry.installed]:
         if sources is not None:
             sources.on_uninstalled()
-    _REGISTRY.installed = None
-    _REGISTRY.scoped.clear()
-    _REGISTRY.frames_started = False
-    _REGISTRY.frame_clock_seconds = 0.0
-    _REGISTRY.redelivered_events.clear()
-    _REGISTRY.discarded_scope_posts.clear()
-    _REGISTRY.save_store_observers.clear()
-    _REGISTRY.device_answer_observers.clear()
+    registry.installed = None
+    registry.scoped.clear()
+    registry.frames_started = False
+    registry.frame_clock_seconds = 0.0
+    registry.redelivered_events.clear()
+    registry.discarded_scope_posts.clear()
+    registry.save_store_observers.clear()
+    registry.device_answer_observers.clear()

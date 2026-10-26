@@ -22,6 +22,7 @@ from glitchygames.debug import DebugFrameInfo, DebugOverlay
 from glitchygames.debug.overlay import OVERLAY_KEYS
 from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
+from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.events.mouse import MousePointer
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
 from glitchygames.input.input_devices import InputDevices
@@ -181,6 +182,44 @@ def required_scene(*, next_scene: object) -> Scene | None:
     raise TypeError(message)
 
 
+def _no_scene_managers() -> dict[type[SceneManager], SceneManager | None]:
+    """Return an engine context's scene managers before any is made: none.
+
+    Returns:
+        An empty dict.
+
+    """
+    return {}
+
+
+# Each engine context's scene managers, by the class constructed (glitchygames.engine_context).
+# A class answers with its own entry, else its nearest base class's along its MRO, as the class
+# attribute SceneManager._instance it replaces did (a subclass without an entry of its own got
+# its base class's manager)
+SCENE_MANAGERS_SLOT: ContextSlot[dict[type[SceneManager], SceneManager | None]] = ContextSlot(
+    name='glitchygames.scenes.scene.scene_managers', factory=_no_scene_managers
+)
+
+
+def _scene_manager_for_class(*, scene_manager_class: type[SceneManager]) -> SceneManager | None:
+    """Return the current context's manager for a class, looked up along its MRO.
+
+    The first class of the MRO with an entry decides, even when the entry is None.
+
+    Args:
+        scene_manager_class: The class constructed (SceneManager or a subclass).
+
+    Returns:
+        The manager, or None when there is none yet.
+
+    """
+    scene_managers = current_context().value(slot=SCENE_MANAGERS_SLOT)
+    for base_class in scene_manager_class.__mro__:
+        if issubclass(base_class, SceneManager) and base_class in scene_managers:
+            return scene_managers[base_class]
+    return None
+
+
 class SceneManager(SceneInterface, events.EventManager):
     """Glitchy Games Scene Manager.
 
@@ -188,17 +227,18 @@ class SceneManager(SceneInterface, events.EventManager):
     and for processing events.
     """
 
-    _instance: ClassVar[SceneManager | None] = None
     log: ClassVar[logging.Logger] = LOG
     OPTIONS: ClassVar[dict[str, Any]] = {}
     # True once __init__ ran: SceneManager() returns the singleton, whose __init__ runs again
     _initialized: bool = False
 
     def __new__(cls) -> Self:
-        """Create a new instance or return the existing singleton instance."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance  # type: ignore[return-value] # ty: ignore[invalid-return-type]
+        """Return this engine context's scene manager of this class, made on first use."""
+        instance = _scene_manager_for_class(scene_manager_class=cls)
+        if instance is None:
+            instance = super().__new__(cls)
+            current_context().value(slot=SCENE_MANAGERS_SLOT)[cls] = instance
+        return cast('Self', instance)
 
     def __init__(self: Self) -> None:
         """Initialize the scene manager."""
@@ -306,14 +346,14 @@ class SceneManager(SceneInterface, events.EventManager):
     def _reset(cls) -> None:
         """Reset the singleton for testing.
 
-        Clears the singleton instance so the next call to SceneManager()
-        creates a freshly initialized instance. This should only be used
+        Clears the singleton instance of the current engine context so the next call to
+        SceneManager() there creates a freshly initialized instance. This should only be used
         in tests.
         """
-        instance = cls._instance
+        instance = _scene_manager_for_class(scene_manager_class=cls)
         if instance is not None:
             instance._initialized = False
-        cls._instance = None
+        current_context().value(slot=SCENE_MANAGERS_SLOT)[cls] = None
 
     def update_screen(self) -> None:
         """Update the screen reference when display becomes available."""
