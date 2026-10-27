@@ -1,7 +1,7 @@
 """Run a small demo's ``main()`` through the real engine, headless, for a few frames.
 
-A root test helper (it imports ``scripts.record_golden_traces``), shared by the demos' tests: the
-demos layer's members (``src/demos/dt-demo/tests``, ``src/demos/joystick-demo/tests`` and
+A root test helper (it imports the engine's golden-trace harness), shared by the demos' tests:
+the demos layer's members (``src/demos/dt-demo/tests``, ``src/demos/joystick-demo/tests`` and
 ``src/demos/text-input-demo/tests``). A demo runs with its console script (``dt-demo``) or
 ``python -m``. Its ``main()`` builds ``GameEngine(game=Game)`` and starts it; the tests run that
 same ``main()`` with the module's ``GameEngine`` replaced by ``DemoRunEngine``: the real engine
@@ -18,9 +18,9 @@ import sys
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
-from scripts.record_golden_traces import GoldenTraceEngine
 
 from glitchygames.recording import post_input_event
+from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator

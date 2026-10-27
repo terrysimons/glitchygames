@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pygame
 import pytest
-from scripts.record_golden_traces import GoldenTraceEngine, GoldenTraceSceneManager, command_line
 
 import paddleslap
 from glitchygames.collision.layers import get_sprite_collision_rect
@@ -28,6 +27,11 @@ from glitchygames.game_objects.ball import (
     speed_up_step_ratio,
 )
 from glitchygames.randomness import RANDOM_STREAM_KIND, reset_streams, stream_seed
+from glitchygames.replay.tools.golden_traces import (
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    command_line,
+)
 from glitchygames.sources import advance_frame_clock
 from glitchygames.state import DiskSaveManager
 from glitchygames.world import position_world_sprites

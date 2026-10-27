@@ -221,8 +221,10 @@ any tool's configuration.
 ### 5. Update the scripts and tests that name it
 
 - `scripts/record_golden_traces.py`: add a `'<module>:<class>'` reference to `GAME_SCENES`
-  (never a module-level import of a member: the subprocess import test fails on one), and
-  `GAME_MODULES` (whose value is the bare package name). `scripts/record_scripted_session.py`
+  (never a module-level import of a member: the subprocess import test fails on one),
+  `GAME_MODULES` (whose value is the bare package name) and its input script's builder to
+  `SCRIPT_BUILDERS` (the script itself goes in `scripts/golden_inputs.py`, importing what it reads
+  of its game inside the functions that read it). `scripts/record_scripted_session.py`
   derives its fixture directories from `GAME_MODULES` and the workspace
   (`REPLAY_FIXTURE_DIRECTORIES`), and refuses
   a game no member holds: only its docstring examples need editing.

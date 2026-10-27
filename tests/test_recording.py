@@ -1226,6 +1226,12 @@ class TestRecordingSources:
 _PUMP_SEAMS = frozenset({
     ('live_sources.py', 'LiveSources.pump_events'),
     ('display_mode.py', 'set_display_mode'),
+    # The golden-trace harness stands outside the game, as the host does: between frames it
+    # drops the events the host environment posted (window focus, audio devices) and, when a
+    # run ends, empties the queue for the next one. Moved from scripts/record_golden_traces.py
+    # unchanged (Stage D, Task D4a); the frame's own pump still reads every batch it records
+    ('replay/tools/golden_traces.py', 'discard_environment_events'),
+    ('replay/tools/golden_traces.py', 'golden_game'),
 })
 _QUEUE_READING_ATTRIBUTES = frozenset({'get', 'poll', 'wait', 'peek', 'pump', 'clear'})
 _EVENT_MODULE_NAMES = frozenset({'event', 'fastevent'})

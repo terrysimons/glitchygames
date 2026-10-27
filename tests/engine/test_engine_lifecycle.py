@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GoldenTraceEngine, command_line
 from scripts.workspace_packages import declared_console_scripts, workspace_members
 
 from glitchygames import crt_power_on
@@ -35,6 +34,7 @@ from glitchygames.input import device_listing
 from glitchygames.live_sources import LiveSources
 from glitchygames.replay.tools import registry
 from glitchygames.replay.tools.children import game_entry_point
+from glitchygames.replay.tools.golden_traces import GoldenTraceEngine, command_line
 from glitchygames.replay.tools.registry import Tool
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import active_sources
@@ -150,9 +150,9 @@ def engine_run_environment(mocker):
 def build_engine(mocker, *, game: type[Scene], extra_arguments: tuple[str, ...] = ()):
     """Construct a real engine for ``game`` on ENGINE_ARGUMENTS plus ``extra_arguments``.
 
-    The engine is GoldenTraceEngine (scripts/record_golden_traces.py): GameEngine opening a
-    plain window, because SDL's dummy video driver warns "no fast renderer available" for
-    GameEngine's SCALED window, an error under pytest's filterwarnings.
+    The engine is GoldenTraceEngine (glitchygames/replay/tools/golden_traces.py): GameEngine
+    opening a plain window, because SDL's dummy video driver warns "no fast renderer available"
+    for GameEngine's SCALED window, an error under pytest's filterwarnings.
 
     Returns:
         GoldenTraceEngine: The engine, constructed (not started).

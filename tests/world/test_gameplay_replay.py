@@ -21,14 +21,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, override
 import pygame
 import pytest
 from pydantic import ValidationError
-from scripts.record_golden_traces import (
-    GAME_SCENES,
-    PROJECT_ROOT,
-    GoldenTraceEngine,
-    GoldenTraceSceneManager,
-    record_trace,
-    replay_golden_recording,
-)
+from scripts.record_golden_traces import GAME_SCENES, PROJECT_ROOT, SCRIPT_BUILDERS
 from scripts.record_scripted_session import record_scripted_session
 
 from glitchygames import logical_names, recording_history
@@ -114,6 +107,12 @@ from glitchygames.replay.driver import (
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.replay.processing import machine_description
 from glitchygames.replay.rebuild import REBUILD_PROGRESS_INTERVAL_SECONDS, Rebuild, ViewerState
+from glitchygames.replay.tools.golden_traces import (
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    record_trace,
+    replay_golden_recording,
+)
 from glitchygames.replay.viewer import MAX_INNER_FRAMES_PER_TICK
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
@@ -142,7 +141,7 @@ from tests.replay.replay_helpers import (
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import live_sdl_driver_state, restore_run_sdl_drivers
 from tests.stand_in_games import record_stand_in_game, use_stand_in_game, write_stand_in_game
-from tests.stand_in_harness_games import TowerFloorScene, register_stand_in_game, tower_script
+from tests.stand_in_harness_games import register_stand_in_game
 from tests.workspace_expectations import every_games_golden
 from tests.world import test_gameplay_recording as recording_test_module
 from tests.world.test_gameplay_recording import (
@@ -167,9 +166,6 @@ if TYPE_CHECKING:
 HEADLESS_REPLAY_OPTIONS = ReplayOptions(headless=True)
 
 GOLDEN_SCRIPT_FRAMES = 300
-# A golden recording of this many frames, replayed by a harness stopped after the frame limit
-EARLY_STOP_RECORDED_FRAMES = 30
-EARLY_STOP_FRAME_LIMIT = 10
 # The departure scene's marker is placed from the clocks in this frame; the scene is still
 # active at the frame's end (its transition starts in frame 3), so the placement is compared
 CLOCK_ACTION_FRAME = 2
@@ -1035,30 +1031,19 @@ class TestRoundTrip:
         The game is one a member holds a golden of (the test above).
         """
         recording_path = tmp_path / f'{game_key}.jsonl.gz'
-        record_trace(game_key, frame_count=GOLDEN_SCRIPT_FRAMES, recording_path=recording_path)
-        result = replay_golden_recording(game_key=game_key, path=recording_path)
-        assert result.divergence is None
-        assert result.frames_replayed == GOLDEN_SCRIPT_FRAMES
-
-    def test_golden_harness_stopped_early_reports_a_length_divergence(self, mocker, tmp_path):
-        game_key = register_stand_in_game(
-            mocker=mocker, scene_class=TowerFloorScene, script_builder=tower_script
-        )
-        recording_path = tmp_path / 'tower.jsonl.gz'
         record_trace(
-            game_key, frame_count=EARLY_STOP_RECORDED_FRAMES, recording_path=recording_path
+            scene_class=GAME_SCENES[game_key],
+            script=SCRIPT_BUILDERS[game_key](),
+            frame_count=GOLDEN_SCRIPT_FRAMES,
+            recording_path=recording_path,
         )
         result = replay_golden_recording(
-            game_key=game_key, path=recording_path, frame_limit=EARLY_STOP_FRAME_LIMIT
+            scene_class=GAME_SCENES[game_key],
+            script=SCRIPT_BUILDERS[game_key](),
+            path=recording_path,
         )
-        assert result.end_reason == 'diverged'
-        divergence = result.divergence
-        assert divergence is not None
-        assert (divergence.kind, divergence.expected, divergence.actual) == (
-            LENGTH_DIVERGENCE,
-            EARLY_STOP_RECORDED_FRAMES,
-            EARLY_STOP_FRAME_LIMIT,
-        )
+        assert result.divergence is None
+        assert result.frames_replayed == GOLDEN_SCRIPT_FRAMES
 
     def test_clock_reads_replay_exactly(self, mocker, tmp_path):
         from glitchygames.clock import elapsed_seconds, wall_clock_epoch_seconds

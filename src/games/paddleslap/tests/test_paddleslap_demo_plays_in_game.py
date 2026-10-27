@@ -7,9 +7,8 @@ bundled demo headless through its console script. This one plays PaddleSlap's ow
 
 from __future__ import annotations
 
-from scripts.record_golden_traces import FRAME_SECONDS
-
 from glitchygames.live_sources import LiveSources
+from glitchygames.replay.tools.golden_traces import FRAME_SECONDS
 from glitchygames.tracing import FRAMES_FIELD, read_trace_result
 from paddleslap import PADDLESLAP_DEMO_PATH, Game
 from tests.replay.playback_fixtures import step_finishing

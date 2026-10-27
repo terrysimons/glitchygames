@@ -403,9 +403,10 @@ def test_each_moved_option_is_unchanged_on_the_game(as_it_was):
 
 
 def test_an_option_listed_under_several_tools_is_one_game_flag_and_each_tools_option():
-    """A shared option (--headless: record-trace's and replay-trace's) is one flag on the game.
+    """A shared option (--headless: every tool that runs the game) is one flag on the game.
 
-    Each tool that lists it has it as a subcommand option; record-trace also takes --random-seed.
+    Each tool that lists it has it as a subcommand option; record-trace and record-golden-trace
+    also share --random-seed.
     """
     game = game_parser()
     subcommands = subcommand_parsers(parser=build_command_parser())
@@ -415,7 +416,8 @@ def test_an_option_listed_under_several_tools_is_one_game_flag_and_each_tools_op
             tools_by_flag.setdefault(option.flag, []).append(tool.name)
     shared = {flag: names for flag, names in tools_by_flag.items() if len(names) > 1}
 
-    assert shared['--headless'] == ['record-trace', 'replay-trace']
+    assert shared['--headless'] == ['record-trace', 'replay-trace', 'record-golden-trace']
+    assert shared['--random-seed'] == ['record-trace', 'record-golden-trace']
     for flag, names in shared.items():
         on_the_game = [action for action in game._actions if flag in action.option_strings]
         assert len(on_the_game) == 1, flag

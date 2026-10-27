@@ -154,6 +154,15 @@ ALLOWED_FUNCTION_BYPASSES: dict[str, dict[str, frozenset[str]]] = {
         'trace_recording_header': frozenset({'datetime.datetime.now'}),
         'measurement_run': frozenset({'datetime.datetime.now'}),
     },
+    # The golden-trace harness is the scripted player and the host, outside the game: it posts
+    # the input script's events into the real queue before each frame (the frame's pump reads
+    # them through the door, as it reads a player's), and drops the host environment's events
+    # by draining and reposting the rest. Moved from scripts/record_golden_traces.py unchanged
+    # (Stage D, Task D4a)
+    'replay/tools/golden_traces.py': {
+        'record_trace': frozenset({'pygame.event.post'}),
+        'discard_environment_events': frozenset({'pygame.event.get', 'pygame.event.post'}),
+    },
 }
 
 

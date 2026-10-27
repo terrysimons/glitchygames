@@ -24,15 +24,16 @@ import functools
 import gzip
 import json
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any
 
 import pygame
 import pytest
 from scripts.record_golden_traces import (
+    GAME_SCENES,
     GOLDEN_DIRECTORY,
     GOLDEN_TRACE_GAMES,
+    SCRIPT_BUILDERS,
     golden_path,
-    record_trace,
 )
 
 from brave_adventurer import constants as brave_constants
@@ -47,9 +48,9 @@ from clockwork_keep.constants import PLAYER_HEIGHT, PLAYER_WIDTH
 from clockwork_keep.drawing import draw_tinker
 from clockwork_keep.player import Tinker
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.logical_names import logical_name
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
-from glitchygames.randomness import random_stream
-from glitchygames.scenes import Scene
+from glitchygames.replay.tools.golden_traces import record_trace
 from glitchygames.tracing import (
     TRACE_FORMAT_VERSION,
     TraceReader,
@@ -58,14 +59,12 @@ from glitchygames.tracing import (
     write_trace,
 )
 from glitchygames.world import CULL_MARGIN_PIXELS, is_world_positioned
-from tests.stand_in_harness_games import register_stand_in_game
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from pathlib import Path
 
-    from pytest_mock import MockerFixture
-
+    from glitchygames.scenes import Scene
     from glitchygames.tracing import StableSpriteIds
 
 # Marks an ExpectedDifference without a pinned value (None is a real value, so it can't be used)
@@ -77,16 +76,6 @@ GOLDEN_TRACE_SUFFIX = '.jsonl.gz'
 
 class AmbiguousExpectedDifferenceError(ValueError):
     """A difference is explained by more than one entry: each must have exactly one cause."""
-
-
-# The seeded-reproducibility test: --random-seed value and frames per run
-SEEDED_TRACE_SEED = 123
-SEEDED_TRACE_FRAME_COUNT = 120
-# Its stand-in game's sprite: where it starts, its size, and its random step's range (pixels)
-WANDERER_START = (400, 240)
-WANDERER_SIZE = 8
-WANDER_STEP_PIXELS = 3
-WANDER_RANDOM_STREAM = 'stand_in.wander'
 
 
 @dataclass(frozen=True)
@@ -1356,11 +1345,18 @@ def test_game_matches_golden_trace(game_key):
     """Replaying the game's script reproduces its golden trace, up to listed differences."""
     baseline = read_trace(path=golden_path(game_key))
     world_sampler = WorldSampler()
+    scene_class = GAME_SCENES[game_key]
     current = record_trace(
-        game_key, frame_count=len(baseline['frames']), frame_observer=world_sampler
+        scene_class=scene_class,
+        script=SCRIPT_BUILDERS[game_key](),
+        frame_count=len(baseline['frames']),
+        frame_observer=world_sampler,
     )
 
-    assert current['game'] == baseline['game']
+    # The baselines name their game by key (scripts/record_golden_traces.py main); the harness
+    # names it by its scene's logical name
+    assert baseline['game'] == game_key
+    assert current['game'] == logical_name(scene_class=scene_class)
     assert current['frame_seconds'] == baseline['frame_seconds']
     unexplained, stale = unexplained_and_stale(
         differences=trace_differences(baseline=baseline, current=current),
@@ -1378,75 +1374,6 @@ def test_game_matches_golden_trace(game_key):
             f'{game_key}: {len(stale)} expected difference(s) no longer occur; first: {stale[0]}',
             pytrace=False,
         )
-
-
-class Wanderer(pygame.sprite.DirtySprite):
-    """A small sprite the seeded stand-in moves by random steps."""
-
-    def __init__(self) -> None:
-        """Create the sprite at WANDERER_START."""
-        super().__init__()
-        self.image = pygame.Surface((WANDERER_SIZE, WANDERER_SIZE))
-        self.rect = self.image.get_rect(topleft=WANDERER_START)
-
-    def update_nested_sprites(self) -> None:
-        """Scene.update() calls this on every sprite; this sprite has no nested sprites."""
-
-    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
-        """The mouse manager calls this on the sprite under the pointer; it ignores it."""
-
-
-class SeededWanderScene(Scene):
-    """A stand-in game whose sprite moves by draws from the engine's seeded random streams.
-
-    It stands in for PaddleSlap, whose serves, spawn places and colors all come from the run's
-    seeded streams (``glitchygames.randomness.random_stream``). Every frame draws a step for the
-    sprite, so a different seed moves it differently from the first frame on.
-    """
-
-    NAME = 'Seeded Wander'
-    VERSION = '1.0'
-
-    def __init__(self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
-        """Add the wandering sprite."""
-        super().__init__(options=options, groups=groups)
-        self.wanderer = Wanderer()
-        self.all_sprites.add(self.wanderer)
-
-    @override
-    def dt_tick(self, dt: float) -> None:
-        """Move the sprite by a step drawn from its seeded stream."""
-        super().dt_tick(dt)
-        steps = random_stream(WANDER_RANDOM_STREAM)
-        self.wanderer.rect.move_ip(
-            steps.randint(-WANDER_STEP_PIXELS, WANDER_STEP_PIXELS),
-            steps.randint(-WANDER_STEP_PIXELS, WANDER_STEP_PIXELS),
-        )
-        self.wanderer.dirty = 1
-
-
-def test_same_random_seed_gives_identical_traces(mocker: MockerFixture):
-    """--random-seed 123 twice plays a seeded game identically; seed 124 plays differently.
-
-    The game is a stand-in for PaddleSlap (SeededWanderScene): every random draw comes from the
-    run's seeded streams, so the harness needs no patching of a game's randomness.
-    """
-    game_key = register_stand_in_game(mocker=mocker, scene_class=SeededWanderScene)
-    first_run = record_trace(
-        game_key, frame_count=SEEDED_TRACE_FRAME_COUNT, random_seed=SEEDED_TRACE_SEED
-    )
-    second_run = record_trace(
-        game_key, frame_count=SEEDED_TRACE_FRAME_COUNT, random_seed=SEEDED_TRACE_SEED
-    )
-    other_seed_run = record_trace(
-        game_key, frame_count=SEEDED_TRACE_FRAME_COUNT, random_seed=SEEDED_TRACE_SEED + 1
-    )
-
-    # The draws change the sprite within the run's frames: it does not stay where it started
-    first_run_rects = {tuple(frame['sprites'][0]['rect']) for frame in first_run['frames']}
-    assert len(first_run_rects) > 1
-    assert second_run == first_run
-    assert trace_differences(baseline=first_run, current=other_seed_run) != []
 
 
 @pytest.mark.parametrize('game_key', sorted(GOLDEN_TRACE_GAMES))

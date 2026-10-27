@@ -370,7 +370,9 @@ games.
 - Transition captures hide a world-space player with `hidden` and restore it afterwards; the
   arriving capture snaps the camera to `camera_target()` on its followed axes only
   (`camera.snap_followed_axes_to`), or to the player on both axes when there is no target
-- Golden traces (`scripts/record_golden_traces.py`, `tests/world/test_golden_traces.py`) replay
+- Golden traces (`scripts/record_golden_traces.py` with our input scripts in
+  `scripts/golden_inputs.py`, on the engine's harness
+  `src/glitchygames/replay/tools/golden_traces.py`; `tests/world/test_golden_traces.py`) replay
   every game older than the world-space change (`GOLDEN_TRACE_GAMES`; Mr. Muncher and Drawing
   Fire, newer, have only their golden replays) and compare each sprite's rect and visibility,
   frame by frame, with baselines recorded before the world-space change. Every difference must
@@ -489,18 +491,29 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   front ends are built from it so names and options can't drift: `GameEngine.args` adds each
   tool to every game's command line (`add_game_flags`: `--record-trace` with `--random-seed`
   and `--headless`, `--replay-trace` and its options `--replay-fps`, `--audit`, `--compare-processing`, `--max-processing-slowdown`,
-  `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`, `--headless`), and
-  `_begin_run` runs a tool that doesn't run the game in its place (`run_game_flag_tool`). The
+  `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`, `--headless`,
+  `--record-golden-trace PATH` with `--input-script MODULE:NAME`, `--frame-count N`,
+  `--random-seed` and `--headless`), and `_begin_run` runs a tool that doesn't run the game, or
+  that runs it its own way (record-golden-trace runs the golden-trace harness), in its place
+  (`run_game_flag_tool`). The
   `glitchygames` console script (and `python -m glitchygames`, both via
   `src/glitchygames/__main__.py`, which hides pygame's banner first) has the same tools as subcommands
   (`glitchygames record-trace GAME PATH`, `glitchygames replay-trace PATH [--game GAME]`,
+  `glitchygames record-golden-trace GAME PATH --input-script MODULE:NAME --frame-count N`,
   `--project-root DIR`; arguments after a bare `--` go to the game). It starts the game as a child
   (`children.py`: `resolve_game` reads `GAME` as a script path, `MODULE:CALLABLE`, an installed
   console script or a module; `replay-trace` takes the game from the recording's header and asks
   for `--game` when its module no longer imports). `children.py` also holds the console-script
   lookups and the headless child replay/rebaseline the pytest plugin uses (pytest-free).
-  An option may be listed under several tools but is one game flag (`--headless`: record-trace's
-  and replay-trace's; record-trace also lists `--random-seed`). Two tool flags at once are
+  An option may be listed under several tools but is one game flag (`--headless`: every tool
+  that runs the game; record-trace and record-golden-trace also list `--random-seed`). The
+  golden-trace harness (`golden_traces.py`: `record_trace(*, scene_class, script, frame_count,
+  ...)`, `replay_golden_recording(*, scene_class, script, path, ...)`, `golden_game`,
+  `GoldenTraceEngine`, `InputScript`, `press`/`release`) runs any game by its scene class and an
+  `InputScript`; `load_input_script(*, reference)` reads `--input-script MODULE:NAME`: a callable
+  taking no arguments that returns an `InputScript`, its module looked for in the current
+  directory first. A trace's `game` is the scene's logical name (our goldens relabel theirs with
+  the game key). Our five games' scripts are `scripts/golden_inputs.py`. Two tool flags at once are
   refused, and a tool that runs no game must have a game handler. The general flags no tool
   lists (`--resolution`, ...) stay in `GameEngine.args`. A project's settings for the tools are
   `[tool.glitchygames]` in its `pyproject.toml` (`settings.py`: `load_project_settings(*,

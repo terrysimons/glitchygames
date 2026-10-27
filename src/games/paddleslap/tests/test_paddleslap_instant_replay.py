@@ -2,17 +2,19 @@
 
 Moved from the engine's tests (tests/replay/test_instant_replay.py), which keep the engine's
 instant replay covered with stand-in scenes (``InstantCountingScene`` and others). This runs
-PaddleSlap's own golden script through ``record_trace('paddleslap')``.
+PaddleSlap's own golden script through ``record_trace`` (scripts/golden_inputs.py).
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from scripts.record_golden_traces import GAME_SCENES, record_trace
+from scripts.golden_inputs import paddleslap_script
+from scripts.record_golden_traces import GAME_SCENES
 
 from glitchygames.instant_replay import JOURNAL_START_FRAME, InstantReplayJournal
 from glitchygames.replay.playback import INSTANT_PLAYBACK, PlaybackOptions, start_playback
+from glitchygames.replay.tools.golden_traces import record_trace
 from glitchygames.scenes import Scene, SceneManager
 
 if TYPE_CHECKING:
@@ -73,7 +75,8 @@ class TestAnExampleGame:
                 assert result.divergence is None, result.report()
 
         record_trace(
-            'paddleslap',
+            scene_class=scene_class,
+            script=paddleslap_script(),
             frame_count=2 * PADDLESLAP_JOURNALED_FRAMES + 1,
             frame_observer=start_and_watch,
         )

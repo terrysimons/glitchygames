@@ -795,7 +795,8 @@ def engine_test_imports_of_members(
     ``MEMBER_IMPORT_EXEMPT_MODULES`` and ``MEMBER_IMPORT_EXEMPT_NAMES`` are exempt.
 
     The tools in scripts/ are out of scope: they are not tests. ``scripts/record_golden_traces.py``
-    is the one root tests import, and it loads no game when imported (only when a game runs).
+    and ``scripts/golden_inputs.py`` are what root tests import of our games' scripts, and they
+    load no game when imported (only when a game runs).
 
     Args:
         project_root: The repository (its tests/ directory is scanned).

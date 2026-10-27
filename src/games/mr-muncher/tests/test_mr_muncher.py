@@ -13,15 +13,6 @@ from pathlib import Path
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
-    GoldenTraceEngine,
-    GoldenTraceSceneManager,
-    _golden_game,
-    command_line,
-    discard_environment_events,
-    press,
-    release,
-)
 
 import mr_muncher
 from glitchygames.audio.live import LiveAudio
@@ -30,6 +21,15 @@ from glitchygames.display_mode import set_display_mode
 from glitchygames.events.base import HashableEvent
 from glitchygames.exit_codes import ExitCode
 from glitchygames.randomness import reset_streams
+from glitchygames.replay.tools.golden_traces import (
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    command_line,
+    discard_environment_events,
+    golden_game,
+    press,
+    release,
+)
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.transitions import FadeTransition
@@ -340,7 +340,7 @@ class TestInput:
 
     def test_q_quits(self):
         """Q (by its position) ends the run through the engine's frame loop."""
-        with _golden_game('mr_muncher', random_seed=TEST_SEED) as manager:
+        with golden_game(scene_class=MrMuncherScene, random_seed=TEST_SEED) as manager:
             pygame.event.post(press(pygame.K_q))
             pygame.event.post(release(pygame.K_q))
             for _ in range(3):
@@ -806,7 +806,7 @@ class TestWholeGames:
             manager.run_frame()
 
     def test_a_cleared_level_leads_to_the_next(self):
-        with _golden_game('mr_muncher', random_seed=TEST_SEED) as manager:
+        with golden_game(scene_class=MrMuncherScene, random_seed=TEST_SEED) as manager:
             first = manager.active_scene
             assert isinstance(first, MrMuncherScene)
             _eat_all_but(first, (12, 18))
@@ -819,7 +819,7 @@ class TestWholeGames:
             assert second.message_shown[0] == 'REEL 2'
 
     def test_a_game_over_leads_to_a_new_game(self):
-        with _golden_game('mr_muncher', random_seed=TEST_SEED) as manager:
+        with golden_game(scene_class=MrMuncherScene, random_seed=TEST_SEED) as manager:
             last_life = MrMuncherScene(options=manager.OPTIONS, progress=GameProgress(lives=1))
             manager.switch_to_scene(last_life)
             autopilot = Autopilot(seek_capture_after_seconds=0.0)

@@ -1,9 +1,11 @@
-"""Stand-ins for the games the golden-trace harness runs (scripts/record_golden_traces.py).
+"""Stand-ins for the games the golden-trace harness runs.
 
-The harness finds a game and its input script by key (``GAME_SCENES``, ``SCRIPT_BUILDERS``):
-``record_trace``, ``replay_golden_recording``, ``record_scripted_session`` and
-``replay_through_engine`` all take a key. An engine test that ran a game through them runs a
-stand-in instead, registered under a stand-in key for that test alone
+The harness's ``record_trace`` and ``replay_golden_recording``
+(glitchygames/replay/tools/golden_traces.py) take a scene class and an input script, so an
+engine test passes a stand-in's directly. ``record_scripted_session`` and
+``replay_through_engine`` still find a game and its input script by key (``GAME_SCENES``,
+``SCRIPT_BUILDERS`` in scripts/record_golden_traces.py): an engine test that runs a game through
+them runs a stand-in instead, registered under a stand-in key for that test alone
 (``register_stand_in_game``), so the engine's tests import no game and run no game's code.
 
 ``TowerFloorScene`` stands in for Clockwork Keep's golden script: a 900-frame session with key
@@ -24,14 +26,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
-from scripts.record_golden_traces import (
-    GAME_SCENES,
-    SCRIPT_BUILDERS,
-    InputScript,
-    press,
-    release,
-)
+from scripts.record_golden_traces import GAME_SCENES, SCRIPT_BUILDERS
 
+from glitchygames.replay.tools.golden_traces import InputScript, press, release
 from glitchygames.scenes import Scene
 from glitchygames.transitions.elevator import ElevatorTransition
 
@@ -46,7 +43,7 @@ if TYPE_CHECKING:
 STAND_IN_GAME_KEY = 'stand_in_game'
 
 # The tower session's frames and key frames, copied from Clockwork Keep's golden script
-# (scripts/record_golden_traces.py:332-361, clockwork_keep_script, and the 900 frames the
+# (scripts/golden_inputs.py, clockwork_keep_script, and the 900 frames the
 # recording test ran it for, its former CLOCKWORK_KEEP_RECORDED_FRAMES in
 # tests/world/test_gameplay_recording.py): 900 frames; K_UP
 # tapped before frame 10 and K_RIGHT pressed before frame 70; the elevator called with K_w
@@ -219,7 +216,7 @@ def tower_script() -> InputScript:
     script.tap(TOWER_ELEVATOR_CALL_FRAME, pygame.K_w, held_frames=ELEVATOR_CALL_HELD_FRAMES)
     script.at(TOWER_RIDE_HOP_FRAME, press(pygame.K_UP), release(pygame.K_UP))
     # Pause with ESC (press and release together) and resume with SPACE, as the golden scripts'
-    # _pause_and_resume does (scripts/record_golden_traces.py)
+    # _pause_and_resume does (scripts/golden_inputs.py)
     script.at(TOWER_PAUSE_FRAME, press(pygame.K_ESCAPE), release(pygame.K_ESCAPE))
     script.at(TOWER_RESUME_FRAME, press(pygame.K_SPACE))
     script.at(TOWER_RESUME_FRAME + 2, release(pygame.K_SPACE))

@@ -565,7 +565,7 @@ Two kinds of golden test pin the game's behaviour frame by frame:
 | Golden replay | `src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz` (and `golden-papyrus.jsonl.gz`), both replayed through the launcher, `brave-adventurer`, which starts the game each header names | `scripts/record_scripted_session.py --game brave_adventurer --frames 400` through the real engine loop: the golden input script, then a controls tail (walk left, jump with Space, quit with Q): 472 frames | Replayed in a child process with `--replay-trace PATH --headless` by the replay pytest plugin; any divergence fails. `tests/replay/test_golden_replays.py` also checks that every bound control is exercised, or listed with the reason it is not (no gamepad on the dummy driver) |
 | Golden trace | `tests/world/golden/brave_adventurer.jsonl.gz` (and `brave_adventurer_papyrus.jsonl.gz`) | `scripts/record_golden_traces.py`, before the world-space change | `tests/world/test_golden_traces.py` replays the script and compares every sprite's rect and visibility with that baseline; every difference must be explained by exactly one `ExpectedDifference` rule (engine culling, separate snapping, the pose fix, scarabs resting on their drawn underside, and the player falling into the screen-4 pit in its falling pose instead of its running pose) |
 
-The golden script (`brave_adventurer_script()` in `scripts/record_golden_traces.py`) runs right
+The golden script (`brave_adventurer_script()` in `scripts/golden_inputs.py`) runs right
 over screens 0 and 1 jumping for the higher scarabs, pauses and resumes, then places the
 player at x = 2400 (a 900-frame run cannot reach the first pit from the start) and jumps the
 two screen-3 walls and the screen-4 pit before walking back. Re-record either golden only
@@ -800,4 +800,4 @@ names; and its one browser page, the title screen, ships all four archives, the 
 | `src/games/brave-adventurer/tests/` (`core/`, `classic/`, `papyrus/`) | The games' tests |
 | `src/games/brave-adventurer/tests/fixtures/replays/golden-*.jsonl.gz` | The golden replays |
 | `tests/world/golden/brave_adventurer*.jsonl.gz` | The golden traces |
-| `scripts/record_scripted_session.py`, `scripts/record_golden_traces.py` | The scripts that record them, with the input scripts |
+| `scripts/record_scripted_session.py`, `scripts/record_golden_traces.py`, `scripts/golden_inputs.py` | The scripts that record them, and the input scripts |

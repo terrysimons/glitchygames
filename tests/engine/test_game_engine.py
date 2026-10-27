@@ -122,7 +122,7 @@ class PlainWindowEngine(GameEngine):
     available" (an error under pytest's filterwarnings); on a real driver (cocoa, x11) SCALED and
     FULLSCREEN would change the display every later test on the worker draws on, and FULLSCREEN
     would take over the screen. mode_flags keeps what the engine chose, so tests can check it;
-    scripts/record_golden_traces.py's GoldenTraceEngine opens its window the same way.
+    glitchygames/replay/tools/golden_traces.py's GoldenTraceEngine opens its window the same way.
     """
 
     @override

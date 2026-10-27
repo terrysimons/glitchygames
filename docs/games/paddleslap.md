@@ -590,7 +590,7 @@ Two sound effects, loaded with `glitchygames.game_objects.load_sound` from
 | `src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz` | Golden replay: 622 frames at 800×480, seed 20261018, recorded through the real engine loop by `scripts/record_scripted_session.py --game paddleslap --frames 600` | The replay plugin (`src/glitchygames/testing/replays.py`) replays it with `paddleslap --replay-trace ... --headless` and fails unless it exits `SUCCESS`; `tests/replay/test_golden_replays.py` checks the fixture set and the controls rule |
 | `src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz` | Bundled demo: 450 frames of `Game`, recorded with `--frames 450 --script-only` (before the script's pause, no quit) | `tests/replay/test_bundled_demos.py` replays it headless and plays it through `play_recording` inside a running game |
 
-The golden script (`paddleslap_script` in `scripts/record_golden_traces.py`) steers both paddles
+The golden script (`paddleslap_script` in `scripts/golden_inputs.py`) steers both paddles
 with a `PaddleTracker`: each paddle holds its up or down key to follow the nearest ball moving
 toward it, with a 12 px dead zone. It pauses with `Space` at frame 450 and resumes at frame 510.
 The golden replay then adds the controls tail (`paddleslap_controls`): `Q` and `Esc` pressed and
@@ -626,7 +626,7 @@ docstring of `scripts/record_scripted_session.py`). Replay performance for both 
 | `src/glitchygames/scenes/builtin_scenes/pause_scene.py` | `PauseScene` |
 | `src/glitchygames/scenes/builtin_scenes/game_over_scene.py` | `GameOverScene`, `TextSprite` |
 | `src/glitchygames/input/action_map.py` | `ActionMap` |
-| `scripts/record_golden_traces.py` | The golden script (`paddleslap_script`, `PaddleTracker`) and the golden trace recorder |
+| `scripts/golden_inputs.py`, `scripts/record_golden_traces.py` | The golden script (`paddleslap_script`, `PaddleTracker`) and the golden trace recorder |
 | `scripts/record_scripted_session.py` | The golden replay and demo recorder, and the controls tail |
 | `src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz` | The golden replay |
 | `tests/world/golden/paddleslap.jsonl.gz` | The golden trace baseline |

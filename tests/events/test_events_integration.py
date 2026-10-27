@@ -9,7 +9,6 @@ event door (``ScriptedBatchSources``). The engine's own managers route each even
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GoldenTraceEngine, GoldenTraceSceneManager, command_line
 
 from glitchygames.engine import GameEngine
 from glitchygames.events import UnhandledEventError
@@ -17,6 +16,11 @@ from glitchygames.events.audio import AudioEventManager
 from glitchygames.events.controller import ControllerEventManager
 from glitchygames.input.devices import CONTROLLER_KIND, DeviceDescriptor, ReplayDeviceRegistry
 from glitchygames.live_sources import LiveSources
+from glitchygames.replay.tools.golden_traces import (
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    command_line,
+)
 from glitchygames.scenes import Scene
 from glitchygames.sources import install_sources
 

@@ -9,7 +9,6 @@ import argparse
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GoldenTraceEngine, GoldenTraceSceneManager, command_line
 
 from glitchygames.events import (
     AudioEvents,
@@ -19,6 +18,11 @@ from glitchygames.events import (
 )
 from glitchygames.events.audio import AudioEventManager
 from glitchygames.live_sources import LiveSources
+from glitchygames.replay.tools.golden_traces import (
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    command_line,
+)
 from glitchygames.scenes import Scene
 from glitchygames.sources import install_sources
 

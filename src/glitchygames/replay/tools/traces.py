@@ -1,12 +1,17 @@
-"""``glitchygames record-trace`` and ``glitchygames replay-trace``: the game runs as a child.
+"""``glitchygames record-trace``, ``replay-trace`` and ``record-golden-trace``: the game runs.
 
-Both tools run the game, so their subcommands start it as a child process with the tool's flag
-(``Tool.child_arguments``: ``--record-trace PATH``, ``--replay-trace PATH`` and the options
-given), where the game's own engine records or replays exactly as the flag on the game does.
-The child's exit status is the command's.
+Each tool runs the game, so its subcommand starts it as a child process with the tool's flag
+(``Tool.child_arguments``: ``--record-trace PATH``, ``--replay-trace PATH``,
+``--record-golden-trace PATH`` and the options given), where the game's own engine records or
+replays exactly as the flag on the game does. The child's exit status is the command's.
 
 - ``record-trace GAME PATH``: ``GAME`` is read by ``children.resolve_game`` (a script path, an
   entry point, a console script or a module).
+- ``record-golden-trace GAME PATH --input-script MODULE:NAME --frame-count N``: ``GAME`` is read
+  as ``record-trace``'s is. On the game, the flag runs the golden-trace harness in place of the
+  game's own run (``record_golden_trace_on_the_game``): the game's scene class, driven by the
+  input script for N frames at a fixed 1/60 second, every sprite sampled each frame
+  (glitchygames/replay/tools/golden_traces.py).
 - ``replay-trace PATH``: the game is the one the recording's header names: the installed console
   script that starts its module (``children.console_script_for_game_module``). When that module
   no longer imports (a moved script), or no console script starts it, the command asks for
@@ -18,9 +23,10 @@ The command says on standard error which game it runs and how it read it.
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.tools.children import (
@@ -41,6 +47,9 @@ if TYPE_CHECKING:
     import argparse
 
     from glitchygames.replay.tools.registry import Tool
+    from glitchygames.scenes import Scene
+
+LOG = logging.getLogger('game.tools')
 
 # How each form of GAME is named when the command says which game it runs
 FORM_DESCRIPTIONS = {
@@ -248,3 +257,87 @@ def replay_trace_command(
     return run_game_with_tool(
         tool=tool, arguments=arguments, game_arguments=game_arguments, game=game, launch=launch
     )
+
+
+def refused(*, message: str, exit_code: ExitCode) -> ExitCode:
+    """Log why a tool run on the game is refused, as an error (no traceback: it is the user's).
+
+    Args:
+        message: Why.
+        exit_code: How the run ends.
+
+    Returns:
+        ``exit_code``.
+
+    """
+    LOG.error('%s', message)
+    return exit_code
+
+
+def record_golden_trace_command(
+    *, tool: Tool, arguments: argparse.Namespace, game_arguments: list[str]
+) -> int:
+    """Run ``glitchygames record-golden-trace GAME PATH``: the game records its golden trace.
+
+    ``GAME`` is read and started as ``record-trace``'s is (``record_trace_command``); the child
+    gets ``--record-golden-trace PATH`` and the input script, frame count and seed given.
+
+    Args:
+        tool: The record-golden-trace tool.
+        arguments: The subcommand's parsed arguments.
+        game_arguments: The arguments after a bare ``--``, for the game.
+
+    Returns:
+        The game's exit status, or ``ExitCode.OPTIONS_REFUSED`` when ``GAME`` names no game.
+
+    """
+    return record_trace_command(tool=tool, arguments=arguments, game_arguments=game_arguments)
+
+
+def record_golden_trace_on_the_game(
+    *, options: dict[str, Any], game: type[Scene] | Scene
+) -> ExitCode:
+    """Run ``--record-golden-trace PATH`` on a game: record its golden trace in place of its run.
+
+    The game's scene class (a scene the game passed in is run by its class) runs in the
+    golden-trace harness, driven by ``--input-script MODULE:NAME`` (``load_input_script``: a
+    callable taking no arguments that returns an ``InputScript``) for ``--frame-count N``
+    frames, seeded by ``--random-seed`` (the harness's ``RANDOM_SEED`` when not given, so a
+    golden trace is reproducible without one). The trace is written to PATH with the golden
+    source (``GOLDEN_TRACE_SOURCE``), as scripts/record_golden_traces.py writes ours.
+
+    Args:
+        options: The game's parsed options (``GameEngine.OPTIONS``).
+        game: The game (its class, or a scene the game passed in).
+
+    Returns:
+        ``ExitCode.SUCCESS`` once the trace is written; ``ExitCode.OPTIONS_REFUSED`` when the
+        input script reference names no input script; ``ExitCode.CANNOT_WRITE_OUTPUT`` when
+        the trace can't be written.
+
+    """
+    # Imported here: the harness imports the engine, which imports the tool table (this module)
+    from glitchygames.replay.tools import golden_traces
+    from glitchygames.scenes import Scene
+    from glitchygames.tracing import write_trace
+
+    try:
+        script = golden_traces.load_input_script(reference=options['input_script'])
+    except golden_traces.InputScriptError as error:
+        return refused(message=f'--input-script: {error}', exit_code=ExitCode.OPTIONS_REFUSED)
+    random_seed: int | None = options.get('random_seed')
+    trace = golden_traces.record_trace(
+        scene_class=type(game) if isinstance(game, Scene) else game,
+        script=script,
+        frame_count=options['frame_count'],
+        random_seed=golden_traces.RANDOM_SEED if random_seed is None else random_seed,
+    )
+    path = Path(options['record_golden_trace'])
+    try:
+        write_trace(trace={'source': golden_traces.GOLDEN_TRACE_SOURCE, **trace}, path=path)
+    except OSError as error:
+        return refused(
+            message=f'--record-golden-trace: cannot write {path} ({error})',
+            exit_code=ExitCode.CANNOT_WRITE_OUTPUT,
+        )
+    return ExitCode.SUCCESS

@@ -1,6 +1,6 @@
 """A simple Mr. Muncher player: it eats sprockets, keeps away from munchers and hunts blue ones.
 
-The golden replay's input script (scripts/record_golden_traces.py: ``mr_muncher_script``)
+The golden replay's input script (scripts/golden_inputs.py: ``mr_muncher_script``)
 steers the player with it, pressing the arrow key it asks for, and the tests use it to play
 whole levels. It reads the scene (as a person reads the screen) and never changes it.
 

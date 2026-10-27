@@ -3,8 +3,9 @@
 The engine tests run ``GameEngine.start()`` and ``SceneManager.start()`` headless, with the
 scene manager's clock replaced by a fake one and input posted into pygame's real event queue,
 so every recorded value goes through the real frame loop and event dispatch. The golden test
-runs a game's golden-trace script (``scripts/record_golden_traces.py``) with recording on and
-checks the recording's sprites against the golden harness's own frames.
+runs a golden input script through the engine's golden-trace harness
+(``glitchygames/replay/tools/golden_traces.py``) with recording on and checks the recording's
+sprites against the harness's own frames.
 """
 
 from __future__ import annotations
@@ -25,13 +26,6 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
-    FRAME_SECONDS,
-    GoldenTraceEngine,
-    GoldenTraceSceneManager,
-    command_line,
-    record_trace,
-)
 
 from glitchygames.effects.shake import Shake, ShakeStyle
 from glitchygames.engine import game_engine as game_engine_module
@@ -64,6 +58,14 @@ from glitchygames.recording import (
     event_from_record,
 )
 from glitchygames.recording_history import CONTENT_HASH_FIELD, PROCESSING_SECONDS_FIELD
+from glitchygames.replay.tools.golden_traces import (
+    FRAME_SECONDS,
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    InputScript,
+    command_line,
+    record_trace,
+)
 from glitchygames.scene_start import SceneStart
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
@@ -79,7 +81,6 @@ from tests.stand_in_harness_games import (
     TOWER_RIDE_HOP_FRAME,
     TOWER_WALK_RIGHT_FRAME,
     TowerFloorScene,
-    register_stand_in_game,
     tower_script,
 )
 
@@ -906,10 +907,9 @@ class TestRecordingThroughTheEngine:
         assert first_start.first_logic_frame is not None
         assert first_start.first_logic_frame.arrived_by_transition is False
 
-    def test_saves_opened_before_recording_are_in_the_header(self, mocker, tmp_path):
+    def test_saves_opened_before_recording_are_in_the_header(self, tmp_path):
         """A store the game opened before recording started is snapshotted into the header."""
         recording_path = tmp_path / 'session.jsonl.gz'
-        game_key = register_stand_in_game(mocker=mocker, scene_class=SaveOpeningScene)
 
         def write_a_score(scene: Scene) -> None:
             # The stand-in opened its saves in __init__, before recording starts
@@ -917,7 +917,8 @@ class TestRecordingThroughTheEngine:
             scene.saves.save('high_scores', {'scores': [{'score': 7}]})
 
         record_trace(
-            game_key,
+            scene_class=SaveOpeningScene,
+            script=InputScript(),
             frame_count=2,
             recording_path=recording_path,
             before_recording=write_a_score,
@@ -1049,9 +1050,6 @@ def test_recording_matches_the_golden_harness_frames(mocker, tmp_path):
     and a release queued together.
     """
     path = tmp_path / 'tower.jsonl.gz'
-    game_key = register_stand_in_game(
-        mocker=mocker, scene_class=TowerFloorScene, script_builder=tower_script
-    )
     transition_frames = mocker.spy(SceneManager, '_process_transition_events')
     ride_frames: set[int] = set()
 
@@ -1062,7 +1060,8 @@ def test_recording_matches_the_golden_harness_frames(mocker, tmp_path):
             ride_frames.add(frame_number)
 
     golden = record_trace(
-        game_key,
+        scene_class=TowerFloorScene,
+        script=tower_script(),
         frame_count=TOWER_RECORDED_FRAMES,
         recording_path=path,
         frame_observer=note_ride_frames,

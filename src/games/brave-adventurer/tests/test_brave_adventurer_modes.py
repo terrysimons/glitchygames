@@ -16,16 +16,6 @@ from typing import TYPE_CHECKING, Self
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
-    SCREEN_RESOLUTION,
-    GoldenTraceEngine,
-    GoldenTraceSceneManager,
-    command_line,
-    deterministic_environment,
-    discard_environment_events,
-    press,
-    release,
-)
 
 import brave_adventurer
 import brave_adventurer_modes
@@ -42,6 +32,16 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_name
 from glitchygames.recording import post_input_event
+from glitchygames.replay.tools.golden_traces import (
+    SCREEN_RESOLUTION,
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    command_line,
+    deterministic_environment,
+    discard_environment_events,
+    press,
+    release,
+)
 from glitchygames.scenes import SceneManager
 from glitchygames.tracing import read_trace_result, write_trace
 

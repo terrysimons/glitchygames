@@ -10,14 +10,14 @@ from typing import TYPE_CHECKING, Any, Self
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
+
+from glitchygames.live_sources import LiveSources
+from glitchygames.replay.tools.golden_traces import (
     FRAME_SECONDS,
     GoldenTraceEngine,
     GoldenTraceSceneManager,
     command_line,
 )
-
-from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene
 from glitchygames.sources import (
     NoScopedSourcesError,

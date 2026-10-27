@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any, Protocol, Self, override
 
 import pygame
 import pytest
-from scripts.record_golden_traces import FRAME_SECONDS, press, release
 
 from glitchygames import logical_names
 from glitchygames.audio.live import VoiceState
@@ -42,6 +41,7 @@ from glitchygames.replay.playback import (
     start_playback,
     start_playback_from_recording,
 )
+from glitchygames.replay.tools.golden_traces import FRAME_SECONDS, press, release
 from glitchygames.scene_start import SceneStart
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene

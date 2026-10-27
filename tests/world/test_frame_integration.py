@@ -1,8 +1,9 @@
 """The engine's camera aim and world-sprite positioning, run inside the real frame.
 
 Runs small real scenes headless through the golden-trace harness
-(``scripts/record_golden_traces.py``), which steps frames exactly as ``SceneManager.start()``
-does, without pacing. Nothing in pygame is mocked: the rects asserted are the ones drawn.
+(``glitchygames/replay/tools/golden_traces.py``), which steps frames exactly as
+``SceneManager.start()`` does, without pacing. Nothing in pygame is mocked: the rects asserted
+are the ones drawn.
 """
 
 from __future__ import annotations
@@ -18,18 +19,6 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
-    FRAME_SECONDS,
-    RANDOM_SEED,
-    SCREEN_RESOLUTION,
-    GoldenTraceEngine,
-    GoldenTraceSceneManager,
-    command_line,
-    deterministic_environment,
-    discard_environment_events,
-    press,
-    release,
-)
 
 from glitchygames import live_sources as live_sources_module
 from glitchygames.camera import Camera2D, FollowAxes
@@ -47,6 +36,18 @@ from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
 from glitchygames.process import run_command
 from glitchygames.randomness import capture_stream_states, random_stream
 from glitchygames.replay.ghosts import GhostRecorder, GhostSample, GhostSprite, GhostTrack
+from glitchygames.replay.tools.golden_traces import (
+    FRAME_SECONDS,
+    RANDOM_SEED,
+    SCREEN_RESOLUTION,
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    command_line,
+    deterministic_environment,
+    discard_environment_events,
+    press,
+    release,
+)
 from glitchygames.scene_start import SceneStart, rebuild_scene, scene_start_capture_enabled
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene

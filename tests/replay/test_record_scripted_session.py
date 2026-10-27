@@ -6,15 +6,7 @@ import dataclasses
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
-    GAME_MODULES,
-    PROJECT_ROOT,
-    SCRIPT_BUILDERS,
-    GoldenTraceSceneManager,
-    InputScript,
-    press,
-    release,
-)
+from scripts.record_golden_traces import GAME_MODULES, PROJECT_ROOT, SCRIPT_BUILDERS
 from scripts.record_scripted_session import (
     CONTROLS_TAIL_BUILDERS,
     GAME_CONSOLE_SCRIPTS,
@@ -35,6 +27,12 @@ from glitchygames.events import GAMEEVENT
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.state import IDLE_INPUT
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, post_event
+from glitchygames.replay.tools.golden_traces import (
+    GoldenTraceSceneManager,
+    InputScript,
+    press,
+    release,
+)
 from glitchygames.tracing import read_trace_result
 from tests.replay.replay_helpers import replay_through_engine
 from tests.stand_in_harness_games import (

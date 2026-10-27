@@ -12,13 +12,6 @@ from pathlib import Path
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
-    GoldenTraceEngine,
-    _golden_game,
-    command_line,
-    press,
-    release,
-)
 
 from brave_adventurer import game as brave_adventurer_game
 from brave_adventurer.drawing import draw_player
@@ -55,6 +48,13 @@ from glitchygames.display_mode import set_display_mode
 from glitchygames.events.base import HashableEvent
 from glitchygames.exit_codes import ExitCode
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
+from glitchygames.replay.tools.golden_traces import (
+    GoldenTraceEngine,
+    command_line,
+    golden_game,
+    press,
+    release,
+)
 from glitchygames.scenes import SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import AnimatedSprite
@@ -1064,10 +1064,14 @@ class TestJumpInput:
 class TestQuitKey:
     """Q (by position) ends the run."""
 
-    @pytest.mark.parametrize('game_key', ['brave_adventurer', 'brave_adventurer_papyrus'])
-    def test_quit_position_ends_the_run(self, game_key):
+    @pytest.mark.parametrize(
+        'scene_class',
+        [BraveAdventurerScene, PapyrusBraveAdventurerScene],
+        ids=['brave_adventurer', 'brave_adventurer_papyrus'],
+    )
+    def test_quit_position_ends_the_run(self, scene_class):
         """Through the engine's frame loop (next_scene = None never ended it)."""
-        with _golden_game(game_key, random_seed=1) as manager:
+        with golden_game(scene_class=scene_class, random_seed=1) as manager:
             pygame.event.post(press(pygame.K_q))
             pygame.event.post(release(pygame.K_q))
             for _ in range(3):

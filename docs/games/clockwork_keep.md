@@ -646,7 +646,7 @@ Clockwork Keep has both of the engine's golden checks:
 
 - **Golden trace** (`tests/world/golden/clockwork_keep.jsonl.gz`, checked by
   `tests/world/test_golden_traces.py`): a 900-frame scripted run (`clockwork_keep_script` in
-  `scripts/record_golden_traces.py`, fixed dt 1/60) recorded before the world-space change. It
+  `scripts/golden_inputs.py`, fixed dt 1/60) recorded before the world-space change. It
   jumps for a cog, walks both ways, is placed on the first elevator at frame 330 (reaching it
   takes more platforming than the script holds), presses W at frame 350, rides frames 352-592,
   then walks and pauses (frames 740-790) on Gear Works. Each sprite's rect and visibility must
@@ -696,7 +696,7 @@ the native-driver comparison while iterating).
 | `src/games/clockwork-keep/src/clockwork_keep/constants.py` | Screen, physics, layers, gameplay, colours, elevator ride feel, the clock |
 | `src/glitchygames/transitions/elevator.py` | `ElevatorTransition` (engine, written for this game) |
 | `src/glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The pause and game-over screens |
-| `scripts/record_golden_traces.py` | The golden input script (`clockwork_keep_script`) and the golden trace harness |
+| `scripts/golden_inputs.py`, `scripts/record_golden_traces.py` | The golden input script (`clockwork_keep_script`) and the golden trace recorder (on the engine's harness, `src/glitchygames/replay/tools/golden_traces.py`) |
 | `scripts/record_scripted_session.py` | Records the golden replay (`clockwork_keep_controls` is its tail) |
 | `tests/world/golden/clockwork_keep.jsonl.gz` | Golden trace baseline |
 | `src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz` | Golden replay fixture |

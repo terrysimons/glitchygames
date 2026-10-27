@@ -1,8 +1,8 @@
 """Input during a scene transition: presses are discarded, releases and system events delivered.
 
 Runs real games and scenes headless through the golden-trace harness
-(``scripts/record_golden_traces.py``), which steps frames exactly as ``SceneManager.start()``
-does, without pacing.
+(``glitchygames/replay/tools/golden_traces.py``), which steps frames exactly as
+``SceneManager.start()`` does, without pacing.
 """
 
 from __future__ import annotations
@@ -14,7 +14,10 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
+
+from glitchygames.input import ActionMap
+from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
+from glitchygames.replay.tools.golden_traces import (
     FRAME_SECONDS,
     RANDOM_SEED,
     SCREEN_RESOLUTION,
@@ -26,9 +29,6 @@ from scripts.record_golden_traces import (
     press,
     release,
 )
-
-from glitchygames.input import ActionMap
-from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.scenes.scene import (

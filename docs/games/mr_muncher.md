@@ -83,7 +83,7 @@ Its recordings name it `games.mr_muncher.game:MrMuncherScene`, its golden replay
 | `src/games/mr-muncher/tests/test_mr_muncher.py` | The scene: game flow, scoring, input, saves, screens, whole games |
 | `src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py` | The parts: maze, levels, actors, pictures, scenery, sounds, autopilot |
 | `src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz` | The golden replay (2,072 frames) |
-| `scripts/record_golden_traces.py` | `mr_muncher_script` and `MuncherSteering` (the autopilot pressing arrow keys) |
+| `scripts/golden_inputs.py` | `mr_muncher_script` and `MuncherSteering` (the autopilot pressing arrow keys) |
 | `scripts/record_scripted_session.py` | `mr_muncher_controls` (the golden replay's controls tail) and the command that records the fixture |
 
 ## Scenes and how they switch
@@ -666,7 +666,7 @@ live voice or no audio is available, the game logs a warning and plays without i
 the screen, and never changes it. `Autopilot.choose_direction(scene=...)` returns the direction
 to ask for in each frame. It has two uses:
 
-- **Steering the golden replay.** `scripts/record_golden_traces.py: mr_muncher_script` wraps it
+- **Steering the golden replay.** `scripts/golden_inputs.py: mr_muncher_script` wraps it
   in `MuncherSteering`, which holds the arrow key for the direction the autopilot wants
   (pressing it again if the player still wants another way after 4 frames). With
   `seek_capture_after_seconds=22.0` it walks into a muncher once, so the recording includes a

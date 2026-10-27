@@ -12,12 +12,12 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GoldenTraceEngine
 
 from glitchygames import events
 from glitchygames.engine import GameEngine
 from glitchygames.events import HashableEvent
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
+from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene, SceneManager
 from tests.input.stand_in_devices import install_stand_in_devices
 
@@ -148,9 +148,9 @@ class NativeWindowMessagesScene(RecordingScene):
 def constructed_engine(*, mocker, game: type[Scene]) -> Iterator[GoldenTraceEngine]:
     """Construct a real engine for a game; afterwards put pygame's blocked types back.
 
-    The engine is GoldenTraceEngine (scripts/record_golden_traces.py): GameEngine opening a
-    plain window, because SDL's dummy video driver warns "no fast renderer available" for
-    GameEngine's SCALED window, an error under pytest's filterwarnings.
+    The engine is GoldenTraceEngine (glitchygames/replay/tools/golden_traces.py): GameEngine
+    opening a plain window, because SDL's dummy video driver warns "no fast renderer available"
+    for GameEngine's SCALED window, an error under pytest's filterwarnings.
 
     Args:
         mocker: pytest-mock's fixture.

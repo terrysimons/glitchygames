@@ -35,7 +35,12 @@ from glitchygames.argument_types import non_negative_int, non_negative_percent
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.driver import REPLAY_FPS_CHOICES
 from glitchygames.replay.tools.children import GAME_FORMS
-from glitchygames.replay.tools.traces import record_trace_command, replay_trace_command
+from glitchygames.replay.tools.traces import (
+    record_golden_trace_command,
+    record_golden_trace_on_the_game,
+    record_trace_command,
+    replay_trace_command,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -666,6 +671,26 @@ RANDOM_SEED_OPTION = ToolOption(
     ),
     default=None,
 )
+# record-golden-trace's options: the input script (golden_traces.load_input_script reads it:
+# a callable taking no arguments that returns an InputScript) and how many frames it runs
+INPUT_SCRIPT_OPTION = ToolOption(
+    flag='--input-script',
+    kind='reference',
+    metavar='MODULE:NAME',
+    required=True,
+    help=(
+        'with --record-golden-trace: the input script, a callable taking no arguments that '
+        'returns an InputScript (glitchygames.replay.tools.golden_traces); MODULE is looked '
+        'for in the current directory first'
+    ),
+)
+FRAME_COUNT_OPTION = ToolOption(
+    flag='--frame-count',
+    kind='count',
+    metavar='N',
+    required=True,
+    help='with --record-golden-trace: how many frames to record, each 1/60 second',
+)
 # The command's GAME (children.resolve_game reads it)
 GAME_FORMS_TEXT = '; '.join(GAME_FORMS)
 GAME_ARGUMENT = ToolOption(
@@ -724,5 +749,19 @@ TOOLS: tuple[Tool, ...] = (
         command_handler=replay_trace_command,
         value_help='the recording to replay',
         command_arguments=(GAME_OVERRIDE_OPTION,),
+    ),
+    Tool(
+        name='record-golden-trace',
+        help=(
+            "record a golden trace: the game's scene driven headless by a scripted input for a "
+            'fixed number of 1/60-second frames, every sprite sampled each frame (default: off)'
+        ),
+        options=(INPUT_SCRIPT_OPTION, FRAME_COUNT_OPTION, RANDOM_SEED_OPTION, HEADLESS_OPTION),
+        runs_game=True,
+        # The game runs in the golden-trace harness, in place of its own run
+        game_handler=record_golden_trace_on_the_game,
+        command_handler=record_golden_trace_command,
+        value_help='where the golden trace goes',
+        command_arguments=(GAME_ARGUMENT,),
     ),
 )

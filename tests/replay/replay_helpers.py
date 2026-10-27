@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
-    GAME_SCENES,
+from scripts.record_golden_traces import GAME_SCENES
+
+from glitchygames.replay.tools.golden_traces import (
     GoldenTraceEngine,
     GoldenTraceSceneManager,
     command_line,
 )
-
 from glitchygames.tracing import read_trace_result, write_trace
 
 if TYPE_CHECKING:

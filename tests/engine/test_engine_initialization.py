@@ -12,13 +12,13 @@ from pathlib import Path
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GoldenTraceEngine
 
 from glitchygames import engine as engine_package
 from glitchygames import timing
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
 from glitchygames.exit_codes import ExitCode
+from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene
 from glitchygames.timing import GIL_SWITCH_INTERVAL_SECONDS, FastTimer
 

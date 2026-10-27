@@ -123,7 +123,7 @@ anyone: players drop into and out of them, and the next one starts on its own.
 | `scripts/simulate_drawing_fire.py` | Headless computer-against-computer battles across seeds (the tuning tool) |
 | `src/games/drawing-fire/tests/` | The tests, one file per module, plus the simulation's and the move's (`test_drawing_fire_logical_names.py`, `_install_location.py`, `_recording_history.py`, `_wheel.py`) |
 | `src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz` | The golden replay (1,614 frames) |
-| `scripts/record_golden_traces.py` | `drawing_fire_script` and `DrawingFireMouse` (the golden replay's player) |
+| `scripts/golden_inputs.py` | `drawing_fire_script` and `DrawingFireMouse` (the golden replay's player) |
 | `scripts/record_scripted_session.py` | `drawing_fire_controls` (the controls tail: Q) and the command that records the fixture |
 
 ## One frame
