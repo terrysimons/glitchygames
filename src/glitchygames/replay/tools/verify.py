@@ -17,8 +17,20 @@ The exit code (``verification_exit_code``):
 - ``ExitCode.REPLAY_DIVERGED``: some diverged, and nothing else went wrong;
 - otherwise the first other failure's own code: ``MISSING_INPUT`` (no such recording),
   ``UNUSABLE_INPUT`` (not a recording, another game's, or settings that can't be read),
-  ``OPTIONS_REFUSED`` (its game can't be found), ``INTERNAL_ERROR`` (a replay that crashed,
-  ran too long, or exited with a status that is no ``ExitCode``), and so on.
+  ``OPTIONS_REFUSED`` (its game can't be found), ``INTERNAL_ERROR`` (a replay that crashed
+  inside the engine, ran too long, or exited with a status that is no ``ExitCode``), and so on.
+
+A replay that crashes before its engine starts (in the game's own code before
+``GameEngine.start()``, where no exit code is mapped) exits with Python's 1, which is
+``REPLAY_DIVERGED``'s: it counts as a divergence (the user's ruling, 2026-10-27: "Yes, crashes
+count as divergences"). Its line still ends with the exception.
+
+Both front ends find the project the same way (``verify_project_root``): ``--project-root`` when
+the command is given it, else the nearest directory at or above the current one with a
+``pyproject.toml`` (``settings.find_project_root``); with none, they say so and use the current
+directory. Both pass the game's other arguments on to every game they start: the command those
+after a bare ``--``, the game those on its own command line beside ``--verify``
+(``registry.tool_free_arguments``).
 
 The two front ends (glitchygames/replay/tools/registry.py):
 
@@ -26,7 +38,7 @@ The two front ends (glitchygames/replay/tools/registry.py):
   ``GameEngine.__init__``, before the engine starts pygame: the game is neither built nor shown.
   It replays each recording by starting itself again (``children.running_game_command``), so a
   game run as a script verifies too. With no PATHs: its own recordings
-  (``recordings.game_recordings``) in the project in the current directory.
+  (``recordings.game_recordings``) in the project.
 - **The command**, ``glitchygames verify [PATH ...] [--only TEXT] [--game GAME ...]``
   (``verify_command``): with no PATHs, each game (``--game``, given once per game, else the
   project's ``[tool.glitchygames] games``) is started as a child with ``--verify`` and verifies
@@ -52,7 +64,11 @@ from glitchygames.replay.tools.children import (
 )
 from glitchygames.replay.tools.identity import game_identity
 from glitchygames.replay.tools.recordings import game_recordings
-from glitchygames.replay.tools.settings import ProjectSettingsError, load_project_settings
+from glitchygames.replay.tools.settings import (
+    ProjectSettingsError,
+    find_project_root,
+    load_project_settings,
+)
 from glitchygames.replay.tools.traces import (
     FORM_DESCRIPTIONS,
     RecordedGameRefusal,
@@ -289,12 +305,41 @@ def no_recordings(*, looked_for: str, only: str | None) -> ExitCode:
     return ExitCode.SUCCESS
 
 
+def verify_project_root(*, given: Path | None) -> Path:
+    """Return the project a verify run works on, saying so when no project is found.
+
+    Args:
+        given: The command's ``--project-root``, or None (always, on the game).
+
+    Returns:
+        ``given``; else the nearest directory at or above the current one with a
+        ``pyproject.toml`` (``find_project_root``); else the current directory, said on its
+        own line.
+
+    """
+    if given is not None:
+        return given
+    current = Path.cwd()
+    found = find_project_root(start=current)
+    if found is None:
+        write_line(
+            line=(
+                f'{SUMMARY_PREFIX} no pyproject.toml in {current} or above it: looking for the '
+                'project here, with the default settings'
+            )
+        )
+        return current
+    return found
+
+
 def verify_on_the_game(*, options: dict[str, Any], game: type[Scene] | Scene) -> ExitCode:
     """Run ``--verify [PATH ...]`` on a game: replay the recordings through the game itself.
 
     Runs in place of the game's run (``run_game_flag_tool``, from ``GameEngine.__init__``): the
     game is never built. Each recording is replayed by this game started again
-    (``running_game_command``), in the current directory.
+    (``running_game_command``) in the current directory, with the game's arguments other than
+    verify's own (``registry.tool_free_arguments``), as the command passes those after ``--``.
+    The project is ``verify_project_root``'s.
 
     Args:
         options: The game's parsed options (``verify``: the PATHs given; ``only``).
@@ -307,7 +352,10 @@ def verify_on_the_game(*, options: dict[str, Any], game: type[Scene] | Scene) ->
         started (so it can't start itself again).
 
     """
-    root = Path.cwd()
+    # Imported here: the tool table imports this module
+    from glitchygames.replay.tools.registry import tool_free_arguments, tool_named
+
+    root = verify_project_root(given=None)
     only: str | None = options.get('only')
     given: list[str] = options['verify']
     if given:
@@ -342,7 +390,9 @@ def verify_on_the_game(*, options: dict[str, Any], game: type[Scene] | Scene) ->
     except RuntimeError as error:
         return refused(message=f'--verify: {error}', exit_code=ExitCode.INTERNAL_ERROR)
     return verify_recordings(
-        recordings=[(path, game_command) for path in chosen], project_root=root
+        recordings=[(path, game_command) for path in chosen],
+        project_root=root,
+        game_arguments=tool_free_arguments(arguments=sys.argv[1:], tool=tool_named(name='verify')),
     )
 
 
@@ -474,6 +524,8 @@ def verify_command(*, tool: Tool, arguments: argparse.Namespace, game_arguments:
         ``verify_named_recordings``' exit code with PATHs, ``verify_each_game``'s without.
 
     """
+    # One project for everything below, found as the game finds it (verify_project_root)
+    arguments.project_root = verify_project_root(given=arguments.project_root)
     if arguments.verify:
         return verify_named_recordings(
             tool=tool, arguments=arguments, game_arguments=game_arguments

@@ -72,9 +72,13 @@ THE_THREE_GAME_FORMS = (
 )
 # The command's console script ([project.scripts])
 COMMAND_CONSOLE_SCRIPT = 'glitchygames'
-# The one option the command has that no game flag has: --game, which names the game to run
-# (replay-trace's game when its recording's no longer imports; verify's games, repeatable). A
-# game needs no --game: it is the game. Every other option is the same on both front ends
+# The command has two options no game flag has, and the sync test skips each by name:
+# - --game, a tool's own command argument (Tool.command_arguments), which names the game to run
+#   (replay-trace's game when its recording's no longer imports; verify's games, repeatable). A
+#   game needs no --game: it is the game. COMMAND_ONLY_FLAGS holds it, and only it;
+# - --project-root (registry.PROJECT_ROOT_FLAG), the command's own flag on every subcommand, which
+#   no tool lists (a game finds its project from its current directory).
+# Every other option is the same on both front ends
 COMMAND_ONLY_FLAGS = frozenset({'--game'})
 
 

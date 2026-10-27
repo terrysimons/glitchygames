@@ -274,6 +274,26 @@ def load_project_settings(*, project_root: Path) -> ProjectSettings:
         raise ProjectSettingsError(_refusal(pyproject=pyproject, error=error)) from None
 
 
+def find_project_root(*, start: Path) -> Path | None:
+    """Return the project a directory is in: the nearest of it and those above with a pyproject.
+
+    How a tool run from inside a project (``tests/fixtures/``) finds the project's settings and
+    recordings, as git finds its repository.
+
+    Args:
+        start: The directory to look from (the current directory, usually).
+
+    Returns:
+        The nearest of ``start`` and its ancestors holding a ``pyproject.toml``, or None.
+
+    """
+    absolute = start.absolute()
+    for directory in (absolute, *absolute.parents):
+        if (directory / PYPROJECT_FILE_NAME).is_file():
+            return directory
+    return None
+
+
 def ensure_local_directory(*, directory: Path) -> Path:
     """Create a project's local directory (``.glitchygames/``) and keep git out of it.
 

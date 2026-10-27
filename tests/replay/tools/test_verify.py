@@ -240,6 +240,7 @@ def test_verify_with_no_recordings_says_so(stand_in_game, tmp_path, capfd):
     """
     project = tmp_path / 'empty-project'
     project.mkdir()
+    (project / 'pyproject.toml').write_text('', encoding='utf-8')
     no_games = tmp_path / 'no-games'
     no_games.mkdir()
     (no_games / 'pyproject.toml').write_text('[tool.glitchygames]\ngames = []\n', encoding='utf-8')
@@ -415,7 +416,11 @@ def test_the_game_flag_verifies_without_building_the_game(mocker, tmp_path, monk
     )
     mocker.patch.object(verify, 'running_game_command', return_value=['the-game'])
     pygame_started = mocker.spy(pygame, 'init')
-    mocker.patch.object(sys, 'argv', ['the-game', '--verify', str(recording)])
+    mocker.patch.object(
+        sys,
+        'argv',
+        ['the-game', '--target-fps', '30', '--verify', str(recording), '--only', 'run'],
+    )
 
     with pytest.raises(SystemExit) as exit_information:
         GoldenTraceEngine(game=GameThatIsNeverBuilt)
@@ -424,6 +429,11 @@ def test_the_game_flag_verifies_without_building_the_game(mocker, tmp_path, monk
     pygame_started.assert_not_called()
     (call,) = replayed.call_args_list
     assert call.kwargs['command'][:3] == ['the-game', '--replay-trace', str(recording)]
+    # The game's other arguments reach its replays, as the command's after -- do; verify's own
+    # (--verify, its paths, --only) do not
+    assert call.kwargs['command'][-2:] == ['--target-fps', '30']
+    assert '--verify' not in call.kwargs['command']
+    assert '--only' not in call.kwargs['command']
     # Decision 17: verify never passes a seed, so every replay compares
     assert '--random-seed' not in call.kwargs['command']
 
@@ -432,6 +442,7 @@ def test_the_game_flag_finds_this_games_recordings_in_the_current_directory(
     mocker, tmp_path, monkeypatch, capsys
 ):
     """With no paths, the game's own: ``game_recordings`` of its identity, in the project here."""
+    (tmp_path / 'pyproject.toml').write_text('', encoding='utf-8')
     monkeypatch.chdir(tmp_path)
     identity = GameIdentity(
         package='a_game', package_directory=None, console_script='a-game', distribution=None
@@ -667,3 +678,98 @@ def test_named_recordings_with_a_game_that_names_nothing_are_refused(tmp_path, c
 
     assert status == ExitCode.OPTIONS_REFUSED
     assert "'no_such_game_anywhere' is not a game" in capsys.readouterr().err
+
+
+def test_a_game_argument_after_dash_dash_reaches_the_children_on_the_command(tmp_path, mocker):
+    """``glitchygames verify ... -- ARGS``: ARGS reach each replay, or each game's ``--verify``.
+
+    With PATHs the command replays each itself; without, each game verifies its own and passes
+    its arguments on to its replays (``test_the_game_flag_verifies_without_building_the_game``).
+    """
+    (tmp_path / 'pyproject.toml').write_text('', encoding='utf-8')
+    recording = tmp_path / 'run.jsonl.gz'
+    write_header_only_recording(path=recording, header={})
+    launch = mocker.patch.object(verify, 'resolve_named_game')
+    launch.return_value.command = ['the-game']
+    launch.return_value.form = 'console-script'
+    replayed = mocker.patch.object(
+        verify,
+        'run_command',
+        return_value=CompletedProcess(args=[], returncode=ExitCode.SUCCESS, stdout=''),
+    )
+    launched = mocker.patch.object(
+        traces,
+        'launch_game',
+        return_value=CompletedProcess(args=[], returncode=ExitCode.SUCCESS),
+    )
+    game_arguments = ['--', '--target-fps', '30']
+
+    by_path = command.main([
+        'verify',
+        str(recording),
+        '--game',
+        'the-game',
+        '--project-root',
+        str(tmp_path),
+        *game_arguments,
+    ])
+    per_game = command.main([
+        'verify',
+        '--game',
+        'the-game',
+        '--project-root',
+        str(tmp_path),
+        *game_arguments,
+    ])
+
+    assert by_path == ExitCode.SUCCESS
+    assert per_game == ExitCode.SUCCESS
+    assert replayed.call_args.kwargs['command'][-2:] == ['--target-fps', '30']
+    assert launched.call_args.kwargs['arguments'] == ['--verify', '--target-fps', '30']
+
+
+def test_both_front_ends_find_the_project_from_a_subdirectory(
+    stand_in_game, stand_in_project, capfd, monkeypatch
+):
+    """Run from inside the project, the nearest directory above with a pyproject.toml is it.
+
+    The game flag and the command (no ``--project-root``) both find the project's goldens.
+    """
+    inside = stand_in_project / 'tests' / 'fixtures'
+    flag_status, flag_output = run_game_flag(
+        game=stand_in_game, arguments=['--verify'], working_directory=inside
+    )
+    monkeypatch.chdir(inside)
+    command_status = command.main(['verify'])
+    captured = capfd.readouterr()
+
+    assert flag_status == ExitCode.REPLAY_DIVERGED, flag_output
+    assert_one_line_each(
+        output=flag_output, game=stand_in_game, names=('good.jsonl.gz', 'tampered.jsonl.gz')
+    )
+    assert command_status == ExitCode.REPLAY_DIVERGED, captured.out + captured.err
+    assert_one_line_each(
+        output=captured.out, game=stand_in_game, names=('good.jsonl.gz', 'tampered.jsonl.gz')
+    )
+
+
+def test_no_project_above_the_current_directory_is_said(tmp_path, mocker, monkeypatch, capsys):
+    """No pyproject.toml here or above: said on both front ends, and the current directory used."""
+    mocker.patch.object(verify, 'find_project_root', return_value=None)
+    monkeypatch.chdir(tmp_path)
+    identity = GameIdentity(
+        package='a_game', package_directory=None, console_script='a-game', distribution=None
+    )
+    mocker.patch.object(verify, 'game_identity', return_value=identity)
+    found = mocker.patch.object(verify, 'game_recordings', return_value=[])
+
+    flag_status = verify.verify_on_the_game(
+        options={'verify': [], 'only': None}, game=GameThatIsNeverBuilt
+    )
+    command_status = command.main(['verify'])
+
+    output = capsys.readouterr().out
+    assert flag_status == ExitCode.SUCCESS
+    assert command_status == ExitCode.SUCCESS
+    assert found.call_args.kwargs['project_root'] == tmp_path
+    assert output.count(f'verify: no pyproject.toml in {tmp_path} or above it') == 2

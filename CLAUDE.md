@@ -518,7 +518,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   (`recordings.game_recordings(*, identity, settings, project_root)`: the `golden-globs` goldens
   its console script replays, plus `<package>/demos/*.jsonl.gz`). The command with no PATHs runs
   `GAME --verify` per game (`--game`, else `[tool.glitchygames] games`); with PATHs each is
-  replayed by the game its header names (or the one `--game`). It starts the game as a child
+  replayed by the game its header names (or the one `--game`). Both find the project the same
+  way (`--project-root`, else the nearest directory up with a `pyproject.toml`,
+  `settings.find_project_root`; none is said) and pass the game's other arguments to the games they
+  start (the command's after `--`; the game's own beside `--verify`, `registry.tool_free_arguments`).
+  A replay that crashes before its engine starts exits 1 and counts as a divergence (user, 2026-10-27). It starts the game as a child
   (`children.py`: `resolve_game` reads `GAME` as a script path, `MODULE:CALLABLE`, an installed
   console script or a module; `replay-trace` takes the game from the recording's header and asks
   for `--game` when its module no longer imports). `children.py` also holds the console-script

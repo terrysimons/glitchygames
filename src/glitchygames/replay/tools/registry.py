@@ -553,6 +553,28 @@ def given_tools(*, options: dict[str, Any], tools: Sequence[Tool] | None = None)
     return [tool for tool in tools if given(value=options.get(tool.destination))]
 
 
+def tool_free_arguments(*, arguments: Sequence[str], tool: Tool) -> list[str]:
+    """Return a game's command line without one tool's own flag, value and options.
+
+    What a tool that starts the game again (``--verify``) passes on as the game's arguments, as
+    the command passes those after a bare ``--``. The tool's flag and options are read by a
+    parser of their own (``add_game_flags`` with that tool alone, no abbreviations); everything
+    it does not know is the game's.
+
+    Args:
+        arguments: The game's command line, without the program (``sys.argv[1:]``).
+        tool: The tool.
+
+    Returns:
+        The other arguments, in order.
+
+    """
+    parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    add_game_flags(parser=parser, tools=(tool,))
+    _, others = parser.parse_known_args(list(arguments))
+    return others
+
+
 def run_game_flag_tool(
     *,
     options: dict[str, Any],

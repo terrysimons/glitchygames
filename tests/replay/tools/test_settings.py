@@ -21,6 +21,7 @@ from glitchygames.replay.tools.settings import (
     ProjectSettings,
     ProjectSettingsError,
     ensure_local_directory,
+    find_project_root,
     load_project_settings,
 )
 
@@ -354,3 +355,24 @@ def test_a_file_in_the_local_directory_is_not_seen_by_git(tmp_path):
 
     assert status.returncode == 0, status.stdout
     assert not status.stdout
+
+
+def test_the_project_is_the_nearest_directory_above_with_a_pyproject(tmp_path):
+    """From inside a project, its root; from a project nested in another, the inner one."""
+    outer = tmp_path / 'outer'
+    inner = outer / 'packages' / 'inner'
+    deep = inner / 'tests' / 'fixtures'
+    deep.mkdir(parents=True)
+    (outer / PYPROJECT_FILE_NAME).write_text('', encoding='utf-8')
+    (inner / PYPROJECT_FILE_NAME).write_text('', encoding='utf-8')
+
+    assert find_project_root(start=deep) == inner
+    assert find_project_root(start=inner) == inner
+    assert find_project_root(start=outer / 'packages') == outer
+
+
+def test_no_project_above_is_none(tmp_path, mocker):
+    """No pyproject.toml in the directory or any above it: None."""
+    mocker.patch.object(Path, 'is_file', return_value=False)
+
+    assert find_project_root(start=tmp_path) is None
