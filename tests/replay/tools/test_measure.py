@@ -29,7 +29,7 @@ from glitchygames.build_info import (
 )
 from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import CompletedProcess, OutputCapture, run_command
+from glitchygames.process import CompletedProcess, OutputCapture, TimeoutExpired, run_command
 from glitchygames.recording_history import CONTENT_HASH_FIELD, MEASUREMENT_RUNS_HEADER_FIELD
 from glitchygames.recording_metrics import (
     LedgerOrigin,
@@ -2009,3 +2009,38 @@ def test_without_git_the_project_is_walked(tmp_path, mocker, stand_in_golden):
 
     assert measure.git_listed_files(project_root=tmp_path / 'project') is None
     assert measure.project_demo_paths(project_root=tmp_path / 'project') == [demo]
+
+
+def test_a_git_listing_that_times_out_falls_back_to_walking_the_project(
+    tmp_path, mocker, stand_in_golden
+):
+    """A git that hangs past its timeout is as good as no git: the project is walked."""
+    demo = write_package_with_a_demo(
+        directory=tmp_path / 'project', package='orphan_game', demo=stand_in_golden
+    )
+    mocker.patch.object(
+        measure,
+        'run_command',
+        side_effect=TimeoutExpired(cmd=['git', 'ls-files'], timeout=1.0),
+    )
+
+    assert measure.git_listed_files(project_root=tmp_path / 'project') is None
+    assert measure.project_demo_paths(project_root=tmp_path / 'project') == [demo]
+
+
+def test_a_tracked_demo_deleted_from_the_working_tree_is_not_a_demo(tmp_path, stand_in_golden):
+    """A tracked demo deleted only from the working tree, which git still lists, is no demo."""
+    project = tmp_path / 'project'
+    project.mkdir()
+    git(repository=project, arguments=['init', '--quiet'])
+    kept = write_package_with_a_demo(
+        directory=project / 'src', package='orphan_game', demo=stand_in_golden
+    )
+    deleted = kept.with_name(f'deleted-{kept.name}')
+    shutil.copy(kept, deleted)
+    git(repository=project, arguments=['add', '--', 'src'])
+    deleted.unlink()
+
+    assert deleted in (measure.git_listed_files(project_root=project) or [])
+    assert not measure.is_bundled_demo(path=deleted)
+    assert measure.project_demo_paths(project_root=project) == [kept]

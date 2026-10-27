@@ -133,8 +133,13 @@ KIND_SETTINGS: dict[ToolOptionKind, dict[str, Any]] = {
 class ArgumentContainer(Protocol):
     """Anything options are added to: an ``argparse.ArgumentParser`` or one of its groups."""
 
-    def add_argument(self, *name_or_flags: str, **settings: Any) -> argparse.Action:
-        """Add an argument (``argparse``'s own signature)."""
+    def add_argument(self, *flags: str, **settings: Any) -> argparse.Action:
+        """Add an argument (``argparse``'s own signature; it names ``flags`` ``name_or_flags``).
+
+        The variadic parameter's name is not part of the protocol (it is positional only), so it
+        takes a name vulture sees used elsewhere: ``nox -s lint-dead-code`` reported
+        ``name_or_flags`` as unused.
+        """
         ...
 
 

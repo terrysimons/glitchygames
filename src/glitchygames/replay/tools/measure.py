@@ -87,7 +87,7 @@ from glitchygames.bundled_demos import BUNDLED_DEMO_DIRECTORY_NAME, DEMO_SUFFIX,
 from glitchygames.code_tree import commit_has_landed, landed_ref_exists
 from glitchygames.exit_codes import ExitCode
 from glitchygames.machine_state import current_machine_state
-from glitchygames.process import OutputCapture, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 from glitchygames.recording_metrics import (
     is_measured,
     ledger_rows_from_rebaseline,
@@ -868,12 +868,14 @@ def is_bundled_demo(*, path: Path) -> bool:
         path: The file.
 
     Returns:
-        True for a bundled demo.
+        True for a bundled demo; False for a path that is no file (a tracked demo deleted only
+        from the working tree, which git still lists).
 
     """
     package = path.parent.parent
     return (
-        path.parent.name == BUNDLED_DEMO_DIRECTORY_NAME
+        path.is_file()
+        and path.parent.name == BUNDLED_DEMO_DIRECTORY_NAME
         and path.name.endswith(DEMO_SUFFIX)
         and (package / PACKAGE_MARKER).is_file()
         and not (package.parent / PACKAGE_MARKER).is_file()
@@ -893,7 +895,8 @@ def git_listed_files(*, project_root: Path) -> list[Path] | None:
 
     Returns:
         The files (absolute), or None when the project is not in a git checkout (or git is
-        missing).
+        missing, or does not answer within ``GIT_TIMEOUT_SECONDS``): the caller then walks the
+        project (``walked_files``).
 
     """
     try:
@@ -904,7 +907,7 @@ def git_listed_files(*, project_root: Path) -> list[Path] | None:
             capture_output=OutputCapture.APART,
             working_directory=project_root,
         )
-    except OSError:
+    except OSError, TimeoutExpired:
         return None
     if listed.returncode != 0:
         return None

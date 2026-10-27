@@ -1483,3 +1483,117 @@ def test_sizes_that_cannot_be_compared_are_warned_about(color_game, tmp_path, ca
 
     assert old_recording_refusal(old_path=unsized, new_header=new_header) is None
     assert 'could not compare the screen sizes' in caplog.text
+
+
+def test_a_silent_connection_that_stays_open_is_refused_after_the_token_wait(color_game, caplog):
+    """A local connection that sends nothing, and never closes, is refused once its wait ends."""
+    onion_skin = OnionSkin(
+        old_path=color_game.old,
+        alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        game_command=old_game_command(old_path=color_game.old),
+        pause_at_frame=None,
+    )
+    try:
+        onion_skin.begin()
+        address = onion_skin.command[onion_skin.command.index('--replay-frame-stream') + 1]
+        port, _ = address.split(':')
+        # Connects before the child (which is still importing the game), and stays open, silent
+        with socket.create_connection((compare.FRAME_STREAM_HOST, int(port))):
+            onion_skin.draw(surface=surface_of(color=NEW_RED), frame_index=0)
+    finally:
+        onion_skin.stop()
+
+    assert onion_skin.held_frame_index == 0
+    assert 'refused a frame stream connection without the token' in caplog.text
+
+
+def test_a_silent_stranger_does_not_stretch_the_wait_for_the_child(color_game, mocker, caplog):
+    """The connect deadline holds through a stranger's token wait: it never adds to the wait."""
+    mocker.patch.object(compare, 'CHILD_CONNECT_TIMEOUT_SECONDS', 0.5)
+    onion_skin = OnionSkin(
+        old_path=color_game.old,
+        alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        # A child that never connects
+        game_command=[sys.executable, '-c', 'import time; time.sleep(60)'],
+        pause_at_frame=None,
+    )
+    try:
+        onion_skin.begin()
+        address = onion_skin.command[onion_skin.command.index('--replay-frame-stream') + 1]
+        port, _ = address.split(':')
+        with socket.create_connection((compare.FRAME_STREAM_HOST, int(port))):
+            started = time.monotonic()
+            onion_skin.draw(surface=surface_of(color=NEW_RED), frame_index=0)
+            waited = time.monotonic() - started
+    finally:
+        onion_skin.stop()
+
+    assert onion_skin.label == OLD_NOT_REPLAYED_LABEL
+    assert 'refused a frame stream connection without the token' in caplog.text
+    # The deadline (0.5 s), not the stranger's whole token wait (TOKEN_TIMEOUT_SECONDS)
+    assert waited < compare.TOKEN_TIMEOUT_SECONDS / 2
+
+
+def test_a_frame_stream_whose_token_cannot_be_sent_closes_its_socket(mocker):
+    """A failure sending the token leaves no socket open: it is closed, and the failure raised."""
+    created: list[socket.socket] = []
+    create_connection = socket.create_connection
+
+    def noting_the_connection(*arguments: Any, **settings: Any) -> socket.socket:
+        connection = create_connection(*arguments, **settings)
+        created.append(connection)
+        return connection
+
+    with socket.create_server((compare.FRAME_STREAM_HOST, 0)) as listener:
+        address = compare.FrameStreamAddress(
+            port=listener.getsockname()[1], token='a' * compare.FRAME_STREAM_TOKEN_LENGTH
+        )
+        mocker.patch.object(compare.socket, 'create_connection', side_effect=noting_the_connection)
+        mocker.patch.object(socket.socket, 'sendall', side_effect=ConnectionResetError)
+        with pytest.raises(ConnectionResetError):
+            FrameStream.connect(address=address, first_frame=0)
+
+    assert len(created) == 1
+    assert created[0].fileno() == -1
+
+
+def test_an_onion_skin_that_fails_to_start_its_child_closes_its_listener(color_game, mocker):
+    """A child that cannot start leaves no listener or output file behind; begin() may retry."""
+    created: list[socket.socket] = []
+    create_server = socket.create_server
+    output_paths: list[Path] = []
+    make_temporary_file = compare.tempfile.mkstemp
+    start_command = compare.start_command
+
+    def noting_the_listener(*arguments: Any, **settings: Any) -> socket.socket:
+        listener = create_server(*arguments, **settings)
+        created.append(listener)
+        return listener
+
+    def noting_the_output(*arguments: Any, **settings: Any) -> tuple[int, str]:
+        descriptor, path = make_temporary_file(*arguments, **settings)
+        output_paths.append(Path(path))
+        return descriptor, path
+
+    mocker.patch.object(compare.socket, 'create_server', side_effect=noting_the_listener)
+    mocker.patch.object(compare.tempfile, 'mkstemp', side_effect=noting_the_output)
+    starting = mocker.patch.object(compare, 'start_command', side_effect=FileNotFoundError)
+    onion_skin = OnionSkin(
+        old_path=color_game.old,
+        alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        game_command=[sys.executable, '-c', 'pass'],
+        pause_at_frame=None,
+    )
+    try:
+        with pytest.raises(FileNotFoundError):
+            onion_skin.begin()
+        assert created[0].fileno() == -1
+        assert not output_paths[0].exists()
+        assert onion_skin.process is None
+        # A retry starts afresh, with a listener of its own
+        starting.side_effect = start_command
+        onion_skin.begin()
+        assert created[1].fileno() != -1
+        assert onion_skin.process is not None
+    finally:
+        onion_skin.stop()

@@ -353,11 +353,19 @@ class FrameStream:
             first_frame: The first frame to write.
 
         Returns:
-            The stream (nothing listening there: ``socket.create_connection``'s OSError).
+            The stream.
+
+        Raises:
+            OSError: If nothing listens there (``socket.create_connection``'s), or the token
+                could not be sent (``sendall``'s, after the connection is closed).
 
         """
         connection = socket.create_connection((FRAME_STREAM_HOST, address.port))
-        connection.sendall(address.token.encode('ascii'))
+        try:
+            connection.sendall(address.token.encode('ascii'))
+        except OSError:
+            connection.close()
+            raise
         return cls(connection=connection, first_frame=first_frame)
 
     def write_frame(self: Self, *, frame_index: int, surface: pygame.Surface) -> bool:
@@ -570,7 +578,22 @@ class OnionSkin:
             self._listener = None
 
     def _start(self: Self) -> None:
-        """Listen on a loopback port and start OLD's child, its output kept for the log."""
+        """Listen on a loopback port and start OLD's child, its output kept for the log.
+
+        A failure after the listener is made (the output file, or starting the child) closes
+        the listener and removes the output before it is raised, so a later ``begin`` starts
+        afresh and leaks neither.
+        """
+        try:
+            self._start_child()
+        except BaseException:
+            self._close_sockets()
+            self._close_output()
+            self._remove_output()
+            raise
+
+    def _start_child(self: Self) -> None:
+        """Listen on a loopback port and start OLD's child (``_start``, which cleans up)."""
         self._listener = socket.create_server((FRAME_STREAM_HOST, 0))
         self._listener.settimeout(ACCEPT_POLL_SECONDS)
         self._token = secrets.token_hex(FRAME_STREAM_TOKEN_BYTES)
@@ -613,7 +636,8 @@ class OnionSkin:
         """Wait for the child to connect with the token, unless it ends or takes too long (rule 5).
 
         A connection without the token (another local process) is closed and logged, and the
-        wait goes on.
+        wait goes on. The connect deadline holds through a connection's token wait: that wait
+        never runs past it, and the deadline is checked again once it is refused.
 
         Returns:
             True once connected; False when OLD ended without connecting.
@@ -626,34 +650,64 @@ class OnionSkin:
             try:
                 connection, _ = self._listener.accept()
             except TimeoutError:
-                if self.process.poll() is None and measured_seconds() < deadline:
+                if self._still_waiting(deadline=deadline):
                     continue
-                # Ended, or too slow: stopped either way (stop_command reaps an ended one)
-                stop_command(process=self.process)
-                self._end(reason='it never connected to stream its frames', stalled=False)
-                return False
-            if not self._sends_the_token(connection=connection):
+                return self._never_connected()
+            token_wait_seconds = max(
+                min(TOKEN_TIMEOUT_SECONDS, deadline - measured_seconds()), ACCEPT_POLL_SECONDS
+            )
+            if not self._sends_the_token(connection=connection, timeout_seconds=token_wait_seconds):
                 connection.close()
                 LOG.warning(
                     'Comparing with %s: refused a frame stream connection without the token',
                     self.old_path,
                 )
-                continue
+                if self._still_waiting(deadline=deadline):
+                    continue
+                return self._never_connected()
             connection.settimeout(CHILD_READ_TIMEOUT_SECONDS)
             self._connection = connection
             return True
 
-    def _sends_the_token(self: Self, *, connection: socket.socket) -> bool:
+    def _still_waiting(self: Self, *, deadline: float) -> bool:
+        """Tell whether to go on waiting for the child to connect: it runs, and there is time.
+
+        Args:
+            deadline: When the wait ends (``measured_seconds``).
+
+        Returns:
+            True while the child runs and the deadline has not passed.
+
+        """
+        assert self.process is not None
+        return self.process.poll() is None and measured_seconds() < deadline
+
+    def _never_connected(self: Self) -> bool:
+        """End OLD: its child ended, or took too long, without connecting (rule 5).
+
+        Returns:
+            False (``_accept``'s answer: not connected).
+
+        """
+        assert self.process is not None
+        # Ended, or too slow: stopped either way (stop_command reaps an ended one)
+        stop_command(process=self.process)
+        self._end(reason='it never connected to stream its frames', stalled=False)
+        return False
+
+    def _sends_the_token(self: Self, *, connection: socket.socket, timeout_seconds: float) -> bool:
         """Tell whether a new connection sends the run's token first (rule 3).
 
         Args:
             connection: The connection.
+            timeout_seconds: How long it has to send it (``TOKEN_TIMEOUT_SECONDS``, or less when
+                the connect deadline is nearer).
 
         Returns:
             True when its first ``FRAME_STREAM_TOKEN_LENGTH`` bytes are the token, in time.
 
         """
-        connection.settimeout(TOKEN_TIMEOUT_SECONDS)
+        connection.settimeout(timeout_seconds)
         try:
             received = receive_exactly(connection=connection, count=FRAME_STREAM_TOKEN_LENGTH)
         except StreamEndedError:

@@ -26,6 +26,8 @@ from glitchygames.replay.tools.settings import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# How long each git command in a throwaway repository may take
+GIT_TIMEOUT_SECONDS = 60.0
 
 # Today's values of the module constants these settings replaced, copied by hand from
 # glitchygames/code_tree.py and glitchygames/recording_metrics.py before they were deleted
@@ -338,7 +340,7 @@ def test_a_file_in_the_local_directory_is_not_seen_by_git(tmp_path):
     run_command(
         command=['git', 'init', '--quiet'],
         environment=os.environ,
-        timeout_seconds=60.0,
+        timeout_seconds=GIT_TIMEOUT_SECONDS,
         capture_output=OutputCapture.TOGETHER,
         working_directory=tmp_path,
     )
@@ -348,7 +350,7 @@ def test_a_file_in_the_local_directory_is_not_seen_by_git(tmp_path):
     status = run_command(
         command=['git', 'status', '--porcelain', '--untracked-files=all'],
         environment=os.environ,
-        timeout_seconds=60.0,
+        timeout_seconds=GIT_TIMEOUT_SECONDS,
         capture_output=OutputCapture.TOGETHER,
         working_directory=tmp_path,
     )
