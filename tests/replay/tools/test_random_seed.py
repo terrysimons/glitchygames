@@ -28,6 +28,7 @@ from glitchygames.replay.driver import ReplayOptions, ReplaySources
 from glitchygames.replay.tools.golden_traces import InputScript, record_trace
 from glitchygames.replay.tools.registry import RANDOM_SEED_OPTION, TOOLS
 from glitchygames.tracing import read_trace_result
+from tests.replay.replay_helpers import tamper_first_sprite_rect
 from tests.replay.tools.test_golden_trace_harness import SeededWanderScene
 from tests.stand_in_games import (
     RECORD_TIMEOUT_SECONDS,
@@ -46,6 +47,8 @@ GIVEN_REPLAY_SEED = 7
 # Frames the harness runs for the default-seed check: enough random steps that two random
 # seeds giving the same trace is out of the question
 HARNESS_FRAME_COUNT = 30
+# The frame a tampered copy of a recording diverges at (the stand-in's mover is on every frame)
+TAMPERED_FRAME = 10
 # What the help says, for every tool that lists the option
 RANDOM_SEED_RULE_WORDS = (
     'a run or recording rolls a random',
@@ -119,6 +122,30 @@ def replay_stand_in_game(
     return completed.returncode, completed.stdout or ''
 
 
+def assert_the_replay_compares(
+    *, game: StandInGame, path: Path, extra_arguments: tuple[str, ...]
+) -> None:
+    """Check a replay with these arguments really compares: a tampered copy diverges.
+
+    A replay that compared nothing (a reseeded one) would exit SUCCESS for the copy too.
+
+    Args:
+        game: The stand-in game.
+        path: The recording.
+        extra_arguments: The replay's arguments (no seed, or the recorded one).
+
+    """
+    tampered = path.with_name(f'tampered-{path.name}')
+    tampered.write_bytes(path.read_bytes())
+    tamper_first_sprite_rect(recording_path=tampered, frame_number=TAMPERED_FRAME)
+
+    status, output = replay_stand_in_game(game=game, path=tampered, extra_arguments=extra_arguments)
+
+    assert status == ExitCode.REPLAY_DIVERGED, output
+    assert f'Replay diverged at frame {TAMPERED_FRAME}' in output
+    assert 'Nothing was recorded' not in output
+
+
 def test_a_recording_without_a_seed_rolls_one_each_time(stand_in_game, tmp_path):
     """Record, None: each recording rolls its own seed, logged in its header."""
     first = record_stand_in_game(game=stand_in_game, path=tmp_path / 'first.jsonl.gz')
@@ -146,6 +173,7 @@ def test_a_replay_without_a_seed_uses_the_recordings_and_matches(stand_in_game, 
 
     assert status == ExitCode.SUCCESS, output
     assert f'random seed {recorded_seed(path=path)})' in output
+    assert_the_replay_compares(game=stand_in_game, path=path, extra_arguments=())
 
 
 def test_a_replay_given_the_recordings_own_seed_matches(stand_in_game, tmp_path):
@@ -163,6 +191,11 @@ def test_a_replay_given_the_recordings_own_seed_matches(stand_in_game, tmp_path)
     )
 
     assert status == ExitCode.SUCCESS, output
+    assert_the_replay_compares(
+        game=stand_in_game,
+        path=path,
+        extra_arguments=('--random-seed', str(GIVEN_RECORDING_SEED)),
+    )
 
 
 def test_a_replay_given_another_seed_plays_out_under_it_and_writes_nothing(stand_in_game, tmp_path):

@@ -7,6 +7,7 @@ cause (a teardown or an event manager that breaks) are simulated with targeted m
 """
 
 import asyncio
+import errno
 import itertools
 import logging
 import os
@@ -32,6 +33,7 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.host import HostSources
 from glitchygames.input import device_listing
 from glitchygames.live_sources import LiveSources
+from glitchygames.recording import RecordingWriteError
 from glitchygames.replay.tools import registry
 from glitchygames.replay.tools.children import game_entry_point
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine, command_line
@@ -625,6 +627,44 @@ def tool_that_runs_no_game(*, calls: list[dict[str, Any]], exit_code: ExitCode) 
     )
 
 
+def tool_with_handler(*, handler: registry.GameHandler) -> Tool:
+    """A tool that runs instead of the game (``--report-thing PATH``) with the given handler.
+
+    Returns:
+        The tool.
+
+    """
+
+    def never_run_as_a_command(
+        *, tool: Tool, arguments: argparse.Namespace, game_arguments: list[str]
+    ) -> int:
+        raise AssertionError(tool.name)
+
+    return Tool(
+        name='report-thing',
+        help='report on a recording',
+        options=(),
+        runs_game=False,
+        game_handler=handler,
+        command_handler=never_run_as_a_command,
+    )
+
+
+def raising_tool(*, error: BaseException) -> Tool:
+    """A tool that runs instead of the game and raises ``error``.
+
+    Returns:
+        The tool.
+
+    """
+
+    def raise_error(*, options: dict[str, Any], game: type[Scene] | Scene) -> ExitCode:
+        del options, game
+        raise error
+
+    return tool_with_handler(handler=raise_error)
+
+
 @pytest.mark.usefixtures('engine_run_environment')
 class TestGameFlagTools:
     """A tool flag with a game handler runs in place of the game (``run_game_flag_tool``).
@@ -684,6 +724,119 @@ class TestGameFlagTools:
 
         assert len(calls) == 1
         assert os.environ['SDL_VIDEODRIVER'] == 'a-driver-of-its-own'
+
+    def test_a_tool_that_crashes_exits_internal_error_as_the_run_would(self, mocker, caplog):
+        """A tool's uncaught exception ends the process INTERNAL_ERROR, logged, as start()'s run."""
+        tool = raising_tool(error=RuntimeError('the tool broke'))
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert exit_information.value.code == ExitCode.INTERNAL_ERROR
+        assert 'the tool broke' in caplog.text
+
+    def test_ctrl_c_in_a_tool_exits_interrupted(self, mocker):
+        """Ctrl-C (KeyboardInterrupt) during a tool exits INTERRUPTED, as during a run."""
+        tool = raising_tool(error=KeyboardInterrupt())
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert exit_information.value.code == ExitCode.INTERRUPTED
+
+    def test_a_tool_whose_recording_fails_part_way_exits_cannot_write_output(self, mocker):
+        """A recording write that fails part way exits CANNOT_WRITE_OUTPUT, as during a run."""
+        failure = RecordingWriteError(
+            path=Path('run.jsonl.gz'), cause=OSError(errno.ENOSPC, 'No space left on device')
+        )
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, raising_tool(error=failure)))
+
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert exit_information.value.code == ExitCode.CANNOT_WRITE_OUTPUT
+
+    def test_sigterm_in_a_tool_exits_with_the_signals_code(self, mocker):
+        """SIGTERM during a tool ends it through the engine's handler; the handler goes after."""
+        mocker.patch.object(signal, 'getsignal', return_value=signal.SIG_DFL)
+        installed = mocker.patch.object(signal, 'signal')
+
+        def send_sigterm(*, options: dict[str, Any], game: type[Scene] | Scene) -> ExitCode:
+            del options, game
+            # The handler the engine installed for SIGTERM, called as the signal would call it
+            handlers = {call.args[0]: call.args[1] for call in installed.call_args_list}
+            handlers[signal.SIGTERM](signal.SIGTERM, None)
+            return ExitCode.SUCCESS
+
+        tool = tool_with_handler(handler=send_sigterm)
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert exit_information.value.code == ExitCode.for_signal(signal.SIGTERM)
+        # Put back to the default once the tool ended
+        assert installed.call_args_list[-1].args[1] is signal.SIG_DFL
+
+    def test_a_golden_trace_of_a_game_that_crashes_exits_internal_error(self, mocker, tmp_path):
+        """``--record-golden-trace`` of a game whose scene raises: INTERNAL_ERROR, as on BASE."""
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=(
+                    '--record-golden-trace',
+                    str(tmp_path / 'golden.jsonl.gz'),
+                    '--input-script',
+                    'glitchygames.replay.tools.golden_traces:InputScript',
+                    '--frame-count',
+                    '1',
+                ),
+            )
+
+        assert exit_information.value.code == ExitCode.INTERNAL_ERROR
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestTheRunsSeedIsLogged:
+    """Every run logs the seed it uses, rolled or given, so a plain run can be reproduced."""
+
+    def test_a_run_without_a_seed_logs_the_one_it_rolled(self, mocker, caplog):
+        """No ``--random-seed``: the rolled seed is logged at INFO."""
+        caplog.set_level(logging.INFO)
+
+        engine = build_engine(mocker, game=first_frame_game())
+
+        assert f'Random seed {engine.random_seed} (rolled)' in caplog.text
+
+    def test_a_run_given_a_seed_logs_it(self, mocker, caplog):
+        """``--random-seed N``: N is logged at INFO."""
+        caplog.set_level(logging.INFO)
+
+        engine = build_engine(
+            mocker, game=first_frame_game(), extra_arguments=('--random-seed', '5')
+        )
+
+        assert engine.random_seed == 5
+        assert 'Random seed 5 (given)' in caplog.text
 
 
 @pytest.mark.usefixtures('engine_run_environment')

@@ -407,25 +407,38 @@ def record_session_on_the_game(*, options: dict[str, Any], game: type[Scene] | S
         )
     except golden_traces.InputScriptError as error:
         return refused(message=f'--record-session: {error}', exit_code=ExitCode.OPTIONS_REFUSED)
+    scene_class = type(game) if isinstance(game, Scene) else game
+    frame_count: int = options['frame_count']
+    input_only_placements = bool(options.get('input_only_placements'))
+    # The session's own checks, before anything runs; the game's own errors are not caught
+    # here, so they end the run as any game's do (the engine's crash boundary)
+    refusal = scripted_sessions.scripted_session_refusal(
+        script=script,
+        frame_count=frame_count,
+        controls_tail=controls_tail,
+        input_only_placements=input_only_placements,
+    )
+    if refusal is not None:
+        return refused(message=f'--record-session: {refusal}', exit_code=ExitCode.OPTIONS_REFUSED)
     path = Path(options['record_session'])
     try:
-        scripted_sessions.record_scripted_session(
-            scene_class=type(game) if isinstance(game, Scene) else game,
-            script=script,
-            frame_count=options['frame_count'],
-            path=path,
-            controls_tail=controls_tail,
-            polled_input=bool(options.get('polled_input')),
-            input_only_placements=bool(options.get('input_only_placements')),
-            random_seed=options.get('random_seed'),
-        )
-    except scripted_sessions.GameDidNotQuitError as error:
-        return refused(message=f'--record-session: {error}', exit_code=ExitCode.UNUSABLE_INPUT)
-    except ValueError as error:
-        return refused(message=f'--record-session: {error}', exit_code=ExitCode.OPTIONS_REFUSED)
+        path.parent.mkdir(parents=True, exist_ok=True)
     except OSError as error:
         return refused(
             message=f'--record-session: cannot write {path} ({error})',
             exit_code=ExitCode.CANNOT_WRITE_OUTPUT,
         )
+    try:
+        scripted_sessions.record_scripted_session(
+            scene_class=scene_class,
+            script=script,
+            frame_count=frame_count,
+            path=path,
+            controls_tail=controls_tail,
+            polled_input=bool(options.get('polled_input')),
+            input_only_placements=input_only_placements,
+            random_seed=options.get('random_seed'),
+        )
+    except scripted_sessions.GameDidNotQuitError as error:
+        return refused(message=f'--record-session: {error}', exit_code=ExitCode.UNUSABLE_INPUT)
     return ExitCode.SUCCESS

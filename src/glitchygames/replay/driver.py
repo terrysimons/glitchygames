@@ -303,6 +303,7 @@ from glitchygames.replay.controls import (
     BREAKPOINT_LABEL_FIELD,
     FIRST_PAUSED_FRAME,
     ReplayControls,
+    Reseeding,
 )
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.replay.processing import (
@@ -1348,6 +1349,12 @@ class ReplaySources:
         self.controls = ReplayControls(
             total_frames=self.recording.frame_count,
             awaiting_start=options.wait_for_start and not options.headless,
+            # Watched, a reseeded replay's status says it is not compared (rule 19)
+            reseeding=(
+                Reseeding(random_seed=self.random_seed, recorded_seed=self.recorded_seed)
+                if self.is_reseeded
+                else None
+            ),
         )
         self.viewer = ReplayViewer(controls=self.controls)
         # A bookmarked copy's bookmarks are the viewer's from the start, so S keeps them

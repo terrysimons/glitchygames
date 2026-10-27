@@ -785,11 +785,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Before anything starts the display or the mixer (pygame.init() below)
         if options.get('headless'):
             self._enter_headless_mode()
-        # A tool given as a game flag that runs in place of the game runs now, before this
-        # engine starts pygame or opens a window: a harness tool builds its own engine (a second
-        # one inside this one would find pygame started and resize this one's window), and a
-        # tool that runs no game needs none
-        self._run_game_flag_tool(game=game, options=options)
 
         # NOTE: Game is coupled to event manager for unhandled event routing.
         # Decoupling tracked in https://glitchy-games.atlassian.net/browse/GG-22
@@ -799,6 +794,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # The signals exit_on_signal is installed for (by start(), and around a wait for child
         # processes: _waiting_for_child_processes, which --audit uses before start() runs)
         self._installed_signal_handlers: list[int] = []
+
+        # A tool given as a game flag that runs in place of the game runs now, before this
+        # engine starts pygame or opens a window: a harness tool builds its own engine (a second
+        # one inside this one would find pygame started and resize this one's window), and a
+        # tool that runs no game needs none
+        self._run_game_flag_tool(game=game, options=options)
 
         # A replay's recorded options and seed are in place from here on (start_replay), so
         # everything below reads the options as the recorded run did
@@ -828,6 +829,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             if self.replay_sources is not None
             else seed_engine_random(seed=options.get('random_seed'))
         )
+        self._log_the_runs_seed(options=options)
         # The background a scene that sets none shows (glitchygames/backgrounds.py); without
         # the option the process's default (the test pattern) stays
         default_background = options.get('default_background')
@@ -1683,6 +1685,25 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         finally:
             self._restore_signal_handlers()
 
+    def _log_the_runs_seed(self: Self, *, options: dict[str, Any]) -> None:
+        """Log the seed a run uses, rolled or given (rows 1 and 2 of the user's seed rule).
+
+        Every run names its seed at INFO, so a plain run (one that records nothing) can be run
+        again under it with ``--random-seed``. A replay announces its seed itself
+        (``announce_replay``).
+
+        Args:
+            options: The parsed options (``random_seed``: the seed given, or None).
+
+        """
+        if self.replay_sources is not None:
+            return
+        self.log.info(
+            'Random seed %d (%s)',
+            self.random_seed,
+            'rolled' if options.get('random_seed') is None else 'given',
+        )
+
     def _run_game_flag_tool(
         self: Self, *, game: type[Scene] | Scene, options: dict[str, Any]
     ) -> None:
@@ -1695,8 +1716,13 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         scripted-session tools build their own engine for the game, which then starts pygame
         once, at its own size; a tool that runs no game builds nothing. The process ends with
         the tool's exit code (``exit_with``: SystemExit), ``ExitCode.SUCCESS`` included, so the
-        game's ``start()`` never runs. The SDL driver variables ``--headless`` set are put back
-        first. Nothing happens when no such tool was given.
+        game's ``start()`` never runs. The tool runs inside the exit-code mapping and signal
+        handlers of ``start()``'s crash boundary, as it did when it ran there: an uncaught
+        exception exits ``ExitCode.INTERNAL_ERROR`` (logged with its traceback), Ctrl-C
+        ``ExitCode.INTERRUPTED``, a failed recording write ``ExitCode.CANNOT_WRITE_OUTPUT``, and
+        a terminating signal its own code (``exit_on_signal``). The handlers and the SDL driver
+        variables ``--headless`` set are put back first. Nothing happens when no such tool was
+        given.
 
         Args:
             game: The game (its class, or a scene the game passed in).
@@ -1705,13 +1731,34 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         # Only a tool with a game handler runs here; two tool flags without one (--record-trace
         # with --replay-trace) are left to the replay's own refusal, which says what to use
-        if not any(tool.game_handler is not None for tool in given_tools(options=options)):
+        tools = [tool for tool in given_tools(options=options) if tool.game_handler is not None]
+        if not tools:
             return
-        tool_exit_code = run_game_flag_tool(options=options, game=game)
+        cause: BaseException | None = None
+        # The crash boundary and signal handling start()'s run gives a game (_crash_boundary),
+        # so a tool ends the process with the exit codes it had when it ran inside start()
+        self._install_signal_handlers()
+        try:
+            tool_exit_code = run_game_flag_tool(options=options, game=game)
+        except KeyboardInterrupt as interrupt:
+            # Ctrl-C: never an internal error
+            tool_exit_code, cause = ExitCode.INTERRUPTED, interrupt
+        except RecordingWriteError as error:
+            # The disk filled part way: logged on one line by the recorder (BUGS.md #82)
+            tool_exit_code, cause = ExitCode.CANNOT_WRITE_OUTPUT, error
+        except Exception as error:
+            self.log.exception(
+                "Runtime error during game execution @ tool '%s'",
+                ' and '.join(tool.flag for tool in tools),
+            )
+            tool_exit_code, cause = ExitCode.INTERNAL_ERROR, error
+        finally:
+            # A signal's SystemExit (exit_on_signal) passes through with its own code
+            self._restore_signal_handlers()
+            self._restore_sdl_driver_variables()
         # A tool with a game handler always ends the run (its code, or a refusal's)
         assert tool_exit_code is not None
-        self._restore_sdl_driver_variables()
-        exit_with(exit_code=tool_exit_code)
+        exit_with(exit_code=tool_exit_code, cause=cause)
 
     def _start_requested_replay(
         self: Self, *, game: type[Scene] | Scene, options: dict[str, Any]
@@ -2656,9 +2703,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """Return how a run ends when a game's own successful exit cut its replay short.
 
         A plain replay ends as diverged: ``SUCCESS`` would say it matched (the report says
-        where it stopped). A rebaseline takes it as the game ending early, as ``quit_game()``
-        would: the run ends normally, NEW is written with the frames that ran and the run exits
-        ``REBASELINE_INPUT_LOST`` (glitchygames/replay/rebaseline.py, rule 4).
+        where it stopped). A reseeded replay (another seed than recorded) ends normally: it
+        compares nothing, so an early end is no failure. A rebaseline takes it as the game
+        ending early, as ``quit_game()`` would: the run ends normally, NEW is written with the
+        frames that ran and the run exits ``REBASELINE_INPUT_LOST``
+        (glitchygames/replay/rebaseline.py, rule 4).
 
         Args:
             run_ended_by: The exit, described (``_describe_exit_request``).
@@ -2669,6 +2718,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         if self.rebaseline is not None:
+            return None, None
+        if self.replay_sources is not None and self.replay_sources.is_reseeded:
+            # Under another seed than recorded the game may well end otherwise (rule 19 of
+            # glitchygames/replay/driver.py): its own exit ends the run normally, as quit_game()
+            # would, and the replay reports what differed, never a failure
             return None, None
         return ExitCode.REPLAY_DIVERGED, run_ended_by
 

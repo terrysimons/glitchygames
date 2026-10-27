@@ -15,6 +15,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+from scripts import record_golden_traces
+
 from glitchygames.process import run_command
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -96,3 +99,29 @@ def test_looking_up_a_game_imports_only_its_member():
         'ClockworkKeepScene',
         ['clockwork_keep'],
     ]
+
+
+@pytest.mark.parametrize(
+    ('arguments', 'exit_status'),
+    [(['--help'], 0), (['--no-such-option'], 2)],
+    ids=['help', 'unknown-argument'],
+)
+def test_the_command_records_nothing_unless_asked(mocker, capsys, arguments, exit_status):
+    """``--help`` prints the usage and an unknown argument is refused: neither records a trace.
+
+    A command that ignored its arguments re-recorded every golden trace in tests/world/golden/
+    for ``--help`` (found in Task D4b's review). Recording and writing are patched out, so a
+    regression here never touches the repository's traces.
+    """
+    recorded = mocker.patch.object(record_golden_traces, 'record_trace')
+    written = mocker.patch.object(record_golden_traces, 'write_trace')
+    mocker.patch.object(sys, 'argv', ['record_golden_traces', *arguments])
+
+    with pytest.raises(SystemExit) as exit_information:
+        record_golden_traces.main()
+
+    assert exit_information.value.code == exit_status
+    recorded.assert_not_called()
+    written.assert_not_called()
+    if exit_status == 0:
+        assert 'usage:' in capsys.readouterr().out

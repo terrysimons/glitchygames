@@ -186,6 +186,51 @@ def polled_input_follows(posted_input: PostedPolledInput) -> Generator[None]:
         setattr(live_sources, LIVE_CAPTURE_FUNCTION_NAME, original_capture)
 
 
+def scripted_session_refusal(
+    *,
+    script: InputScript,
+    frame_count: int,
+    controls_tail: InputScript | None = None,
+    input_only_placements: bool = False,
+) -> str | None:
+    """Say why a script cannot be recorded as input for this many frames, if it cannot.
+
+    Checked before anything runs (``ScriptedInputSupervisor`` raises it as a ValueError; the
+    ``record-session`` tool refuses it), so a session that can't be recorded builds no engine.
+
+    Args:
+        script: The game's input script.
+        frame_count: How many of the script's frames the session plays.
+        controls_tail: Key events played after the script's frames, or None.
+        input_only_placements: True when the script's placements only steer its own input.
+
+    Returns:
+        Why, or None when it can be recorded: a placement inside the session (unless
+        ``input_only_placements``), input before frame 0, or a controls tail that is not key
+        events only, and some.
+
+    """
+    placed_frames = sorted(
+        frame_number for frame_number in script.placements if frame_number < frame_count
+    )
+    if placed_frames and not input_only_placements:
+        return (
+            f'the script places sprites directly at frame {placed_frames[0]}; it cannot be '
+            f'recorded as input past frame {placed_frames[0] - 1} (record at most '
+            f'{placed_frames[0]} frames, or, if its placements only steer its own input, '
+            'allow them: input_only_placements, --input-only-placements)'
+        )
+    if script.key_events.get(0) or script.placements.get(0):
+        return 'the script has input before frame 0, which no supervisor can post'
+    if controls_tail is not None and (
+        controls_tail.placements
+        or controls_tail.per_frame is not None
+        or not controls_tail.key_events
+    ):
+        return 'a controls tail must hold key events only, and some'
+    return None
+
+
 class ScriptedInputSupervisor:
     """Posts an input script into the real event queue, one frame ahead.
 
@@ -229,27 +274,14 @@ class ScriptedInputSupervisor:
                 placements, per-frame input or no input at all.
 
         """
-        placed_frames = sorted(
-            frame_number for frame_number in script.placements if frame_number < frame_count
+        refusal = scripted_session_refusal(
+            script=script,
+            frame_count=frame_count,
+            controls_tail=controls_tail,
+            input_only_placements=input_only_placements,
         )
-        if placed_frames and not input_only_placements:
-            message = (
-                f'the script places sprites directly at frame {placed_frames[0]}; it cannot be '
-                f'recorded as input past frame {placed_frames[0] - 1} (record at most '
-                f'{placed_frames[0]} frames, or, if its placements only steer its own input, '
-                'allow them: input_only_placements, --input-only-placements)'
-            )
-            raise ValueError(message)
-        if script.key_events.get(0) or script.placements.get(0):
-            message = 'the script has input before frame 0, which no supervisor can post'
-            raise ValueError(message)
-        if controls_tail is not None and (
-            controls_tail.placements
-            or controls_tail.per_frame is not None
-            or not controls_tail.key_events
-        ):
-            message = 'a controls tail must hold key events only, and some'
-            raise ValueError(message)
+        if refusal is not None:
+            raise ValueError(refusal)
         self.script = script
         self.frame_count = frame_count
         self.scene_manager = scene_manager
@@ -372,6 +404,9 @@ def record_scripted_session(
         path: Where the recording goes (its directory is created).
         **options: How the session is played, by keyword (``ScriptedSessionOptions``).
 
+    A script that cannot be recorded as input for this many frames
+    (``scripted_session_refusal``) raises the supervisor's ValueError before anything runs.
+
     Raises:
         GameDidNotQuitError: If the controls tail's quit control did not end the run.
 
@@ -388,6 +423,14 @@ def record_scripted_session(
         clear_events_left_queued()
         manager = GoldenTraceSceneManager.install()
         try:
+            # Built before the engine, so a script that can't be recorded opens no window
+            supervisor = ScriptedInputSupervisor(
+                script=script,
+                frame_count=frame_count,
+                scene_manager=manager,
+                controls_tail=controls_tail,
+                input_only_placements=options.get('input_only_placements', False),
+            )
             with command_line([
                 '--windowed',
                 '--resolution',
@@ -401,14 +444,7 @@ def record_scripted_session(
                 str(path),
             ]):
                 engine = GoldenTraceEngine(game=scene_class)
-            supervisor = ScriptedInputSupervisor(
-                script=script,
-                frame_count=frame_count,
-                scene_manager=manager,
-                controls_tail=controls_tail,
-                input_only_placements=options.get('input_only_placements', False),
-            )
-            # After the engine: GameEngine.__init__ resets the scene manager's supervision
+            # Added after the engine: GameEngine.__init__ resets the scene manager's supervision
             manager.add_supervisor(supervisor=supervisor)
             discard_environment_events()
             with (

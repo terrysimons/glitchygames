@@ -25,6 +25,7 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -120,7 +121,19 @@ def golden_path(game_key: str) -> Path:
 
 
 def main() -> None:
-    """Record and write the golden trace of every game that has one (GOLDEN_TRACE_GAMES)."""
+    """Record and write the golden trace of every game that has one (GOLDEN_TRACE_GAMES).
+
+    It takes no arguments: ``--help`` prints the usage and records nothing, and any other
+    argument is refused (argparse exits 2). Before it read its arguments, ``--help`` re-recorded
+    every trace in tests/world/golden/.
+    """
+    argparse.ArgumentParser(
+        description=(
+            'Record the golden trace of every game that has one (GOLDEN_TRACE_GAMES) into '
+            f'{GOLDEN_DIRECTORY.relative_to(PROJECT_ROOT)}; it overwrites the committed traces, so '
+            'only deliberately (tests/world/test_golden_traces.py says when)'
+        )
+    ).parse_args()
     for game_key in GOLDEN_TRACE_GAMES:
         trace = record_trace(
             scene_class=GAME_SCENES[game_key],

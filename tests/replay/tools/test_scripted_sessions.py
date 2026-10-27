@@ -27,7 +27,7 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.input.state import IDLE_INPUT
 from glitchygames.process import run_command
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, post_event
-from glitchygames.replay.tools import command
+from glitchygames.replay.tools import command, scripted_sessions
 from glitchygames.replay.tools.golden_traces import (
     RANDOM_SEED,
     GoldenTraceSceneManager,
@@ -748,12 +748,8 @@ def test_a_session_that_cannot_be_recorded_is_refused_and_nothing_runs(
 ):
     """An input script or tail that names none, or a placement inside the session: refused."""
     path = tmp_path / 'session.jsonl.gz'
-    # GameEngine.__init__ may run (a placement is refused once the engine is built), never start
-    mocker.patch('pygame.quit')
-    mocker.patch('pygame.display.quit')
-    started = mocker.patch(
-        'glitchygames.replay.tools.scripted_sessions.GoldenTraceEngine.start', autospec=True
-    )
+    # Refused before any engine is built (no window opens for a session that can't be recorded)
+    built = mocker.patch.object(scripted_sessions, 'GoldenTraceEngine')
 
     result = run_game_flag_tool(
         options=session_options(path=path, **given), game=SteeredPaddleScene
@@ -761,7 +757,57 @@ def test_a_session_that_cannot_be_recorded_is_refused_and_nothing_runs(
 
     assert result == ExitCode.OPTIONS_REFUSED
     assert logged in caplog.text
-    started.assert_not_called()
+    built.assert_not_called()
+    assert not path.exists()
+
+
+class SceneWithAnUnusableTargetFps(SteeredPaddleScene):
+    """A game whose own code is wrong: its TARGET_FPS is negative (a ValueError)."""
+
+    TARGET_FPS = -1
+
+
+@pytest.mark.usefixtures('in_stand_in_project')
+def test_the_games_own_errors_keep_their_own_exit(tmp_path):
+    """A ValueError from the game itself is not an option refusal: it reaches the crash boundary.
+
+    Only the session's own checks (the input scripts, the placements, the recording's
+    directory) are refused or reported as unwritable; the game's errors propagate, so the engine
+    ends the run INTERNAL_ERROR as for any game.
+    """
+    with pytest.raises(ValueError, match='TARGET_FPS'):
+        run_game_flag_tool(
+            options=session_options(path=tmp_path / 'session.jsonl.gz'),
+            game=SceneWithAnUnusableTargetFps,
+        )
+
+
+@pytest.mark.usefixtures('in_stand_in_project')
+def test_the_game_flag_gives_the_recorder_the_session_it_was_asked_for(tmp_path, mocker):
+    """The tool's options reach the recorder: the scene class, scripts, flags and seed."""
+    recorder = mocker.patch.object(scripted_sessions, 'record_scripted_session')
+    path = tmp_path / 'session.jsonl.gz'
+
+    result = run_game_flag_tool(
+        options=session_options(
+            path=path,
+            controls_tail=STAND_IN_CONTROLS_TAIL,
+            polled_input=True,
+            input_only_placements=True,
+            random_seed=RANDOM_SEED,
+        ),
+        game=SteeredPaddleScene(options={}),
+    )
+
+    assert result == ExitCode.SUCCESS
+    (call,) = recorder.call_args_list
+    assert call.kwargs['scene_class'] is SteeredPaddleScene
+    assert call.kwargs['frame_count'] == SESSION_FRAME_COUNT
+    assert call.kwargs['path'] == path
+    assert call.kwargs['controls_tail'].key_events
+    assert call.kwargs['polled_input'] is True
+    assert call.kwargs['input_only_placements'] is True
+    assert call.kwargs['random_seed'] == RANDOM_SEED
 
 
 @pytest.mark.usefixtures('in_stand_in_project')
