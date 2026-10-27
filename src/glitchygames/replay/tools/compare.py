@@ -15,13 +15,18 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
    the console script that starts the module its header names (``traces.find_recorded_game``),
    or, when none does (a game started as a script), this game started again
    (``children.running_game_command``), with ``--replay-trace OLD --headless`` and the hidden
-   ``--replay-frame-stream PORT``. It replays under OLD's own seed, so it compares as a plain
-   headless replay does and stops at its first divergence (it then ends there, and its exit and
-   output are logged). The child is started on the first presented frame, so it runs only inside
-   the run, whose teardown (``GameEngine._shutdown``) always stops it and waits for it
-   (``OnionSkin.stop``): when the replay ends, fails, is interrupted or restarts.
+   ``--replay-frame-stream PORT:TOKEN``. It replays under OLD's own seed, so it compares as a
+   plain headless replay does and stops at its first divergence (it then ends there, and its exit
+   and output are logged). The child is started inside the run (``OnionSkin.begin``): on the
+   first presented frame, or as a restarted replay's rebuild begins (rule 8), never before, so
+   every refusal comes before it, and the run's teardown (``GameEngine._shutdown``) always stops
+   it and waits for it (``OnionSkin.stop``): when the replay ends, fails, is interrupted or
+   restarts.
 3. **The frame stream.** The parent listens on a port of ``FRAME_STREAM_HOST`` (loopback only),
-   and the child connects to it (``FrameStream``) before its first frame. After each replayed
+   and the child connects to it (``FrameStream``) before its first frame and sends the run's
+   token first (``FRAME_STREAM_TOKEN_LENGTH`` hex characters, drawn per child from ``secrets``):
+   a connection without it (another local process) is closed and logged, and the parent goes on
+   waiting for its child. After each replayed
    frame, ``ReplaySources.end_frame`` hands the display surface (the frame as presented, overlays
    never on it) to the stream, which writes ``FRAME_HEADER`` (the frame's number, width and
    height: three little-endian unsigned 32-bit integers), then its pixels: width x height x 3
@@ -30,20 +35,25 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
    no descriptors, and a socket works the same on every platform.
 4. **Lockstep.** The parent reads frames only when it draws one: it reads (and drops) OLD's
    frames until it holds the one numbered as the frame presented, and keeps that one (memory
-   holds one frame). Paused, it reads nothing, so the child blocks on the full socket within a
-   few frames: the two runs move together, through pause and frame steps too.
+   holds one frame, as sent: only a frame drawn is decoded into a picture, once). Paused, it
+   reads nothing, so the child blocks on the full socket within a few frames: the two runs move
+   together, through pause and frame steps too.
 5. **OLD shorter than NEW.** When OLD's stream ends, its last frame stays, labelled
    ``OLD_ENDED_LABEL`` ("OLD ended at frame N"). NEW shorter: NEW's replay ends as usual and the
    teardown stops the child. A child that streams nothing (it exits or never connects within
    ``CHILD_CONNECT_TIMEOUT_SECONDS``) draws nothing over NEW, labelled ``OLD_NOT_REPLAYED_LABEL``,
-   with its output logged.
+   with its output logged. A child that stalls (alive, but nothing arrives within
+   ``CHILD_READ_TIMEOUT_SECONDS``) ends OLD there, labelled and logged as any end, and is stopped
+   at once: NEW's replay goes on (its viewer is held only while a read waits).
 6. **Refused before anything runs** (``compare_trace_refusal``, ``old_recording_refusal``):
    with ``--headless`` (an onion skin is watched; a headless replay under another seed, or
    ``--rebaseline``, is the headless way to see what changed), ``--audit`` or ``--rebaseline``
    (``ExitCode.OPTIONS_REFUSED``); an OLD recorded on a display of another size than NEW's, or
    that is not a readable recording (``ExitCode.UNUSABLE_INPUT``); a missing OLD
-   (``ExitCode.MISSING_INPUT``). A frame stream without ``--headless`` is refused too
-   (``frame_stream_refusal``): it is a headless child's.
+   (``ExitCode.MISSING_INPUT``). A header without a screen size (not the engine's recorder's)
+   lets the sizes go uncompared, with a warning. A frame stream without ``--headless``, or whose
+   value is not ``PORT:TOKEN``, is refused too (``frame_stream_refusal``): it is a headless
+   child's.
 7. **Every seed row.** NEW may be OLD itself under another seed
    (``--replay-trace OLD --random-seed N --compare-trace OLD``: the seed rule's row 5, which
    compares and writes nothing), so OLD's run under its own seed is shown over the new seed's.
@@ -52,20 +62,24 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
    ``--compare-trace`` included. The restarted process starts its own child with the same
    ``--replay-pause-at-frame N``: a headless replay does not pause, but its stream then writes
    nothing before the frame the restart shows paused (``first_streamed_frame``: N - 1, the
-   rebuild's own pause rule), so the child runs on through the frames NEW rebuilds unshown.
+   rebuild's own pause rule), so the child runs on through the frames NEW rebuilds unshown. The
+   restarted replay starts the child as its rebuild begins (``ReplaySources.hold_frame``), so the
+   two rebuilds run at once instead of one after the other.
 """
 
 from __future__ import annotations
 
 import contextlib
 import dataclasses
+import hmac
 import logging
 import os
+import secrets
 import socket
 import struct
 import tempfile
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, Self
+from typing import IO, TYPE_CHECKING, Any, Self, override
 
 import pygame
 
@@ -109,6 +123,18 @@ ONE_HUNDRED_PERCENT = 100.0
 # first), and how often it looks whether the child ended instead
 CHILD_CONNECT_TIMEOUT_SECONDS = 60.0
 ACCEPT_POLL_SECONDS = 0.1
+# How long a read waits for OLD's child before OLD counts as stalled (rule 5): generous, as a
+# frame can take long to replay, but bounded, as the viewer is held while it waits
+CHILD_READ_TIMEOUT_SECONDS = 60.0
+# How long a new connection has to send the token
+TOKEN_TIMEOUT_SECONDS = 5.0
+# The run's token (rule 3): random bytes, written as twice as many hex characters
+FRAME_STREAM_TOKEN_BYTES = 16
+FRAME_STREAM_TOKEN_LENGTH = 2 * FRAME_STREAM_TOKEN_BYTES
+HEX_DIGITS = frozenset('0123456789abcdef')
+LARGEST_PORT = 65535
+# --replay-frame-stream PORT:TOKEN
+FRAME_STREAM_ADDRESS_SEPARATOR = ':'
 # Options of OLD's child besides --replay-trace OLD --headless (rules 2, 3 and 8)
 FRAME_STREAM_OPTION = '--replay-frame-stream'
 PAUSE_AT_FRAME_OPTION = '--replay-pause-at-frame'
@@ -155,6 +181,48 @@ def compare_trace_refusal(*, options: Mapping[str, Any]) -> str | None:
     return None
 
 
+@dataclasses.dataclass(frozen=True)
+class FrameStreamAddress:
+    """Where a child streams its frames, and the token it sends first (rule 3).
+
+    Attributes:
+        port: The parent's port on ``FRAME_STREAM_HOST``.
+        token: The run's token.
+
+    """
+
+    port: int
+    token: str
+
+    @classmethod
+    def parse(cls, *, text: str) -> FrameStreamAddress | None:
+        """Read ``--replay-frame-stream PORT:TOKEN``.
+
+        Args:
+            text: The option's value.
+
+        Returns:
+            The address, or None unless it is a port from 1 to ``LARGEST_PORT`` and a token of
+            ``FRAME_STREAM_TOKEN_LENGTH`` lowercase hex characters.
+
+        """
+        port_text, separator, token = text.partition(FRAME_STREAM_ADDRESS_SEPARATOR)
+        if (
+            not separator
+            or not port_text.isdecimal()
+            or not 0 < int(port_text) <= LARGEST_PORT
+            or len(token) != FRAME_STREAM_TOKEN_LENGTH
+            or not set(token) <= HEX_DIGITS
+        ):
+            return None
+        return cls(port=int(port_text), token=token)
+
+    @override
+    def __str__(self: Self) -> str:
+        """Return the option's value, ``PORT:TOKEN``."""
+        return f'{self.port}{FRAME_STREAM_ADDRESS_SEPARATOR}{self.token}'
+
+
 def frame_stream_refusal(*, options: Mapping[str, Any]) -> str | None:
     """Return why ``--replay-frame-stream`` cannot run (rule 6), if it can't.
 
@@ -165,9 +233,17 @@ def frame_stream_refusal(*, options: Mapping[str, Any]) -> str | None:
         The reason, or None (also when no frame stream is given).
 
     """
-    if options.get('replay_frame_stream') is None or options.get('headless'):
+    address = options.get('replay_frame_stream')
+    if address is None:
         return None
-    return '--replay-frame-stream needs --headless: it streams a headless replay of OLD'
+    if FrameStreamAddress.parse(text=address) is None:
+        return (
+            f'--replay-frame-stream takes PORT:TOKEN (a port, then {FRAME_STREAM_TOKEN_LENGTH} '
+            f'lowercase hex characters), not {address!r}'
+        )
+    if not options.get('headless'):
+        return '--replay-frame-stream needs --headless: it streams a headless replay of OLD'
+    return None
 
 
 def old_recording_refusal(
@@ -192,7 +268,15 @@ def old_recording_refusal(
     except OSError, TraceFormatError:
         return CompareRefusal(exit_code=ExitCode.UNUSABLE_INPUT, reason='not a readable recording')
     new_size = recorded_screen_size(header=new_header)
-    if old_size is None or new_size is None or old_size == new_size:
+    if old_size is None or new_size is None:
+        LOG.warning(
+            'Comparing with %s: could not compare the screen sizes (%s has none in its header); '
+            'OLD is drawn over NEW from the top left',
+            old_path,
+            'OLD' if old_size is None else 'NEW',
+        )
+        return None
+    if old_size == new_size:
         return None
     return CompareRefusal(
         exit_code=ExitCode.UNUSABLE_INPUT,
@@ -260,20 +344,20 @@ class FrameStream:
         self.first_frame = first_frame
 
     @classmethod
-    def connect(cls, *, port: int, first_frame: int) -> FrameStream:
-        """Connect to the parent listening on ``port`` (``FRAME_STREAM_HOST``).
+    def connect(cls, *, address: FrameStreamAddress, first_frame: int) -> FrameStream:
+        """Connect to the parent listening at ``address`` and send its token.
 
         Args:
-            port: The parent's port (``--replay-frame-stream``).
+            address: The parent's port and the run's token (``--replay-frame-stream``).
             first_frame: The first frame to write.
 
         Returns:
             The stream (nothing listening there: ``socket.create_connection``'s OSError).
 
         """
-        return cls(
-            connection=socket.create_connection((FRAME_STREAM_HOST, port)), first_frame=first_frame
-        )
+        connection = socket.create_connection((FRAME_STREAM_HOST, address.port))
+        connection.sendall(address.token.encode('ascii'))
+        return cls(connection=connection, first_frame=first_frame)
 
     def write_frame(self: Self, *, frame_index: int, surface: pygame.Surface) -> bool:
         """Write a replayed frame, unless it comes before the first one.
@@ -307,18 +391,45 @@ class FrameStream:
             self._connection = None
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class HeldFrame:
-    """The one OLD frame the onion skin keeps.
+    """The one OLD frame the onion skin keeps, as sent (rule 4).
 
     Attributes:
         frame_index: Its number.
-        surface: Its picture, at the onion skin's alpha.
+        size: Its width and height.
+        pixels: Its RGB rows, as sent.
+        picture: Its picture at the onion skin's alpha, once decoded (``OnionSkin`` decodes a
+            held frame only when it draws it), else None.
 
     """
 
     frame_index: int
-    surface: pygame.Surface
+    size: tuple[int, int]
+    pixels: bytes
+    picture: pygame.Surface | None = None
+
+
+class StreamEndedError(Exception):
+    """OLD's stream has no more to read (``OnionSkin._receive``).
+
+    Attributes:
+        reason: Why, in words (logged).
+        stalled: True when the child is alive but sent nothing in time (it is stopped at once).
+
+    """
+
+    def __init__(self: Self, *, reason: str, stalled: bool) -> None:
+        """Say why the stream ended.
+
+        Args:
+            reason: Why.
+            stalled: Whether the child stalled.
+
+        """
+        super().__init__(reason)
+        self.reason = reason
+        self.stalled = stalled
 
 
 class OnionSkin:
@@ -344,7 +455,7 @@ class OnionSkin:
         game_command: Sequence[str],
         pause_at_frame: int | None,
     ) -> None:
-        """Prepare the onion skin; the child starts on the first ``draw``.
+        """Prepare the onion skin; the child starts on ``begin`` (or the first ``draw``).
 
         Args:
             old_path: OLD.
@@ -361,6 +472,7 @@ class OnionSkin:
         self.process: RunningProcess[str] | None = None
         self.frames_received = 0
         self.label: str | None = None
+        self._token = ''
         self._listener: socket.socket | None = None
         self._connection: socket.socket | None = None
         self._output: IO[str] | None = None
@@ -381,20 +493,28 @@ class OnionSkin:
         """True once ``stop`` ran: the child ended and was waited for."""
         return self._is_stopped
 
+    def begin(self: Self) -> None:
+        """Start OLD's child, unless it was started already; draws nothing (rules 2 and 8).
+
+        A restarted replay calls it as its rebuild begins, so OLD's child rebuilds alongside.
+        """
+        if self.process is None and not self._has_ended:
+            self._start()
+
     def draw(self: Self, *, surface: pygame.Surface, frame_index: int) -> None:
         """Draw OLD's frame ``frame_index`` over NEW's presented frame (rules 1, 4 and 5).
 
-        Starts the child on the first call. Reads OLD's frames up to ``frame_index``; draws the
-        one held at the alpha when it is that frame, or OLD's last one (labelled) once OLD has
-        ended before it. A frame OLD did not stream (before its first) draws nothing.
+        Starts the child on the first call (``begin``). Reads OLD's frames up to
+        ``frame_index``; draws the one held at the alpha when it is that frame, or OLD's last
+        one (labelled) once OLD has ended before it. A frame OLD did not stream (before its
+        first) draws nothing.
 
         Args:
             surface: NEW's presented frame (a copy: the display's clean frame comes back after).
             frame_index: The NEW frame it shows.
 
         """
-        if self.process is None and not self._has_ended:
-            self._start()
+        self.begin()
         self._read_up_to(frame_index=frame_index)
         held = self._held
         if held is None:
@@ -403,24 +523,41 @@ class OnionSkin:
             return
         if held.frame_index > frame_index:
             return
-        surface.blit(held.surface, (0, 0))
+        surface.blit(self._picture(held=held), (0, 0))
         if held.frame_index < frame_index:
             self._draw_label(
                 surface=surface, text=OLD_ENDED_LABEL.format(frame_index=held.frame_index)
             )
 
     def stop(self: Self) -> None:
-        """Stop the child (if it still runs) and wait for it; close the stream. Idempotent."""
-        self._close_sockets()
-        if self.process is not None:
-            stop_command(process=self.process)
-        if self._output is not None:
-            self._output.close()
-            self._output = None
-        if self._output_path is not None:
-            self._output_path.unlink(missing_ok=True)
-            self._output_path = None
+        """Stop the child (if it still runs) and wait for it; close the stream. Idempotent.
+
+        Every step runs, even after one fails (removing the output file can, on Windows); a
+        failure is raised once the last step has run.
+        """
+        with contextlib.ExitStack() as cleanup:
+            cleanup.callback(self._mark_stopped)
+            cleanup.callback(self._remove_output)
+            cleanup.callback(self._close_output)
+            if self.process is not None:
+                cleanup.callback(stop_command, process=self.process)
+            cleanup.callback(self._close_sockets)
+
+    def _mark_stopped(self: Self) -> None:
+        """Note that ``stop`` ran."""
         self._is_stopped = True
+
+    def _close_output(self: Self) -> None:
+        """Close the child's output file (once)."""
+        if self._output is not None:
+            output, self._output = self._output, None
+            output.close()
+
+    def _remove_output(self: Self) -> None:
+        """Remove the child's output file (once)."""
+        if self._output_path is not None:
+            output_path, self._output_path = self._output_path, None
+            output_path.unlink(missing_ok=True)
 
     def _close_sockets(self: Self) -> None:
         """Close the connection to the child and the listener (each once)."""
@@ -435,7 +572,8 @@ class OnionSkin:
         """Listen on a loopback port and start OLD's child, its output kept for the log."""
         self._listener = socket.create_server((FRAME_STREAM_HOST, 0))
         self._listener.settimeout(ACCEPT_POLL_SECONDS)
-        port: int = self._listener.getsockname()[1]
+        self._token = secrets.token_hex(FRAME_STREAM_TOKEN_BYTES)
+        address = FrameStreamAddress(port=self._listener.getsockname()[1], token=self._token)
         self.command = [
             *self.game_command,
             '--replay-trace',
@@ -444,7 +582,7 @@ class OnionSkin:
             '--log-level',
             'warning',
             FRAME_STREAM_OPTION,
-            str(port),
+            str(address),
         ]
         if self.pause_at_frame is not None:
             self.command += [PAUSE_AT_FRAME_OPTION, str(self.pause_at_frame)]
@@ -470,7 +608,10 @@ class OnionSkin:
             self._read_one_frame()
 
     def _accept(self: Self) -> bool:
-        """Wait for the child to connect, unless it ends or takes too long (rule 5).
+        """Wait for the child to connect with the token, unless it ends or takes too long (rule 5).
+
+        A connection without the token (another local process) is closed and logged, and the
+        wait goes on.
 
         Returns:
             True once connected; False when OLD ended without connecting.
@@ -487,64 +628,92 @@ class OnionSkin:
                     continue
                 # Ended, or too slow: stopped either way (stop_command reaps an ended one)
                 stop_command(process=self.process)
-                self._end(reason='it never connected to stream its frames')
+                self._end(reason='it never connected to stream its frames', stalled=False)
                 return False
-            connection.settimeout(None)
+            if not self._sends_the_token(connection=connection):
+                connection.close()
+                LOG.warning(
+                    'Comparing with %s: refused a frame stream connection without the token',
+                    self.old_path,
+                )
+                continue
+            connection.settimeout(CHILD_READ_TIMEOUT_SECONDS)
             self._connection = connection
             return True
 
-    def _read_one_frame(self: Self) -> None:
-        """Read the next frame into the one held, or note that OLD's stream ended."""
-        header = self._receive(count=FRAME_HEADER.size)
-        if header is None:
-            self._end(reason='its stream ended')
-            return
-        frame_index, width, height = FRAME_HEADER.unpack(header)
-        pixels = self._receive(count=width * height * BYTES_PER_PIXEL)
-        if pixels is None:
-            self._end(reason='its stream ended part way through a frame')
-            return
-        image = pygame.image.frombytes(pixels, (width, height), FRAME_PIXEL_FORMAT)
-        image.set_alpha(round(FULLY_OPAQUE_ALPHA * self.alpha_percent / ONE_HUNDRED_PERCENT))
-        self._held = HeldFrame(frame_index=frame_index, surface=image)
-        self.frames_received += 1
+    def _sends_the_token(self: Self, *, connection: socket.socket) -> bool:
+        """Tell whether a new connection sends the run's token first (rule 3).
 
-    def _receive(self: Self, *, count: int) -> bytes | None:
-        """Read exactly ``count`` bytes from the child.
+        Args:
+            connection: The connection.
 
         Returns:
-            The bytes, or None when the stream ended first.
+            True when its first ``FRAME_STREAM_TOKEN_LENGTH`` bytes are the token, in time.
 
         """
-        assert self._connection is not None
-        received = bytearray()
-        while len(received) < count:
-            try:
-                chunk = self._connection.recv(count - len(received))
-            except OSError:
-                return None
-            if not chunk:
-                return None
-            received.extend(chunk)
-        return bytes(received)
+        connection.settimeout(TOKEN_TIMEOUT_SECONDS)
+        try:
+            received = receive_exactly(connection=connection, count=FRAME_STREAM_TOKEN_LENGTH)
+        except StreamEndedError:
+            return False
+        return hmac.compare_digest(received, self._token.encode('ascii'))
 
-    def _end(self: Self, *, reason: str) -> None:
-        """OLD has no more frames: wait for its child, and log how it ended.
+    def _read_one_frame(self: Self) -> None:
+        """Read the next frame, as sent, into the one held; or note that OLD's stream ended."""
+        assert self._connection is not None
+        try:
+            header = receive_exactly(connection=self._connection, count=FRAME_HEADER.size)
+        except StreamEndedError as ended:
+            self._end(reason=ended.reason, stalled=ended.stalled)
+            return
+        frame_index, width, height = FRAME_HEADER.unpack(header)
+        try:
+            pixels = receive_exactly(
+                connection=self._connection, count=width * height * BYTES_PER_PIXEL
+            )
+        except StreamEndedError as ended:
+            self._end(reason=f'{ended.reason} part way through a frame', stalled=ended.stalled)
+            return
+        # Kept as sent: decoded only if it is drawn (_picture), so a frame read past is not
+        self._held = HeldFrame(frame_index=frame_index, size=(width, height), pixels=pixels)
+        self.frames_received += 1
+
+    def _picture(self: Self, *, held: HeldFrame) -> pygame.Surface:
+        """Return the held frame's picture at the alpha, decoding it the first time.
+
+        Args:
+            held: The held frame.
+
+        Returns:
+            The picture.
+
+        """
+        if held.picture is None:
+            picture = pygame.image.frombytes(held.pixels, held.size, FRAME_PIXEL_FORMAT)
+            picture.set_alpha(round(FULLY_OPAQUE_ALPHA * self.alpha_percent / ONE_HUNDRED_PERCENT))
+            held.picture = picture
+        return held.picture
+
+    def _end(self: Self, *, reason: str, stalled: bool) -> None:
+        """OLD has no more frames: wait for its child (stop a stalled one), and log how it ended.
 
         A child that streamed is logged at info level when it ended ``SUCCESS``; otherwise (it
-        diverged, failed, or never streamed) its exit and its output are a warning.
+        diverged, failed, stalled, or never streamed) its exit and its output are a warning.
 
         Args:
             reason: Why it has no more frames.
+            stalled: True when the child is alive but sent nothing in time: it is stopped at
+                once, not given time to end on its own.
 
         """
         self._has_ended = True
         # Closed first: a child still streaming then fails its next write and stops itself
         self._close_sockets()
         assert self.process is not None
-        with contextlib.suppress(TimeoutExpired):
-            # A child whose stream ended is ending itself: its exit status says how
-            self.process.wait(timeout=STOP_GRACE_SECONDS)
+        if not stalled:
+            with contextlib.suppress(TimeoutExpired):
+                # A child whose stream ended is ending itself: its exit status says how
+                self.process.wait(timeout=STOP_GRACE_SECONDS)
         stop_command(process=self.process)
         status = self.process.returncode
         if self._held is not None and status == ExitCode.SUCCESS:
@@ -569,7 +738,7 @@ class OnionSkin:
         )
 
     def _draw_label(self: Self, *, surface: pygame.Surface, text: str) -> None:
-        """Draw a label at the top centre, on the debug overlay's backing, in its font.
+        """Draw a label at the top center, on the debug overlay's backing, in its font.
 
         Args:
             surface: The presented frame.
@@ -585,3 +754,33 @@ class OnionSkin:
             text_surface=text_surface,
             position=((surface.get_width() - text_surface.get_width()) // 2, HUD_MARGIN),
         )
+
+
+def receive_exactly(*, connection: socket.socket, count: int) -> bytes:
+    """Read exactly ``count`` bytes from a connection.
+
+    Args:
+        connection: The connection (its timeout applies to each read).
+        count: How many bytes.
+
+    Returns:
+        The bytes.
+
+    Raises:
+        StreamEndedError: If the stream ended or failed first, or nothing came in time
+            (``stalled``).
+
+    """
+    received = bytearray()
+    while len(received) < count:
+        try:
+            chunk = connection.recv(count - len(received))
+        except TimeoutError:
+            reason = f'it stopped streaming (nothing for {connection.gettimeout():g} s)'
+            raise StreamEndedError(reason=reason, stalled=True) from None
+        except OSError:
+            raise StreamEndedError(reason='its stream ended', stalled=False) from None
+        if not chunk:
+            raise StreamEndedError(reason='its stream ended', stalled=False)
+        received.extend(chunk)
+    return bytes(received)

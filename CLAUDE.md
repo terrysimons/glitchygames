@@ -492,7 +492,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   tool to every game's command line (`add_game_flags`: `--record-trace` with `--random-seed`
   and `--headless`, `--replay-trace` and its options `--replay-fps`, `--audit`, `--compare-processing`, `--max-processing-slowdown`,
   `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`, `--headless`, `--compare-trace
-  OLD`, `--compare-alpha PERCENT` and the hidden `--replay-frame-stream PORT`
+  OLD`, `--compare-alpha PERCENT` and the hidden `--replay-frame-stream PORT:TOKEN`
   (`ToolOption.hidden`: parsed on both front ends, in neither's help),
   `--record-golden-trace PATH` with `--input-script MODULE:NAME`, `--frame-count N`,
   `--random-seed` and `--headless`, `--record-session PATH` with those and `--controls-tail
@@ -735,18 +735,25 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   before the status bar; not while rebuilding) at PERCENT (default 50; `argument_types.
   percent_from_zero_to_one_hundred`, kind `bounded-percent`). OLD is replayed by a headless
   child (OLD's game from its header, `traces.find_recorded_game`, else
-  `children.running_game_command`; started on the first presented frame with
-  `process.start_command`, its output in a temporary file logged when it fails) with the hidden
-  `--replay-frame-stream PORT`: `ReplaySources.frame_sink` (`FrameStream`) writes each frame from
-  the display surface in `end_frame` to the parent's loopback socket (`FRAME_HEADER` `<III`:
-  frame, width, height; then RGB rows), and a write nobody reads stops the child. The parent
-  reads only when it draws (lockstep through pause and steps; one frame held); OLD ended: its
-  last frame stays, labelled `OLD ended at frame N`. Refused before anything runs: with
-  `--headless`, `--audit`, `--rebaseline` (64), an OLD of another screen size or unreadable
-  (65), missing (66); a frame stream without `--headless` (64), or with nobody listening (69).
-  A step back's restart keeps `--compare-trace`; its child gets the same
-  `--replay-pause-at-frame N` and streams from `first_streamed_frame` (N - 1). The teardown
-  (`_shutdown`) always stops and reaps the child. The three options are `REPLAY_LOCAL_OPTIONS`
+  `children.running_game_command`; started inside the run by `OnionSkin.begin`, on the first
+  presented frame or as a restart's rebuild begins, with `process.start_command`, its output in
+  a temporary file logged when it fails) with the hidden `--replay-frame-stream PORT:TOKEN`
+  (`FrameStreamAddress`; the token, from `secrets` per child, is sent first, and a connection
+  without it is closed and logged; `tests/test_unseeded_randomness_guard.py` lists the module):
+  `ReplaySources.frame_sink` (`FrameStream`) writes each frame from the display surface in
+  `end_frame` to the parent's loopback socket (`FRAME_HEADER` `<III`: frame, width, height; then
+  RGB rows), and a write nobody reads stops the child. The parent reads only when it draws
+  (lockstep through pause and steps; one frame held as sent, decoded only when drawn); OLD
+  ended: its last frame stays, labelled `OLD ended at frame N`; a child silent for
+  `CHILD_READ_TIMEOUT_SECONDS` ends OLD the same way and is stopped at once (NEW goes on).
+  Refused before anything runs: with `--headless`, `--audit`, `--rebaseline` (64), an OLD of
+  another screen size or unreadable (65; a header without a size is warned about, not
+  refused), missing (66); a frame stream without `--headless` or not `PORT:TOKEN` (64), or with
+  nobody listening (69). A step back's restart keeps `--compare-trace`; its child gets the same
+  `--replay-pause-at-frame N`, starts as the rebuild begins (the two rebuild at once) and
+  streams from `first_streamed_frame` (N - 1). The teardown (`_shutdown`: `_end_the_comparison`,
+  then `_shut_down_the_run` even if that failed) always stops and reaps the child. The three
+  options are `REPLAY_LOCAL_OPTIONS`
 - `--replay-fps {recorded,real}` (default `recorded`): FPS events, the performance stats and the
   overlay's performance panel use the recorded frame times (exact, compared) or this machine's
   measured ones (FPS events then not compared); logic always gets the recorded `dt`

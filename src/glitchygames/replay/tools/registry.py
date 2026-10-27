@@ -773,11 +773,12 @@ COMPARE_ALPHA_OPTION = ToolOption(
 )
 REPLAY_FRAME_STREAM_OPTION = ToolOption(
     flag='--replay-frame-stream',
-    kind='count',
-    metavar='PORT',
+    kind='text',
+    metavar='PORT:TOKEN',
     help=(
         "internal: with --replay-trace --headless, write each replayed frame's pixels to the "
-        'parent listening on this loopback port (--compare-trace starts OLD with it)'
+        'parent listening on this loopback port, after its token (--compare-trace starts OLD '
+        'with it)'
     ),
     default=None,
     hidden=True,

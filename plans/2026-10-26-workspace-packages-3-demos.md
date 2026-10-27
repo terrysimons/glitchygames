@@ -1524,7 +1524,8 @@ restart path (`replay/viewer.py`, `replay/driver.py`) to keep the child in step;
   - `test_a_step_back_restarts_the_child_at_the_same_frame`.
 - [x] **Step 2:** implement; lint; `CI=true nox -s test`; commit. (Done 2026-10-27: the frame
   stream is a loopback socket, not a pipe, as the one child launcher passes no descriptors; the
-  hidden option is `--replay-frame-stream PORT`, `ToolOption.hidden`, no sync-test exemption.)
+  hidden option is `--replay-frame-stream PORT:TOKEN` (fix round 1: a per-child token checked on
+  accept), `ToolOption.hidden`, no sync-test exemption.)
 - [ ] **Step 3: the user's look.** Give the user one `!` command for a watched compare on a real
   game (for example a PaddleSlap golden against a row-5 replay of it under another seed), and
   record what they report in the task report.

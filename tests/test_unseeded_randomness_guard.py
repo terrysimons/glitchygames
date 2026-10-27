@@ -21,10 +21,14 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 # Modules in the package allowed to use unseeded randomness, and why. randomness.py draws
-# the master seed itself when no --random-seed is given. No module uses randomness for
-# security (tokens, keys) today; one that does would be listed here with its reason.
+# the master seed itself when no --random-seed is given; replay/tools/compare.py draws a token
+# for security, not gameplay (each --compare-trace child proves itself with it).
 UNSEEDED_RANDOMNESS_ALLOWED_MODULES: dict[str, str] = {
     'randomness.py': 'draws the master seed from secrets when no --random-seed is given',
+    'replay/tools/compare.py': (
+        "draws each frame stream's token from secrets (a loopback connection proves it is "
+        "OLD's child; never gameplay, never replayed)"
+    ),
 }
 
 OFFENDING_RANDOMNESS_SOURCE = """\

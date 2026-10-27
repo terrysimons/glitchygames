@@ -115,6 +115,7 @@ from glitchygames.replay.rebuild import (
 from glitchygames.replay.tools.compare import (
     DEFAULT_COMPARE_ALPHA_PERCENT,
     FrameStream,
+    FrameStreamAddress,
     OnionSkin,
     compare_trace_refusal,
     first_streamed_frame,
@@ -2082,7 +2083,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     def _connect_the_frame_stream(
         self: Self, *, sources: ReplaySources, options: dict[str, Any]
     ) -> None:
-        """Connect a headless replay's frame stream to its parent (--replay-frame-stream PORT).
+        """Connect a headless replay's frame stream to its parent (--replay-frame-stream).
 
         Nothing listening on the port exits (``exit_with``) with
         ``ExitCode.SERVICE_UNAVAILABLE`` before anything runs. The stream writes nothing before
@@ -2094,12 +2095,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             options: The parsed options.
 
         """
-        port = options.get('replay_frame_stream')
-        if port is None:
+        address_text = options.get('replay_frame_stream')
+        if address_text is None:
             return
+        address = FrameStreamAddress.parse(text=address_text)
+        # Refused before the replay started when it does not read (frame_stream_refusal)
+        assert address is not None
         try:
             self.frame_stream = FrameStream.connect(
-                port=port,
+                address=address,
                 first_frame=first_streamed_frame(
                     pause_at_frame=options.get('replay_pause_at_frame')
                 ),
@@ -2110,7 +2114,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             sources.frame_sink = self.frame_stream
             return
         # Logged without a traceback: the message says what is wrong
-        self.log.error('Cannot stream frames to port %s: %s', port, refusal)
+        self.log.error('Cannot stream frames to port %s: %s', address.port, refusal)
         exit_with(exit_code=ExitCode.SERVICE_UNAVAILABLE, cause=refusal)
 
     def _refuse_an_unsound_recording_over_the_replay(
@@ -2405,17 +2409,37 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 os.environ[name] = value
 
     def _shutdown(self: Self, *, run_ended_by: str | None = None) -> None:
+        """Stop the comparison, then close any recording, report any replay, shut down pygame.
+
+        OLD's child and a frame stream end first (``_end_the_comparison``); if that fails, the
+        rest of the teardown still runs (``_shut_down_the_run``), and the failure propagates
+        after it (the teardown failed).
+
+        Args:
+            run_ended_by: What ended the run early (``_report_replay_result``), or None.
+
+        """
+        try:
+            self._end_the_comparison()
+        finally:
+            self._shut_down_the_run(run_ended_by=run_ended_by)
+
+    def _end_the_comparison(self: Self) -> None:
+        """Stop --compare-trace's child and close a frame stream (each runs if the other fails)."""
+        try:
+            if self.onion_skin is not None:
+                self.onion_skin.stop()
+        finally:
+            if self.frame_stream is not None:
+                self.frame_stream.close()
+
+    def _shut_down_the_run(self: Self, *, run_ended_by: str | None) -> None:
         """Close any recording, report any replay, print performance reports, shut down pygame.
 
         Args:
             run_ended_by: What ended the run early (``_report_replay_result``), or None.
 
         """
-        # OLD's child and a frame stream end with the run, however it ends (neither raises)
-        if self.onion_skin is not None:
-            self.onion_skin.stop()
-        if self.frame_stream is not None:
-            self.frame_stream.close()
         try:
             # First, so the recording is complete even if a report below fails
             self.stop_trace_recording()

@@ -227,7 +227,8 @@ session again, and every frame's sprites are compared with the recorded frame. T
 20. Onion skin (``--compare-trace OLD``; glitchygames/replay/tools/compare.py, whose docstring
     is the contract): a watched replay's ``onion_skin`` draws OLD's frame of the same number
     over the presented copy of the frame shown (``draw_overlay``, before the status bar; not
-    while rebuilding), and a headless child's ``frame_sink`` takes each replayed frame from the
+    while rebuilding, though ``hold_frame`` begins it as a rebuild starts, so OLD's child
+    rebuilds alongside), and a headless child's ``frame_sink`` takes each replayed frame from the
     display surface as ``end_frame`` ends it (``False`` back stops the replay: nobody reads).
     Neither changes what is replayed or compared.
 """
@@ -495,6 +496,10 @@ class FrameSink(Protocol):
 
 class FrameOverlay(Protocol):
     """Draws over a watched replay's presented frame (``ReplaySources.onion_skin``; rule 20)."""
+
+    def begin(self) -> None:
+        """Get ready to draw (start what it needs), drawing nothing yet; idempotent."""
+        ...
 
     def draw(self, *, surface: pygame.Surface, frame_index: int) -> None:
         """Draw over the presented copy of frame ``frame_index``."""
@@ -1667,6 +1672,9 @@ class ReplaySources:
         if self._rebuild is not None:
             # Before frame 0's game code: the game's own music pauses are followed from it
             self._rebuild.begin()
+            # An onion skin's OLD rebuilds alongside (rule 20), not after this rebuild
+            if self.onion_skin is not None:
+                self.onion_skin.begin()
             now = measured_seconds()
             if not self._rebuild.progress_is_due(frame_index=self._frame_index, now=now):
                 return False

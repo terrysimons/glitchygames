@@ -445,14 +445,17 @@ exits exactly as it would alone: only the shown copy is drawn on. The `glitchyga
 takes the same options (`glitchygames replay-trace NEW --compare-trace OLD`).
 
 OLD is replayed by a headless child process (OLD's own game, under OLD's own seed), which
-streams each frame's pixels to the viewer over a loopback socket. The viewer reads one frame
-per frame it shows, so pausing and stepping move both runs together, and only one OLD frame is
-held in memory. Stepping back (or Home, or D) restarts the child at the same frame as the
-restarted replay.
+streams each frame's pixels to the viewer over a loopback socket, proving itself with a token
+drawn for that run. The viewer reads one frame per frame it shows, so pausing and stepping move
+both runs together, and only one OLD frame is held in memory. Stepping back (or Home, or D)
+restarts the child at the same frame as the restarted replay; the child rebuilds alongside the
+replay's own rebuild.
 
 - **OLD shorter than NEW:** OLD's last frame stays, labelled `OLD ended at frame N`. OLD that
   diverges on the current code stops at its divergence, so it ends there (the log says why).
 - **NEW shorter than OLD:** the replay ends as usual, and the child is stopped.
+- **OLD stalls** (its child sends nothing for a minute): OLD ends there, labelled and logged as
+  above, the child is stopped, and NEW's replay goes on.
 - **The same recording under another seed** shows what the seed changes:
   `--replay-trace OLD --random-seed 7 --compare-trace OLD` draws OLD's own run over its run under
   seed 7 (a replay under another seed compares and writes nothing).

@@ -20,6 +20,7 @@ import os
 import socket
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -44,6 +45,7 @@ from glitchygames.replay.tools.compare import (
     OnionSkin,
     first_streamed_frame,
     old_game_command,
+    old_recording_refusal,
 )
 from glitchygames.replay.tools.golden_traces import (
     GoldenTraceEngine,
@@ -86,15 +88,20 @@ OLD_SEED = 200
 NEW_SEED = 100
 OLD_RED = (OLD_SEED, 0, 0)
 NEW_RED = (NEW_SEED, 0, 0)
+# Each frame's green is its own (frame k is FRAME_GREEN_STEP x (k + 1)): a frame's pixels sent
+# under another frame's number show
+FRAME_GREEN_STEP = 10
 # A pixel away from the status bar (bottom) and the OLD-ended label (top)
 SAMPLE_POINT = (8, 100)
 # The stand-in games' window size (tests/stand_in_games.py records at 320x240)
 STAND_IN_SIZE = (320, 240)
+# The frame stream token's length (compare.FRAME_STREAM_TOKEN_LENGTH), for parametrize ids
+FRAME_STREAM_TOKEN_LENGTH_FOR_TESTS = 32
 # How long the end-to-end children may run
 CHILD_TIMEOUT_SECONDS = 120.0
 
 COLOR_GAME_SOURCE = f'''\
-"""A stand-in game whose whole window is one color, named by the run's seed."""
+"""A stand-in game whose whole window is one color: the seed's red, the frame's own green."""
 
 import pygame
 
@@ -103,20 +110,15 @@ from glitchygames.randomness import engine_random_seed
 from glitchygames.scenes import Scene
 
 FRAMES_BEFORE_QUIT = {COLOR_GAME_FRAMES}
-
-
-def seed_color(seed):
-    """The seed's color: its low three bytes as red, green and blue."""
-    return (seed % 256, seed // 256 % 256, seed // 65536 % 256)
+FRAME_GREEN_STEP = {FRAME_GREEN_STEP}
 
 
 class Backdrop(pygame.sprite.DirtySprite):
     """The whole window, in one color, drawn on every frame."""
 
-    def __init__(self, *, size, color):
+    def __init__(self, *, size):
         super().__init__()
         self.image = pygame.Surface(size)
-        self.image.fill(color)
         self.rect = self.image.get_rect()
         self.dirty = 2
 
@@ -125,18 +127,22 @@ class Backdrop(pygame.sprite.DirtySprite):
 
 
 class {SCENE_NAME}(Scene):
-    """The one scene: the window in the seed's color; it quits itself."""
+    """The one scene: the seed's red, and a green each frame of its own; it quits itself."""
 
     NAME = {SCENE_NAME!r}
 
     def __init__(self, options=None, groups=None):
         super().__init__(options=options, groups=groups)
         size = pygame.display.get_surface().get_size()
-        self.all_sprites.add(Backdrop(size=size, color=seed_color(engine_random_seed())))
+        self.red = engine_random_seed() % 256
+        self.backdrop = Backdrop(size=size)
+        self.all_sprites.add(self.backdrop)
         self.frames = 0
 
     def dt_tick(self, dt):
         self.frames += 1
+        # Frame k (counted from 0) is painted with green FRAME_GREEN_STEP x (k + 1)
+        self.backdrop.image.fill((self.red, FRAME_GREEN_STEP * self.frames % 256, 0))
         if self.frames == FRAMES_BEFORE_QUIT:
             GameEngine.quit_game()
 
@@ -163,6 +169,16 @@ class ColorGame:
     scene_class: type[Scene]
     old: Path
     old_frame_count: int
+
+
+def frame_color(*, seed: int, frame_index: int) -> tuple[int, int, int]:
+    """Return the color game's picture on a frame: its seed's red, the frame's own green.
+
+    Returns:
+        The color.
+
+    """
+    return (seed % 256, FRAME_GREEN_STEP * (frame_index + 1) % 256, 0)
 
 
 def recorded_frame_count(*, path: Path) -> int:
@@ -409,12 +425,22 @@ def test_one_blended_frame_has_the_expected_pixels(color_game, mocker, alpha_arg
     )
 
     assert run.exit_status == ExitCode.SUCCESS
-    expected = blended(new=NEW_RED, old=OLD_RED, percent=percent)
-    assert expected == ((150, 0, 0) if percent == DEFAULT_COMPARE_ALPHA_PERCENT else (125, 0, 0))
+    expected_red = 150 if percent == DEFAULT_COMPARE_ALPHA_PERCENT else 125
+    assert blended(new=NEW_RED, old=OLD_RED, percent=percent) == (expected_red, 0, 0)
     shown = [frame for frame in run.presented if frame.frame_index is not None]
     assert shown
     for frame in shown:
-        assert frame.sample == expected, frame
+        assert frame.frame_index is not None
+        # The same frame's green on both sides mixes to itself; another frame's would not
+        assert frame.sample == (
+            expected_red,
+            *frame_color(seed=0, frame_index=frame.frame_index)[1:],
+        )
+        assert frame.sample == blended(
+            new=frame_color(seed=NEW_SEED, frame_index=frame.frame_index),
+            old=frame_color(seed=OLD_SEED, frame_index=frame.frame_index),
+            percent=percent,
+        ), frame
         assert frame.old_frame_index == frame.frame_index, frame
         assert frame.label is None
 
@@ -430,9 +456,11 @@ def test_without_compare_trace_the_frame_is_new_alone(color_game, mocker):
 
     assert run.exit_status == ExitCode.SUCCESS
     assert run.engine.onion_skin is None
-    shown = [frame.sample for frame in run.presented if frame.frame_index is not None]
+    shown = [frame for frame in run.presented if frame.frame_index is not None]
     assert shown
-    assert set(shown) == {NEW_RED}
+    for frame in shown:
+        assert frame.frame_index is not None
+        assert frame.sample == frame_color(seed=NEW_SEED, frame_index=frame.frame_index), frame
 
 
 @dataclasses.dataclass(frozen=True)
@@ -471,7 +499,8 @@ class FrameStreamListener:
     """A frame stream's other end: it listens on a port and reads every frame on a thread.
 
     Attributes:
-        port: The port it listens on (``--replay-frame-stream PORT``).
+        address: Its ``PORT:TOKEN`` (``--replay-frame-stream``); a connection is read only
+            after it sends the token.
 
     """
 
@@ -483,7 +512,8 @@ class FrameStreamListener:
 
         """
         self._listener = socket.create_server((compare.FRAME_STREAM_HOST, 0))
-        self.port: int = self._listener.getsockname()[1]
+        self._token = 'a' * compare.FRAME_STREAM_TOKEN_LENGTH
+        self.address = f'{self._listener.getsockname()[1]}:{self._token}'
         self._closes_at_once = closes_at_once
         self._frames: list[StreamedFrame] = []
         self._thread = threading.Thread(target=self._read, daemon=True)
@@ -494,6 +524,8 @@ class FrameStreamListener:
         with connection:
             if self._closes_at_once:
                 return
+            token = receive_exactly(connection=connection, count=len(self._token))
+            assert token == self._token.encode('ascii')
             while (
                 header := receive_exactly(connection=connection, count=FRAME_HEADER.size)
             ) is not None:
@@ -541,7 +573,7 @@ def test_the_child_streams_one_frame_per_frame_in_order(
         mocker=mocker,
         scene_class=color_game.scene_class,
         path=color_game.old,
-        extra_arguments=('--replay-frame-stream', str(listener.port), *pause_arguments),
+        extra_arguments=('--replay-frame-stream', listener.address, *pause_arguments),
     )
     frames = listener.finish()
 
@@ -550,7 +582,9 @@ def test_the_child_streams_one_frame_per_frame_in_order(
         range(first_frame, color_game.old_frame_count)
     )
     assert {frame.size for frame in frames} == {STAND_IN_SIZE}
-    assert {frame.sample for frame in frames} == {OLD_RED}
+    for frame in frames:
+        # Each frame's own pixels under its own number
+        assert frame.sample == frame_color(seed=OLD_SEED, frame_index=frame.frame_index), frame
     # The pause frame is the stream's to read: no warning that it is ignored
     assert 'is ignored with --headless' not in caplog.text
 
@@ -563,7 +597,7 @@ def test_a_stream_nobody_reads_any_more_ends_the_replay(color_game, mocker):
         mocker=mocker,
         scene_class=color_game.scene_class,
         path=color_game.old,
-        extra_arguments=('--replay-frame-stream', str(listener.port)),
+        extra_arguments=('--replay-frame-stream', listener.address),
     )
     listener.finish()
 
@@ -591,13 +625,17 @@ def test_a_shorter_old_holds_its_last_frame_with_the_label(color_game, mocker, t
     )
 
     assert run.exit_status == ExitCode.SUCCESS
-    expected = blended(new=NEW_RED, old=OLD_RED, percent=DEFAULT_COMPARE_ALPHA_PERCENT)
     shown = [frame for frame in run.presented if frame.frame_index is not None]
     # The recorded game quits in its last frame, so the replay ends without presenting it
     assert {frame.frame_index for frame in shown} == set(range(1, color_game.old_frame_count - 1))
     for frame in shown:
         assert frame.frame_index is not None
-        assert frame.sample == expected, frame
+        # OLD's last frame, its own green, stays over NEW's later ones
+        assert frame.sample == blended(
+            new=frame_color(seed=NEW_SEED, frame_index=frame.frame_index),
+            old=frame_color(seed=OLD_SEED, frame_index=min(frame.frame_index, last_old_frame)),
+            percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        ), frame
         if frame.frame_index <= last_old_frame:
             assert frame.old_frame_index == frame.frame_index, frame
             assert frame.label is None, frame
@@ -830,6 +868,33 @@ def test_the_child_is_reaped_when_the_replay_ends_or_fails(color_game, mocker, e
     assert onion_skin.is_stopped
 
 
+def test_a_failing_stop_still_runs_the_rest_of_the_teardown(color_game, mocker, caplog):
+    """The child is stopped, and the replay is still reported, though stopping it raised."""
+    stop = OnionSkin.stop
+
+    def stop_then_fail(onion_skin: OnionSkin) -> None:
+        stop(onion_skin)
+        message = 'the log file could not be removed'
+        raise PermissionError(message)
+
+    mocker.patch.object(OnionSkin, 'stop', stop_then_fail)
+    report = mocker.spy(GoldenTraceEngine, '_report_replay_result')
+
+    run = watched_replay(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        recording=color_game.old,
+        arguments=('--random-seed', str(NEW_SEED), '--compare-trace', str(color_game.old)),
+    )
+
+    # A failed teardown is an internal error, after the rest of it ran
+    assert run.exit_status == ExitCode.INTERNAL_ERROR
+    assert report.call_count == 1
+    assert 'The teardown failed' in caplog.text
+    assert run.onion_skin.process is not None
+    assert run.onion_skin.process.returncode is not None
+
+
 def test_a_step_back_restarts_the_child_at_the_same_frame(color_game, mocker):
     """A restart keeps --compare-trace; its child starts at the frame the restart pauses on."""
     restarted = restart_command(
@@ -851,7 +916,18 @@ def test_a_step_back_restarts_the_child_at_the_same_frame(color_game, mocker):
     assert restarted[-2:] == ['--replay-pause-at-frame', '4']
 
     # The restarted replay itself: rebuilt to frame 4 unshown, paused with frame 3 shown, then
-    # Space runs it on to its end
+    # Space runs it on to its end. OLD's child starts as the rebuild begins, so the two rebuild
+    # at once
+    started_while_rebuilding: list[bool] = []
+    start = OnionSkin._start
+
+    def start_noting_the_rebuild(onion_skin: OnionSkin) -> None:
+        sources = active_sources()
+        assert isinstance(sources, ReplaySources)
+        started_while_rebuilding.append(sources.controls.rebuild_target_frame is not None)
+        start(onion_skin)
+
+    mocker.patch.object(OnionSkin, '_start', start_noting_the_rebuild)
     run = watched_replay(
         mocker=mocker,
         scene_class=color_game.scene_class,
@@ -867,12 +943,19 @@ def test_a_step_back_restarts_the_child_at_the_same_frame(color_game, mocker):
     )
 
     assert run.exit_status == ExitCode.SUCCESS
+    assert started_while_rebuilding == [True]
     command = run.onion_skin.command
     assert command[command.index('--replay-pause-at-frame') + 1] == '4'
     shown = [frame for frame in run.presented if frame.frame_index is not None]
     assert shown[0].frame_index == 3
     for frame in shown:
+        assert frame.frame_index is not None
         assert frame.old_frame_index == frame.frame_index, frame
+        assert frame.sample == blended(
+            new=frame_color(seed=NEW_SEED, frame_index=frame.frame_index),
+            old=frame_color(seed=OLD_SEED, frame_index=frame.frame_index),
+            percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        ), frame
     # The child skipped the frames the restart rebuilt unshown: none of them was sent, only
     # each frame shown
     assert run.onion_skin.frames_received == len({frame.frame_index for frame in shown})
@@ -916,15 +999,16 @@ def test_the_frame_stream_option_is_hidden_on_both_front_ends():
     command = build_command_parser()
     replay_trace = tool_named(name='replay-trace')
 
-    assert game.parse_args(['--replay-frame-stream', '5']).replay_frame_stream == 5
+    address = f'5:{"a" * compare.FRAME_STREAM_TOKEN_LENGTH}'
+    assert game.parse_args(['--replay-frame-stream', address]).replay_frame_stream == address
     assert (
         command.parse_args([
             'replay-trace',
             'new',
             '--replay-frame-stream',
-            '5',
+            address,
         ]).replay_frame_stream
-        == 5
+        == address
     )
     assert '--replay-frame-stream' not in game.format_help()
     assert '--replay-frame-stream' not in command.format_help()
@@ -940,11 +1024,39 @@ def test_a_frame_stream_needs_headless(color_game, mocker, caplog):
     status = constructed_exit_status(
         mocker=mocker,
         scene_class=color_game.scene_class,
-        arguments=('--replay-trace', str(color_game.old), '--replay-frame-stream', '1'),
+        arguments=(
+            '--replay-trace',
+            str(color_game.old),
+            '--replay-frame-stream',
+            f'1:{"a" * compare.FRAME_STREAM_TOKEN_LENGTH}',
+        ),
     )
 
     assert status == ExitCode.OPTIONS_REFUSED
     assert '--replay-frame-stream needs --headless' in caplog.text
+
+
+@pytest.mark.parametrize(
+    'address', ['5', 'port:' + 'a' * 32, '5:short', '5:' + 'g' * 32, '70000:' + 'a' * 32]
+)
+def test_a_frame_stream_address_that_is_not_port_and_token_is_refused(
+    color_game, mocker, caplog, address
+):
+    """``--replay-frame-stream`` takes ``PORT:TOKEN`` (the token: the parent's, hex)."""
+    status = constructed_exit_status(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        arguments=(
+            '--replay-trace',
+            str(color_game.old),
+            '--headless',
+            '--replay-frame-stream',
+            address,
+        ),
+    )
+
+    assert status == ExitCode.OPTIONS_REFUSED
+    assert '--replay-frame-stream takes PORT:TOKEN' in caplog.text
 
 
 def test_a_frame_stream_with_nobody_listening_is_refused(color_game, mocker, caplog):
@@ -960,7 +1072,7 @@ def test_a_frame_stream_with_nobody_listening_is_refused(color_game, mocker, cap
             str(color_game.old),
             '--headless',
             '--replay-frame-stream',
-            str(port),
+            f'{port}:{"a" * compare.FRAME_STREAM_TOKEN_LENGTH}',
         ),
     )
 
@@ -1195,3 +1307,138 @@ def test_a_frame_stream_writes_nothing_before_its_first_frame():
     assert FRAME_HEADER.unpack(received[: FRAME_HEADER.size]) == (1, 2, 1)
     assert received[FRAME_HEADER.size :] == bytes(OLD_RED * 2)
     assert not stream.write_frame(frame_index=2, surface=surface)
+
+
+def test_frames_that_will_be_dropped_are_not_decoded(color_game, mocker):
+    """Read past without building a picture; only a frame drawn is decoded (OLD's last too)."""
+    decode = mocker.spy(pygame.image, 'frombytes')
+    onion_skin = OnionSkin(
+        old_path=color_game.old,
+        alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        game_command=old_game_command(old_path=color_game.old),
+        pause_at_frame=None,
+    )
+    last_frame = color_game.old_frame_count - 1
+    try:
+        onion_skin.draw(surface=surface_of(color=NEW_RED), frame_index=0)
+        onion_skin.draw(surface=surface_of(color=NEW_RED), frame_index=4)
+        assert decode.call_count == 2
+        onion_skin.draw(surface=surface_of(color=NEW_RED), frame_index=4)
+        assert decode.call_count == 2
+        # Past OLD's end: its last frame, read past while looking for the next, is decoded
+        late = surface_of(color=NEW_RED)
+        onion_skin.draw(surface=late, frame_index=last_frame + 3)
+    finally:
+        onion_skin.stop()
+
+    assert decode.call_count == 3
+    assert onion_skin.frames_received == color_game.old_frame_count
+    assert onion_skin.held_frame_index == last_frame
+    assert rgb_at(surface=late) == blended(
+        new=NEW_RED,
+        old=frame_color(seed=OLD_SEED, frame_index=last_frame),
+        percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+    )
+
+
+STALLING_CHILD = """\
+import socket, sys, time
+port, token = sys.argv[sys.argv.index('--replay-frame-stream') + 1].split(':')
+connection = socket.create_connection(('127.0.0.1', int(port)))
+connection.sendall(token.encode('ascii'))
+# One 2x1 frame (frame 0), then nothing more, never closing
+connection.sendall(b''.join(number.to_bytes(4, 'little') for number in (0, 2, 1)))
+connection.sendall(bytes(6))
+time.sleep(60)
+"""
+
+
+def test_an_old_that_stops_streaming_ends_there_and_the_replay_goes_on(color_game, mocker, caplog):
+    """A child that stalls (alive, sending nothing) ends OLD there: stopped, not waited for."""
+    mocker.patch.object(compare, 'CHILD_READ_TIMEOUT_SECONDS', 0.5)
+    onion_skin = OnionSkin(
+        old_path=color_game.old,
+        alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        game_command=[sys.executable, '-c', STALLING_CHILD],
+        pause_at_frame=None,
+    )
+    try:
+        onion_skin.draw(surface=surface_of(color=NEW_RED), frame_index=0)
+        started = time.monotonic()
+        onion_skin.draw(surface=surface_of(color=NEW_RED), frame_index=1)
+        stalled_for = time.monotonic() - started
+    finally:
+        onion_skin.stop()
+
+    assert onion_skin.held_frame_index == 0
+    assert onion_skin.label == OLD_ENDED_LABEL.format(frame_index=0)
+    assert 'it stopped streaming' in caplog.text
+    # Stopped at once (a signal), not given STOP_GRACE_SECONDS to end on its own
+    assert stalled_for < compare.STOP_GRACE_SECONDS / 2
+    assert onion_skin.process is not None
+    assert onion_skin.process.returncode not in {None, ExitCode.SUCCESS}
+
+
+@pytest.mark.parametrize(
+    'stranger_sends', [b'0' * FRAME_STREAM_TOKEN_LENGTH_FOR_TESTS, b''], ids=['wrong', 'nothing']
+)
+def test_a_connection_without_the_token_is_refused(color_game, caplog, stranger_sends):
+    """Only OLD's own child is read: another local connection, without the token, is closed."""
+    onion_skin = OnionSkin(
+        old_path=color_game.old,
+        alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        game_command=old_game_command(old_path=color_game.old),
+        pause_at_frame=None,
+    )
+    try:
+        onion_skin.begin()
+        address = onion_skin.command[onion_skin.command.index('--replay-frame-stream') + 1]
+        port, token = address.split(':')
+        assert len(token) == compare.FRAME_STREAM_TOKEN_LENGTH
+        # Connects before the child (which is still importing the game)
+        with socket.create_connection((compare.FRAME_STREAM_HOST, int(port))) as stranger:
+            if stranger_sends:
+                stranger.sendall(stranger_sends)
+            else:
+                # Gone before sending anything
+                stranger.shutdown(socket.SHUT_WR)
+            onion_skin.draw(surface=surface_of(color=NEW_RED), frame_index=0)
+    finally:
+        onion_skin.stop()
+
+    assert onion_skin.held_frame_index == 0
+    assert 'refused a frame stream connection without the token' in caplog.text
+    assert compare.FRAME_STREAM_TOKEN_LENGTH == FRAME_STREAM_TOKEN_LENGTH_FOR_TESTS
+
+
+def test_each_onion_skin_has_its_own_token(color_game):
+    """Two runs never share a token."""
+    tokens = []
+    for _ in range(2):
+        onion_skin = OnionSkin(
+            old_path=color_game.old,
+            alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+            game_command=[sys.executable, '-c', 'pass'],
+            pause_at_frame=None,
+        )
+        try:
+            onion_skin.begin()
+        finally:
+            onion_skin.stop()
+        tokens.append(onion_skin.command[onion_skin.command.index('--replay-frame-stream') + 1])
+    assert tokens[0].split(':')[1] != tokens[1].split(':')[1]
+
+
+def test_sizes_that_cannot_be_compared_are_warned_about(color_game, tmp_path, caplog):
+    """A header without a screen size (not the engine's recorder's) is let through, with a word."""
+    unsized = tmp_path / 'unsized.jsonl.gz'
+    unsized.write_bytes(color_game.old.read_bytes())
+
+    def drop_the_screen_size(trace: dict[str, Any]) -> None:
+        del trace['screen_size']
+
+    rewrite_recording(recording_path=unsized, change=drop_the_screen_size)
+    new_header = read_trace_result(path=color_game.old).trace
+
+    assert old_recording_refusal(old_path=unsized, new_header=new_header) is None
+    assert 'could not compare the screen sizes' in caplog.text
