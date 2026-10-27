@@ -156,6 +156,8 @@ if TYPE_CHECKING:
 
 LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
+# How the log lines of a game's run read, and those of the glitchygames command too
+LOG_FORMAT = '%(name)s - %(levelname)s - %(message)s'
 
 
 # The glitchygames package directory, and its assets (the default window icon). This module is
@@ -293,6 +295,97 @@ def exit_on_signal(signal_number: int, _frame: FrameType | None) -> None:
     """
     signal.signal(signal_number, signal.SIG_IGN)
     raise SystemExit(ExitCode.for_signal(signal_number))
+
+
+def install_exit_on_signal_handlers() -> list[int]:
+    """Make each of terminating_signals() raise SystemExit, if nothing else handles it yet.
+
+    The engine's one way of installing ``exit_on_signal`` (``GameEngine._install_signal_handlers``
+    for a run, ``run_inside_tool_crash_boundary`` for a tool on either front end). While it is
+    installed, a SIGTERM (or SIGHUP, SIGBREAK) raises SystemExit wherever this process waits, so
+    ``subprocess.run`` kills and reaps a child it is waiting for instead of leaving it running.
+
+    Limitation: Python sets signal handlers from the main thread only. On another thread none is
+    installed, and SDL's own handler is off (SDL_NO_SIGNAL_HANDLERS), so SIGTERM (or SIGHUP,
+    SIGBREAK) then kills the process the system's default way, without the teardown: a recording
+    is left unclosed (it still reads up to its last full frame).
+
+    Returns:
+        The signals it installed the handler for (``restore_default_signal_handling`` puts them
+        back).
+
+    """
+    installed: list[int] = []
+    for signal_number in terminating_signals():
+        try:
+            # Limitation: a C-level handler (SDL's, when pygame was initialized before the
+            # engine set SDL_NO_SIGNAL_HANDLERS) is invisible here, as getsignal still
+            # reports SIG_DFL; installing then replaces it, which is what the engine wants
+            if signal.getsignal(signal_number) == signal.SIG_DFL:
+                signal.signal(signal_number, exit_on_signal)
+                installed.append(signal_number)
+        except ValueError as signal_error:
+            # Signal handlers can only be set from the main thread
+            LOG.debug('Signal %d handler not installed: %s', signal_number, signal_error)
+    return installed
+
+
+def restore_default_signal_handling(*, signal_numbers: list[int]) -> None:
+    """Put back the default handling of signals ``install_exit_on_signal_handlers`` claimed.
+
+    Args:
+        signal_numbers: The signals it returned.
+
+    """
+    for signal_number in signal_numbers:
+        signal.signal(signal_number, signal.SIG_DFL)
+
+
+def run_inside_tool_crash_boundary(
+    *, run_tool: Callable[[], int], tool_description: str
+) -> tuple[int, BaseException | None]:
+    """Run a tool inside the crash boundary and signal handling a game's run gets.
+
+    The one boundary of both front ends' tools: a game flag's (``GameEngine._run_game_flag_tool``)
+    and the ``glitchygames`` command's (glitchygames/replay/tools/command.py). While the tool runs,
+    a terminating signal raises SystemExit with its own code (``exit_on_signal``), so a child the
+    tool waits for is killed and reaped by ``subprocess.run`` before this process ends; the
+    handlers are put back afterwards. However the tool ends is turned into an exit status, as
+    ``start()``'s run turns a run's ending into one (``_crash_boundary``):
+
+    - Ctrl-C (KeyboardInterrupt): ``ExitCode.INTERRUPTED`` (``subprocess.run`` has stopped and
+      reaped a child first, as for a signal);
+    - a recording write that failed part way: ``ExitCode.CANNOT_WRITE_OUTPUT``;
+    - any other exception: ``ExitCode.INTERNAL_ERROR``, logged with its traceback as
+      ``Runtime error during game execution @ tool '<tool>'``.
+
+    A SystemExit (a signal handler's) passes through with its own code.
+
+    Args:
+        run_tool: Runs the tool and returns its exit status.
+        tool_description: How the log names the tool (its flag: ``--verify``).
+
+    Returns:
+        The exit status, and the exception that ended the tool (None when it returned).
+
+    """
+    installed = install_exit_on_signal_handlers()
+    cause: BaseException | None = None
+    try:
+        exit_status = run_tool()
+    except KeyboardInterrupt as interrupt:
+        # Ctrl-C: never an internal error
+        exit_status, cause = ExitCode.INTERRUPTED, interrupt
+    except RecordingWriteError as error:
+        # The disk filled part way: logged on one line by the recorder (BUGS.md #82)
+        exit_status, cause = ExitCode.CANNOT_WRITE_OUTPUT, error
+    except Exception as error:
+        LOG.exception("Runtime error during game execution @ tool '%s'", tool_description)
+        exit_status, cause = ExitCode.INTERNAL_ERROR, error
+    finally:
+        # A signal's SystemExit (exit_on_signal) passes through with its own code
+        restore_default_signal_handling(signal_numbers=installed)
+    return exit_status, cause
 
 
 def input_device_prompt() -> Callable[[str], None] | None:
@@ -755,7 +848,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         # Set the logging level
         logging.basicConfig(
-            format='%(name)s - %(levelname)s - %(message)s',
+            format=LOG_FORMAT,
             level=args.log_level.upper(),
         )
 
@@ -1658,28 +1751,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     def _install_signal_handlers(self: Self) -> None:
         """Make each of terminating_signals() raise SystemExit, if nothing else handles it yet.
 
-        Limitation: Python sets signal handlers from the main thread only. An engine started on
-        another thread installs none, and SDL's own handler is off (SDL_NO_SIGNAL_HANDLERS), so
-        SIGTERM (or SIGHUP, SIGBREAK) then kills the process the system's default way, without
-        the teardown: a recording is left unclosed (it still reads up to its last full frame).
+        Through ``install_exit_on_signal_handlers``, whose limitation applies: an engine started
+        on another thread installs none (a recording is then left unclosed by SIGTERM).
         """
-        for signal_number in terminating_signals():
-            try:
-                # Limitation: a C-level handler (SDL's, when pygame was initialized before the
-                # engine set SDL_NO_SIGNAL_HANDLERS) is invisible here, as getsignal still
-                # reports SIG_DFL; installing then replaces it, which is what the engine wants
-                if signal.getsignal(signal_number) == signal.SIG_DFL:
-                    signal.signal(signal_number, exit_on_signal)
-                    self._installed_signal_handlers.append(signal_number)
-            except ValueError as signal_error:
-                # Signal handlers can only be set from the main thread
-                self.log.debug('Signal %d handler not installed: %s', signal_number, signal_error)
+        self._installed_signal_handlers.extend(install_exit_on_signal_handlers())
 
     def _restore_signal_handlers(self: Self) -> None:
         """Put back the default handling of each signal _install_signal_handlers claimed."""
         installed, self._installed_signal_handlers = self._installed_signal_handlers, []
-        for signal_number in installed:
-            signal.signal(signal_number, signal.SIG_DFL)
+        restore_default_signal_handling(signal_numbers=installed)
 
     @contextlib.contextmanager
     def _waiting_for_child_processes(self: Self) -> Generator[None]:
@@ -1751,31 +1831,26 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         tools = [tool for tool in given_tools(options=options) if tool.game_handler is not None]
         if not tools:
             return
-        cause: BaseException | None = None
-        # The crash boundary and signal handling start()'s run gives a game (_crash_boundary),
-        # so a tool ends the process with the exit codes it had when it ran inside start()
-        self._install_signal_handlers()
-        try:
+
+        def run_the_tool() -> int:
             tool_exit_code = run_game_flag_tool(options=options, game=game)
-        except KeyboardInterrupt as interrupt:
-            # Ctrl-C: never an internal error
-            tool_exit_code, cause = ExitCode.INTERRUPTED, interrupt
-        except RecordingWriteError as error:
-            # The disk filled part way: logged on one line by the recorder (BUGS.md #82)
-            tool_exit_code, cause = ExitCode.CANNOT_WRITE_OUTPUT, error
-        except Exception as error:
-            self.log.exception(
-                "Runtime error during game execution @ tool '%s'",
-                ' and '.join(tool.flag for tool in tools),
+            # A tool with a game handler always ends the run (its code, or a refusal's)
+            assert tool_exit_code is not None
+            return tool_exit_code
+
+        # The crash boundary and signal handling start()'s run gives a game (_crash_boundary),
+        # so a tool ends the process with the exit codes it had when it ran inside start(); the
+        # glitchygames command runs its tools inside the same one (replay/tools/command.py)
+        try:
+            exit_status, cause = run_inside_tool_crash_boundary(
+                run_tool=run_the_tool,
+                tool_description=' and '.join(tool.flag for tool in tools),
             )
-            tool_exit_code, cause = ExitCode.INTERNAL_ERROR, error
         finally:
-            # A signal's SystemExit (exit_on_signal) passes through with its own code
-            self._restore_signal_handlers()
+            # After a signal's SystemExit (exit_on_signal) too, which passes through
             self._restore_sdl_driver_variables()
-        # A tool with a game handler always ends the run (its code, or a refusal's)
-        assert tool_exit_code is not None
-        exit_with(exit_code=tool_exit_code, cause=cause)
+        # A game handler returns an ExitCode, and the boundary maps everything else to one
+        exit_with(exit_code=ExitCode(exit_status), cause=cause)
 
     def _start_requested_replay(
         self: Self, *, game: type[Scene] | Scene, options: dict[str, Any]

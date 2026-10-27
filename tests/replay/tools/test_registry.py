@@ -200,8 +200,9 @@ def test_every_tool_is_a_game_flag_and_a_command():
 def test_each_tools_options_match_on_both_front_ends():
     """Per tool: every option's flag, kind (action, type, choices), default and help agree.
 
-    ``required`` is the command's own: a game flag is never required by argparse (the game runs
-    without the tool), so ``run_game_flag_tool`` refuses a tool given without it.
+    argparse requires no option on either front end (a game runs without the tool): each refuses
+    a tool given without a required one alike (``registry.missing_required_options``; exit 64,
+    tests/replay/tools/test_command_crash_boundary.py).
     """
     game = game_parser()
     subcommands = subcommand_parsers(parser=build_command_parser())
@@ -226,8 +227,7 @@ def test_each_tools_options_match_on_both_front_ends():
             on_the_game = action_for(parser=game, flag=option.flag)
             on_the_command = action_for(parser=subcommand, flag=option.flag)
             assert described(action=on_the_game) == described(action=on_the_command), option.flag
-            assert on_the_command.required is option.required
-            assert on_the_game.required is False
+            assert on_the_command.required is on_the_game.required is False
         # The command's own arguments (--game) are not game flags
         assert not command_only & {
             flag for action in game._actions for flag in action.option_strings

@@ -72,7 +72,7 @@ from glitchygames.replay.tools.traces import (
 from glitchygames.replay.tools.verify import verify_command, verify_on_the_game
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from glitchygames.scenes import Scene
 
@@ -109,8 +109,6 @@ type ToolOptionKind = Literal[
 # What a tool's own flag takes: one path (--replay-trace PATH), several (--verify [PATH ...]) or
 # no value at all (--unmeasured)
 type ToolValueKind = Literal['path', 'paths', 'flag']
-# Which front end an option is being added to
-type FrontEnd = Literal['game', 'command']
 # The add_argument settings that read each kind of option value (a choice's choices are its own)
 KIND_SETTINGS: dict[ToolOptionKind, dict[str, Any]] = {
     'path': {},
@@ -171,9 +169,10 @@ class ToolOption:
             always required.
         help: Its help text (argparse's ``help``).
         kind: How its value is read (``ToolOptionKind``).
-        required: Whether the tool needs it. On the command argparse requires it; a game flag
-            is never required by argparse (the game runs without the tool), so
-            ``run_game_flag_tool`` refuses the tool without it.
+        required: Whether the tool needs it. argparse requires it on neither front end (a game
+            runs without the tool); each refuses the tool without it alike, with
+            ``ExitCode.OPTIONS_REFUSED`` (``missing_required_options``: ``run_game_flag_tool``
+            on the game, glitchygames/replay/tools/command.py on the command).
         metavar: Its value's name in the help (None: argparse's own, or the choices).
         default: Its value when not given.
         choices: The values a ``choice`` option takes.
@@ -352,15 +351,15 @@ def flag_values(*, kind: ToolOptionKind | ToolValueKind, value: object) -> list[
             return [str(value)]
 
 
-def option_settings(*, option: ToolOption, front_end: FrontEnd) -> dict[str, Any]:
-    """Return ``add_argument``'s settings for an option on one front end.
+def option_settings(*, option: ToolOption) -> dict[str, Any]:
+    """Return ``add_argument``'s settings for an option, the same on both front ends.
 
-    Both front ends get the same settings, apart from ``required``: argparse requires a required
-    option on the command only (a game runs without the tool).
+    argparse requires no option on either: a game runs without the tool, and a missing required
+    option is refused by each front end alike (``missing_required_options``), with
+    ``ExitCode.OPTIONS_REFUSED`` rather than argparse's 2.
 
     Args:
         option: The option.
-        front_end: Where it is being added.
 
     Returns:
         The keyword arguments for ``add_argument``.
@@ -372,7 +371,6 @@ def option_settings(*, option: ToolOption, front_end: FrontEnd) -> dict[str, Any
     }
     if not option.positional:
         settings['default'] = option.default
-        settings['required'] = option.required and front_end == 'command'
     if option.metavar is not None:
         settings['metavar'] = option.metavar
     return settings
@@ -439,7 +437,7 @@ def add_game_flags(*, parser: ArgumentContainer, tools: Sequence[Tool] | None = 
                     raise ValueError(message)
                 continue
             added[option.flag] = option
-            parser.add_argument(option.flag, **option_settings(option=option, front_end='game'))
+            parser.add_argument(option.flag, **option_settings(option=option))
 
 
 def tool_summary(*, tool: Tool) -> str:
@@ -513,9 +511,7 @@ def build_command_parser(*, tools: Sequence[Tool] | None = None) -> argparse.Arg
         subparser = subparsers.add_parser(tool.name, help=tool.help, description=tool.help)
         for argument in tool.command_arguments:
             if argument.positional:
-                subparser.add_argument(
-                    argument.flag, **option_settings(option=argument, front_end='command')
-                )
+                subparser.add_argument(argument.flag, **option_settings(option=argument))
         if tool.value_kind != 'flag':
             subparser.add_argument(
                 tool.destination,
@@ -524,14 +520,10 @@ def build_command_parser(*, tools: Sequence[Tool] | None = None) -> argparse.Arg
                 nargs='*' if tool.value_kind == 'paths' else None,
             )
         for option in tool.options:
-            subparser.add_argument(
-                option.flag, **option_settings(option=option, front_end='command')
-            )
+            subparser.add_argument(option.flag, **option_settings(option=option))
         for argument in tool.command_arguments:
             if not argument.positional:
-                subparser.add_argument(
-                    argument.flag, **option_settings(option=argument, front_end='command')
-                )
+                subparser.add_argument(argument.flag, **option_settings(option=argument))
         subparser.add_argument(
             PROJECT_ROOT_FLAG,
             metavar='DIR',
@@ -652,17 +644,39 @@ def run_game_flag_tool(
         )
         return ExitCode.OPTIONS_REFUSED
     (tool,) = tools_given
-    missing = [
-        option.flag
-        for option in tool.options
-        if option.required and not given(value=options.get(option.destination))
-    ]
-    if missing:
-        LOG.error('%s needs %s', tool.flag, ', '.join(missing))
+    refusal = missing_required_options(tool=tool, values=options)
+    if refusal is not None:
+        LOG.error('%s', refusal)
         return ExitCode.OPTIONS_REFUSED
     if tool.game_handler is None:
         return None
     return tool.game_handler(options=options, game=game)
+
+
+def missing_required_options(*, tool: Tool, values: Mapping[str, Any]) -> str | None:
+    """Say which required options a tool was given without, as both front ends refuse it.
+
+    argparse requires no option (``option_settings``), so each front end checks here: the game
+    (``run_game_flag_tool``) and the command (glitchygames/replay/tools/command.py) refuse the
+    tool alike, with ``ExitCode.OPTIONS_REFUSED`` (64, ``EX_USAGE``).
+
+    Args:
+        tool: The tool.
+        values: The parsed options, by destination (a game's ``GameEngine.OPTIONS``, or the
+            subcommand's parsed arguments as a dict).
+
+    Returns:
+        ``--<tool> needs --<option>, ...``, or None when none is missing.
+
+    """
+    missing = [
+        option.flag
+        for option in tool.options
+        if option.required and not given(value=values.get(option.destination))
+    ]
+    if not missing:
+        return None
+    return f'{tool.flag} needs {", ".join(missing)}'
 
 
 # --replay-trace's options, as GameEngine.args described them before the table (help text,
