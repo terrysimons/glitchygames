@@ -61,7 +61,7 @@ from glitchygames.recording_metrics import (
     read_row_files,
     short_commit,
 )
-from glitchygames.replay.tools.settings import load_project_settings
+from glitchygames.replay.tools.settings import ProjectSettings, load_project_settings
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -71,9 +71,33 @@ LOG = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # This repository's [tool.glitchygames]: the ledgers, what a code tree holds, the moved recordings
 PROJECT_SETTINGS = load_project_settings(project_root=PROJECT_ROOT)
+
+
+def published_ledger_path(*, settings: ProjectSettings) -> str:
+    """Return where the project publishes its ledger (the path of its ``published-ledger``).
+
+    Args:
+        settings: The project's settings.
+
+    Returns:
+        The path on the published ref.
+
+    Raises:
+        ValueError: If the project publishes no ledger (the docs pages are generated beside it).
+
+    """
+    path = settings.published_ledger_path
+    if path is None:
+        message = (
+            '[tool.glitchygames] has no published-ledger: the performance pages are generated '
+            'beside the published ledger'
+        )
+        raise ValueError(message)
+    return path
+
+
 # Where the deploy publishes the ledger on gh-pages (our published-ledger's path)
-PUBLISHED_LEDGER_PATH = PROJECT_SETTINGS.published_ledger_path
-assert PUBLISHED_LEDGER_PATH is not None, 'this repository publishes its ledger (pyproject.toml)'
+PUBLISHED_LEDGER_PATH = published_ledger_path(settings=PROJECT_SETTINGS)
 # docs/<the published ledger's directory>: the deploy publishes it at PUBLISHED_LEDGER_PATH
 METRICS_DIR = PROJECT_ROOT / 'docs' / Path(PUBLISHED_LEDGER_PATH).parent
 LEDGER_NAME = Path(PUBLISHED_LEDGER_PATH).name

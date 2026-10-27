@@ -9,7 +9,9 @@ kebab-case, as pyproject.toml's are (stage D's settings table):
 - ``golden-globs``: where the golden replays are, as globs relative to the project root.
 - ``ledger-directory``: where measured rows are kept as row files (a git pathspec too, so it is
   relative).
-- ``pending-ledger``: where measured rows wait to be published.
+- ``pending-ledger``: where measured rows wait to be published (default: in the project's local
+  directory, ``.glitchygames/``, outside the ledger directory so it is never committed with the
+  rows).
 - ``published-ledger``: where the ledger is published, as ``REF:PATH`` (what ``git show`` reads),
   or nothing published (the default).
 - ``landed-ref``: the ref whose commits count as landed.
@@ -20,7 +22,9 @@ kebab-case, as pyproject.toml's are (stage D's settings table):
 
 Settings only name paths, relative to the project root: nothing is created or checked on disk
 when they are read. A path that doesn't exist yet (no ledger directory before the first
-measurement) is created or reported by the tool that writes or reads it.
+measurement) is created or reported by the tool that writes or reads it. A tool writing into the
+project's local directory (``.glitchygames/``) creates it with ``ensure_local_directory``, which
+puts a ``.gitignore`` of ``*`` there, as pytest does for its cache, so nothing in it is committed.
 
 Part 3, Stage D, Task D2: these replaced the module constants of glitchygames/code_tree.py and
 glitchygames/recording_metrics.py (``LEDGER_DIRECTORY``, ``MEASURED_PATHS``, the member-test
@@ -31,6 +35,7 @@ and ``RECORDING_PATH_RENAMES``), whose values are now ours in the root pyproject
 from __future__ import annotations
 
 import tomllib
+from collections.abc import Mapping
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import TYPE_CHECKING, Any, Self, cast
 
@@ -49,6 +54,15 @@ SETTINGS_TABLE = 'glitchygames'
 PUBLISHED_LEDGER_SEPARATOR = ':'
 # pydantic's error type for a key the model doesn't have
 UNKNOWN_KEY_ERROR = 'extra_forbidden'
+# The project's local directory for what the tools write and nobody commits (the pending ledger)
+LOCAL_DIRECTORY_NAME = '.glitchygames'
+# What ensure_local_directory writes into it: git ignores everything there, this file included
+LOCAL_DIRECTORY_GITIGNORE = '# Created by glitchygames: nothing in this directory is committed\n*\n'
+GITIGNORE_FILE_NAME = '.gitignore'
+
+# Recordings that moved, old repository path -> new: read-only on the frozen settings (pydantic
+# builds the field from this alias at runtime, so Mapping is imported at runtime too)
+type RecordingRenames = Mapping[str, str]
 
 
 class ProjectSettingsError(ValueError):
@@ -93,12 +107,12 @@ class ProjectSettings(BaseModel):
     games: tuple[str, ...] = ()
     golden_globs: tuple[str, ...] = ('tests/fixtures/replays/**/*.jsonl.gz',)
     ledger_directory: str = 'replay-ledger'
-    pending_ledger: str = 'replay-ledger/pending.jsonl'
+    pending_ledger: str = f'{LOCAL_DIRECTORY_NAME}/pending-ledger.jsonl'
     published_ledger: str | None = None
     landed_ref: str = 'origin/main'
     measured_paths: tuple[str, ...] = ('src', 'tests/fixtures/replays', 'pyproject.toml')
     unmeasured_paths: tuple[str, ...] = ()
-    recording_renames: dict[str, str] = {}
+    recording_renames: RecordingRenames = {}
 
     @field_validator('ledger_directory')
     @classmethod
@@ -203,6 +217,29 @@ def _read_pyproject(*, pyproject: Path) -> dict[str, Any]:
         raise ProjectSettingsError(message) from None
 
 
+def _table(*, pyproject: Path, parent: dict[str, Any], key: str, name: str) -> dict[str, Any]:
+    """Return a table of a pyproject.toml (a missing one is empty).
+
+    Args:
+        pyproject: The file (for the message).
+        parent: The table it is in.
+        key: Its key there.
+        name: Its full dotted name (for the message).
+
+    Returns:
+        The table.
+
+    Raises:
+        ProjectSettingsError: If the key holds something other than a table.
+
+    """
+    table = parent.get(key, {})
+    if not isinstance(table, dict):
+        message = f'{pyproject}: [{name}] is not a table'
+        raise ProjectSettingsError(message)
+    return cast('dict[str, Any]', table)
+
+
 def load_project_settings(*, project_root: Path) -> ProjectSettings:
     """Read a project's settings from ``[tool.glitchygames]`` in its pyproject.toml.
 
@@ -222,16 +259,37 @@ def load_project_settings(*, project_root: Path) -> ProjectSettings:
     """
     pyproject = project_root / PYPROJECT_FILE_NAME
     document = _read_pyproject(pyproject=pyproject)
-    table = cast('dict[str, Any]', document.get('tool', {})).get(SETTINGS_TABLE, {})
-    if not isinstance(table, dict):
-        message = f'{pyproject}: [tool.{SETTINGS_TABLE}] is not a table'
-        raise ProjectSettingsError(message)
-    settings = dict(cast('dict[str, Any]', table))
+    tool = _table(pyproject=pyproject, parent=document, key='tool', name='tool')
+    settings = dict(
+        _table(pyproject=pyproject, parent=tool, key=SETTINGS_TABLE, name=f'tool.{SETTINGS_TABLE}')
+    )
     if 'games' not in settings:
-        project = cast('dict[str, Any]', document.get('project', {}))
-        settings['games'] = list(cast('dict[str, str]', project.get('scripts', {})))
+        project = _table(pyproject=pyproject, parent=document, key='project', name='project')
+        scripts = _table(pyproject=pyproject, parent=project, key='scripts', name='project.scripts')
+        settings['games'] = list(scripts)
     try:
         # Only the kebab-case keys are settings: ledger_directory is a misspelling
         return ProjectSettings.model_validate(settings, by_alias=True, by_name=False)
     except ValidationError as error:
         raise ProjectSettingsError(_refusal(pyproject=pyproject, error=error)) from None
+
+
+def ensure_local_directory(*, directory: Path) -> Path:
+    """Create a project's local directory (``.glitchygames/``) and keep git out of it.
+
+    Every tool that writes there (the default pending ledger) calls this first. A ``.gitignore``
+    holding ``*`` is written when the directory has none, as pytest does for its cache, so a
+    file there never shows in ``git status``; an existing one is left as it is.
+
+    Args:
+        directory: The directory (``<project root>/.glitchygames``).
+
+    Returns:
+        The directory.
+
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    gitignore = directory / GITIGNORE_FILE_NAME
+    if not gitignore.exists():
+        gitignore.write_text(LOCAL_DIRECTORY_GITIGNORE, encoding='utf-8')
+    return directory

@@ -7,16 +7,20 @@ repository's layout, and its values are pinned here against the module constants
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
 
 from glitchygames.code_tree import CodeTreePaths
 from glitchygames.logical_names import LAYERS
+from glitchygames.process import run_command
 from glitchygames.replay.tools.settings import (
+    LOCAL_DIRECTORY_GITIGNORE,
     PYPROJECT_FILE_NAME,
     ProjectSettings,
     ProjectSettingsError,
+    ensure_local_directory,
     load_project_settings,
 )
 
@@ -92,7 +96,7 @@ OUR_GOLDEN_GLOBS = ('src/*/*/tests/fixtures/replays/golden*.jsonl.gz',)
 # The defaults for a project the engine has never seen (stage D's settings table)
 DEFAULT_GOLDEN_GLOBS = ('tests/fixtures/replays/**/*.jsonl.gz',)
 DEFAULT_LEDGER_DIRECTORY = 'replay-ledger'
-DEFAULT_PENDING_LEDGER = 'replay-ledger/pending.jsonl'
+DEFAULT_PENDING_LEDGER = '.glitchygames/pending-ledger.jsonl'
 DEFAULT_LANDED_REF = 'origin/main'
 DEFAULT_MEASURED_PATHS = ('src', 'tests/fixtures/replays', 'pyproject.toml')
 
@@ -286,3 +290,67 @@ def test_settings_made_in_code_take_the_field_names_and_nothing_published():
     assert settings.ledger_directory == 'rows'
     assert settings.published_ledger_ref is None
     assert settings.published_ledger_path is None
+
+
+@pytest.mark.parametrize(
+    ('text', 'key'),
+    [
+        ('tool = 1\n', 'tool'),
+        ('project = 1\n', 'project'),
+        ('[project]\nscripts = 1\n', 'project.scripts'),
+    ],
+)
+def test_a_table_that_is_not_a_table_is_refused_by_name(tmp_path, text, key):
+    """``tool = 1``, ``project = 1`` or ``[project] scripts = 1``: an error naming it."""
+    write_pyproject(project_root=tmp_path, text=text)
+
+    with pytest.raises(ProjectSettingsError) as refused:
+        load_project_settings(project_root=tmp_path)
+
+    assert f'[{key}] is not a table' in str(refused.value)
+    assert str(tmp_path / PYPROJECT_FILE_NAME) in str(refused.value)
+
+
+def test_the_default_pending_ledger_is_outside_the_default_ledger_directory():
+    """An unseen project's pending rows never sit among its committed row files."""
+    defaults = ProjectSettings()
+    pending = Path(defaults.pending_ledger)
+
+    assert not pending.is_relative_to(defaults.ledger_directory)
+    assert pending.parent == Path('.glitchygames')
+
+
+def test_the_local_directory_gets_a_gitignore_once(tmp_path):
+    """The directory and its ``*`` .gitignore are made; an existing .gitignore is kept."""
+    directory = tmp_path / '.glitchygames'
+
+    assert ensure_local_directory(directory=directory) == directory
+    assert (directory / '.gitignore').read_text(encoding='utf-8') == LOCAL_DIRECTORY_GITIGNORE
+    assert LOCAL_DIRECTORY_GITIGNORE.splitlines()[-1] == '*'
+    (directory / '.gitignore').write_text('# mine\n', encoding='utf-8')
+    ensure_local_directory(directory=directory)
+    assert (directory / '.gitignore').read_text(encoding='utf-8') == '# mine\n'
+
+
+def test_a_file_in_the_local_directory_is_not_seen_by_git(tmp_path):
+    """Pending rows written there never show in ``git status`` (nothing to commit by mistake)."""
+    run_command(
+        command=['git', 'init', '--quiet'],
+        environment=os.environ,
+        timeout_seconds=60.0,
+        capture_output=True,
+        working_directory=tmp_path,
+    )
+    directory = ensure_local_directory(directory=tmp_path / '.glitchygames')
+    (directory / 'pending-ledger.jsonl').write_text('{}\n', encoding='utf-8')
+
+    status = run_command(
+        command=['git', 'status', '--porcelain', '--untracked-files=all'],
+        environment=os.environ,
+        timeout_seconds=60.0,
+        capture_output=True,
+        working_directory=tmp_path,
+    )
+
+    assert status.returncode == 0, status.stdout
+    assert not status.stdout

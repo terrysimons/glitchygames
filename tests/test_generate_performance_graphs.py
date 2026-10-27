@@ -20,6 +20,7 @@ from scripts.generate_performance_graphs import (
     SNIPPET_NAME,
     generate_performance_page,
     graph_page_name,
+    published_ledger_path,
     recording_charts,
 )
 
@@ -34,6 +35,7 @@ from glitchygames.recording_metrics import (
     performance_series,
     write_row_files,
 )
+from glitchygames.replay.tools.settings import ProjectSettings
 from tests.test_code_tree import LEDGER_DIRECTORY, PATHS
 from tests.test_recording_metrics import (
     NEWER_COMMIT,
@@ -344,3 +346,16 @@ def test_a_local_build_also_shows_rows_whose_code_has_not_landed(tmp_path):
     )
 
     assert page.rows == 2
+
+
+def test_the_published_ledger_path_is_the_settings_path():
+    """Ours is published on gh-pages at quality/metrics/; the pages are generated beside it."""
+    settings = ProjectSettings(published_ledger='origin/gh-pages:quality/metrics/ledger.jsonl')
+
+    assert published_ledger_path(settings=settings) == 'quality/metrics/ledger.jsonl'
+
+
+def test_a_project_that_publishes_no_ledger_is_refused_naming_the_setting():
+    """The docs pages need a published ledger: without published-ledger, an error, not a crash."""
+    with pytest.raises(ValueError, match='published-ledger'):
+        published_ledger_path(settings=ProjectSettings())
