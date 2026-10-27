@@ -11,7 +11,7 @@ packages, Part 2: every game is its own package", 26 commits, verified by Task 9
 its own package, `src/apps/bitmappy/`; commits a97efbe9..1d0994a0 at present, the last hash
 pinned at merge; verified by its Task 7 and the user's manual checks, 2026-10-26, then a
 final-review fix pass; see [its plan](2026-10-26-workspace-packages-4-bitmappy.md); not yet
-merged). Part 3 (the demos): Stage A DONE (every member in a `src/` layout, 2026-10-26, on feature/workspace-packages-3a-src-layout); Stage B DONE (the three demos are members of the `demos` layer, `src/glitchygames/examples/` and `EXAMPLES_LAYERS` are gone, 2026-10-26); Part 5 (the browser IDE) NOT STARTED.
+merged). Part 3 (the demos) DONE on feature/workspace-packages-3a-src-layout (2026-10-26: Stage A, every member in a `src/` layout; Stage B, the three demos are members of the `demos` layer and `src/glitchygames/examples/` and `EXAMPLES_LAYERS` are gone; Stage C, engine tests stop borrowing members and the guards cover every member; commits 832c76e6..abbbba09 and the C6 commits on top, the last hash pinned at merge; awaiting the final review; see [its plan](2026-10-26-workspace-packages-3-demos.md)); Part 5 (the browser IDE) NOT STARTED.
 Plan written 2026-10-24; amended 2026-10-25: everything under `src/`, decision 7; logical names
 in recordings, decision 8; where recordings live, decision 9; amended 2026-10-26: Part 4 runs
 before Part 3 (the user: "bitmappy should move first"), so deleting `src/glitchygames/examples/`
@@ -26,7 +26,7 @@ Sub-plans:
 - Part 2 (DONE): [The other five games](2026-10-25-workspace-packages-2-games.md) (Clockwork
   Keep, Brave Adventurer with Papyrus as one project, PaddleSlap and Drawing Fire, which postdates
   the outline; the move recipe is `docs/architecture/game_packages.md`)
-- Part 3 (Stage A and B DONE): [The demos](2026-10-26-workspace-packages-3-demos.md) (outline below). Its plan starts from the untracked
+- Part 3 (DONE): [The demos](2026-10-26-workspace-packages-3-demos.md) (outline below). Its plan starts from the untracked
   draft `plans/2026-10-25-workspace-packages-2-games-demos-apps.md` (Tasks 10-12 and 18),
   corrected against #109 and Part 4 (the outline lists what is stale in it); the draft is
   deleted once Part 3 has its plan (the user, 2026-10-26)
@@ -208,14 +208,27 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
   (decision 3). Part 4 guards Bitmappy's at any depth
   (`tests/test_suite_collection.py::test_bitmappys_test_modules_are_named_for_it`); Part 3
   extends the guard to every member.
-- Each moved package has a `test_<package>_after_the_move.py` that asserts its old module is gone
-  (`importlib.util.find_spec(...) is None`), so a leftover ignored `__pycache__` fails a test
-  instead of shadowing the member.
+- Each moved package's move tests are one file per subject (logical_names, install_location,
+  wheel, package_data, entry_points, recording_history), named for the member; the install-location
+  one asserts its old module is gone (`importlib.util.find_spec(...) is None`), so a leftover
+  ignored `__pycache__` fails a test instead of shadowing the member.
 - The engine points nowhere into a member: Part 4 guards Bitmappy
   (`tests/test_workspace_config.py::test_the_engine_outside_bitmappy_points_nowhere_into_it`,
   `tests/test_suite_collection.py::test_no_engine_test_imports_bitmappy`); Part 3 extends the
-  guards to every member package. (Engine tests may still borrow a game on purpose:
-  `docs/architecture/game_packages.md`, step 5.)
+  guards to every member package, and Part 3 did (2026-10-26; see the next items).
+- Every member's packages are under `<member>/src/` (`tests/test_workspace_config.py::
+  test_every_member_keeps_its_packages_under_src`).
+- No engine code and no root test imports a member, apart from the listed exemptions
+  (`MEMBER_IMPORT_EXEMPT_MODULES`, `MEMBER_IMPORT_EXEMPT_NAMES`: the golden-replay control tables
+  and the per-game world rules in `tests/world/test_golden_traces.py`). Engine tests use
+  stand-ins or discover members through the workspace and assert hand-written expectations
+  (`tests/workspace_expectations.py`); `docs/architecture/game_packages.md`, step 5.
+- Member tests are named for their member (`test_<distribution with - as _>*.py`, at any depth),
+  and their move tests are split by subject, never one `_after_the_move` file.
+- The engine's own wheel is tested (`tests/test_engine_wheel.py`): its package, four sounds and
+  two sprites, no member.
+- Browser bundles leave out ignored files: the engine archive is built from git-tracked files only.
+- Wall-clock timings live in benchmarks, never in the normal suite.
 - A check fed by a glob or a list asserts that its input is not empty, since an empty
   parametrize only skips (for example
   `tests/examples/test_examples_sprites.py::test_the_animated_sprite_checks_have_sprites_to_run_on`,
@@ -373,8 +386,8 @@ imported by accident in place of the installed package.
   `former_examples_references`) keeps code and living docs from naming it. This plan names it
   on purpose, so the guard must exempt this plan.
 - Part 4's Bitmappy-only guards become every member's (the user, 2026-10-26): test modules named
-  for their package (Mr. Muncher's `test_logical_names_after_the_move.py` becomes
-  `test_mr_muncher_after_the_move.py`), and no engine source or test configuration pointing into
+  for their package (every member's `*_after_the_move.py` is split by subject: logical_names,
+  install_location, wheel, package_data, entry_points, recording_history), and no engine source or test configuration pointing into
   a member package. Their Bitmappy leftovers go: the vestigial `'bitmappy/'` skip in
   `tests/test_workspace_config.py` `engine_files_pointing_into_bitmappy` (and the self-test case
   that plants `bitmappy/inside.py`), and its `'examples', 'resources', 'sprites'` path check

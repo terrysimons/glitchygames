@@ -286,7 +286,7 @@ in `Game.dt_tick`. `HorizontalPaddle` is not used by PaddleSlap; it is shown bec
 
 - **The camera never moves.** `Game` sets no follow target and no `camera_target()`, so the
   camera stays at the origin: world and screen coordinates are the same and the balls are drawn
-  exactly where their logic left them (`TestPaddleSlapInTheFrame` in
+  exactly where their logic left them (`TestWorldBallsInTheFrame` in
   `tests/world/test_frame_integration.py`). The balls are world sprites anyway, so the engine is
   the only writer of their `rect`: game logic reads `world_x`/`world_y`, `drawn_center()` or the
   collision rect, never `rect` (which holds where the ball was last drawn).
@@ -610,7 +610,7 @@ docstring of `scripts/record_scripted_session.py`). Replay performance for both 
 | `tests/game_objects/test_ball*.py`, `test_multi_ball_*.py`, `test_collision_*.py`, `test_diagonal_collision.py`, `test_zero_speed.py` | `BallSprite`: wall bounces, speed-up curves and schedules, serves, multi-ball physics at many frame rates, energy conservation |
 | `tests/game_objects/test_paddle.py`, `test_paddle_dt_tick.py` | Paddles: sub-pixel movement and the screen clamp |
 | `tests/game_objects/test_game_over_scene.py`, `tests/scenes/builtin_scenes/` | The built-in game-over and pause screens |
-| `tests/world/test_frame_integration.py` (`TestPaddleSlapInTheFrame`), `tests/world/test_positioning.py` | The balls are drawn at their world positions in the frame they move or spawn |
+| `tests/world/test_frame_integration.py` (`TestWorldBallsInTheFrame`), `tests/world/test_positioning.py` | The balls are drawn at their world positions in the frame they move or spawn |
 | `tests/world/test_golden_traces.py`, `tests/replay/test_golden_replays.py`, `tests/replay/test_bundled_demos.py` | The recordings above |
 
 ## Where things live
@@ -630,4 +630,4 @@ docstring of `scripts/record_scripted_session.py`). Replay performance for both 
 | `scripts/record_scripted_session.py` | The golden replay and demo recorder, and the controls tail |
 | `src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz` | The golden replay |
 | `tests/world/golden/paddleslap.jsonl.gz` | The golden trace baseline |
-| `src/games/paddleslap/tests/test_paddleslap.py`, and the move's: `test_paddleslap_logical_names.py`, `_install_location.py`, `_entry_points.py`, `_wheel.py`, `_recording_history.py` | The game's tests |
+| `src/games/paddleslap/tests/test_paddleslap.py`, and the move's: `test_paddleslap_logical_names.py`, `_install_location.py`, `_entry_points.py`, `_package_data.py`, `_recording_history.py` | The game's tests |

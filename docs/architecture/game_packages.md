@@ -184,9 +184,15 @@ any tool's configuration.
     wheel install), and `importlib.util.find_spec('glitchygames.examples.<package>')` is None;
   - `_wheel.py`: the member's wheel holds only its package, plus its data (sprites, demos,
     resources);
+  - `_package_data.py`: the member's shipped data (a sprite library, a bundled demo) is inside the
+    package, checked without building a wheel (`_wheel.py` is for the tests that build one);
   - `_entry_points.py`: the console script and `python -m <package>` resolve to `main`;
   - `_recording_history.py`: the golden's old path maps to its new one in
     `RECORDING_PATH_RENAMES` (its history follows it), and so does every other moved recording.
+
+  That is six subjects: logical_names, install_location, wheel, package_data, entry_points,
+  recording_history. A move test outside them goes beside the member's other tests, named for its
+  subject (Brave Adventurer's `tests/core/test_brave_adventurer_shared_core.py`, for example).
 
 ### 3. Register it in the root configuration
 
@@ -216,13 +222,30 @@ any tool's configuration.
   a game no member holds: only its docstring examples need editing.
 - `tests/replay/test_golden_replays.py`: its imports, `GAMEPLAY_ACTION_MAPS`,
   `ENGINE_SCENE_CONTROLS`, `UNEXERCISED_CONTROLS` and any table naming the game.
-- The engine tests that borrow a game, by import or by path. Clockwork Keep's move touched
-  `tests/animation/test_animation.py`, `tests/world/test_golden_traces.py` (its trace stays; only
-  imports change), `tests/world/test_transition_input.py`, `tests/test_browser_touch_controls.py`
-  and `scripts/audio_glitch_probe.py`. Add the moved game to
-  `tests/replay/test_record_scripted_session.py::test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures`.
-  `tests/engine/test_engine_lifecycle.py` `GAME_CONSOLE_SCRIPTS` lists every game's console script
-  (unchanged by a move, which keeps the script's name).
+- Engine tests no longer borrow a game, by import or by path: `tests/test_suite_collection.py`
+  (`engine_test_imports_of_members`) fails on any root test that imports a member. Each kind of
+  test lives in one place:
+  - **The game's own tests** are in the member (`src/games/<game>/tests/`): its rules, sprites,
+    touch controls, replays and the move's tests above. A test that only the game's code can
+    answer goes there, not in `tests/`.
+  - **Engine tests use stand-ins**: `tests/stand_in_harness_games.py` (games for the replay and
+    harness tests) and `tests/stand_in_games.py` (games and distributions for the discovery,
+    replay-plugin and playback tests). A test that needs a game, a root-layout example or several
+    console scripts writes or imports a stand-in; it never imports a member.
+  - **Cross-member tests discover through the workspace** (`scripts/workspace_packages.py`) and
+    assert hand-written expectations in `tests/workspace_expectations.py`
+    (`EXPECTED_GOLDENS`, `EXPECTED_GAME_CONSOLE_SCRIPTS`, `EXPECTED_BUNDLED_DEMOS`). They are
+    written out on purpose, because an expectation derived from the thing it checks checks
+    nothing. **Edit them when a game, golden, bundled demo or console script is added or
+    removed.** Also add the game to the control tables in
+    `tests/replay/golden_replay_controls.py`, and to
+    `tests/replay/test_record_scripted_session.py::test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures`.
+  - **The exemptions** (`MEMBER_IMPORT_EXEMPT_MODULES` and `MEMBER_IMPORT_EXEMPT_NAMES` in
+    `tests/test_suite_collection.py`, each with its reason; a stale one fails): the module
+    `tests/replay/golden_replay_controls.py`, whose per-game control tables are cross-member
+    infrastructure moved there unchanged, and the eleven named imports in
+    `tests/world/test_golden_traces.py`, whose per-game world rules measure the games' own
+    drawings and players. Nothing else in `tests/` may import a member.
 - Every game is a member now (Drawing Fire, the last in the engine's examples, moved), so no
   game is a root-layout example any more. The root's `fixtures/replays/<console-script>/` layout
   stays only as the replay plugin's layout for other projects; the tests of it

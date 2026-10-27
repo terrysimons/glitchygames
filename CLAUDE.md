@@ -1069,13 +1069,19 @@ Features:
   `__init__.py`) are rootless, so pytest imports each file under its bare name: name every file
   `test_<distribution with - as _>*.py` (`test_mr_muncher_*.py`, `test_bitmappy_*.py`;
   subdirectories included; `misnamed_member_test_modules` checks every member). A member's move
-  tests are one file per subject (`_logical_names`, `_install_location`, `_wheel`,
-  `_entry_points`, `_recording_history`)
+  tests are one file per subject, six in all (`_logical_names`, `_install_location`, `_wheel`,
+  `_package_data`, `_entry_points`, `_recording_history`); a move test outside them goes beside
+  the member's other tests, named for its subject (`test_brave_adventurer_shared_core.py`). The
+  three guards (the naming, the unique file names, and the member-import guard) cover every member
+  and every root test
 - The engine never imports a member, in its source or its tests: `tests/test_workspace_config.py`
   (`engine_files_importing_a_member`) and `tests/test_suite_collection.py`
   (`engine_test_imports_of_members`) fail on any import of one, at any level and by a literal
-  `importlib.import_module`/`__import__` string. An engine test that needs a game writes a
-  stand-in. The only exemptions (`MEMBER_IMPORT_EXEMPT_MODULES`, `MEMBER_IMPORT_EXEMPT_NAMES`,
+  `importlib.import_module`/`__import__` string. An engine test that needs a game uses a
+  stand-in (`tests/stand_in_harness_games.py`, `tests/stand_in_games.py`) or discovers the members
+  through the workspace and asserts the hand-written expectations in
+  `tests/workspace_expectations.py`, which are edited when a game, golden, bundled demo or console
+  script is added. The only exemptions (`MEMBER_IMPORT_EXEMPT_MODULES`, `MEMBER_IMPORT_EXEMPT_NAMES`,
   each with its reason and date) are the golden-replay control tables
   (`tests/replay/golden_replay_controls.py`) and the per-game world rules' named imports in
   `tests/world/test_golden_traces.py`; a stale exemption fails too. The tools in `scripts/` are
