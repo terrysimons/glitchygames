@@ -24,7 +24,7 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.logical_names import logical_name
 from glitchygames.process import OutputCapture, run_command
 from glitchygames.randomness import random_stream
-from glitchygames.replay.driver import LENGTH_DIVERGENCE
+from glitchygames.replay.driver import LENGTH_DIVERGENCE, RANDOM_SEED_HEADER_FIELD
 from glitchygames.replay.tools import command
 from glitchygames.replay.tools.golden_traces import (
     GOLDEN_TRACE_SOURCE,
@@ -484,6 +484,42 @@ def test_the_game_flags_random_seed_reaches_the_harness(stand_in_project, tmp_pa
 
     assert exit_code == ExitCode.SUCCESS
     assert read_trace(path=path)['frames'] == expected['frames']
+
+
+def test_a_golden_trace_made_without_a_seed_names_the_seed_it_rolled(
+    stand_in_project, tmp_path, monkeypatch
+):
+    """No ``--random-seed``: the golden names the seed it rolled, so it can be made again.
+
+    Decision 17, row 1: a run with no seed rolls one, kept in what it records. The trace's
+    ``random_seed`` is that seed: recorded again under it, the frames are the same (the trace
+    loads, and compares, in the harness). A golden made under a given seed names none, so ours
+    (always seeded: ``RANDOM_SEED``) keep their bytes.
+    """
+    monkeypatch.chdir(stand_in_project)
+    rolled_path = tmp_path / 'rolled.jsonl.gz'
+    again_path = tmp_path / 'again.jsonl.gz'
+    input_script = 'glitchygames.replay.tools.golden_traces:InputScript'
+
+    rolled_status = run_game_flag_tool(
+        options=golden_trace_options(path=rolled_path, input_script=input_script),
+        game=SeededWanderScene,
+    )
+    rolled = read_trace(path=rolled_path)
+    again_status = run_game_flag_tool(
+        options=golden_trace_options(
+            path=again_path,
+            input_script=input_script,
+            random_seed=rolled[RANDOM_SEED_HEADER_FIELD],
+        ),
+        game=SeededWanderScene,
+    )
+    again = read_trace(path=again_path)
+
+    assert rolled_status == again_status == ExitCode.SUCCESS
+    assert isinstance(rolled[RANDOM_SEED_HEADER_FIELD], int)
+    assert again['frames'] == rolled['frames']
+    assert RANDOM_SEED_HEADER_FIELD not in again
 
 
 def test_an_input_script_that_names_none_is_refused_and_nothing_runs(

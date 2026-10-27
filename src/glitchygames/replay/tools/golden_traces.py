@@ -13,7 +13,8 @@ Determinism:
     - A game started with ``--random-seed`` (``random_seed``; our goldens pass ``RANDOM_SEED``)
       draws all the randomness of the engine's named streams (``glitchygames/randomness.py``)
       from it. Without one the run rolls a random seed, as any run does (the user's seed rule,
-      2026-10-26). Nothing is patched.
+      2026-10-26), and the trace names it (``random_seed``, as a recording's header does), so
+      the golden can be made again under it. Nothing is patched.
     - A game clock read from ``Scene.game_time`` is driven by the fixed dt (exactly 1/60 second
       per unpaused frame), so no clock is patched.
     - Save files go to a fresh temporary directory, so high scores on disk cannot leak in.
@@ -59,6 +60,7 @@ from glitchygames.engine import GameEngine
 from glitchygames.engine_context import current_context
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
 from glitchygames.logical_names import logical_name
+from glitchygames.replay.driver import RANDOM_SEED_HEADER_FIELD
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import SCENE_MANAGERS_SLOT
 from glitchygames.state import manager as save_manager_module
@@ -599,9 +601,12 @@ def record_trace(
 
     Returns:
         The trace: the game (the scene class's logical name,
-        ``glitchygames.logical_names.logical_name``), frame seconds and one record per frame.
-        A caller that names its games otherwise sets ``game`` itself (our golden traces name
-        theirs by game key: scripts/record_golden_traces.py).
+        ``glitchygames.logical_names.logical_name``), frame seconds and one record per frame;
+        with no ``random_seed`` given, the seed the run rolled too (``random_seed``, decision
+        17's row 1: a golden is compared by running it again under its seed). A trace under a
+        given seed names none, so ours keep their bytes. A caller that names its games otherwise
+        sets ``game`` itself (our golden traces name theirs by game key:
+        scripts/record_golden_traces.py).
 
     """
     frame_observer = hooks.get('frame_observer')
@@ -611,6 +616,9 @@ def record_trace(
     with golden_game(scene_class=scene_class, random_seed=random_seed) as manager:
         engine = manager.game_engine
         assert engine is not None
+        rolled_seed = (
+            {} if random_seed is not None else {RANDOM_SEED_HEADER_FIELD: engine.random_seed}
+        )
         if before_recording is not None:
             assert manager.active_scene is not None
             before_recording(manager.active_scene)
@@ -644,6 +652,7 @@ def record_trace(
     return {
         'game': logical_name(scene_class=scene_class),
         'frame_seconds': FRAME_SECONDS,
+        **rolled_seed,
         'frames': frames,
     }
 

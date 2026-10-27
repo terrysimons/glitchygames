@@ -369,9 +369,10 @@ def record_golden_trace_on_the_game(
     The game's scene class (a scene the game passed in is run by its class) runs in the
     golden-trace harness, driven by ``--input-script MODULE:NAME`` (``load_input_script``: a
     callable taking no arguments that returns an ``InputScript``) for ``--frame-count N``
-    frames, seeded by ``--random-seed`` (a random seed when not given, as any run rolls one:
-    a reproducible golden trace gives one). The trace is written to PATH with the golden
-    source (``GOLDEN_TRACE_SOURCE``), as scripts/record_golden_traces.py writes ours.
+    frames, seeded by ``--random-seed`` (a random seed when not given, as any run rolls one,
+    which the trace then names as ``random_seed``, so the golden can be made again under it).
+    The trace is written to PATH with the golden source (``GOLDEN_TRACE_SOURCE``), as
+    scripts/record_golden_traces.py writes ours.
 
     Args:
         options: The game's parsed options (``GameEngine.OPTIONS``).
