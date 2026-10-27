@@ -37,8 +37,14 @@ from glitchygames.input.state import IDLE_INPUT
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, post_event
 from glitchygames.tracing import read_trace_result
 from tests.replay.replay_helpers import replay_through_engine
+from tests.stand_in_harness_games import (
+    SteeredPaddleScene,
+    register_stand_in_game,
+    steered_paddle_script,
+)
 
-# Long enough for both PaddleSlap paddles to start tracking a served ball
+# Long enough for the steered paddle's whole script (its last key is released before frame 60);
+# PaddleSlap's session was this long too, for both its paddles to start tracking a served ball
 RECORDED_FRAME_COUNT = 120
 # The Clockwork Keep script places the player on an elevator before this frame
 CLOCKWORK_KEEP_FIRST_PLACEMENT_FRAME = 330
@@ -79,14 +85,21 @@ def scene_manager():
     reason='the session runs the real frame loop: each frame moves by its measured frame time'
 )
 def test_scripted_session_records_and_replays(mocker, tmp_path):
-    """A PaddleSlap session records its frames and external key events, then replays exactly."""
+    """A stand-in session records its frames and external key events, then replays exactly.
+
+    The stand-in (``SteeredPaddleScene``) reads key events, polls no input, places no sprite and
+    moves a fixed step per frame, so its replay is deterministic.
+    """
     path = tmp_path / 'rally.jsonl.gz'
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch('pygame.quit')
     mocker.patch('pygame.display.quit')
+    game_key = register_stand_in_game(
+        mocker=mocker, scene_class=SteeredPaddleScene, script_builder=steered_paddle_script
+    )
 
     record_scripted_session(
-        game_key='paddleslap',
+        game_key=game_key,
         frame_count=RECORDED_FRAME_COUNT,
         path=path,
         exercise_controls=False,
@@ -94,15 +107,15 @@ def test_scripted_session_records_and_replays(mocker, tmp_path):
 
     frames = read_trace_result(path=path).trace['frames']
     assert [frame['frame'] for frame in frames] == list(range(RECORDED_FRAME_COUNT))
-    # The paddles were steered by key events the pump returned as external (a player's keys)
+    # The paddle was steered by key events the pump returned as external (a player's keys)
     key_events = [event for frame in frames for event in recorded_key_events(frame=frame)]
     assert key_events
     assert {origin for _type, _key, origin in key_events} == {EXTERNAL_ORIGIN}
-    # PaddleSlap is not in POLLED_INPUT_GAMES: its snapshots never show the posted keys held
-    assert 'paddleslap' not in POLLED_INPUT_GAMES
+    # The stand-in is not in POLLED_INPUT_GAMES: its snapshots never show the posted keys held
+    assert game_key not in POLLED_INPUT_GAMES
     assert not any('pressed_scancodes' in frame.get('input_changes', {}) for frame in frames)
 
-    replay = replay_through_engine(mocker=mocker, game_key='paddleslap', path=path)
+    replay = replay_through_engine(mocker=mocker, game_key=game_key, path=path)
 
     assert replay.exit_status == ExitCode.SUCCESS, replay.result.divergence
     assert replay.result.end_reason == 'end_of_recording'
@@ -117,17 +130,22 @@ STALE_EVENT_SUBTYPE = 9999
     reason='the session runs the real frame loop: each frame moves by its measured frame time'
 )
 def test_a_session_drops_events_left_queued_before_it(mocker, tmp_path):
-    """An internal event a caller left queued is never recorded as the session's own."""
+    """An internal event a caller left queued is never recorded as the session's own.
+
+    The stand-in (``SteeredPaddleScene``) posts no event of its own, so none of subtype
+    STALE_EVENT_SUBTYPE can come from it.
+    """
     path = tmp_path / 'stale.jsonl.gz'
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch('pygame.quit')
     mocker.patch('pygame.display.quit')
+    game_key = register_stand_in_game(
+        mocker=mocker, scene_class=SteeredPaddleScene, script_builder=steered_paddle_script
+    )
     # What an earlier test's scene left behind: a game event it posted and never pumped
     post_event(pygame.event.Event(GAMEEVENT, {'subtype': STALE_EVENT_SUBTYPE}))
 
-    record_scripted_session(
-        game_key='paddleslap', frame_count=5, path=path, exercise_controls=False
-    )
+    record_scripted_session(game_key=game_key, frame_count=5, path=path, exercise_controls=False)
 
     frames = read_trace_result(path=path).trace['frames']
     recorded_subtypes = [
@@ -369,16 +387,18 @@ def test_a_tail_whose_quit_does_not_quit_fails_the_recording(mocker, tmp_path):
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch('pygame.quit')
     mocker.patch('pygame.display.quit')
+    game_key = register_stand_in_game(
+        mocker=mocker, scene_class=SteeredPaddleScene, script_builder=steered_paddle_script
+    )
     tail = InputScript()
-    # X is no PaddleSlap control: nothing quits
+    # X is no control of the stand-in (its controls are the arrows, its quit keys Q and ESC):
+    # nothing quits
     tail.at(2, press(pygame.K_x))
-    mocker.patch.dict(CONTROLS_TAIL_BUILDERS, {'paddleslap': lambda: tail})
+    mocker.patch.dict(CONTROLS_TAIL_BUILDERS, {game_key: lambda: tail})
     path = tmp_path / 'never-quits.jsonl.gz'
 
     with pytest.raises(GameDidNotQuitError, match='still running'):
-        record_scripted_session(
-            game_key='paddleslap', frame_count=5, path=path, exercise_controls=True
-        )
+        record_scripted_session(game_key=game_key, frame_count=5, path=path, exercise_controls=True)
 
     frames = read_trace_result(path=path).trace['frames']
     # The script's 5 frames, the tail's frames 0 to 2 (its last input), QUIT_WAIT_FRAMES more,

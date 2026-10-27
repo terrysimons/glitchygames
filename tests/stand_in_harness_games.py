@@ -9,6 +9,14 @@ stand-in instead, registered under a stand-in key for that test alone
 ``TowerFloorScene`` stands in for Clockwork Keep's golden script: a 900-frame session with key
 taps on known frames, an elevator ride (the engine's ``ElevatorTransition``) and a pause through
 the engine's ``PauseScene``.
+
+``SteeredPaddleScene`` stands in for PaddleSlap's rally in a short scripted session: a paddle
+steered by key events (``steered_paddle_script``). Its facts: it reads key events (so the
+session records external key events) and polls no input (its key is in no
+``POLLED_INPUT_GAMES``); its script places no sprite; the paddle is a sprite on every frame; it
+moves a fixed step per frame, so a replay is deterministic; it posts no event of its own; its
+only controls are the arrows, and the base scene's quit keys (Q, ESC) end it (``pygame.K_x``
+does nothing).
 """
 
 from __future__ import annotations
@@ -215,4 +223,88 @@ def tower_script() -> InputScript:
     script.at(TOWER_PAUSE_FRAME, press(pygame.K_ESCAPE), release(pygame.K_ESCAPE))
     script.at(TOWER_RESUME_FRAME, press(pygame.K_SPACE))
     script.at(TOWER_RESUME_FRAME + 2, release(pygame.K_SPACE))
+    return script
+
+
+# The steered paddle's place, size and step (pixels), and its script's key frames: up held from
+# frame 5 to 20, down from 30 to 60, within the 120 frames the scripted session records
+PADDLE_START = (40, 200)
+PADDLE_SIZE = (8, 40)
+PADDLE_STEP = 4
+PADDLE_COLOR = (200, 200, 220)
+STEER_UP_FRAME = 5
+STEER_UP_RELEASE_FRAME = 20
+STEER_DOWN_FRAME = 30
+STEER_DOWN_RELEASE_FRAME = 60
+
+
+class Paddle(pygame.sprite.DirtySprite):
+    """A paddle the steered-paddle scene moves with the arrow keys."""
+
+    def __init__(self) -> None:
+        """Create the paddle at PADDLE_START."""
+        super().__init__()
+        self.image = pygame.Surface(PADDLE_SIZE)
+        self.image.fill(PADDLE_COLOR)
+        self.rect = self.image.get_rect(topleft=PADDLE_START)
+
+    def update_nested_sprites(self) -> None:
+        """Scene.update() calls this on every sprite; this sprite has no nested sprites."""
+
+    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
+        """The mouse manager calls this on the sprite under the pointer; it ignores it."""
+
+
+class SteeredPaddleScene(Scene):
+    """A stand-in for PaddleSlap's rally: a paddle steered up and down by the arrow keys."""
+
+    NAME = 'Steered Paddle'
+    VERSION = '1.0'
+
+    def __init__(self: Self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Add the paddle."""
+        super().__init__(options=options, groups=groups)
+        self.paddle = Paddle()
+        self.all_sprites.add(self.paddle)
+        self.steer_direction = 0
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Move the paddle a fixed step while an arrow is held."""
+        super().dt_tick(dt)
+        if self.steer_direction:
+            self.paddle.rect.y += self.steer_direction * PADDLE_STEP
+            self.paddle.dirty = 1
+
+    @override
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
+        """Steer with the arrows; other keys go to the base scene."""
+        if event.key == pygame.K_UP:
+            self.steer_direction = -1
+        elif event.key == pygame.K_DOWN:
+            self.steer_direction = 1
+        else:
+            super().on_key_down_event(event)
+
+    @override
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
+        """Stop steering; other releases go to the base scene (Q and ESC quit there)."""
+        if event.key in {pygame.K_UP, pygame.K_DOWN}:
+            self.steer_direction = 0
+        else:
+            super().on_key_up_event(event)
+
+
+def steered_paddle_script() -> InputScript:
+    """The steered paddle's input: up, then down, by key events only.
+
+    Returns:
+        The input script.
+
+    """
+    script = InputScript()
+    script.at(STEER_UP_FRAME, press(pygame.K_UP))
+    script.at(STEER_UP_RELEASE_FRAME, release(pygame.K_UP))
+    script.at(STEER_DOWN_FRAME, press(pygame.K_DOWN))
+    script.at(STEER_DOWN_RELEASE_FRAME, release(pygame.K_DOWN))
     return script

@@ -38,6 +38,7 @@ from scripts.record_scripted_session import (
     GAME_CONSOLE_SCRIPTS,
     REPLAY_FIXTURE_SUFFIX,
     fixture_path,
+    record_scripted_session,
 )
 from scripts.workspace_packages import workspace_members
 
@@ -62,14 +63,22 @@ from tests.stand_in_games import (
     write_header_only_recording,
     write_stand_in_distribution,
 )
+from tests.stand_in_harness_games import (
+    SteeredPaddleScene,
+    register_stand_in_game,
+    steered_paddle_script,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
     from glitchygames.input import ActionMap
 
 # The frame a tampered copy of a fixture first differs from the engine at
 TAMPERED_FRAME = 10
+# The stand-in golden's frames: TAMPERED_FRAME and 20 frames after it
+STAND_IN_GOLDEN_FRAMES = 30
 
 # Each workspace member's (directly in <member>/tests/fixtures/replays/): every game is in a
 # member, so no golden is in the root's tests/fixtures/replays/<console-script>/ layout
@@ -102,9 +111,7 @@ def test_every_golden_replay_is_replayed_by_its_games_console_script(game):
     )
 
 
-def test_a_members_golden_replay_is_replayed_by_the_members_console_script(
-    tmp_path, monkeypatch
-):
+def test_a_members_golden_replay_is_replayed_by_the_members_console_script(tmp_path, monkeypatch):
     """<member>/tests/fixtures/replays/<name>.jsonl.gz: the member distribution names the game.
 
     A stand-in member distribution with exactly one console script, so its script is chosen
@@ -138,14 +145,44 @@ def test_a_recording_of_a_folder_that_is_no_member_is_refused(tmp_path):
         recording_console_script(path=misplaced)
 
 
+def record_stand_in_golden(*, mocker, tmp_path: Path) -> tuple[str, Path]:
+    """Record a stand-in game's scripted session through the engine, as a golden replay is.
+
+    The stand-in (``SteeredPaddleScene``, tests/stand_in_harness_games.py) draws its paddle on
+    every frame, so the recording has a sprite on TAMPERED_FRAME and every frame after it, and
+    moves a fixed step per frame, so it replays deterministically.
+
+    Returns:
+        The stand-in's game key (registered for this test) and the recording's path.
+
+    """
+    # GameEngine._shutdown quits pygame; later tests on this worker still need it
+    mocker.patch('pygame.quit')
+    mocker.patch('pygame.display.quit')
+    game_key = register_stand_in_game(
+        mocker=mocker, scene_class=SteeredPaddleScene, script_builder=steered_paddle_script
+    )
+    path = tmp_path / f'golden{REPLAY_FIXTURE_SUFFIX}'
+    record_scripted_session(
+        game_key=game_key,
+        frame_count=STAND_IN_GOLDEN_FRAMES,
+        path=path,
+        exercise_controls=False,
+    )
+    frames = read_trace_result(path=path).trace['frames']
+    assert all(frame['sprites'] for frame in frames[TAMPERED_FRAME:])
+    return game_key, path
+
+
 def test_a_tampered_golden_replay_is_reported_at_its_frame(mocker, capsys, tmp_path):
     """The golden replays really compare: a fixture moved by one pixel diverges there."""
-    path = fixture_path(game_key='paddleslap')
-    tampered_path = tmp_path / path.name
+    game_key, path = record_stand_in_golden(mocker=mocker, tmp_path=tmp_path)
+    tampered_path = tmp_path / f'tampered{REPLAY_FIXTURE_SUFFIX}'
     tampered_path.write_bytes(path.read_bytes())
     tamper_first_sprite_rect(recording_path=tampered_path, frame_number=TAMPERED_FRAME)
+    capsys.readouterr()
 
-    replay = replay_through_engine(mocker=mocker, game_key='paddleslap', path=tampered_path)
+    replay = replay_through_engine(mocker=mocker, game_key=game_key, path=tampered_path)
 
     report = capsys.readouterr().out
     assert replay.exit_status == ExitCode.REPLAY_DIVERGED, report
@@ -160,15 +197,16 @@ def test_a_rebaselined_golden_replay_names_the_tampered_frames_and_replays_clean
     mocker, capsys, tmp_path
 ):
     """--rebaseline of a tampered fixture reports the change, and its output replays exactly."""
-    path = fixture_path(game_key='paddleslap')
-    tampered_path = tmp_path / path.name
+    game_key, path = record_stand_in_golden(mocker=mocker, tmp_path=tmp_path)
+    tampered_path = tmp_path / f'tampered{REPLAY_FIXTURE_SUFFIX}'
     tampered_path.write_bytes(path.read_bytes())
     tamper_first_sprite_rect(recording_path=tampered_path, frame_number=TAMPERED_FRAME)
     rebaselined_path = tmp_path / f'rebaselined{REPLAY_FIXTURE_SUFFIX}'
+    capsys.readouterr()
 
     rebaseline = replay_through_engine(
         mocker=mocker,
-        game_key='paddleslap',
+        game_key=game_key,
         path=tampered_path,
         extra_arguments=('--rebaseline', str(rebaselined_path)),
     )
@@ -181,7 +219,7 @@ def test_a_rebaselined_golden_replay_names_the_tampered_frames_and_replays_clean
     assert rebaseline.result.differing_frame_count == tampered_frame_count
     assert f'{tampered_frame_count} frames differ (first at {TAMPERED_FRAME}: sprite ' in summary
     assert 'sprites affected: ' in summary
-    replay = replay_through_engine(mocker=mocker, game_key='paddleslap', path=rebaselined_path)
+    replay = replay_through_engine(mocker=mocker, game_key=game_key, path=rebaselined_path)
     report = capsys.readouterr().out
     assert replay.exit_status == ExitCode.SUCCESS, report
     assert replay.result.divergence is None
