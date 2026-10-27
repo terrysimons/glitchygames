@@ -755,9 +755,13 @@ Each tool is reachable two ways, with the same name and the same options:
 - **As the `glitchygames` command** (also `python -m glitchygames`), one subcommand per tool
   (`uv run glitchygames report session.jsonl.gz`). A subcommand whose tool runs the game starts
   the game as a child process with the tool's flag. Arguments after a bare `--` go to that game
-  unchanged (`glitchygames record-trace paddleslap run.jsonl.gz -- --resolution 640x480`), and
-  `--project-root DIR` names the project the tool works on (default: the nearest directory up
-  whose `pyproject.toml` has `[tool.glitchygames]`, else the nearest with a `pyproject.toml`).
+  unchanged (`glitchygames record-trace paddleslap run.jsonl.gz -- --resolution 640x480`).
+  `--project-root DIR` is, for the tools that read the project's settings (`verify`, `measure`,
+  `unmeasured`, `clear-published`, `performance-pages`), the project they work on (default: the
+  nearest directory at or above the current one whose `pyproject.toml` has
+  `[tool.glitchygames]`, else the nearest with a `pyproject.toml`, else the current directory);
+  for `record-trace`, `replay-trace`, `record-golden-trace` and `record-session`, the directory
+  the game runs in (default: the current directory); `report` reads only its recording.
 
 Both front ends are generated from one table, `TOOLS` in
 `src/glitchygames/replay/tools/registry.py`, which is the reference for every flag, option,

@@ -109,6 +109,24 @@ type ToolOptionKind = Literal[
 # What a tool's own flag takes: one path (--replay-trace PATH), several (--verify [PATH ...]) or
 # no value at all (--unmeasured)
 type ToolValueKind = Literal['path', 'paths', 'flag']
+# What a subcommand's --project-root is to its tool: where the game it starts runs (default: the
+# current directory: traces.project_root), the project whose settings it reads (default: the
+# nearest project, as verify finds it: verify.verify_project_root), or nothing (report)
+type ProjectRootUse = Literal['working-directory', 'project', 'unused']
+# --project-root's help for each use, its default included
+PROJECT_ROOT_HELP: dict[ProjectRootUse, str] = {
+    'working-directory': (
+        'the directory the game runs in, where it may be found as a module (default: the '
+        'current directory)'
+    ),
+    'project': (
+        'the project whose [tool.glitchygames] settings and recordings the tool works on, where '
+        'a game it starts runs (default: the nearest directory at or above the current one '
+        'whose pyproject.toml has [tool.glitchygames], else the nearest with a pyproject.toml, '
+        'else the current directory)'
+    ),
+    'unused': 'unused: the tool reads only what it is given',
+}
 # The add_argument settings that read each kind of option value (a choice's choices are its own)
 KIND_SETTINGS: dict[ToolOptionKind, dict[str, Any]] = {
     'path': {},
@@ -226,6 +244,8 @@ class Tool:
         command_arguments: The command's arguments that the game flag has no need of (the game
             to run: ``GAME``, ``--game``): positional ones go before the value, the others after
             the options.
+        project_root_use: What its subcommand's ``--project-root`` is to it, and so its default
+            (``ProjectRootUse``, ``PROJECT_ROOT_HELP``).
 
     """
 
@@ -239,6 +259,7 @@ class Tool:
     value_metavar: str = 'PATH'
     value_help: str = ''
     command_arguments: tuple[ToolOption, ...] = ()
+    project_root_use: ProjectRootUse = 'working-directory'
 
     def __post_init__(self) -> None:
         """Refuse a tool that runs no game and has no game handler.
@@ -548,10 +569,7 @@ def build_command_parser(*, tools: Sequence[Tool] | None = None) -> argparse.Arg
             metavar='DIR',
             type=Path,
             default=None,
-            help=(
-                'the project the tool works on, where a game it starts runs and may be found as '
-                'a module (default: the current directory)'
-            ),
+            help=PROJECT_ROOT_HELP[tool.project_root_use],
         )
     return parser
 
@@ -1145,6 +1163,7 @@ TOOLS: tuple[Tool, ...] = (
         value_kind='paths',
         value_help=("the recordings to verify (default: the games' own goldens and bundled demos)"),
         command_arguments=(GAMES_OPTION,),
+        project_root_use='project',
     ),
     Tool(
         name='measure',
@@ -1174,6 +1193,7 @@ TOOLS: tuple[Tool, ...] = (
         value_kind='paths',
         value_help="the recordings to measure (default: the games' own goldens and bundled demos)",
         command_arguments=(GAMES_OPTION,),
+        project_root_use='project',
     ),
     Tool(
         name='unmeasured',
@@ -1187,6 +1207,7 @@ TOOLS: tuple[Tool, ...] = (
         command_handler=unmeasured_command,
         value_kind='flag',
         command_arguments=(GAMES_OPTION,),
+        project_root_use='project',
     ),
     Tool(
         name='clear-published',
@@ -1199,6 +1220,7 @@ TOOLS: tuple[Tool, ...] = (
         game_handler=clear_published_on_the_game,
         command_handler=clear_published_command,
         value_kind='flag',
+        project_root_use='project',
     ),
     Tool(
         name='report',
@@ -1214,6 +1236,7 @@ TOOLS: tuple[Tool, ...] = (
         game_handler=report_on_the_game,
         command_handler=report_command,
         value_help='the recording (.jsonl.gz)',
+        project_root_use='unused',
     ),
     Tool(
         name='performance-pages',
@@ -1228,5 +1251,6 @@ TOOLS: tuple[Tool, ...] = (
         command_handler=performance_pages_command,
         value_metavar='DIRECTORY',
         value_help='where the pages go (created when missing)',
+        project_root_use='project',
     ),
 )

@@ -236,6 +236,67 @@ def test_each_tools_options_match_on_both_front_ends():
     assert every_command_only_flag == COMMAND_ONLY_FLAGS
 
 
+def test_each_subcommands_project_root_help_says_what_its_tool_does_with_it():
+    """``--project-root``'s help, and its default, follow how the tool uses it.
+
+    A tool that runs the game starts it there (default: the current directory); a tool that
+    reads the project's settings finds the project as verify does (``verify_project_root``);
+    ``report`` reads only its recording.
+    """
+    subcommands = subcommand_parsers(parser=build_command_parser())
+
+    uses = {tool.name: tool.project_root_use for tool in TOOLS}
+    for tool in TOOLS:
+        action = action_for(parser=subcommands[tool.name], flag=registry.PROJECT_ROOT_FLAG)
+        assert action.help == registry.PROJECT_ROOT_HELP[tool.project_root_use], tool.name
+        assert action.default is None
+    assert uses == {
+        'record-trace': 'working-directory',
+        'replay-trace': 'working-directory',
+        'record-golden-trace': 'working-directory',
+        'record-session': 'working-directory',
+        'verify': 'project',
+        'measure': 'project',
+        'unmeasured': 'project',
+        'clear-published': 'project',
+        'report': 'unused',
+        'performance-pages': 'project',
+    }
+
+
+def test_a_tool_that_reads_the_settings_finds_the_project_above_the_current_directory(
+    tmp_path, monkeypatch, capsys
+):
+    """Without ``--project-root``, each settings tool reads the nearest project's settings.
+
+    Run from a subdirectory, each reads the ``[tool.glitchygames]`` of the project above (here
+    unreadable, so each says which file it read: UNUSABLE_INPUT naming it).
+    """
+    (tmp_path / 'pyproject.toml').write_text(
+        '[tool.glitchygames]\nno-such-setting = 1\n', encoding='utf-8'
+    )
+    subdirectory = tmp_path / 'tests' / 'deeper'
+    subdirectory.mkdir(parents=True)
+    monkeypatch.chdir(subdirectory)
+    settings_tools = [tool for tool in TOOLS if tool.project_root_use == 'project']
+
+    statuses = {
+        tool.name: command.main([
+            tool.name,
+            *([str(tmp_path / 'pages')] if tool.value_kind == 'path' else []),
+        ])
+        for tool in settings_tools
+    }
+
+    assert statuses == dict.fromkeys(
+        [tool.name for tool in settings_tools], ExitCode.UNUSABLE_INPUT
+    )
+    errors = capsys.readouterr().err
+    assert errors.count(f'{tmp_path / "pyproject.toml"}: [tool.glitchygames]') == len(
+        settings_tools
+    )
+
+
 def test_the_existing_trace_flags_are_unchanged():
     """--record-trace, --replay-trace and --rebaseline parse to the OPTIONS they always did.
 
