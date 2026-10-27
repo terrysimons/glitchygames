@@ -10,10 +10,26 @@ import math
 
 from glitchygames.collision.layers import CollisionManager
 from glitchygames.game_objects import BallSprite
-from glitchygames.game_objects.ball import speed_up_step_ratio
+from glitchygames.game_objects.ball import (
+    SpeedUpAxes,
+    SpeedUpCurve,
+    SpeedUpSettings,
+    SpeedUpTrigger,
+    speed_up_step_ratio,
+)
 from glitchygames.movement import Speed
-from paddleslap import PADDLESLAP_SPEED_UP
 from tests.game_objects.ball_helpers import drawn_position
+
+# A stand-in for Paddle Slap's speed-up, with its values copied so the engine's tests import no
+# game (PADDLESLAP_SPEED_UP, src/games/paddleslap/src/paddleslap/__init__.py:93): a ball speeds
+# up on each paddle bounce, logarithmically, on both axes
+STAND_IN_PADDLE_SPEED_UP = SpeedUpSettings(
+    triggers=SpeedUpTrigger.PADDLE_BOUNCE,
+    curve=SpeedUpCurve.LOGARITHMIC,
+    axes=SpeedUpAxes.BOTH,
+    multiplier=1.15,
+    max_speed=500.0,
+)
 
 # Constants for magic values
 SPEED_3_0 = 3.0
@@ -122,7 +138,7 @@ class TestPaddleCollisions:
     def test_ball_bounces_off_left_paddle(self):
         """Test ball bounces off left paddle with speed increase."""
         # Setup: Ball moving left towards left paddle
-        ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
+        ball = BallSprite(speed_up_settings=STAND_IN_PADDLE_SPEED_UP)
         ball.speed = Speed(SPEED_NEG_3_0, SPEED_2_0)  # Moving left and down
         initial_magnitude = math.sqrt(SPEED_3_0**2 + SPEED_2_0**2)
 
@@ -137,8 +153,8 @@ class TestPaddleCollisions:
         final_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
         assert final_magnitude > initial_magnitude  # Speed increased
         expected_ratio = speed_up_step_ratio(
-            curve=PADDLESLAP_SPEED_UP.curve,
-            multiplier=PADDLESLAP_SPEED_UP.multiplier,
+            curve=STAND_IN_PADDLE_SPEED_UP.curve,
+            multiplier=STAND_IN_PADDLE_SPEED_UP.multiplier,
             completed_steps=0,
         )
         assert math.isclose(final_magnitude, initial_magnitude * expected_ratio)
@@ -146,7 +162,7 @@ class TestPaddleCollisions:
     def test_ball_bounces_off_right_paddle(self):
         """Test ball bounces off right paddle with speed increase."""
         # Setup: Ball moving right towards right paddle
-        ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
+        ball = BallSprite(speed_up_settings=STAND_IN_PADDLE_SPEED_UP)
         ball.speed = Speed(SPEED_3_0, SPEED_2_0)  # Moving right and down
         initial_magnitude = math.sqrt(SPEED_3_0**2 + SPEED_2_0**2)
 
@@ -165,7 +181,7 @@ class TestPaddleCollisions:
         """Test paddle collision spawns a new ball."""
         # This test would require mocking the game instance
         # For now, we'll test the speed_up behavior
-        ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
+        ball = BallSprite(speed_up_settings=STAND_IN_PADDLE_SPEED_UP)
         initial_speed_x = ball.speed.x
         initial_speed_y = ball.speed.y
 
@@ -179,7 +195,7 @@ class TestPaddleCollisions:
     def test_paddle_collision_reverses_horizontal_direction(self):
         """Test paddle collision reverses horizontal direction."""
         # Setup: Ball moving left
-        ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
+        ball = BallSprite(speed_up_settings=STAND_IN_PADDLE_SPEED_UP)
         ball.speed = Speed(SPEED_NEG_4_0, SPEED_1_0)  # Moving left
 
         # Action: Simulate paddle collision
@@ -304,7 +320,7 @@ class TestIntegrationCollisions:
     def test_mixed_collision_scenarios(self):
         """Test sequence of different collision types."""
         # Setup: Ball that will hit wall, then paddle, then another ball
-        ball = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
+        ball = BallSprite(speed_up_settings=STAND_IN_PADDLE_SPEED_UP)
         ball.speed = Speed(SPEED_3_0, SPEED_NEG_2_0)  # Moving right and up
         _place_on_top_wall(ball)  # At top wall (triggers bounce condition)
 
@@ -325,7 +341,7 @@ class TestIntegrationCollisions:
         """Test multiple balls with various collision types."""
         # Setup: Multiple balls
         ball1 = BallSprite()
-        ball2 = BallSprite(speed_up_settings=PADDLESLAP_SPEED_UP)
+        ball2 = BallSprite(speed_up_settings=STAND_IN_PADDLE_SPEED_UP)
         ball3 = BallSprite()
 
         ball1.speed = Speed(

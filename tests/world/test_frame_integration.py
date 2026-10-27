@@ -31,15 +31,18 @@ from scripts.record_golden_traces import (
     release,
 )
 
-import paddleslap
 from glitchygames import live_sources as live_sources_module
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset
+from glitchygames.color import BLACK, WHITE
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
+from glitchygames.game_objects import BallSprite
+from glitchygames.game_objects.paddle import VerticalPaddle
 from glitchygames.input.state import InputSnapshot, current_input
 from glitchygames.live_sources import LiveSources
+from glitchygames.movement import Speed
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
 from glitchygames.process import run_command
 from glitchygames.randomness import capture_stream_states, random_stream
@@ -75,8 +78,15 @@ FRAMES_TO_RUN = 6
 SCREEN_SPRITE_TOPLEFT = (7, 9)
 TEST_FADE_SECONDS = 0.25
 PAUSE_FRAMES = 3
-# PaddleSlap starts with one ball; a paddle hit spawns a second
+# The paddle-hit stand-in starts with one ball, as PaddleSlap does; a paddle hit spawns a second
 PADDLESLAP_BALLS_AFTER_ONE_SPAWN = 2
+# The stand-in's left paddle and its spawned ball, copied from PaddleSlap's
+# (src/games/paddleslap/src/paddleslap/__init__.py:144-151 and 500-512): a 20 x 100 paddle at the
+# left edge, centered vertically, moving 400 px/s; a ball spawned at the screen's center moving
+# (250, 125) px/s
+PADDLE_SIZE = (20, 100)
+PADDLE_SPEED = 400
+SPAWNED_BALL_SPEED = (250.0, 125.0)
 
 # Transition capture: the player is drawn in a colour nothing else uses, so its pixels can be
 # counted in a screenshot; the landmark proves the capture really drew the world sprites
@@ -487,6 +497,69 @@ class DoubleMovedCameraScene(GameMovedCameraScene):
         """Add the sprite and follow it."""
         super().setup()
         self.camera.follow(target=self.world_sprite)
+
+
+class PaddleHitScene(Scene):
+    """A stand-in for PaddleSlap: a world-space ball, a paddle, and a ball spawned on each hit.
+
+    Its dt_tick moves every sprite, then pairs balls with the paddle through the collision
+    manager; ``BallSprite.handle_paddle_collision`` reverses the ball's speed and calls
+    ``on_paddle_collision``, which spawns a second world-space ball, all inside dt_tick, as
+    PaddleSlap's ``_resolve_collisions`` does (src/games/paddleslap/src/paddleslap/__init__.py).
+    """
+
+    NAME = 'Paddle Hit'
+    VERSION = '1.0'
+
+    @override
+    def setup(self: Self) -> None:
+        """Add the left paddle and one ball, each in its collision layer."""
+        self.background_color = BLACK
+        self.player1 = VerticalPaddle(
+            'Player 1',
+            PADDLE_SIZE,
+            (0, self.screen_height // 2 - PADDLE_SIZE[1] // 2),
+            WHITE,
+            PADDLE_SPEED,
+        )
+        self.collisions.add_layer('balls')
+        self.collisions.add_layer('paddles')
+        self.collisions.get_layer('paddles').add(self.player1)
+        self.balls: list[BallSprite] = []
+        self.all_sprites.add(self.player1)
+        self._add_ball(ball=BallSprite(bounce_left_right=False))
+
+    def _add_ball(self: Self, *, ball: BallSprite) -> None:
+        """Add a ball to the balls, the sprites and the balls layer; a paddle hit spawns one."""
+        ball.on_paddle_collision = self._spawn_ball
+        self.balls.append(ball)
+        self.all_sprites.add(ball)
+        self.collisions.get_layer('balls').add(ball)
+
+    def _spawn_ball(self: Self, _ball: BallSprite) -> None:
+        """Spawn a ball at the screen's center, as PaddleSlap's default spawn mode does."""
+        new_ball = BallSprite(bounce_left_right=False)
+        new_ball.world_x = float(self.screen_width // 2)
+        new_ball.world_y = float(self.screen_height // 2)
+        new_ball.speed = Speed(*SPAWNED_BALL_SPEED)
+        self._add_ball(ball=new_ball)
+
+    @staticmethod
+    def _on_ball_paddle_collision(ball: BallSprite, paddle: VerticalPaddle) -> None:
+        """Bounce a ball the collision manager paired with the paddle, if it touches it."""
+        ball.handle_paddle_collision(paddle)
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Move every sprite, then resolve this frame's paddle hits (spawning on a hit).
+
+        Args:
+            dt: The frame's delta time in seconds.
+
+        """
+        for sprite in self.all_sprites:
+            sprite.dt_tick(dt)
+        self.collisions.check_overlap('balls', 'paddles', callback=self._on_ball_paddle_collision)
 
 
 @contextlib.contextmanager
@@ -1305,7 +1378,7 @@ class TestTransitionCapture:
 
 
 class TestPaddleSlapInTheFrame:
-    """PaddleSlap's world-space balls are drawn where their logic left them, every frame."""
+    """A PaddleSlap-like scene's world-space balls are drawn where its logic left them."""
 
     def test_paddle_hit_and_spawned_ball_are_drawn_at_their_world_positions(self):
         """A paddle bounce and the ball it spawns are both placed before that frame's render.
@@ -1313,10 +1386,10 @@ class TestPaddleSlapInTheFrame:
         Both happen in the game's dt_tick; the engine then positions world sprites, so neither
         ball is drawn a frame late, and the new ball is never drawn at (0, 0).
         """
-        with running_scene(paddleslap.Game) as manager:
+        with running_scene(PaddleHitScene) as manager:
             step(manager)
             game = manager.active_scene
-            assert isinstance(game, paddleslap.Game)
+            assert isinstance(game, PaddleHitScene)
             ball = game.balls[0]
             paddle = game.player1
             # Visible circle 1 px right of the left paddle, moving left 5 px: inside it after

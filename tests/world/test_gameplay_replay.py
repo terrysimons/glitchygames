@@ -133,6 +133,7 @@ from tests.replay.replay_helpers import (
 )
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import live_sdl_driver_state, restore_run_sdl_drivers
+from tests.stand_in_harness_games import TowerFloorScene, register_stand_in_game, tower_script
 from tests.world import test_gameplay_recording as recording_test_module
 from tests.world.test_gameplay_recording import (
     FAKE_CLOCK_STEP_SECONDS,
@@ -1009,13 +1010,16 @@ class TestRoundTrip:
         assert result.divergence is None
         assert result.frames_replayed == GOLDEN_SCRIPT_FRAMES
 
-    def test_golden_harness_stopped_early_reports_a_length_divergence(self, tmp_path):
-        recording_path = tmp_path / 'paddleslap.jsonl.gz'
+    def test_golden_harness_stopped_early_reports_a_length_divergence(self, mocker, tmp_path):
+        game_key = register_stand_in_game(
+            mocker=mocker, scene_class=TowerFloorScene, script_builder=tower_script
+        )
+        recording_path = tmp_path / 'tower.jsonl.gz'
         record_trace(
-            'paddleslap', frame_count=EARLY_STOP_RECORDED_FRAMES, recording_path=recording_path
+            game_key, frame_count=EARLY_STOP_RECORDED_FRAMES, recording_path=recording_path
         )
         result = replay_golden_recording(
-            game_key='paddleslap', path=recording_path, frame_limit=EARLY_STOP_FRAME_LIMIT
+            game_key=game_key, path=recording_path, frame_limit=EARLY_STOP_FRAME_LIMIT
         )
         assert result.end_reason == 'diverged'
         divergence = result.divergence
@@ -1785,7 +1789,8 @@ UNUSED_AUDIO_DRIVER = 'unused-audio-driver'
 # 800x480, and one no recording here has
 WINDOW_MANAGER_SIZE = (800, 600)
 UNRECORDED_WINDOW_SIZE = (640, 400)
-# Enough PaddleSlap frames to compare the paddles' places (set from the screen height in frame 0)
+# Enough frames to compare the display-height stand-in's sprite place (set from the screen height
+# when it is built), as PaddleSlap's paddles were compared
 DISPLAY_SIZE_FRAME_COUNT = 10
 
 
@@ -1809,15 +1814,34 @@ def window_manager_choosing_size(*, mocker, size: tuple[int, int]):
     return mocker.patch('pygame.display.set_mode', side_effect=set_mode_at_the_chosen_size)
 
 
-def record_paddleslap_on_a_window_of_another_size(*, mocker, path: Path) -> None:
-    """Record PaddleSlap asking for 800x480 on a window the window manager makes 800x600."""
+class DisplayHeightScene(Scene):
+    """A stand-in game that places its sprite from the display's height, as PaddleSlap does.
+
+    PaddleSlap centers its paddles vertically from ``screen_height`` when it is built
+    (src/games/paddleslap/src/paddleslap/__init__.py:142-151), so a replay on a display of
+    another height would place them elsewhere.
+    """
+
+    NAME = 'Display Height'
+    VERSION = '1.0'
+
+    def __init__(self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Center the marker vertically on the display."""
+        super().__init__(options=options, groups=groups)
+        self.marker = Marker(x=20)
+        self.marker.rect.y = self.screen_height // 2
+        self.all_sprites.add(self.marker)
+
+
+def record_on_a_window_of_another_size(*, mocker, game_key: str, path: Path) -> None:
+    """Record a game asking for 800x480 on a window the window manager makes 800x600."""
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch('pygame.quit')
     mocker.patch('pygame.display.quit')
     window_manager = window_manager_choosing_size(mocker=mocker, size=WINDOW_MANAGER_SIZE)
     try:
         record_scripted_session(
-            game_key='paddleslap',
+            game_key=game_key,
             frame_count=DISPLAY_SIZE_FRAME_COUNT,
             path=path,
             exercise_controls=False,
@@ -1833,14 +1857,15 @@ class TestRecordedDisplaySize:
         reason='the session runs the real frame loop: each frame moves by its measured frame time'
     )
     def test_a_recording_on_a_window_of_another_size_replays_at_that_size(self, mocker, tmp_path):
-        """PaddleSlap places its paddles from the display height, so the size must be the same."""
-        recording_path = tmp_path / 'rally.jsonl.gz'
-        record_paddleslap_on_a_window_of_another_size(mocker=mocker, path=recording_path)
+        """The game places its sprite from the display height, so the size must be the same."""
+        game_key = register_stand_in_game(mocker=mocker, scene_class=DisplayHeightScene)
+        recording_path = tmp_path / 'display-height.jsonl.gz'
+        record_on_a_window_of_another_size(mocker=mocker, game_key=game_key, path=recording_path)
         header = read_trace_result(path=recording_path).trace
         assert header['options']['resolution'] == '800x480'
         assert header['screen_size'] == list(WINDOW_MANAGER_SIZE)
 
-        replay = replay_through_engine(mocker=mocker, game_key='paddleslap', path=recording_path)
+        replay = replay_through_engine(mocker=mocker, game_key=game_key, path=recording_path)
 
         assert replay.exit_status == ExitCode.SUCCESS, replay.result.divergence
         assert replay.result.frames_replayed == DISPLAY_SIZE_FRAME_COUNT

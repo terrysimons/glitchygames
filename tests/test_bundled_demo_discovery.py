@@ -15,10 +15,15 @@ from glitchygames.bundled_demos import (
     package_demo_paths,
 )
 from glitchygames.replay.driver import write_bookmarked_copy
+from glitchygames.tracing import write_trace
 from paddleslap import PADDLESLAP_DEMO_PATH
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+# A stand-in recording's frames: a bookmark on frame 2 needs at least 2, and 3 leaves a frame
+# after the bookmark
+STAND_IN_RECORDING_FRAMES = 3
 
 
 def write_stand_in_package(*, directory: Path, package: str, demo_names: tuple[str, ...]) -> Path:
@@ -48,9 +53,14 @@ def test_paddleslaps_demo_is_found_with_its_console_script_and_install_name():
     )
 
 
-def test_a_bundled_demo_is_a_frozen_record():
+def test_a_bundled_demo_is_a_frozen_record(tmp_path):
     """A demo's fields cannot be changed in place."""
-    (demo,) = bundled_demos(packages=('paddleslap',))
+    demo = BundledDemo(
+        package='stand_in_game',
+        console_script='stand-in-game',
+        path=tmp_path / 'stand_in_game' / BUNDLED_DEMO_DIRECTORY_NAME / 'rally.jsonl.gz',
+        install_name='stand_in_game/demos/rally.jsonl.gz',
+    )
 
     with pytest.raises(dataclasses.FrozenInstanceError):
         demo.console_script = 'other'  # type: ignore[misc]
@@ -65,8 +75,21 @@ def test_package_demo_paths_lists_only_recordings_and_leaves_out_bookmarked_copi
     )
     (tmp_path / 'stand_in_game' / 'sprites').mkdir()
     (tmp_path / 'stand_in_game' / 'sprites' / 'ball.jsonl.gz').write_bytes(b'')
+    # The copy's source: a small stand-in recording, written beside the package
+    stand_in_recording_path = tmp_path / 'stand_in_rally.jsonl.gz'
+    write_trace(
+        trace={
+            'game': 'stand_in_game',
+            'frame_seconds': 1.0 / 60.0,
+            'frames': [
+                {'frame': frame_number, 'scene': 'Rally', 'sprites': []}
+                for frame_number in range(STAND_IN_RECORDING_FRAMES)
+            ],
+        },
+        path=stand_in_recording_path,
+    )
     write_bookmarked_copy(
-        recording_path=PADDLESLAP_DEMO_PATH,
+        recording_path=stand_in_recording_path,
         bookmarks=[2],
         destination=demo_directory / 'rally.bookmarked.jsonl.gz',
     )

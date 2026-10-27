@@ -33,7 +33,6 @@ from scripts.record_golden_traces import (
     record_trace,
 )
 
-import paddleslap
 from glitchygames.effects.shake import Shake, ShakeStyle
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
@@ -74,6 +73,15 @@ from glitchygames.state.sandbox import open_saves
 from glitchygames.supervision import BREAKPOINT_KIND
 from glitchygames.tracing import TraceWriter, read_trace_result
 from glitchygames.transitions import FadeTransition
+from tests.stand_in_harness_games import (
+    TOWER_FIRST_HOP_FRAME,
+    TOWER_RECORDED_FRAMES,
+    TOWER_RIDE_HOP_FRAME,
+    TOWER_WALK_RIGHT_FRAME,
+    TowerFloorScene,
+    register_stand_in_game,
+    tower_script,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Sequence
@@ -119,8 +127,8 @@ RECORDING_FRAME_FIELDS = frozenset({
     CONTENT_HASH_FIELD,
 })
 
-# The whole Clockwork Keep golden script: the elevator ride (frames 352-592) and a pause (740-790)
-CLOCKWORK_KEEP_RECORDED_FRAMES = 900
+# The app name the save-opening stand-in opens its saves under (PaddleSlap opens 'paddleslap')
+SAVE_OPENING_APP_NAME = 'stand-in-saves'
 
 
 class FakePerfCounter:
@@ -257,6 +265,22 @@ class DepartureRecordedScene(ArrivalRecordedScene):
         super().dt_tick(dt)
         if len(Script.logic_dts) - 1 == TRANSITION_START_FRAME:
             self.transition_to(ArrivalRecordedScene(options=self.options), ScriptedTransition())
+
+
+class SaveOpeningScene(Scene):
+    """A stand-in game that opens its save store in ``__init__``, as PaddleSlap does.
+
+    PaddleSlap opens ``open_saves(app_name='paddleslap')`` while it is built
+    (src/games/paddleslap/src/paddleslap/__init__.py:167), before any recording starts.
+    """
+
+    NAME = 'Save Opening'
+    VERSION = '1.0'
+
+    def __init__(self: Self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Open the saves while the scene is built."""
+        super().__init__(options=options, groups=groups)
+        self.saves = open_saves(app_name=SAVE_OPENING_APP_NAME)
 
 
 # A child game that sends itself SIGTERM in its third frame (a real signal, delivered by the OS)
@@ -882,23 +906,24 @@ class TestRecordingThroughTheEngine:
         assert first_start.first_logic_frame is not None
         assert first_start.first_logic_frame.arrived_by_transition is False
 
-    def test_saves_opened_before_recording_are_in_the_header(self, tmp_path):
+    def test_saves_opened_before_recording_are_in_the_header(self, mocker, tmp_path):
         """A store the game opened before recording started is snapshotted into the header."""
         recording_path = tmp_path / 'session.jsonl.gz'
+        game_key = register_stand_in_game(mocker=mocker, scene_class=SaveOpeningScene)
 
         def write_a_score(scene: Scene) -> None:
-            # PaddleSlap opened its saves in __init__, before recording starts
-            assert isinstance(scene, paddleslap.Game)
+            # The stand-in opened its saves in __init__, before recording starts
+            assert isinstance(scene, SaveOpeningScene)
             scene.saves.save('high_scores', {'scores': [{'score': 7}]})
 
         record_trace(
-            'paddleslap',
+            game_key,
             frame_count=2,
             recording_path=recording_path,
             before_recording=write_a_score,
         )
         header = read_trace_result(path=recording_path).trace
-        assert header[SAVES_HEADER_FIELD]['paddleslap']['high_scores']['data'] == {
+        assert header[SAVES_HEADER_FIELD][SAVE_OPENING_APP_NAME]['high_scores']['data'] == {
             'scores': [{'score': 7}]
         }
         assert all(SAVES_OPENED_FIELD not in frame for frame in header['frames'])
@@ -1018,25 +1043,39 @@ class TestRandomSeed:
 def test_recording_matches_the_golden_harness_frames(mocker, tmp_path):
     """Recording a golden script gives the harness's own sprite frames, plus dt and events.
 
-    The Clockwork Keep script runs 900 frames with an elevator ride (a transition) and a pause:
-    the recording holds exactly one frame per main-loop frame, numbered 0..899.
+    The stand-in tower session (tests/stand_in_harness_games.py, after Clockwork Keep's golden
+    script) runs 900 frames with an elevator ride (a transition) and a pause: the recording
+    holds exactly one frame per main-loop frame, numbered 0..899. A ride frame drains a press
+    and a release queued together.
     """
-    path = tmp_path / 'clockwork_keep.jsonl.gz'
+    path = tmp_path / 'tower.jsonl.gz'
+    game_key = register_stand_in_game(
+        mocker=mocker, scene_class=TowerFloorScene, script_builder=tower_script
+    )
     transition_frames = mocker.spy(SceneManager, '_process_transition_events')
+    ride_frames: set[int] = set()
+
+    def note_ride_frames(*, frame_number: int, scene: Scene | None, sprite_ids: object) -> None:
+        del scene, sprite_ids
+        # A transition still active after the frame ran: that frame was a ride frame
+        if SceneManager()._active_transition is not None:
+            ride_frames.add(frame_number)
 
     golden = record_trace(
-        'clockwork_keep', frame_count=CLOCKWORK_KEEP_RECORDED_FRAMES, recording_path=path
+        game_key,
+        frame_count=TOWER_RECORDED_FRAMES,
+        recording_path=path,
+        frame_observer=note_ride_frames,
     )
     result = read_trace_result(path=path)
 
     assert result.is_complete
     recorded_frames = result.trace['frames']
-    assert [frame['frame'] for frame in recorded_frames] == list(
-        range(CLOCKWORK_KEEP_RECORDED_FRAMES)
-    )
+    assert [frame['frame'] for frame in recorded_frames] == list(range(TOWER_RECORDED_FRAMES))
     # The run really contains transition frames and paused frames
     assert transition_frames.call_count > 0
     assert 'PauseScene' in {frame['scene'] for frame in recorded_frames}
+    assert 'UpperTowerFloorScene' in {frame['scene'] for frame in recorded_frames}
     sprite_frames = [
         {field: value for field, value in frame.items() if field not in RECORDING_FRAME_FIELDS}
         for frame in recorded_frames
@@ -1044,12 +1083,20 @@ def test_recording_matches_the_golden_harness_frames(mocker, tmp_path):
     assert sprite_frames == golden['frames']
     assert {frame[DT_FIELD] for frame in recorded_frames} == {FRAME_SECONDS}
     # The script taps K_UP before frame 10 and presses K_RIGHT before frame 70
-    assert [(event.type, event.dict['key']) for event in _scripted_events(recorded_frames[10])] == [
-        (pygame.KEYDOWN, pygame.K_UP)
-    ]
-    assert [(event.type, event.dict['key']) for event in _scripted_events(recorded_frames[70])] == [
-        (pygame.KEYDOWN, pygame.K_RIGHT)
-    ]
+    assert [
+        (event.type, event.dict['key'])
+        for event in _scripted_events(recorded_frames[TOWER_FIRST_HOP_FRAME])
+    ] == [(pygame.KEYDOWN, pygame.K_UP)]
+    assert [
+        (event.type, event.dict['key'])
+        for event in _scripted_events(recorded_frames[TOWER_WALK_RIGHT_FRAME])
+    ] == [(pygame.KEYDOWN, pygame.K_RIGHT)]
+    # A ride frame drained the hop's press and release, queued together
+    assert TOWER_RIDE_HOP_FRAME in ride_frames
+    assert [
+        (event.type, event.dict['key'])
+        for event in _scripted_events(recorded_frames[TOWER_RIDE_HOP_FRAME])
+    ] == [(pygame.KEYDOWN, pygame.K_UP), (pygame.KEYUP, pygame.K_UP)]
 
 
 @contextlib.contextmanager

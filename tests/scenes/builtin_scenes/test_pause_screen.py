@@ -1,23 +1,66 @@
 """Tests for the Pause Screen functionality.
 
-Real scenes (PaddleSlap's Game and the real PauseScene) run on the real SceneManager and draw
-onto the real display. The only stand-in is the game engine: PauseScene reads two things from
-it (its options and its game), so a namespace holding them takes its place.
+Real scenes (a gameplay scene that pauses as PaddleSlap does, and the real PauseScene) run on
+the real SceneManager and draw onto the real display. The gameplay scene is a stand-in, so the
+engine's tests import no game; the game engine is one too: PauseScene reads two things from it
+(its options and its game), so a namespace holding them takes its place.
 """
 
 import logging
 import types
+from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 import pytest
 
 from glitchygames import events
+from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.testing.keys import qwerty_scancode
-from paddleslap import Game
+
+if TYPE_CHECKING:
+    from glitchygames.events.base import KeyEvent
 
 LOG = logging.getLogger(__name__)
+
+# The stand-in game's background: not black, so the paused game's screenshot, the overlay and
+# the display comparison show something the game drew
+GAME_BACKGROUND_COLOR = (32, 96, 160)
+
+
+class Game(Scene):
+    """A stand-in gameplay scene that pauses on the release of SPACE, as PaddleSlap does.
+
+    PaddleSlap binds its ``pause`` action to SPACE's scancode and calls the engine's
+    ``Scene.pause`` when that action is just released
+    (src/games/paddleslap/src/paddleslap/__init__.py:967-968, 1083-1084); other keys go to the
+    base scene.
+    """
+
+    NAME = 'Pausing Game'
+    VERSION = '1.0'
+
+    def __init__(self: Self, options: dict[str, Any] | None = None) -> None:
+        """Bind the pause action to SPACE and fill the background with a color."""
+        super().__init__(options=options)
+        self.background_color = GAME_BACKGROUND_COLOR
+        self.pause_actions = ActionMap(input_mode='auto')
+        self.pause_actions.bind('pause', scancode=pygame.KSCAN_SPACE)
+
+    @override
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
+        """Feed the press to the pause action map."""
+        self.pause_actions.handle_event(event)
+
+    @override
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
+        """Feed the release to the pause action map, and pause when SPACE is released."""
+        self.pause_actions.handle_event(event)
+        if self.pause_actions.just_released('pause'):
+            self.pause()
+        elif self.pause_actions.get_action(event) is None:
+            super().on_key_up_event(event)
 
 
 ENGINE_OPTIONS = {
@@ -33,8 +76,8 @@ def isolated_scene_manager(mocker, tmp_path):
     """Give each test a fresh SceneManager, its own save directory and restored options.
 
     Setting a scene manager's game_engine copies the engine's OPTIONS onto the SceneManager
-    class, so the class attribute is put back afterwards. PaddleSlap opens its save store when
-    it is built; the saves go to a temporary directory, never the user's.
+    class, so the class attribute is put back afterwards. Any save store a scene opens goes to a
+    temporary directory, never the user's.
 
     Yields:
         SceneManager: The fresh scene manager.
@@ -118,7 +161,7 @@ def _draw_the_active_scene(scene_manager: SceneManager) -> None:
 
 
 def _paused_game(scene_manager: SceneManager) -> tuple[Game, PauseScene]:
-    """Start PaddleSlap, pause it with SPACE and switch to the pause scene, as the loop would.
+    """Start the game, pause it with SPACE and switch to the pause scene, as the loop would.
 
     Returns:
         tuple[Game, PauseScene]: The paused game and the active pause scene.

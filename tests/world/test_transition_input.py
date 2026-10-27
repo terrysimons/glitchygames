@@ -25,10 +25,8 @@ from scripts.record_golden_traces import (
     discard_environment_events,
     press,
     release,
-    stand_on_first_elevator,
 )
 
-from clockwork_keep.game import ClockworkKeepScene
 from glitchygames.input import ActionMap
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
 from glitchygames.scenes import Scene
@@ -38,7 +36,9 @@ from glitchygames.scenes.scene import (
     is_discarded_during_transition,
 )
 from glitchygames.transitions import FadeTransition
+from glitchygames.transitions.elevator import ElevatorTransition
 from tests.input.stand_in_devices import install_stand_in_devices
+from tests.stand_in_harness_games import ELEVATOR_RIDE_EASING, ELEVATOR_RIDE_SECONDS, Climber
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -47,11 +47,14 @@ if TYPE_CHECKING:
 TRANSITION_START_FRAME_LIMIT = 10
 TRANSITION_END_FRAME_LIMIT = 600
 
-# Clockwork Keep: frames to settle at spawn, and on the elevator before pressing interact
+# Frames to settle at spawn, and on the elevator before pressing interact, as the test ran them
+# with Clockwork Keep before the elevator stand-in replaced it
 SPAWN_SETTLE_FRAMES = 30
 ELEVATOR_SETTLE_FRAMES = 20
-# Frames watched after the elevator arrives (a jump rises for far longer than this)
+# Frames watched after the elevator arrives
 ARRIVAL_WATCH_FRAMES = 30
+# How far a jump lifts the elevator stand-in's rider (pixels)
+JUMP_RISE_PIXELS = 20
 
 TEST_FADE_SECONDS = 0.25
 
@@ -78,7 +81,7 @@ def new_shared_actions() -> ActionMap:
     """Build the game-level ActionMap both scenes of the generic transition tests share.
 
     Returns:
-        An ActionMap with 'move_right' bound to the right arrow key.
+        An ActionMap with 'move_right' bound to the right arrow key and 'jump' to the up arrow.
 
     """
     actions = ActionMap(input_mode='joystick')
@@ -87,6 +90,7 @@ def new_shared_actions() -> ActionMap:
         keyboard=pygame.K_RIGHT,
         controller_axis=(pygame.CONTROLLER_AXIS_LEFTX, STICK_ACTION_THRESHOLD),
     )
+    actions.bind('jump', keyboard=pygame.K_UP)
     return actions
 
 
@@ -151,6 +155,61 @@ class EscapePausingScene(DepartureScene):
         """Pause on ESC; every other key goes to the ArrivalScene handling."""
         if event.key == pygame.K_ESCAPE:
             self.pause()
+            return
+        super().on_key_down_event(event)
+
+
+class ElevatorArrivalScene(ArrivalScene):
+    """The floor an elevator ride arrives at: its rider jumps on the shared 'jump' action.
+
+    A jump is taken both ways a game takes one: from the press event (as Clockwork Keep jumps)
+    and from ``just_pressed`` in dt_tick, which also records whether a jump was ever pressed.
+    """
+
+    NAME = 'Elevator Arrival'
+
+    def __init__(self: Self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Add the rider."""
+        super().__init__(options=options, groups=groups)
+        self.rider = Climber()
+        self.all_sprites.add(self.rider)
+        self.jump_was_just_pressed = False
+
+    def jump(self: Self) -> None:
+        """Lift the rider."""
+        self.rider.rect.y -= JUMP_RISE_PIXELS
+        self.rider.dirty = 1
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Jump on a 'jump' press seen since the last frame, then start the next frame's."""
+        super().dt_tick(dt)
+        if ArrivalScene.shared_actions.just_pressed('jump'):
+            self.jump_was_just_pressed = True
+            self.jump()
+        ArrivalScene.shared_actions.begin_frame()
+
+    @override
+    def on_key_down_event(self: Self, event: Any) -> None:
+        """Jump on the 'jump' press, after the shared ActionMap has seen it."""
+        super().on_key_down_event(event)
+        if ArrivalScene.shared_actions.get_action(event) == 'jump':
+            self.jump()
+
+
+class ElevatorDepartureScene(DepartureScene):
+    """A floor whose interact key (K_w, as Clockwork Keep's) rides the engine's elevator."""
+
+    NAME = 'Elevator Departure'
+
+    @override
+    def on_key_down_event(self: Self, event: Any) -> None:
+        """Ride the elevator to an ElevatorArrivalScene on K_w."""
+        if event.key == pygame.K_w:
+            self.transition_to(
+                ElevatorArrivalScene(options=self.options),
+                ElevatorTransition(duration=ELEVATOR_RIDE_SECONDS, easing=ELEVATOR_RIDE_EASING),
+            )
             return
         super().on_key_down_event(event)
 
@@ -311,32 +370,31 @@ def test_discarded_event_types_are_presses_only():
 
 def test_jump_pressed_during_elevator_ride_does_not_jump_on_arrival():
     """A jump key pressed and released mid-ride is not delivered when the ride ends."""
-    with running_game(ClockworkKeepScene) as manager:
+    with running_game(ElevatorDepartureScene) as manager:
         for _ in range(SPAWN_SETTLE_FRAMES):
             step(manager)
-        assert manager.active_scene is not None
-        stand_on_first_elevator(manager.active_scene)
         for _ in range(ELEVATOR_SETTLE_FRAMES):
             step(manager)
         step(manager, press(pygame.K_w))
         step(manager, release(pygame.K_w))
         step_until_transition_starts(manager)
+        assert isinstance(manager._active_transition, ElevatorTransition)
 
         step(manager, press(pygame.K_UP))
         step(manager, release(pygame.K_UP))
         step_until_transition_ends(manager)
 
         arrival_floor = manager.active_scene
-        assert isinstance(arrival_floor, ClockworkKeepScene)
-        assert arrival_floor.floor_index == 1
-        arrival_world_y = arrival_floor.player.world_y
-        highest_world_y = arrival_world_y
+        assert isinstance(arrival_floor, ElevatorArrivalScene)
+        arrival_y = arrival_floor.rider.rect.y
+        highest_y = arrival_y
         for _ in range(ARRIVAL_WATCH_FRAMES):
             step(manager)
-            highest_world_y = min(highest_world_y, arrival_floor.player.world_y)
+            highest_y = min(highest_y, arrival_floor.rider.rect.y)
 
-        # A jump moves the player up (smaller world_y); falling or standing never does
-        assert highest_world_y >= arrival_world_y
+        # A jump moves the rider up (smaller y); nothing else moves it
+        assert not arrival_floor.jump_was_just_pressed
+        assert highest_y >= arrival_y
 
 
 def test_key_held_before_transition_and_released_during_it_is_not_held_after():
