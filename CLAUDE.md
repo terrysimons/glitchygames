@@ -491,7 +491,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   front ends are built from it so names and options can't drift: `GameEngine.args` adds each
   tool to every game's command line (`add_game_flags`: `--record-trace` with `--random-seed`
   and `--headless`, `--replay-trace` and its options `--replay-fps`, `--audit`, `--compare-processing`, `--max-processing-slowdown`,
-  `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`, `--headless`,
+  `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`, `--headless`, `--compare-trace
+  OLD`, `--compare-alpha PERCENT` and the hidden `--replay-frame-stream PORT`
+  (`ToolOption.hidden`: parsed on both front ends, in neither's help),
   `--record-golden-trace PATH` with `--input-script MODULE:NAME`, `--frame-count N`,
   `--random-seed` and `--headless`, `--record-session PATH` with those and `--controls-tail
   MODULE:NAME`, `--polled-input`, `--input-only-placements`, `--verify [PATH ...]` with
@@ -726,6 +728,25 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `REPLAY_DIVERGED` (1), `UNUSABLE_INPUT` (65) for a truncated recording that matched to its
   cut-off. Recorded window references map to None (live events of the display window carry None).
   Version-2 recordings replay with one warning (polled input reads as idle)
+- `--replay-trace NEW --compare-trace OLD [--compare-alpha PERCENT]` (Stage D Task D11;
+  `src/glitchygames/replay/tools/compare.py`, whose docstring is the contract; rule 20 of
+  `replay/driver.py`): the onion skin. NEW replays watched as always; `ReplaySources.onion_skin`
+  (`OnionSkin`) draws OLD's frame of the same number over the presented copy (`draw_overlay`,
+  before the status bar; not while rebuilding) at PERCENT (default 50; `argument_types.
+  percent_from_zero_to_one_hundred`, kind `bounded-percent`). OLD is replayed by a headless
+  child (OLD's game from its header, `traces.find_recorded_game`, else
+  `children.running_game_command`; started on the first presented frame with
+  `process.start_command`, its output in a temporary file logged when it fails) with the hidden
+  `--replay-frame-stream PORT`: `ReplaySources.frame_sink` (`FrameStream`) writes each frame from
+  the display surface in `end_frame` to the parent's loopback socket (`FRAME_HEADER` `<III`:
+  frame, width, height; then RGB rows), and a write nobody reads stops the child. The parent
+  reads only when it draws (lockstep through pause and steps; one frame held); OLD ended: its
+  last frame stays, labelled `OLD ended at frame N`. Refused before anything runs: with
+  `--headless`, `--audit`, `--rebaseline` (64), an OLD of another screen size or unreadable
+  (65), missing (66); a frame stream without `--headless` (64), or with nobody listening (69).
+  A step back's restart keeps `--compare-trace`; its child gets the same
+  `--replay-pause-at-frame N` and streams from `first_streamed_frame` (N - 1). The teardown
+  (`_shutdown`) always stops and reaps the child. The three options are `REPLAY_LOCAL_OPTIONS`
 - `--replay-fps {recorded,real}` (default `recorded`): FPS events, the performance stats and the
   overlay's performance panel use the recorded frame times (exact, compared) or this machine's
   measured ones (FPS events then not compared); logic always gets the recorded `dt`

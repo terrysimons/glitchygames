@@ -224,6 +224,12 @@ session again, and every frame's sprites are compared with the recorded frame. T
     whatever it found (``ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING``), its report the
     rebaseline's summary of what differed. ``--audit`` is a check, so the engine refuses one
     under another seed.
+20. Onion skin (``--compare-trace OLD``; glitchygames/replay/tools/compare.py, whose docstring
+    is the contract): a watched replay's ``onion_skin`` draws OLD's frame of the same number
+    over the presented copy of the frame shown (``draw_overlay``, before the status bar; not
+    while rebuilding), and a headless child's ``frame_sink`` takes each replayed frame from the
+    display surface as ``end_frame`` ends it (``False`` back stops the replay: nobody reads).
+    Neither changes what is replayed or compared.
 """
 
 from __future__ import annotations
@@ -238,7 +244,7 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Final, Literal, Self, cast
+from typing import TYPE_CHECKING, Any, Final, Literal, Protocol, Self, cast
 
 import pygame
 from pydantic import BaseModel, ConfigDict, Field
@@ -364,6 +370,11 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     'replay_restart_handoff',
     'replay_viewer_state',
     'replay_fps',
+    # --compare-trace's options and its child's frame stream (glitchygames/replay/tools/
+    # compare.py): how this run is watched
+    'compare_trace',
+    'compare_alpha',
+    'replay_frame_stream',
     'compare_processing',
     'max_processing_slowdown',
     'profile',
@@ -472,6 +483,22 @@ VERSION_TWO_INPUT_WARNING = (
     'The recording is format version %d, recorded before input-state capture; polled input '
     'will read as idle'
 )
+
+
+class FrameSink(Protocol):
+    """Takes each replayed frame as presented (``ReplaySources.frame_sink``; rule 20)."""
+
+    def write_frame(self, *, frame_index: int, surface: pygame.Surface) -> bool:
+        """Take the frame just replayed; return False to stop the replay (nobody takes more)."""
+        ...
+
+
+class FrameOverlay(Protocol):
+    """Draws over a watched replay's presented frame (``ReplaySources.onion_skin``; rule 20)."""
+
+    def draw(self, *, surface: pygame.Surface, frame_index: int) -> None:
+        """Draw over the presented copy of frame ``frame_index``."""
+        ...
 
 
 class ReplayRefusedError(RuntimeError):
@@ -1283,6 +1310,10 @@ class ReplaySources:
             yet given again (an instant-replay journal's ``playback_answers``; rule 18).
         digest_write_failed: True once ``finish_run`` could not write the digest file (rule
             12; the engine then exits ``ExitCode.CANNOT_WRITE_OUTPUT``).
+        frame_sink: Takes each replayed frame as presented (rule 20: a headless child's frame
+            stream), or None.
+        onion_skin: Draws over each presented frame of a watched replay (rule 20:
+            ``--compare-trace``), or None.
 
     """
 
@@ -1291,6 +1322,9 @@ class ReplaySources:
     recorded_playback_answers: collections.deque[bool]
     # Set by finish_run when the digest file cannot be written
     digest_write_failed: bool = False
+    # Set by the engine for --replay-frame-stream and --compare-trace (rule 20)
+    frame_sink: FrameSink | None = None
+    onion_skin: FrameOverlay | None = None
 
     def __init__(
         self: Self,
@@ -1659,10 +1693,19 @@ class ReplaySources:
         What is drawn changes once per control tick (``hold_frame``); it is drawn on every
         presented frame.
 
+        With ``--compare-trace`` (rule 20) OLD's frame is drawn first, over the frame the replay
+        shows (the last one run), but never over a rebuild's progress screen.
+
         Args:
             surface: The presented frame (never a screenshot or a traced frame).
 
         """
+        if (
+            self.onion_skin is not None
+            and self._rebuild is None
+            and self._frame_index > self.options.start_frame
+        ):
+            self.onion_skin.draw(surface=surface, frame_index=self._frame_index - 1)
         self.controls.draw(surface=surface)
 
     def input_snapshot(self: Self) -> InputSnapshot:
@@ -1795,6 +1838,7 @@ class ReplaySources:
                     if self.recording.is_truncated
                     else END_OF_RECORDING_BANNER,
                 )
+        self._hand_frame_to_sink()
         if self._window_was_closed or self.controls.quit_requested:
             self._stop(end_reason=QUIT_END_REASON)
         self._frame_index += 1
@@ -1810,6 +1854,20 @@ class ReplaySources:
             ):
                 self._finish_rebuild(rebuild=self._rebuild)
         self._begin_frame()
+
+    def _hand_frame_to_sink(self: Self) -> None:
+        """Give the frame that just ended, as presented, to the frame sink, if any (rule 20).
+
+        A sink that takes no more (nobody reads its frames) stops the replay rather than letting
+        it run on unseen.
+        """
+        if self.frame_sink is None:
+            return
+        # A replay with a frame sink has its display (a headless child's dummy one)
+        display_surface = pygame.display.get_surface()
+        assert display_surface is not None
+        if not self.frame_sink.write_frame(frame_index=self._frame_index, surface=display_surface):
+            self._stop(end_reason=QUIT_END_REASON)
 
     def finish_run(self: Self) -> None:
         """Settle the result when the run ends (``GameEngine._shutdown``).
@@ -3030,9 +3088,12 @@ def start_replay(
     headless = bool(options.get('headless'))
     pause_at_frame = options.get('replay_pause_at_frame')
     if pause_at_frame is not None and headless:
-        LOG.warning(
-            '--replay-pause-at-frame is ignored with --headless: nobody could unpause the replay'
-        )
+        # A frame stream reads it itself (rule 20: where a restarted onion skin's child starts)
+        if options.get('replay_frame_stream') is None:
+            LOG.warning(
+                '--replay-pause-at-frame is ignored with --headless: nobody could unpause the '
+                'replay'
+            )
         pause_at_frame = None
     restart_handoff = options.get('replay_restart_handoff')
     is_rebaseline = options.get('rebaseline') is not None

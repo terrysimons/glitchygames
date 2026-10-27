@@ -33,6 +33,9 @@ uv run paddleslap --replay-trace session.jsonl.gz --rebaseline new-session.jsonl
 # Did the code get slower? Compare this machine's processing time per frame with the
 # recording's; with a limit, more than 10% slower exits 8
 uv run paddleslap --replay-trace session.jsonl.gz --headless --max-processing-slowdown 10
+
+# Onion skin: watch a replay with another recording's frames drawn over it, half transparent
+uv run paddleslap --replay-trace new-session.jsonl.gz --compare-trace session.jsonl.gz
 ```
 
 ## The doors
@@ -432,6 +435,34 @@ bookmarks survive restarts. In the restarted replay:
 - Playing forward pauses at every earlier bookmark again.
 - If the copy cannot be saved, the restart uses the recording it was replaying and logs a
   warning naming the bookmarks lost.
+
+### Onion skin (`--compare-trace OLD`)
+
+`--replay-trace NEW --compare-trace OLD` watches NEW as usual, with OLD's frame of the same
+number drawn over each frame shown, at `--compare-alpha PERCENT` opacity (default 50; 0 to 100,
+anything else is refused by the parser). The status bar stays on top. NEW replays, compares and
+exits exactly as it would alone: only the shown copy is drawn on. The `glitchygames` command
+takes the same options (`glitchygames replay-trace NEW --compare-trace OLD`).
+
+OLD is replayed by a headless child process (OLD's own game, under OLD's own seed), which
+streams each frame's pixels to the viewer over a loopback socket. The viewer reads one frame
+per frame it shows, so pausing and stepping move both runs together, and only one OLD frame is
+held in memory. Stepping back (or Home, or D) restarts the child at the same frame as the
+restarted replay.
+
+- **OLD shorter than NEW:** OLD's last frame stays, labelled `OLD ended at frame N`. OLD that
+  diverges on the current code stops at its divergence, so it ends there (the log says why).
+- **NEW shorter than OLD:** the replay ends as usual, and the child is stopped.
+- **The same recording under another seed** shows what the seed changes:
+  `--replay-trace OLD --random-seed 7 --compare-trace OLD` draws OLD's own run over its run under
+  seed 7 (a replay under another seed compares and writes nothing).
+- **Refused before anything runs:** with `--headless` (an onion skin is watched; headless, a
+  replay under another seed or a `--rebaseline` reports what changed), `--audit` or
+  `--rebaseline` (exit 64), and an OLD recorded at another screen size than NEW, or no readable
+  recording (65), or missing (66).
+
+The child always ends with the replay: when it ends, fails, is interrupted or restarts. The
+contract is the docstring of `src/glitchygames/replay/tools/compare.py`.
 
 ### `--replay-fps {recorded,real}`
 

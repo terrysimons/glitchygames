@@ -112,6 +112,16 @@ from glitchygames.replay.rebuild import (
     relaunch_replay,
     restart_command,
 )
+from glitchygames.replay.tools.compare import (
+    DEFAULT_COMPARE_ALPHA_PERCENT,
+    FrameStream,
+    OnionSkin,
+    compare_trace_refusal,
+    first_streamed_frame,
+    frame_stream_refusal,
+    old_game_command,
+    old_recording_refusal,
+)
 from glitchygames.replay.tools.identity import game_source_revision
 from glitchygames.replay.tools.registry import add_game_flags, given_tools, run_game_flag_tool
 from glitchygames.replay.viewer import run_watched_replay_async
@@ -387,6 +397,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     # The --rebaseline writer while rebaselining (glitchygames/replay/rebaseline.py), else None.
     # A class default so it reads None on an engine whose __init__ did not run.
     rebaseline: Rebaseline | None = None
+    # --compare-trace's onion skin (OLD's child and its frames; glitchygames/replay/tools/
+    # compare.py) and a headless child's --replay-frame-stream, else None; both are stopped by
+    # the teardown (_shutdown). Class defaults so they read None on an engine whose __init__
+    # did not run.
+    onion_skin: OnionSkin | None = None
+    frame_stream: FrameStream | None = None
 
     @classmethod
     def initialize_icon(cls: Any, icon: pygame.Surface | Path | str | None = None) -> None:
@@ -1776,7 +1792,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         is --rebaseline's job), --rebaseline's options are unsound (``rebaseline_refusal``) or
         it or --audit is given without --replay-trace, or --audit with --replay-fps real or
         to an interpreter started with -E or -I. Auditing a truncated recording exits with
-        ``ExitCode.UNUSABLE_INPUT`` too (an audit needs the whole recording).
+        ``ExitCode.UNUSABLE_INPUT`` too (an audit needs the whole recording). --compare-trace
+        and --replay-frame-stream are refused as glitchygames/replay/tools/compare.py (rule 6)
+        says.
 
         Args:
             game: The game scene class or instance (its class name must match the recording's).
@@ -1793,6 +1811,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self._check_replay_options_without_a_recording(options=options)
             self._refuse_unwritable_outputs(options=options)
             return None
+        self._refuse_an_unsound_comparison_with_old(
+            replay_trace_path=replay_trace_path, options=options
+        )
         self._refuse_an_unsound_recording_over_the_replay(
             replay_trace_path=replay_trace_path, options=options
         )
@@ -1823,6 +1844,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 )
                 self._audit_replay(path=Path(replay_trace_path))
             self._refuse_unwritable_outputs(options=options)
+            self._prepare_the_comparison_with_old(
+                replay_trace_path=replay_trace_path, sources=sources, options=options
+            )
+            self._connect_the_frame_stream(sources=sources, options=options)
             announce_replay(path=Path(replay_trace_path), sources=sources)
             return sources
         # Logged without a traceback: the message says what is wrong with the recording
@@ -1910,6 +1935,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ('replay_pause_at_frame', '--replay-pause-at-frame'),
             ('compare_processing', '--compare-processing'),
             ('max_processing_slowdown', '--max-processing-slowdown'),
+            ('compare_trace', '--compare-trace'),
+            ('compare_alpha', '--compare-alpha'),
+            ('replay_frame_stream', '--replay-frame-stream'),
         ):
             if options.get(option_name) is not None:
                 self.log.warning('%s is ignored without --replay-trace', flag)
@@ -1984,6 +2012,106 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                     'Cannot list input devices with %s: the listing replaces the run', flag
                 )
                 exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+
+    def _refuse_an_unsound_comparison_with_old(
+        self: Self, *, replay_trace_path: str, options: dict[str, Any]
+    ) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED for --compare-trace or a frame stream that can't run.
+
+        ``--compare-trace`` with ``--headless``, ``--audit`` or ``--rebaseline``, and
+        ``--replay-frame-stream`` without ``--headless`` (rule 6 of
+        glitchygames/replay/tools/compare.py), before anything runs.
+
+        Args:
+            replay_trace_path: The recording (for the message).
+            options: The parsed options.
+
+        """
+        refusal_reason = compare_trace_refusal(options=options)
+        if refusal_reason is not None:
+            self.log.error(
+                'Cannot compare %s with %s: %s',
+                replay_trace_path,
+                options['compare_trace'],
+                refusal_reason,
+            )
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+        refusal_reason = frame_stream_refusal(options=options)
+        if refusal_reason is not None:
+            self.log.error('Cannot replay %s: %s', replay_trace_path, refusal_reason)
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+
+    def _prepare_the_comparison_with_old(
+        self: Self, *, replay_trace_path: str, sources: ReplaySources, options: dict[str, Any]
+    ) -> None:
+        """Give a watched replay its onion skin when --compare-trace OLD is given.
+
+        OLD must be a readable recording made at NEW's screen size (rule 6 of
+        glitchygames/replay/tools/compare.py): otherwise the run exits (``exit_with``) with
+        ``ExitCode.MISSING_INPUT`` or ``ExitCode.UNUSABLE_INPUT`` before anything runs. Its child
+        starts on the first presented frame, inside the run, so the teardown always stops it.
+        ``--compare-alpha`` without ``--compare-trace`` is warned about (it draws nothing).
+
+        Args:
+            replay_trace_path: NEW (for the message).
+            sources: NEW's replay sources.
+            options: The parsed options.
+
+        """
+        compare_trace_path = options.get('compare_trace')
+        compare_alpha = options.get('compare_alpha')
+        if compare_trace_path is None:
+            if compare_alpha is not None:
+                self.log.warning('--compare-alpha is ignored without --compare-trace')
+            return
+        old_path = Path(compare_trace_path)
+        refusal = old_recording_refusal(old_path=old_path, new_header=sources.header)
+        if refusal is not None:
+            self.log.error(
+                'Cannot compare %s with %s: %s', replay_trace_path, old_path, refusal.reason
+            )
+            exit_with(exit_code=refusal.exit_code)
+        self.onion_skin = OnionSkin(
+            old_path=old_path,
+            alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT if compare_alpha is None else compare_alpha,
+            game_command=old_game_command(old_path=old_path),
+            pause_at_frame=options.get('replay_pause_at_frame'),
+        )
+        sources.onion_skin = self.onion_skin
+
+    def _connect_the_frame_stream(
+        self: Self, *, sources: ReplaySources, options: dict[str, Any]
+    ) -> None:
+        """Connect a headless replay's frame stream to its parent (--replay-frame-stream PORT).
+
+        Nothing listening on the port exits (``exit_with``) with
+        ``ExitCode.SERVICE_UNAVAILABLE`` before anything runs. The stream writes nothing before
+        the frame a restart at ``--replay-pause-at-frame`` shows (``first_streamed_frame``; rule
+        8 of glitchygames/replay/tools/compare.py).
+
+        Args:
+            sources: The replay's sources.
+            options: The parsed options.
+
+        """
+        port = options.get('replay_frame_stream')
+        if port is None:
+            return
+        try:
+            self.frame_stream = FrameStream.connect(
+                port=port,
+                first_frame=first_streamed_frame(
+                    pause_at_frame=options.get('replay_pause_at_frame')
+                ),
+            )
+        except OSError as error:
+            refusal = error
+        else:
+            sources.frame_sink = self.frame_stream
+            return
+        # Logged without a traceback: the message says what is wrong
+        self.log.error('Cannot stream frames to port %s: %s', port, refusal)
+        exit_with(exit_code=ExitCode.SERVICE_UNAVAILABLE, cause=refusal)
 
     def _refuse_an_unsound_recording_over_the_replay(
         self: Self, *, replay_trace_path: str, options: dict[str, Any]
@@ -2283,6 +2411,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             run_ended_by: What ended the run early (``_report_replay_result``), or None.
 
         """
+        # OLD's child and a frame stream end with the run, however it ends (neither raises)
+        if self.onion_skin is not None:
+            self.onion_skin.stop()
+        if self.frame_stream is not None:
+            self.frame_stream.close()
         try:
             # First, so the recording is complete even if a report below fails
             self.stop_trace_recording()

@@ -33,10 +33,15 @@ import textwrap
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
 
-from glitchygames.argument_types import non_negative_int, non_negative_percent
+from glitchygames.argument_types import (
+    non_negative_int,
+    non_negative_percent,
+    percent_from_zero_to_one_hundred,
+)
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.driver import REPLAY_FPS_CHOICES
 from glitchygames.replay.tools.children import GAME_FORMS
+from glitchygames.replay.tools.compare import DEFAULT_COMPARE_ALPHA_PERCENT
 from glitchygames.replay.tools.measure import (
     clear_published_command,
     clear_published_on_the_game,
@@ -81,7 +86,8 @@ PROJECT_ROOT_FLAG = '--project-root'
 HELP_WIDTH = 80
 
 # How a ToolOption's value is read: a path, several paths, an integer, a count (an integer >= 0),
-# a percentage >= 0, a number (any float), one of its choices, an on flag (store_true), an on/off
+# a percentage >= 0, a percentage from 0 to 100, a number (any float), one of its choices, an on
+# flag (store_true), an on/off
 # switch (--x/--no-x), a MODULE:NAME reference, a game (children.GAME_FORMS), games (the option
 # given once per game: --game a --game b), or plain text
 type ToolOptionKind = Literal[
@@ -90,6 +96,7 @@ type ToolOptionKind = Literal[
     'int',
     'count',
     'percent',
+    'bounded-percent',
     'number',
     'choice',
     'flag',
@@ -111,6 +118,7 @@ KIND_SETTINGS: dict[ToolOptionKind, dict[str, Any]] = {
     'int': {'type': int},
     'count': {'type': non_negative_int},
     'percent': {'type': non_negative_percent},
+    'bounded-percent': {'type': percent_from_zero_to_one_hundred},
     'number': {'type': float},
     'choice': {},
     'flag': {'action': 'store_true'},
@@ -164,6 +172,9 @@ class ToolOption:
         metavar: Its value's name in the help (None: argparse's own, or the choices).
         default: Its value when not given.
         choices: The values a ``choice`` option takes.
+        hidden: True for an option only the engine gives (a child's ``--replay-frame-stream``):
+            parsed on both front ends, shown in neither's help (``argparse.SUPPRESS``) nor in
+            ``tool_summary``.
 
     """
 
@@ -174,6 +185,7 @@ class ToolOption:
     metavar: str | None = None
     default: object = None
     choices: tuple[str, ...] = ()
+    hidden: bool = False
 
     @property
     def destination(self) -> str:
@@ -349,7 +361,10 @@ def option_settings(*, option: ToolOption, front_end: FrontEnd) -> dict[str, Any
         The keyword arguments for ``add_argument``.
 
     """
-    settings: dict[str, Any] = {'help': option.help, **kind_settings(option=option)}
+    settings: dict[str, Any] = {
+        'help': argparse.SUPPRESS if option.hidden else option.help,
+        **kind_settings(option=option),
+    }
     if not option.positional:
         settings['default'] = option.default
         settings['required'] = option.required and front_end == 'command'
@@ -429,7 +444,7 @@ def tool_summary(*, tool: Tool) -> str:
         tool: The tool.
 
     Returns:
-        ``<name> <arguments> [options]``, with every option's flag.
+        ``<name> <arguments> [options]``, with every option's flag but the hidden ones.
 
     """
     positional = [
@@ -442,7 +457,9 @@ def tool_summary(*, tool: Tool) -> str:
     elif tool.value_kind == 'paths':
         positional.append(f'[{tool.value_metavar} ...]')
     flags = [
-        option.flag for option in (*tool.options, *tool.command_arguments) if not option.positional
+        option.flag
+        for option in (*tool.options, *tool.command_arguments)
+        if not option.positional and not option.hidden
     ]
     return ' '.join([tool.name, *positional, *(f'[{flag}]' for flag in flags)])
 
@@ -727,6 +744,44 @@ REPLAY_DIGEST_OPTION = ToolOption(
     ),
     default=None,
 )
+# --replay-trace's onion skin (glitchygames/replay/tools/compare.py, Task D11): OLD drawn over
+# the watched NEW, and the hidden option that OLD's headless child streams its frames through
+COMPARE_TRACE_OPTION = ToolOption(
+    flag='--compare-trace',
+    kind='path',
+    metavar='OLD',
+    help=(
+        'with --replay-trace NEW, watched: draw the recording OLD over NEW, its frame of the same '
+        'number on each frame shown, at --compare-alpha (an onion skin; OLD is replayed headless '
+        'in a child process, and NEW replays and compares as it would alone). Refused with '
+        f'--headless, --audit or --rebaseline (exit {ExitCode.OPTIONS_REFUSED:d}) and for an OLD '
+        f'recorded at another screen size (exit {ExitCode.UNUSABLE_INPUT:d})'
+    ),
+    default=None,
+)
+COMPARE_ALPHA_OPTION = ToolOption(
+    flag='--compare-alpha',
+    kind='bounded-percent',
+    metavar='PERCENT',
+    help=(
+        f'with --compare-trace: how opaque OLD is drawn over NEW, from 0 to 100 (default: '
+        f'{DEFAULT_COMPARE_ALPHA_PERCENT:g})'
+    ),
+    # None (not the default percent) so that giving it without --compare-trace can be warned
+    # about; the onion skin reads None as DEFAULT_COMPARE_ALPHA_PERCENT
+    default=None,
+)
+REPLAY_FRAME_STREAM_OPTION = ToolOption(
+    flag='--replay-frame-stream',
+    kind='count',
+    metavar='PORT',
+    help=(
+        "internal: with --replay-trace --headless, write each replayed frame's pixels to the "
+        'parent listening on this loopback port (--compare-trace starts OLD with it)'
+    ),
+    default=None,
+    hidden=True,
+)
 # Listed by record-trace and replay-trace (the stage's tools table and the controller's
 # shared-option ruling), and a general engine flag too: every game has it, once
 HEADLESS_OPTION = ToolOption(
@@ -985,6 +1040,9 @@ TOOLS: tuple[Tool, ...] = (
             REPLAY_DIGEST_OPTION,
             HEADLESS_OPTION,
             RANDOM_SEED_OPTION,
+            COMPARE_TRACE_OPTION,
+            COMPARE_ALPHA_OPTION,
+            REPLAY_FRAME_STREAM_OPTION,
         ),
         runs_game=True,
         # The game's own run replays (GameEngine._start_requested_replay)

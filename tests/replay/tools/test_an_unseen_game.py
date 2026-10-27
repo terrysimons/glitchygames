@@ -1499,6 +1499,53 @@ def test_the_seed_rule_holds_for_an_unseen_game(row, templates, tmp_path):
     assert_nothing_of_this_repository_was_imported(world=world)
 
 
+def check_the_onion_skin_is_refused_headless(_world: World, run: Run) -> None:
+    """--compare-trace reached the game, which refused it headless before replaying anything."""
+    assert 'an onion skin is watched, so not with --headless' in run.errors, run.errors
+    assert 'Replay matched' not in run.output
+    assert 'Nothing was recorded' not in run.output
+
+
+# --compare-trace (Task D11) is replay-trace's option: on an unseen game it reaches the game
+# through both front ends. A watched compare (the only kind) runs until someone presses Space,
+# which no child here can, so each case is the headless refusal of a row-5 compare (OLD over its
+# own run under another seed); tests/replay/tools/test_compare_trace.py watches it run
+COMPARE_ROWS = tuple(
+    SeedRow(
+        name=f'compare-trace-headless-is-refused-{front_end}',
+        front_end=front_end,
+        form=form,
+        tool='replay-trace',
+        arguments=lambda world: (
+            world.layout.golden,
+            '--compare-trace',
+            world.layout.golden,
+            '--random-seed',
+            str(OTHER_SEED),
+            '--headless',
+        ),
+        expected_status=ExitCode.OPTIONS_REFUSED,
+        expected_written=frozenset(),
+        check=check_the_onion_skin_is_refused_headless,
+    )
+    for front_end, form in ((FLAG, SCRIPT_FORM), (COMMAND, CONSOLE_SCRIPT_FORM))
+)
+
+
+@pytest.mark.parametrize('row', COMPARE_ROWS, ids=[row.name for row in COMPARE_ROWS])
+def test_compare_trace_reaches_an_unseen_game_on_both_front_ends(row, templates, tmp_path):
+    """--compare-trace on the unseen game, through the game flag and the command."""
+    world = world_for(template=templates(WITH_SETTINGS), tmp_path=tmp_path)
+    case = row.case(world=world)
+
+    run = run_case(case=case, world=world)
+
+    assert run.status == row.expected_status, run.output + run.errors
+    assert run.written == set(row.expected_written), run.output + run.errors
+    row.check(world, run)
+    assert_nothing_of_this_repository_was_imported(world=world)
+
+
 # The import watch is checked on one layout: it does not depend on the project's settings
 def test_the_import_watch_sees_a_child_reach_for_this_repository(templates, tmp_path):
     """A child that imports a member, or tries to import scripts/, is in the watch's log.

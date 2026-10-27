@@ -459,7 +459,10 @@ def test_an_option_listed_under_several_tools_is_one_game_flag_and_each_tools_op
 
 
 def test_glitchygames_help_lists_every_tool(capsys):
-    """``glitchygames --help`` names every tool and every option (--rebaseline, --audit too)."""
+    """``glitchygames --help`` names every tool and every option (--rebaseline, --audit too).
+
+    A hidden option (``ToolOption.hidden``: only the engine gives it) is named nowhere.
+    """
     with pytest.raises(SystemExit) as exit_information:
         command.main(['--help'])
 
@@ -468,14 +471,17 @@ def test_glitchygames_help_lists_every_tool(capsys):
     for tool in TOOLS:
         assert tool.name in output
         for option in tool.options:
-            assert option.flag in output
+            assert (option.flag in output) is not option.hidden, option.flag
     replay_line = output[output.index('  replay-trace PATH') :]
     assert '[--rebaseline]' in replay_line
     assert '[--audit]' in replay_line
 
 
 def test_a_game_help_lists_every_tool(stand_in_game):
-    """A game's own --help (the stand-in's, through its console script) lists every tool."""
+    """A game's own --help (the stand-in's, through its console script) lists every tool.
+
+    Every option too, but a hidden one (``ToolOption.hidden``).
+    """
     entry_point = game_entry_point(console_script=stand_in_game.console_script)
 
     finished = run_child(command=[*entry_point_command(entry_point=entry_point), '--help'])
@@ -484,7 +490,7 @@ def test_a_game_help_lists_every_tool(stand_in_game):
     for tool in TOOLS:
         assert tool.flag in finished.stdout
         for option in tool.options:
-            assert option.flag in finished.stdout
+            assert (option.flag in finished.stdout) is not option.hidden, option.flag
 
 
 def test_importing_the_replay_tools_imports_no_pytest():
@@ -934,6 +940,12 @@ EVERY_KIND_OPTIONS: tuple[tuple[ToolOptionKind, list[str], object, list[str]], .
     ('int', ['--a-int', '-3'], -3, ['--a-int', '-3']),
     ('count', ['--a-count', '4'], 4, ['--a-count', '4']),
     ('percent', ['--a-percent', '2.5'], 2.5, ['--a-percent', '2.5']),
+    (
+        'bounded-percent',
+        ['--a-bounded-percent', '12.5'],
+        12.5,
+        ['--a-bounded-percent', '12.5'],
+    ),
     ('number', ['--a-number', '-0.5'], -0.5, ['--a-number', '-0.5']),
     ('choice', ['--a-choice', 'two'], 'two', ['--a-choice', 'two']),
     ('flag', ['--a-flag'], True, ['--a-flag']),
@@ -981,7 +993,7 @@ def test_each_kind_of_option_reads_the_same_on_both_front_ends(kind, given, pars
     game = argparse.ArgumentParser()
     add_game_flags(parser=game, tools=(tool,))
     command_parser = build_command_parser(tools=(tool,))
-    destination = f'a_{kind}'
+    destination = f'a_{kind}'.replace('-', '_')
 
     on_the_game = vars(game.parse_args(given))[destination]
     on_the_command = command_parser.parse_args(['every-kind', *given])
