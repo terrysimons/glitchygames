@@ -440,6 +440,25 @@ def add_game_flags(*, parser: ArgumentContainer, tools: Sequence[Tool] | None = 
             parser.add_argument(option.flag, **option_settings(option=option))
 
 
+def tool_flags(*, tools: Sequence[Tool] | None = None) -> frozenset[str]:
+    """Return every flag ``add_game_flags`` adds to a game: each tool's own and its options'.
+
+    A game's own argument may have none of them (``GameEngine.initialize_arguments`` refuses one
+    that does, naming it).
+
+    Args:
+        tools: The tools (``TOOLS`` unless given).
+
+    Returns:
+        The flags.
+
+    """
+    tools = TOOLS if tools is None else tools
+    return frozenset(
+        flag for tool in tools for flag in (tool.flag, *(option.flag for option in tool.options))
+    )
+
+
 def tool_summary(*, tool: Tool) -> str:
     """Describe a subcommand's command line on one line, for ``glitchygames --help``.
 

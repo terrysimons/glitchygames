@@ -793,8 +793,9 @@ own git repository.
   missing a required option (`--input-script`, `--frame-count`).
 - **Reserved names.** Every tool's flag and option is added to every game's parser, so a game
   must not define an argument of the same name (`--threshold`, `--spans`, `--only`, `--force`,
-  ...): its parser would fail at startup. Our games are checked by a test; the full list is
-  `glitchygames --help`.
+  ...). A game that does is refused on every run, before anything starts (exit 64), with a
+  message naming the flag and saying the engine reserves it. Our games are checked by a test;
+  the full list is `glitchygames --help`.
 
 ### `GAME`
 

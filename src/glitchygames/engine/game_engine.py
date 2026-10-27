@@ -124,7 +124,12 @@ from glitchygames.replay.tools.compare import (
     old_recording_refusal,
 )
 from glitchygames.replay.tools.identity import game_source_revision
-from glitchygames.replay.tools.registry import add_game_flags, given_tools, run_game_flag_tool
+from glitchygames.replay.tools.registry import (
+    add_game_flags,
+    given_tools,
+    run_game_flag_tool,
+    tool_flags,
+)
 from glitchygames.replay.viewer import run_watched_replay_async
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
@@ -295,6 +300,37 @@ def exit_on_signal(signal_number: int, _frame: FrameType | None) -> None:
     """
     signal.signal(signal_number, signal.SIG_IGN)
     raise SystemExit(ExitCode.for_signal(signal_number))
+
+
+def reserved_flag_refusal(*, game_name: str, error: argparse.ArgumentError) -> str:
+    """Say which of a game's argument's flags the engine already has, and that it reserves them.
+
+    argparse raises ``ArgumentError`` when the game's ``args`` adds an argument with a flag the
+    engine's parser holds (``conflicting option string(s): --force``). Each conflicting flag is
+    named: one of the engine's tools' (``registry.tool_flags``: ``glitchygames --help`` lists
+    them), or one of every game's general options (its ``--help`` lists them).
+
+    Args:
+        game_name: The game's name (``NAME``).
+        error: What argparse raised (its ``argument_name``: the game's argument, all its flags).
+
+    Returns:
+        The message.
+
+    """
+    # argparse's message is "conflicting option string(s): FLAG, FLAG"
+    _, _, listed = error.message.partition(': ')
+    flags_of_the_tools = tool_flags()
+    reasons = [
+        f'{flag} is reserved by the engine for its tools (glitchygames --help lists them)'
+        if flag in flags_of_the_tools
+        else f'{flag} is reserved by the engine (an option of every game: --help lists them)'
+        for flag in listed.split(', ')
+    ]
+    return (
+        f"{game_name}'s argument {error.argument_name}: {'; '.join(reasons)}. Rename the game's "
+        'argument'
+    )
 
 
 def install_exit_on_signal_handlers() -> list[int]:
@@ -822,6 +858,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     def initialize_arguments(cls, game: type[Scene] | Scene) -> dict[str, Any]:
         """Initialize the game arguments.
 
+        A game argument with a flag the engine already added (a tool's, ``--force``, or a
+        general one, ``--resolution``) is refused before anything runs: the process exits
+        ``ExitCode.OPTIONS_REFUSED`` with a message naming the flag
+        (``reserved_flag_refusal``), not argparse's traceback.
+
         Args:
             game: The game instance.
 
@@ -840,7 +881,18 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # command line parameters. It is optional (Scene does not declare it): looked up by name
         game_args_method: Callable[..., Any] | None = getattr(game, 'args', None)
         if game_args_method is not None:
-            game_args_method(parser.add_argument_group(f'{game.NAME} v{game.VERSION} Options'))
+            try:
+                game_args_method(parser.add_argument_group(f'{game.NAME} v{game.VERSION} Options'))
+            except argparse.ArgumentError as error:
+                # Every game has the engine's flags, so a clash fails every run of the game, not
+                # only a tool's: said as a usage error, with the engine's code for one
+                parser.exit(
+                    status=ExitCode.OPTIONS_REFUSED,
+                    message=(
+                        f'{parser.prog}: error: '
+                        f'{reserved_flag_refusal(game_name=game.NAME, error=error)}\n'
+                    ),
+                )
         else:
             cls.log.info('Game does not implement arguments.  Add a def args(parser) class method.')
 

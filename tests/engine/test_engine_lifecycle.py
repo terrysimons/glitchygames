@@ -810,6 +810,58 @@ class TestGameFlagTools:
         assert exit_information.value.code == ExitCode.INTERNAL_ERROR
 
 
+def game_with_its_own_argument(*flags: str) -> type[Scene]:
+    """A game whose own ``args`` adds an argument with these flags.
+
+    Returns:
+        The game's class.
+
+    """
+
+    class GameWithItsOwnArgument(Scene):
+        NAME = 'GameWithItsOwnArgument'
+        VERSION = '1.0'
+
+        @classmethod
+        def args(cls, parser: argparse._ArgumentGroup) -> None:
+            parser.add_argument(*flags, action='store_true', help="the game's own")
+
+    return GameWithItsOwnArgument
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestAGameArgumentTheEngineReserves:
+    """A game argument named as one of the engine's: a clear refusal, never a traceback.
+
+    Every tool's flag and option is added to every game (``registry.add_game_flags``), so an
+    unseen game that already has ``--force`` (``--measure``'s) fails to build its parser. The
+    refusal names the flag, says the engine reserves it, and exits ``OPTIONS_REFUSED`` (64), the
+    engine's usage-error code, on every run of the game.
+    """
+
+    def test_a_tool_option_is_named_as_reserved_for_the_engines_tools(self, mocker, capsys):
+        """``--force`` in the game: refused, naming ``--force`` and the tools' help."""
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(mocker, game=game_with_its_own_argument('--force'))
+
+        assert exit_information.value.code == ExitCode.OPTIONS_REFUSED
+        error = capsys.readouterr().err
+        assert (
+            "GameWithItsOwnArgument's argument --force: --force is reserved by the engine for its "
+            'tools (glitchygames --help lists them)'
+        ) in error
+        assert 'Traceback' not in error
+
+    def test_an_engine_option_is_named_as_reserved_for_the_engine(self, mocker, capsys):
+        """``--resolution`` in the game: refused, naming it as the engine's own option."""
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(mocker, game=game_with_its_own_argument('--resolution'))
+
+        assert exit_information.value.code == ExitCode.OPTIONS_REFUSED
+        error = capsys.readouterr().err
+        assert '--resolution is reserved by the engine (an option of every game' in error
+
+
 @pytest.mark.usefixtures('engine_run_environment')
 class TestTheRunsSeedIsLogged:
     """Every run logs the seed it uses, rolled or given, so a plain run can be reproduced."""
