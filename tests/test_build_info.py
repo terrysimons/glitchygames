@@ -126,6 +126,32 @@ class TestGitCheckout:
         assert revision is not None
         assert revision.uncommitted_changes is True
 
+    def test_git_variables_in_the_environment_never_point_it_at_another_repository(
+        self, tmp_path, monkeypatch
+    ):
+        """The commit is the package's own checkout's, whatever repository GIT_* names.
+
+        GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE and GIT_COMMON_DIR set (a hook's, an alias's)
+        name another repository, at another commit and with uncommitted changes.
+        """
+        package_directory = _repository_with_package(tmp_path / 'game')
+        other = tmp_path / 'other'
+        other_package = _repository_with_package(other)
+        (other_package / MODULE_FILE_NAME).write_text('# edited\n', encoding='utf-8')
+        _git('commit', '--quiet', '--all', '--message', 'second', directory=other)
+        (other_package / MODULE_FILE_NAME).write_text('# dirty\n', encoding='utf-8')
+        own_commit = _git('rev-parse', 'HEAD', directory=package_directory)
+        monkeypatch.setenv('GIT_DIR', str(other / '.git'))
+        monkeypatch.setenv('GIT_WORK_TREE', str(other))
+        monkeypatch.setenv('GIT_INDEX_FILE', str(other / '.git' / 'index'))
+        monkeypatch.setenv('GIT_COMMON_DIR', str(other / '.git'))
+
+        revision = git_checkout_revision(package_directory=package_directory)
+
+        assert revision is not None
+        assert revision.commit == own_commit
+        assert revision.uncommitted_changes is False
+
     def test_an_untracked_new_file_is_not_an_uncommitted_change(self, tmp_path):
         package_directory = _repository_with_package(tmp_path)
         (tmp_path / 'scratch.txt').write_text('notes\n', encoding='utf-8')

@@ -20,7 +20,9 @@ glitchygames/recording_history.py), so measurements can be traced to the commit 
 
 An archive is exactly its commit, so only a checkout or a stamp made from one says whether there
 were uncommitted changes. Git runs through ``glitchygames.process.run_command`` (the one
-launcher), with a short timeout; a missing or failing git is "no answer", never an error.
+launcher), with a short timeout and without this process's ``GIT_*`` variables
+(``environment_without_git_variables``), so the revision is always the package's own checkout's;
+a missing or failing git is "no answer", never an error.
 """
 
 from __future__ import annotations
@@ -45,6 +47,8 @@ GIT_TIMEOUT_SECONDS = 5.0
 UNEXPANDED_PLACEHOLDER_PREFIX = '$Format:'
 ARCHIVE_COMMIT_KEY = 'commit'
 ARCHIVE_COMMITTED_AT_KEY = 'committed'
+# What every variable git reads from the environment starts with
+GIT_VARIABLE_PREFIX = 'GIT_'
 
 
 class RevisionSource(StrEnum):
@@ -90,8 +94,30 @@ class SourceRevision(BaseModel):
 UNKNOWN_REVISION = SourceRevision(source=RevisionSource.UNKNOWN)
 
 
+def environment_without_git_variables() -> dict[str, str]:
+    """Return this process's environment without the variables git reads (``GIT_*``).
+
+    A ``GIT_DIR``, ``GIT_WORK_TREE``, ``GIT_INDEX_FILE`` or ``GIT_COMMON_DIR`` in the environment
+    (a git hook's, a worktree's, an alias's) would make ``git -C <package directory>`` read that
+    repository instead, so a game's rows would name another repository's commit. (Our
+    scripts/git_checkout.py strips them for the same reason.)
+
+    Returns:
+        A copy of ``os.environ`` without them.
+
+    """
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(GIT_VARIABLE_PREFIX)
+    }
+
+
 def _git_output(*, arguments: list[str], directory: Path) -> str | None:
     """Run git in a directory and return its standard output, stripped.
+
+    git runs without this process's ``GIT_*`` variables (``environment_without_git_variables``),
+    so ``directory``'s own repository answers.
 
     Args:
         arguments: git's arguments.
@@ -107,7 +133,7 @@ def _git_output(*, arguments: list[str], directory: Path) -> str | None:
     try:
         completed = run_command(
             command=[git_program, '-C', str(directory), *arguments],
-            environment=os.environ,
+            environment=environment_without_git_variables(),
             timeout_seconds=GIT_TIMEOUT_SECONDS,
             capture_output=OutputCapture.TOGETHER,
         )
