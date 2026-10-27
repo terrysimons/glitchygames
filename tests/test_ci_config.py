@@ -99,6 +99,11 @@ class RecordingSession:
         self.environments[command] = options.get('env')
 
 
+# How the measurement sessions run the engine's ``glitchygames`` command: in the project's
+# environment, every member installed editable (noxfile._glitchygames)
+GLITCHYGAMES_IN_THE_PROJECT = ('uv', 'run', '--frozen', '--all-packages', 'glitchygames')
+
+
 def docs_deploy_commands(*, posargs: list[str]) -> list[tuple[str, ...]]:
     """Return the commands ``nox -s docs-deploy`` runs with these arguments.
 
@@ -114,11 +119,17 @@ def docs_deploy_commands(*, posargs: list[str]) -> list[tuple[str, ...]]:
 
 
 def test_docs_deploy_measures_the_replays_by_default():
-    """A deploy from a person's machine measures this commit's replays first."""
+    """A deploy from a person's machine measures this commit's replays first, then clears.
+
+    Both through the engine's command: ``glitchygames measure --skip-dirty`` before the build,
+    ``glitchygames clear-published`` after the push.
+    """
     commands = docs_deploy_commands(posargs=[])
 
-    assert any('measure' in command for command in commands)
-    assert ('mkdocs', 'gh-deploy', '--strict') in commands
+    measuring = commands.index((*GLITCHYGAMES_IN_THE_PROJECT, 'measure', '--skip-dirty'))
+    deploying = commands.index(('mkdocs', 'gh-deploy', '--strict'))
+    clearing = commands.index((*GLITCHYGAMES_IN_THE_PROJECT, 'clear-published'))
+    assert measuring < deploying < clearing
 
 
 def test_replay_metrics_runs_on_the_editable_install_of_every_package():
@@ -129,8 +140,8 @@ def test_replay_metrics_runs_on_the_editable_install_of_every_package():
     noxfile.replay_metrics(session)
 
     (command,) = session.commands
-    assert command[:4] == ('uv', 'run', '--frozen', '--all-packages')
-    assert command[-3:] == ('measure', '--only', 'rally')
+    # The engine's command (glitchygames/replay/tools/measure.py), not the deleted script
+    assert command == (*GLITCHYGAMES_IN_THE_PROJECT, 'measure', '--only', 'rally')
     assert '--no-editable' not in command
     assert session.environments[command] == {'VIRTUAL_ENV': None, 'UV_NO_EDITABLE': None}
 
@@ -241,7 +252,8 @@ def test_the_test_session_installs_a_stamped_engine():
     """The nox test session builds its engine with the build stamp: the installed copy names HEAD.
 
     The installed copy is not editable and has no git checkout; without the stamp it records an
-    unknown commit, which replay_metrics refuses (tests/test_replay_metrics.py).
+    unknown commit, which measuring refuses (glitchygames/replay/tools/measure.py,
+    tests/replay/tools/test_measure.py).
     """
     import noxfile
 

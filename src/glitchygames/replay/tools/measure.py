@@ -70,6 +70,8 @@ from __future__ import annotations
 
 import argparse
 import operator
+import os
+import re
 import sys
 import tempfile
 import time
@@ -79,11 +81,13 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.__main__ import PYGAME_BANNER_VARIABLE
 from glitchygames.build_info import SourceRevision, package_source_revision, source_revision
-from glitchygames.bundled_demos import bundled_demos
+from glitchygames.bundled_demos import BUNDLED_DEMO_DIRECTORY_NAME, DEMO_SUFFIX, bundled_demos
 from glitchygames.code_tree import commit_has_landed, landed_ref_exists
 from glitchygames.exit_codes import ExitCode
 from glitchygames.machine_state import current_machine_state
+from glitchygames.process import run_command
 from glitchygames.recording_metrics import (
     is_measured,
     ledger_rows_from_rebaseline,
@@ -116,6 +120,7 @@ from glitchygames.replay.tools.settings import (
     load_project_settings,
 )
 from glitchygames.replay.tools.traces import (
+    FORM_DESCRIPTIONS,
     RecordedGameRefusal,
     find_recorded_game,
     refused,
@@ -124,7 +129,7 @@ from glitchygames.replay.tools.traces import (
     say,
 )
 from glitchygames.replay.tools.verify import seed_given, verify_project_root
-from glitchygames.tracing import read_trace
+from glitchygames.tracing import is_bookmarked_copy, read_trace
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -154,6 +159,15 @@ RANDOM_SEED_FLAG = '--random-seed'
 DIRTY_FLAGS = ('--allow-dirty', '--skip-dirty')
 # How resolve_game names a GAME read as an installed console script (children.GameForm)
 CONSOLE_SCRIPT_FORM = 'console-script'
+# What an unmeasured listing's summary says (report_unmeasured writes it; the command reads a
+# child game's back, child_unmeasured): "<prefix> N of M recording(s) not measured ..."
+UNMEASURED_SUMMARY = re.compile(r'(?P<missing>\d+) of (?P<total>\d+) recordings? not measured ')
+# What makes a directory a regular package
+PACKAGE_MARKER = '__init__.py'
+# Directories the project walk for bundled demos never enters: a virtual environment (holding
+# this file), caches and installed copies (hidden directories are skipped too)
+VIRTUAL_ENVIRONMENT_MARKER = 'pyvenv.cfg'
+SKIPPED_DIRECTORY_NAMES = frozenset({'__pycache__', 'node_modules', 'site-packages'})
 
 
 class MeasureResult(BaseModel):
@@ -828,6 +842,116 @@ def unclaimed_goldens(
     return unclaimed
 
 
+def project_demo_paths(*, project_root: Path) -> list[Path]:
+    """Return the bundled demos in the project's own packages: ``<package>/demos/*.jsonl.gz``.
+
+    The project's tree is walked (hidden directories, virtual environments, caches and installed
+    copies left out) for a top-level import package's ``demos/`` directory (its parent holds
+    ``__init__.py``, the directory above that none), as ``glitchygames.bundled_demos`` finds them
+    in an installed package. Bookmarked copies are left out.
+
+    Args:
+        project_root: The project.
+
+    Returns:
+        The demos' paths, sorted.
+
+    """
+    found: list[Path] = []
+    for directory, subdirectories, files in os.walk(project_root):
+        here = Path(directory)
+        subdirectories[:] = sorted(
+            name
+            for name in subdirectories
+            if not name.startswith('.')
+            and name not in SKIPPED_DIRECTORY_NAMES
+            and not (here / name / VIRTUAL_ENVIRONMENT_MARKER).exists()
+        )
+        package = here.parent
+        if (
+            here.name != BUNDLED_DEMO_DIRECTORY_NAME
+            or not (package / PACKAGE_MARKER).is_file()
+            or (package.parent / PACKAGE_MARKER).is_file()
+        ):
+            continue
+        found.extend(
+            here / name
+            for name in files
+            if name.endswith(DEMO_SUFFIX) and not is_bookmarked_copy(path=here / name)
+        )
+    return sorted(found)
+
+
+def game_packages(*, games: Sequence[str]) -> set[str]:
+    """Return the import packages of the games named by an installed console script.
+
+    Args:
+        games: The games (``[tool.glitchygames] games``).
+
+    Returns:
+        Their packages (``identity.console_script_identity``); a game in another form, or not
+        installed, has none here.
+
+    """
+    packages: set[str] = set()
+    for game in games:
+        try:
+            packages.add(console_script_identity(console_script=game).package)
+        except KeyError:
+            continue
+    return packages
+
+
+def unclaimed_demos(*, games: Sequence[str], project_root: Path) -> list[UnreplayableRecording]:
+    """Return the demos bundled in the project's packages that none of its games measures.
+
+    A game measures only its own package's demos (``recordings.game_recordings``), so a demo in
+    any other package of the project would otherwise be left out without a word (BASE's
+    scripts/replay_metrics.py searched every member package and reported it).
+
+    Args:
+        games: The games measured (``[tool.glitchygames] games``).
+        project_root: The project.
+
+    Returns:
+        The demos, by path, with the reason each is not measured and the fix.
+
+    """
+    claimed = game_packages(games=games)
+    return [
+        UnreplayableRecording(
+            path=path,
+            reason=(
+                f'a demo bundled in {path.parent.parent.name}, which none of the games measured '
+                'starts: add the console script that starts its game to [tool.glitchygames] '
+                'games (one in its [project.scripts] whose entry point is in that package)'
+            ),
+        )
+        for path in project_demo_paths(project_root=project_root)
+        if path.parent.parent.name not in claimed
+    ]
+
+
+def unclaimed_recordings(
+    *, games: Sequence[str], settings: ProjectSettings, project_root: Path
+) -> list[UnreplayableRecording]:
+    """Return the project's goldens and demos none of its games measures, each with why.
+
+    Args:
+        games: The games measured (``[tool.glitchygames] games``).
+        settings: The project's settings (``golden-globs``).
+        project_root: The project.
+
+    Returns:
+        ``unclaimed_goldens``', then ``unclaimed_demos``'.
+
+    """
+    return [
+        *unclaimed_goldens(games=games, settings=settings, project_root=project_root),
+        *unclaimed_demos(games=games, project_root=project_root),
+    ]
+
+
 def combined_exit_code(*, statuses: Sequence[int]) -> ExitCode:
     """Return how a run over several games (or recordings) exits, from each one's exit status.
 
@@ -1184,7 +1308,7 @@ def measure_each_game(
     statuses: list[int] = []
     if from_settings:
         only: str | None = arguments.only
-        for unclaimed in unclaimed_goldens(games=games, settings=settings, project_root=root):
+        for unclaimed in unclaimed_recordings(games=games, settings=settings, project_root=root):
             name = recording_ledger_name(path=unclaimed.path, project_root=root, demo_packages=())
             if only is not None and only not in name:
                 continue
@@ -1378,6 +1502,47 @@ def console_script_unmeasured(
     )
 
 
+def child_unmeasured(
+    *, tool: Tool, arguments: argparse.Namespace, game: str, launch: GameLaunch
+) -> tuple[int, int, list[str]]:
+    """List a game's unmeasured recordings by starting it with ``--unmeasured``, and read it back.
+
+    For a game the command can't read without starting it (a script path, ``MODULE:CALLABLE``,
+    a module). The child's standard output (its listing) is captured and returned, so it joins
+    the command's own listing (which the pre-commit hook reads, redirected in its own process),
+    and its summary's count joins the command's; its standard error is passed on. pygame's
+    banner is hidden in the child, so its standard output is the listing alone.
+
+    Args:
+        tool: The unmeasured tool.
+        arguments: The subcommand's parsed arguments.
+        game: The game, as named.
+        launch: How to start it.
+
+    Returns:
+        The child's exit status, how many recordings it looked at (its summary's count, else
+        how many it listed), and the ledger names it listed.
+
+    """
+    say(tool=tool, message=f'running {game} ({FORM_DESCRIPTIONS[launch.form]})')
+    finished = run_command(
+        command=[*launch.command, *tool.child_arguments(arguments=arguments)],
+        environment={**os.environ, PYGAME_BANNER_VARIABLE: '1'},
+        timeout_seconds=None,
+        capture_output='apart',
+        working_directory=arguments.project_root,
+    )
+    error = finished.stderr or ''
+    sys.stderr.write(error)
+    listed = [line for line in (finished.stdout or '').splitlines() if line.strip()]
+    summary = UNMEASURED_SUMMARY.search(error)
+    return (
+        finished.returncode,
+        len(listed) if summary is None else int(summary.group('total')),
+        listed,
+    )
+
+
 def unmeasured_command(
     *, tool: Tool, arguments: argparse.Namespace, game_arguments: list[str]
 ) -> int:
@@ -1400,6 +1565,8 @@ def unmeasured_command(
         settings can't be read.
 
     """
+    # The tool runs no game, so the command refuses arguments after --: always empty
+    del game_arguments
     arguments.project_root = verify_project_root(given=arguments.project_root)
     root: Path = arguments.project_root
     found = games_to_run(tool=tool, arguments=arguments)
@@ -1427,15 +1594,12 @@ def unmeasured_command(
             statuses.append(ExitCode.OPTIONS_REFUSED)
             continue
         if launch.form != CONSOLE_SCRIPT_FORM:
-            statuses.append(
-                run_game_with_tool(
-                    tool=tool,
-                    arguments=arguments,
-                    game_arguments=game_arguments,
-                    game=game,
-                    launch=launch,
-                )
+            status, count, unmeasured = child_unmeasured(
+                tool=tool, arguments=arguments, game=game, launch=launch
             )
+            statuses.append(status)
+            total += count
+            missing.extend(unmeasured)
             continue
         count, unmeasured = console_script_unmeasured(
             console_script=game,
@@ -1447,7 +1611,7 @@ def unmeasured_command(
         total += count
         missing.extend(unmeasured)
     if from_settings:
-        for unclaimed in unclaimed_goldens(games=games, settings=settings, project_root=root):
+        for unclaimed in unclaimed_recordings(games=games, settings=settings, project_root=root):
             name = recording_ledger_name(path=unclaimed.path, project_root=root, demo_packages=())
             say(tool=tool, message=f'{name}: {unclaimed.reason}')
             missing.append(name)

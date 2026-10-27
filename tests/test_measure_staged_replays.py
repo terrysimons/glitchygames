@@ -24,6 +24,7 @@ from glitchygames.recording_metrics import read_row_files, write_row_files
 from glitchygames.replay.tools import command
 from glitchygames.replay.tools.identity import console_script_identity
 from glitchygames.replay.tools.measure import ledger_names
+from glitchygames.replay.tools.registry import build_command_parser
 from glitchygames.replay.tools.settings import load_project_settings
 from tests.stand_in_games import write_stand_in_distribution, write_stand_in_package
 from tests.test_code_tree import LEDGER_DIRECTORY, PATHS, git, write
@@ -380,7 +381,9 @@ def test_installing_the_hooks_installs_the_measuring_one_too():
     assert 'pre-commit install' in environment
 
 
-def test_an_unmeasured_listing_that_fails_measures_so_the_failure_is_said(mocker, repository):
+def test_an_unmeasured_listing_that_fails_measures_so_the_failure_is_said(
+    mocker, repository, capsys
+):
     """``glitchygames unmeasured`` refusing (a game not installed): measuring runs, and says."""
     measure = stand_in_measurement(mocker, repository=repository)
     pyproject = repository / 'pyproject.toml'
@@ -395,3 +398,36 @@ def test_an_unmeasured_listing_that_fails_measures_so_the_failure_is_said(mocker
     assert run_hook(repository=repository) == ExitCode.SUCCESS
 
     measure.assert_called_once()
+    assert 'glitchygames-no-such-game' in capsys.readouterr().err
+
+
+def test_the_hooks_command_lines_are_the_engines_own(tmp_path):
+    """The hook's two command lines, from its builders, read as meant by the real parser."""
+    parser = build_command_parser()
+    rows_directory = tmp_path / LEDGER_DIRECTORY
+    tree = '0123456789abcdef0123456789abcdef01234567'
+
+    listing = parser.parse_args(
+        measure_staged_replays.unmeasured_arguments(
+            repository=tmp_path, rows_directory=rows_directory, code_tree=tree
+        )
+    )
+    measuring = parser.parse_args(
+        measure_staged_replays.measure_arguments(
+            repository=tmp_path, rows_directory=rows_directory, code_tree=tree
+        )
+    )
+
+    assert (listing.tool, listing.code_tree, listing.rows_directory) == (
+        'unmeasured',
+        tree,
+        str(rows_directory),
+    )
+    assert listing.project_root == tmp_path
+    assert (measuring.tool, measuring.measure, measuring.code_tree) == ('measure', [], tree)
+    assert measuring.allow_dirty
+    assert not measuring.skip_dirty
+    assert not measuring.force
+    assert measuring.rows_directory == str(rows_directory)
+    assert measuring.project_root == tmp_path
+    assert measuring.game is None

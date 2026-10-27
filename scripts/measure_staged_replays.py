@@ -102,6 +102,55 @@ def _row_file_names(*, rows_directory: Path) -> set[str]:
     return {path.name for path in rows_directory.glob(f'*{ROW_FILE_SUFFIX}')}
 
 
+def unmeasured_arguments(*, repository: Path, rows_directory: Path, code_tree: str) -> list[str]:
+    """Return the hook's ``glitchygames unmeasured`` command line (after ``glitchygames``).
+
+    Args:
+        repository: The repository (the project).
+        rows_directory: Where the row files are.
+        code_tree: The staged code tree.
+
+    Returns:
+        The arguments.
+
+    """
+    return [
+        'unmeasured',
+        '--code-tree',
+        code_tree,
+        '--rows-directory',
+        str(rows_directory),
+        '--project-root',
+        str(repository),
+    ]
+
+
+def measure_arguments(*, repository: Path, rows_directory: Path, code_tree: str) -> list[str]:
+    """Return the hook's ``glitchygames measure`` command line (after ``glitchygames``).
+
+    ``--allow-dirty``: the staged code is measured before it is committed.
+
+    Args:
+        repository: The repository (the project).
+        rows_directory: Where the row files go.
+        code_tree: The staged code tree the rows name.
+
+    Returns:
+        The arguments.
+
+    """
+    return [
+        'measure',
+        '--allow-dirty',
+        '--code-tree',
+        code_tree,
+        '--rows-directory',
+        str(rows_directory),
+        '--project-root',
+        str(repository),
+    ]
+
+
 def _unmeasured(*, repository: Path, rows_directory: Path, code_tree: str) -> list[str] | None:
     """Return the recordings with no row for the code tree on this machine.
 
@@ -116,15 +165,9 @@ def _unmeasured(*, repository: Path, rows_directory: Path, code_tree: str) -> li
     listing = io.StringIO()
     with contextlib.redirect_stdout(listing):
         exit_code = glitchygames(
-            arguments=[
-                'unmeasured',
-                '--code-tree',
-                code_tree,
-                '--rows-directory',
-                str(rows_directory),
-                '--project-root',
-                str(repository),
-            ]
+            arguments=unmeasured_arguments(
+                repository=repository, rows_directory=rows_directory, code_tree=code_tree
+            )
         )
     if exit_code != ExitCode.SUCCESS:
         return None
@@ -193,16 +236,9 @@ def measure_staged(*, repository: Path, rows_directory: Path) -> int:
         return ExitCode.OPTIONS_REFUSED
     files_before = _row_file_names(rows_directory=rows_directory)
     exit_code = glitchygames(
-        arguments=[
-            'measure',
-            '--allow-dirty',
-            '--code-tree',
-            code_tree,
-            '--rows-directory',
-            str(rows_directory),
-            '--project-root',
-            str(repository),
-        ]
+        arguments=measure_arguments(
+            repository=repository, rows_directory=rows_directory, code_tree=code_tree
+        )
     )
     # The files this measurement wrote are valid measurements even when it failed partway
     # (history rows among them: their names lead with "history", not the tree), plus every row

@@ -23,7 +23,7 @@ import os
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] — runs the engine's own game commands (argument list, no shell)
 import sys
-from typing import TYPE_CHECKING, TextIO
+from typing import TYPE_CHECKING, Literal, TextIO
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -108,7 +108,7 @@ def run_command(
     command: Sequence[str],
     environment: Mapping[str, str],
     timeout_seconds: float | None,
-    capture_output: bool = False,
+    capture_output: bool | Literal['apart'] = False,
     working_directory: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command (an argument list, never a shell) as a child process and wait for it.
@@ -123,19 +123,28 @@ def run_command(
         timeout_seconds: Kill the child (TimeoutExpired) after this long; None waits for as long
             as it runs (a restarted watched replay, glitchygames/replay/rebuild.py).
         capture_output: True to capture standard output and error together in ``stdout``;
-            False to let the child write to this process's.
+            ``'apart'`` to capture them apart, in ``stdout`` and ``stderr`` (a child whose
+            standard output is a listing: ``glitchygames unmeasured``'s); False to let the
+            child write to this process's.
         working_directory: The child's working directory (None: this process's), e.g. a
             build's directory for SDL's configure script (scripts/build_sdl_x11.py).
 
     Returns:
-        The finished process (``returncode``; ``stdout`` when captured, else None).
+        The finished process (``returncode``; ``stdout`` when captured, else None; ``stderr``
+        when captured apart, else None).
 
     """
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with a game's command line plus fixed flags, as an argument list (no shell)
         list(command),
         env=dict(environment),
         stdout=subprocess.PIPE if capture_output else None,
-        stderr=subprocess.STDOUT if capture_output else None,
+        stderr=(
+            None
+            if not capture_output
+            else subprocess.PIPE
+            if capture_output == 'apart'
+            else subprocess.STDOUT
+        ),
         text=True,
         check=False,
         timeout=timeout_seconds,

@@ -1487,36 +1487,56 @@ def test_a_golden_no_game_replays_and_an_unknown_game_fail_and_the_others_are_me
 def test_the_unmeasured_command_reads_a_console_script_game_without_starting_it(
     tmp_path, mocker, capsys, stand_in_game, stand_in_golden
 ):
-    """No child for a console script; a game in another form lists its own, as a child."""
+    """No child for a game named by its installed console script."""
     project = write_stand_in_project(
         project_root=tmp_path / 'project', game=stand_in_game, goldens=(stand_in_golden,)
     )
-    started = mocker.spy(measure, 'run_game_with_tool')
+    started = mocker.spy(measure, 'child_unmeasured')
 
     status = command.main(['unmeasured', '--project-root', str(project)])
 
     assert status == ExitCode.SUCCESS
     started.assert_not_called()
     assert capsys.readouterr().out.splitlines() == [stand_in_golden_ledger_name(game=stand_in_game)]
+
+
+@pytest.mark.parametrize('form', ['script', 'entry-point'])
+def test_the_unmeasured_command_merges_the_list_of_a_game_named_another_way(
+    tmp_path, capsys, form, stand_in_game, stand_in_golden
+):
+    """A script path or MODULE:CALLABLE game lists its own as a child; its list joins the parent's.
+
+    So the command's standard output (what the pre-commit hook reads, redirected in its own
+    process) holds every game's recordings, and the summary counts them; an unknown game beside
+    it is refused, and the others still listed.
+    """
+    project = write_stand_in_project(
+        project_root=tmp_path / 'project', game=stand_in_game, goldens=(stand_in_golden,)
+    )
     script = project / 'script_game.py'
     script.write_text(
         f'import {stand_in_game.package}\n{stand_in_game.package}.main()\n', encoding='utf-8'
     )
+    game = str(script) if form == 'script' else f'{stand_in_game.package}:main'
+    golden = stand_in_golden_ledger_name(game=stand_in_game)
 
-    script_status = command.main([
+    status = command.main([
         'unmeasured',
         '--game',
-        str(script),
+        game,
+        '--game',
+        stand_in_game.console_script,
         '--game',
         NO_SUCH_GAME,
         '--project-root',
         str(project),
     ])
 
-    assert script_status == ExitCode.OPTIONS_REFUSED
-    started.assert_called_once()
-    assert started.spy_return == ExitCode.SUCCESS
-    assert NO_SUCH_GAME in capsys.readouterr().err
+    output = capsys.readouterr()
+    assert status == ExitCode.OPTIONS_REFUSED
+    assert output.out.splitlines() == [golden, golden]
+    assert 'glitchygames unmeasured: 2 of 2 recordings not measured' in output.err
+    assert NO_SUCH_GAME in output.err
 
 
 def test_a_game_no_console_script_starts_lists_and_measures_none_and_refuses_paths(
@@ -1818,3 +1838,73 @@ def test_a_games_revision_is_its_own_else_the_engines():
         )
         == source_revision()
     )
+
+
+def write_package_with_a_demo(*, directory: Path, package: str, demo: Path) -> Path:
+    """Write an import package holding ``demo`` as ``<package>/demos/<name>``.
+
+    Returns:
+        The demo's path.
+
+    """
+    (directory / package / 'demos').mkdir(parents=True)
+    (directory / package / '__init__.py').write_text('', encoding='utf-8')
+    target = directory / package / 'demos' / demo.name
+    shutil.copy(demo, target)
+    return target
+
+
+def test_a_demo_no_measured_game_bundles_is_found_in_the_project(
+    tmp_path, stand_in_game, stand_in_golden
+):
+    """Only a top-level package's demos/; a claimed package's, hidden and venv trees are not."""
+    project = tmp_path / 'project'
+    lost = write_package_with_a_demo(
+        directory=project / 'src', package='orphan_game', demo=stand_in_golden
+    )
+    write_package_with_a_demo(
+        directory=project / 'src', package=stand_in_game.package, demo=stand_in_golden
+    )
+    # A layer directory named demos (no package above it), a subpackage's demos, a hidden tree
+    # and a virtual environment hold no bundled demo
+    (project / 'src' / 'demos').mkdir()
+    shutil.copy(stand_in_golden, project / 'src' / 'demos' / 'layer.jsonl.gz')
+    write_package_with_a_demo(
+        directory=project / 'src' / 'orphan_game', package='inner', demo=stand_in_golden
+    )
+    write_package_with_a_demo(
+        directory=project / '.cache', package='hidden_game', demo=stand_in_golden
+    )
+    (project / 'venv').mkdir()
+    (project / 'venv' / 'pyvenv.cfg').write_text('', encoding='utf-8')
+    write_package_with_a_demo(
+        directory=project / 'venv' / 'lib', package='installed_game', demo=stand_in_golden
+    )
+
+    unclaimed = measure.unclaimed_demos(games=[stand_in_game.console_script], project_root=project)
+
+    assert [recording.path for recording in unclaimed] == [lost]
+    assert 'orphan_game' in unclaimed[0].reason
+    assert '[tool.glitchygames] games' in unclaimed[0].reason
+
+
+def test_a_demo_no_measured_game_bundles_fails_measure_and_is_listed_unmeasured(
+    tmp_path, capsys, stand_in_game, stand_in_golden
+):
+    """As an unclaimed golden is: a failure line naming the fix, and listed as unmeasured."""
+    project = write_stand_in_project(project_root=tmp_path / 'project', game=stand_in_game)
+    write_package_with_a_demo(
+        directory=project / 'src', package='orphan_game', demo=stand_in_golden
+    )
+    name = 'src/orphan_game/demos/golden.jsonl.gz'
+
+    measured = command.main(['measure', '--project-root', str(project)])
+    measured_error = capsys.readouterr().err
+    listed = command.main(['unmeasured', '--project-root', str(project)])
+    listing = capsys.readouterr()
+
+    assert measured == ExitCode.INTERNAL_ERROR
+    assert f'{name}: a demo bundled in orphan_game' in measured_error
+    assert listed == ExitCode.SUCCESS
+    assert listing.out.splitlines() == [name]
+    assert f'{name}: a demo bundled in orphan_game' in listing.err

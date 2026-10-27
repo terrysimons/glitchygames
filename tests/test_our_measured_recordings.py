@@ -19,7 +19,11 @@ from scripts.workspace_packages import members_in_layer, workspace_members
 
 from glitchygames.bundled_demos import bundled_demos
 from glitchygames.replay.tools.identity import console_script_identity
-from glitchygames.replay.tools.measure import ledger_names, unclaimed_goldens
+from glitchygames.replay.tools.measure import (
+    ledger_names,
+    unclaimed_demos,
+    unclaimed_goldens,
+)
 from glitchygames.replay.tools.recordings import game_recordings
 from glitchygames.replay.tools.settings import load_project_settings
 from tests.workspace_expectations import (
@@ -127,11 +131,12 @@ def test_the_measured_demos_are_exactly_the_engines_bundled_demos():
     assert {(package, name) for _, package, name in engine_demos} == EXPECTED_BUNDLED_DEMOS
 
 
-def test_no_golden_is_left_to_no_game():
-    """Every golden our golden-globs find is one of our games' (none is reported unclaimed)."""
+def test_no_golden_or_demo_is_left_to_no_game():
+    """Every golden and bundled demo in the repository is one of our games' (none unclaimed)."""
     assert not unclaimed_goldens(
         games=OUR_SETTINGS.games, settings=OUR_SETTINGS, project_root=PROJECT_ROOT
     )
+    assert not unclaimed_demos(games=OUR_SETTINGS.games, project_root=PROJECT_ROOT)
 
 
 def test_a_recording_in_the_repository_is_named_by_its_repository_path():
