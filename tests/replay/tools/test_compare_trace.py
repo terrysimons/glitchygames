@@ -1485,26 +1485,49 @@ def test_sizes_that_cannot_be_compared_are_warned_about(color_game, tmp_path, ca
     assert 'could not compare the screen sizes' in caplog.text
 
 
-def test_a_silent_connection_that_stays_open_is_refused_after_the_token_wait(color_game, caplog):
-    """A local connection that sends nothing, and never closes, is refused once its wait ends."""
+# A child that connects late (after the test's stranger), streams one frame at NEW's size and
+# ends at once: it has ended before the stranger's token wait does
+QUICK_CHILD = """\
+import socket, sys, time
+time.sleep(0.3)
+port, token = sys.argv[sys.argv.index('--replay-frame-stream') + 1].split(':')
+connection = socket.create_connection(('127.0.0.1', int(port)))
+connection.sendall(token.encode('ascii'))
+connection.sendall(b''.join(number.to_bytes(4, 'little') for number in (0, 320, 240)))
+connection.sendall(bytes(320 * 240 * 3))
+connection.close()
+"""
+
+
+def test_a_silent_connection_that_stays_open_is_refused_after_the_token_wait(
+    color_game, mocker, caplog
+):
+    """A connection sending nothing, never closing, is refused once its wait ends; then the child.
+
+    The child connected and ended during that wait: its connection, still waiting to be
+    accepted, is read all the same (an ended child is not one that never connected).
+    """
+    mocker.patch.object(compare, 'TOKEN_TIMEOUT_SECONDS', 2.0)
     onion_skin = OnionSkin(
         old_path=color_game.old,
         alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
-        game_command=old_game_command(old_path=color_game.old),
+        game_command=[sys.executable, '-c', QUICK_CHILD],
         pause_at_frame=None,
     )
     try:
         onion_skin.begin()
         address = onion_skin.command[onion_skin.command.index('--replay-frame-stream') + 1]
         port, _ = address.split(':')
-        # Connects before the child (which is still importing the game), and stays open, silent
+        # Connects before the child (which waits first), and stays open, silent
         with socket.create_connection((compare.FRAME_STREAM_HOST, int(port))):
             onion_skin.draw(surface=surface_of(color=NEW_RED), frame_index=0)
     finally:
         onion_skin.stop()
 
-    assert onion_skin.held_frame_index == 0
     assert 'refused a frame stream connection without the token' in caplog.text
+    assert onion_skin.held_frame_index == 0
+    assert onion_skin.process is not None
+    assert onion_skin.process.returncode == ExitCode.SUCCESS
 
 
 def test_a_silent_stranger_does_not_stretch_the_wait_for_the_child(color_game, mocker, caplog):

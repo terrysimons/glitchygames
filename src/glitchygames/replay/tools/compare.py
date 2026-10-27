@@ -637,7 +637,10 @@ class OnionSkin:
 
         A connection without the token (another local process) is closed and logged, and the
         wait goes on. The connect deadline holds through a connection's token wait: that wait
-        never runs past it, and the deadline is checked again once it is refused.
+        never runs past it, and once a connection is refused after the deadline, the wait ends.
+        (Whether the child still runs is asked only when no connection is waiting: a child that
+        connected during another connection's token wait may have streamed everything and
+        ended, its connection still waiting to be accepted.)
 
         Returns:
             True once connected; False when OLD ended without connecting.
@@ -650,7 +653,7 @@ class OnionSkin:
             try:
                 connection, _ = self._listener.accept()
             except TimeoutError:
-                if self._still_waiting(deadline=deadline):
+                if self.process.poll() is None and measured_seconds() < deadline:
                     continue
                 return self._never_connected()
             token_wait_seconds = max(
@@ -662,25 +665,12 @@ class OnionSkin:
                     'Comparing with %s: refused a frame stream connection without the token',
                     self.old_path,
                 )
-                if self._still_waiting(deadline=deadline):
+                if measured_seconds() < deadline:
                     continue
                 return self._never_connected()
             connection.settimeout(CHILD_READ_TIMEOUT_SECONDS)
             self._connection = connection
             return True
-
-    def _still_waiting(self: Self, *, deadline: float) -> bool:
-        """Tell whether to go on waiting for the child to connect: it runs, and there is time.
-
-        Args:
-            deadline: When the wait ends (``measured_seconds``).
-
-        Returns:
-            True while the child runs and the deadline has not passed.
-
-        """
-        assert self.process is not None
-        return self.process.poll() is None and measured_seconds() < deadline
 
     def _never_connected(self: Self) -> bool:
         """End OLD: its child ended, or took too long, without connecting (rule 5).
