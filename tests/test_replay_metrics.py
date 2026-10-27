@@ -18,6 +18,7 @@ import pytest
 from scripts import replay_metrics
 from scripts.replay_metrics import (
     PENDING_LEDGER_PATH,
+    PROJECT_SETTINGS,
     MeasureSettings,
     UnreplayableRecording,
     clear_published,
@@ -36,8 +37,6 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.process import run_command
 from glitchygames.recording_history import CONTENT_HASH_FIELD, MEASUREMENT_RUNS_HEADER_FIELD
 from glitchygames.recording_metrics import (
-    PUBLISHED_LEDGER_PATH,
-    PUBLISHED_LEDGER_REF,
     LedgerOrigin,
     ledger_text,
     publishable_rows,
@@ -68,6 +67,11 @@ from tests.workspace_expectations import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Where this repository publishes its ledger (its [tool.glitchygames] published-ledger), as REF:PATH
+OUR_PUBLISHED_LEDGER = PROJECT_SETTINGS.published_ledger
+_OUR_PUBLISHED_LEDGER_PATH = PROJECT_SETTINGS.published_ledger_path
+assert _OUR_PUBLISHED_LEDGER_PATH is not None, 'this repository publishes its ledger'
+PUBLISHED_LEDGER_PATH: str = _OUR_PUBLISHED_LEDGER_PATH
 GIT_TIMEOUT_SECONDS = 60.0
 # A stand-in recording that is read, never replayed: a bookmark on frame 1 needs at least 1
 # frame, and 3 leave frames after it
@@ -286,21 +290,36 @@ class TestThePublishedLedger:
     def test_the_published_ledger_is_read_from_origin_gh_pages(self, tmp_path):
         text = ledger_text(rows=[ledger_row()])
         clone = clone_with_published_ledger(tmp_path=tmp_path, ledger=text)
-        assert published_ledger_text(project_root=clone) == text
+        assert (
+            published_ledger_text(project_root=clone, published_ledger=OUR_PUBLISHED_LEDGER) == text
+        )
 
     def test_no_ref_no_file_or_no_repository_is_an_empty_ledger(self, tmp_path):
         clone = clone_with_published_ledger(tmp_path=tmp_path, ledger='')
-        assert not published_ledger_text(project_root=clone, ref='origin/missing')
+        assert not published_ledger_text(
+            project_root=clone, published_ledger=f'origin/missing:{PUBLISHED_LEDGER_PATH}'
+        )
         # main has no ledger file
-        assert not published_ledger_text(project_root=clone, ref='origin/main')
+        assert not published_ledger_text(
+            project_root=clone, published_ledger=f'origin/main:{PUBLISHED_LEDGER_PATH}'
+        )
         not_a_repository = tmp_path / 'plain'
         not_a_repository.mkdir()
-        assert not published_ledger_text(project_root=not_a_repository)
-        assert PUBLISHED_LEDGER_REF == 'origin/gh-pages'
+        assert not published_ledger_text(
+            project_root=not_a_repository, published_ledger=OUR_PUBLISHED_LEDGER
+        )
+        assert PROJECT_SETTINGS.published_ledger_ref == 'origin/gh-pages'
+
+    def test_a_project_that_publishes_nothing_has_an_empty_published_ledger(self, tmp_path):
+        """No published-ledger (the default): nothing is read, even where one is published."""
+        clone = clone_with_published_ledger(tmp_path=tmp_path, ledger=ledger_text(rows=[]))
+        assert not published_ledger_text(project_root=clone, published_ledger=None)
 
     def test_a_missing_git_is_an_empty_ledger(self, tmp_path, mocker):
         mocker.patch.dict(os.environ, {'PATH': str(tmp_path)})
-        assert not published_ledger_text(project_root=tmp_path)
+        assert not published_ledger_text(
+            project_root=tmp_path, published_ledger=OUR_PUBLISHED_LEDGER
+        )
 
     def test_a_missing_pending_file_is_empty(self, tmp_path):
         assert read_ledger_file(path=tmp_path / 'none.jsonl').rows == ()
@@ -436,8 +455,8 @@ class TestTheRecordings:
         )
         assert not recordings.unreplayable
 
-    def test_a_member_that_is_not_installed_is_named_with_the_fix(self, tmp_path):
-        """A plain `uv sync` uninstalls the members: one line naming `uv sync --all-packages`."""
+    def test_a_member_that_is_not_installed_names_the_distribution_looked_for(self, tmp_path):
+        """A plain `uv sync` uninstalls the members: one line naming the distribution looked for."""
         write_uninstalled_member(project_root=tmp_path)
 
         recordings = metric_recordings(project_root=tmp_path, demo_packages=())
@@ -446,7 +465,7 @@ class TestTheRecordings:
         golden = tmp_path / UNINSTALLED_MEMBER_GOLDEN
         [unreplayable] = recordings.unreplayable
         assert unreplayable.path == golden
-        assert 'uv sync --all-packages' in unreplayable.reason
+        assert 'no distribution of that name is installed' in unreplayable.reason
         assert "'glitchygames-not-installed-game'" in unreplayable.reason
         assert '\n' not in unreplayable.reason
         assert str(golden) not in unreplayable.reason
@@ -800,7 +819,7 @@ class TestRowsToWrite:
 
         written = rows_to_write(
             rows=[newest, again],
-            held_keys={held.held_key},
+            held_keys={held.held_key(recording_renames=PROJECT_SETTINGS.recording_renames)},
             repository=repository,
             origin_main_present=True,
         )
@@ -847,8 +866,8 @@ class TestHistoryRunsInThePendingFile:
     def test_a_history_run_on_a_commit_on_origin_main_is_appended(
         self, mocker, tmp_path, stand_in_game, stand_in_golden
     ):
-        mocker.patch.object(replay_metrics, 'origin_main_exists', return_value=True)
-        mocker.patch.object(replay_metrics, 'commit_is_on_origin_main', return_value=True)
+        mocker.patch.object(replay_metrics, 'landed_ref_exists', return_value=True)
+        mocker.patch.object(replay_metrics, 'commit_has_landed', return_value=True)
 
         rows = self.measure_into_pending(
             tmp_path=tmp_path, game=stand_in_game, golden=stand_in_golden
@@ -863,8 +882,8 @@ class TestMeasuring:
     @pytest.fixture(autouse=True)
     def history_has_landed(self, mocker):
         """Treat every recorded run as landed (the landed rules have their own tests above)."""
-        mocker.patch.object(replay_metrics, 'origin_main_exists', return_value=True)
-        mocker.patch.object(replay_metrics, 'commit_is_on_origin_main', return_value=True)
+        mocker.patch.object(replay_metrics, 'landed_ref_exists', return_value=True)
+        mocker.patch.object(replay_metrics, 'commit_has_landed', return_value=True)
 
     def golden_runs_with_a_commit(self, *, golden: Path):
         """Return how many runs a golden holds that name a commit (the others are not landed).

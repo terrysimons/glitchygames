@@ -23,7 +23,7 @@ from scripts.generate_performance_graphs import (
     recording_charts,
 )
 
-from glitchygames.code_tree import LEDGER_DIRECTORY, staged_code_tree
+from glitchygames.code_tree import staged_code_tree
 from glitchygames.recording_history import FrameTimeSummary
 from glitchygames.recording_metrics import (
     FrameProfile,
@@ -34,6 +34,7 @@ from glitchygames.recording_metrics import (
     performance_series,
     write_row_files,
 )
+from tests.test_code_tree import LEDGER_DIRECTORY, PATHS
 from tests.test_recording_metrics import (
     NEWER_COMMIT,
     OLDER_COMMIT,
@@ -228,7 +229,7 @@ def test_a_series_without_a_budget_has_no_over_budget_trace():
     uncapped = row.model_copy(
         update={'summary': row.summary.model_copy(update={'frames_over_budget': None})}
     )
-    charts = recording_charts(series_list=performance_series(rows=[uncapped]))
+    charts = recording_charts(series_list=performance_series(rows=[uncapped], recording_renames={}))
     assert charts['over_budget'] == []
     assert charts['frame_time'] == []
     # Rows without a profile have no heatmap line
@@ -296,7 +297,7 @@ def clone_with_measured_rows(*, tmp_path: Path) -> tuple[Path, LedgerRow, Ledger
     code.parent.mkdir(parents=True, exist_ok=True)
     code.write_text('gravity = 9.8\n', encoding='utf-8')
     git(repository=clone, arguments=['add', 'src/glitchygames/world.py'])
-    tree = staged_code_tree(repository=clone)
+    tree = staged_code_tree(repository=clone, paths=PATHS)
     landed = ledger_row(measured_at='2026-10-25T10:00:00+00:00').model_copy(
         update={'code_tree': tree, 'allowed_uncommitted_changes': True}
     )

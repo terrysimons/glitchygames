@@ -5,7 +5,8 @@ report stays there). PaddleSlap's golden predates the game's move out of
 ``glitchygames.examples``, so its frame-0 scene start names the old module; a rebaseline names
 the new one, both under the logical name ``games.paddleslap:Game``. The report shows that as the
 one behaviour change between the golden's newest run and the rebaseline. Every path the rally
-demo and the golden had before the move leads to the committed file (``RECORDING_PATH_RENAMES``).
+demo and the golden had before the move leads to the committed file (the root pyproject.toml's
+``[tool.glitchygames]`` ``recording-renames``).
 """
 
 from __future__ import annotations
@@ -15,9 +16,13 @@ from pathlib import Path
 from scripts.recording_report import run
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.recording_metrics import RECORDING_PATH_RENAMES
 from glitchygames.replay.tools.children import rebaseline_recording_headless
+from glitchygames.replay.tools.settings import load_project_settings
 from glitchygames.tracing import FRAMES_FIELD, read_trace
+
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+# Recordings that moved, old repository path -> new (our [tool.glitchygames])
+RECORDING_RENAMES = load_project_settings(project_root=PROJECT_ROOT).recording_renames
 
 # The member's golden replay, directly in its tests/fixtures/replays/
 GOLDEN_REPLAY_PATH = Path(__file__).parent / 'fixtures' / 'replays' / 'golden.jsonl.gz'
@@ -61,9 +66,9 @@ def test_a_rebaseline_shows_the_games_move_as_a_frame_0_behaviour_change(tmp_pat
 def test_the_rally_demo_keeps_its_whole_history():
     """Each of the demo's former paths maps straight to its new one: a lookup is one step."""
     for former_path in RALLY_DEMO_FORMER_PATHS:
-        assert RECORDING_PATH_RENAMES[former_path] == RALLY_DEMO_REPOSITORY_PATH
+        assert RECORDING_RENAMES[former_path] == RALLY_DEMO_REPOSITORY_PATH
 
 
 def test_paddleslaps_golden_keeps_its_history():
     """PaddleSlap's golden moved into its member: its rows from before the move follow."""
-    assert RECORDING_PATH_RENAMES[GOLDEN_FORMER_PATH] == GOLDEN_REPOSITORY_PATH
+    assert RECORDING_RENAMES[GOLDEN_FORMER_PATH] == GOLDEN_REPOSITORY_PATH

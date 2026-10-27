@@ -184,10 +184,12 @@ def recording_console_script(*, path: Path) -> str:
         try:
             distribution = importlib.metadata.distribution(distribution_name)
         except importlib.metadata.PackageNotFoundError:
+            # The member's directory names its distribution; the installer is the project's
+            # business, so none is named
             message = (
-                f'{path}: {distribution_name!r} is not an installed workspace member (a plain '
-                '`uv sync` uninstalls members the root does not depend on); install every '
-                'member with `uv sync --all-packages`'
+                f'{path}: looked for a console script of {distribution_name!r} (the directory '
+                f'its {MEMBER_TESTS_DIRECTORY_NAME}/ is in names the distribution), but no '
+                'distribution of that name is installed'
             )
             raise KeyError(message) from None
         console_scripts = [

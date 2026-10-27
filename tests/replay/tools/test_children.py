@@ -7,6 +7,7 @@ and ``launch_game`` are the ``glitchygames`` command's reading of ``GAME``.
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 from importlib.metadata import EntryPoint
@@ -16,6 +17,7 @@ import pytest
 
 from glitchygames.bundled_demos import CONSOLE_SCRIPTS_GROUP
 from glitchygames.exit_codes import ExitCode
+from glitchygames.process import run_command
 from glitchygames.replay.tools.children import (
     GAME_FORMS,
     REPLAY_FIXTURES_PATH_PARTS,
@@ -49,6 +51,8 @@ if TYPE_CHECKING:
 # The frame a tampered copy of the stand-in's recording first differs from the engine at (the
 # stand-in game draws a sprite on it and every frame after it)
 TAMPERED_FRAME = 10
+# A child that only imports the tools ends in a second or two
+CHILD_TIMEOUT_SECONDS = 120.0
 
 
 @pytest.fixture
@@ -244,6 +248,46 @@ def test_a_member_distribution_without_console_scripts_is_refused(tmp_path):
 
     with pytest.raises(KeyError, match=r"'pytest-mock' has no console scripts"):
         recording_console_script(path=recording)
+
+
+def test_a_member_recording_whose_distribution_is_not_installed_names_what_was_looked_for(
+    tmp_path,
+):
+    """The member directory names a distribution that isn't installed: the refusal names it.
+
+    It names the console script's distribution it looked for, and no install command (an
+    unseen project may use any installer).
+    """
+    recording = member_recording_path(tmp_path=tmp_path, distribution='never-installed-game')
+
+    with pytest.raises(KeyError) as refused:
+        recording_console_script(path=recording)
+
+    message = refused.value.args[0]
+    assert "a console script of 'never-installed-game'" in message
+    assert 'no distribution of that name is installed' in message
+    assert 'uv sync' not in message
+
+
+def test_children_import_without_pytest():
+    """children.py imports in a child where importing pytest fails (it is in the dev extra)."""
+    check = (
+        'import sys; '
+        "sys.modules['pytest'] = None; "
+        'import glitchygames.replay.tools.children, glitchygames.replay.tools.identity, '
+        'glitchygames.replay.tools.settings; '
+        "print('imported')"
+    )
+
+    finished = run_command(
+        command=[sys.executable, '-c', check],
+        environment=os.environ,
+        timeout_seconds=CHILD_TIMEOUT_SECONDS,
+        capture_output=True,
+    )
+
+    assert finished.returncode == ExitCode.SUCCESS, finished.stdout
+    assert finished.stdout.splitlines()[-1] == 'imported'
 
 
 def test_a_recording_whose_fixtures_are_not_under_tests_is_refused(tmp_path):

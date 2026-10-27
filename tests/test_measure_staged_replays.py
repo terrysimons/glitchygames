@@ -18,11 +18,11 @@ from scripts import measure_staged_replays
 from scripts.measure_staged_replays import measure_staged
 from scripts.replay_metrics import metric_recordings, recording_ledger_name
 
-from glitchygames.code_tree import LEDGER_DIRECTORY, staged_code_tree
+from glitchygames.code_tree import staged_code_tree
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_metrics import read_row_files, write_row_files
 from tests.stand_in_games import write_stand_in_distribution, write_stand_in_package
-from tests.test_code_tree import git, write
+from tests.test_code_tree import LEDGER_DIRECTORY, PATHS, git, write
 from tests.test_recording_metrics import ledger_row
 
 if TYPE_CHECKING:
@@ -178,7 +178,7 @@ def test_a_code_commit_is_measured_and_its_rows_staged_with_it(mocker, repositor
     """The staged code tree is measured; its row file joins the commit."""
     measure = stand_in_measurement(mocker, repository=repository)
     write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 2\n')
-    tree = staged_code_tree(repository=repository)
+    tree = staged_code_tree(repository=repository, paths=PATHS)
 
     assert run_hook(repository=repository) == ExitCode.SUCCESS
 

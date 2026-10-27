@@ -190,8 +190,9 @@ any tool's configuration.
   - `_package_data.py`: the member's shipped data (a sprite library, a bundled demo) is inside the
     package, checked without building a wheel (`_wheel.py` is for the tests that build one);
   - `_entry_points.py`: the console script and `python -m <package>` resolve to `main`;
-  - `_recording_history.py`: the golden's old path maps to its new one in
-    `RECORDING_PATH_RENAMES` (its history follows it), and so does every other moved recording.
+  - `_recording_history.py`: the golden's old path maps to its new one in the root
+    `pyproject.toml`'s `[tool.glitchygames]` `recording-renames` (its history follows it), and so
+    does every other moved recording.
 
   That is six subjects: logical_names, install_location, wheel, package_data, entry_points,
   recording_history. A move test outside them goes beside the member's other tests, named for its
@@ -213,9 +214,9 @@ any tool's configuration.
 - `src/glitchygames/logical_names.py`: add its package to `MEMBER_LAYERS`.
   Its recordings need nothing else (their logical names do not change); `tests/test_logical_names.py`
   pins both tables.
-- `src/glitchygames/recording_metrics.py` `RECORDING_PATH_RENAMES`: one line per moved recording, old
-  path to new, so its run-ledger history stays connected. Each lookup is one step: a recording
-  that has already moved once needs a line from each of its old paths.
+- The root `pyproject.toml`'s `[tool.glitchygames.recording-renames]`: one line per moved
+  recording, old path to new, so its run-ledger history stays connected. Each lookup is one
+  step: a recording that has already moved once needs a line from each of its old paths.
 
 ### 5. Update the scripts and tests that name it
 
@@ -273,7 +274,7 @@ any tool's configuration.
   ```
 
   (grep's `.` matches any character, so the dotted pattern finds the slashed path too) prints
-  only the `RECORDING_PATH_RENAMES` line (the old path is its point) and the member's move tests
+  only the `recording-renames` line (the old path is its point) and the member's move tests
   (the history check on that line in `_recording_history.py`, the old-package check and docstring
   in `_install_location.py`).
   `plans/`, `quality/` (ledger rows) and `BUGS.md` are history and keep the old paths.
@@ -384,7 +385,7 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
   the demos are found in the repository and the ledger names them by repository path; under a
   built install (`site-packages`, as nox's test sessions install on purpose) a recording outside
   the repository is named by its install name (`scripts/replay_metrics.py`
-  `recording_ledger_name`). A demo moved twice needs a `RECORDING_PATH_RENAMES` line from each
+  `recording_ledger_name`). A demo moved twice needs a `recording-renames` line from each
   old path.
 - **Engine-private names**: a member uses only the engine's public API. Where a game reaches
   into the engine, give the engine a public read-only API first, then move the game. PaddleSlap

@@ -4,8 +4,9 @@
 Design: plans/2026-10-23-recording-metrics-1-frame-performance-history.md (Part 1 of
 plans/2026-10-23-recording-metrics.md). The run ledger keeps one row per recording per run
 (``glitchygames.recording_metrics.LedgerRow``) beyond the ten runs a recording holds. It is
-published with the docs site, on the gh-pages branch (``PUBLISHED_LEDGER_PATH``); rows measured
-here wait in ``PENDING_LEDGER_PATH`` (gitignored) until a deploy publishes them.
+published with the docs site, on the gh-pages branch (``[tool.glitchygames]`` ``published-ledger``);
+rows measured here wait in ``PENDING_LEDGER_PATH`` (``pending-ledger``, gitignored) until a deploy
+publishes them.
 
 ``measure`` (``nox -s replay-metrics``; ``nox -s docs-deploy`` runs it first):
 
@@ -25,9 +26,10 @@ here wait in ``PENDING_LEDGER_PATH`` (gitignored) until a deploy publishes them.
    then each run the recording held, unless already in the ledger) to the pending file. A run the
    recording held is written (to the pending file, or with ``--rows-directory``, the
    pre-commit hook, as row files) only if it landed (``rows_to_write``: measured on a commit that is
-   on ``origin/main``, without uncommitted changes; none at all without an ``origin/main``,
-   said once). "Already in the ledger" compares rows with a moved recording's old path resolved
-   to its new one (``LedgerRow.held_key``).
+   on ``origin/main``, the project's ``landed-ref``, without uncommitted changes; none at all
+   without an ``origin/main``, said once). "Already in the ledger" compares rows with a moved
+   recording's old path resolved to its new one (``LedgerRow.held_key``, by the project's
+   ``recording-renames``).
 
 The children must run this checkout's package (an editable install, as ``uv run`` gives), or
 they cannot name their commit: a row whose commit is not the checkout's is a failure.
@@ -43,8 +45,8 @@ Usage (a module: it imports scripts.workspace_packages):
 Exit codes: ``SUCCESS``; ``OPTIONS_REFUSED`` for an unknown commit or uncommitted changes;
 ``INTERNAL_ERROR`` when a recording could not be measured (the others are still measured),
 a golden replay no installed console script replays included: a workspace member that is not
-installed is reported on one line naming the fix, ``uv sync --all-packages``
-(``metric_recordings``' ``unreplayable``).
+installed is reported on one line naming the distribution it looked for (``uv sync
+--all-packages`` installs every member; ``metric_recordings``' ``unreplayable``).
 """
 
 from __future__ import annotations
@@ -63,12 +65,11 @@ from glitchygames.build_info import (
     source_revision,
 )
 from glitchygames.bundled_demos import bundled_demos
-from glitchygames.code_tree import commit_is_on_origin_main, origin_main_exists
+from glitchygames.code_tree import commit_has_landed, landed_ref_exists
 from glitchygames.exit_codes import ExitCode
 from glitchygames.logical_names import MEMBER_LAYERS
 from glitchygames.machine_state import current_machine_state
 from glitchygames.recording_metrics import (
-    PENDING_LEDGER_RELATIVE_PATH,
     is_measured,
     ledger_rows_from_rebaseline,
     ledger_text,
@@ -84,6 +85,7 @@ from glitchygames.replay.tools.children import (
     rebaseline_recording_headless,
     recording_console_script,
 )
+from glitchygames.replay.tools.settings import load_project_settings
 from glitchygames.tracing import is_bookmarked_copy, read_trace
 from scripts.workspace_packages import workspace_members
 
@@ -93,7 +95,9 @@ if TYPE_CHECKING:
     from glitchygames.recording_metrics import LedgerRow
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PENDING_LEDGER_PATH = PROJECT_ROOT / PENDING_LEDGER_RELATIVE_PATH
+# This repository's [tool.glitchygames]: the ledgers, the landed ref and the moved recordings
+PROJECT_SETTINGS = load_project_settings(project_root=PROJECT_ROOT)
+PENDING_LEDGER_PATH = PROJECT_ROOT / PROJECT_SETTINGS.pending_ledger
 # A golden replay's file name, in either layout: golden.jsonl.gz, or one golden-<game>.jsonl.gz
 # per game in a project with several (Brave Adventurer's golden-classic and golden-papyrus;
 # docs/architecture/game_packages.md). A bookmarked copy (golden-classic.bookmarked.jsonl.gz)
@@ -457,10 +461,11 @@ def rows_to_write(
 
     The newest run (``rows[0]``, the one just measured) is written unless held. A history row (a
     run the recording held) is written only when no row holds it, and its run was measured on a
-    commit that is on ``origin/main`` with no uncommitted changes: a run of code that never
-    landed would be published unconditionally (it names no code tree). With no ``origin/main``
-    to compare with, none is written. "Held" compares keys with the recording at its current
-    path (``LedgerRow.held_key``), so a moved recording's earlier runs are not written again.
+    commit that is on ``origin/main`` (this repository's ``landed-ref``) with no uncommitted
+    changes: a run of code that never landed would be published unconditionally (it names no
+    code tree). With no ``origin/main`` to compare with, none is written. "Held" compares keys
+    with the recording at its current path (``LedgerRow.held_key`` with this repository's
+    ``recording-renames``), so a moved recording's earlier runs are not written again.
 
     Args:
         rows: The recording's rows, newest first (``ledger_rows_from_rebaseline``).
@@ -472,16 +477,19 @@ def rows_to_write(
         The rows to write, in order.
 
     """
+    renames = PROJECT_SETTINGS.recording_renames
     newest, *history = rows
-    written = [] if newest.held_key in held_keys else [newest]
+    written = [] if newest.held_key(recording_renames=renames) in held_keys else [newest]
     for row in history:
         commit = row.commit
         if (
-            row.held_key in held_keys
+            row.held_key(recording_renames=renames) in held_keys
             or not origin_main_present
             or commit is None
             or row.measured_uncommitted_changes
-            or not commit_is_on_origin_main(repository=repository, commit=commit)
+            or not commit_has_landed(
+                repository=repository, commit=commit, landed_ref=PROJECT_SETTINGS.landed_ref
+            )
         ):
             continue
         written.append(row)
@@ -497,7 +505,7 @@ def _origin_main_present(*, settings: MeasureSettings) -> bool:
         True when ``origin/main`` exists.
 
     """
-    if origin_main_exists(repository=settings.project_root):
+    if landed_ref_exists(repository=settings.project_root, landed_ref=PROJECT_SETTINGS.landed_ref):
         return True
     sys.stdout.write(
         'No origin/main in this repository: no history rows written (earlier runs count as '
@@ -614,7 +622,10 @@ def measure(
             new_rows = _write_new_rows(
                 settings=settings,
                 rows=rows,
-                held_keys={row.held_key for row in known},
+                held_keys={
+                    row.held_key(recording_renames=PROJECT_SETTINGS.recording_renames)
+                    for row in known
+                },
                 origin_main_present=origin_main_present,
             )
             known.extend(new_rows)
@@ -727,7 +738,9 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
 
     """
     options = parse_arguments(arguments)
-    published_text = published_ledger_text(project_root=PROJECT_ROOT)
+    published_text = published_ledger_text(
+        project_root=PROJECT_ROOT, published_ledger=PROJECT_SETTINGS.published_ledger
+    )
     if options.command == 'clear-published':
         clear_published(pending_path=options.pending, published_text=published_text)
         return ExitCode.SUCCESS

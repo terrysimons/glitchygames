@@ -1,17 +1,22 @@
 """The code a replay measurement measured: a git tree of only what can change the replays.
 
-A measured row (``quality/replay-ledger/``, plans/2026-10-25-measured-rows-in-the-repository.md)
+A measured row (the project's ledger directory, plans/2026-10-25-measured-rows-in-the-repository.md)
 names the code it measured by tree, not by commit: the measuring pre-commit hook runs before its
 commit exists, an amend or a squash merge gives the same code another commit, but the tree of
-the code stays the same. The tree holds only ``MEASURED_PATHS`` (``src/``: the engine, games,
-demos and apps; the recordings, the locked dependencies and the project configuration), less the
-workspace members' tests (``src/<layer>/<member>/tests/``, ``is_measured_path``), but for their
-recordings (``tests/fixtures/replays/`` there, as at the root): a later docs, plans or tests
-commit leaves it unchanged, so the last measured tree is still the one that lands on main, and
-the ledger's own rows never change the tree they name.
+the code stays the same. The tree holds only the project's measured paths (``CodeTreePaths``:
+``[tool.glitchygames]`` ``measured-paths``; ours are ``src/``, the engine, games, demos and apps;
+the recordings, the locked dependencies and the project configuration), less its unmeasured paths
+(``unmeasured-paths``; ours are the workspace members' tests, ``src/<layer>/<member>/tests/``, but
+for their recordings, ``tests/fixtures/replays/`` there, as at the root): a later docs, plans or
+tests commit leaves it unchanged, so the last measured tree is still the one that lands on main,
+and the ledger's own rows never change the tree they name.
 
-Both functions work on a temporary index (``GIT_INDEX_FILE``), so the real one, and with it
+Both are git pathspecs, read by git itself (``git rm``, ``git ls-files``), so their magic
+(``:(glob)``, ``:(exclude)``) means what git says it means.
+
+The tree functions work on a temporary index (``GIT_INDEX_FILE``), so the real one, and with it
 whatever is staged, is never touched. A failing git command raises ``RuntimeError`` naming it.
+Which commits count as landed is the project's ``landed-ref`` (ours: ``origin/main``).
 """
 
 from __future__ import annotations
@@ -23,29 +28,24 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.logical_names import LAYERS
 from glitchygames.process import run_command
 
-# Where the measured rows live (not a measured path, so never part of a code tree)
-LEDGER_DIRECTORY = 'quality/replay-ledger'
-# What can change how the golden replays run: the only paths a code tree holds. src/ holds the
-# engine and every workspace member (games, demos, apps: plans/2026-10-24-workspace-packages.md)
-MEASURED_PATHS = (
-    'src',
-    'tests/fixtures/replays',
-    'uv.lock',
-    'pyproject.toml',
-)
-# Under src/, a workspace member's tests (src/<layer>/<member>/tests/) are not measured, but
-# for its recordings there (the root's tests/ is outside MEASURED_PATHS; its
-# tests/fixtures/replays is in)
-MEMBER_TESTS_DIRECTORY = 'tests'
-# A member's directory is src/<layer>/<member>: three path parts
-MEMBER_PATH_DEPTH = 3
-MEMBER_RECORDINGS_DIRECTORY = 'tests/fixtures/replays'
 GIT_TIMEOUT_SECONDS = 60.0
-# The branch whose commits count as landed (the remote-tracking ref of the shared main)
-ORIGIN_MAIN = 'origin/main'
+
+
+class CodeTreePaths(BaseModel):
+    """What a code tree holds: git pathspecs, relative to the repository.
+
+    Attributes:
+        measured: The paths a code tree holds (``[tool.glitchygames]`` ``measured-paths``).
+        unmeasured: The paths left out of them (``unmeasured-paths``; none by default).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    measured: tuple[str, ...]
+    unmeasured: tuple[str, ...] = ()
 
 
 def run_git(*, repository: Path, arguments: list[str], index_file: Path | None = None) -> str:
@@ -75,59 +75,41 @@ def run_git(*, repository: Path, arguments: list[str], index_file: Path | None =
     return completed.stdout.strip()
 
 
-def is_measured_path(*, path: str) -> bool:
-    """Return whether a repository path is part of a code tree.
+def untracked_measured_files(*, repository: Path, paths: CodeTreePaths) -> list[str]:
+    """Return the untracked (not ignored) files a code tree of the working tree would hold.
+
+    git lists the untracked files under the measured paths, and those under the unmeasured ones
+    are left out, so the pathspecs mean exactly what they mean to the tree functions.
 
     Args:
-        path: A repository-relative path, ``/``-separated.
+        repository: The repository's working directory.
+        paths: What a code tree holds.
 
     Returns:
-        True when it is under ``MEASURED_PATHS`` and not a workspace member's test (a member's
-        ``tests/fixtures/replays/`` is measured).
+        Their repository-relative paths, ``/``-separated, in git's order.
 
     """
-    parts = path.split('/')
-    if not any(
-        parts[: len(measured.split('/'))] == measured.split('/') for measured in MEASURED_PATHS
-    ):
-        return False
-    # src/<layer>/<member>/: what follows is the path inside the member
-    member_prefix, inside_member = parts[:MEMBER_PATH_DEPTH], parts[MEMBER_PATH_DEPTH:]
-    is_in_member = (
-        len(member_prefix) == MEMBER_PATH_DEPTH
-        and member_prefix[0] == 'src'
-        and member_prefix[1] in LAYERS
+    untracked = ['ls-files', '--others', '--exclude-standard', '--']
+    measured = run_git(repository=repository, arguments=[*untracked, *paths.measured])
+    unmeasured: set[str] = (
+        set(run_git(repository=repository, arguments=[*untracked, *paths.unmeasured]).splitlines())
+        if paths.unmeasured
+        else set()
     )
-    tests_parts = MEMBER_TESTS_DIRECTORY.split('/')
-    recordings_parts = MEMBER_RECORDINGS_DIRECTORY.split('/')
-    is_member_test = is_in_member and inside_member[: len(tests_parts)] == tests_parts
-    return not is_member_test or inside_member[: len(recordings_parts)] == recordings_parts
+    return [line for line in measured.splitlines() if line and line not in unmeasured]
 
 
-def unmeasured_member_test_pathspecs() -> list[str]:
-    """Return git pathspecs of the workspace members' tests, less their recordings.
-
-    Returns:
-        ``is_measured_path``'s member exclusion as git pathspecs (glob magic).
-
-    """
-    return [
-        *(f':(glob)src/{layer}/*/{MEMBER_TESTS_DIRECTORY}/**' for layer in LAYERS),
-        *(f':(exclude,glob)src/{layer}/*/{MEMBER_RECORDINGS_DIRECTORY}/**' for layer in LAYERS),
-    ]
-
-
-def _measured_tree(*, repository: Path, index_file: Path) -> str:
+def _measured_tree(*, repository: Path, index_file: Path, paths: CodeTreePaths) -> str:
     """Drop all but the measured paths from a temporary index and return the index's tree.
 
-    ``MEASURED_PATHS`` are kept, then the members' tests dropped, but for their recordings
-    (``is_measured_path``).
+    The measured paths are kept, then the unmeasured ones dropped (ours: the members' tests,
+    but for their recordings).
 
     Returns:
         The tree hash.
 
     """
-    kept = [f':(exclude){path}' for path in MEASURED_PATHS]
+    kept = [f':(exclude){path}' for path in paths.measured]
     # --force: git rm refuses a file whose staged content differs from both the working tree
     # and HEAD (a partly staged edit); only this temporary index is changed, never a file
     run_git(
@@ -145,28 +127,31 @@ def _measured_tree(*, repository: Path, index_file: Path) -> str:
         ],
         index_file=index_file,
     )
-    run_git(
-        repository=repository,
-        arguments=[
-            'rm',
-            '-r',
-            '--cached',
-            '--force',
-            '--ignore-unmatch',
-            '--quiet',
-            '--',
-            *unmeasured_member_test_pathspecs(),
-        ],
-        index_file=index_file,
-    )
+    # git rm with no pathspec is refused ("No pathspec was given"): nothing to drop then
+    if paths.unmeasured:
+        run_git(
+            repository=repository,
+            arguments=[
+                'rm',
+                '-r',
+                '--cached',
+                '--force',
+                '--ignore-unmatch',
+                '--quiet',
+                '--',
+                *paths.unmeasured,
+            ],
+            index_file=index_file,
+        )
     return run_git(repository=repository, arguments=['write-tree'], index_file=index_file)
 
 
-def staged_code_tree(*, repository: Path) -> str:
+def staged_code_tree(*, repository: Path, paths: CodeTreePaths) -> str:
     """Return the code tree of what is staged (the measured paths the next commit will hold).
 
     Args:
         repository: The repository's working directory.
+        paths: What a code tree holds.
 
     Returns:
         The tree hash.
@@ -182,15 +167,16 @@ def staged_code_tree(*, repository: Path) -> str:
         index_file = Path(directory_name) / 'index'
         if real_index.exists():
             shutil.copyfile(real_index, index_file)
-        return _measured_tree(repository=repository, index_file=index_file)
+        return _measured_tree(repository=repository, index_file=index_file, paths=paths)
 
 
-def commit_code_tree(*, repository: Path, commit: str) -> str:
+def commit_code_tree(*, repository: Path, commit: str, paths: CodeTreePaths) -> str:
     """Return the code tree of a commit (its measured paths).
 
     Args:
         repository: The repository's working directory.
         commit: Any commit-ish (``HEAD``, a hash, ``origin/main``).
+        paths: What a code tree holds.
 
     Returns:
         The tree hash.
@@ -199,7 +185,7 @@ def commit_code_tree(*, repository: Path, commit: str) -> str:
     with tempfile.TemporaryDirectory(prefix='code-tree-') as directory_name:
         index_file = Path(directory_name) / 'index'
         run_git(repository=repository, arguments=['read-tree', commit], index_file=index_file)
-        return _measured_tree(repository=repository, index_file=index_file)
+        return _measured_tree(repository=repository, index_file=index_file, paths=paths)
 
 
 class LandedCommit(BaseModel):
@@ -217,7 +203,9 @@ class LandedCommit(BaseModel):
     committed_at: str
 
 
-def landed_code_trees(*, repository: Path, revision: str = 'HEAD') -> dict[str, LandedCommit]:
+def landed_code_trees(
+    *, repository: Path, ledger_directory: str, paths: CodeTreePaths, revision: str = 'HEAD'
+) -> dict[str, LandedCommit]:
     """Return each code tree that landed, with the first commit it landed in.
 
     A row lands with the commit that adds its file (on main: the squash merge); the code it
@@ -228,6 +216,9 @@ def landed_code_trees(*, repository: Path, revision: str = 'HEAD') -> dict[str, 
 
     Args:
         repository: The repository's working directory.
+        ledger_directory: Where the row files are, relative to the repository
+            (``[tool.glitchygames]`` ``ledger-directory``).
+        paths: What a code tree holds.
         revision: Whose history (``HEAD``: the checkout's).
 
     Returns:
@@ -236,12 +227,12 @@ def landed_code_trees(*, repository: Path, revision: str = 'HEAD') -> dict[str, 
     """
     output = run_git(
         repository=repository,
-        arguments=['log', '--format=%H %cI', '--diff-filter=A', revision, '--', LEDGER_DIRECTORY],
+        arguments=['log', '--format=%H %cI', '--diff-filter=A', revision, '--', ledger_directory],
     )
     landed: dict[str, LandedCommit] = {}
     for line in reversed(output.splitlines()):
         commit, committed_at = line.split(' ', maxsplit=1)
-        tree = commit_code_tree(repository=repository, commit=commit)
+        tree = commit_code_tree(repository=repository, commit=commit, paths=paths)
         landed.setdefault(tree, LandedCommit(commit=commit, committed_at=committed_at))
     return landed
 
@@ -263,24 +254,25 @@ def _git_succeeds(*, repository: Path, arguments: list[str]) -> bool:
     return completed.returncode == 0
 
 
-def origin_main_exists(*, repository: Path) -> bool:
-    """Return whether the repository has the ``origin/main`` ref (a fresh clone may lack it).
+def landed_ref_exists(*, repository: Path, landed_ref: str) -> bool:
+    """Return whether the repository has the landed ref (a fresh clone may lack ``origin/main``).
 
     Args:
         repository: The repository's working directory.
+        landed_ref: The ref whose commits count as landed (``[tool.glitchygames]`` ``landed-ref``).
 
     Returns:
-        True when ``origin/main`` resolves to a commit.
+        True when the ref resolves to a commit.
 
     """
     return _git_succeeds(
         repository=repository,
-        arguments=['rev-parse', '--verify', '--quiet', f'{ORIGIN_MAIN}^{{commit}}'],
+        arguments=['rev-parse', '--verify', '--quiet', f'{landed_ref}^{{commit}}'],
     )
 
 
-def commit_is_on_origin_main(*, repository: Path, commit: str) -> bool:
-    """Return whether a commit is ``origin/main`` or one of its ancestors (it has landed).
+def commit_has_landed(*, repository: Path, commit: str, landed_ref: str) -> bool:
+    """Return whether a commit is the landed ref or one of its ancestors.
 
     ``git merge-base --is-ancestor`` exits 1 for "not an ancestor" and 128 for a commit or ref
     this repository does not have; neither has landed here, so both answer False.
@@ -288,11 +280,12 @@ def commit_is_on_origin_main(*, repository: Path, commit: str) -> bool:
     Args:
         repository: The repository's working directory.
         commit: The full commit hash.
+        landed_ref: The ref whose commits count as landed (``[tool.glitchygames]`` ``landed-ref``).
 
     Returns:
-        True when the commit is on ``origin/main``.
+        True when the commit is on the landed ref.
 
     """
     return _git_succeeds(
-        repository=repository, arguments=['merge-base', '--is-ancestor', commit, ORIGIN_MAIN]
+        repository=repository, arguments=['merge-base', '--is-ancestor', commit, landed_ref]
     )

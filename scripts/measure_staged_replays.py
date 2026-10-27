@@ -45,19 +45,16 @@ import os
 import sys
 from pathlib import Path
 
-from glitchygames.code_tree import (
-    LEDGER_DIRECTORY,
-    MEASURED_PATHS,
-    is_measured_path,
-    run_git,
-    staged_code_tree,
-)
+from glitchygames.code_tree import run_git, staged_code_tree, untracked_measured_files
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_metrics import ROW_FILE_SUFFIX, ROW_FILE_TREE_CHARACTERS, read_row_files
+from glitchygames.replay.tools.settings import load_project_settings
 from scripts import replay_metrics
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-ROWS_DIRECTORY = PROJECT_ROOT / LEDGER_DIRECTORY
+# This repository's [tool.glitchygames]: what a code tree holds, where the rows are
+PROJECT_SETTINGS = load_project_settings(project_root=PROJECT_ROOT)
+ROWS_DIRECTORY = PROJECT_ROOT / PROJECT_SETTINGS.ledger_directory
 # The temporary index git commits through for ``git commit <path>`` (a partial commit)
 PARTIAL_COMMIT_INDEX_PREFIX = 'next-index'
 
@@ -113,20 +110,6 @@ def _fully_measured_here(
     )
 
 
-def _untracked_measured_files(*, repository: Path) -> list[str]:
-    """Return untracked (not ignored) files under the measured paths.
-
-    Returns:
-        Their repository-relative paths (``is_measured_path``: not a member's tests).
-
-    """
-    output = run_git(
-        repository=repository,
-        arguments=['ls-files', '--others', '--exclude-standard', '--', *MEASURED_PATHS],
-    )
-    return [line for line in output.splitlines() if line and is_measured_path(path=line)]
-
-
 def _is_partial_commit() -> bool:
     """Return whether git is making a partial commit (``git commit <path>``, ``--only``).
 
@@ -157,7 +140,7 @@ def measure_staged(*, repository: Path, rows_directory: Path, machine: str) -> i
         (untracked measured files, a partial commit); or the measurement's failure code.
 
     """
-    code_tree = staged_code_tree(repository=repository)
+    code_tree = staged_code_tree(repository=repository, paths=PROJECT_SETTINGS.code_tree_paths)
     if _fully_measured_here(
         repository=repository,
         rows_directory=rows_directory,
@@ -178,7 +161,10 @@ def measure_staged(*, repository: Path, rows_directory: Path, machine: str) -> i
             'SKIP=replay-metrics git commit ...\n'
         )
         return ExitCode.OPTIONS_REFUSED
-    untracked = _untracked_measured_files(repository=repository)
+    # Untracked files under the measured paths, less the unmeasured ones (a member's tests)
+    untracked = untracked_measured_files(
+        repository=repository, paths=PROJECT_SETTINGS.code_tree_paths
+    )
     if untracked:
         sys.stderr.write(
             'replay-metrics: untracked files would be measured though not committed; add them '

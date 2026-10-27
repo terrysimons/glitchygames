@@ -44,11 +44,9 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.code_tree import LEDGER_DIRECTORY, landed_code_trees
+from glitchygames.code_tree import landed_code_trees
 from glitchygames.recording_metrics import (
     MILLISECONDS_PER_SECOND,
-    PENDING_LEDGER_RELATIVE_PATH,
-    PUBLISHED_LEDGER_PATH,
     FrameProfile,
     LedgerRow,
     PerformanceSeries,
@@ -63,6 +61,7 @@ from glitchygames.recording_metrics import (
     read_row_files,
     short_commit,
 )
+from glitchygames.replay.tools.settings import load_project_settings
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -70,10 +69,15 @@ if TYPE_CHECKING:
 LOG = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# This repository's [tool.glitchygames]: the ledgers, what a code tree holds, the moved recordings
+PROJECT_SETTINGS = load_project_settings(project_root=PROJECT_ROOT)
+# Where the deploy publishes the ledger on gh-pages (our published-ledger's path)
+PUBLISHED_LEDGER_PATH = PROJECT_SETTINGS.published_ledger_path
+assert PUBLISHED_LEDGER_PATH is not None, 'this repository publishes its ledger (pyproject.toml)'
 # docs/<the published ledger's directory>: the deploy publishes it at PUBLISHED_LEDGER_PATH
 METRICS_DIR = PROJECT_ROOT / 'docs' / Path(PUBLISHED_LEDGER_PATH).parent
 LEDGER_NAME = Path(PUBLISHED_LEDGER_PATH).name
-PENDING_LEDGER_PATH = PROJECT_ROOT / PENDING_LEDGER_RELATIVE_PATH
+PENDING_LEDGER_PATH = PROJECT_ROOT / PROJECT_SETTINGS.pending_ledger
 SNIPPET_NAME = 'performance_graphs.md'
 GRAPH_PAGE_SUFFIX = '.html'
 # The plotly.js the complexity graphs load (plotly 5.24.1 writes plotly.js 2.35.2), on jsDelivr
@@ -576,23 +580,33 @@ def generate_performance_page(
         What was generated.
 
     """
-    repository = read_row_files(directory=project_root / LEDGER_DIRECTORY)
+    repository = read_row_files(directory=project_root / PROJECT_SETTINGS.ledger_directory)
     landed = (
         # Only when there are rows: a project without any needs no git
         landed_rows(
             rows=repository,
-            landed=landed_code_trees(repository=project_root),
+            landed=landed_code_trees(
+                repository=project_root,
+                ledger_directory=PROJECT_SETTINGS.ledger_directory,
+                paths=PROJECT_SETTINGS.code_tree_paths,
+            ),
             keep_unlanded=include_uncommitted_changes,
         )
         if repository
         else []
     )
-    published = parse_ledger(text=published_ledger_text(project_root=project_root))
+    published = parse_ledger(
+        text=published_ledger_text(
+            project_root=project_root, published_ledger=PROJECT_SETTINGS.published_ledger
+        )
+    )
     pending = read_ledger_file(path=pending_path)
     rows = merge_ledgers(ledgers=[landed, published.rows, pending.rows])
     if not include_uncommitted_changes:
         rows = publishable_rows(rows=rows)
-    series_list = performance_series(rows=rows)
+    series_list = performance_series(
+        rows=rows, recording_renames=PROJECT_SETTINGS.recording_renames
+    )
     by_recording: dict[str, list[PerformanceSeries]] = {}
     for series in series_list:
         by_recording.setdefault(series.recording, []).append(series)

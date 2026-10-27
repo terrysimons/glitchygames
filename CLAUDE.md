@@ -502,7 +502,15 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   An option may be listed under several tools but is one game flag (`--headless`: record-trace's
   and replay-trace's; record-trace also lists `--random-seed`). Two tool flags at once are
   refused, and a tool that runs no game must have a game handler. The general flags no tool
-  lists (`--resolution`, ...) stay in `GameEngine.args`
+  lists (`--resolution`, ...) stay in `GameEngine.args`. A project's settings for the tools are
+  `[tool.glitchygames]` in its `pyproject.toml` (`settings.py`: `load_project_settings(*,
+  project_root)` -> `ProjectSettings`, kebab-case keys, unknown keys refused by name, defaults
+  for a project without the table); ours, in the root `pyproject.toml`, hold what were the
+  constants of `code_tree.py` and `recording_metrics.py` (`ledger-directory`, `measured-paths`,
+  `unmeasured-paths`, `landed-ref`, `pending-ledger`, `published-ledger` as `REF:PATH`,
+  `recording-renames`), which those modules now take as arguments. A game's identity comes from
+  its scene class alone (`identity.py`: `game_identity(*, game)` -> `GameIdentity` with its
+  package, package directory, console script and distribution, each None when not found)
 - Scene starts (`src/glitchygames/scene_start.py`, a leaf: scenes never import the replay package;
   Part 3 Task 1): while the active doors' `captures_scene_starts` is True (`--record-trace` runs
   from their start, `--rebaseline`, the playback scope) or the class sets
@@ -753,9 +761,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `plans/2026-10-25-measured-rows-in-the-repository.md`): the `replay-metrics` pre-commit hook
   (`scripts/measure_staged_replays.py`, its docstring the rules; installed by `.envrc` when
   missing) measures every golden replay and bundled demo when this machine has no rows for the
-  staged code tree (`src/glitchygames/code_tree.py`: a git tree of only `MEASURED_PATHS`,
-  `src/` (the engine, games, demos, apps; less the members' `tests/` but for their
-  `tests/fixtures/replays/`: `is_measured_path`), recordings, `uv.lock`, `pyproject.toml`), so
+  staged code tree (`src/glitchygames/code_tree.py`: a git tree of only the root
+  `pyproject.toml`'s `[tool.glitchygames]` `measured-paths`, `src/` (the engine, games, demos,
+  apps; less its `unmeasured-paths`, the members' `tests/` but for their
+  `tests/fixtures/replays/`), recordings, `uv.lock`, `pyproject.toml`), so
   code that arrived by
   a merge or rebase is measured by the next commit, and stages the rows, each naming that code
   tree (`LedgerRow.code_tree`), into the same commit, plus the `history-...` row files it wrote

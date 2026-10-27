@@ -21,8 +21,11 @@ Every comparison is between adjacent runs of one recording: newer run ``i`` and 
 
 The run ledger holds one ``LedgerRow`` per recording per run, beyond the
 ``MEASUREMENT_RUNS_HISTORY_DEPTH`` runs a recording keeps: JSON Lines (``ledger_text``,
-``parse_ledger``), published on the docs site's gh-pages branch, deduplicated by ``LedgerRow.key``
-(``merge_ledgers``) and graphed per recording, machine and pacing (``performance_series``).
+``parse_ledger``), published where the project's ``[tool.glitchygames]`` ``published-ledger`` says
+(ours: the docs site's gh-pages branch), deduplicated by ``LedgerRow.key`` (``merge_ledgers``)
+and graphed per recording, machine and pacing (``performance_series``). Where the ledger lives
+and which recordings moved are the project's settings (glitchygames/replay/tools/settings.py),
+passed in by the caller: this module reads no project file.
 """
 
 from __future__ import annotations
@@ -34,7 +37,6 @@ import os
 import re
 from datetime import UTC, datetime
 from enum import StrEnum
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, cast
 
 from pydantic import BaseModel, ConfigDict
@@ -54,6 +56,7 @@ from glitchygames.tracing import FRAMES_FIELD
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
+    from pathlib import Path
 
     from glitchygames.code_tree import LandedCommit
 
@@ -73,46 +76,7 @@ DEFAULT_MINIMUM_CHANGE_SECONDS = 0.0002
 SHORT_COMMIT_DIGITS = 7
 UNKNOWN_COMMIT = 'commit unknown'
 MILLISECONDS_PER_SECOND = 1000.0
-# Where the docs site publishes the ledger: docs/<this> in the docs tree, <this> on gh-pages
-PUBLISHED_LEDGER_PATH = 'quality/metrics/replay-ledger.jsonl'
-PUBLISHED_LEDGER_REF = 'origin/gh-pages'
-# Where measured rows wait for a deploy to publish them, relative to the repository (gitignored)
-PENDING_LEDGER_RELATIVE_PATH = Path('test-results') / 'replay-metrics' / 'pending.jsonl'
 GIT_TIMEOUT_SECONDS = 30.0
-# Recordings that moved, old repository path -> new: their ledger rows from before the move are
-# the same series (performance_series groups by the new path), so a recording's history
-# continues across its move (plans/2026-10-24-workspace-packages.md)
-RECORDING_PATH_RENAMES: dict[str, str] = {
-    # The rally demo moved three times (into src/, into its member, then under the member's
-    # src/): a line from each old path, every one straight to the final path
-    'glitchygames/examples/paddleslap_demos/rally.jsonl.gz': (
-        'src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz'
-    ),
-    'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz': (
-        'src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz'
-    ),
-    'src/games/paddleslap/paddleslap/demos/rally.jsonl.gz': (
-        'src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz'
-    ),
-    'tests/fixtures/replays/mr-muncher/golden.jsonl.gz': (
-        'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz'
-    ),
-    'tests/fixtures/replays/brave-adventurer/golden.jsonl.gz': (
-        'src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz'
-    ),
-    'tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz': (
-        'src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz'
-    ),
-    'tests/fixtures/replays/clockwork-keep/golden.jsonl.gz': (
-        'src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz'
-    ),
-    'tests/fixtures/replays/paddleslap/golden.jsonl.gz': (
-        'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
-    ),
-    'tests/fixtures/replays/drawing-fire/golden.jsonl.gz': (
-        'src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz'
-    ),
-}
 
 
 def short_commit(*, run: MeasurementRun | None) -> str | None:
@@ -775,14 +739,21 @@ class LedgerRow(BaseModel):
         """The row's identity: the recording, when the run measured and on which machine."""
         return f'{self.recording}|{self.run.measured_at}|{self.run.machine}'
 
-    @property
-    def held_key(self: Self) -> str:
-        """The row's identity with its recording at its current path (``RECORDING_PATH_RENAMES``).
+    def held_key(self: Self, *, recording_renames: Mapping[str, str]) -> str:
+        """Return the row's identity with its recording at its current path.
 
         A moved recording's earlier runs are the same runs under either path, so "already held"
         compares these, not ``key``.
+
+        Args:
+            recording_renames: Recordings that moved, old repository path -> new
+                (``[tool.glitchygames]`` ``recording-renames``).
+
+        Returns:
+            The recording at its current path, when the run measured and on which machine.
+
         """
-        recording = RECORDING_PATH_RENAMES.get(self.recording, self.recording)
+        recording = recording_renames.get(self.recording, self.recording)
         return f'{recording}|{self.run.measured_at}|{self.run.machine}'
 
     @property
@@ -1011,20 +982,25 @@ def merge_ledgers(*, ledgers: Iterable[Iterable[LedgerRow]]) -> list[LedgerRow]:
     return sorted(merged.values(), key=_row_order)
 
 
-def published_ledger_text(*, project_root: Path, ref: str = PUBLISHED_LEDGER_REF) -> str:
-    """Return the ledger published on gh-pages, as the local ``ref`` holds it.
+def published_ledger_text(*, project_root: Path, published_ledger: str | None) -> str:
+    """Return the published ledger, as the local ref holds it.
 
     Args:
         project_root: The repository.
-        ref: The published branch's local ref (fetched by docs-deploy; never fetched here).
+        published_ledger: Where it is published, as ``REF:PATH`` (``[tool.glitchygames]``
+            ``published-ledger``; ours: on gh-pages, whose local ref docs-deploy fetches; it is
+            never fetched here), or None: the project publishes none.
 
     Returns:
-        The ledger's text; empty when git, the ref or the file is missing.
+        The ledger's text; empty when nothing is published, or git, the ref or the file is
+        missing.
 
     """
+    if published_ledger is None:
+        return ''
     try:
         completed = run_command(
-            command=['git', 'show', f'{ref}:{PUBLISHED_LEDGER_PATH}'],
+            command=['git', 'show', published_ledger],
             environment=os.environ,
             timeout_seconds=GIT_TIMEOUT_SECONDS,
             capture_output=True,
@@ -1165,13 +1141,17 @@ class PerformanceSeries(BaseModel):
         return f'{self.machine}, {kind}'
 
 
-def performance_series(*, rows: Iterable[LedgerRow]) -> list[PerformanceSeries]:
+def performance_series(
+    *, rows: Iterable[LedgerRow], recording_renames: Mapping[str, str]
+) -> list[PerformanceSeries]:
     """Group ledger rows into graph series (rows without a commit or summary are left out).
 
-    A recording that moved (``RECORDING_PATH_RENAMES``) is one series under its new path.
+    A recording that moved (``recording_renames``) is one series under its new path.
 
     Args:
         rows: The ledger's rows.
+        recording_renames: Recordings that moved, old repository path -> new
+            (``[tool.glitchygames]`` ``recording-renames``).
 
     Returns:
         The series, by recording, machine and pacing.
@@ -1183,7 +1163,7 @@ def performance_series(*, rows: Iterable[LedgerRow]) -> list[PerformanceSeries]:
         if row.commit is None or row.summary is None:
             continue
         # A moved recording's rows from before the move join its series under the new path
-        recording = RECORDING_PATH_RENAMES.get(row.recording, row.recording)
+        recording = recording_renames.get(row.recording, row.recording)
         series_key = (recording, row.machine, row.run.processing_paced)
         # Sorted by measurement within a commit, so the latest measurement of a commit wins
         grouped.setdefault(series_key, {})[row.commit] = row

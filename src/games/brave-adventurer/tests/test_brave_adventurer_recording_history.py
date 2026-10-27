@@ -6,10 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from glitchygames.recording_metrics import RECORDING_PATH_RENAMES
 from glitchygames.replay.tools.children import recording_console_script
+from glitchygames.replay.tools.settings import load_project_settings
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
+# Recordings that moved, old repository path -> new (our [tool.glitchygames])
+RECORDING_RENAMES = load_project_settings(project_root=PROJECT_ROOT).recording_renames
 MEMBER_DIRECTORY = Path(__file__).resolve().parents[1]
 REPLAY_FIXTURES_DIRECTORY = MEMBER_DIRECTORY / 'tests' / 'fixtures' / 'replays'
 # Each game's golden replay: where it was in the engine's tests (named after the console script
@@ -36,5 +38,5 @@ def test_both_goldens_keep_their_history(old_path, new_name, console_script):
 
     assert new_path.is_file()
     assert not (PROJECT_ROOT / old_path).exists()
-    assert RECORDING_PATH_RENAMES[old_path] == new_path.relative_to(PROJECT_ROOT).as_posix()
+    assert RECORDING_RENAMES[old_path] == new_path.relative_to(PROJECT_ROOT).as_posix()
     assert recording_console_script(path=new_path) == console_script

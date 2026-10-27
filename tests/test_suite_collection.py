@@ -1204,8 +1204,11 @@ FORMER_EXAMPLES_HISTORY_DIRECTORIES = ('plans', 'quality', '.superpowers')
 # The only files that may still name the deleted package, each for a reason that is history on
 # purpose. A path is listed (never a pattern), so a new reference anywhere else is found.
 FORMER_EXAMPLES_EXEMPT_PATHS: dict[str, str] = {
-    'src/glitchygames/recording_metrics.py': (
-        'RECORDING_PATH_RENAMES keys: the old paths of the recordings that moved'
+    'pyproject.toml': (
+        '[tool.glitchygames] recording-renames keys: the old paths of the recordings that moved'
+    ),
+    'tests/replay/tools/test_settings.py': (
+        'the recording-renames our settings must give, copied from the constant they replaced'
     ),
     'src/demos/dt-demo/tests/test_dt_demo_install_location.py': (
         'the move out of the engine: nothing is left of the old package'
@@ -1349,14 +1352,14 @@ def test_a_reference_outside_the_exempt_paths_is_found(tmp_path):
     """Code, config and a living doc are found; history, exempt paths and other types are not."""
     files = {
         'src/engine.py': 'import glitchygames.examples\n',
-        'pyproject.toml': 'path = "src/glitchygames/examples"\n',
+        'mkdocs.yml': 'path: src/glitchygames/examples\n',
         'docs/guide.md': 'fine\nsee glitchygames/examples/x\n',
         'plans/old.md': 'glitchygames.examples\n',
         'BUGS.md': (
             '## 1. A\n- **Status**: Active\nglitchygames.examples\n'
             '## 2. B\n- **Status**: Resolved\nglitchygames.examples\n'
         ),
-        'src/glitchygames/recording_metrics.py': 'glitchygames/examples/x\n',
+        'pyproject.toml': '"glitchygames/examples/x" = "src/games/x"\n',
         'notes.txt': 'glitchygames.examples\n',
         'src/glitchygames/examples_utils.py': 'glitchygames.examples_utils\n',
     }
@@ -1370,6 +1373,6 @@ def test_a_reference_outside_the_exempt_paths_is_found(tmp_path):
     assert former_examples_references(project_root=tmp_path) == [
         'BUGS.md:3: glitchygames.examples',
         'docs/guide.md:2: see glitchygames/examples/x',
-        'pyproject.toml:1: path = "src/glitchygames/examples"',
+        'mkdocs.yml:1: path: src/glitchygames/examples',
         'src/engine.py:1: import glitchygames.examples',
     ]
