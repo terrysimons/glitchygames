@@ -33,14 +33,14 @@ from typing import TYPE_CHECKING, Any
 import pygame
 import pytest
 from pydantic import BaseModel, ConfigDict
-from scripts.record_golden_traces import PROJECT_ROOT
+from scripts.record_golden_traces import GAME_SCENES, PROJECT_ROOT
 from scripts.record_scripted_session import (
     GAME_CONSOLE_SCRIPTS,
     REPLAY_FIXTURE_SUFFIX,
     fixture_path,
     record_scripted_session,
 )
-from scripts.workspace_packages import workspace_members
+from scripts.workspace_packages import members_in_layer, workspace_members
 
 import paddleslap
 from brave_adventurer.game import BraveAdventurerScene
@@ -51,11 +51,11 @@ from drawing_fire.game import DrawingFireScene
 from glitchygames.exit_codes import ExitCode
 from glitchygames.logical_names import logical_name
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, INTERNAL_ORIGIN
-from glitchygames.replay.driver import SPRITE_DIVERGENCE
+from glitchygames.replay.driver import GAME_HEADER_FIELD, SPRITE_DIVERGENCE
 from glitchygames.scenes.builtin_scenes.gamepad_choice import GamepadChoice, GamepadChoiceButtons
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.testing.replays import recording_console_script
-from glitchygames.tracing import read_trace_result
+from glitchygames.tracing import TraceReader, read_trace_result
 from mr_muncher.game import MrMuncherScene
 from tests.replay.replay_helpers import replay_through_engine, tamper_first_sprite_rect
 from tests.stand_in_games import (
@@ -68,6 +68,7 @@ from tests.stand_in_harness_games import (
     register_stand_in_game,
     steered_paddle_script,
 )
+from tests.workspace_expectations import GAMES_LAYER, every_games_golden
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -94,21 +95,58 @@ def test_the_fixture_directory_holds_golden_replays():
     assert REPLAY_FIXTURES, f"no {REPLAY_FIXTURE_SUFFIX} recordings in the members' fixtures"
 
 
+def golden_id(path: Path) -> str:
+    """The golden's repository path, as pytest shows it.
+
+    Returns:
+        ``src/games/<member>/tests/fixtures/replays/<name>.jsonl.gz``.
+
+    """
+    return path.relative_to(PROJECT_ROOT).as_posix()
+
+
 def test_every_fixture_directory_is_a_game_console_script():
-    """Each fixture's place names a game's console script (so the replay knows the game)."""
-    unknown_console_scripts = sorted(
-        {recording_console_script(path=path) for path in REPLAY_FIXTURES}
-        - set(GAME_CONSOLE_SCRIPTS.values())
+    """Each fixture's place names a game's console script (so the replay knows the game).
+
+    The expected set is the workspace's: every games-layer member holds at least one golden,
+    and the goldens are replayed by exactly the games-layer members' console scripts.
+    """
+    every_games_golden(project_root=PROJECT_ROOT)
+    games_console_scripts = {
+        console_script
+        for member in members_in_layer(project_root=PROJECT_ROOT, layer=GAMES_LAYER)
+        for console_script in member.console_scripts
+    }
+
+    assert {recording_console_script(path=path) for path in REPLAY_FIXTURES} == (
+        games_console_scripts
     )
-    assert not unknown_console_scripts
 
 
-@pytest.mark.parametrize('game', sorted(GAME_CONSOLE_SCRIPTS))
-def test_every_golden_replay_is_replayed_by_its_games_console_script(game):
-    """Each game's golden is collected under the console script that starts that game."""
-    assert (
-        recording_console_script(path=fixture_path(game_key=game)) == (GAME_CONSOLE_SCRIPTS[game])
-    )
+@pytest.mark.parametrize('golden', REPLAY_FIXTURES, ids=golden_id)
+def test_every_golden_replay_is_replayed_by_its_games_console_script(golden):
+    """Each golden is collected under a console script of the member holding its game.
+
+    The golden's header names its game by logical name; the golden-trace tool's game keys are
+    mapped to logical names explicitly (the logical name of each key's scene class), so the
+    golden is the one the tool records for that game, in the member whose packages hold the
+    game. (The test above asserts the goldens are there: an empty parametrization would skip.)
+    """
+    game_keys = {
+        logical_name(scene_class=GAME_SCENES[game_key]): game_key for game_key in GAME_SCENES
+    }
+    with TraceReader(path=golden) as reader:
+        recorded_game = reader.header[GAME_HEADER_FIELD]
+    game_key = game_keys[recorded_game]
+    (member,) = [
+        member
+        for member in workspace_members(project_root=PROJECT_ROOT)
+        if golden.is_relative_to(member.replay_fixtures_directory)
+    ]
+
+    assert fixture_path(game_key=game_key) == golden
+    assert GAME_SCENES[game_key].__module__.partition('.')[0] in member.import_packages
+    assert recording_console_script(path=golden) in member.console_scripts
 
 
 def test_a_members_golden_replay_is_replayed_by_the_members_console_script(tmp_path, monkeypatch):

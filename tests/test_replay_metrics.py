@@ -28,6 +28,7 @@ from scripts.replay_metrics import (
     rows_to_write,
     run,
 )
+from scripts.workspace_packages import WorkspaceMember, members_in_layer, workspace_members
 
 from glitchygames.build_info import RevisionSource, SourceRevision, source_revision
 from glitchygames.bundled_demos import bundled_demos
@@ -47,7 +48,6 @@ from glitchygames.recording_metrics import (
 from glitchygames.replay.driver import write_bookmarked_copy
 from glitchygames.testing.replays import rebaseline_recording_headless
 from glitchygames.tracing import FRAMES_FIELD, is_bookmarked_copy, read_trace
-from paddleslap import PADDLESLAP_DEMO_PATH
 from tests.replay.replay_helpers import rewrite_recording
 from tests.replay.test_replay_plugin import REPO_FIXTURE
 from tests.stand_in_games import (
@@ -60,6 +60,12 @@ from tests.stand_in_games import (
     write_stand_in_recording,
 )
 from tests.test_recording_metrics import ledger_row, with_uncommitted_changes
+from tests.workspace_expectations import (
+    EXPECTED_BUNDLED_DEMOS,
+    GAMES_LAYER,
+    check_every_game_holds_a_golden,
+    member_goldens,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 GIT_TIMEOUT_SECONDS = 60.0
@@ -68,6 +74,47 @@ GIT_TIMEOUT_SECONDS = 60.0
 STAND_IN_RECORDING_FRAMES = 3
 # A project's root pyproject: a workspace without members (metric_recordings reads it)
 ROOT_PYPROJECT = '[project]\nname = "stand-in"\n'
+
+
+def member_of(*, path: Path) -> WorkspaceMember:
+    """Return the workspace member whose replay fixtures hold a golden."""
+    (member,) = [
+        member
+        for member in workspace_members(project_root=PROJECT_ROOT)
+        if path.is_relative_to(member.replay_fixtures_directory)
+    ]
+    return member
+
+
+def distribution_of(*, path: Path) -> str:
+    """Return the distribution of the member holding a golden."""
+    return member_of(path=path).distribution
+
+
+def member_console_scripts(*, path: Path) -> tuple[str, ...]:
+    """Return the console scripts of the member holding a golden."""
+    return member_of(path=path).console_scripts
+
+
+def demo_package_and_name(*, path: Path) -> tuple[str, str]:
+    """Return a bundled demo's package and name, from its place: ``<package>/demos/<name>``.
+
+    The same under an editable install (the repository's file) and a built one (site-packages).
+    """
+    return (path.parent.parent.name, path.name)
+
+
+# The goldens of the games-layer members holding more than one (one per game), read from the
+# workspace
+GOLDENS_OF_MEMBERS_WITH_SEVERAL = [
+    path
+    for paths in (
+        member_goldens(member=member)
+        for member in members_in_layer(project_root=PROJECT_ROOT, layer=GAMES_LAYER)
+    )
+    if len(paths) > 1
+    for path in paths
+]
 
 
 def clean_revision() -> SourceRevision:
@@ -263,34 +310,59 @@ class TestTheRecordings:
     """Every golden replay and every bundled demo is measured."""
 
     def test_this_projects_recordings(self):
-        recordings = metric_recordings(project_root=PROJECT_ROOT)
-        paths = {
-            recording_ledger_name(path=path, project_root=PROJECT_ROOT)
-            for _, path in recordings.replayable
-        }
-        assert 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz' in paths
-        # The repository path under an editable install, the install name under a built one
-        assert recording_ledger_name(path=PADDLESLAP_DEMO_PATH, project_root=PROJECT_ROOT) in paths
-        assert (
-            'mr-muncher',
-            PROJECT_ROOT / 'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz',
-        ) in (recordings.replayable)
-        assert all(console_script for console_script, _ in recordings.replayable)
-        assert not recordings.unreplayable
+        """Exactly every games-layer member's goldens and every bundled demo, each replayable.
 
-    @pytest.mark.parametrize('golden', ['golden-classic.jsonl.gz', 'golden-papyrus.jsonl.gz'])
-    def test_each_game_of_a_member_with_several_is_measured(self, golden):
-        """Brave Adventurer's goldens are named apart (golden-<game>): each is measured.
-
-        Both through the member's one console script, the launcher, which starts the game the
-        recording's header names.
+        The expected set is the workspace's: every games-layer member holds at least one golden
+        (each replayed by a console script of its member), the bundled demos by ``(package,
+        name)`` (nox installs non-editable copies, so not by path), and Brave Adventurer the one
+        member holding several goldens (one per game: Classic and Papyrus).
         """
         recordings = metric_recordings(project_root=PROJECT_ROOT)
+        goldens = check_every_game_holds_a_golden(project_root=PROJECT_ROOT)
+        golden_paths = {path for paths in goldens.values() for path in paths}
+        expected_goldens = {
+            (member.distribution, path)
+            for member in members_in_layer(project_root=PROJECT_ROOT, layer=GAMES_LAYER)
+            for path in goldens[member.distribution]
+        }
+        measured_goldens = {
+            (distribution_of(path=path), path)
+            for console_script, path in recordings.replayable
+            if path in golden_paths
+        }
+        measured_demos = {
+            demo_package_and_name(path=path)
+            for _console_script, path in recordings.replayable
+            if path not in golden_paths
+        }
 
-        assert (
-            'brave-adventurer',
-            PROJECT_ROOT / 'src/games/brave-adventurer/tests/fixtures/replays' / golden,
-        ) in recordings.replayable
+        assert measured_goldens == expected_goldens
+        assert measured_demos == EXPECTED_BUNDLED_DEMOS
+        assert all(
+            console_script in member_console_scripts(path=path)
+            for console_script, path in recordings.replayable
+            if path in golden_paths
+        )
+        assert all(console_script for console_script, _ in recordings.replayable)
+        assert not recordings.unreplayable
+        assert {
+            distribution: [path.name for path in paths]
+            for distribution, paths in goldens.items()
+            if len(paths) > 1
+        } == {'brave-adventurer': ['golden-classic.jsonl.gz', 'golden-papyrus.jsonl.gz']}
+
+    @pytest.mark.parametrize('golden', GOLDENS_OF_MEMBERS_WITH_SEVERAL, ids=lambda path: path.name)
+    def test_each_game_of_a_member_with_several_is_measured(self, golden):
+        """A member holding several goldens names them apart (golden-<game>): each is measured.
+
+        Both through the member's one console script (Brave Adventurer's launcher, which starts
+        the game the recording's header names). The members holding several are read from the
+        workspace; the test above asserts which they are (an empty parametrization would skip).
+        """
+        recordings = metric_recordings(project_root=PROJECT_ROOT)
+        (console_script,) = member_console_scripts(path=golden)
+
+        assert (console_script, golden) in recordings.replayable
 
     def test_a_bookmarked_copy_beside_a_members_golden_is_not_measured(self, tmp_path, monkeypatch):
         """golden-classic.bookmarked.jsonl.gz matches golden*: it is a copy, not a golden.
@@ -420,8 +492,10 @@ class TestTheRecordings:
     def test_the_measured_demos_are_exactly_the_engines_bundled_demos(self):
         """One lookup (glitchygames.bundled_demos), under an editable install or a built one.
 
-        By console script and ledger name: the repository path when the package is installed
-        from it (editable), else its install name (a built install, as nox's test sessions run).
+        By console script and ``(package, name)``, not by path: under an editable install a
+        demo is the repository's file, under a built one (as nox's test sessions run) it is in
+        site-packages. PaddleSlap's rally is the one bundled demo today, so neither side is
+        empty.
         """
         recordings = metric_recordings(project_root=PROJECT_ROOT)
         goldens = {
@@ -430,24 +504,16 @@ class TestTheRecordings:
             for path in PROJECT_ROOT.glob(glob)
         }
         measured_demos = {
-            (console_script, recording_ledger_name(path=path, project_root=PROJECT_ROOT))
+            (console_script, *demo_package_and_name(path=path))
             for console_script, path in recordings.replayable
             if path not in goldens
         }
         engine_demos = {
-            (
-                demo.console_script,
-                demo.path.relative_to(PROJECT_ROOT).as_posix()
-                if demo.path.is_relative_to(PROJECT_ROOT)
-                else demo.install_name,
-            )
-            for demo in bundled_demos()
+            (demo.console_script, demo.package, demo.path.name) for demo in bundled_demos()
         }
 
         assert measured_demos == engine_demos
-        assert ('paddleslap', 'paddleslap/demos/rally.jsonl.gz') in {
-            (demo.console_script, demo.install_name) for demo in bundled_demos()
-        }
+        assert {(package, name) for _, package, name in engine_demos} == EXPECTED_BUNDLED_DEMOS
 
 
 class TestRecordingLedgerNames:

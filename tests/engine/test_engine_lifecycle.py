@@ -18,7 +18,7 @@ from typing import Any, ClassVar
 import pygame
 import pytest
 from scripts.record_golden_traces import GoldenTraceEngine, command_line
-from scripts.workspace_packages import declared_console_scripts
+from scripts.workspace_packages import declared_console_scripts, workspace_members
 
 from glitchygames import crt_power_on
 from glitchygames.backgrounds import BackgroundPattern, paint_default_background
@@ -725,23 +725,17 @@ class TestCrtPowerOnBeforeEveryGame:
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-# Every game's console script (the root's and the members' [project.scripts]): the power-on
-# sequence must play before each (brave-adventurer's, Brave Adventurer's launcher, before its
-# title screen: one sequence for both its games, as the engine plays it once, before the first
-# scene)
-GAME_CONSOLE_SCRIPTS = (
-    'bitmappy',
-    'brave-adventurer',
-    'clockwork-keep',
-    'drawing-fire',
-    'dt-demo',
-    'joystick-demo',
-    'mr-muncher',
-    'paddleslap',
-    'text-input-demo',
-)
 # Console scripts that are not games (the API server and client run no GameEngine)
 NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-client'})
+# Every game's console script, read from the workspace (the root's and the members'
+# [project.scripts]) less the root's API scripts: the power-on sequence must play before each
+# (brave-adventurer's, Brave Adventurer's launcher, before its title screen: one sequence for
+# both its games, as the engine plays it once, before the first scene)
+GAME_CONSOLE_SCRIPTS = tuple(
+    sorted(set(declared_console_scripts(project_root=PROJECT_ROOT)) - NOT_GAME_CONSOLE_SCRIPTS)
+)
+# How many there are today: 5 games, 3 demos and Bitmappy (a new member's script changes it)
+GAME_CONSOLE_SCRIPT_COUNT = 9
 
 
 class PowerOnPlayed(BaseException):
@@ -753,13 +747,19 @@ class PowerOnPlayed(BaseException):
 
 
 def test_every_game_console_script_is_covered():
-    """A new game's console script must join GAME_CONSOLE_SCRIPTS, so its power-on is tested.
+    """The power-on test runs every workspace member's console script, and only those.
 
-    The root project's console scripts and every workspace member's (src/games/mr-muncher).
+    Found independently of GAME_CONSOLE_SCRIPTS: each member's own ``console_scripts``
+    (src/games/mr-muncher's pyproject.toml), so the parametrization cannot pass on zero.
     """
-    scripts = declared_console_scripts(project_root=PROJECT_ROOT)
+    members_console_scripts = {
+        console_script
+        for member in workspace_members(project_root=PROJECT_ROOT)
+        for console_script in member.console_scripts
+    }
 
-    assert set(scripts) - NOT_GAME_CONSOLE_SCRIPTS == set(GAME_CONSOLE_SCRIPTS)
+    assert set(GAME_CONSOLE_SCRIPTS) == members_console_scripts
+    assert len(GAME_CONSOLE_SCRIPTS) == GAME_CONSOLE_SCRIPT_COUNT
 
 
 @pytest.mark.usefixtures('engine_run_environment')

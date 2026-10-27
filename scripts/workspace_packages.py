@@ -199,3 +199,26 @@ def declared_console_scripts(*, project_root: Path) -> dict[str, str]:
         member_project = _read_toml(path=member.directory / 'pyproject.toml')['project']
         scripts.update(member_project.get('scripts', {}))
     return scripts
+
+
+def members_in_layer(*, project_root: Path, layer: str) -> list[WorkspaceMember]:
+    """Return the workspace's members in one layer, in the order the root pyproject lists them.
+
+    Args:
+        project_root: The repository.
+        layer: The layer (``games``: ``glitchygames.logical_names.LAYERS``).
+
+    Returns:
+        The members whose directory is in ``src/<layer>/``.
+
+    Raises:
+        ValueError: If the layer is not one of ``glitchygames.logical_names.LAYERS`` (a typo
+            would otherwise find no member).
+
+    """
+    if layer not in LAYERS:
+        message = f'{layer!r} is not a workspace layer (layers: {", ".join(LAYERS)})'
+        raise ValueError(message)
+    return [
+        member for member in workspace_members(project_root=project_root) if member.layer == layer
+    ]

@@ -19,6 +19,7 @@ from tests.stand_in_games import (
     write_stand_in_package,
     write_stand_in_recording,
 )
+from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS
 
 # A stand-in recording's frames: a bookmark on frame 2 needs at least 2, and 3 leaves a frame
 # after the bookmark
@@ -127,12 +128,14 @@ def test_packages_without_demos_and_those_not_installed_have_none(tmp_path, monk
 
 
 def test_every_member_package_is_searched_by_default():
-    """Without packages, the demos come from every workspace member's (MEMBER_LAYERS), sorted."""
+    """Without packages, the demos come from every workspace member's (MEMBER_LAYERS), sorted.
+
+    By ``(package, name)``, never by a path re-derived from the package directories: nox's test
+    sessions install the members non-editable.
+    """
     demos = bundled_demos()
 
-    assert [demo.install_name for demo in demos if demo.package == 'paddleslap'] == [
-        'paddleslap/demos/rally.jsonl.gz'
-    ]
+    assert {(demo.package, demo.path.name) for demo in demos} == EXPECTED_BUNDLED_DEMOS
     assert all(demo.path.parent.name == BUNDLED_DEMO_DIRECTORY_NAME for demo in demos)
     assert [demo.path for demo in demos] == sorted(demo.path for demo in demos)
 

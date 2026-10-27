@@ -23,6 +23,7 @@ import pytest
 from pydantic import ValidationError
 from scripts.record_golden_traces import (
     GAME_SCENES,
+    PROJECT_ROOT,
     GoldenTraceEngine,
     GoldenTraceSceneManager,
     record_trace,
@@ -87,6 +88,7 @@ from glitchygames.replay.controls import CONTROL_TICK_SECONDS, FIRST_PAUSED_FRAM
 from glitchygames.replay.driver import (
     DEFAULT_REPLAY_OPTIONS,
     EVENT_DIVERGENCE,
+    GAME_HEADER_FIELD,
     LENGTH_DIVERGENCE,
     REAL_REPLAY_FPS,
     RECORDED_REPLAY_FPS,
@@ -123,7 +125,13 @@ from glitchygames.sources import (
 from glitchygames.state import DiskSaveManager
 from glitchygames.state.sandbox import open_saves
 from glitchygames.timing import DEFAULT_SLEEP_GRANULARITY_NS, FastTimer, PacingTimer, SleepModel
-from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace, read_trace_result, write_trace
+from glitchygames.tracing import (
+    GZIP_WINDOW_BITS,
+    TraceReader,
+    read_trace,
+    read_trace_result,
+    write_trace,
+)
 from tests.display_canvas import display_looks_entirely_black, real_display_surface
 from tests.harness import imported_engine_is_the_checkouts
 from tests.replay.replay_helpers import (
@@ -135,6 +143,7 @@ from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import live_sdl_driver_state, restore_run_sdl_drivers
 from tests.stand_in_games import record_stand_in_game, use_stand_in_game, write_stand_in_game
 from tests.stand_in_harness_games import TowerFloorScene, register_stand_in_game, tower_script
+from tests.workspace_expectations import every_games_golden
 from tests.world import test_gameplay_recording as recording_test_module
 from tests.world.test_gameplay_recording import (
     FAKE_CLOCK_STEP_SECONDS,
@@ -1003,8 +1012,28 @@ class TestRoundTrip:
         assert result.end_reason == 'end_of_recording'
         assert result.frames_replayed == len(read_trace_result(path=recording_path).trace['frames'])
 
+    def test_the_golden_scripts_games_are_the_games_of_the_members_goldens(self):
+        """The tool's games are exactly the games the workspace's members hold goldens of.
+
+        Each key is mapped to its logical name explicitly (its scene class's), and compared with
+        the ``game`` of every golden of every games-layer member (each holds at least one), so
+        the parametrization below cannot pass on zero.
+        """
+        recorded_games: set[str] = set()
+        for golden in every_games_golden(project_root=PROJECT_ROOT):
+            with TraceReader(path=golden) as reader:
+                recorded_games.add(reader.header[GAME_HEADER_FIELD])
+
+        assert {
+            logical_name(scene_class=GAME_SCENES[game_key]) for game_key in GAME_SCENES
+        } == recorded_games
+
     @pytest.mark.parametrize('game_key', sorted(GAME_SCENES))
     def test_golden_script_recording_replays_without_divergence(self, game_key, tmp_path):
+        """The game's golden script, recorded and replayed through the harness, does not diverge.
+
+        The game is one a member holds a golden of (the test above).
+        """
         recording_path = tmp_path / f'{game_key}.jsonl.gz'
         record_trace(game_key, frame_count=GOLDEN_SCRIPT_FRAMES, recording_path=recording_path)
         result = replay_golden_recording(game_key=game_key, path=recording_path)

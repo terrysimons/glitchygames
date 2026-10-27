@@ -11,18 +11,37 @@ the way the game plays it, through ``SceneManager.play_recording``
 
 from __future__ import annotations
 
-import pytest
+from pathlib import Path
 
+import pytest
+from scripts.workspace_packages import workspace_members
+
+from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
 from glitchygames.testing.replays import bundled_demo_paths, replay_recording_headless
-from paddleslap import PADDLESLAP_DEMO_PATH
+from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 BUNDLED_DEMOS = bundled_demo_paths()
 
 
 def test_paddleslap_ships_a_demo():
-    """PaddleSlap's demo is found among the bundled demos (the folder is collected)."""
-    assert ('paddleslap', PADDLESLAP_DEMO_PATH) in BUNDLED_DEMOS
+    """The bundled demos are the expected ones, each replayed by its own member's console script.
+
+    Compared by ``(package, name)``, not by path: nox's test sessions install the members
+    non-editable. This is the replay test's expected set (an empty parametrization would skip,
+    not fail), so the demos it replays are exactly these.
+    """
+    demos = bundled_demos()
+    members = workspace_members(project_root=PROJECT_ROOT)
+
+    assert {(demo.package, demo.path.name) for demo in demos} == EXPECTED_BUNDLED_DEMOS
+    assert [(console_script, path.name) for console_script, path in BUNDLED_DEMOS] == [
+        (demo.console_script, demo.path.name) for demo in demos
+    ]
+    for demo in demos:
+        (member,) = [member for member in members if demo.package in member.import_packages]
+        assert demo.console_script in member.console_scripts
 
 
 @pytest.mark.parametrize(

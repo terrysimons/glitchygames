@@ -28,7 +28,12 @@ from typing import TYPE_CHECKING, Any, override
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GOLDEN_TRACE_GAMES, golden_path, record_trace
+from scripts.record_golden_traces import (
+    GOLDEN_DIRECTORY,
+    GOLDEN_TRACE_GAMES,
+    golden_path,
+    record_trace,
+)
 
 from brave_adventurer import constants as brave_constants
 from brave_adventurer.drawing import draw_player, draw_scarab
@@ -66,6 +71,8 @@ if TYPE_CHECKING:
 # Marks an ExpectedDifference without a pinned value (None is a real value, so it can't be used)
 NO_EXPECTED_VALUE: Any = object()
 MISSING_EXPECTATION_MESSAGE = 'An ExpectedDifference needs an expected value or a rule'
+# A baseline's suffix after its game key (scripts/record_golden_traces.py golden_path)
+GOLDEN_TRACE_SUFFIX = '.jsonl.gz'
 
 
 class AmbiguousExpectedDifferenceError(ValueError):
@@ -1329,8 +1336,19 @@ def _describe(difference: TraceDifference) -> str:
 
 
 def test_expected_differences_cover_every_game():
-    """Every game with a golden trace has an entry, so a new trace cannot slip past the list."""
-    assert set(EXPECTED_DIFFERENCES) == set(GOLDEN_TRACE_GAMES)
+    """Every game with a golden trace has an entry, so a new trace cannot slip past the list.
+
+    The expected set is the baselines themselves, one file per game in ``tests/world/golden/``
+    (frozen since the world-space change), so the golden-trace tests cannot pass on zero.
+    """
+    baselines = {
+        path.name.removesuffix(GOLDEN_TRACE_SUFFIX)
+        for path in GOLDEN_DIRECTORY.glob(f'*{GOLDEN_TRACE_SUFFIX}')
+    }
+
+    assert baselines
+    assert set(GOLDEN_TRACE_GAMES) == baselines
+    assert set(EXPECTED_DIFFERENCES) == baselines
 
 
 @pytest.mark.parametrize('game_key', sorted(GOLDEN_TRACE_GAMES))

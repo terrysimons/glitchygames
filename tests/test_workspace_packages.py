@@ -8,6 +8,7 @@ import pytest
 from scripts.git_checkout import run_git as scripts_run_git
 from scripts.workspace_packages import (
     WorkspaceMember,
+    members_in_layer,
     source_package_directories,
     workspace_members,
 )
@@ -191,6 +192,45 @@ def test_a_member_outside_a_layer_is_refused(tmp_path):
 
     with pytest.raises(ValueError, match='src/<layer>/'):
         workspace_members(project_root=tmp_path)
+
+
+def write_layered_workspace(root: Path) -> None:
+    """Write a root project with a games member, a demos member and a second games member."""
+    members = ('src/games/space-game', 'src/demos/tiny-demo', 'src/games/rock-game')
+    members_toml = ', '.join(f'"{member_path}"' for member_path in members)
+    (root / 'pyproject.toml').write_text(
+        f'[project]\nname = "glitchygames"\n\n[tool.uv.workspace]\nmembers = [{members_toml}]\n',
+        encoding='utf-8',
+    )
+    for member_path in members:
+        directory = root / member_path
+        package = directory.name.replace('-', '_')
+        (directory / package).mkdir(parents=True)
+        (directory / 'pyproject.toml').write_text(
+            f'[project]\nname = "{directory.name}"\n\n'
+            f'[tool.hatch.build.targets.wheel]\npackages = ["{package}"]\n',
+            encoding='utf-8',
+        )
+
+
+def test_members_in_a_layer_are_those_in_its_directory_in_workspace_order(tmp_path):
+    """Only the layer's members, in the root pyproject's order."""
+    write_layered_workspace(tmp_path)
+
+    games = members_in_layer(project_root=tmp_path, layer='games')
+    demos = members_in_layer(project_root=tmp_path, layer='demos')
+
+    assert [member.distribution for member in games] == ['space-game', 'rock-game']
+    assert [member.distribution for member in demos] == ['tiny-demo']
+    assert members_in_layer(project_root=tmp_path, layer='apps') == []
+
+
+def test_a_layer_that_is_not_a_workspace_layer_is_refused(tmp_path):
+    """A misspelled layer is an error, not an empty list a test could pass on."""
+    write_layered_workspace(tmp_path)
+
+    with pytest.raises(ValueError, match="'game' is not a workspace layer"):
+        members_in_layer(project_root=tmp_path, layer='game')
 
 
 def test_this_repositorys_members_are_read():

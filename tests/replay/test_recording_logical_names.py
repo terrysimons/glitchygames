@@ -8,10 +8,13 @@ from pathlib import Path
 import pytest
 from scripts.workspace_packages import workspace_members
 
+from glitchygames.bundled_demos import bundled_demos
 from glitchygames.logical_names import module_for_logical_module
 from glitchygames.recording import SCENE_START_FIELD
+from glitchygames.replay.driver import GAME_HEADER_FIELD
 from glitchygames.testing.replays import bundled_demo_paths
-from glitchygames.tracing import read_trace
+from glitchygames.tracing import TraceReader, read_trace
+from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS, every_games_golden
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 COMMITTED_RECORDINGS = sorted([
@@ -73,5 +76,21 @@ def test_every_logical_name_in_the_recording_resolves(recording):
 
 
 def test_the_committed_recordings_are_all_checked():
-    """Five golden replays and PaddleSlap's demo (more as games, demos and apps gain them)."""
-    assert len(COMMITTED_RECORDINGS) >= 6
+    """Exactly every games-layer member's goldens and every bundled demo, each game resolving.
+
+    The expected set is the workspace's: every games-layer member holds at least one golden, and
+    the bundled demos are known by ``(package, name)`` (nox installs non-editable copies, so not
+    by path). An empty parametrization above would skip, not fail; this cannot pass on zero.
+    """
+    goldens = every_games_golden(project_root=PROJECT_ROOT)
+    demos = bundled_demos()
+    unresolved: list[tuple[Path, object]] = []
+    for recording in [*goldens, *(demo.path for demo in demos)]:
+        with TraceReader(path=recording) as reader:
+            game = reader.header.get(GAME_HEADER_FIELD)
+        if not isinstance(game, str) or not resolves(game):
+            unresolved.append((recording, game))
+
+    assert {(demo.package, demo.path.name) for demo in demos} == EXPECTED_BUNDLED_DEMOS
+    assert sorted([*goldens, *(demo.path for demo in demos)]) == COMMITTED_RECORDINGS
+    assert not unresolved

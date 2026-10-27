@@ -38,7 +38,11 @@ from scripts.build_browser_bundle import (
     write_engine_archive,
 )
 from scripts.git_checkout import NotAGitCheckoutError, run_git
-from scripts.workspace_packages import declared_console_scripts, workspace_members
+from scripts.workspace_packages import (
+    declared_console_scripts,
+    members_in_layer,
+    workspace_members,
+)
 
 COMMIT = 'a' * 40
 WHEEL_NAME = 'pygame_ce-2.5.8.post1-cp314-cp314-pyemscripten_2026_0_wasm32.whl'
@@ -314,7 +318,22 @@ class TestGeneratedFiles:
         assert page == f'<title>Paddle Slap</title> {PYSCRIPT_RELEASE}'
 
     def test_every_game_module_has_its_scene_class(self):
-        """The table names real modules and classes (what boot.py imports in the browser)."""
+        """The table names real modules and classes (what boot.py imports in the browser).
+
+        Its games are the workspace's, by distribution: every games-layer member and Bitmappy
+        (the demos layer has no browser build: decision 6,
+        plans/2026-10-26-workspace-packages-3-demos.md), and every games-layer member but
+        Drawing Fire has a touch layout (tests/test_browser_touch_controls.py
+        ``GAMES_WITHOUT_TOUCH_CONTROLS``).
+        """
+        games = {
+            member.distribution
+            for member in members_in_layer(project_root=REPOSITORY_DIRECTORY, layer='games')
+        }
+
+        assert games
+        assert set(GAMES) == games | {'bitmappy'}
+        assert set(TOUCH_LAYOUTS) == games - {'drawing-fire'}
         for specification in GAMES.values():
             module = __import__(specification.module, fromlist=[specification.scene_class])
             assert hasattr(module, specification.scene_class)
