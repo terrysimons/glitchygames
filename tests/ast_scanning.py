@@ -2,10 +2,14 @@
 
 Resolve a name or attribute chain in a module's source to the fully qualified name it refers
 to, following imports and aliases of the watched modules. The randomness guard
-(tests/test_randomness.py) and the engine-doors guard (tests/test_engine_doors.py) each pass
-their own set of watched modules. ``member_imports`` finds every import of a workspace member,
-for the guards that the engine's source (tests/test_workspace_config.py) and the engine's tests
-(tests/test_suite_collection.py) import none.
+(tests/test_unseeded_randomness_guard.py) and the engine-doors guard
+(tests/test_engine_doors.py) each pass their own set of watched modules. ``member_imports``
+finds every import of a workspace member, for the guards that the engine's source
+(tests/test_workspace_config.py) and the engine's tests (tests/test_suite_collection.py) import
+none.
+
+It imports no ``scripts.*`` (Part 3, Stage D, Task D9): what reads the workspace (the files the
+source guards scan, the members' packages) is in tests/workspace_sources.py.
 """
 
 from __future__ import annotations
@@ -14,14 +18,8 @@ import ast
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Self
 
-from scripts.workspace_packages import source_package_directories
-
-from tests.engine_source import ENGINE_DIRECTORY
-
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
-    from scripts.workspace_packages import WorkspaceMember
+    from collections.abc import Mapping
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -105,60 +103,6 @@ def qualified_name(
     return dynamic_import_name(node=node, watched_modules=watched_modules)
 
 
-def scanned_source_files(*, project_root: Path) -> list[tuple[str, Path]]:
-    """Return every Python file the guards scan, with the key the allowlists spell it by.
-
-    The engine's files are keyed relative to ``src/glitchygames/`` (``clock.py``); a workspace
-    member's files relative to the repository (``src/games/mr-muncher/src/mr_muncher/game.py``), so
-    the two never clash.
-
-    Args:
-        project_root: The repository.
-
-    Returns:
-        ``(allowlist key, path)`` for each file, in scan order.
-
-    """
-    engine_directory = project_root / ENGINE_DIRECTORY
-    scanned: list[tuple[str, Path]] = []
-    for package_directory in source_package_directories(project_root=project_root):
-        key_base = engine_directory if package_directory == engine_directory else project_root
-        scanned.extend(
-            (source_path.relative_to(key_base).as_posix(), source_path)
-            for source_path in sorted(package_directory.rglob('*.py'))
-        )
-    return scanned
-
-
-def write_project_with_member_module(*, project_root: Path, source: str) -> str:
-    """Write a small workspace project whose one member module holds ``source``.
-
-    The project has an empty ``src/glitchygames/`` and the member ``src/games/space-game`` with
-    the package ``space_game`` and its module ``game.py``.
-
-    Args:
-        project_root: Where to write the project (a temporary directory).
-        source: The member module's source.
-
-    Returns:
-        The key the guards' allowlists would spell the member module by.
-
-    """
-    (project_root / ENGINE_DIRECTORY).mkdir(parents=True)
-    (project_root / 'pyproject.toml').write_text(
-        '[tool.uv.workspace]\nmembers = ["src/games/space-game"]\n', encoding='utf-8'
-    )
-    member_directory = project_root / 'src' / 'games' / 'space-game'
-    (member_directory / 'space_game').mkdir(parents=True)
-    (member_directory / 'pyproject.toml').write_text(
-        '[project]\nname = "space-game"\n\n'
-        '[tool.hatch.build.targets.wheel]\npackages = ["space_game"]\n',
-        encoding='utf-8',
-    )
-    (member_directory / 'space_game' / 'game.py').write_text(source, encoding='utf-8')
-    return 'src/games/space-game/space_game/game.py'
-
-
 # The calls that load a module named by a string
 STRING_LOADS = frozenset({'importlib.import_module'})
 
@@ -183,11 +127,6 @@ class MemberImport(NamedTuple):
         if self.name is None:
             return f'import {self.module}'
         return f'from {self.module} import {self.name}'
-
-
-def member_import_packages(*, members: Sequence[WorkspaceMember]) -> frozenset[str]:
-    """Return every import package the members hold."""
-    return frozenset(package for member in members for package in member.import_packages)
 
 
 def _string_loaded_module(*, call: ast.Call, bindings: dict[str, str]) -> str | None:
@@ -256,3 +195,141 @@ def member_imports(*, tree: ast.Module, member_packages: frozenset[str]) -> list
             member_import.name or '',
         ),
     )
+
+
+def module_name_of(*, relative: Path) -> str:
+    """Return the module a Python file is imported as, from its path below its import root.
+
+    Args:
+        relative: Its path below the directory on ``sys.path`` (``tests/replay/helpers.py``).
+
+    Returns:
+        Its module (``tests.replay.helpers``; a package's ``__init__.py`` is the package).
+
+    """
+    parts = list(relative.with_suffix('').parts)
+    if parts[-1] == '__init__':
+        parts.pop()
+    return '.'.join(parts)
+
+
+def parent_modules(*, module: str) -> set[str]:
+    """Return the packages above a module: importing it runs each of their ``__init__``.
+
+    Returns:
+        ``{'a', 'a.b'}`` for ``a.b.c``.
+
+    """
+    parts = module.split('.')
+    return {'.'.join(parts[:depth]) for depth in range(1, len(parts))}
+
+
+def pytest_plugin_names(*, tree: ast.Module) -> list[str]:
+    """Return the plugins a conftest's module-level ``pytest_plugins`` names.
+
+    Args:
+        tree: The conftest's parsed source.
+
+    Returns:
+        The plugin module names: one string, or each string in a list or tuple, in order.
+
+    """
+    names: list[str] = []
+    for node in tree.body:
+        if not (
+            isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == 'pytest_plugins'
+                for target in node.targets
+            )
+        ):
+            continue
+        values = node.value.elts if isinstance(node.value, (ast.List, ast.Tuple)) else [node.value]
+        names.extend(
+            value.value
+            for value in values
+            if isinstance(value, ast.Constant) and isinstance(value.value, str)
+        )
+    return names
+
+
+def imported_module_names(
+    *, tree: ast.Module, module: str, is_package: bool, followed: str, target: str
+) -> set[str]:
+    """Return every module of two packages a module may import, at any level.
+
+    Absolute imports, relative imports (resolved against ``module``) and literal string loads
+    (``importlib.import_module``, ``__import__``) count. For ``from X import y`` both ``X`` and
+    ``X.y`` are named (``y`` may be a submodule). Every package above a ``followed`` module named,
+    and above ``module`` itself, is named too: importing a module runs their ``__init__``.
+
+    Args:
+        tree: The module's parsed source.
+        module: Its module name.
+        is_package: Whether it is a package's ``__init__.py``.
+        followed: The package whose modules a walk follows (``tests``, ``glitchygames``).
+        target: The package a walk looks for (``scripts``).
+
+    Returns:
+        The module names (some may name no module: a function imported by ``from``).
+
+    """
+    named: set[str] = set()
+    for found in member_imports(tree=tree, member_packages=frozenset({followed, target})):
+        named.add(found.module)
+        if found.name is not None:
+            named.add(f'{found.module}.{found.name}')
+    package = module if is_package else module.rpartition('.')[0]
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.level > 0:
+            base = package.split('.')[: len(package.split('.')) - (node.level - 1)]
+            resolved = '.'.join([*base, *([node.module] if node.module else [])])
+            named.add(resolved)
+            named.update(f'{resolved}.{alias.name}' for alias in node.names)
+    followed_parents = {
+        parent
+        for name in named
+        if name.partition('.')[0] == followed
+        for parent in parent_modules(module=name)
+    }
+    return named | followed_parents | parent_modules(module=module)
+
+
+def path_to_package(
+    *, graph: Mapping[str, frozenset[str]], module: str, target: str
+) -> list[str] | None:
+    """Return the shortest chain of imports from a module to a module of ``target``.
+
+    Only modules in ``graph`` are followed. Where one module names several of ``target``'s
+    modules, the chain ends at the module imported: ``scripts.tool`` for ``from scripts.tool
+    import THING`` (not ``scripts``, nor ``scripts.tool.THING``) and for ``from scripts import
+    tool``; ``scripts`` only for a bare ``import scripts``.
+
+    Args:
+        graph: Module name -> the module names it imports.
+        module: Where the chain starts.
+        target: The package looked for (``scripts``).
+
+    Returns:
+        ``[module, ..., '<target>[.<name>]']``, or None when it reaches none.
+
+    """
+    came_from: dict[str, str | None] = {module: None}
+    queue = [module]
+    while queue:
+        current = queue.pop(0)
+        imported = sorted(graph.get(current, frozenset()))
+        reached = [name for name in imported if name.partition('.')[0] == target]
+        if reached:
+            submodules = [name for name in reached if '.' in name] or reached
+            chain = [min(submodules, key=lambda name: (len(name), name)), current]
+            previous = came_from[current]
+            while previous is not None:
+                chain.append(previous)
+                previous = came_from[previous]
+            return chain[::-1]
+        for name in imported:
+            if name in graph and name not in came_from:
+                came_from[name] = current
+                queue.append(name)
+    return None

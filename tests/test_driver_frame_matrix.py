@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING
 
 import noxfile
 import pytest
-from scripts.compare_driver_frames import LabelledRun
 from scripts.driver_frame_matrix import (
     MATRIX_JSON_NAME,
     MATRIX_MARKDOWN_NAME,
@@ -39,6 +38,7 @@ from scripts.driver_frame_matrix import (
 )
 
 from glitchygames.exit_codes import ExitCode
+from glitchygames.testing.frame_comparison import LabelledRun
 from glitchygames.testing.frame_fingerprints import RecordedFrames, images_folder_name
 from tests.test_compare_driver_frames import RED, frame, record, save_colour_frame, write_run
 

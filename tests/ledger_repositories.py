@@ -17,12 +17,31 @@ from glitchygames.replay.tools.settings import load_project_settings
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 GIT_TIMEOUT_SECONDS = 60.0
+# git's own variables (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, ...)
+GIT_VARIABLE_PREFIX = 'GIT_'
 # Where this repository publishes its ledger on its ref ([tool.glitchygames] published-ledger):
 # what reads it (scripts/generate_performance_graphs.py, import_published_ledger.py)
 # read it there
 _OUR_PUBLISHED_LEDGER_PATH = load_project_settings(project_root=PROJECT_ROOT).published_ledger_path
 assert _OUR_PUBLISHED_LEDGER_PATH is not None, 'this repository publishes its ledger'
 OUR_PUBLISHED_LEDGER_PATH: str = _OUR_PUBLISHED_LEDGER_PATH
+
+
+def environment_without_git_variables() -> dict[str, str]:
+    """Return this process's environment without git's own variables (``GIT_DIR``, ...).
+
+    pytest run inside a git hook inherits them, and they would aim git at this repository, not
+    the throwaway one it is given.
+
+    Returns:
+        The environment.
+
+    """
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(GIT_VARIABLE_PREFIX)
+    }
 
 
 def git(*, repository: Path, arguments: list[str]) -> str:
@@ -43,7 +62,7 @@ def git(*, repository: Path, arguments: list[str]) -> str:
             'commit.gpgsign=false',
             *arguments,
         ],
-        environment=os.environ,
+        environment=environment_without_git_variables(),
         timeout_seconds=GIT_TIMEOUT_SECONDS,
         capture_output=OutputCapture.TOGETHER,
         working_directory=repository,

@@ -20,11 +20,15 @@ from scripts.workspace_packages import WorkspaceMember, workspace_members
 
 from tests.ast_scanning import (
     import_bindings,
-    member_import_packages,
+    imported_module_names,
     member_imports,
+    module_name_of,
+    path_to_package,
+    pytest_plugin_names,
     qualified_name,
 )
 from tests.harness import CHECKOUT_ENGINE_DIRECTORY, imported_engine_directory
+from tests.workspace_sources import member_import_packages
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -1036,6 +1040,8 @@ SCRIPTS_PACKAGE = 'scripts'
 # through a helper is found too (Task D9: tests/workspace_expectations.py once took
 # tests/replay/test_replay_plugin.py there)
 ROOT_TESTS_PACKAGE = 'tests'
+# pytest loads every one above a test, and the plugins its pytest_plugins names
+CONFTEST_FILE_NAME = 'conftest.py'
 # The root test files that test a script, each with the scripts it tests: they may import them
 # (the controller's pre-flight ruling for Stage D, 2026-10-26: "exempting each remaining
 # script's own test file by name"). A test of the engine that uses a script's code as its test
@@ -1076,42 +1082,41 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/git_checkout.py',
     ),
 }
-# Why a source guard may reach scripts/: tests/ast_scanning.py's scanned_source_files lists the
-# members' packages with scripts/workspace_packages.py, so the guard reads every member's source
+# Why a source guard may reach scripts/: tests/workspace_sources.py's scanned_source_files lists
+# the members' packages with scripts/workspace_packages.py, so the guard reads every member's
+# source
 SOURCE_GUARD_REASON = (
-    "a guard over the engine's and every member's source (tests/ast_scanning.py "
+    "a guard over the engine's and every member's source (tests/workspace_sources.py "
     'scanned_source_files lists the members with scripts/workspace_packages.py)'
 )
 # The root test files that check this repository itself (its workspace, its members' goldens,
 # demos and console scripts, its CI and its suite), not the engine, each with its reason (Task
-# D9's decision: the controller's ruling named only script tests; these test no script but read
-# the workspace through one, which an engine test never needs). They may reach scripts/ too
+# D9's decision, kept by the controller in its review: these test no script but read the
+# workspace through one, which an engine test never needs). Each holds only such tests: an
+# engine file that held one or two (the source guards, the power-on test, our goldens' checks)
+# had them moved out to a file named for what it checks (Task D9 fix round 1), so no engine test
+# shares an exemption. They may reach scripts/ too
 REPOSITORY_TEST_FILES: dict[str, str] = {
-    'tests/engine/test_engine_lifecycle.py': (
-        "powers on every member's console script (test_every_game_powers_on_through_its_own_main), "
-        'listed from the workspace'
+    'tests/engine/test_every_game_powers_on.py': (
+        "powers on every member's console script through its own main(), listed from the workspace"
     ),
     'tests/replay/test_bundled_demos.py': "replays our members' bundled demos",
-    'tests/replay/test_golden_replays.py': "replays our members' goldens with our games' tables",
+    'tests/replay/test_golden_replays.py': "checks our members' goldens with our games' tables",
     'tests/replay/test_recording_logical_names.py': (
         'checks the logical names of every committed recording of our members'
     ),
     'tests/test_ci_config.py': "checks the CI configuration against the workspace's members",
-    'tests/test_driver_comparison.py': (
-        "tests the suite's driver-comparison plugin (tests/driver_comparison.py), which compares "
-        'frames with scripts/compare_driver_frames.py'
-    ),
-    'tests/test_engine_context.py': SOURCE_GUARD_REASON,
+    'tests/test_engine_context_source_guards.py': SOURCE_GUARD_REASON,
     'tests/test_engine_doors.py': SOURCE_GUARD_REASON,
     'tests/test_engine_wheel.py': (
         'checks the engine wheel holds no member (read from the workspace)'
     ),
     'tests/test_our_measured_recordings.py': "checks our games' recordings are all measured",
-    'tests/test_randomness.py': SOURCE_GUARD_REASON,
-    'tests/test_recording.py': SOURCE_GUARD_REASON,
+    'tests/test_pump_seam_guard.py': SOURCE_GUARD_REASON,
     'tests/test_suite_collection.py': (
         "the suite's own collection and import guards, over every test root"
     ),
+    'tests/test_unseeded_randomness_guard.py': SOURCE_GUARD_REASON,
     'tests/test_workspace_config.py': (
         "checks the workspace's configuration (members, extras, docs)"
     ),
@@ -1125,112 +1130,89 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
 
 
 def root_test_module_name(*, relative: str) -> str:
-    """Return the module a file under the root tests/ is imported as.
+    """Return the module a file under the repository is imported as (the root is on sys.path).
 
     Args:
-        relative: Its path from the repository (``tests/replay/helpers.py``).
+        relative: Its path from the repository (``tests/replay/helpers.py``, ``conftest.py``).
 
     Returns:
-        Its module (``tests.replay.helpers``; a package's ``__init__.py`` is the package).
+        Its module (``tests.replay.helpers``, ``conftest``).
 
     """
-    parts = list(Path(relative).with_suffix('').parts)
-    if parts[-1] == '__init__':
-        parts.pop()
-    return '.'.join(parts)
+    return module_name_of(relative=Path(relative))
 
 
-def imported_module_names(*, tree: ast.Module, module: str, is_package: bool) -> set[str]:
-    """Return every module a root test module may import, at any level.
-
-    Absolute imports, relative imports (resolved against ``module``) and literal string loads
-    (``importlib.import_module``, ``__import__``) of ``scripts`` and ``tests`` count. For ``from
-    X import y`` both ``X`` and ``X.y`` are named (``y`` may be a submodule), and so is every
-    package above a module (importing it runs their ``__init__``).
+def conftest_modules_above(*, project_root: Path, relative: str) -> list[str]:
+    """Return the conftest modules pytest loads for a test file: one per directory above it.
 
     Args:
-        tree: The module's parsed source.
-        module: Its module name.
-        is_package: Whether it is a package's ``__init__.py``.
+        project_root: The repository (the root conftest's directory).
+        relative: The test file's path from the repository.
 
     Returns:
-        The module names (some may name no module: a function imported by ``from``).
+        Their module names, the root's first.
 
     """
-    watched = frozenset({SCRIPTS_PACKAGE, ROOT_TESTS_PACKAGE})
-    named: set[str] = set()
-    for found in member_imports(tree=tree, member_packages=watched):
-        named.add(found.module)
-        if found.name is not None:
-            named.add(f'{found.module}.{found.name}')
-    package = module if is_package else module.rpartition('.')[0]
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.level > 0:
-            base = package.split('.')[: len(package.split('.')) - (node.level - 1)]
-            resolved = '.'.join([*base, *([node.module] if node.module else [])])
-            named.add(resolved)
-            named.update(f'{resolved}.{alias.name}' for alias in node.names)
-    parents = {
-        '.'.join(name.split('.')[:depth])
-        for name in named
-        for depth in range(1, name.count('.') + 1)
-    }
-    return named | parents
+    directories = [*reversed(Path(relative).parents)]
+    return [
+        root_test_module_name(relative=(directory / CONFTEST_FILE_NAME).as_posix())
+        for directory in directories
+        if (project_root / directory / CONFTEST_FILE_NAME).is_file()
+    ]
 
 
 def root_test_import_graph(*, project_root: Path) -> dict[str, frozenset[str]]:
-    """Return what each module under the root tests/ imports of ``scripts`` and ``tests``.
+    """Return what each module under the root tests/, and the root conftest, brings in.
+
+    A module's imports of ``tests`` and ``scripts`` (``ast_scanning.imported_module_names``);
+    a conftest's ``pytest_plugins`` too, and a test module's conftests (every ``conftest.py``
+    above it): pytest loads both before the test runs, so a fixture or plugin reaches a test by
+    name, never by an import (the review of Task D9).
 
     Args:
         project_root: The repository.
 
     Returns:
-        Module name -> the module names it imports (``imported_module_names``).
+        Module name -> the module names it brings in.
 
     """
-    return {
-        root_test_module_name(relative=relative): frozenset(
-            imported_module_names(
-                tree=tree,
-                module=root_test_module_name(relative=relative),
-                is_package=relative.endswith('__init__.py'),
-            )
+    files = [(relative, tree) for relative, tree in _root_test_modules(project_root=project_root)]
+    root_conftest = project_root / CONFTEST_FILE_NAME
+    if root_conftest.is_file():
+        files.append((
+            CONFTEST_FILE_NAME,
+            ast.parse(root_conftest.read_text(encoding='utf-8'), filename=str(root_conftest)),
+        ))
+    graph: dict[str, frozenset[str]] = {}
+    for relative, tree in files:
+        module = root_test_module_name(relative=relative)
+        brought_in = imported_module_names(
+            tree=tree,
+            module=module,
+            is_package=relative.endswith('__init__.py'),
+            followed=ROOT_TESTS_PACKAGE,
+            target=SCRIPTS_PACKAGE,
         )
-        for relative, tree in _root_test_modules(project_root=project_root)
-    }
+        if Path(relative).name == CONFTEST_FILE_NAME:
+            brought_in |= set(pytest_plugin_names(tree=tree))
+        if Path(relative).name.startswith('test_'):
+            brought_in |= set(conftest_modules_above(project_root=project_root, relative=relative))
+        graph[module] = frozenset(brought_in)
+    return graph
 
 
 def path_to_scripts(*, graph: dict[str, frozenset[str]], module: str) -> list[str] | None:
-    """Return the shortest chain of imports from a root test module to a ``scripts`` module.
-
-    Only the root tests' own modules are followed (a module of ``tests`` that is in ``graph``).
+    """Return the shortest chain from a root test module to a ``scripts`` module, if any.
 
     Args:
         graph: ``root_test_import_graph``'s.
         module: The test module.
 
     Returns:
-        ``[module, helper, ..., 'scripts.<name>']``, or None when it reaches none.
+        ``[module, helper, ..., 'scripts[.<name>]']``, or None when it reaches none.
 
     """
-    came_from: dict[str, str | None] = {module: None}
-    queue = [module]
-    while queue:
-        current = queue.pop(0)
-        for imported in sorted(graph.get(current, frozenset())):
-            if imported in came_from:
-                continue
-            if imported.partition('.')[0] == SCRIPTS_PACKAGE and imported != SCRIPTS_PACKAGE:
-                chain = [imported, current]
-                previous = came_from[current]
-                while previous is not None:
-                    chain.append(previous)
-                    previous = came_from[previous]
-                return chain[::-1]
-            if imported in graph:
-                came_from[imported] = current
-                queue.append(imported)
-    return None
+    return path_to_package(graph=graph, module=module, target=SCRIPTS_PACKAGE)
 
 
 def root_test_files(*, project_root: Path) -> list[str]:
@@ -1339,6 +1321,8 @@ def write_planted_tests(*, project_root: Path) -> None:
     - ``test_function_level.py``: an import inside a test function
     - ``test_string_load.py``: ``importlib.import_module('scripts.tool')``
     - ``test_by_package.py``: through a helpers package whose ``__init__`` imports scripts
+    - ``test_bare.py``: a bare ``import scripts`` (it runs ``scripts/__init__.py``)
+    - ``inside/test_in_package.py``: through its own package's ``__init__``, which imports scripts
     - ``test_clean.py``: a helper that imports only pygame
     - ``test_tool.py``: a script's own test (exempt in the test)
     """
@@ -1361,6 +1345,9 @@ def write_planted_tests(*, project_root: Path) -> None:
         'tests/test_by_package.py': 'from tests.loaded.inner import VALUE\n',
         'tests/test_clean.py': 'from tests.helpers import clean\n',
         'tests/test_tool.py': 'from scripts import tool\n',
+        'tests/test_bare.py': 'import scripts\n',
+        'tests/inside/__init__.py': 'import scripts.tool\n',
+        'tests/inside/test_in_package.py': 'VALUE = 3\n',
     }.items():
         write_root_test(project_root=project_root, relative=relative, source=source)
 
@@ -1368,14 +1355,19 @@ def write_planted_tests(*, project_root: Path) -> None:
 def test_a_root_test_reaching_scripts_in_any_way_is_found_with_its_chain(tmp_path):
     """Every way a root test reaches scripts/ is found, with the chain of imports that does.
 
-    Directly, at function level, by a string load, or through helpers, relative imports and a
-    package's ``__init__``.
+    Directly, by a bare ``import scripts``, at function level, by a string load, or through
+    helpers, relative imports, a package's ``__init__`` and the test's own package.
     """
     write_planted_tests(project_root=tmp_path)
 
     assert engine_tests_reaching_scripts(
         project_root=tmp_path, exempt=frozenset({'tests/test_tool.py'})
     ) == [
+        (
+            'tests/inside/test_in_package.py: tests.inside.test_in_package -> tests.inside -> '
+            'scripts.tool'
+        ),
+        'tests/test_bare.py: tests.test_bare -> scripts',
         ('tests/test_by_package.py: tests.test_by_package -> tests.loaded -> scripts.tool'),
         (
             'tests/test_by_relative.py: tests.test_by_relative -> tests.helpers.relative -> '
@@ -1387,6 +1379,37 @@ def test_a_root_test_reaching_scripts_in_any_way_is_found_with_its_chain(tmp_pat
         ),
         'tests/test_function_level.py: tests.test_function_level -> scripts.tool',
         'tests/test_string_load.py: tests.test_string_load -> scripts.tool',
+    ]
+
+
+def test_a_root_test_reaching_scripts_through_a_conftest_or_its_plugins_is_found(tmp_path):
+    """A conftest above a test, and a plugin a conftest loads, are followed as imports are.
+
+    pytest loads every ``conftest.py`` above a test, and the plugins its ``pytest_plugins``
+    names, before the test runs, so a fixture or plugin that imports scripts/ reaches the test
+    by name, never by an import. The shortest chain is named.
+    """
+    for relative, source in {
+        'scripts/tool.py': 'THING = 1\n',
+        'conftest.py': "pytest_plugins = ['pytester', 'tests.shared_plugin']\n",
+        'tests/__init__.py': '',
+        'tests/shared_plugin.py': 'from scripts.tool import THING\n',
+        'tests/test_plain.py': 'VALUE = 1\n',
+        'tests/nested/__init__.py': '',
+        'tests/nested/conftest.py': (
+            'import pytest\n\n\n@pytest.fixture\ndef tool():\n'
+            '    from scripts import tool\n    return tool\n'
+        ),
+        'tests/nested/test_deep.py': 'def test_deep(tool):\n    assert tool\n',
+    }.items():
+        write_root_test(project_root=tmp_path, relative=relative, source=source)
+
+    assert engine_tests_reaching_scripts(project_root=tmp_path, exempt=frozenset()) == [
+        (
+            'tests/nested/test_deep.py: tests.nested.test_deep -> tests.nested.conftest -> '
+            'scripts.tool'
+        ),
+        'tests/test_plain.py: tests.test_plain -> conftest -> tests.shared_plugin -> scripts.tool',
     ]
 
 

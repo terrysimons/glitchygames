@@ -19,7 +19,8 @@ Outside CI, `uv run pytest` (and `nox -s test`) runs the suite twice at once:
 
 Both runs record a fingerprint (size and SHA-256 of the RGB bytes, as the window shows them) of
 every frame each test presents (`src/glitchygames/testing/frame_fingerprints.py`). When both have
-finished, the frames are compared (`scripts/compare_driver_frames.py`). Any difference, or a
+finished, the frames are compared (`src/glitchygames/testing/frame_comparison.py`; its command line
+is `scripts/compare_driver_frames.py`). Any difference, or a
 failure in the native run, fails the run; the differing tests are re-run on both drivers to save
 the differing frames as PNG files with a difference image (the baseline dimmed to grey, differing
 pixels magenta) under `test-results/driver-comparison/pytest/`. The terminal summary names every

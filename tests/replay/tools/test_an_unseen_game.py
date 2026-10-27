@@ -50,7 +50,7 @@ from glitchygames.replay.tools.settings import (
     ensure_local_directory,
 )
 from glitchygames.tracing import read_trace_result
-from tests.ledger_repositories import git
+from tests.ledger_repositories import environment_without_git_variables, git
 from tests.stand_in_games import (
     STAND_IN_GAME_FRAMES,
     stand_in_game_source,
@@ -58,9 +58,10 @@ from tests.stand_in_games import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from glitchygames.process import CompletedProcess
+    from glitchygames.replay.tools.registry import Tool
 
 # The stand-in game: its package, its distribution's one console script and its one scene
 PACKAGE = 'stand_in_rally'
@@ -165,6 +166,14 @@ CHILD_TIMEOUT_SECONDS = 120.0
 # What the children must never import: this repository's scripts and tests, and its members
 # (by their import packages, and the layer directories an editable install leaves importable)
 FORBIDDEN_IMPORTS = frozenset({'scripts', 'tests', *LAYERS, *MEMBER_LAYERS})
+# This process's variables the children never get: its import path and start-up file, and
+# coverage's start-up hook (git's are dropped by tests/ledger_repositories.py's helper)
+DROPPED_VARIABLES = frozenset({
+    'PYTHONPATH',
+    'PYTHONSTARTUP',
+    'COVERAGE_PROCESS_START',
+    'COVERAGE_PROCESS_CONFIG',
+})
 # The environment variables the import watch reads
 IMPORT_LOG_VARIABLE = 'GLITCHYGAMES_UNSEEN_GAME_IMPORT_LOG'
 FORBIDDEN_IMPORTS_VARIABLE = 'GLITCHYGAMES_UNSEEN_GAME_FORBIDDEN_IMPORTS'
@@ -202,6 +211,7 @@ class Layout:
         publishes: Whether it publishes its ledger (``published-ledger``).
         pages_ledger: The ledger file performance-pages writes.
         local_directory: Whether its pending ledger is in the git-ignored ``.glitchygames/``.
+        forms: The GAME forms its grid starts the game in.
 
     """
 
@@ -212,6 +222,7 @@ class Layout:
     publishes: bool
     pages_ledger: str
     local_directory: bool
+    forms: tuple[str, ...]
 
 
 # A project naming every setting the tools read away from its default
@@ -232,6 +243,7 @@ WITH_SETTINGS = Layout(
     publishes=True,
     pages_ledger=PUBLISHED_PATH,
     local_directory=False,
+    forms=tuple(GAME_FORMS),
 )
 # A player's project with no tool.glitchygames table: every tool runs on the defaults that
 # ProjectSettings gives (glitchygames/replay/tools/settings.py)
@@ -243,6 +255,9 @@ ON_THE_DEFAULTS = Layout(
     publishes=False,
     pages_ledger='replay-ledger.jsonl',
     local_directory=True,
+    # Its point is the defaults, not the forms: the console script only (the controller's ruling
+    # on the runtime, Task D9 fix round 1)
+    forms=(CONSOLE_SCRIPT_FORM,),
 )
 
 
@@ -348,7 +363,10 @@ def child_environment(
 
     ``PYTHONPATH`` holds only the import watch, the stand-in's distribution metadata and its
     project's ``src/`` (an editable install's path); this process's own ``PYTHONPATH`` is
-    dropped. No bytecode is written, so ``__pycache__`` never shows up as a written file.
+    dropped, and so are git's variables (``GIT_DIR`` would aim the stand-in's git at this
+    repository when pytest runs inside a git hook) and coverage's start-up hook (no child is
+    measured). No bytecode is written, so ``__pycache__`` never shows up as a written file. The
+    import watch sees imports only, not a file this repository's code is read from by path.
 
     Returns:
         The environment.
@@ -356,8 +374,8 @@ def child_environment(
     """
     environment = {
         name: value
-        for name, value in os.environ.items()
-        if name not in {'PYTHONPATH', 'PYTHONSTARTUP'}
+        for name, value in environment_without_git_variables().items()
+        if name not in DROPPED_VARIABLES
     }
     environment['PYTHONPATH'] = os.pathsep.join(
         str(directory) for directory in (import_watch_directory, install_directory, project / 'src')
@@ -553,21 +571,32 @@ def build_template(*, root: Path, layout: Layout) -> Template:
     )
 
 
-@pytest.fixture(scope='module', params=[WITH_SETTINGS, ON_THE_DEFAULTS], ids=lambda it: it.name)
-def template(request, tmp_path_factory) -> Template:
-    """A stand-in project in one layout, built once per module (and per xdist worker).
+@pytest.fixture(scope='module')
+def templates(tmp_path_factory) -> Callable[[Layout], Template]:
+    """Build each layout's stand-in project once per module (and xdist worker), when first asked.
+
+    A cache by layout, not a parametrized fixture: each case names its own layout, and pytest
+    keys a module-scoped fixture's cache by the test's parameter set, so an indirectly
+    parametrized template was built again for every case (Task D9 fix round 1).
 
     Returns:
-        The template.
+        The template for a layout.
 
     """
-    layout: Layout = request.param
-    return build_template(root=tmp_path_factory.mktemp(f'unseen-{layout.name}'), layout=layout)
+    built: dict[str, Template] = {}
+
+    def template_for(layout: Layout) -> Template:
+        if layout.name not in built:
+            built[layout.name] = build_template(
+                root=tmp_path_factory.mktemp(f'unseen-{layout.name}'), layout=layout
+            )
+        return built[layout.name]
+
+    return template_for
 
 
-@pytest.fixture
-def world(template, tmp_path) -> World:
-    """This test's own copy of the template project (its git history included).
+def world_for(*, template: Template, tmp_path: Path) -> World:
+    """Return a test's own copy of a template project (its git history included).
 
     Returns:
         The world.
@@ -1017,6 +1046,7 @@ class Case:
     """A scenario through one front end, with the game named in one form.
 
     Attributes:
+        layout: The project's layout.
         scenario: The scenario.
         front_end: ``FLAG`` (``<game> --<tool>``) or ``COMMAND`` (``glitchygames <tool>``).
         form: The GAME form; ``UNNAMED_GAME`` for a command that finds the game itself; None
@@ -1024,36 +1054,47 @@ class Case:
 
     """
 
+    layout: Layout
     scenario: Scenario
     front_end: str
     form: str | None
 
     @property
     def id(self) -> str:
-        """The test id: ``<scenario>-<front end>[-<form>]``."""
-        parts = (self.scenario.name, self.front_end, self.form)
+        """The test id: ``<layout>-<scenario>-<front end>[-<form>]``."""
+        parts = (self.layout.name, self.scenario.name, self.front_end, self.form)
         return '-'.join(part for part in parts if part is not None)
 
 
 def every_case() -> list[Case]:
-    """Return each scenario through each front end, in each GAME form that front end takes.
+    """Return each scenario in each layout, through each front end, in the layout's GAME forms.
 
     The game flag is always given to the game, started in each form; the command names the game
-    in each form only when the tool takes one (record-trace's ``GAME``, verify's ``--game``).
+    in each form only when the tool takes one (record-trace's ``GAME``, verify's ``--game``), and
+    a command that can find the game itself (``--game`` not given) has that case too.
 
     Returns:
         The cases.
 
     """
     cases: list[Case] = []
-    for scenario in SCENARIOS:
-        cases.extend(Case(scenario=scenario, front_end=FLAG, form=form) for form in GAME_FORMS)
-        if scenario.game_on_the_command is None:
-            cases.append(Case(scenario=scenario, front_end=COMMAND, form=None))
-            continue
-        cases.extend(Case(scenario=scenario, front_end=COMMAND, form=form) for form in GAME_FORMS)
-        if scenario.game_on_the_command == 'option':
-            cases.append(Case(scenario=scenario, front_end=COMMAND, form=UNNAMED_GAME))
+    for layout in (WITH_SETTINGS, ON_THE_DEFAULTS):
+        for scenario in SCENARIOS:
+            cases.extend(
+                Case(layout=layout, scenario=scenario, front_end=FLAG, form=form)
+                for form in layout.forms
+            )
+            if scenario.game_on_the_command is None:
+                cases.append(Case(layout=layout, scenario=scenario, front_end=COMMAND, form=None))
+                continue
+            cases.extend(
+                Case(layout=layout, scenario=scenario, front_end=COMMAND, form=form)
+                for form in layout.forms
+            )
+            if scenario.game_on_the_command == 'option':
+                cases.append(
+                    Case(layout=layout, scenario=scenario, front_end=COMMAND, form=UNNAMED_GAME)
+                )
     return cases
 
 
@@ -1114,7 +1155,7 @@ def assert_nothing_of_this_repository_was_imported(*, world: World) -> None:
 
 
 @pytest.mark.parametrize('case', CASES, ids=[case.id for case in CASES])
-def test_every_tool_runs_an_unseen_game(case, world):
+def test_every_tool_runs_an_unseen_game(case, templates, tmp_path):
     """Each tool, through each front end and GAME form, in a project with and without settings.
 
     Checked for each: the exit status and the tool's own checks (its recording, rows or
@@ -1122,6 +1163,8 @@ def test_every_tool_runs_an_unseen_game(case, world):
     files it wrote in the project, the form the command read GAME as, and that no child
     imported anything of this repository.
     """
+    world = world_for(template=templates(case.layout), tmp_path=tmp_path)
+
     run = run_case(case=case, world=world)
 
     case.scenario.check(world, run)
@@ -1137,35 +1180,88 @@ def test_every_tool_runs_an_unseen_game(case, world):
     assert_nothing_of_this_repository_was_imported(world=world)
 
 
-def test_every_tool_has_a_case_on_both_front_ends():
-    """Walk ``TOOLS``: a tool without a case here, on either front end, is named."""
-    covered = {(case.scenario.tool, case.front_end) for case in CASES}
-    missing = [
+def tools_without_a_case(*, cases: Sequence[Case], tools: Sequence[Tool]) -> list[str]:
+    """Return each tool and front end that no case runs.
+
+    Returns:
+        ``<tool> (<front end>)`` for each, in ``tools``' order.
+
+    """
+    covered = {(case.scenario.tool, case.front_end) for case in cases}
+    return [
         f'{tool.name} ({front_end})'
-        for tool in TOOLS
+        for tool in tools
         for front_end in (FLAG, COMMAND)
         if (tool.name, front_end) not in covered
     ]
 
-    assert missing == [], f'tools without an unseen-game case: {missing}'
+
+def scenarios_naming_no_tool(*, scenarios: Sequence[Scenario], tools: Sequence[Tool]) -> list[str]:
+    """Return each scenario whose tool is no name in ``tools`` (a typo fails only at run time).
+
+    Returns:
+        ``<scenario> (<tool>)`` for each, in ``scenarios``' order.
+
+    """
+    names = {tool.name for tool in tools}
+    return [
+        f'{scenario.name} ({scenario.tool})' for scenario in scenarios if scenario.tool not in names
+    ]
+
+
+def test_every_tool_has_a_case_on_both_front_ends():
+    """Walk ``TOOLS``: a tool without a case here, on either front end, is named."""
+    assert tools_without_a_case(cases=CASES, tools=TOOLS) == []
+
+
+def test_a_tool_missing_from_one_front_end_is_named():
+    """The walk bites on either axis: a tool's command cases gone, or all of a tool's cases."""
+    without_the_report_command = [
+        case for case in CASES if not (case.scenario.tool == 'report' and case.front_end == COMMAND)
+    ]
+    without_measure = [case for case in CASES if case.scenario.tool != 'measure']
+
+    assert tools_without_a_case(cases=without_the_report_command, tools=TOOLS) == [
+        'report (command)'
+    ]
+    assert tools_without_a_case(cases=without_measure, tools=TOOLS) == [
+        'measure (flag)',
+        'measure (command)',
+    ]
+
+
+def test_every_scenario_names_a_tool_in_tools():
+    """Each scenario's tool is a name ``TOOLS`` has."""
+    assert scenarios_naming_no_tool(scenarios=SCENARIOS, tools=TOOLS) == []
+
+
+def test_a_scenario_naming_no_tool_is_named():
+    """A misspelled tool in a scenario is found before anything runs."""
+    misspelled = dataclasses.replace(SCENARIOS[0], name='misspelled', tool='record-tracee')
+
+    assert scenarios_naming_no_tool(scenarios=[*SCENARIOS, misspelled], tools=TOOLS) == [
+        'misspelled (record-tracee)'
+    ]
 
 
 def test_every_game_taking_command_names_the_game_in_all_three_forms():
-    """A tool whose command takes a game has a case for each GAME form on both front ends."""
-    for scenario in SCENARIOS:
-        flag_forms = {
-            case.form for case in CASES if case.scenario is scenario and case.front_end == FLAG
-        }
-        command_forms = {
-            case.form for case in CASES if case.scenario is scenario and case.front_end == COMMAND
-        }
-        assert flag_forms == set(GAME_FORMS), scenario.name
-        expected = {
-            None: {None},
-            'positional': set(GAME_FORMS),
-            'option': {*GAME_FORMS, UNNAMED_GAME},
-        }[scenario.game_on_the_command]
-        assert command_forms == expected, scenario.name
+    """With settings, every scenario starts the game in each GAME form on both front ends.
+
+    The project on the defaults runs through the console script only.
+    """
+    for layout in (WITH_SETTINGS, ON_THE_DEFAULTS):
+        for scenario in SCENARIOS:
+            cases = [case for case in CASES if case.layout is layout and case.scenario is scenario]
+            flag_forms = {case.form for case in cases if case.front_end == FLAG}
+            command_forms = {case.form for case in cases if case.front_end == COMMAND}
+            assert flag_forms == set(layout.forms), (layout.name, scenario.name)
+            expected = {
+                None: {None},
+                'positional': set(layout.forms),
+                'option': {*layout.forms, UNNAMED_GAME},
+            }[scenario.game_on_the_command]
+            assert command_forms == expected, (layout.name, scenario.name)
+    assert WITH_SETTINGS.forms == tuple(GAME_FORMS)
 
 
 def test_replay_trace_is_exercised_with_rebaseline_and_audit():
@@ -1234,7 +1330,9 @@ class SeedRow:
             expected_written=lambda _world: set(self.expected_written),
             check=self.check,
         )
-        return Case(scenario=scenario, front_end=self.front_end, form=self.form)
+        return Case(
+            layout=WITH_SETTINGS, scenario=scenario, front_end=self.front_end, form=self.form
+        )
 
 
 def check_a_rolled_seed_is_logged_and_recorded(world: World, run: Run) -> None:
@@ -1275,8 +1373,13 @@ def check_the_rebaseline_records_the_given_seed(world: World, _run: Run) -> None
     assert options['random_seed'] == GIVEN_SEED
 
 
-def check_the_audit_is_refused(_world: World, run: Run) -> None:
-    """An audit under another seed is refused before anything runs."""
+def check_the_audit_is_refused(world: World, run: Run) -> None:
+    """An audit under another seed is refused, saying why, before anything runs."""
+    assert run.status == ExitCode.OPTIONS_REFUSED, run.output + run.errors
+    assert (
+        f'under --random-seed {OTHER_SEED}: it was recorded under seed {golden_seed(world)}, and '
+        "an audit checks a replay under its recording's seed"
+    ) in run.errors, run.errors
     assert 'Replay matched' not in run.output
 
 
@@ -1382,10 +1485,10 @@ SEED_ROWS = (
 
 
 # The seed rule does not depend on the project's settings: one layout is enough
-@pytest.mark.parametrize('template', [WITH_SETTINGS], ids=lambda it: it.name, indirect=True)
 @pytest.mark.parametrize('row', SEED_ROWS, ids=[row.name for row in SEED_ROWS])
-def test_the_seed_rule_holds_for_an_unseen_game(row, world):
+def test_the_seed_rule_holds_for_an_unseen_game(row, templates, tmp_path):
     """Each row of the seed rule once, on the unseen game (the full grid: test_random_seed.py)."""
+    world = world_for(template=templates(WITH_SETTINGS), tmp_path=tmp_path)
     case = row.case(world=world)
 
     run = run_case(case=case, world=world)
@@ -1397,14 +1500,14 @@ def test_the_seed_rule_holds_for_an_unseen_game(row, world):
 
 
 # The import watch is checked on one layout: it does not depend on the project's settings
-@pytest.mark.parametrize('template', [WITH_SETTINGS], ids=lambda it: it.name, indirect=True)
-def test_the_import_watch_sees_a_child_reach_for_this_repository(world):
+def test_the_import_watch_sees_a_child_reach_for_this_repository(templates, tmp_path):
     """A child that imports a member, or tries to import scripts/, is in the watch's log.
 
     Without this, a watch that saw nothing would pass every case above. A member is importable
     in the children (this environment installs the workspace's members); scripts/ is not, and
     even the failed attempt is logged.
     """
+    world = world_for(template=templates(WITH_SETTINGS), tmp_path=tmp_path)
     member = next(iter(MEMBER_LAYERS))
     reaching = run_child(
         command=[
@@ -1422,3 +1525,49 @@ def test_the_import_watch_sees_a_child_reach_for_this_repository(world):
     ]
     assert member in logged
     assert 'scripts' in logged
+
+
+# Variables a test's own process may hold that would aim a child somewhere else: git's (set
+# when pytest runs inside a git hook: GIT_DIR would aim the stand-in's git at this repository)
+# and coverage's start-up hook (nothing here measures the children)
+LEAKING_VARIABLES = {
+    'GIT_DIR': 'not-this-repository',
+    'GIT_WORK_TREE': 'not-this-work-tree',
+    'GIT_INDEX_FILE': 'not-this-index',
+    'COVERAGE_PROCESS_START': 'not-this-coverage',
+}
+
+
+def test_the_children_get_no_git_or_coverage_variables_of_this_process(monkeypatch, tmp_path):
+    """Git's and coverage's variables of this process never reach the stand-in's children."""
+    for name, value in LEAKING_VARIABLES.items():
+        monkeypatch.setenv(name, value)
+
+    environment = child_environment(
+        project=tmp_path / 'project',
+        install_directory=tmp_path / 'site-packages',
+        import_watch_directory=tmp_path / 'import-watch',
+        import_log=tmp_path / 'imports.log',
+    )
+
+    # Only the names are compared, so a failure never prints the environment's values
+    leaked = sorted(set(LEAKING_VARIABLES) & set(environment))
+    assert leaked == []
+
+
+def test_the_stand_in_repositorys_git_is_its_own_whatever_git_variables_are_set(
+    monkeypatch, tmp_path
+):
+    """tests/ledger_repositories.py's git works in the repository it is given, not GIT_DIR's."""
+    for name, value in LEAKING_VARIABLES.items():
+        monkeypatch.setenv(name, str(tmp_path / value))
+    repository = tmp_path / 'repository'
+    repository.mkdir()
+    (repository / 'README').write_text('a stand-in\n', encoding='utf-8')
+
+    git(repository=repository, arguments=['init', '--quiet', '--initial-branch', 'main'])
+    commit = commit_all(project=repository, message='A stand-in')
+
+    assert (repository / '.git').is_dir()
+    assert not (tmp_path / LEAKING_VARIABLES['GIT_DIR']).exists()
+    assert git(repository=repository, arguments=['rev-parse', 'HEAD']).strip() == commit

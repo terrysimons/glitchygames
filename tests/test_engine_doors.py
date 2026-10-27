@@ -15,14 +15,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.ast_scanning import (
-    PROJECT_ROOT,
-    import_bindings,
-    qualified_name,
-    scanned_source_files,
-    write_project_with_member_module,
-)
+from tests.ast_scanning import PROJECT_ROOT, import_bindings, qualified_name
 from tests.engine_source import ENGINE_DIRECTORY
+from tests.workspace_sources import scanned_source_files, write_project_with_member_module
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

@@ -8,7 +8,8 @@ It answers one question: does a test draw the same pixels on two SDL video drive
 driver and a real one (macOS's cocoa, Linux's x11) draw in software through the same code, and
 the engine presents opaque frames (glitchygames/opacity.py), so the same test should present
 the same pixels on both; a difference is a driver dependence (BUGS.md #142 was one).
-scripts/compare_driver_frames.py compares the recordings of two or more runs, and
+glitchygames/testing/frame_comparison.py (and its command line, scripts/compare_driver_frames.py)
+compares the recordings of two or more runs, and
 ``nox -s compare-drivers`` runs the whole comparison.
 
 It records only when asked (otherwise it registers the ``frames_vary`` marker and does
@@ -36,7 +37,7 @@ recorded.
 
 A frame's position is its index in ``RecordedFrames.frames``: the presents, then the final
 frame. ``--frame-images-request FILE`` (a ``FrameImageRequest``, written by
-scripts/compare_driver_frames.py) also saves the named positions of the named tests as PNG
+glitchygames/testing/frame_comparison.py) also saves the named positions of the named tests as PNG
 files, at ``frame_image_path(directory=DIRECTORY, nodeid=..., position=...)``.
 
 ``--frame-fingerprints-seed SEED`` makes the master seed an engine draws when it is given no

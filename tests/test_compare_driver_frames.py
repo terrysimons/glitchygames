@@ -13,7 +13,10 @@ from typing import TYPE_CHECKING
 
 import pygame
 import pytest
-from scripts.compare_driver_frames import (
+from scripts.compare_driver_frames import main, parse_labelled_run, run
+
+from glitchygames.exit_codes import ExitCode
+from glitchygames.testing.frame_comparison import (
     DIFFERENCE_COLOR,
     FrameSequenceDifference,
     LabelledRun,
@@ -25,12 +28,7 @@ from scripts.compare_driver_frames import (
     comparison_report,
     image_request_for,
     images_report,
-    main,
-    parse_labelled_run,
-    run,
 )
-
-from glitchygames.exit_codes import ExitCode
 from glitchygames.testing.frame_fingerprints import (
     FrameFingerprint,
     FrameImageRequest,

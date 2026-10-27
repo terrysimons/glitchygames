@@ -19,10 +19,13 @@ from scripts.workspace_packages import WorkspaceMember, workspace_members
 from glitchygames import logical_names
 from tests.ast_scanning import (
     import_bindings,
-    member_import_packages,
+    imported_module_names,
     member_imports,
-    scanned_source_files,
+    module_name_of,
+    path_to_package,
 )
+from tests.engine_source import ENGINE_DIRECTORY
+from tests.workspace_sources import member_import_packages, scanned_source_files
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -360,6 +363,87 @@ def engine_files_importing_a_member(
 def test_the_engine_imports_no_member():
     """No engine file imports a game, demo or app."""
     assert engine_files_importing_a_member(project_root=PROJECT_ROOT, members=MEMBERS) == []
+
+
+# The engine's import package (followed through its own modules) and the package it never reaches
+ENGINE_IMPORT_PACKAGE = 'glitchygames'
+SCRIPTS_PACKAGE = 'scripts'
+
+
+def engine_modules_reaching_scripts(*, project_root: Path) -> list[str]:
+    """Return each engine module that imports ``scripts.*``, directly or through engine modules.
+
+    The engine is installed without this repository's scripts/ (Part 3, Stage D's constraint:
+    "No engine module imports ``scripts.*``"), so none may. Every import counts, at any level,
+    relative or by a literal string, and so does a package's ``__init__`` above a module.
+
+    Args:
+        project_root: The repository (its ``src/glitchygames/`` is scanned).
+
+    Returns:
+        ``<file>: <module> -> ... -> scripts.<name>`` for each, sorted by file.
+
+    """
+    source_root = project_root / ENGINE_DIRECTORY.parent
+    modules: dict[str, Path] = {
+        module_name_of(relative=path.relative_to(source_root)): path
+        for path in sorted((project_root / ENGINE_DIRECTORY).rglob('*.py'))
+        if '__pycache__' not in path.parts
+    }
+    graph = {
+        module: frozenset(
+            imported_module_names(
+                tree=ast.parse(path.read_text(encoding='utf-8'), filename=str(path)),
+                module=module,
+                is_package=path.name == '__init__.py',
+                followed=ENGINE_IMPORT_PACKAGE,
+                target=SCRIPTS_PACKAGE,
+            )
+        )
+        for module, path in modules.items()
+    }
+    findings: list[str] = []
+    for path, module in sorted((path, module) for module, path in modules.items()):
+        chain = path_to_package(graph=graph, module=module, target=SCRIPTS_PACKAGE)
+        if chain is not None:
+            findings.append(f'{path.relative_to(project_root).as_posix()}: {" -> ".join(chain)}')
+    return findings
+
+
+def test_no_engine_module_reaches_scripts():
+    """No engine module imports scripts/, directly or through another engine module."""
+    assert engine_modules_reaching_scripts(project_root=PROJECT_ROOT) == []
+
+
+def test_an_engine_module_reaching_scripts_in_any_way_is_found_with_its_chain(tmp_path):
+    """Directly, by a bare import, relatively, through another module or its own package."""
+    for relative, source in {
+        'scripts/tool.py': 'THING = 1\n',
+        'src/glitchygames/__init__.py': '',
+        'src/glitchygames/clean.py': 'import os\n',
+        'src/glitchygames/helper.py': 'from scripts.tool import THING\n',
+        'src/glitchygames/uses_helper.py': 'from glitchygames.helper import THING\n',
+        'src/glitchygames/relative.py': 'from .helper import THING\n',
+        'src/glitchygames/sub/__init__.py': 'import scripts\n',
+        'src/glitchygames/sub/leaf.py': 'VALUE = 1\n',
+    }.items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding='utf-8')
+
+    assert engine_modules_reaching_scripts(project_root=tmp_path) == [
+        'src/glitchygames/helper.py: glitchygames.helper -> scripts.tool',
+        (
+            'src/glitchygames/relative.py: glitchygames.relative -> glitchygames.helper -> '
+            'scripts.tool'
+        ),
+        'src/glitchygames/sub/__init__.py: glitchygames.sub -> scripts',
+        'src/glitchygames/sub/leaf.py: glitchygames.sub.leaf -> glitchygames.sub -> scripts',
+        (
+            'src/glitchygames/uses_helper.py: glitchygames.uses_helper -> glitchygames.helper -> '
+            'scripts.tool'
+        ),
+    ]
 
 
 def write_engine_module(*, project_root: Path, source: str) -> list[WorkspaceMember]:

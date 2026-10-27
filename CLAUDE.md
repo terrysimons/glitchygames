@@ -678,7 +678,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `numpy_stream('name')` (numpy `Generator`), looked up at draw time; `engine_random()` is
   `random_stream('engine')`, `reset_streams(seed=...)` reseeds (tests, replay). Never use
   `secrets`, `random.SystemRandom`, global `random.*` functions or an unseeded
-  `np.random.default_rng()` in gameplay (`tests/test_randomness.py` scans for them)
+  `np.random.default_rng()` in gameplay (`tests/test_unseeded_randomness_guard.py` scans for them)
 - `--replay-trace PATH` (`src/glitchygames/replay/driver.py`; its module docstring lists the rules):
   replay a recording exactly through the real engine. `ReplaySources` serve its events, dt,
   polled input, devices, in-memory saves, clocks and seed, and every frame's sprites are compared
@@ -1219,15 +1219,24 @@ Features:
   out of scope
 - No engine test reaches `scripts/` (Part 3 Stage D, Task D9): `tests/test_suite_collection.py`
   (`engine_tests_reaching_scripts`) follows every root test module's imports, at any level, by a
-  literal string, relative or through a package, through the root tests' own helper modules, and
-  fails naming the chain (`tests.x -> tests.helper -> scripts.y`). Exempt by name: a script's own
-  test (`SCRIPT_TEST_FILES`, with the scripts it tests) and a test of this repository itself
-  (`REPOSITORY_TEST_FILES`, with its reason: the workspace, our members' goldens, demos and
-  console scripts, CI, the suite, and the source guards that scan every member through
-  `tests/ast_scanning.py`); a stale exemption (no file, no `scripts.*` reached, or a script gone)
-  fails too. The engine's own source directory for the engine's tests is
-  `tests/engine_source.py` (kept equal to `scripts/workspace_packages.py`'s by
-  `tests/test_workspace_packages.py`)
+  literal string, a bare `import scripts`, relative or through a package (its own included),
+  through the root tests' own helper modules, and through every `conftest.py` above it and the
+  plugins their `pytest_plugins` name (a fixture reaches a test by name), and fails naming the
+  shortest chain (`tests.x -> conftest -> tests.helper -> scripts.y`). Exempt by name: a
+  script's own test (`SCRIPT_TEST_FILES`, with the scripts it tests) and a file that holds only
+  tests of this repository itself (`REPOSITORY_TEST_FILES`, with its reason: the workspace, our
+  members' goldens, demos and console scripts, CI, the suite, and the source guards that scan
+  every member through `tests/workspace_sources.py`: `tests/test_engine_doors.py`,
+  `test_pump_seam_guard.py`, `test_unseeded_randomness_guard.py`,
+  `test_engine_context_source_guards.py`); a stale exemption (no file, no `scripts.*` reached, or
+  a script gone) fails too. A repository test never shares a file with engine tests: put it in
+  its own file, named for what it checks (`tests/engine/test_every_game_powers_on.py`). The shared
+  AST and import-graph helpers (`tests/ast_scanning.py`) import no `scripts.*`; what reads the
+  workspace is `tests/workspace_sources.py` and `tests/workspace_goldens.py`. The engine's own
+  source directory for the engine's tests is `tests/engine_source.py` (kept equal to
+  `scripts/workspace_packages.py`'s by `tests/test_workspace_packages.py`). No engine module
+  reaches `scripts/` either, directly or through another engine module
+  (`tests/test_workspace_config.py` `engine_modules_reaching_scripts`)
 - `tests/harness.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
   plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`).
 - Real pads never reach tests: `tests/sdl_defaults.py` defaults SDL's macOS joystick drivers off
@@ -1235,7 +1244,9 @@ Features:
   so tests see only their stand-ins (`tests/input/stand_in_devices.py`); set one to `1` yourself
   to test with a real pad. Windows' and Linux's joystick drivers are not covered
 - Driver comparison (`tests/driver_comparison.py`; frames recorded by
-  `src/glitchygames/testing/frame_fingerprints.py`, compared by `scripts/compare_driver_frames.py`):
+  `src/glitchygames/testing/frame_fingerprints.py`, compared by
+  `src/glitchygames/testing/frame_comparison.py`, whose command line is
+  `scripts/compare_driver_frames.py`):
   outside CI, `uv run pytest` (and `nox -s test`) also starts the same command on the native
   driver (macOS cocoa + coreaudio, Windows windows, Linux wayland or x11 with dummy audio) as a
   child run, the usual workers split between them (native two thirds), then compares every frame

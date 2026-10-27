@@ -66,6 +66,7 @@ from glitchygames.tracing import (
 )
 from glitchygames.world import CULL_MARGIN_PIXELS, is_world_positioned
 from tests.workspace_goldens import every_games_golden
+from tests.world.test_gameplay_recording import RANDOM_SEED as GOLDEN_SCRIPT_SEED
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -1456,10 +1457,9 @@ def test_altered_middle_frame_is_found_at_its_frame_and_sprite(game_key, tmp_pat
 
 # The golden scripts' own round trip, moved here from tests/world/test_gameplay_replay.py (Part 3,
 # Stage D, Task D9) with our games' scripts, so that engine test reaches no scripts.*: how many
-# frames each game's golden script records, and the seed it records under (the seed those tests
-# used: tests/world/test_gameplay_recording.py RANDOM_SEED)
+# frames each game's golden script records (its seed, GOLDEN_SCRIPT_SEED, is the one those tests
+# used: tests/world/test_gameplay_recording.py RANDOM_SEED, imported)
 GOLDEN_SCRIPT_FRAMES = 300
-GOLDEN_SCRIPT_SEED = 123
 
 
 def test_the_golden_scripts_games_are_the_games_of_the_members_goldens():

@@ -39,8 +39,8 @@ that is deterministic and needs no stream.
 
 Never use ``secrets``, ``random.SystemRandom``, the ``random`` module's global functions,
 ``random.Random()`` without a seed or ``np.random.default_rng()`` without a seed in the
-package: ``tests/test_randomness.py`` scans for them. This module is the one exception (it
-draws the master seed when none is given).
+package: ``tests/test_unseeded_randomness_guard.py`` scans for them. This module is the one
+exception (it draws the master seed when none is given).
 """
 
 from __future__ import annotations

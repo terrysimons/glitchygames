@@ -13,10 +13,10 @@ driver dependence (BUGS.md #142, #189). Outside CI, a pytest run therefore:
    (``NATIVE_WORKER_SHARE`` of the usual workers go to it, the rest stay here: the native run is
    slower per test, and the two together never use more workers than one run would), with its
    output in ``test-results/driver-comparison/pytest/native/pytest.log``;
-3. at the session's end compares the two runs' frames (scripts/compare_driver_frames.py), re-runs
-   any differing tests on both drivers saving PNG files of the differing frames and a difference
-   image, and reports them in the terminal summary. A driver difference, or a failure in the
-   native run, fails this run.
+3. at the session's end compares the two runs' frames (glitchygames/testing/frame_comparison.py),
+   re-runs any differing tests on both drivers saving PNG files of the differing frames and a
+   difference image, and reports them in the terminal summary. A driver difference, or a failure
+   in the native run, fails this run.
 
 Tests marked ``@pytest.mark.frames_vary(reason=...)`` are listed, not compared: their frames are
 not expected to match between runs or drivers (they hold measured frame times, or the live
@@ -42,13 +42,6 @@ from typing import TYPE_CHECKING, TextIO
 
 import pytest
 from pydantic import BaseModel, ConfigDict
-from scripts.compare_driver_frames import (
-    LabelledRun,
-    compare_labelled_runs,
-    comparison_report,
-    image_request_for,
-    images_report,
-)
 
 from glitchygames.process import (
     RunningProcess,
@@ -56,6 +49,13 @@ from glitchygames.process import (
     start_command,
     stop_command,
     with_options_appended,
+)
+from glitchygames.testing.frame_comparison import (
+    LabelledRun,
+    compare_labelled_runs,
+    comparison_report,
+    image_request_for,
+    images_report,
 )
 from glitchygames.testing.frame_fingerprints import (
     FINGERPRINTS_OPTION,
