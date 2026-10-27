@@ -62,8 +62,10 @@ from there; a pending ledger or rows directory in the project's local directory
 
 Exit codes: ``SUCCESS``; ``OPTIONS_REFUSED`` for an unknown commit or uncommitted changes (and
 for a seed, ``--allow-dirty`` with ``--skip-dirty``, a game no console script starts given PATHs,
-or a ``GAME`` that names nothing); ``UNUSABLE_INPUT`` for settings that can't be read;
-``INTERNAL_ERROR`` when a recording could not be measured (the others are still measured).
+or a ``GAME`` that names nothing); ``UNUSABLE_INPUT`` for settings that can't be read, or a
+pending ledger that exists but can't be read (no permission, not UTF-8: ``UnreadableLedgerError``,
+naming it, as ``performance-pages`` says it); ``INTERNAL_ERROR`` when a recording could not be
+measured (the others are still measured).
 """
 
 from __future__ import annotations
@@ -202,6 +204,26 @@ class MeasureResult(BaseModel):
     measured: tuple[str, ...] = ()
     skipped: tuple[str, ...] = ()
     failures: tuple[str, ...] = ()
+
+
+class UnreadableLedgerError(ValueError):
+    """A ledger file that exists but can't be read (no permission, not UTF-8), with its path.
+
+    Every tool that reads the pending ledger reports it as ``ExitCode.UNUSABLE_INPUT`` with this
+    message: ``measure``, ``unmeasured`` and ``clear-published`` (``read_pending_ledger``) and
+    ``performance-pages`` (glitchygames/replay/tools/performance_pages.py).
+    """
+
+    def __init__(self, *, path: Path, cause: OSError | UnicodeDecodeError) -> None:
+        """Name the file and why it can't be read.
+
+        Args:
+            path: The ledger file.
+            cause: What reading it raised.
+
+        """
+        super().__init__(f'{path}: the ledger cannot be read ({cause})')
+        self.path = path
 
 
 class UnreplayableRecording(BaseModel):
@@ -672,6 +694,25 @@ def _write_new_rows(
     return new_rows
 
 
+def read_pending_ledger(*, path: Path) -> list[LedgerRow]:
+    """Read the pending ledger's rows (a missing one has none).
+
+    Args:
+        path: The pending ledger.
+
+    Returns:
+        Its rows.
+
+    Raises:
+        UnreadableLedgerError: If it exists but can't be read (no permission, not UTF-8).
+
+    """
+    try:
+        return list(read_ledger_file(path=path).rows)
+    except (OSError, UnicodeDecodeError) as error:
+        raise UnreadableLedgerError(path=path, cause=error) from error
+
+
 def known_rows(
     *, published_text: str, pending_path: Path, rows_directory: Path | None
 ) -> list[LedgerRow]:
@@ -683,13 +724,14 @@ def known_rows(
         rows_directory: The rows directory, or None.
 
     Returns:
-        The rows, merged (``merge_ledgers``).
+        The rows, merged (``merge_ledgers``). A pending ledger that exists but can't be read
+        raises ``read_pending_ledger``'s ``UnreadableLedgerError``.
 
     """
     return merge_ledgers(
         ledgers=[
             parse_ledger(text=published_text).rows,
-            read_ledger_file(path=pending_path).rows,
+            read_pending_ledger(path=pending_path),
             [] if rows_directory is None else read_row_files(directory=rows_directory),
         ]
     )
@@ -709,7 +751,8 @@ def measure(
         published_text: The published ledger's text.
 
     Returns:
-        What was measured, skipped and failed.
+        What was measured, skipped and failed; ``ExitCode.UNUSABLE_INPUT`` and nothing measured
+        when the pending ledger exists but can't be read (said on standard error).
 
     """
     refusal = _refusal(revision=settings.revision, allow_dirty=settings.allow_dirty)
@@ -718,11 +761,15 @@ def measure(
         return MeasureResult(exit_code=ExitCode.OPTIONS_REFUSED)
     commit = settings.revision.commit
     machine = this_machine()
-    known = known_rows(
-        published_text=published_text,
-        pending_path=settings.pending_path,
-        rows_directory=settings.rows_directory,
-    )
+    try:
+        known = known_rows(
+            published_text=published_text,
+            pending_path=settings.pending_path,
+            rows_directory=settings.rows_directory,
+        )
+    except UnreadableLedgerError as error:
+        sys.stderr.write(f'{MEASURE_PREFIX} {error}\n')
+        return MeasureResult(exit_code=ExitCode.UNUSABLE_INPUT)
     origin_main_present = _origin_main_present(settings=settings)
     measured_code = measured_code_label(commit=commit, code_tree=settings.code_tree)
     measured: list[str] = []
@@ -799,8 +846,11 @@ def clear_published(*, pending_path: Path, published_text: str) -> None:
         pending_path: The pending ledger (removed when no row is left).
         published_text: The published ledger's text (after the publish).
 
+    A pending ledger that exists but can't be read raises ``read_pending_ledger``'s
+    ``UnreadableLedgerError``, before anything is changed.
+
     """
-    pending = read_ledger_file(path=pending_path).rows
+    pending = read_pending_ledger(path=pending_path)
     if not pending:
         sys.stdout.write(f'No pending rows in {pending_path}\n')
         return
@@ -1195,7 +1245,8 @@ def measure_on_the_game(*, options: dict[str, Any], game: type[Scene] | Scene) -
     Returns:
         ``measure``'s exit code; ``ExitCode.SUCCESS`` for ``--skip-dirty`` on a trial;
         ``ExitCode.OPTIONS_REFUSED`` for a seed, both dirty flags, or PATHs for a game no
-        console script starts; ``ExitCode.UNUSABLE_INPUT`` for settings that can't be read.
+        console script starts; ``ExitCode.UNUSABLE_INPUT`` for settings or a pending ledger
+        that can't be read.
 
     """
     # Imported here: the tool table imports this module
@@ -1570,7 +1621,8 @@ def unmeasured_on_the_game(*, options: dict[str, Any], game: type[Scene] | Scene
         game: The game (its class, or a scene the game passed in).
 
     Returns:
-        ``ExitCode.SUCCESS``, or ``ExitCode.UNUSABLE_INPUT`` for settings that can't be read.
+        ``ExitCode.SUCCESS``, or ``ExitCode.UNUSABLE_INPUT`` for settings or a pending ledger
+        that can't be read.
 
     """
     root = verify_project_root(given=None)
@@ -1581,8 +1633,8 @@ def unmeasured_on_the_game(*, options: dict[str, Any], game: type[Scene] | Scene
     names = ledger_names(identity=game_identity(game=game), settings=settings, project_root=root)
     machine = this_machine()
     code_tree: str | None = options.get('code_tree')
-    missing = missing_measurements(
-        rows=known_rows(
+    try:
+        known = known_rows(
             published_text=published_ledger_text(
                 project_root=root, published_ledger=settings.published_ledger
             ),
@@ -1592,7 +1644,11 @@ def unmeasured_on_the_game(*, options: dict[str, Any], game: type[Scene] | Scene
             rows_directory=(
                 None if options.get('rows_directory') is None else Path(options['rows_directory'])
             ),
-        ),
+        )
+    except UnreadableLedgerError as error:
+        return refused(message=f'--unmeasured: {error}', exit_code=ExitCode.UNUSABLE_INPUT)
+    missing = missing_measurements(
+        rows=known,
         recordings=names,
         code_tree=code_tree,
         machine=machine,
@@ -1699,7 +1755,7 @@ def unmeasured_command(
     Returns:
         ``combined_exit_code`` of the games' statuses (``ExitCode.OPTIONS_REFUSED`` for a game
         that names nothing or isn't installed), or ``ExitCode.UNUSABLE_INPUT`` when the
-        settings can't be read.
+        settings or the pending ledger can't be read.
 
     """
     # The tool runs no game, so the command refuses arguments after --: always empty
@@ -1711,16 +1767,22 @@ def unmeasured_command(
         return found
     games, settings, from_settings = found
     code_tree: str | None = arguments.code_tree
-    known = known_rows(
-        published_text=published_ledger_text(
-            project_root=root, published_ledger=settings.published_ledger
-        ),
-        pending_path=pending_path_of(given=arguments.pending, settings=settings, project_root=root),
-        # A path option's value is the text given (registry.KIND_SETTINGS)
-        rows_directory=(
-            None if arguments.rows_directory is None else Path(arguments.rows_directory)
-        ),
-    )
+    try:
+        known = known_rows(
+            published_text=published_ledger_text(
+                project_root=root, published_ledger=settings.published_ledger
+            ),
+            pending_path=pending_path_of(
+                given=arguments.pending, settings=settings, project_root=root
+            ),
+            # A path option's value is the text given (registry.KIND_SETTINGS)
+            rows_directory=(
+                None if arguments.rows_directory is None else Path(arguments.rows_directory)
+            ),
+        )
+    except UnreadableLedgerError as error:
+        say(tool=tool, message=str(error))
+        return ExitCode.UNUSABLE_INPUT
     statuses: list[int] = []
     missing: list[str] = []
     total = 0
@@ -1772,8 +1834,8 @@ def clear_published_in(*, project_root: Path, pending: str | None, prefix: str) 
         prefix: What starts a line about the settings (the tool's).
 
     Returns:
-        ``ExitCode.SUCCESS``, or ``ExitCode.UNUSABLE_INPUT`` for settings that can't be read
-        (said on standard error).
+        ``ExitCode.SUCCESS``, or ``ExitCode.UNUSABLE_INPUT`` for settings or a pending ledger
+        that can't be read (said on standard error).
 
     """
     try:
@@ -1781,12 +1843,18 @@ def clear_published_in(*, project_root: Path, pending: str | None, prefix: str) 
     except ProjectSettingsError as error:
         sys.stderr.write(f'{prefix} {error}\n')
         return ExitCode.UNUSABLE_INPUT
-    clear_published(
-        pending_path=pending_path_of(given=pending, settings=settings, project_root=project_root),
-        published_text=published_ledger_text(
-            project_root=project_root, published_ledger=settings.published_ledger
-        ),
-    )
+    try:
+        clear_published(
+            pending_path=pending_path_of(
+                given=pending, settings=settings, project_root=project_root
+            ),
+            published_text=published_ledger_text(
+                project_root=project_root, published_ledger=settings.published_ledger
+            ),
+        )
+    except UnreadableLedgerError as error:
+        sys.stderr.write(f'{prefix} {error}\n')
+        return ExitCode.UNUSABLE_INPUT
     return ExitCode.SUCCESS
 
 

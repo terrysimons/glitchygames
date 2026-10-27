@@ -12,6 +12,7 @@ Design: plans/2026-10-23-recording-metrics-1-frame-performance-history.md.
 
 from __future__ import annotations
 
+import errno
 import os
 import shutil
 import sys
@@ -1649,6 +1650,70 @@ def test_settings_that_cannot_be_read_refuse_each_tool(tmp_path, monkeypatch, ca
     assert statuses == [ExitCode.UNUSABLE_INPUT] * 6
     assert "unknown setting 'no-such-setting'" in caplog.text
     assert capsys.readouterr().err.count("unknown setting 'no-such-setting'") == 4
+
+
+@pytest.fixture(params=['not permitted', 'not utf-8'])
+def unreadable_pending_ledger(request, tmp_path, monkeypatch, mocker) -> Path:
+    """A project (the current directory) whose pending ledger exists but can't be read.
+
+    Once without permission, injected at the read (``chmod(0)`` blocks no read on Windows or
+    for root, so a real one would not fail everywhere this runs), and once not UTF-8.
+
+    Returns:
+        The pending ledger.
+
+    """
+    (tmp_path / 'pyproject.toml').write_text(
+        f'[tool.glitchygames]\npending-ledger = {STAND_IN_PENDING_LEDGER!r}\n', encoding='utf-8'
+    )
+    pending = tmp_path / STAND_IN_PENDING_LEDGER
+    pending.parent.mkdir()
+    if request.param == 'not permitted':
+        pending.write_text(ledger_text(rows=[ledger_row()]), encoding='utf-8')
+        mocker.patch.object(
+            measure,
+            'read_ledger_file',
+            side_effect=PermissionError(errno.EACCES, 'Permission denied', str(pending)),
+        )
+    else:
+        pending.write_bytes(b'\xff\xfe not a ledger\n')
+    monkeypatch.chdir(tmp_path)
+    return pending
+
+
+def test_an_unreadable_pending_ledger_is_unusable_input_for_each_tool(
+    unreadable_pending_ledger, mocker, capsys, caplog
+):
+    """A pending ledger that can't be read: UNUSABLE_INPUT naming it, as performance-pages says.
+
+    Never a traceback (the command would report it as INTERNAL_ERROR). ``measure``, ``unmeasured``
+    and ``clear-published`` read it on the game, and ``unmeasured`` and ``clear-published`` on
+    the command (``measure``'s command leaves it to each game's child). Nothing is measured and
+    the file is left as it is.
+    """
+    project = unreadable_pending_ledger.parent.parent
+    mocker.patch.object(measure, 'game_revision', return_value=clean_revision())
+    options = {'measure': [], 'force': False, 'allow_dirty': False, 'skip_dirty': False}
+
+    statuses = [
+        measure.measure_on_the_game(options=options, game=GameThatIsNeverBuilt),
+        measure.unmeasured_on_the_game(options={}, game=GameThatIsNeverBuilt),
+        measure.clear_published_on_the_game(options={}, game=GameThatIsNeverBuilt),
+        *(
+            command.main([name, '--project-root', str(project)])
+            for name in ('unmeasured', 'clear-published')
+        ),
+    ]
+
+    assert statuses == [ExitCode.UNUSABLE_INPUT] * 5
+    cannot_be_read = f'{unreadable_pending_ledger}: the ledger cannot be read'
+    # Logged by unmeasured on the game; measure and clear-published say it on standard error, as
+    # they say their other refusals, on both front ends
+    assert caplog.text.count(cannot_be_read) == 1
+    errors = capsys.readouterr().err
+    assert errors.count(cannot_be_read) == 4
+    assert f'measure: {cannot_be_read}' in errors
+    assert unreadable_pending_ledger.exists()
 
 
 def test_the_three_tools_are_each_one_tool_on_both_front_ends():

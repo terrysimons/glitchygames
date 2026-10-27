@@ -79,7 +79,12 @@ from glitchygames.recording_metrics import (
     read_row_files,
     short_commit,
 )
-from glitchygames.replay.tools.measure import ensure_directory, pending_path_of, read_settings
+from glitchygames.replay.tools.measure import (
+    UnreadableLedgerError,
+    ensure_directory,
+    pending_path_of,
+    read_settings,
+)
 from glitchygames.replay.tools.settings import ProjectSettingsError
 from glitchygames.replay.tools.verify import verify_project_root
 
@@ -146,21 +151,6 @@ class LedgerSources(BaseModel):
     published_rows: int
     pending_rows: int
     unreadable_lines: int
-
-
-class UnreadableLedgerError(ValueError):
-    """A ledger file that exists but can't be read (no permission, not UTF-8), with its path."""
-
-    def __init__(self, *, path: Path, cause: OSError | UnicodeDecodeError) -> None:
-        """Name the file and why it can't be read.
-
-        Args:
-            path: The ledger file.
-            cause: What reading it raised.
-
-        """
-        super().__init__(f'{path}: the ledger cannot be read ({cause})')
-        self.path = path
 
 
 class WrittenPages(BaseModel):
