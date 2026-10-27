@@ -71,6 +71,7 @@ measured (the others are still measured).
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import operator
 import os
 import re
@@ -1360,7 +1361,8 @@ def measure_named_recordings(
 
     Its game is the one ``--game`` names, else the one its header names (``find_recorded_game``,
     as ``replay-trace`` finds it); the recordings of one game are measured by one child, given
-    them as PATHs.
+    them as PATHs, and stopped if it is still running after the project's
+    ``game-timeout-seconds``.
 
     Args:
         tool: The measure tool.
@@ -1368,12 +1370,19 @@ def measure_named_recordings(
         game_arguments: The arguments after a bare ``--``, for each game.
 
     Returns:
-        ``combined_exit_code`` of the children's and the refusals' statuses, or
-        ``ExitCode.OPTIONS_REFUSED`` for more than one ``--game`` or one that names nothing.
+        ``combined_exit_code`` of the children's and the refusals' statuses (a child stopped at
+        its timeout: ``ExitCode.INTERNAL_ERROR``), ``ExitCode.OPTIONS_REFUSED`` for more than
+        one ``--game`` or one that names nothing, or ``ExitCode.UNUSABLE_INPUT`` when the
+        settings can't be read.
 
     """
     games: list[str] | None = arguments.game
     root: Path = arguments.project_root
+    try:
+        settings = read_settings(project_root=root, prefix=f'{tool.name}:')
+    except ProjectSettingsError as error:
+        say(tool=tool, message=str(error))
+        return ExitCode.UNUSABLE_INPUT
     paths = [Path(path).absolute() for path in arguments.measure]
     targets: list[tuple[str, GameLaunch, Path]] = []
     statuses: list[int] = []
@@ -1414,7 +1423,7 @@ def measure_named_recordings(
                 }),
                 game_arguments=game_arguments,
                 game=game,
-                launch=launch,
+                launch=dataclasses.replace(launch, timeout_seconds=settings.game_timeout_seconds),
             )
         )
     return combined_exit_code(statuses=statuses)
@@ -1460,8 +1469,9 @@ def measure_each_game(
 
     Returns:
         ``combined_exit_code`` of the statuses (``ExitCode.INTERNAL_ERROR`` for an unclaimed
-        golden, ``ExitCode.OPTIONS_REFUSED`` for a game that names nothing; the other games
-        still run), or ``ExitCode.UNUSABLE_INPUT`` when the settings can't be read.
+        golden or a game stopped at the project's ``game-timeout-seconds``,
+        ``ExitCode.OPTIONS_REFUSED`` for a game that names nothing; the other games still run),
+        or ``ExitCode.UNUSABLE_INPUT`` when the settings can't be read.
 
     """
     found = games_to_run(tool=tool, arguments=arguments)
@@ -1498,7 +1508,7 @@ def measure_each_game(
                 arguments=arguments,
                 game_arguments=game_arguments,
                 game=game,
-                launch=launch,
+                launch=dataclasses.replace(launch, timeout_seconds=settings.game_timeout_seconds),
             )
         )
     return combined_exit_code(statuses=statuses)

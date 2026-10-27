@@ -873,6 +873,15 @@ by the tool that writes it, or reported; it is never a traceback.
 | `measured-paths` | `["src", "tests/fixtures/replays", "pyproject.toml"]` | the same, and `uv.lock` |
 | `unmeasured-paths` | `[]` | the members' `tests/`, but for their `tests/fixtures/replays/` |
 | `recording-renames` | `{}` | each moved recording, old path to new |
+| `game-timeout-seconds` | `3600` (an hour) | the default |
+
+`game-timeout-seconds` bounds each game that `glitchygames verify` and `glitchygames measure`
+start (`GAME --verify`, `GAME --measure`, one per game): a game still running after it is
+stopped (asked first, so it can stop its own replays, then killed), reaped, and failed with a
+line naming the game and the timeout (exit 70). Each recording's replay inside it has its own
+timeout too. It guards against a console script that is no game (an editor or a server among
+`[project.scripts]`, which `games` defaults to) hanging the run; it has no flag, since only the
+command starts a game per child (`--game` names the games instead, or set `games`).
 
 The project's local directory, `.glitchygames/`, holds what the tools write and nobody commits;
 it gets a `.gitignore` of `*` when it is made.

@@ -69,6 +69,39 @@ RECORD_TIMEOUT_SECONDS = 120.0
 STAND_IN_GAME_RESOLUTION = '320x240'
 # Live recordings are paced at this rate: a paced live run, as a player's is
 STAND_IN_GAME_TARGET_FPS = '60'
+# A "game" that never ends (an editor or a server among a project's [project.scripts], given a
+# tool flag it ignores): it writes its process id into never-ending.pid beside itself, then waits
+NEVER_ENDING_GAME_SOURCE = """\
+import os
+import pathlib
+import time
+
+pathlib.Path(__file__).with_name('never-ending.pid').write_text(str(os.getpid()), encoding='utf-8')
+while True:
+    time.sleep(1)
+"""
+# The game-timeout-seconds a project with the never-ending game sets: short, for the tests
+NEVER_ENDING_GAME_TIMEOUT_SECONDS = 2.0
+
+
+def write_never_ending_game_project(*, directory: Path) -> Path:
+    """Write a project whose settings give each game NEVER_ENDING_GAME_TIMEOUT_SECONDS.
+
+    It holds the never-ending game as a script, ``never_ending_game.py`` (named on the command
+    by its path).
+
+    Returns:
+        The script.
+
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / 'pyproject.toml').write_text(
+        f'[tool.glitchygames]\ngame-timeout-seconds = {NEVER_ENDING_GAME_TIMEOUT_SECONDS}\n',
+        encoding='utf-8',
+    )
+    script = directory / 'never_ending_game.py'
+    script.write_text(NEVER_ENDING_GAME_SOURCE, encoding='utf-8')
+    return script
 
 
 class GameThatIsNeverBuilt(Scene):

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import sys
 from typing import TYPE_CHECKING
 
@@ -19,7 +20,7 @@ import pytest
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import CompletedProcess, OutputCapture, TimeoutExpired, run_command
 from glitchygames.replay.tools import command, registry, traces, verify
-from glitchygames.replay.tools.children import running_game_command
+from glitchygames.replay.tools.children import GameLaunch, running_game_command
 from glitchygames.replay.tools.identity import GameIdentity
 from glitchygames.replay.tools.settings import ProjectSettings
 from glitchygames.replay.tools.verify import (
@@ -29,6 +30,7 @@ from glitchygames.replay.tools.verify import (
 )
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 from tests.stand_in_games import (
+    NEVER_ENDING_GAME_TIMEOUT_SECONDS,
     RECORD_TIMEOUT_SECONDS,
     STAND_IN_GAME_FRAMES,
     STAND_IN_GAME_RESOLUTION,
@@ -38,6 +40,7 @@ from tests.stand_in_games import (
     stand_in_game_source,
     use_stand_in_game,
     write_header_only_recording,
+    write_never_ending_game_project,
     write_stand_in_game,
 )
 
@@ -535,9 +538,11 @@ def test_the_command_replays_named_recordings_with_the_game_named(tmp_path, mock
     """``verify PATH --game GAME``: that game replays each path, whatever its header says."""
     recording = tmp_path / 'run.jsonl.gz'
     write_header_only_recording(path=recording, header={})
-    launch = mocker.patch.object(verify, 'resolve_named_game')
-    launch.return_value.command = ['the-game']
-    launch.return_value.form = 'console-script'
+    mocker.patch.object(
+        verify,
+        'resolve_named_game',
+        return_value=GameLaunch(form='console-script', command=['the-game']),
+    )
     replayed = mocker.patch.object(
         verify,
         'run_command',
@@ -592,7 +597,10 @@ def test_a_game_that_names_nothing_fails_and_the_others_still_run(tmp_path, mock
     mocker.patch.object(
         verify,
         'resolve_named_game',
-        side_effect=[verify.UnknownGameError('no such game'), mocker.Mock(form='module')],
+        side_effect=[
+            verify.UnknownGameError('no such game'),
+            GameLaunch(form='module', command=['python', '-m', 'a_module']),
+        ],
     )
 
     status = command.main([
@@ -715,9 +723,11 @@ def test_a_game_argument_after_dash_dash_reaches_the_children_on_the_command(tmp
     (tmp_path / 'pyproject.toml').write_text('', encoding='utf-8')
     recording = tmp_path / 'run.jsonl.gz'
     write_header_only_recording(path=recording, header={})
-    launch = mocker.patch.object(verify, 'resolve_named_game')
-    launch.return_value.command = ['the-game']
-    launch.return_value.form = 'console-script'
+    mocker.patch.object(
+        verify,
+        'resolve_named_game',
+        return_value=GameLaunch(form='console-script', command=['the-game']),
+    )
     replayed = mocker.patch.object(
         verify,
         'run_command',
@@ -811,9 +821,11 @@ def test_no_project_is_not_said_when_recordings_are_named(tmp_path, mocker, monk
         'run_command',
         return_value=CompletedProcess(args=[], returncode=ExitCode.SUCCESS, stdout=''),
     )
-    launch = mocker.patch.object(verify, 'resolve_named_game')
-    launch.return_value.command = ['the-game']
-    launch.return_value.form = 'console-script'
+    mocker.patch.object(
+        verify,
+        'resolve_named_game',
+        return_value=GameLaunch(form='console-script', command=['the-game']),
+    )
     mocker.patch.object(sys, 'argv', ['the-game', '--verify', 'run.jsonl.gz'])
 
     flag_status = verify.verify_on_the_game(
@@ -904,3 +916,36 @@ def test_the_game_flag_refuses_a_seed_before_looking_for_recordings(mocker, capl
     assert SEED_REFUSAL in caplog.text
     found.assert_not_called()
     replayed.assert_not_called()
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='signal 0 to a process id is POSIX')
+def test_a_game_that_never_ends_is_stopped_at_the_projects_timeout_and_fails(tmp_path, capsys):
+    """A game still running after ``game-timeout-seconds`` is stopped, reaped and fails, named.
+
+    The never-ending game stands for an editor or a server among a project's console scripts,
+    started with ``--verify``: never a hang with no word of which game it waits on.
+    """
+    script = write_never_ending_game_project(directory=tmp_path / 'project')
+
+    status = command.main([
+        'verify',
+        '--game',
+        str(script),
+        '--project-root',
+        str(script.parent),
+    ])
+
+    assert status == ExitCode.INTERNAL_ERROR
+    assert (
+        f'glitchygames verify: {script} was stopped: still running after '
+        f'{NEVER_ENDING_GAME_TIMEOUT_SECONDS:g} seconds ([tool.glitchygames] game-timeout-seconds)'
+    ) in capsys.readouterr().err
+    child_pid = int((script.parent / 'never-ending.pid').read_text(encoding='utf-8'))
+    try:
+        os.kill(child_pid, 0)
+    except ProcessLookupError:
+        child_left_running = False
+    else:
+        child_left_running = True
+        os.kill(child_pid, signal.SIGKILL)
+    assert not child_left_running

@@ -171,6 +171,69 @@ def run_command(
     )
 
 
+def run_command_stopped_at_timeout(
+    *,
+    command: Sequence[str],
+    environment: Mapping[str, str],
+    timeout_seconds: float,
+    working_directory: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a command as ``run_command`` does, its output not captured, stopping it gently.
+
+    For a child that may start children of its own (a game given ``--verify`` or ``--measure``
+    replays each recording in one): a child still running after ``timeout_seconds`` is asked to
+    stop first (SIGTERM; on Windows, terminated), so its engine can stop and reap its own
+    children as it ends (``exit_on_signal``), and is killed only if it is still running after
+    STOP_GRACE_SECONDS. ``run_command`` kills a child at once, which would leave such a
+    grandchild running. The child is stopped the same way, and reaped, however this process
+    stops waiting (a signal's SystemExit, Ctrl-C).
+
+    Args:
+        command: The program and its arguments.
+        environment: The child's whole environment, in place before its interpreter starts.
+        timeout_seconds: Stop the child (TimeoutExpired) after this long.
+        working_directory: The child's working directory (None: this process's).
+
+    Returns:
+        The finished process (``returncode``; ``stdout`` and ``stderr`` None: the child writes
+        to this process's). A child that outlived ``timeout_seconds`` raises ``TimeoutExpired``
+        once it is stopped and reaped.
+
+    """
+    child = subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with a game's command line plus fixed flags, as an argument list (no shell)
+        list(command),
+        env=dict(environment),
+        text=True,
+        cwd=working_directory,
+    )
+    try:
+        returncode = child.wait(timeout=timeout_seconds)
+    except BaseException:
+        # The timeout, or this process being stopped (a signal's SystemExit, Ctrl-C) while waiting
+        stop_and_reap(process=child)
+        raise
+    return subprocess.CompletedProcess(args=list(command), returncode=returncode)
+
+
+def stop_and_reap(*, process: subprocess.Popen[str]) -> None:
+    """Ask a child to stop, kill it if it is still running after STOP_GRACE_SECONDS, reap it.
+
+    The child alone (``stop_command`` stops a child started in a session of its own with its
+    whole group). SIGTERM lets a game end through its engine's teardown, which stops and reaps
+    the children it is waiting for.
+
+    Args:
+        process: The child.
+
+    """
+    process.terminate()
+    try:
+        process.wait(timeout=STOP_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
 def start_command(
     *, command: Sequence[str], environment: Mapping[str, str], output: TextIO
 ) -> subprocess.Popen[str]:

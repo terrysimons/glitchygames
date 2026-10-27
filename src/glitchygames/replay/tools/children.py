@@ -47,7 +47,12 @@ from typing import TYPE_CHECKING, Literal
 
 from glitchygames.bundled_demos import CONSOLE_SCRIPTS_GROUP
 from glitchygames.logical_names import module_for_logical_module
-from glitchygames.process import OutputCapture, run_command, with_options_appended
+from glitchygames.process import (
+    OutputCapture,
+    run_command,
+    run_command_stopped_at_timeout,
+    with_options_appended,
+)
 from glitchygames.replay.driver import GAME_HEADER_FIELD
 from glitchygames.replay.tools.settings import ProjectSettingsError, project_name
 from glitchygames.tracing import REPLAY_FIXTURES_PATH_PARTS, TraceReader
@@ -91,11 +96,17 @@ class GameLaunch:
         form: Which of the forms ``GAME`` was read as.
         command: The child's command before the tool's arguments (``launch_game`` appends
             them).
+        timeout_seconds: None (``resolve_game``'s) waits for as long as the game runs: a
+            recording lasts as long as the player plays. Otherwise a game still running after
+            that long is stopped and reaped (``launch_game``): ``verify`` and ``measure`` give
+            each game they start the project's ``game-timeout-seconds``
+            (``dataclasses.replace``).
 
     """
 
     form: GameForm
     command: list[str]
+    timeout_seconds: float | None = None
 
 
 def game_entry_point(*, console_script: str) -> importlib.metadata.EntryPoint:
@@ -599,20 +610,29 @@ def launch_game(
     """Start a game as a child process with a tool's arguments, and wait for it to end.
 
     The child gets this process's environment (the ``glitchygames`` command has hidden pygame's
-    banner there, so the child prints none either), and no timeout: a recording lasts as long
-    as the player plays.
+    banner there, so the child prints none either).
 
     Args:
         launch: How to start the game (``resolve_game``).
         arguments: The game's command-line arguments (the tool's flag first).
         working_directory: The child's working directory (None: this process's).
         capture_output: What is captured of its output (``process.OutputCapture``; none: it
-            writes to this process's).
+            writes to this process's). Only none for a launch with a timeout.
 
     Returns:
-        The finished child: ``returncode`` is the game's exit status.
+        The finished child: ``returncode`` is the game's exit status. A launch with a timeout
+        (``GameLaunch.timeout_seconds``) still running after it is stopped and reaped
+        (``process.run_command_stopped_at_timeout``: asked first, so it can end the children it
+        started), and ``process.TimeoutExpired`` is raised.
 
     """
+    if launch.timeout_seconds is not None:
+        return run_command_stopped_at_timeout(
+            command=[*launch.command, *arguments],
+            environment=os.environ,
+            timeout_seconds=launch.timeout_seconds,
+            working_directory=working_directory,
+        )
     return run_command(
         command=[*launch.command, *arguments],
         environment=os.environ,

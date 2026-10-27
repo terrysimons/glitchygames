@@ -15,6 +15,7 @@ from __future__ import annotations
 import errno
 import os
 import shutil
+import signal
 import sys
 import types
 from pathlib import Path
@@ -68,6 +69,7 @@ from glitchygames.tracing import FRAMES_FIELD, is_bookmarked_copy, read_trace
 from tests.ledger_repositories import clone_with_published_ledger, git
 from tests.replay.replay_helpers import rewrite_recording
 from tests.stand_in_games import (
+    NEVER_ENDING_GAME_TIMEOUT_SECONDS,
     RECORD_TIMEOUT_SECONDS,
     STAND_IN_GAME_RESOLUTION,
     GameThatIsNeverBuilt,
@@ -75,6 +77,7 @@ from tests.stand_in_games import (
     record_stand_in_game,
     stamp_stand_in_game,
     use_stand_in_game,
+    write_never_ending_game_project,
     write_stand_in_distribution,
     write_stand_in_game,
     write_stand_in_package,
@@ -1645,11 +1648,13 @@ def test_settings_that_cannot_be_read_refuse_each_tool(tmp_path, monkeypatch, ca
             command.main([name, '--project-root', str(tmp_path)])
             for name in ('measure', 'unmeasured', 'clear-published')
         ),
+        # Named recordings: the settings give each game's timeout
+        command.main(['measure', 'run.jsonl.gz', '--project-root', str(tmp_path)]),
     ]
 
-    assert statuses == [ExitCode.UNUSABLE_INPUT] * 6
+    assert statuses == [ExitCode.UNUSABLE_INPUT] * 7
     assert "unknown setting 'no-such-setting'" in caplog.text
-    assert capsys.readouterr().err.count("unknown setting 'no-such-setting'") == 4
+    assert capsys.readouterr().err.count("unknown setting 'no-such-setting'") == 5
 
 
 @pytest.fixture(params=['not permitted', 'not utf-8'])
@@ -2109,3 +2114,46 @@ def test_a_tracked_demo_deleted_from_the_working_tree_is_not_a_demo(tmp_path, st
     assert deleted in (measure.git_listed_files(project_root=project) or [])
     assert not measure.is_bundled_demo(path=deleted)
     assert measure.project_demo_paths(project_root=project) == [kept]
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='signal 0 to a process id is POSIX')
+def test_a_game_that_never_ends_is_stopped_at_the_projects_timeout_and_fails(tmp_path, capsys):
+    """A game still running after ``game-timeout-seconds`` is stopped, reaped and fails, named.
+
+    The never-ending game stands for an editor or a server among a project's console scripts,
+    started with ``--measure``: never a hang with no word of which game it waits on.
+    """
+    script = write_never_ending_game_project(directory=tmp_path / 'project')
+
+    status = command.main([
+        'measure',
+        '--game',
+        str(script),
+        '--project-root',
+        str(script.parent),
+    ])
+    # Named recordings: one child for them all, given the same timeout
+    named_status = command.main([
+        'measure',
+        str(script.parent / 'run.jsonl.gz'),
+        '--game',
+        str(script),
+        '--project-root',
+        str(script.parent),
+    ])
+
+    assert status == named_status == ExitCode.INTERNAL_ERROR
+    stopped = (
+        f'glitchygames measure: {script} was stopped: still running after '
+        f'{NEVER_ENDING_GAME_TIMEOUT_SECONDS:g} seconds ([tool.glitchygames] game-timeout-seconds)'
+    )
+    assert capsys.readouterr().err.count(stopped) == 2
+    child_pid = int((script.parent / 'never-ending.pid').read_text(encoding='utf-8'))
+    try:
+        os.kill(child_pid, 0)
+    except ProcessLookupError:
+        child_left_running = False
+    else:
+        child_left_running = True
+        os.kill(child_pid, signal.SIGKILL)
+    assert not child_left_running

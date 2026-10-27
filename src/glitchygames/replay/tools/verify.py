@@ -60,6 +60,7 @@ The two front ends (glitchygames/replay/tools/registry.py):
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import os
 import sys
 from pathlib import Path
@@ -530,10 +531,12 @@ def verify_each_game(
     """Run ``glitchygames verify``: each game started with ``--verify``, verifying its own.
 
     The games are ``--game``'s, else the project's ``[tool.glitchygames] games``; each runs in
-    the project, with ``--only`` as given, and writes its own lines. When the games come from
-    the settings, every golden and bundled demo of the project that none of them replays is a
-    failure first, on a ``FAIL`` line naming it and why (``measure.unclaimed_recordings``, as
-    ``measure`` fails them): a golden is never silently left out.
+    the project, with ``--only`` as given, and writes its own lines. A game still running after
+    the project's ``game-timeout-seconds`` is stopped and fails (``run_game_with_tool``). When
+    the games come from the settings, every golden and bundled demo of the project that none of
+    them replays is a failure first, on a ``FAIL`` line naming it and why
+    (``measure.unclaimed_recordings``, as ``measure`` fails them): a golden is never silently
+    left out.
 
     Args:
         tool: The verify tool.
@@ -543,23 +546,24 @@ def verify_each_game(
     Returns:
         ``verification_exit_code`` of the statuses: the unclaimed recordings'
         (``ExitCode.INTERNAL_ERROR`` each) and the games' (``ExitCode.OPTIONS_REFUSED`` for a
-        game that names nothing, after every other game has run); ``ExitCode.SUCCESS`` with no
-        games and nothing unclaimed, or ``ExitCode.UNUSABLE_INPUT`` when the project's settings
-        can't be read.
+        game that names nothing, after every other game has run; ``ExitCode.INTERNAL_ERROR``
+        for one stopped at its timeout); ``ExitCode.SUCCESS`` with no games and nothing
+        unclaimed, or ``ExitCode.UNUSABLE_INPUT`` when the project's settings can't be read.
 
     """
     # Imported here: measure imports this module (verify_project_root, seed_given)
     from glitchygames.replay.tools.measure import unclaimed_recordings
 
     root = project_root(arguments=arguments)
+    # Read with --game too: they give each game's timeout
+    try:
+        settings = read_settings(project_root=root)
+    except ProjectSettingsError as error:
+        say(tool=tool, message=str(error))
+        return ExitCode.UNUSABLE_INPUT
     games: list[str] | None = arguments.game
     statuses: list[int] = []
     if games is None:
-        try:
-            settings = read_settings(project_root=root)
-        except ProjectSettingsError as error:
-            say(tool=tool, message=str(error))
-            return ExitCode.UNUSABLE_INPUT
         games = list(settings.games)
         for unclaimed in unclaimed_recordings(games=games, settings=settings, project_root=root):
             name = recording_name(path=unclaimed.path, project_root=root)
@@ -589,7 +593,7 @@ def verify_each_game(
                 arguments=arguments,
                 game_arguments=game_arguments,
                 game=game,
-                launch=launch,
+                launch=dataclasses.replace(launch, timeout_seconds=settings.game_timeout_seconds),
             )
         )
     return verification_exit_code(statuses=statuses)

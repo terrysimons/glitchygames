@@ -102,6 +102,9 @@ DEFAULT_LEDGER_DIRECTORY = 'replay-ledger'
 DEFAULT_PENDING_LEDGER = '.glitchygames/pending-ledger.jsonl'
 DEFAULT_LANDED_REF = 'origin/main'
 DEFAULT_MEASURED_PATHS = ('src', 'tests/fixtures/replays', 'pyproject.toml')
+# How long verify and measure wait for each game they start (an hour: a game replays every one
+# of its goldens and demos in that time)
+DEFAULT_GAME_TIMEOUT_SECONDS = 3600.0
 
 
 def write_pyproject(*, project_root: Path, text: str) -> None:
@@ -122,6 +125,7 @@ def assert_the_defaults_apart_from_games(settings: ProjectSettings) -> None:
     assert settings.measured_paths == DEFAULT_MEASURED_PATHS
     assert settings.unmeasured_paths == ()
     assert settings.recording_renames == {}
+    assert settings.game_timeout_seconds == DEFAULT_GAME_TIMEOUT_SECONDS
     assert settings.code_tree_paths == CodeTreePaths(measured=DEFAULT_MEASURED_PATHS, unmeasured=())
 
 
@@ -165,6 +169,7 @@ def test_settings_are_read_by_their_kebab_case_names(tmp_path):
             'measured-paths = ["game"]\n'
             'unmeasured-paths = [":(glob)game/tests/**"]\n'
             'recording-renames = { "old.jsonl.gz" = "new.jsonl.gz" }\n'
+            'game-timeout-seconds = 90\n'
         ),
     )
 
@@ -180,6 +185,7 @@ def test_settings_are_read_by_their_kebab_case_names(tmp_path):
         measured_paths=('game',),
         unmeasured_paths=(':(glob)game/tests/**',),
         recording_renames={'old.jsonl.gz': 'new.jsonl.gz'},
+        game_timeout_seconds=90.0,
     )
     assert settings.published_ledger_ref == 'origin/pages'
     assert settings.published_ledger_path == 'metrics/ledger.jsonl'
@@ -218,6 +224,10 @@ def test_a_setting_spelled_with_underscores_is_unknown(tmp_path):
         ('published-ledger = "origin/gh-pages:"', 'published-ledger'),
         ('ledger-directory = "/var/ledger"', 'ledger-directory'),
         ('recording-renames = ["old"]', 'recording-renames'),
+        ('game-timeout-seconds = 0', 'game-timeout-seconds'),
+        ('game-timeout-seconds = -5.0', 'game-timeout-seconds'),
+        ('game-timeout-seconds = nan', 'game-timeout-seconds'),
+        ('game-timeout-seconds = inf', 'game-timeout-seconds'),
     ],
 )
 def test_a_setting_with_a_value_of_the_wrong_shape_is_refused_by_name(tmp_path, table, refusal):

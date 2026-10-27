@@ -1262,6 +1262,7 @@ that module no longer imports (a moved script), it asks for `--game GAME`, in th
 | `measured-paths` | `["src", "tests/fixtures/replays", "pyproject.toml"]` | today's `MEASURED_PATHS` |
 | `unmeasured-paths` | `[]` | today's member-test pathspecs |
 | `recording-renames` | `{}` | today's `RECORDING_PATH_RENAMES` |
+| `game-timeout-seconds` | `3600` (an hour; added by the final review's fixes, I3) | the default |
 
 ### Task D1: The tool table, both front ends, and the sync test
 

@@ -260,3 +260,60 @@ class TestStopCommand:
             stop_command(process=child)
 
         assert child.returncode == 0
+
+
+# A child that writes its process id to the file it is given, then never ends on its own
+CHILD_THAT_NEVER_ENDS = (
+    'import os, pathlib, sys, time\n'
+    "pathlib.Path(sys.argv[1]).write_text(f'{os.getpid()}\\n', encoding='utf-8')\n"
+    'time.sleep(60)\n'
+)
+# The same, ignoring SIGTERM (so only the kill ends it)
+CHILD_THAT_NEVER_ENDS_IGNORING_TERMINATE = (
+    'import signal\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\n' + CHILD_THAT_NEVER_ENDS
+)
+# How long the children above get before their timeout
+SHORT_TIMEOUT_SECONDS = 1.0
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='signal 0 to a process id is POSIX')
+class TestRunCommandStoppedAtTimeout:
+    """``run_command_stopped_at_timeout`` stops a child that outlives its timeout, then reaps it.
+
+    Asked to stop first (SIGTERM: a game's engine then ends its own children), killed only if
+    it is still running after STOP_GRACE_SECONDS; either way reaped (no zombie is left), and the
+    timeout raised.
+    """
+
+    def test_a_child_that_ends_in_time_gives_its_status(self, tmp_path):
+        """Within its timeout: the child's exit status, in its working directory."""
+        finished = process.run_command_stopped_at_timeout(
+            command=[sys.executable, '-c', 'import sys; sys.exit(3)'],
+            environment=os.environ,
+            timeout_seconds=WAIT_SECONDS,
+            working_directory=tmp_path,
+        )
+
+        assert finished.returncode == 3
+
+    @pytest.mark.parametrize(
+        'source',
+        [CHILD_THAT_NEVER_ENDS, CHILD_THAT_NEVER_ENDS_IGNORING_TERMINATE],
+        ids=['stopped by sigterm', 'killed after the grace period'],
+    )
+    def test_a_child_still_running_at_its_timeout_is_stopped_and_reaped(
+        self, tmp_path, mocker, source
+    ):
+        """Its timeout raises TimeoutExpired, after the child is gone (not even a zombie)."""
+        mocker.patch.object(process, 'STOP_GRACE_SECONDS', SHORT_TIMEOUT_SECONDS)
+        pid_file = tmp_path / 'child.pid'
+
+        with pytest.raises(process.TimeoutExpired):
+            process.run_command_stopped_at_timeout(
+                command=[sys.executable, '-c', source, str(pid_file)],
+                environment=os.environ,
+                timeout_seconds=SHORT_TIMEOUT_SECONDS * 3,
+            )
+
+        child_pid = int(first_line(path=pid_file))
+        assert not is_running(pid=child_pid)

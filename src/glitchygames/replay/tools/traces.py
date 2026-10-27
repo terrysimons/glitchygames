@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from glitchygames.exit_codes import ExitCode
+from glitchygames.process import TimeoutExpired
 from glitchygames.replay.tools.children import (
     GAME_FORMS,
     GameLaunch,
@@ -107,18 +108,30 @@ def run_game_with_tool(
         arguments: The subcommand's parsed arguments.
         game_arguments: The arguments after a bare ``--``.
         game: The game, as named (for the message).
-        launch: How to start it.
+        launch: How to start it (with its timeout, for ``verify`` and ``measure``: the project's
+            ``game-timeout-seconds``).
 
     Returns:
-        The child's exit status.
+        The child's exit status, or ``ExitCode.INTERNAL_ERROR`` for a game stopped at its
+        timeout (said on standard error, naming the game and the timeout).
 
     """
     say(tool=tool, message=f'running {game} ({FORM_DESCRIPTIONS[launch.form]})')
-    finished = launch_game(
-        launch=launch,
-        arguments=[*tool.child_arguments(arguments=arguments), *game_arguments],
-        working_directory=project_root(arguments=arguments),
-    )
+    try:
+        finished = launch_game(
+            launch=launch,
+            arguments=[*tool.child_arguments(arguments=arguments), *game_arguments],
+            working_directory=project_root(arguments=arguments),
+        )
+    except TimeoutExpired as timeout:
+        say(
+            tool=tool,
+            message=(
+                f'{game} was stopped: still running after {timeout.timeout:g} seconds '
+                '([tool.glitchygames] game-timeout-seconds)'
+            ),
+        )
+        return ExitCode.INTERNAL_ERROR
     return finished.returncode
 
 

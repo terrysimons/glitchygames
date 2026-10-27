@@ -19,6 +19,11 @@ kebab-case, as pyproject.toml's are (stage D's settings table):
   (glitchygames/code_tree.py).
 - ``recording-renames``: recordings that moved, old repository path -> new, so a recording's
   history follows it.
+- ``game-timeout-seconds``: how long ``glitchygames verify`` and ``glitchygames measure`` wait
+  for each game they start (``GAME --verify``, ``GAME --measure``) before stopping it and
+  failing it (default: an hour, ``DEFAULT_GAME_TIMEOUT_SECONDS``). A game replays each of its
+  recordings in a child of its own with a timeout of its own (``REPLAY_TIMEOUT_SECONDS``); this
+  bounds what never ends at all, such as an editor or a server among ``[project.scripts]``.
 
 Settings only name paths, relative to the project root: nothing is created or checked on disk
 when they are read. A path that doesn't exist yet (no ledger directory before the first
@@ -39,7 +44,7 @@ from collections.abc import Mapping
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import TYPE_CHECKING, Any, Self, cast
 
-from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from glitchygames.code_tree import CodeTreePaths
 
@@ -59,6 +64,9 @@ LOCAL_DIRECTORY_NAME = '.glitchygames'
 # What ensure_local_directory writes into it: git ignores everything there, this file included
 LOCAL_DIRECTORY_GITIGNORE = '# Created by glitchygames: nothing in this directory is committed\n*\n'
 GITIGNORE_FILE_NAME = '.gitignore'
+# How long verify and measure wait for each game they start, by default: an hour, which a game
+# replaying every one of its recordings (each within its own timeout) fits in many times over
+DEFAULT_GAME_TIMEOUT_SECONDS = 3600.0
 
 # Recordings that moved, old repository path -> new: read-only on the frozen settings (pydantic
 # builds the field from this alias at runtime, so Mapping is imported at runtime too)
@@ -93,6 +101,8 @@ class ProjectSettings(BaseModel):
         measured_paths: The git pathspecs a code tree holds.
         unmeasured_paths: The git pathspecs left out of them.
         recording_renames: Recordings that moved, old repository path -> new.
+        game_timeout_seconds: How long ``verify`` and ``measure`` wait for each game they start
+            before stopping it (a finite number above 0).
 
     """
 
@@ -113,6 +123,9 @@ class ProjectSettings(BaseModel):
     measured_paths: tuple[str, ...] = ('src', 'tests/fixtures/replays', 'pyproject.toml')
     unmeasured_paths: tuple[str, ...] = ()
     recording_renames: RecordingRenames = {}
+    game_timeout_seconds: float = Field(
+        default=DEFAULT_GAME_TIMEOUT_SECONDS, gt=0, allow_inf_nan=False
+    )
 
     @field_validator('ledger_directory')
     @classmethod
