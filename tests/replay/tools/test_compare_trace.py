@@ -1346,11 +1346,52 @@ import socket, sys, time
 port, token = sys.argv[sys.argv.index('--replay-frame-stream') + 1].split(':')
 connection = socket.create_connection(('127.0.0.1', int(port)))
 connection.sendall(token.encode('ascii'))
-# One 2x1 frame (frame 0), then nothing more, never closing
-connection.sendall(b''.join(number.to_bytes(4, 'little') for number in (0, 2, 1)))
-connection.sendall(bytes(6))
+# One frame (frame 0) at NEW's size, then nothing more, never closing
+connection.sendall(b''.join(number.to_bytes(4, 'little') for number in (0, 320, 240)))
+connection.sendall(bytes(320 * 240 * 3))
 time.sleep(60)
 """
+
+OVERSIZED_CHILD = """\
+import socket, sys, time
+port, token = sys.argv[sys.argv.index('--replay-frame-stream') + 1].split(':')
+connection = socket.create_connection(('127.0.0.1', int(port)))
+connection.sendall(token.encode('ascii'))
+# A header claiming a 1000x1000 frame (not NEW's 320x240), and no pixels
+connection.sendall(b''.join(number.to_bytes(4, 'little') for number in (0, 1000, 1000)))
+time.sleep(60)
+"""
+
+
+def test_a_frame_of_another_size_than_new_ends_old_before_anything_is_read(
+    color_game, mocker, caplog
+):
+    """A header whose size is not NEW's ends OLD at once: no pixels are awaited or allocated."""
+    mocker.patch.object(compare, 'CHILD_READ_TIMEOUT_SECONDS', 0.5)
+    receive = mocker.spy(compare, 'receive_exactly')
+    onion_skin = OnionSkin(
+        old_path=color_game.old,
+        alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        game_command=[sys.executable, '-c', OVERSIZED_CHILD],
+        pause_at_frame=None,
+    )
+    surface = surface_of(color=NEW_RED)
+    try:
+        onion_skin.draw(surface=surface, frame_index=0)
+    finally:
+        onion_skin.stop()
+
+    assert onion_skin.held_frame_index is None
+    assert onion_skin.label == OLD_NOT_REPLAYED_LABEL
+    assert "it sent a 1000x1000 frame, not NEW's 320x240" in caplog.text
+    # The token, then the header: the pixels were never asked for
+    assert [call.kwargs['count'] for call in receive.call_args_list] == [
+        compare.FRAME_STREAM_TOKEN_LENGTH,
+        FRAME_HEADER.size,
+    ]
+    assert rgb_at(surface=surface) == NEW_RED
+    assert onion_skin.process is not None
+    assert onion_skin.process.returncode not in {None, ExitCode.SUCCESS}
 
 
 def test_an_old_that_stops_streaming_ends_there_and_the_replay_goes_on(color_game, mocker, caplog):

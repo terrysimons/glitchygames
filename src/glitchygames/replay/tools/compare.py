@@ -35,7 +35,8 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
    no descriptors, and a socket works the same on every platform.
 4. **Lockstep.** The parent reads frames only when it draws one: it reads (and drops) OLD's
    frames until it holds the one numbered as the frame presented, and keeps that one (memory
-   holds one frame, as sent: only a frame drawn is decoded into a picture, once). Paused, it
+   holds one frame, as sent: only a frame drawn is decoded into a picture, once; a header whose
+   size is not NEW's presented frame's ends OLD there, before its pixels are read). Paused, it
    reads nothing, so the child blocks on the full socket within a few frames: the two runs move
    together, through pause and frame steps too.
 5. **OLD shorter than NEW.** When OLD's stream ends, its last frame stays, labelled
@@ -515,7 +516,7 @@ class OnionSkin:
 
         """
         self.begin()
-        self._read_up_to(frame_index=frame_index)
+        self._read_up_to(frame_index=frame_index, size=surface.get_size())
         held = self._held
         if held is None:
             # _read_up_to returns without a frame only when OLD ended before sending one
@@ -595,17 +596,18 @@ class OnionSkin:
         )
         LOG.info('Comparing with %s, replayed by a child process', self.old_path)
 
-    def _read_up_to(self: Self, *, frame_index: int) -> None:
+    def _read_up_to(self: Self, *, frame_index: int, size: tuple[int, int]) -> None:
         """Read OLD's frames until the one held is ``frame_index`` (or later), or OLD ended.
 
         Args:
             frame_index: The frame wanted.
+            size: NEW's presented frame's width and height: every OLD frame must have them.
 
         """
         while not self._has_ended and (self._held is None or self._held.frame_index < frame_index):
             if self._connection is None and not self._accept():
                 return
-            self._read_one_frame()
+            self._read_one_frame(size=size)
 
     def _accept(self: Self) -> bool:
         """Wait for the child to connect with the token, unless it ends or takes too long (rule 5).
@@ -658,8 +660,17 @@ class OnionSkin:
             return False
         return hmac.compare_digest(received, self._token.encode('ascii'))
 
-    def _read_one_frame(self: Self) -> None:
-        """Read the next frame, as sent, into the one held; or note that OLD's stream ended."""
+    def _read_one_frame(self: Self, *, size: tuple[int, int]) -> None:
+        """Read the next frame, as sent, into the one held; or note that OLD's stream ended.
+
+        A header whose size is not NEW's ends OLD there (the child is stopped at once), before
+        its pixels are read or anything is allocated for them: a frame is never larger than
+        NEW's own.
+
+        Args:
+            size: NEW's presented frame's width and height.
+
+        """
         assert self._connection is not None
         try:
             header = receive_exactly(connection=self._connection, count=FRAME_HEADER.size)
@@ -667,6 +678,12 @@ class OnionSkin:
             self._end(reason=ended.reason, stalled=ended.stalled)
             return
         frame_index, width, height = FRAME_HEADER.unpack(header)
+        if (width, height) != size:
+            self._end(
+                reason=f"it sent a {width}x{height} frame, not NEW's {size[0]}x{size[1]}",
+                stalled=True,
+            )
+            return
         try:
             pixels = receive_exactly(
                 connection=self._connection, count=width * height * BYTES_PER_PIXEL
