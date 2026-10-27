@@ -335,8 +335,22 @@ def test_an_unknown_game_names_all_three_forms():
 
     message = str(error.value)
     assert "'no_such_game_anywhere' is not a game" in message
-    for form in GAME_FORMS:
-        assert form in message
+    assert len(GAME_FORMS) == 3
+    assert 'a script path (contains / or ends in .py)' in message
+    assert 'an entry point MODULE:CALLABLE' in message
+    assert 'an installed console script or an importable module' in message
+
+
+def test_a_game_with_a_slash_and_a_colon_is_a_script(tmp_path, monkeypatch):
+    """``/`` is read first: ``scripts/game.py:main`` is a script path, not an entry point.
+
+    No such script exists, so the refusal names the script it looked for (an entry point's
+    would name its module).
+    """
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(UnknownGameError, match=r'no script at scripts/game\.py:main'):
+        resolve_game(game='scripts/game.py:main')
 
 
 @pytest.mark.parametrize(

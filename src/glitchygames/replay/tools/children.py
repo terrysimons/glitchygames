@@ -17,6 +17,13 @@ Two ways to name the game:
   path, an entry point ``MODULE:CALLABLE``, an installed console script or an importable module
   (``GameLaunch``), and ``launch_game`` starts it with the tool's arguments.
 
+A console script is never run as its installed executable (``bin/<script>``). Its entry point
+is loaded and called in a ``python -c`` child (``entry_point_command``) instead, which is what
+that executable does. It runs on this interpreter (the one whose packages were searched for the
+entry point), needs no executable on ``PATH``, and works wherever the metadata is installed:
+a non-editable install in nox's sessions, or a stand-in game's dist-info in the engine's tests,
+which has no executable at all. The replay pytest plugin has always started games this way.
+
 ``replay_recording_headless`` and ``rebaseline_recording_headless`` run a recording's replay
 (or rebaseline) headless through a console script; the replay pytest plugin
 (glitchygames/testing/replays.py), the bundled demos' test and the measurement run use them.

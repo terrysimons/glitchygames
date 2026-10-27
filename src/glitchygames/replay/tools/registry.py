@@ -15,9 +15,11 @@ the table to check):
   arguments (the game to run, ``--project-root``). A subcommand whose tool runs the game starts
   it as a child process with the tool's flag (glitchygames/replay/tools/children.py).
 
-Options shared by two tools (the same ``ToolOption``) are one flag on the game. The engine's
-general flags that no tool owns (``--random-seed``, ``--resolution``, ...) stay in
-``GameEngine.args``; the command passes them to the game after a bare ``--``.
+An option may be listed under several tools (the same ``ToolOption``: ``--headless`` is
+record-trace's and replay-trace's); it is one flag on the game and an option of each tool's
+subcommand. The engine's general flags that no tool lists (``--resolution``, ...) stay in
+``GameEngine.args``; the command passes them to the game after a bare ``--``. Only one tool runs
+at a time: a game given two tool flags is refused (``run_game_flag_tool``).
 """
 
 from __future__ import annotations
@@ -154,7 +156,8 @@ class Tool:
         options: Its options, the same on both front ends, in order.
         runs_game: Whether the game runs for it (``--replay-trace``) or not (``--report``).
         game_handler: What runs it given as a game flag, in place of the game; None for a tool
-            the game's own run handles (``runs_game``).
+            the game's own run handles (``runs_game``). A tool that runs no game must have one
+            (refused when it is made: the game would otherwise run in its place).
         command_handler: What runs ``glitchygames <name>``.
         value_kind: What its own flag takes (``ToolValueKind``).
         value_metavar: That value's name in the help (``PATH``).
@@ -175,6 +178,20 @@ class Tool:
     value_metavar: str = 'PATH'
     value_help: str = ''
     command_arguments: tuple[ToolOption, ...] = ()
+
+    def __post_init__(self) -> None:
+        """Refuse a tool that runs no game and has no game handler.
+
+        Raises:
+            ValueError: If ``runs_game`` is False and ``game_handler`` is None.
+
+        """
+        if not self.runs_game and self.game_handler is None:
+            message = (
+                f'{self.name} runs no game, so it needs a game handler (without one the game '
+                'would run in its place)'
+            )
+            raise ValueError(message)
 
     @property
     def flag(self) -> str:
@@ -208,7 +225,7 @@ class Tool:
             value = getattr(arguments, option.destination)
             if value == option.default:
                 continue
-            child.extend([option.flag, *flag_values(kind=option.kind, value=value)])
+            child.extend(option_on_the_command_line(option=option, value=value))
         return child
 
     def destination_value(self, *, arguments: argparse.Namespace) -> object:
@@ -226,6 +243,24 @@ class Tool:
         return getattr(arguments, self.destination)
 
 
+def option_on_the_command_line(*, option: ToolOption, value: object) -> list[str]:
+    """Return an option as a child's command line gives it, for a value other than its default.
+
+    A switch given off (``--no-x``, whatever its default) is passed on off.
+
+    Args:
+        option: The option.
+        value: Its parsed value.
+
+    Returns:
+        The flag and what follows it.
+
+    """
+    if option.kind == 'switch' and value is False:
+        return [f'--no-{option.flag.removeprefix("--")}']
+    return [option.flag, *flag_values(kind=option.kind, value=value)]
+
+
 def flag_values(*, kind: ToolOptionKind | ToolValueKind, value: object) -> list[str]:
     """Return what follows a flag on a child's command line for a parsed value.
 
@@ -234,8 +269,8 @@ def flag_values(*, kind: ToolOptionKind | ToolValueKind, value: object) -> list[
         value: The parsed value (not the option's default).
 
     Returns:
-        Nothing for a flag or a switch (given: on), the absolute path(s) for a path, else the
-        value as text.
+        Nothing for a flag or a switch (on: ``option_on_the_command_line`` writes a switch
+        given off), the absolute path(s) for a path, else the value as text.
 
     """
     match kind:
@@ -393,7 +428,8 @@ def build_command_parser(*, tools: Sequence[Tool] | None = None) -> argparse.Arg
         ),
         '',
         'Each tool is also a flag on any game built on the engine (mygame --TOOL ...). Arguments',
-        'after a bare -- go to the game (glitchygames record-trace GAME PATH -- --random-seed 7).',
+        'after a bare -- go to the game (glitchygames record-trace GAME PATH -- --resolution',
+        '640x480).',
     ]
     parser = argparse.ArgumentParser(
         prog=COMMAND_NAME,
@@ -483,7 +519,8 @@ def run_game_flag_tool(
     """Run the tool given as a game flag in place of the game, if it doesn't run the game.
 
     Called by ``GameEngine._begin_run``, as ``--list-input-devices`` is, before the game's scene
-    is built. The first tool given (in the table's order) is the one considered.
+    is built. One tool at a time: two tool flags given together are refused, so neither is
+    silently skipped.
 
     Args:
         options: The game's parsed options (``GameEngine.OPTIONS``).
@@ -491,27 +528,33 @@ def run_game_flag_tool(
         tools: The tools (``TOOLS`` unless given).
 
     Returns:
-        The tool's exit code; ``ExitCode.OPTIONS_REFUSED`` when it lacks a required option; or
-        None when the game is to run (no tool flag was given, or the tool given runs the game,
-        which the engine's run handles).
+        The tool's exit code; ``ExitCode.OPTIONS_REFUSED`` when it lacks a required option or
+        another tool was given too; or None when the game is to run (no tool flag was given,
+        or the tool given runs the game, which the engine's run handles).
 
     """
     tools = TOOLS if tools is None else tools
-    for tool in tools:
-        if not given(value=options.get(tool.destination)):
-            continue
-        missing = [
-            option.flag
-            for option in tool.options
-            if option.required and not given(value=options.get(option.destination))
-        ]
-        if missing:
-            LOG.error('%s needs %s', tool.flag, ', '.join(missing))
-            return ExitCode.OPTIONS_REFUSED
-        if tool.game_handler is None:
-            return None
-        return tool.game_handler(options=options, game=game)
-    return None
+    given_tools = [tool for tool in tools if given(value=options.get(tool.destination))]
+    if not given_tools:
+        return None
+    if len(given_tools) > 1:
+        LOG.error(
+            'one tool at a time: %s were given together',
+            ' and '.join(tool.flag for tool in given_tools),
+        )
+        return ExitCode.OPTIONS_REFUSED
+    (tool,) = given_tools
+    missing = [
+        option.flag
+        for option in tool.options
+        if option.required and not given(value=options.get(option.destination))
+    ]
+    if missing:
+        LOG.error('%s needs %s', tool.flag, ', '.join(missing))
+        return ExitCode.OPTIONS_REFUSED
+    if tool.game_handler is None:
+        return None
+    return tool.game_handler(options=options, game=game)
 
 
 # --replay-trace's options, as GameEngine.args described them before the table (help text,
@@ -598,8 +641,8 @@ REPLAY_DIGEST_OPTION = ToolOption(
     ),
     default=None,
 )
-# Owned by replay-trace (the stage's tools table), and a general engine flag too: every game
-# has it, since add_game_flags adds every tool's options
+# Listed by record-trace and replay-trace (the stage's tools table and the controller's
+# shared-option ruling), and a general engine flag too: every game has it, once
 HEADLESS_OPTION = ToolOption(
     flag='--headless',
     kind='flag',
@@ -610,6 +653,18 @@ HEADLESS_OPTION = ToolOption(
         f'when it diverges, {ExitCode.UNUSABLE_INPUT:d} for a truncated recording)'
     ),
     default=False,
+)
+# Listed by record-trace (a recording's seed is chosen when recording; a replay takes the
+# recorded one), and a general engine flag too: every game has it, as GameEngine.args defined it
+# before the table (it moved from its Graphics Options group to the tools' Diagnostics Options)
+RANDOM_SEED_OPTION = ToolOption(
+    flag='--random-seed',
+    kind='int',
+    help=(
+        'master seed for every engine random stream (default: a random 64-bit seed, '
+        'logged in recordings)'
+    ),
+    default=None,
 )
 # The command's GAME (children.resolve_game reads it)
 GAME_FORMS_TEXT = '; '.join(GAME_FORMS)
@@ -639,7 +694,7 @@ TOOLS: tuple[Tool, ...] = (
             'record the session (sprites, frame times, input events, random seed) to a '
             'gzip JSON Lines trace for inspection and later replay (default: off)'
         ),
-        options=(),
+        options=(RANDOM_SEED_OPTION, HEADLESS_OPTION),
         runs_game=True,
         # The game's own run records (GameEngine._start_requested_trace_recording)
         game_handler=None,

@@ -12,7 +12,7 @@ The child's exit status is the command's.
   no longer imports (a moved script), or no console script starts it, the command asks for
   ``--game GAME``, read as ``record-trace``'s ``GAME`` is.
 
-Arguments after a bare ``--`` go to the game unchanged (``--random-seed 7``, ``--resolution``).
+Arguments after a bare ``--`` go to the game unchanged (``--resolution 640x480``).
 The command says on standard error which game it runs and how it read it.
 """
 

@@ -487,8 +487,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - The engine's tools (Part 3 Stage D; `src/glitchygames/replay/tools/`): every recording, replay
   and measurement tool is described once in `registry.TOOLS` (`Tool`, `ToolOption`), and both
   front ends are built from it so names and options can't drift: `GameEngine.args` adds each
-  tool to every game's command line (`add_game_flags`: `--record-trace`, `--replay-trace` and its
-  options `--replay-fps`, `--audit`, `--compare-processing`, `--max-processing-slowdown`,
+  tool to every game's command line (`add_game_flags`: `--record-trace` with `--random-seed`
+  and `--headless`, `--replay-trace` and its options `--replay-fps`, `--audit`, `--compare-processing`, `--max-processing-slowdown`,
   `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`, `--headless`), and
   `_begin_run` runs a tool that doesn't run the game in its place (`run_game_flag_tool`). The
   `glitchygames` console script (and `python -m glitchygames`, both via
@@ -499,7 +499,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   console script or a module; `replay-trace` takes the game from the recording's header and asks
   for `--game` when its module no longer imports). `children.py` also holds the console-script
   lookups and the headless child replay/rebaseline the pytest plugin uses (pytest-free).
-  `--random-seed` and the other general flags stay in `GameEngine.args`; no tool owns them
+  An option may be listed under several tools but is one game flag (`--headless`: record-trace's
+  and replay-trace's; record-trace also lists `--random-seed`). Two tool flags at once are
+  refused, and a tool that runs no game must have a game handler. The general flags no tool
+  lists (`--resolution`, ...) stay in `GameEngine.args`
 - Scene starts (`src/glitchygames/scene_start.py`, a leaf: scenes never import the replay package;
   Part 3 Task 1): while the active doors' `captures_scene_starts` is True (`--record-trace` runs
   from their start, `--rebaseline`, the playback scope) or the class sets

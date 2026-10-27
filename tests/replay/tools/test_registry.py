@@ -18,15 +18,12 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from glitchygames import __main__ as glitchygames_main
+from glitchygames.argument_types import non_negative_int, non_negative_percent
 from glitchygames.engine import GameEngine
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import run_command
 from glitchygames.replay.tools import command, registry
-from glitchygames.replay.tools.children import (
-    GAME_FORMS,
-    entry_point_command,
-    game_entry_point,
-)
+from glitchygames.replay.tools.children import entry_point_command, game_entry_point
 from glitchygames.replay.tools.registry import (
     TOOLS,
     Tool,
@@ -67,6 +64,12 @@ STAND_IN_RECORDING_ARGUMENTS = (
 )
 # pygame's banner variable, which the command sets before pygame is imported
 PYGAME_BANNER_VARIABLE = 'PYGAME_HIDE_SUPPORT_PROMPT'
+# The three forms GAME takes, written out (children.GAME_FORMS must keep naming each)
+THE_THREE_GAME_FORMS = (
+    'a script path (contains / or ends in .py)',
+    'an entry point MODULE:CALLABLE',
+    'an installed console script or an importable module',
+)
 # The command's console script ([project.scripts])
 COMMAND_CONSOLE_SCRIPT = 'glitchygames'
 
@@ -268,6 +271,162 @@ def test_the_existing_trace_flags_are_unchanged():
     )
 
 
+# Each moved option as GameEngine.args defined it before the table, written out by hand:
+# (flag, help, choices, type, default, action class)
+MOVED_OPTIONS_AS_THEY_WERE = (
+    (
+        '--replay-fps',
+        (
+            'with --replay-trace: post FPS events from the recorded frame times (recorded, '
+            "the default: exact, and compared with the recording) or from this machine's "
+            'measured frame times (real: what this machine achieves; FPS events are then '
+            'not compared, and sprites that draw the FPS value may diverge)'
+        ),
+        ('recorded', 'real'),
+        None,
+        None,
+        argparse._StoreAction,
+    ),
+    (
+        '--audit',
+        (
+            'with --replay-trace: instead of replaying, replay the recording twice in fresh '
+            'headless processes with different hash seeds and compare every frame with the '
+            'recording and between the runs; exits 0 when both match, 3 otherwise, 70 if '
+            'a run could not finish'
+        ),
+        None,
+        None,
+        False,
+        argparse.BooleanOptionalAction,
+    ),
+    (
+        '--compare-processing',
+        (
+            "with --replay-trace --headless: measure each frame's processing time (its "
+            'work, without presenting or pacing) and report how it compares with the '
+            "recording's (only meaningful on the machine that recorded)"
+        ),
+        None,
+        None,
+        None,
+        argparse._StoreTrueAction,
+    ),
+    (
+        '--max-processing-slowdown',
+        (
+            'with --replay-trace --headless (implies --compare-processing): a replay that '
+            "matched but took more than PERCENT longer than the recording's processing time "
+            'exits 8; a recording without processing times exits 65'
+        ),
+        None,
+        non_negative_percent,
+        None,
+        argparse._StoreAction,
+    ),
+    (
+        '--replay-pause-at-frame',
+        (
+            'with --replay-trace, watched: skip the start screen, run frames 0 to N - 1 '
+            'without showing them, then pause with frame N next (what step back restarts '
+            'with; ignored with --headless)'
+        ),
+        None,
+        non_negative_int,
+        None,
+        argparse._StoreAction,
+    ),
+    (
+        '--rebaseline',
+        (
+            'with --replay-trace OLD and --headless: replay OLD on the current code without '
+            "stopping at divergences, write the run's recording (OLD's inputs, the current "
+            'sprites) to NEW, print a summary of the frames and sprites that changed and '
+            'exit 0'
+        ),
+        None,
+        None,
+        None,
+        argparse._StoreAction,
+    ),
+    (
+        '--replay-digest',
+        (
+            'with --replay-trace: write a SHA-256 of every replayed frame, then the '
+            'divergence, to PATH as JSON lines (used by --audit)'
+        ),
+        None,
+        None,
+        None,
+        argparse._StoreAction,
+    ),
+    (
+        '--headless',
+        (
+            "run on SDL's dummy video and audio drivers: no window, no sound. With "
+            '--replay-trace the replay also runs unpaced and prints its report to stdout '
+            '(exit 0 when it matches, 1 when it diverges, 65 for a truncated recording)'
+        ),
+        None,
+        None,
+        False,
+        argparse._StoreTrueAction,
+    ),
+    (
+        '--random-seed',
+        (
+            'master seed for every engine random stream (default: a random 64-bit seed, '
+            'logged in recordings)'
+        ),
+        None,
+        int,
+        None,
+        argparse._StoreAction,
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    'as_it_was', MOVED_OPTIONS_AS_THEY_WERE, ids=[flag for flag, *_ in MOVED_OPTIONS_AS_THEY_WERE]
+)
+def test_each_moved_option_is_unchanged_on_the_game(as_it_was):
+    """Every option moved into the table keeps its help, choices, type, default and action."""
+    flag, help_text, choices, value_type, default, action_class = as_it_was
+    action = action_for(parser=game_parser(), flag=flag)
+
+    assert action.help == help_text
+    assert (tuple(action.choices) if action.choices is not None else None) == choices
+    assert action.type is value_type
+    assert action.default == default
+    assert type(action) is action_class
+    assert action.dest == flag.removeprefix('--').replace('-', '_')
+
+
+def test_an_option_listed_under_several_tools_is_one_game_flag_and_each_tools_option():
+    """A shared option (--headless: record-trace's and replay-trace's) is one flag on the game.
+
+    Each tool that lists it has it as a subcommand option; record-trace also takes --random-seed.
+    """
+    game = game_parser()
+    subcommands = subcommand_parsers(parser=build_command_parser())
+    tools_by_flag: dict[str, list[str]] = {}
+    for tool in TOOLS:
+        for option in tool.options:
+            tools_by_flag.setdefault(option.flag, []).append(tool.name)
+    shared = {flag: names for flag, names in tools_by_flag.items() if len(names) > 1}
+
+    assert shared['--headless'] == ['record-trace', 'replay-trace']
+    for flag, names in shared.items():
+        on_the_game = [action for action in game._actions if flag in action.option_strings]
+        assert len(on_the_game) == 1, flag
+        for name in names:
+            assert described(action=action_for(parser=subcommands[name], flag=flag)) == (
+                described(action=on_the_game[0])
+            )
+    record_trace_flags = {option.flag for option in tool_named(name='record-trace').options}
+    assert record_trace_flags == {'--random-seed', '--headless'}
+
+
 def test_glitchygames_help_lists_every_tool(capsys):
     """``glitchygames --help`` names every tool and every option (--rebaseline, --audit too)."""
     with pytest.raises(SystemExit) as exit_information:
@@ -383,9 +542,10 @@ def test_no_tool_option_clashes_with_any_of_our_games_arguments(console_script):
 
 
 def test_glitchygames_record_trace_runs_the_game_as_a_child(stand_in_game, tmp_path, capfd):
-    """``glitchygames record-trace GAME PATH -- ...``: the game records itself in a child.
+    """``glitchygames record-trace GAME PATH --random-seed N --headless -- ...``: in a child.
 
-    The recording's header names the stand-in's scene; the arguments after -- reach the game.
+    The recording's header names the stand-in's scene; the command's --random-seed and
+    --headless (record-trace's options) and the arguments after -- all reach the game.
     """
     recording = tmp_path / 'recorded.jsonl.gz'
 
@@ -393,10 +553,11 @@ def test_glitchygames_record_trace_runs_the_game_as_a_child(stand_in_game, tmp_p
         'record-trace',
         stand_in_game.console_script,
         str(recording),
-        '--',
-        *STAND_IN_RECORDING_ARGUMENTS,
         '--random-seed',
-        '7',
+        '5',
+        '--headless',
+        '--',
+        *(argument for argument in STAND_IN_RECORDING_ARGUMENTS if argument != '--headless'),
     ])
 
     errors = capfd.readouterr().err
@@ -408,7 +569,9 @@ def test_glitchygames_record_trace_runs_the_game_as_a_child(stand_in_game, tmp_p
     with gzip.open(recording, 'rt', encoding='utf-8') as recorded:
         header = json.loads(recorded.readline())
     assert header['game'] == stand_in_game.logical_name
-    assert header['options']['random_seed'] == 7
+    assert header['options']['random_seed'] == 5
+    assert header['options']['headless'] is True
+    assert header['options']['resolution'] == STAND_IN_GAME_RESOLUTION
 
 
 def test_glitchygames_replay_trace_finds_the_game_from_the_recording(
@@ -476,7 +639,7 @@ def test_replay_trace_asks_for_game_when_the_recorded_module_is_gone(tmp_path, c
     assert asked == ExitCode.OPTIONS_REFUSED
     assert "its game's module '__main__' no longer imports" in asking
     assert 'name the game with --game GAME' in asking
-    for form in GAME_FORMS:
+    for form in THE_THREE_GAME_FORMS:
         assert form in asking
     assert replayed == ExitCode.SUCCESS, replaying.out + replaying.err
     assert f'running {script} (a script)' in replaying.err
@@ -544,7 +707,7 @@ def test_a_game_that_names_nothing_is_refused(capfd, arguments):
     errors = capfd.readouterr().err
     assert exit_status == ExitCode.OPTIONS_REFUSED
     assert "'no_such_game_anywhere' is not a game" in errors
-    for form in GAME_FORMS:
+    for form in THE_THREE_GAME_FORMS:
         assert form in errors
 
 
@@ -622,10 +785,14 @@ def stand_in_tool(
 ) -> Tool:
     """A tool for the table's own tests (the real table holds only tools that run the game).
 
+    A tool that runs no game gets a handler that returns SUCCESS unless one is given.
+
     Returns:
         The tool.
 
     """
+    if game_handler is None and not runs_game:
+        game_handler = recording_handler(calls=[], exit_code=ExitCode.SUCCESS)
     return Tool(
         name=name,
         help=f'{name} help',
@@ -844,3 +1011,64 @@ def test_a_name_no_tool_has_is_a_key_error():
     """tool_named: only the table's names."""
     with pytest.raises(KeyError, match='no-such-tool'):
         tool_named(name='no-such-tool')
+
+
+def test_a_switch_given_off_is_passed_on_off():
+    """A switch defaulting to on, given as --no-x, reaches the game as --no-x (not --x)."""
+    switch = ToolOption(flag='--fancy', kind='switch', help='fancy', default=True)
+    tool = stand_in_tool(name='switch-tool', options=(switch,), value_kind='flag')
+    parsed = build_command_parser(tools=(tool,)).parse_args(['switch-tool', '--no-fancy'])
+
+    assert tool.child_arguments(arguments=parsed) == ['--switch-tool', '--no-fancy']
+
+
+def test_two_tools_given_at_once_are_refused_naming_both(caplog):
+    """--record-trace with --replay-trace: OPTIONS_REFUSED, naming both; neither runs."""
+    options = vars(
+        game_parser().parse_args([
+            '--record-trace',
+            'new.jsonl.gz',
+            '--replay-trace',
+            'old.jsonl.gz',
+        ])
+    )
+
+    exit_code = run_game_flag_tool(options=options, game=FlagToolScene)
+
+    assert exit_code == ExitCode.OPTIONS_REFUSED
+    assert (
+        'one tool at a time: --record-trace and --replay-trace were given together' in caplog.text
+    )
+
+
+def test_a_tool_given_with_one_that_runs_no_game_is_refused(caplog):
+    """A tool that runs no game is never skipped because another tool was given first."""
+    calls: list[dict[str, Any]] = []
+    first = stand_in_tool(name='first-tool', runs_game=True)
+    second = stand_in_tool(
+        name='second-tool',
+        game_handler=recording_handler(calls=calls, exit_code=ExitCode.SUCCESS),
+    )
+
+    exit_code = run_game_flag_tool(
+        options={'first_tool': 'a.jsonl.gz', 'second_tool': 'b.jsonl.gz'},
+        game=FlagToolScene,
+        tools=(first, second),
+    )
+
+    assert exit_code == ExitCode.OPTIONS_REFUSED
+    assert '--first-tool and --second-tool were given together' in caplog.text
+    assert calls == []
+
+
+def test_a_tool_that_runs_no_game_needs_a_game_handler():
+    """Without one, the game would run in its place: refused when the table is built."""
+    with pytest.raises(ValueError, match='report-thing runs no game, so it needs a game handler'):
+        Tool(
+            name='report-thing',
+            help='report',
+            options=(),
+            runs_game=False,
+            game_handler=None,
+            command_handler=command_handler_not_called,
+        )

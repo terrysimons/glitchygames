@@ -545,8 +545,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             action='store_true',
             default=False,
         )
-        # Every tool (--record-trace, --replay-trace and its options, --headless) comes from the
-        # one table both front ends are built from (glitchygames/replay/tools/registry.py)
+        # Every tool flag and the options the tools list come from the one table both front
+        # ends are built from (glitchygames/replay/tools/registry.py)
         add_game_flags(parser=diagnostics_group)
         diagnostics_group.add_argument(
             '--replay-restart-handoff',
@@ -563,15 +563,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # Internal: a restarted replay's viewer state (speed, debug panel, divergence frame),
             # as glitchygames/replay/rebuild.py describes
             help=argparse.SUPPRESS,
-            default=None,
-        )
-        group.add_argument(
-            '--random-seed',
-            type=int,
-            help=(
-                'master seed for every engine random stream (default: a random 64-bit seed, '
-                'logged in recordings)'
-            ),
             default=None,
         )
         group.add_argument(

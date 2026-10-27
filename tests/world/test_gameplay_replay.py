@@ -2366,11 +2366,14 @@ class TestHeadless:
             'log_timer_jitter',
             'fps_histogram',
             'perf_trim_percent',
+            # Listed by record-trace in the tools' table (glitchygames/replay/tools/registry.py),
+            # whose flags are all in this group
+            'random_seed',
         }
         assert {option: groups_by_option[option] for option in diagnostic_options} == dict.fromkeys(
             diagnostic_options, 'Diagnostics Options'
         )
-        for option in ('target_fps', 'random_seed', 'timer_backend', 'live_voice_pool'):
+        for option in ('target_fps', 'timer_backend', 'live_voice_pool'):
             assert groups_by_option[option] == 'Graphics Options'
 
     def test_a_late_end_after_the_replay_finished_reports_its_result_first(
