@@ -642,7 +642,7 @@ def test_verify_is_one_tool_on_both_front_ends():
 
     assert tool.runs_game
     assert tool.value_kind == 'paths'
-    assert [option.flag for option in tool.options] == ['--only']
+    assert [option.flag for option in tool.options] == ['--only', '--random-seed']
     assert [argument.flag for argument in tool.command_arguments] == ['--game']
     assert tool.command_arguments[0].kind == 'games'
 
@@ -772,4 +772,109 @@ def test_no_project_above_the_current_directory_is_said(tmp_path, mocker, monkey
     assert flag_status == ExitCode.SUCCESS
     assert command_status == ExitCode.SUCCESS
     assert found.call_args.kwargs['project_root'] == tmp_path
-    assert output.count(f'verify: no pyproject.toml in {tmp_path} or above it') == 2
+    assert output.count(f'verify: no pyproject.toml in {tmp_path}: using the default settings') == 2
+
+
+def test_no_project_is_not_said_when_recordings_are_named(tmp_path, mocker, monkeypatch, capsys):
+    """With PATHs no settings are read, so a missing pyproject.toml is not mentioned."""
+    mocker.patch.object(verify, 'find_project_root', return_value=None)
+    monkeypatch.chdir(tmp_path)
+    mocker.patch.object(verify, 'running_game_command', return_value=['the-game'])
+    mocker.patch.object(
+        verify,
+        'run_command',
+        return_value=CompletedProcess(args=[], returncode=ExitCode.SUCCESS, stdout=''),
+    )
+    launch = mocker.patch.object(verify, 'resolve_named_game')
+    launch.return_value.command = ['the-game']
+    launch.return_value.form = 'console-script'
+    mocker.patch.object(sys, 'argv', ['the-game', '--verify', 'run.jsonl.gz'])
+
+    flag_status = verify.verify_on_the_game(
+        options={'verify': ['run.jsonl.gz'], 'only': None}, game=GameThatIsNeverBuilt
+    )
+    command_status = command.main(['verify', 'run.jsonl.gz', '--game', 'the-game'])
+
+    output = capsys.readouterr().out
+    assert flag_status == ExitCode.SUCCESS
+    assert command_status == ExitCode.SUCCESS
+    assert 'pyproject.toml' not in output
+
+
+# What a refusal of a seed says, on both front ends
+SEED_REFUSAL = 'verify always replays each recording under its recorded seed'
+
+
+def test_verify_refuses_a_random_seed_on_both_front_ends_so_it_always_compares(
+    stand_in_game, stand_in_project, capfd
+):
+    """A seed would make each replay a reseeded one, which compares nothing (decision 17).
+
+    So ``--random-seed`` is refused, OPTIONS_REFUSED before any replay runs, whether given to the
+    tool or among the game arguments passed on to the replays; without it the golden tampered at
+    frame 10 fails.
+    """
+    tampered = stand_in_project.joinpath(
+        *GOLDEN_DIRECTORY_PARTS, stand_in_game.console_script, 'tampered.jsonl.gz'
+    )
+    flag_status, flag_output = run_game_flag(
+        game=stand_in_game,
+        arguments=['--random-seed', '7', '--verify', str(tampered)],
+        working_directory=stand_in_project,
+    )
+    refused_on_the_command = [
+        command.main(arguments)
+        for arguments in (
+            ['verify', str(tampered), '--random-seed', '7'],
+            ['verify', str(tampered), '--', '--random-seed', '7'],
+            ['verify', '--game', stand_in_game.console_script, '--', '--random-seed=7'],
+        )
+    ]
+    refused = capfd.readouterr()
+    compared_status = command.main(['verify', str(tampered)])
+    compared = capfd.readouterr()
+
+    assert flag_status == ExitCode.OPTIONS_REFUSED, flag_output
+    assert SEED_REFUSAL in flag_output
+    assert '--replay-trace PATH --random-seed N' in flag_output
+    assert refused_on_the_command == [ExitCode.OPTIONS_REFUSED] * 3
+    assert refused.err.count(SEED_REFUSAL) == 3
+    for output in (flag_output, refused.out, refused.err):
+        assert 'PASS ' not in output
+        assert 'FAIL ' not in output
+        assert 'running ' not in output
+    assert compared_status == ExitCode.REPLAY_DIVERGED, compared.out + compared.err
+    assert f'REPLAY_DIVERGED (1): {DIVERGED_AT_THE_TAMPERED_FRAME}' in compared.out
+
+
+@pytest.mark.parametrize(
+    ('arguments', 'expected'),
+    [
+        (['--random-seed', '7'], True),
+        (['--random-seed=7'], True),
+        # A prefix a game's parser takes for it (argparse's abbreviations)
+        (['--target-fps', '30', '--random-s', '7'], True),
+        # Asked for with no value: still refused, not left to the game
+        (['--random-seed'], True),
+        (['--target-fps', '30'], False),
+        ([], False),
+    ],
+)
+def test_a_seed_is_found_among_game_arguments_as_a_game_would_read_it(arguments, expected):
+    """``seed_given`` reads the arguments as the game's own parser would."""
+    assert verify.seed_given(arguments=arguments) is expected
+
+
+def test_the_game_flag_refuses_a_seed_before_looking_for_recordings(mocker, caplog):
+    """On the game a seed is refused at once: nothing is looked for or replayed."""
+    found = mocker.patch.object(verify, 'game_recordings')
+    replayed = mocker.patch.object(verify, 'run_command')
+
+    status = verify.verify_on_the_game(
+        options={'verify': [], 'only': None, 'random_seed': 7}, game=GameThatIsNeverBuilt
+    )
+
+    assert status == ExitCode.OPTIONS_REFUSED
+    assert SEED_REFUSAL in caplog.text
+    found.assert_not_called()
+    replayed.assert_not_called()

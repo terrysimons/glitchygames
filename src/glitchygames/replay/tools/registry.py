@@ -736,7 +736,8 @@ RANDOM_SEED_OPTION = ToolOption(
         "as always; a replay given another plays the recording's inputs out under it "
         'without comparing or writing anything (headless, it prints what differed and exits '
         f'{ExitCode.SUCCESS:d}); --replay-trace OLD --rebaseline NEW --random-seed N records '
-        'them under it in NEW; --audit under another seed is refused'
+        'them under it in NEW; --audit under another seed is refused, and so is any seed '
+        'given to --verify (it always compares)'
     ),
     default=None,
 )
@@ -924,7 +925,8 @@ TOOLS: tuple[Tool, ...] = (
             f'found), {ExitCode.REPLAY_DIVERGED:d} when the only failures are divergences, '
             "otherwise the first other failure's exit code (default: off)"
         ),
-        options=(ONLY_OPTION,),
+        # --random-seed is listed only to be refused, on both front ends alike (verify.py)
+        options=(ONLY_OPTION, RANDOM_SEED_OPTION),
         runs_game=True,
         # The game's recordings are replayed by children; the game itself never runs
         game_handler=verify_on_the_game,

@@ -510,7 +510,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `--project-root DIR`; arguments after a bare `--` go to the game). `--game` is the one
   command-only option (`COMMAND_ONLY_FLAGS` in `tests/replay/tools/test_registry.py`): a game needs
   none, it is the game. `verify` (`verify.py`) replays each recording headless in a child (no
-  seed: it always compares), prints `PASS|FAIL <name>: <why>` per recording and `verify: N of M
+  seed: it always compares; `--random-seed`, given to it or among the arguments it passes on, is
+  refused OPTIONS_REFUSED before anything runs), prints `PASS|FAIL <name>: <why>` per recording and `verify: N of M
   recordings passed`, and exits SUCCESS only when all matched (or none was found, which it says),
   REPLAY_DIVERGED when the only failures diverged, else the first other failure's code. On the
   game it runs from `__init__` (the game is never built) and replays through the game started

@@ -27,9 +27,17 @@ count as divergences"). Its line still ends with the exception.
 
 Both front ends find the project the same way (``verify_project_root``): ``--project-root`` when
 the command is given it, else the nearest directory at or above the current one with a
-``pyproject.toml`` (``settings.find_project_root``); with none, they say so and use the current
-directory. Both pass the game's other arguments on to every game they start: the command those
-after a bare ``--``, the game those on its own command line beside ``--verify``
+``pyproject.toml`` (``settings.find_project_root``), else the current directory. When settings
+are read there (no PATHs) and it has no ``pyproject.toml``, they say the defaults are used.
+
+A seed is refused on both front ends (``seed_refusal``), before any replay runs, with
+``ExitCode.OPTIONS_REFUSED``: a replay under another seed compares nothing and succeeds (rule 19
+of glitchygames/replay/driver.py), so a tampered recording would pass. ``--random-seed`` given to
+the tool, among the game's own arguments beside ``--verify``, or after the command's ``--`` is
+refused alike (the user's rule: verify always compares).
+
+Both pass the game's other arguments on to every game they start: the command those after a bare
+``--``, the game those on its own command line beside ``--verify``
 (``registry.tool_free_arguments``).
 
 The two front ends (glitchygames/replay/tools/registry.py):
@@ -49,6 +57,7 @@ The two front ends (glitchygames/replay/tools/registry.py):
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -65,6 +74,7 @@ from glitchygames.replay.tools.children import (
 from glitchygames.replay.tools.identity import game_identity
 from glitchygames.replay.tools.recordings import game_recordings
 from glitchygames.replay.tools.settings import (
+    PYPROJECT_FILE_NAME,
     ProjectSettingsError,
     find_project_root,
     load_project_settings,
@@ -81,11 +91,11 @@ from glitchygames.replay.tools.traces import (
 )
 
 if TYPE_CHECKING:
-    import argparse
     from collections.abc import Sequence
 
     from glitchygames.process import CompletedProcess
     from glitchygames.replay.tools.registry import Tool
+    from glitchygames.replay.tools.settings import ProjectSettings
     from glitchygames.scenes import Scene
 
 # The first word of a recording's line
@@ -100,6 +110,8 @@ REPLAY_REPORT_PREFIXES = (
     'Replay ended early',
     'Replay still running',
 )
+# The option verify refuses (registry.RANDOM_SEED_OPTION's flag: the registry imports this module)
+RANDOM_SEED_FLAG = '--random-seed'
 # What a recording's line says of a child that printed nothing
 NO_OUTPUT = 'no output'
 
@@ -321,15 +333,66 @@ def verify_project_root(*, given: Path | None) -> Path:
         return given
     current = Path.cwd()
     found = find_project_root(start=current)
-    if found is None:
+    return current if found is None else found
+
+
+def read_settings(*, project_root: Path) -> ProjectSettings:
+    """Read the project's settings, saying so when it has no pyproject.toml (the defaults).
+
+    Args:
+        project_root: The project (``verify_project_root``'s).
+
+    Returns:
+        The settings (``load_project_settings``', which raises ``ProjectSettingsError`` for
+        settings that can't be read).
+
+    """
+    if not (project_root / PYPROJECT_FILE_NAME).is_file():
         write_line(
             line=(
-                f'{SUMMARY_PREFIX} no pyproject.toml in {current} or above it: looking for the '
-                'project here, with the default settings'
+                f'{SUMMARY_PREFIX} no {PYPROJECT_FILE_NAME} in {project_root}: using the default '
+                'settings'
             )
         )
-        return current
-    return found
+    return load_project_settings(project_root=project_root)
+
+
+def seed_given(*, arguments: Sequence[str]) -> bool:
+    """Tell whether a command line gives ``--random-seed`` (as a game's parser would read it).
+
+    Read by a parser of its own with argparse's abbreviations, so ``--random-seed=7`` and a
+    prefix the game would take for it count too (an ambiguous prefix the game would refuse is
+    refused here as well).
+
+    Args:
+        arguments: The arguments.
+
+    Returns:
+        True if a seed is among them.
+
+    """
+    parser = argparse.ArgumentParser(add_help=False, exit_on_error=False)
+    parser.add_argument(RANDOM_SEED_FLAG)
+    try:
+        known, _ = parser.parse_known_args(list(arguments))
+    except argparse.ArgumentError:
+        # --random-seed with no value: still a seed asked for
+        return True
+    return known.random_seed is not None
+
+
+def seed_refusal() -> str:
+    """Say why verify refuses a seed, and what replays under one.
+
+    Returns:
+        The message.
+
+    """
+    return (
+        'verify always replays each recording under its recorded seed, so that it compares '
+        f'every frame: {RANDOM_SEED_FLAG} is refused (to play a recording out under another '
+        f'seed: --replay-trace PATH {RANDOM_SEED_FLAG} N)'
+    )
 
 
 def verify_on_the_game(*, options: dict[str, Any], game: type[Scene] | Scene) -> ExitCode:
@@ -355,6 +418,8 @@ def verify_on_the_game(*, options: dict[str, Any], game: type[Scene] | Scene) ->
     # Imported here: the tool table imports this module
     from glitchygames.replay.tools.registry import tool_free_arguments, tool_named
 
+    if options.get('random_seed') is not None:
+        return refused(message=f'--verify: {seed_refusal()}', exit_code=ExitCode.OPTIONS_REFUSED)
     root = verify_project_root(given=None)
     only: str | None = options.get('only')
     given: list[str] = options['verify']
@@ -363,7 +428,7 @@ def verify_on_the_game(*, options: dict[str, Any], game: type[Scene] | Scene) ->
         looked_for = f'{len(paths)} given'
     else:
         try:
-            settings = load_project_settings(project_root=root)
+            settings = read_settings(project_root=root)
         except ProjectSettingsError as error:
             return refused(message=f'--verify: {error}', exit_code=ExitCode.UNUSABLE_INPUT)
         identity = game_identity(game=game)
@@ -480,7 +545,7 @@ def verify_each_game(
     games: list[str] | None = arguments.game
     if games is None:
         try:
-            settings = load_project_settings(project_root=project_root(arguments=arguments))
+            settings = read_settings(project_root=project_root(arguments=arguments))
         except ProjectSettingsError as error:
             say(tool=tool, message=str(error))
             return ExitCode.UNUSABLE_INPUT
@@ -524,6 +589,9 @@ def verify_command(*, tool: Tool, arguments: argparse.Namespace, game_arguments:
         ``verify_named_recordings``' exit code with PATHs, ``verify_each_game``'s without.
 
     """
+    if arguments.random_seed is not None or seed_given(arguments=game_arguments):
+        say(tool=tool, message=seed_refusal())
+        return ExitCode.OPTIONS_REFUSED
     # One project for everything below, found as the game finds it (verify_project_root)
     arguments.project_root = verify_project_root(given=arguments.project_root)
     if arguments.verify:

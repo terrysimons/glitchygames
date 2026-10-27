@@ -329,7 +329,10 @@ def test_the_golden_harness_rolls_a_seed_when_none_is_given():
 
 
 def test_every_tool_that_takes_a_seed_shares_one_option_stating_the_rule():
-    """One ``--random-seed`` (default None) for every recording tool and replay-trace."""
+    """One ``--random-seed`` (default None) for every tool that runs the game.
+
+    verify lists it only to refuse it (it always compares: test_verify.py).
+    """
     listing = sorted(tool.name for tool in TOOLS if RANDOM_SEED_OPTION in tool.options)
 
     assert listing == sorted([
@@ -337,6 +340,7 @@ def test_every_tool_that_takes_a_seed_shares_one_option_stating_the_rule():
         'replay-trace',
         'record-golden-trace',
         'record-session',
+        'verify',
     ])
     assert RANDOM_SEED_OPTION.default is None
     for words in RANDOM_SEED_RULE_WORDS:

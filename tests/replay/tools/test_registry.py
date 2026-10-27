@@ -396,7 +396,8 @@ MOVED_OPTIONS_AS_THEY_WERE = (
             "as always; a replay given another plays the recording's inputs out under it "
             'without comparing or writing anything (headless, it prints what differed and exits '
             '0); --replay-trace OLD --rebaseline NEW --random-seed N records them under it in '
-            'NEW; --audit under another seed is refused'
+            'NEW; --audit under another seed is refused, and so is any seed given to --verify '
+            '(it always compares)'
         ),
         None,
         int,
@@ -439,7 +440,8 @@ def test_an_option_listed_under_several_tools_is_one_game_flag_and_each_tools_op
 
     every_game_runner = ['record-trace', 'replay-trace', 'record-golden-trace', 'record-session']
     assert shared['--headless'] == every_game_runner
-    assert shared['--random-seed'] == every_game_runner
+    # verify lists it only to refuse it (it always compares: test_verify.py)
+    assert shared['--random-seed'] == [*every_game_runner, 'verify']
     assert shared['--input-script'] == ['record-golden-trace', 'record-session']
     assert shared['--frame-count'] == ['record-golden-trace', 'record-session']
     for flag, names in shared.items():
