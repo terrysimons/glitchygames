@@ -219,7 +219,7 @@ the reserved-flag refusal were fixed):
   or 64 to match the other usage refusals: decide with the user).
 - **M9: `report` on a directory says "no such recording"** (exit 66, `MISSING_INPUT`), which is
   wrong about why (`src/glitchygames/replay/tools/report.py`). A path that exists but is not a
-  file is unusable input (65; glitchygames/exit_codes.py says so), or say "is a directory".
+  file is unusable input (65; src/glitchygames/exit_codes.py says so), or say "is a directory".
 - **M10a: `compare._accept`'s post-deadline race** (from the D10 review;
   `src/glitchygames/replay/tools/compare.py`, `_accept`, around lines 662-670). When a stranger's
   connection is refused after the connect deadline, the wait ends at once

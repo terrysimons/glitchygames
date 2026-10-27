@@ -43,6 +43,7 @@ from tests.stand_in_games import (
     use_stand_in_game,
     write_stand_in_game,
 )
+from tests.test_recording_metrics import run, with_uncommitted_changes
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -282,6 +283,20 @@ def test_an_unreadable_run_and_a_run_without_times_are_said_so():
     """A header entry that can't be read, and a run that measured no processing times."""
     assert describe_run(run_index=2, run=None) == 'run 2: unreadable'
     assert describe_summary(summary=None) == 'no processing times'
+
+
+def test_a_run_measured_on_uncommitted_changes_says_so_and_a_clean_one_does_not():
+    """A run's commit line says ``(uncommitted changes)`` exactly when its checkout had some.
+
+    Pinned with made runs: the real recordings these tests make name the engine's own revision,
+    so whether they had uncommitted changes depends on the checkout the suite runs in.
+    """
+    clean = run(commit='def5678abcdef')
+
+    assert describe_run(run_index=0, run=with_uncommitted_changes(clean)).startswith(
+        'run 0: def5678 (uncommitted changes), machine '
+    )
+    assert describe_run(run_index=0, run=clean).startswith('run 0: def5678, machine ')
 
 
 def test_a_summary_without_a_budget_or_frame_times_stops_at_its_worst_frame():
