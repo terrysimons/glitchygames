@@ -61,8 +61,13 @@ don't exist.
    rehomed: into the member, onto a stand-in, or onto workspace discovery. A guard then forbids
    any root test from importing a member package.
 8. **An automated engine-wheel test** is added.
-9. **The browser engine archive** is built from git-tracked files only. This fixes the bug where
-   ignored files such as `.DS_Store` ship in local builds.
+9. **The browser engine archive** leaves out git-ignored files: ignored files never ship (a new,
+   not-yet-added file still does). This fixes the bug where ignored files such as `.DS_Store` ship
+   in local builds.
+   - *Note, 2026-10-26 (the controller's B2 ruling, refining this decision):* the code lists
+     `git ls-files --cached --others --exclude-standard`, not tracked files alone. Reason: a
+     developer building before `git add` should get the new file, and the bug is ignored files
+     shipping, not untracked ones.
 10. **Part 4's guards cover every member:**
     - test modules are named for the member, `test_<distribution with - as _>*.py`, so Mr.
       Muncher's `test_logical_names_after_the_move.py` becomes `test_mr_muncher_after_the_move.py`;
@@ -187,7 +192,7 @@ don't exist.
 | `src/glitchygames/testing/sprite_files.py` (new) | the shared sprite-file checks, importable by any member (Stage B) |
 | `tests/sprites/test_engine_sprite_files.py` (new) | the engine's own run of those checks (Stage B) |
 | `src/glitchygames/resources/sounds/` (new) | the four WAVs, engine package data (Stage B) |
-| `scripts/build_browser_bundle.py` | the engine archive from tracked files (Stage B) |
+| `scripts/build_browser_bundle.py` | the engine archive without git-ignored files (Stage B) |
 | `tests/test_engine_wheel.py` (new) | the engine wheel's contents (Stage B) |
 | `src/glitchygames/logical_names.py` | `EXAMPLES_*` deleted; `MEMBER_LAYERS` gains the demos (Stage B) |
 | `tests/test_workspace_config.py`, `tests/test_suite_collection.py` | the `src/` layout guard and the stale-entry guard (A); the guards generalized (C) |
@@ -400,7 +405,7 @@ The `real_display` fixture stays in the test module.
   `sprite_files.py` must be at 100%.
 - [ ] **Step 4:** commit — "Sprite-file checks are an engine testing helper members import".
 
-### Task B2: The browser engine archive holds only git-tracked files (the bug fix)
+### Task B2: The browser engine archive leaves out git-ignored files (the bug fix)
 
 **Files:** `scripts/build_browser_bundle.py` (`bundled_package_files`, :316-330), and
 `tests/test_build_browser_bundle.py`.
@@ -418,7 +423,7 @@ The `real_display` fixture stays in the test module.
   `test_outside_a_checkout_is_an_error`. Both fail.
 - [ ] **Step 2:** implement, then run `tests/test_build_browser_bundle.py`, and build the Mr.
   Muncher bundle into the scratchpad. Its `glitchygames.zip` holds no `.DS_Store`.
-- [ ] **Step 3:** commit — "Browser bundles ship only tracked files".
+- [ ] **Step 3:** commit — "Browser bundles leave out ignored files".
 
 ### Task B3: The `demos` layer, with the dt demo first
 
@@ -1046,7 +1051,7 @@ proving it isn't Bitmappy-specific.
   - no engine code or test imports a member
   - member tests are named for their member
   - the engine wheel is tested
-  - browser bundles ship tracked files only
+  - browser bundles never ship ignored files (a new, not-yet-added file still does)
 - This plan's Status.
 
 - [ ] **Step 1:** write the docs; run `lint-docs` and the living-docs guard.

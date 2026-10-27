@@ -181,7 +181,10 @@ any tool's configuration.
   - `_logical_names.py`: the game's classes keep the logical names its recordings hold (every
     member has this one);
   - `_install_location.py`: the package imports from `<member>/src/` (or `site-packages` in a
-    wheel install), and `importlib.util.find_spec('glitchygames.examples.<package>')` is None;
+    wheel install), and (for a member that was once an example)
+    `importlib.util.find_spec('glitchygames.examples')` is None, so a leftover ignored directory
+    fails a test. A brand-new member, never an example, has no "old example module is gone"
+    test;
   - `_wheel.py`: the member's wheel holds only its package, plus its data (sprites, demos,
     resources);
   - `_package_data.py`: the member's shipped data (a sprite library, a bundled demo) is inside the
@@ -216,8 +219,9 @@ any tool's configuration.
 
 ### 5. Update the scripts and tests that name it
 
-- `scripts/record_golden_traces.py`: its imports, `GAME_SCENES`, and `GAME_MODULES` (whose value
-  is the bare package name). `scripts/record_scripted_session.py` derives its fixture
+- `scripts/record_golden_traces.py`: add a `'<module>:<class>'` reference to `GAME_SCENES`
+  (never a module-level import of a member: the subprocess import test fails on one), and
+  `GAME_MODULES` (whose value is the bare package name). `scripts/record_scripted_session.py` derives its fixture
   directories from `GAME_MODULES` and the workspace (`REPLAY_FIXTURE_DIRECTORIES`), and refuses
   a game no member holds: only its docstring examples need editing.
 - `tests/replay/test_golden_replays.py`: its imports, `GAMEPLAY_ACTION_MAPS`,
@@ -234,7 +238,8 @@ any tool's configuration.
     console scripts writes or imports a stand-in; it never imports a member.
   - **Cross-member tests discover through the workspace** (`scripts/workspace_packages.py`) and
     assert hand-written expectations in `tests/workspace_expectations.py`
-    (`EXPECTED_GOLDENS`, `EXPECTED_GAME_CONSOLE_SCRIPTS`, `EXPECTED_BUNDLED_DEMOS`). They are
+    (`EXPECTED_GOLDENS`, `EXPECTED_GAME_CONSOLE_SCRIPTS`, `EXPECTED_ALL_CONSOLE_SCRIPTS`,
+    `EXPECTED_BUNDLED_DEMOS`). They are
     written out on purpose, because an expectation derived from the thing it checks checks
     nothing. **Edit them when a game, golden, bundled demo or console script is added or
     removed.** Also add the game to the control tables in
@@ -400,5 +405,10 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
   root. Delete leftovers after moving. The same trap applies to Bitmappy's old directory:
   a leftover `src/glitchygames/bitmappy/` (ignored `__pycache__`) resolves as a namespace
   package and fails `test_the_old_engine_package_is_gone`; `rm -rf src/glitchygames/bitmappy`.
+- The same applies to `src/glitchygames/examples` and `tests/examples`: ignored leftovers of the
+  move (`__pycache__`) make `glitchygames.examples` resolve as a namespace package in an
+  editable install, and `test_the_old_example_module_is_gone` (in each moved member) and
+  `test_the_engines_examples_directory_is_gone` fail. Their messages name the leftover
+  locations; the remedy is `rm -rf src/glitchygames/examples tests/examples`.
 - A member's console script resolves through its installed distribution: the golden plugin
   cannot find it unless `--all-packages` installed the member.
