@@ -57,6 +57,11 @@ from glitchygames.testing.replays import recording_console_script
 from glitchygames.tracing import read_trace_result
 from mr_muncher.game import MrMuncherScene
 from tests.replay.replay_helpers import replay_through_engine, tamper_first_sprite_rect
+from tests.stand_in_games import (
+    member_recording_path,
+    write_header_only_recording,
+    write_stand_in_distribution,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -97,23 +102,32 @@ def test_every_golden_replay_is_replayed_by_its_games_console_script(game):
     )
 
 
-def test_a_members_golden_replay_is_replayed_by_the_members_console_script(tmp_path):
+def test_a_members_golden_replay_is_replayed_by_the_members_console_script(
+    tmp_path, monkeypatch
+):
     """<member>/tests/fixtures/replays/<name>.jsonl.gz: the member distribution names the game.
 
-    The plugin's other layout, ``fixtures/replays/<console-script>/<name>.jsonl.gz`` (another
+    A stand-in member distribution with exactly one console script, so its script is chosen
+    without reading the recording's header (a header-only recording that names no game). The
+    plugin's other layout, ``fixtures/replays/<console-script>/<name>.jsonl.gz`` (another
     project's, and no game's here since every game is a member), is named by its folder: a
-    stand-in path under tmp_path, its folder an installed console script.
+    path under tmp_path whose folder is that installed console script.
     """
-    (member,) = [
-        member
-        for member in workspace_members(project_root=PROJECT_ROOT)
-        if member.distribution == 'mr-muncher'
-    ]
-    golden = member.replay_fixtures_directory / 'golden.jsonl.gz'
-    root_layout_golden = tmp_path / 'fixtures' / 'replays' / 'drawing-fire' / 'golden.jsonl.gz'
+    installed = tmp_path / 'site-packages'
+    write_stand_in_distribution(
+        directory=installed,
+        distribution='stand-in-muncher',
+        console_scripts={'stand-in-muncher': 'stand_in_muncher:main'},
+    )
+    monkeypatch.syspath_prepend(installed)
+    golden = member_recording_path(tmp_path=tmp_path, distribution='stand-in-muncher')
+    write_header_only_recording(path=golden, header={})
+    root_layout_golden = (
+        tmp_path / 'project' / 'fixtures' / 'replays' / 'stand-in-muncher' / 'golden.jsonl.gz'
+    )
 
-    assert recording_console_script(path=golden) == 'mr-muncher'
-    assert recording_console_script(path=root_layout_golden) == 'drawing-fire'
+    assert recording_console_script(path=golden) == 'stand-in-muncher'
+    assert recording_console_script(path=root_layout_golden) == 'stand-in-muncher'
 
 
 def test_a_recording_of_a_folder_that_is_no_member_is_refused(tmp_path):

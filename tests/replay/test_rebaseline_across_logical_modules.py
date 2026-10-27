@@ -5,10 +5,10 @@ from __future__ import annotations
 import gc
 import gzip
 import json
+import sys
 from typing import TYPE_CHECKING, Any
 
-from scripts.record_scripted_session import fixture_path
-
+from glitchygames import logical_names
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.driver import REBASELINE_REMEDY, ReplayRefusedError, check_recorded_game
 from glitchygames.replay.playback import find_scene_class
@@ -17,16 +17,26 @@ from glitchygames.testing.replays import (
     rebaseline_recording_headless,
     replay_recording_headless,
 )
+from tests.stand_in_games import (
+    StandInGame,
+    record_stand_in_game,
+    use_stand_in_game,
+    write_stand_in_game,
+)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 import pytest
 
-# Mr. Muncher's golden stands in for any game that moved to another layer
-CURRENT_NAME = 'games.mr_muncher.game:MrMuncherScene'
-NAME_IN_ANOTHER_LAYER = 'apps.mr_muncher.game:MrMuncherScene'
-CONSOLE_SCRIPT = 'mr-muncher'
+# A stand-in game's recording stands in for any game that moved to another layer. The stand-in
+# (tests/stand_in_games.py) registers its package in the games layer when its child imports it,
+# so its current name is layered, as a member's is; this process never imports it
+STAND_IN_PACKAGE = 'stand_in_muncher'
+STAND_IN_LAYER = 'games'
+CURRENT_NAME = 'games.stand_in_muncher:StandInMuncherScene'
+NAME_IN_ANOTHER_LAYER = 'apps.stand_in_muncher:StandInMuncherScene'
 FORMER_LAYER_MOVED_NAME = 'apps.space_game.game:LayerMovedScene'
 
 
@@ -125,33 +135,81 @@ class TestTheSceneLookup:
         )
 
 
-class TestThroughTheRealGame:
-    """Mr. Muncher's golden, renamed as if recorded in another layer."""
+@pytest.fixture
+def stand_in_game(tmp_path_factory, monkeypatch) -> StandInGame:
+    """Install a stand-in game that registers its package in the games layer when imported.
 
-    def test_a_plain_replay_refuses_and_names_the_remedy(self, tmp_path: Path):
+    Its facts that matter here: one console script, and one scene, since the rename rewrites
+    only the header's ``game`` and each ``scene_start``'s ``scene`` (a second scene would keep
+    its old name); seeded and deterministic, so its rebaseline changes no frame.
+
+    Returns:
+        The stand-in game.
+
+    """
+    install_directory = tmp_path_factory.mktemp('site-packages')
+    game = write_stand_in_game(
+        directory=install_directory, package=STAND_IN_PACKAGE, layer=STAND_IN_LAYER
+    )
+    use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
+    assert game.logical_name == CURRENT_NAME
+    return game
+
+
+@pytest.fixture
+def stand_in_golden(stand_in_game, tmp_path_factory) -> Iterator[Path]:
+    """Return the stand-in game's recording, made by a child ``--record-trace``.
+
+    Its header names the layered current name: the stand-in registered its layer in the child.
+    This process never imported it, so the global ``MEMBER_LAYERS`` holds no entry for it.
+
+    Yields:
+        The recording's path.
+
+    """
+    path = record_stand_in_game(
+        game=stand_in_game, path=tmp_path_factory.mktemp('recorded') / 'golden.jsonl.gz'
+    )
+    with gzip.open(path, 'rt', encoding='utf-8') as recording:
+        assert json.loads(recording.readline())['game'] == CURRENT_NAME
+    yield path
+    assert STAND_IN_PACKAGE not in logical_names.MEMBER_LAYERS
+    assert STAND_IN_PACKAGE not in sys.modules
+
+
+class TestThroughTheRealGame:
+    """A stand-in game's recording, renamed as if recorded in another layer, through a child."""
+
+    def test_a_plain_replay_refuses_and_names_the_remedy(
+        self, tmp_path: Path, stand_in_game: StandInGame, stand_in_golden: Path
+    ):
         renamed_path = tmp_path / 'renamed.jsonl.gz'
         write_recording_naming_logical_names(
-            golden_path=fixture_path(game_key='mr_muncher'),
+            golden_path=stand_in_golden,
             path=renamed_path,
             renames={CURRENT_NAME: NAME_IN_ANOTHER_LAYER},
         )
 
-        completed = replay_recording_headless(console_script=CONSOLE_SCRIPT, path=renamed_path)
+        completed = replay_recording_headless(
+            console_script=stand_in_game.console_script, path=renamed_path
+        )
 
         assert completed.returncode == ExitCode.UNUSABLE_INPUT, completed.stdout
         assert REBASELINE_REMEDY in completed.stdout
 
-    def test_a_rebaseline_converts_it_and_the_new_recording_replays_strictly(self, tmp_path: Path):
+    def test_a_rebaseline_converts_it_and_the_new_recording_replays_strictly(
+        self, tmp_path: Path, stand_in_game: StandInGame, stand_in_golden: Path
+    ):
         renamed_path = tmp_path / 'renamed.jsonl.gz'
         new_path = tmp_path / 'new.jsonl.gz'
         write_recording_naming_logical_names(
-            golden_path=fixture_path(game_key='mr_muncher'),
+            golden_path=stand_in_golden,
             path=renamed_path,
             renames={CURRENT_NAME: NAME_IN_ANOTHER_LAYER},
         )
 
         rebaselined = rebaseline_recording_headless(
-            console_script=CONSOLE_SCRIPT, path=renamed_path, new_path=new_path
+            console_script=stand_in_game.console_script, path=renamed_path, new_path=new_path
         )
 
         assert rebaselined.returncode == ExitCode.SUCCESS, rebaselined.stdout
@@ -166,20 +224,24 @@ class TestThroughTheRealGame:
         ]
         assert scene_names
         assert set(scene_names) == {CURRENT_NAME}
-        replayed = replay_recording_headless(console_script=CONSOLE_SCRIPT, path=new_path)
+        replayed = replay_recording_headless(
+            console_script=stand_in_game.console_script, path=new_path
+        )
         assert replayed.returncode == ExitCode.SUCCESS, replayed.stdout
 
-    def test_a_different_qualified_name_is_refused_and_writes_nothing(self, tmp_path: Path):
+    def test_a_different_qualified_name_is_refused_and_writes_nothing(
+        self, tmp_path: Path, stand_in_game: StandInGame, stand_in_golden: Path
+    ):
         renamed_path = tmp_path / 'renamed.jsonl.gz'
         new_path = tmp_path / 'new.jsonl.gz'
         write_recording_naming_logical_names(
-            golden_path=fixture_path(game_key='mr_muncher'),
+            golden_path=stand_in_golden,
             path=renamed_path,
-            renames={CURRENT_NAME: 'apps.mr_muncher.game:SomeOtherScene'},
+            renames={CURRENT_NAME: 'apps.stand_in_muncher:SomeOtherScene'},
         )
 
         rebaselined = rebaseline_recording_headless(
-            console_script=CONSOLE_SCRIPT, path=renamed_path, new_path=new_path
+            console_script=stand_in_game.console_script, path=renamed_path, new_path=new_path
         )
 
         assert rebaselined.returncode == ExitCode.UNUSABLE_INPUT, rebaselined.stdout

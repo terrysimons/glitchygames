@@ -47,7 +47,7 @@ from glitchygames.replay.driver import write_bookmarked_copy
 from glitchygames.tracing import is_bookmarked_copy, read_trace
 from paddleslap import PADDLESLAP_DEMO_PATH
 from tests.replay.test_replay_plugin import REPO_FIXTURE
-from tests.test_bundled_demo_discovery import write_stand_in_package
+from tests.stand_in_games import write_stand_in_package
 from tests.test_recording_metrics import ledger_row, with_uncommitted_changes
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

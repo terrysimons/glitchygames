@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING
 
 import pytest
 
@@ -15,41 +14,42 @@ from glitchygames.bundled_demos import (
     package_demo_paths,
 )
 from glitchygames.replay.driver import write_bookmarked_copy
-from glitchygames.tracing import write_trace
-from paddleslap import PADDLESLAP_DEMO_PATH
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from tests.stand_in_games import (
+    write_stand_in_distribution,
+    write_stand_in_package,
+    write_stand_in_recording,
+)
 
 # A stand-in recording's frames: a bookmark on frame 2 needs at least 2, and 3 leaves a frame
 # after the bookmark
 STAND_IN_RECORDING_FRAMES = 3
 
 
-def write_stand_in_package(*, directory: Path, package: str, demo_names: tuple[str, ...]) -> Path:
-    """Write an import package with no console script, holding files in its demos/ directory.
+def test_a_games_demo_is_found_with_its_console_script_and_install_name(tmp_path, monkeypatch):
+    """A package's rally demo, with the console script in it, named the same under any install.
 
-    Returns:
-        The package's demos directory.
-
+    A stand-in package with one demo, installed with a stand-in distribution whose one console
+    script's entry point is in the package (as PaddleSlap's is; its real demo is checked in
+    tests/test_bundled_demos.py).
     """
-    demo_directory = directory / package / BUNDLED_DEMO_DIRECTORY_NAME
-    demo_directory.mkdir(parents=True)
-    (directory / package / '__init__.py').write_text('', encoding='utf-8')
-    for name in demo_names:
-        (demo_directory / name).write_bytes(b'')
-    return demo_directory
+    install_directory = tmp_path / 'site-packages'
+    demo_directory = write_stand_in_package(
+        directory=install_directory, package='stand_in_rally', demo_names=('rally.jsonl.gz',)
+    )
+    write_stand_in_distribution(
+        directory=install_directory,
+        distribution='stand-in-rally',
+        console_scripts={'stand-in-rally': 'stand_in_rally:main'},
+    )
+    monkeypatch.syspath_prepend(install_directory)
 
-
-def test_paddleslaps_demo_is_found_with_its_console_script_and_install_name():
-    """The rally demo, wherever paddleslap is installed, named the same under any install."""
-    (demo,) = bundled_demos(packages=('paddleslap',))
+    (demo,) = bundled_demos(packages=('stand_in_rally',))
 
     assert demo == BundledDemo(
-        package='paddleslap',
-        console_script='paddleslap',
-        path=PADDLESLAP_DEMO_PATH,
-        install_name='paddleslap/demos/rally.jsonl.gz',
+        package='stand_in_rally',
+        console_script='stand-in-rally',
+        path=demo_directory / 'rally.jsonl.gz',
+        install_name='stand_in_rally/demos/rally.jsonl.gz',
     )
 
 
@@ -77,17 +77,7 @@ def test_package_demo_paths_lists_only_recordings_and_leaves_out_bookmarked_copi
     (tmp_path / 'stand_in_game' / 'sprites' / 'ball.jsonl.gz').write_bytes(b'')
     # The copy's source: a small stand-in recording, written beside the package
     stand_in_recording_path = tmp_path / 'stand_in_rally.jsonl.gz'
-    write_trace(
-        trace={
-            'game': 'stand_in_game',
-            'frame_seconds': 1.0 / 60.0,
-            'frames': [
-                {'frame': frame_number, 'scene': 'Rally', 'sprites': []}
-                for frame_number in range(STAND_IN_RECORDING_FRAMES)
-            ],
-        },
-        path=stand_in_recording_path,
-    )
+    write_stand_in_recording(path=stand_in_recording_path, frame_count=STAND_IN_RECORDING_FRAMES)
     write_bookmarked_copy(
         recording_path=stand_in_recording_path,
         bookmarks=[2],
@@ -147,7 +137,17 @@ def test_every_member_package_is_searched_by_default():
     assert [demo.path for demo in demos] == sorted(demo.path for demo in demos)
 
 
-def test_a_console_script_is_found_by_the_module_of_its_entry_point():
-    """The first installed console script whose entry point's module is the one asked for."""
-    assert console_script_in_module(module='paddleslap') == 'paddleslap'
+def test_a_console_script_is_found_by_the_module_of_its_entry_point(tmp_path, monkeypatch):
+    """The first installed console script whose entry point's module is the one asked for.
+
+    A stand-in distribution whose one console script's entry point is in the stand-in module.
+    """
+    write_stand_in_distribution(
+        directory=tmp_path,
+        distribution='stand-in-rally',
+        console_scripts={'stand-in-rally': 'stand_in_rally:main'},
+    )
+    monkeypatch.syspath_prepend(tmp_path)
+
+    assert console_script_in_module(module='stand_in_rally') == 'stand-in-rally'
     assert console_script_in_module(module='no_such_module') is None

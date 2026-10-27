@@ -28,7 +28,7 @@ from scripts.record_golden_traces import (
     record_trace,
     replay_golden_recording,
 )
-from scripts.record_scripted_session import fixture_path, record_scripted_session
+from scripts.record_scripted_session import record_scripted_session
 
 from glitchygames import logical_names, recording_history
 from glitchygames.build_info import RevisionSource, engine_source_revision
@@ -133,6 +133,7 @@ from tests.replay.replay_helpers import (
 )
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import live_sdl_driver_state, restore_run_sdl_drivers
+from tests.stand_in_games import record_stand_in_game, use_stand_in_game, write_stand_in_game
 from tests.stand_in_harness_games import TowerFloorScene, register_stand_in_game, tower_script
 from tests.world import test_gameplay_recording as recording_test_module
 from tests.world.test_gameplay_recording import (
@@ -5269,14 +5270,21 @@ class TestAuditOption:
         assert 'started with -E or -I' in caplog.text
         audit_spy.assert_not_called()
 
-    def test_a_golden_recording_passes_the_real_audit(self):
-        """End to end: a deterministic game's recording passes --audit (two child replays)."""
-        recording_path = fixture_path(game_key='paddleslap')
+    def test_a_golden_recording_passes_the_real_audit(self, tmp_path, monkeypatch):
+        """End to end: a deterministic game's recording passes --audit (two child replays).
+
+        The stand-in game (tests/stand_in_games.py) is seeded and deterministic: its mover steps
+        by amounts drawn from the engine's seeded random stream, so both audit replays match.
+        """
+        install_directory = tmp_path / 'site-packages'
+        game = write_stand_in_game(directory=install_directory)
+        use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
+        recording_path = record_stand_in_game(game=game, path=tmp_path / 'golden.jsonl.gz')
         audit_run = run_child(
             command=[
                 sys.executable,
-                '-m',
-                'paddleslap',
+                '-c',
+                f'import {game.package}; {game.package}.main()',
                 '--log-level',
                 'error',
                 '--replay-trace',
