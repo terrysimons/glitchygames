@@ -57,9 +57,10 @@ if TYPE_CHECKING:
 
 
 from glitchygames import events
+from glitchygames.argument_types import non_negative_int, non_negative_percent
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
-from glitchygames.engine.game_engine import non_negative_int, non_negative_percent, unit_interval
+from glitchygames.engine.game_engine import unit_interval
 from glitchygames.events import base as events_base
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.input_devices import InputMode

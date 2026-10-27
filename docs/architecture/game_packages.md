@@ -358,7 +358,7 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
   plugin's one console script per member replays every game's golden; the goldens are named
   apart (`golden-<game>.jsonl.gz`). A member that keeps several console scripts instead has each
   recording replayed through the one whose entry point's module holds the game its header names
-  (`src/glitchygames/testing/replays.py`, `recorded_games_console_script`).
+  (`src/glitchygames/replay/tools/children.py`, `recorded_games_console_script`).
   `scripts/record_scripted_session.py` names each such game's golden (`GOLDEN_FIXTURE_NAMES`)
   and keys its console scripts by game (`GAME_CONSOLE_SCRIPTS`), as
   tests/replay/test_golden_replays.py keys each golden's controls: one script can replay

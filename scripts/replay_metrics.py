@@ -19,7 +19,7 @@ here wait in ``PENDING_LEDGER_PATH`` (gitignored) until a deploy publishes them.
    (a member package's ``<package>/demos/*.jsonl.gz``) not already measured for this commit on
    this machine (published or pending; ``--force`` measures again): rebaselines it
    headless into a temporary file through its console script
-   (``glitchygames.testing.replays.rebaseline_recording_headless``), so the run measures every
+   (``glitchygames.replay.tools.children.rebaseline_recording_headless``), so the run measures every
    frame's processing time and records its provenance (commit, machine state);
 3. appends the rebaselined recording's rows (``ledger_rows_from_rebaseline``: the measurement,
    then each run the recording held, unless already in the ledger) to the pending file. A run the
@@ -80,7 +80,10 @@ from glitchygames.recording_metrics import (
     write_row_files,
 )
 from glitchygames.replay.processing import machine_description
-from glitchygames.testing.replays import rebaseline_recording_headless, recording_console_script
+from glitchygames.replay.tools.children import (
+    rebaseline_recording_headless,
+    recording_console_script,
+)
 from glitchygames.tracing import is_bookmarked_copy, read_trace
 from scripts.workspace_packages import workspace_members
 

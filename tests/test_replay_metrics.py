@@ -46,7 +46,7 @@ from glitchygames.recording_metrics import (
     read_row_files,
 )
 from glitchygames.replay.driver import write_bookmarked_copy
-from glitchygames.testing.replays import rebaseline_recording_headless
+from glitchygames.replay.tools.children import rebaseline_recording_headless
 from glitchygames.tracing import FRAMES_FIELD, is_bookmarked_copy, read_trace
 from tests.replay.replay_helpers import rewrite_recording
 from tests.replay.test_replay_plugin import REPO_FIXTURE

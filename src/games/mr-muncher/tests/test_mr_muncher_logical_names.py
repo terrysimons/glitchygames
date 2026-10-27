@@ -10,11 +10,11 @@ from pathlib import Path
 import mr_muncher.game
 from glitchygames.exit_codes import ExitCode
 from glitchygames.logical_names import logical_name
-from glitchygames.scenes import Scene
-from glitchygames.testing.replays import (
+from glitchygames.replay.tools.children import (
     rebaseline_recording_headless,
     replay_recording_headless,
 )
+from glitchygames.scenes import Scene
 
 # The member's golden replay, directly in its tests/fixtures/replays/
 GOLDEN_REPLAY_PATH = Path(__file__).parent / 'fixtures' / 'replays' / 'golden.jsonl.gz'

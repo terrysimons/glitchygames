@@ -12,11 +12,11 @@ sprite-sheet art. ``main()`` starts one of them, in this order:
    rebaselines, watched replays and their restarts start one): its header names the game it was
    made in by logical name (glitchygames/logical_names.py), and that game's own ``main()`` runs,
    without the title screen (``game_for_recording``). So a member with one console script
-   replays both games' goldens (glitchygames/testing/replays.py ``recording_console_script``). A
-   recording made from the title screen names the title screen: it is replayed from there. A
-   recording of any other game is refused (``ExitCode.UNUSABLE_INPUT``, naming the games this
-   command replays); one whose header cannot be read goes to the engine, which refuses it as it
-   refuses any unusable or missing recording.
+   replays both games' goldens (glitchygames/replay/tools/children.py
+   ``recording_console_script``). A recording made from the title screen names the title screen:
+   it is replayed from there. A recording of any other game is refused
+   (``ExitCode.UNUSABLE_INPUT``, naming the games this command replays); one whose header cannot
+   be read goes to the engine, which refuses it as it refuses any unusable or missing recording.
 3. Otherwise the title screen (brave_adventurer_modes/title.py) offers both games and starts the
    chosen one's scene in the same engine.
 """

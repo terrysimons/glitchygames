@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from glitchygames.recording_metrics import RECORDING_PATH_RENAMES
-from glitchygames.testing.replays import recording_console_script
+from glitchygames.replay.tools.children import recording_console_script
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 MEMBER_DIRECTORY = Path(__file__).resolve().parents[1]

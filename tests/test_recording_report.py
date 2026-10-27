@@ -22,7 +22,7 @@ from glitchygames.recording_history import (
     MeasurementRun,
 )
 from glitchygames.recording_metrics import SHORT_COMMIT_DIGITS
-from glitchygames.testing.replays import rebaseline_recording_headless
+from glitchygames.replay.tools.children import rebaseline_recording_headless
 from glitchygames.tracing import FRAMES_FIELD, read_trace, write_trace
 from tests.stand_in_games import (
     StandInGame,

@@ -12,11 +12,11 @@ from glitchygames import logical_names
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.driver import REBASELINE_REMEDY, ReplayRefusedError, check_recorded_game
 from glitchygames.replay.playback import find_scene_class
-from glitchygames.scenes import Scene
-from glitchygames.testing.replays import (
+from glitchygames.replay.tools.children import (
     rebaseline_recording_headless,
     replay_recording_headless,
 )
+from glitchygames.scenes import Scene
 from tests.stand_in_games import (
     StandInGame,
     record_stand_in_game,

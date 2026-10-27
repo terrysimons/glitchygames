@@ -110,7 +110,7 @@ import pygame
 from glitchygames import live_sources
 from glitchygames.input.state import MOUSE_BUTTON_COUNT
 from glitchygames.recording import post_input_event
-from glitchygames.testing.replays import recording_console_script
+from glitchygames.replay.tools.children import recording_console_script
 from scripts.record_golden_traces import (
     GAME_MODULES,
     GAME_SCENES,

@@ -13,7 +13,7 @@ import os
 import signal
 import sys
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pygame
 import pytest
@@ -33,12 +33,17 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.host import HostSources
 from glitchygames.input import device_listing
 from glitchygames.live_sources import LiveSources
+from glitchygames.replay.tools import registry
+from glitchygames.replay.tools.children import game_entry_point
+from glitchygames.replay.tools.registry import Tool
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import active_sources
-from glitchygames.testing.replays import game_entry_point
 from glitchygames.timing import FastTimer
 from tests.input.stand_in_devices import STAND_IN_PAD, STAND_IN_STICK, install_stand_in_devices
 from tests.workspace_expectations import EXPECTED_ALL_CONSOLE_SCRIPTS
+
+if TYPE_CHECKING:
+    import argparse
 
 # GameEngine parses sys.argv when it is constructed: a small window (the conftest puts the
 # 800x600 test display back after the test), no frame pacing, quiet logs
@@ -591,6 +596,74 @@ class TestListInputDevices:
         assert f'Cannot list input devices with {flag}: the listing replaces the run' in caplog.text
 
 
+def tool_that_runs_no_game(*, calls: list[dict[str, Any]], exit_code: ExitCode) -> Tool:
+    """A tool that runs instead of the game (``--report-thing PATH``), recording its calls.
+
+    The real table holds only tools that run the game until later tasks add the others.
+
+    Returns:
+        The tool.
+
+    """
+
+    def handle(*, options: dict[str, Any], game: type[Scene] | Scene) -> ExitCode:
+        calls.append({'path': options['report_thing'], 'game': game})
+        return exit_code
+
+    def never_run_as_a_command(
+        *, tool: Tool, arguments: argparse.Namespace, game_arguments: list[str]
+    ) -> int:
+        raise AssertionError(tool.name)
+
+    return Tool(
+        name='report-thing',
+        help='report on a recording',
+        options=(),
+        runs_game=False,
+        game_handler=handle,
+        command_handler=never_run_as_a_command,
+    )
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestGameFlagTools:
+    """A tool flag whose tool doesn't run the game runs in its place (``run_game_flag_tool``)."""
+
+    def test_the_tool_replaces_the_game(self, mocker):
+        """The tool runs with the game and its options; the game's scene is never built."""
+        calls: list[dict[str, Any]] = []
+        tool = tool_that_runs_no_game(calls=calls, exit_code=ExitCode.SUCCESS)
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+        engine = build_engine(
+            mocker,
+            game=GameWhoseConstructorRaises,
+            extra_arguments=('--report-thing', 'run.jsonl.gz'),
+        )
+        frames_started = mocker.spy(engine.scene_manager, 'start')
+
+        engine.start()
+
+        frames_started.assert_not_called()
+        assert calls == [{'path': 'run.jsonl.gz', 'game': GameWhoseConstructorRaises}]
+
+    def test_a_tool_that_fails_ends_the_run_with_its_exit_code(self, mocker):
+        """Any other exit code than SUCCESS ends the run with it, the game never built."""
+        calls: list[dict[str, Any]] = []
+        tool = tool_that_runs_no_game(calls=calls, exit_code=ExitCode.UNUSABLE_INPUT)
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+        engine = build_engine(
+            mocker,
+            game=GameWhoseConstructorRaises,
+            extra_arguments=('--report-thing', 'run.jsonl.gz'),
+        )
+
+        with pytest.raises(SystemExit) as exit_information:
+            engine.start()
+
+        assert exit_information.value.code == ExitCode.UNUSABLE_INPUT
+        assert len(calls) == 1
+
+
 @pytest.mark.usefixtures('engine_run_environment')
 class TestCrtPowerOnOption:
     """--crt-power-on chooses when the power-on sequence plays (glitchygames/crt_power_on.py)."""
@@ -726,8 +799,9 @@ class TestCrtPowerOnBeforeEveryGame:
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-# Console scripts that are not games (the API server and client run no GameEngine)
-NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-client'})
+# Console scripts that are not games: the API server and client, and the engine's tools'
+# command (glitchygames, which starts games but is none)
+NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-client', 'glitchygames'})
 # Every game's console script, read from the workspace (the root's and the members'
 # [project.scripts]) less the root's API scripts: the power-on sequence must play before each
 # (brave-adventurer's, Brave Adventurer's launcher, before its title screen: one sequence for

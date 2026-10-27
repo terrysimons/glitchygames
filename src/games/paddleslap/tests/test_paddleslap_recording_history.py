@@ -16,7 +16,7 @@ from scripts.recording_report import run
 
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_metrics import RECORDING_PATH_RENAMES
-from glitchygames.testing.replays import rebaseline_recording_headless
+from glitchygames.replay.tools.children import rebaseline_recording_headless
 from glitchygames.tracing import FRAMES_FIELD, read_trace
 
 # The member's golden replay, directly in its tests/fixtures/replays/

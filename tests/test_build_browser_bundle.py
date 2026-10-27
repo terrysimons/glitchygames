@@ -652,8 +652,9 @@ class TestServerPort:
         assert f'Cannot serve the bundle: port {taken} is in use' in capsys.readouterr().out
 
 
-# Console scripts that are not games (the API server and client): no browser build
-NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-client'})
+# Console scripts that are not games: the API server and client, and the engine's tools'
+# command (glitchygames, which starts games but is none)
+NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-client', 'glitchygames'})
 
 
 def test_every_game_has_a_browser_build():

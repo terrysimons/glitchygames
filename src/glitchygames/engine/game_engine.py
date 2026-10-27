@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, overri
 import pygame
 
 from glitchygames import events
+from glitchygames.argument_types import non_negative_int
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
     BackgroundPattern,
@@ -94,7 +95,6 @@ from glitchygames.replay.audit import (
 from glitchygames.replay.driver import (
     GAME_HEADER_FIELD,
     REAL_REPLAY_FPS,
-    REPLAY_FPS_CHOICES,
     RUNNING_END_REASON,
     ReplayRefusedError,
     ReplaySources,
@@ -112,6 +112,7 @@ from glitchygames.replay.rebuild import (
     relaunch_replay,
     restart_command,
 )
+from glitchygames.replay.tools.registry import add_game_flags, run_game_flag_tool
 from glitchygames.replay.viewer import run_watched_replay_async
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
@@ -244,54 +245,6 @@ def target_fps_value(value: str) -> float:
         raise argparse.ArgumentTypeError(message) from error
     if not math.isfinite(number) or number < 0.0:
         message = f'{value!r} must be a finite number >= 0 (0 = uncapped)'
-        raise argparse.ArgumentTypeError(message)
-    return number
-
-
-def non_negative_percent(value: str) -> float:
-    """Argparse type: a finite percentage >= 0.
-
-    Args:
-        value: The command-line text.
-
-    Returns:
-        The parsed percentage.
-
-    Raises:
-        argparse.ArgumentTypeError: If the text is not a finite number >= 0.
-
-    """
-    try:
-        number = float(value)
-    except ValueError as error:
-        message = f'{value!r} is not a number'
-        raise argparse.ArgumentTypeError(message) from error
-    if not math.isfinite(number) or number < 0:
-        message = f'{value!r} must be a finite number >= 0'
-        raise argparse.ArgumentTypeError(message)
-    return number
-
-
-def non_negative_int(value: str) -> int:
-    """Argparse type: an integer >= 0.
-
-    Args:
-        value: The command-line text.
-
-    Returns:
-        The parsed integer.
-
-    Raises:
-        argparse.ArgumentTypeError: If the text is not an integer >= 0.
-
-    """
-    try:
-        number = int(value)
-    except ValueError as error:
-        message = f'{value!r} is not an integer'
-        raise argparse.ArgumentTypeError(message) from error
-    if number < 0:
-        message = f'{value!r} must be >= 0'
         raise argparse.ArgumentTypeError(message)
     return number
 
@@ -592,83 +545,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             action='store_true',
             default=False,
         )
-        diagnostics_group.add_argument(
-            '--record-trace',
-            metavar='PATH',
-            help=(
-                'record the session (sprites, frame times, input events, random seed) to a '
-                'gzip JSON Lines trace for inspection and later replay (default: off)'
-            ),
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--replay-trace',
-            metavar='PATH',
-            help=(
-                'replay a --record-trace recording exactly through the engine, comparing every '
-                'frame with it and reporting the first divergence (default: off)'
-            ),
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--replay-fps',
-            choices=REPLAY_FPS_CHOICES,
-            help=(
-                'with --replay-trace: post FPS events from the recorded frame times (recorded, '
-                "the default: exact, and compared with the recording) or from this machine's "
-                'measured frame times (real: what this machine achieves; FPS events are then '
-                'not compared, and sprites that draw the FPS value may diverge)'
-            ),
-            # None (not RECORDED_REPLAY_FPS) so that giving it without --replay-trace can be
-            # warned about; start_replay reads None as recorded
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--audit',
-            action=argparse.BooleanOptionalAction,
-            help=(
-                'with --replay-trace: instead of replaying, replay the recording twice in fresh '
-                'headless processes with different hash seeds and compare every frame with the '
-                f'recording and between the runs; exits {ExitCode.SUCCESS:d} when both match, '
-                f'{ExitCode.AUDIT_NONDETERMINISTIC:d} otherwise, {ExitCode.INTERNAL_ERROR:d} if '
-                'a run could not finish'
-            ),
-            default=False,
-        )
-        diagnostics_group.add_argument(
-            '--compare-processing',
-            action='store_true',
-            help=(
-                "with --replay-trace --headless: measure each frame's processing time (its "
-                'work, without presenting or pacing) and report how it compares with the '
-                "recording's (only meaningful on the machine that recorded)"
-            ),
-            # None (not False) so that giving it without --replay-trace can be warned about
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--max-processing-slowdown',
-            metavar='PERCENT',
-            type=non_negative_percent,
-            help=(
-                'with --replay-trace --headless (implies --compare-processing): a replay that '
-                "matched but took more than PERCENT longer than the recording's processing time "
-                f'exits {ExitCode.PROCESSING_SLOWER:d}; a recording without processing times '
-                f'exits {ExitCode.UNUSABLE_INPUT:d}'
-            ),
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--replay-pause-at-frame',
-            metavar='N',
-            type=non_negative_int,
-            help=(
-                'with --replay-trace, watched: skip the start screen, run frames 0 to N - 1 '
-                'without showing them, then pause with frame N next (what step back restarts '
-                'with; ignored with --headless)'
-            ),
-            default=None,
-        )
+        # Every tool (--record-trace, --replay-trace and its options, --headless) comes from the
+        # one table both front ends are built from (glitchygames/replay/tools/registry.py)
+        add_game_flags(parser=diagnostics_group)
         diagnostics_group.add_argument(
             '--replay-restart-handoff',
             metavar='PATH',
@@ -684,26 +563,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # Internal: a restarted replay's viewer state (speed, debug panel, divergence frame),
             # as glitchygames/replay/rebuild.py describes
             help=argparse.SUPPRESS,
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--rebaseline',
-            metavar='NEW',
-            help=(
-                'with --replay-trace OLD and --headless: replay OLD on the current code without '
-                "stopping at divergences, write the run's recording (OLD's inputs, the current "
-                'sprites) to NEW, print a summary of the frames and sprites that changed and '
-                f'exit {ExitCode.SUCCESS:d}'
-            ),
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--replay-digest',
-            metavar='PATH',
-            help=(
-                'with --replay-trace: write a SHA-256 of every replayed frame, then the '
-                'divergence, to PATH as JSON lines (used by --audit)'
-            ),
             default=None,
         )
         group.add_argument(
@@ -785,18 +644,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 f'{ExitCode.SUCCESS:d} without running the game. At a terminal, when none is '
                 'found it asks you to plug one in and waits for it (Ctrl-C stops). Refused with '
                 '--replay-trace or --record-trace'
-            ),
-            default=False,
-        )
-
-        diagnostics_group.add_argument(
-            '--headless',
-            action='store_true',
-            help=(
-                "run on SDL's dummy video and audio drivers: no window, no sound. With "
-                '--replay-trace the replay also runs unpaced and prints its report to stdout '
-                f'(exit {ExitCode.SUCCESS:d} when it matches, {ExitCode.REPLAY_DIVERGED:d} '
-                f'when it diverges, {ExitCode.UNUSABLE_INPUT:d} for a truncated recording)'
             ),
             default=False,
         )
@@ -2603,17 +2450,26 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self.scene_manager.start()
 
     def _begin_run(self: Self) -> bool:
-        """Start the run inside the crash boundary: signal handlers, then the game or a listing.
+        """Start the run in the crash boundary: signal handlers, then the game or what runs instead.
 
-        With --list-input-devices the listing replaces the game: it is printed and nothing is
-        built, so no frame runs.
+        A tool given as a game flag that doesn't run the game (``run_game_flag_tool``,
+        glitchygames/replay/tools/registry.py) runs in its place, and with --list-input-devices
+        the listing does (it is printed): nothing is built, so no frame runs.
 
         Returns:
-            Whether the game is to be built and run (False after --list-input-devices).
+            Whether the game is to be built and run (False after such a tool or the listing).
 
         """
         # For the whole run, so a signal always ends it through start()'s teardown
         self._install_signal_handlers()
+
+        # In place of the game: its scene is never built, nothing is recorded. A tool that
+        # failed ends the run with its exit code (exit_with raises SystemExit)
+        tool_exit_code = run_game_flag_tool(options=GameEngine.OPTIONS, game=self.game)
+        if tool_exit_code is not None:
+            if tool_exit_code != ExitCode.SUCCESS:
+                exit_with(exit_code=tool_exit_code)
+            return False
 
         if GameEngine.OPTIONS.get('list_input_devices'):
             # In place of the game: its scene is never built, nothing is recorded

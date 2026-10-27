@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING
 from glitchygames.bundled_demos import BUNDLED_DEMO_DIRECTORY_NAME, CONSOLE_SCRIPTS_GROUP
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import run_command
-from glitchygames.testing.replays import REPLAY_FIXTURES_PATH_PARTS
+from glitchygames.replay.tools.children import REPLAY_FIXTURES_PATH_PARTS
 from glitchygames.tracing import TRACE_FORMAT_VERSION, write_trace
 
 if TYPE_CHECKING:

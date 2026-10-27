@@ -51,6 +51,9 @@ dependencies = [
 [project.scripts]
 glitchygames-server = "glitchygames.api.main:run"
 glitchygames-client = "glitchygames.api.client:run"
+# The engine's recording, replay and measurement tools (glitchygames/replay/tools/command.py),
+# started through glitchygames/__main__.py, which hides pygame's banner first
+glitchygames = "glitchygames.__main__:main"
 
 [project.optional-dependencies]
 docs = [

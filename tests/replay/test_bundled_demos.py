@@ -3,9 +3,10 @@
 A bundled demo is an ordinary recording shipped in a workspace member's package, as package data
 (``<package>/demos/<name>.jsonl.gz``). The suite collects only ``tests/``, so
 the demos are reached through this module: one headless replay per demo
-(``bundled_demo_paths``, ``replay_recording_headless``; glitchygames/testing/replays.py), so a
-change that makes a demo diverge fails here before it ships. PaddleSlap's own tests play its demo
-the way the game plays it, through ``SceneManager.play_recording``
+(``bundled_demo_paths``, glitchygames/testing/replays.py; ``replay_recording_headless``,
+glitchygames/replay/tools/children.py), so a change that makes a demo diverge fails here before
+it ships. PaddleSlap's own tests play its demo the way the game plays it, through
+``SceneManager.play_recording``
 (src/games/paddleslap/tests/test_paddleslap_demo_plays_in_game.py).
 """
 
@@ -18,7 +19,8 @@ from scripts.workspace_packages import workspace_members
 
 from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
-from glitchygames.testing.replays import bundled_demo_paths, replay_recording_headless
+from glitchygames.replay.tools.children import replay_recording_headless
+from glitchygames.testing.replays import bundled_demo_paths
 from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent

@@ -484,6 +484,22 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   supervisor, a harness) posts with `post_input_event`, recorded external whatever its type, so
   every replay serves it and drops a copy the replayed code posts (BUGS.md #84). The format is
   described in `src/glitchygames/recording.py`
+- The engine's tools (Part 3 Stage D; `src/glitchygames/replay/tools/`): every recording, replay
+  and measurement tool is described once in `registry.TOOLS` (`Tool`, `ToolOption`), and both
+  front ends are built from it so names and options can't drift: `GameEngine.args` adds each
+  tool to every game's command line (`add_game_flags`: `--record-trace`, `--replay-trace` and its
+  options `--replay-fps`, `--audit`, `--compare-processing`, `--max-processing-slowdown`,
+  `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`, `--headless`), and
+  `_begin_run` runs a tool that doesn't run the game in its place (`run_game_flag_tool`). The
+  `glitchygames` console script (and `python -m glitchygames`, both via
+  `src/glitchygames/__main__.py`, which hides pygame's banner first) has the same tools as subcommands
+  (`glitchygames record-trace GAME PATH`, `glitchygames replay-trace PATH [--game GAME]`,
+  `--project-root DIR`; arguments after a bare `--` go to the game). It starts the game as a child
+  (`children.py`: `resolve_game` reads `GAME` as a script path, `MODULE:CALLABLE`, an installed
+  console script or a module; `replay-trace` takes the game from the recording's header and asks
+  for `--game` when its module no longer imports). `children.py` also holds the console-script
+  lookups and the headless child replay/rebaseline the pytest plugin uses (pytest-free).
+  `--random-seed` and the other general flags stay in `GameEngine.args`; no tool owns them
 - Scene starts (`src/glitchygames/scene_start.py`, a leaf: scenes never import the replay package;
   Part 3 Task 1): while the active doors' `captures_scene_starts` is True (`--record-trace` runs
   from their start, `--rebaseline`, the playback scope) or the class sets
@@ -539,7 +555,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   game-over screen (`PaddleSlapGameOverScene`) plays
   `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS` (10) of game time without a key or
   button press. `tests/replay/test_bundled_demos.py` replays every demo headless
-  (`bundled_demo_paths`, `replay_recording_headless` in `src/glitchygames/testing/replays.py`) and
+  (`bundled_demo_paths` in `src/glitchygames/testing/replays.py`, `replay_recording_headless` in
+  `src/glitchygames/replay/tools/children.py`) and
   plays PaddleSlap's through `play_recording` (stepped with `step_finishing`: the golden harness's
   `step` never gives a playback the recording's dt). A recording names its game (header `game`)
   and each scene start (`scene`) by logical names (`src/glitchygames/logical_names.py`: the layer,

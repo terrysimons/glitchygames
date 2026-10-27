@@ -44,8 +44,8 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.logical_names import logical_name
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, INTERNAL_ORIGIN
 from glitchygames.replay.driver import GAME_HEADER_FIELD, SPRITE_DIVERGENCE
+from glitchygames.replay.tools.children import recording_console_script
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
-from glitchygames.testing.replays import recording_console_script
 from glitchygames.tracing import TraceReader, read_trace_result
 from tests.replay.golden_replay_controls import (
     ENGINE_SCENE_CONTROLS,
