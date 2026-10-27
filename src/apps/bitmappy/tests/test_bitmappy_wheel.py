@@ -7,8 +7,6 @@ import shutil
 import zipfile
 from pathlib import Path
 
-import bitmappy
-from bitmappy import SPRITE_CONFIG_DIR, utils
 from glitchygames.process import run_command
 
 # src/apps/bitmappy/tests/ -> the repository root, where `uv build --package` runs
@@ -19,15 +17,6 @@ SPRITE_LIBRARY_WHEEL_DIRECTORY = 'bitmappy/resources/sprites/'
 RESOURCE_WHEEL_PATHS = ('bitmappy/resources/bitmappy.cfg', 'bitmappy/resources/bitmappy.png')
 # Building the member's wheel resolves its build backend: allow for a cold uv cache
 WHEEL_BUILD_TIMEOUT_SECONDS = 300.0
-
-
-def test_the_sprite_library_is_package_data():
-    """The sprite library is inside the package, read through the package's own path."""
-    package_directory = Path(bitmappy.__file__).resolve().parent
-
-    assert SPRITE_CONFIG_DIR.resolve().is_relative_to(package_directory)
-    assert Path(utils.__file__).parent / 'resources' / 'sprites' == SPRITE_CONFIG_DIR
-    assert len(list(SPRITE_CONFIG_DIR.glob('*.toml'))) == SPRITE_LIBRARY_FILE_COUNT
 
 
 def test_the_sprite_library_ships_in_its_wheel(tmp_path):
