@@ -215,6 +215,49 @@ def test_verify_passes_and_fails_per_recording_as_a_flag_and_a_command(
         ) in captured.err
 
 
+def test_a_golden_no_configured_game_claims_fails_and_the_projects_own_is_verified(
+    stand_in_game, tmp_path, capfd
+):
+    """Games from the settings: every golden is verified, or failed with why; none is skipped.
+
+    A single-game project checked out in a directory named otherwise than its distribution
+    (``game-main``): its golden directly in ``tests/fixtures/replays/`` is its game's (the
+    project's ``[project] name`` says which distribution), so it is replayed. A golden no
+    configured game replays (its folder names no console script) is a FAIL line naming it and
+    why, ``INTERNAL_ERROR`` (70), as ``measure`` fails it. ``--only`` leaves out what it doesn't
+    keep, that line included.
+    """
+    project = tmp_path / 'game-main'
+    goldens = project.joinpath(*GOLDEN_DIRECTORY_PARTS)
+    goldens.mkdir(parents=True)
+    good = record_stand_in_game(game=stand_in_game, path=goldens / 'good.jsonl.gz')
+    stray = goldens / 'no-such-console-script' / 'stray.jsonl.gz'
+    stray.parent.mkdir()
+    shutil.copyfile(good, stray)
+    (project / 'pyproject.toml').write_text(
+        f'[project]\nname = {stand_in_game.distribution!r}\n\n[project.scripts]\n'
+        f"{stand_in_game.console_script!r} = '{stand_in_game.package}:main'\n",
+        encoding='utf-8',
+    )
+
+    every_status = command.main(['verify', '--project-root', str(project)])
+    every = capfd.readouterr()
+    only_status = command.main(['verify', '--only', 'good', '--project-root', str(project)])
+    only = capfd.readouterr()
+
+    assert every_status == ExitCode.INTERNAL_ERROR, every.out + every.err
+    assert (
+        f'PASS tests/fixtures/replays/good.jsonl.gz: Replay matched {STAND_IN_GAME_FRAMES} frames'
+    ) in every.out
+    assert (
+        'FAIL tests/fixtures/replays/no-such-console-script/stray.jsonl.gz: INTERNAL_ERROR (70): '
+        "the directory 'no-such-console-script' is not a console script"
+    ) in every.out
+    assert only_status == ExitCode.SUCCESS, only.out + only.err
+    assert 'stray.jsonl.gz' not in only.out
+    assert 'PASS tests/fixtures/replays/good.jsonl.gz' in only.out
+
+
 def test_verify_with_no_recordings_says_so(stand_in_game, tmp_path, capfd):
     """No recordings to verify is no failure: it is said, and the run exits SUCCESS.
 

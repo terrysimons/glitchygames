@@ -530,7 +530,10 @@ def verify_each_game(
     """Run ``glitchygames verify``: each game started with ``--verify``, verifying its own.
 
     The games are ``--game``'s, else the project's ``[tool.glitchygames] games``; each runs in
-    the project, with ``--only`` as given, and writes its own lines.
+    the project, with ``--only`` as given, and writes its own lines. When the games come from
+    the settings, every golden and bundled demo of the project that none of them replays is a
+    failure first, on a ``FAIL`` line naming it and why (``measure.unclaimed_recordings``, as
+    ``measure`` fails them): a golden is never silently left out.
 
     Args:
         tool: The verify tool.
@@ -538,20 +541,34 @@ def verify_each_game(
         game_arguments: The arguments after a bare ``--``, for each game.
 
     Returns:
-        ``verification_exit_code`` of the games' exit statuses (``ExitCode.OPTIONS_REFUSED``
-        for a game that names nothing, after every other game has run),
-        ``ExitCode.SUCCESS`` with no games, or ``ExitCode.UNUSABLE_INPUT`` when the project's
-        settings can't be read.
+        ``verification_exit_code`` of the statuses: the unclaimed recordings'
+        (``ExitCode.INTERNAL_ERROR`` each) and the games' (``ExitCode.OPTIONS_REFUSED`` for a
+        game that names nothing, after every other game has run); ``ExitCode.SUCCESS`` with no
+        games and nothing unclaimed, or ``ExitCode.UNUSABLE_INPUT`` when the project's settings
+        can't be read.
 
     """
+    # Imported here: measure imports this module (verify_project_root, seed_given)
+    from glitchygames.replay.tools.measure import unclaimed_recordings
+
+    root = project_root(arguments=arguments)
     games: list[str] | None = arguments.game
+    statuses: list[int] = []
     if games is None:
         try:
-            settings = read_settings(project_root=project_root(arguments=arguments))
+            settings = read_settings(project_root=root)
         except ProjectSettingsError as error:
             say(tool=tool, message=str(error))
             return ExitCode.UNUSABLE_INPUT
         games = list(settings.games)
+        for unclaimed in unclaimed_recordings(games=games, settings=settings, project_root=root):
+            name = recording_name(path=unclaimed.path, project_root=root)
+            if arguments.only is not None and arguments.only not in name:
+                continue
+            write_line(
+                line=f'{FAILED} {name}: {ExitCode.INTERNAL_ERROR.describe()}: {unclaimed.reason}'
+            )
+            statuses.append(ExitCode.INTERNAL_ERROR)
     if not games:
         write_line(
             line=(
@@ -559,8 +576,7 @@ def verify_each_game(
                 '[tool.glitchygames] games (or [project.scripts]), and no --game was given'
             )
         )
-        return ExitCode.SUCCESS
-    statuses: list[int] = []
+        return verification_exit_code(statuses=statuses)
     for game in games:
         try:
             launch = resolve_named_game(tool=tool, game=game, arguments=arguments)

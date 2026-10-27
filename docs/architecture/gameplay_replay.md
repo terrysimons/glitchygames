@@ -818,15 +818,20 @@ that game's module no longer imports (a script that moved).
 
 `--verify` and `--measure` with no paths take the game's own recordings: the goldens that match
 `[tool.glitchygames] golden-globs` and that the game's console script replays, plus its bundled
-demos (`<package>/demos/*.jsonl.gz`; `recordings.py`). The command with no paths runs
+demos (`<package>/demos/*.jsonl.gz`; `recordings.py`). A golden in
+`fixtures/replays/<console-script>/` is that script's; one directly in a project's
+`tests/fixtures/replays/` is the project's own distribution's (`[project] name` in its
+`pyproject.toml`, whatever its checkout's directory is called; a directory with no
+`pyproject.toml` is read as named after its distribution). The command with no paths runs
 `GAME --verify` (or `--measure`) for each `--game`, else for each of `[tool.glitchygames]
 games`; with paths, each recording is replayed by the game its header names (or by the one
-`--game`).
+`--game`). With the games from the settings, a golden or demo that none of them replays fails
+both tools, on a line naming it and why (exit 70): none is skipped without a word.
 
 - `verify` replays each recording headless in a child process, prints `PASS <name>: <result>`
-  or `FAIL <name>: <exit code>: <why>` per recording and `verify: N of M recordings passed`, and exits 0 only
-  when every one matched (or none was found, which it says), 1 when the only failures diverged,
-  else the first other failure's code.
+  or `FAIL <name>: <exit code>: <why>` per recording and `verify: N of M recordings passed`, and
+  exits 0 only when every one matched (or none was found, which it says), 1 when the only
+  failures diverged, else the first other failure's code.
 - `measure` rebaselines each recording headless in a child into the run ledger (see
   [Replay Performance](../quality/performance.md)), skipping what this machine already measured
   for the game's commit. A row's commit is the game's own (its package directory's checkout),

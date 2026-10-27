@@ -269,6 +269,47 @@ def test_a_member_recording_whose_distribution_is_not_installed_names_what_was_l
     assert 'uv sync' not in message
 
 
+def test_a_projects_golden_is_its_projects_game_whatever_the_checkout_is_called(
+    tmp_path, stand_in_game
+):
+    """A golden directly in ``tests/fixtures/replays/`` is replayed by its project's game.
+
+    The project's ``pyproject.toml`` names the distribution (``[project] name``), so a checkout
+    named otherwise (a fork, a ``game-main`` clone, a CI path) still claims its golden.
+    """
+    recording = member_recording_path(tmp_path=tmp_path, distribution='game-main')
+    (tmp_path / 'game-main' / 'pyproject.toml').write_text(
+        f'[project]\nname = {stand_in_game.distribution!r}\n', encoding='utf-8'
+    )
+
+    assert recording_console_script(path=recording) == stand_in_game.console_script
+
+
+def test_a_projects_name_that_is_not_installed_is_named_in_the_refusal(tmp_path):
+    """The project's ``[project] name`` is looked for, and named when it isn't installed."""
+    recording = member_recording_path(tmp_path=tmp_path, distribution='game-main')
+    (tmp_path / 'game-main' / 'pyproject.toml').write_text(
+        "[project]\nname = 'never-installed-game'\n", encoding='utf-8'
+    )
+
+    with pytest.raises(KeyError) as refused:
+        recording_console_script(path=recording)
+
+    message = refused.value.args[0]
+    assert "a console script of 'never-installed-game'" in message
+    assert 'its project names the distribution' in message
+
+
+def test_a_project_whose_pyproject_cannot_be_read_claims_no_golden(tmp_path):
+    """A ``pyproject.toml`` that is not TOML names no distribution: refused, naming the file."""
+    recording = member_recording_path(tmp_path=tmp_path, distribution='game-main')
+    pyproject = tmp_path / 'game-main' / 'pyproject.toml'
+    pyproject.write_text('[project\n', encoding='utf-8')
+
+    with pytest.raises(KeyError, match=r'is not valid TOML'):
+        recording_console_script(path=recording)
+
+
 def test_children_import_without_pytest():
     """children.py imports in a child where importing pytest fails (it is in the dev extra)."""
     check = (

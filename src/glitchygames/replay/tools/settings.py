@@ -274,6 +274,24 @@ def load_project_settings(*, project_root: Path) -> ProjectSettings:
         raise ProjectSettingsError(_refusal(pyproject=pyproject, error=error)) from None
 
 
+def project_name(*, project_root: Path) -> str | None:
+    """Return the distribution a project builds: ``[project] name`` in its pyproject.toml.
+
+    Args:
+        project_root: The project's root directory (where its pyproject.toml is).
+
+    Returns:
+        The name, or None when there is no pyproject.toml or it names none. A file that is not
+        valid TOML, or whose ``[project]`` is not a table, raises ``ProjectSettingsError``.
+
+    """
+    pyproject = project_root / PYPROJECT_FILE_NAME
+    document = _read_pyproject(pyproject=pyproject)
+    project = _table(pyproject=pyproject, parent=document, key='project', name='project')
+    name = project.get('name')
+    return name if isinstance(name, str) else None
+
+
 def has_settings_table(*, pyproject: Path) -> bool:
     """Tell whether a pyproject.toml has a ``[tool.glitchygames]`` table.
 

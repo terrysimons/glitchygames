@@ -49,6 +49,7 @@ from glitchygames.bundled_demos import CONSOLE_SCRIPTS_GROUP
 from glitchygames.logical_names import module_for_logical_module
 from glitchygames.process import OutputCapture, run_command, with_options_appended
 from glitchygames.replay.driver import GAME_HEADER_FIELD
+from glitchygames.replay.tools.settings import ProjectSettingsError, project_name
 from glitchygames.tracing import REPLAY_FIXTURES_PATH_PARTS, TraceReader
 
 if TYPE_CHECKING:
@@ -143,14 +144,17 @@ def installed_console_scripts() -> list[importlib.metadata.EntryPoint]:
 def recording_console_script(*, path: Path) -> str:
     """Return the console script that replays a recording under a ``fixtures/replays/`` directory.
 
-    Two layouts: a workspace member's recordings lie directly in
-    ``<member>/tests/fixtures/replays/`` and are replayed by the member distribution's console
-    script (the member's directory is named after its distribution: ``src/games/mr-muncher``):
-    its one (``src/games/brave-adventurer``'s launcher starts whichever of its games the
-    recording's header names), or, for a member with a console script per game, the one that
-    starts the game the recording's header names (``recorded_games_console_script``); another
-    project's (this one's games are all members) lie in
-    ``fixtures/replays/<console-script>/``, whose folder names the script.
+    Two layouts: a project's own recordings lie directly in
+    ``<project>/tests/fixtures/replays/`` (a workspace member's, ``src/games/mr-muncher``, or a
+    single-game project's) and are replayed by the project distribution's console script: its
+    one (``src/games/brave-adventurer``'s launcher starts whichever of its games the recording's
+    header names), or, for a project with a console script per game, the one that starts the
+    game the recording's header names (``recorded_games_console_script``). The distribution is
+    the project's own, ``[project] name`` in its ``pyproject.toml`` (``settings.project_name``),
+    so a checkout named otherwise (a fork, a ``game-main`` clone, a CI path) still claims its
+    goldens; only a directory with no pyproject.toml, or one naming no project, is read as named
+    after its distribution (our members are). The other layout, ``fixtures/replays/
+    <console-script>/``, names the script by its folder.
 
     Args:
         path: The recording.
@@ -159,12 +163,13 @@ def recording_console_script(*, path: Path) -> str:
         The console script's name.
 
     Raises:
-        KeyError: If a recording directly in ``fixtures/replays/`` is not in a member's
-            ``tests/`` (the directory above ``fixtures/`` is not ``tests``: another project's
-            layout, whose directory four levels up names no member), the member's distribution
-            is not installed or has no console script, its several console scripts do not
-            include exactly one starting the recorded game (``recorded_games_console_script``),
-            or the folder names no installed console script.
+        KeyError: If a recording directly in ``fixtures/replays/`` is not in a project's
+            ``tests/`` (the directory above ``fixtures/`` is not ``tests``: another layout,
+            whose directory four levels up names no project), the project's pyproject.toml
+            can't be read, its distribution is not installed or has no console script, its
+            several console scripts do not include exactly one starting the recorded game
+            (``recorded_games_console_script``), or the folder names no installed console
+            script.
 
     """
     if path.parent.parts[-len(REPLAY_FIXTURES_PATH_PARTS) :] == REPLAY_FIXTURES_PATH_PARTS:
@@ -172,21 +177,29 @@ def recording_console_script(*, path: Path) -> str:
         if tests_directory.name != MEMBER_TESTS_DIRECTORY_NAME:
             message = (
                 f'{path}: a recording directly in {"/".join(REPLAY_FIXTURES_PATH_PARTS)}/ is a '
-                f"workspace member's, in <member>/{MEMBER_TESTS_DIRECTORY_NAME}/, but the "
+                f"project's, in <project>/{MEMBER_TESTS_DIRECTORY_NAME}/, but the "
                 f'directory above fixtures/ is {tests_directory.name!r}, not '
                 f'{MEMBER_TESTS_DIRECTORY_NAME!r}'
             )
             raise KeyError(message)
-        distribution_name = tests_directory.parent.name
+        project_directory = tests_directory.parent
+        try:
+            named = project_name(project_root=project_directory)
+        except ProjectSettingsError as error:
+            message = f'{path}: its project names no distribution ({error})'
+            raise KeyError(message) from None
+        distribution_name, named_by = (
+            (project_directory.name, f'the directory its {MEMBER_TESTS_DIRECTORY_NAME}/ is in')
+            if named is None
+            else (named, 'its project')
+        )
         try:
             distribution = importlib.metadata.distribution(distribution_name)
         except importlib.metadata.PackageNotFoundError:
-            # The member's directory names its distribution; the installer is the project's
-            # business, so none is named
+            # The installer is the project's business, so none is named
             message = (
-                f'{path}: looked for a console script of {distribution_name!r} (the directory '
-                f'its {MEMBER_TESTS_DIRECTORY_NAME}/ is in names the distribution), but no '
-                'distribution of that name is installed'
+                f'{path}: looked for a console script of {distribution_name!r} ({named_by} '
+                'names the distribution), but no distribution of that name is installed'
             )
             raise KeyError(message) from None
         console_scripts = [
