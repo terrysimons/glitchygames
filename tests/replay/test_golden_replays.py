@@ -118,23 +118,28 @@ def test_a_members_golden_replay_is_replayed_by_the_members_console_script(tmp_p
     without reading the recording's header (a header-only recording that names no game). The
     plugin's other layout, ``fixtures/replays/<console-script>/<name>.jsonl.gz`` (another
     project's, and no game's here since every game is a member), is named by its folder: a
-    path under tmp_path whose folder is that installed console script.
+    path under tmp_path whose folder is another installed stand-in's console script, so each
+    layout's name visibly comes from its own source.
     """
     installed = tmp_path / 'site-packages'
-    write_stand_in_distribution(
-        directory=installed,
-        distribution='stand-in-muncher',
-        console_scripts={'stand-in-muncher': 'stand_in_muncher:main'},
-    )
+    for distribution, package in (
+        ('stand-in-muncher', 'stand_in_muncher'),
+        ('stand-in-fire', 'stand_in_fire'),
+    ):
+        write_stand_in_distribution(
+            directory=installed,
+            distribution=distribution,
+            console_scripts={distribution: f'{package}:main'},
+        )
     monkeypatch.syspath_prepend(installed)
     golden = member_recording_path(tmp_path=tmp_path, distribution='stand-in-muncher')
     write_header_only_recording(path=golden, header={})
     root_layout_golden = (
-        tmp_path / 'project' / 'fixtures' / 'replays' / 'stand-in-muncher' / 'golden.jsonl.gz'
+        tmp_path / 'project' / 'fixtures' / 'replays' / 'stand-in-fire' / 'golden.jsonl.gz'
     )
 
     assert recording_console_script(path=golden) == 'stand-in-muncher'
-    assert recording_console_script(path=root_layout_golden) == 'stand-in-muncher'
+    assert recording_console_script(path=root_layout_golden) == 'stand-in-fire'
 
 
 def test_a_recording_of_a_folder_that_is_no_member_is_refused(tmp_path):

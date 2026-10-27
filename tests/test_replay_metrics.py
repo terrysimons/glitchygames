@@ -33,7 +33,7 @@ from glitchygames.build_info import RevisionSource, SourceRevision, source_revis
 from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import run_command
-from glitchygames.recording_history import MEASUREMENT_RUNS_HEADER_FIELD
+from glitchygames.recording_history import CONTENT_HASH_FIELD, MEASUREMENT_RUNS_HEADER_FIELD
 from glitchygames.recording_metrics import (
     PUBLISHED_LEDGER_PATH,
     PUBLISHED_LEDGER_REF,
@@ -45,6 +45,7 @@ from glitchygames.recording_metrics import (
     read_row_files,
 )
 from glitchygames.replay.driver import write_bookmarked_copy
+from glitchygames.testing.replays import rebaseline_recording_headless
 from glitchygames.tracing import FRAMES_FIELD, is_bookmarked_copy, read_trace
 from paddleslap import PADDLESLAP_DEMO_PATH
 from tests.replay.replay_helpers import rewrite_recording
@@ -884,6 +885,60 @@ class TestMeasuring:
         # The recording's own run is already known: only the new measurement is appended
         assert len(forced.measured) == 1
         assert len(read_ledger_file(path=pending).rows) == len(rows) + 1
+
+    def test_a_measured_change_counts_the_frames_the_newest_run_changed(
+        self, tmp_path, stand_in_game, stand_in_golden
+    ):
+        """The measured row's frames_changed is the newest pair's, not an older pair's.
+
+        The newest pair is the measurement against the golden's newest run.
+
+        The golden holds two runs: the stand-in's live run, and a rebaseline of it (the newest).
+        Their stored content hashes are altered as if the code had drawn frames differently: the
+        newest run's at one frame, the live run's at that frame (to another value) and the next.
+        The measurement (deterministic, the stand-in as recorded) then differs from the newest run
+        in 1 frame, while the newest run differs from the live run in 2: a row taking the older
+        pair's count, or none, fails.
+        """
+        rebaselined = tmp_path / 'rebaselined.jsonl.gz'
+        completed = rebaseline_recording_headless(
+            console_script=stand_in_game.console_script, path=stand_in_golden, new_path=rebaselined
+        )
+        assert completed.returncode == ExitCode.SUCCESS, completed.stdout
+        mark_runs_from_a_clean_checkout(path=rebaselined)
+
+        def change_the_stored_runs(trace: dict) -> None:
+            frames = trace[FRAMES_FIELD]
+            for run_index, positions, digit in ((0, (5,), 'a'), (1, (5, 6), 'b')):
+                for position in positions:
+                    hashes = frames[position][CONTENT_HASH_FIELD]
+                    hashes[run_index] = digit * len(hashes[run_index])
+
+        rewrite_recording(recording_path=rebaselined, change=change_the_stored_runs)
+        project_root = tmp_path / 'project'
+        recordings = copied_golden(
+            project_root=project_root, game=stand_in_game, golden=rebaselined
+        )
+        pending = tmp_path / 'pending.jsonl'
+
+        result = measure(
+            settings=MeasureSettings(
+                project_root=project_root,
+                pending_path=pending,
+                revision=clean_revision(),
+                force=False,
+                allow_dirty=False,
+            ),
+            recordings=recordings,
+            published_text='',
+        )
+
+        assert result.exit_code == ExitCode.SUCCESS
+        measured = read_ledger_file(path=pending).rows[0]
+        assert measured.origin == LedgerOrigin.REPLAY_METRICS
+        # The newest pair (the measurement against the newest stored run): frame 5 only; the
+        # older pair (the newest stored run against the live run): frames 5 and 6
+        assert measured.frames_changed == 1
 
     def test_a_published_measurement_counts_as_measured(
         self, tmp_path, stand_in_game, stand_in_golden

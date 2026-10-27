@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from scripts.recording_report import report_lines, run
 
+from glitchygames.build_info import source_revision
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
@@ -20,6 +21,7 @@ from glitchygames.recording_history import (
     PROCESSING_SECONDS_FIELD,
     MeasurementRun,
 )
+from glitchygames.recording_metrics import SHORT_COMMIT_DIGITS
 from glitchygames.testing.replays import rebaseline_recording_headless
 from glitchygames.tracing import FRAMES_FIELD, read_trace, write_trace
 from tests.stand_in_games import (
@@ -74,6 +76,12 @@ def test_a_real_recording_reports_every_run_and_no_behaviour_change(tmp_path, ca
     frame_count = len(read_trace(path=path)[FRAMES_FIELD])
     assert f'{path}: {frame_count} frames, {recorded_runs + 2} runs' in output
     assert output.count('rebaselined from') == 2 + recorded_rebaselines
+    # The two new runs name the commit of the engine they ran (this checkout's, or the build
+    # stamp's under a built install), never an unknown one
+    engine_commit = source_revision().commit
+    assert engine_commit is not None
+    for new_run in range(2):
+        assert f'run {new_run}: {engine_commit[:SHORT_COMMIT_DIGITS]}' in output
     assert 'paced live run' in output
     assert 'frame time p50' in output
     assert 'processing p50' in output
