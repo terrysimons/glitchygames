@@ -11,6 +11,7 @@ warn that it cannot rewrite the plugin's assertions (the in-process runs below n
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import shutil
 import sys
@@ -49,12 +50,24 @@ PLUGIN_ENTRY_POINT_NAME = PLUGIN_MODULE
 ENGINE_DISTRIBUTION = 'glitchygames'
 # pygame's banner variable: unset for the runs that check the plugin prints no banner
 PYGAME_BANNER_VARIABLE = 'PYGAME_HIDE_SUPPORT_PROMPT'
-# Loads the plugin module alone in a fresh interpreter and prints which of the modules that
-# would print pygame's banner (or import it) are then imported
+# Loads the plugin module alone in a fresh interpreter and prints, as JSON, which of the modules
+# that would print pygame's banner (or import it) are then imported, and every glitchygames
+# module the load imported
 PLUGIN_LOAD_IMPORTS_SCRIPT = f"""
+import json
 import sys
+already_imported = set(sys.modules)
 import {PLUGIN_MODULE}
-print(sorted(name for name in ('pygame', 'glitchygames.replay') if name in sys.modules))
+print(json.dumps({{
+    'banner_modules': sorted(
+        name for name in ('pygame', 'glitchygames.replay') if name in sys.modules
+    ),
+    'engine_modules': sorted(
+        name
+        for name in set(sys.modules) - already_imported
+        if name == 'glitchygames' or name.startswith('glitchygames.')
+    ),
+}}))
 """
 # The engine modules the plugin imports when it loads: pygame-free leaves. pytest loads an entry
 # point plugin before pytest-cov starts measuring, so these modules' top-level lines run before
@@ -65,6 +78,8 @@ PLUGIN_LOAD_MODULES = (
     'glitchygames.exit_codes',
     'glitchygames.tracing',
 )
+# The packages a load of the plugin imports on the way to it: docstring-only, nothing to measure
+PLUGIN_PARENT_PACKAGES = ('glitchygames', 'glitchygames.testing')
 # The engine's replay tools, which import pygame: the plugin imports them only for a recording
 REPLAY_TOOLS_PACKAGE = 'glitchygames.replay'
 # The start of pygame's banner (``pygame-ce 2.5.8 (SDL 2.32.10, Python 3.14.8)``)
@@ -422,14 +437,14 @@ def test_the_plugin_loads_without_a_conftest_line(pytester, stand_in_game):
 
 
 @pytest.mark.parametrize(
-    'plugin_options',
+    ('plugin_options', 'conftest_plugins'),
     [
-        pytest.param(('-p', PLUGIN_MODULE), id='by -p'),
-        pytest.param((), id='by a conftest'),
+        pytest.param(('-p', PLUGIN_MODULE), (), id='by -p'),
+        pytest.param((), (PLUGIN_MODULE,), id='by a conftest'),
     ],
 )
 def test_loading_the_plugin_explicitly_too_collects_each_recording_once(
-    pytester, stand_in_game, plugin_options
+    pytester, stand_in_game, plugin_options, conftest_plugins
 ):
     """A project that still loads the plugin by name gets each recording once, and no error.
 
@@ -439,8 +454,7 @@ def test_loading_the_plugin_explicitly_too_collects_each_recording_once(
     """
     script = stand_in_game.console_script
     write_collected_only_recording(pytester=pytester, console_script=script, name='rally.jsonl.gz')
-    if not plugin_options:
-        pytester.makeconftest(f'pytest_plugins = [{PLUGIN_MODULE!r}]\n')
+    pytester.makeconftest(f'pytest_plugins = {list(conftest_plugins)!r}\n')
 
     collected = collect_only(pytester=pytester, plugin_options=plugin_options)
 
@@ -449,7 +463,7 @@ def test_loading_the_plugin_explicitly_too_collects_each_recording_once(
     collected.stdout.fnmatch_lines(['1 test collected*'])
 
 
-def test_no_glitchygames_disables_the_plugin(pytester, stand_in_game):
+def test_p_no_glitchygames_testing_replays_disables_the_plugin(pytester, stand_in_game):
     """``-p no:glitchygames.testing.replays`` blocks the entry point: a recording is no item."""
     script = stand_in_game.console_script
     write_collected_only_recording(pytester=pytester, console_script=script, name='rally.jsonl.gz')
@@ -466,7 +480,9 @@ def test_loading_the_plugin_imports_neither_pygame_nor_the_engines_replay_tools(
     """Every pytest run loads the plugin, so loading it imports no pygame (nor its banner).
 
     The replay tools (``glitchygames.replay``, which imports pygame) are imported only once a
-    recording is found. A fresh interpreter, so this suite's own imports do not count.
+    recording is found. The engine modules it does import are exactly ``PLUGIN_LOAD_MODULES``
+    (and their docstring-only packages). A fresh interpreter, so this suite's own imports do not
+    count.
     """
     environment = {
         name: value for name, value in os.environ.items() if name != PYGAME_BANNER_VARIABLE
@@ -480,7 +496,11 @@ def test_loading_the_plugin_imports_neither_pygame_nor_the_engines_replay_tools(
     )
 
     assert finished.returncode == 0, finished.stdout
-    assert finished.stdout == '[]\n'
+    imports = json.loads(finished.stdout)
+    assert imports['banner_modules'] == []
+    # PLUGIN_LOAD_MODULES must name every engine module the load imports (the fresh-load test
+    # below measures exactly those): a new eager import fails here, by name
+    assert imports['engine_modules'] == sorted({*PLUGIN_PARENT_PACKAGES, *PLUGIN_LOAD_MODULES})
 
 
 def test_a_fresh_load_of_the_plugin_imports_only_its_pygame_free_leaves(monkeypatch):
