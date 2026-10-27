@@ -800,4 +800,4 @@ names; and its one browser page, the title screen, ships all four archives, the 
 | `src/games/brave-adventurer/tests/` (`core/`, `classic/`, `papyrus/`) | The games' tests |
 | `src/games/brave-adventurer/tests/fixtures/replays/golden-*.jsonl.gz` | The golden replays |
 | `tests/world/golden/brave_adventurer*.jsonl.gz` | The golden traces |
-| `scripts/record_scripted_session.py`, `scripts/record_golden_traces.py`, `scripts/golden_inputs.py` | The scripts that record them, and the input scripts |
+| `scripts/record_scripted_session.py`, `scripts/record_golden_traces.py`, `scripts/golden_inputs.py` | The scripts that record them (on the engine's scripted-session recorder and golden-trace harness, `src/glitchygames/replay/tools/`), and the input scripts |

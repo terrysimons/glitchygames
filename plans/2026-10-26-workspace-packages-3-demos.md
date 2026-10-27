@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Tasks A1-C6 done (+B5b, user-added), 2026-10-26; final review passed (fixes 016c53ba, nits 6a8df329). Stage D (the engine owns every recording tool) PLANNED 2026-10-26, awaiting the user's review.
+**Status:** Tasks A1-C6 done (+B5b, user-added), 2026-10-26; final review passed (fixes 016c53ba, nits 6a8df329). Stage D (the engine owns every recording tool) PLANNED 2026-10-26; D1-D11 DONE 2026-10-27 (D10: docs, cleanups and the stage's verification), awaiting the final branch review and the user's look at `--compare-trace` (D11 Step 3).
 Stage A DONE; Stage B DONE (B1-B7, automated verification green; the user runs each demo by
 hand); Stage C DONE (C1-C6). (Originally PLANNED 2026-10-26.)
 Written from a read-only survey of `feature/workspace-packages-4-bitmappy` at fc4a93d5 (PR #110), which becomes
@@ -1067,8 +1067,11 @@ proving it isn't Bitmappy-specific.
 
 ## Stage D: the engine owns every recording, replay and measurement tool
 
-**Status:** PLANNED 2026-10-26; not started. Added after Stage C's final review, on the same branch
-and PR (the user, 2026-10-26: "Let's do it here").
+**Status:** DONE 2026-10-27 (D1-D9, D11, then D10: the docs, the deferred cleanups and the stage's
+verification), apart from D11 Step 3 (the user's look at a watched `--compare-trace`); awaiting the
+final branch review. Planned 2026-10-26, after Stage C's final review, on the same branch and PR
+(the user, 2026-10-26: "Let's do it here"). Where this section and the code differ, the code's
+`registry.TOOLS` is the reference (the tools table was brought in line in D10).
 
 **Goal.** A game the engine has never seen can record, replay, verify, rebaseline, measure, report
 on and graph its recordings with only the installed `glitchygames` wheel. One set of tools serves
@@ -1151,7 +1154,8 @@ scripts, staging rows in the pre-commit hook, and the docs snippet text.
   `bundled_demos`' default stops using it (Task D5). The name-collision risk (an outside package
   named `paddleslap` would be labelled `games.paddleslap`) goes in `plans/future-work.md`.
 - **Our five games' input scripts stay in `scripts/`.** The tools reach them as `MODULE:NAME`
-  references (`--input-script scripts.golden_inputs:paddleslap`, run from the repository root).
+  references (`--input-script scripts.golden_inputs:paddleslap_script`, run from the repository
+  root).
   They are test data, not engine code.
 
 ### Stage D Global Constraints
@@ -1204,6 +1208,9 @@ Part 3's Global Constraints all apply, and in addition:
 | `src/glitchygames/replay/tools/measure.py` | measurement, `unmeasured`, `clear-published` (from `scripts/replay_metrics.py`) |
 | `src/glitchygames/replay/tools/report.py` | the recording report (from `scripts/recording_report.py`) |
 | `src/glitchygames/replay/tools/performance_pages.py` | the performance pages (from `scripts/generate_performance_graphs.py`) |
+| `src/glitchygames/replay/tools/traces.py` | record-trace's, replay-trace's, record-golden-trace's and record-session's handlers on both front ends (added in D1-D4b) |
+| `src/glitchygames/replay/tools/verify.py` | the `verify` tool (Task D5) |
+| `src/glitchygames/replay/tools/compare.py` | `--compare-trace`, the onion skin (Task D11) |
 | `tests/replay/tools/` | the engine's tests for all of it, on stand-in games |
 | `scripts/golden_inputs.py` (new) | our five games' input scripts and controls tails, as `MODULE:NAME` targets |
 | root `pyproject.toml` | `glitchygames` console script, `pytest11` entry point, our `[tool.glitchygames]` |
@@ -1212,16 +1219,21 @@ Part 3's Global Constraints all apply, and in addition:
 
 | Tool | Runs the game? | As a game flag | As a command |
 |---|---|---|---|
-| `record-trace` | yes | exists | `glitchygames record-trace GAME PATH` |
-| `replay-trace` | yes | exists, with its options `--headless`, `--replay-fps`, `--replay-pause-at-frame`, `--audit`, `--rebaseline NEW`, `--compare-processing`, `--max-processing-slowdown`, `--replay-digest`, and (Task D11) `--compare-trace OLD`, `--compare-alpha PERCENT` | `glitchygames replay-trace PATH [same options]` (the game comes from the recording) |
-| `record-session` | yes | `--record-session PATH --input-script M:N --frames N` | `glitchygames record-session GAME PATH --input-script M:N --frames N` |
-| `record-golden-trace` | yes | `--record-golden-trace PATH --input-script M:N --frames N` | `glitchygames record-golden-trace GAME PATH …` |
-| `verify` | yes | `--verify [PATH …]` (default: the game's own) | `glitchygames verify [GAME …]` (default: `[tool.glitchygames] games`) |
-| `measure` | yes | `--measure [PATH …]` | `glitchygames measure [GAME …]` (runs `GAME --measure` per game) |
-| `unmeasured` | no | `--unmeasured` | `glitchygames unmeasured [GAME …]` |
-| `clear-published` | no | `--clear-published` | `glitchygames clear-published` |
-| `report` | no | `--report PATH` | `glitchygames report PATH` |
-| `performance-pages` | no | `--performance-pages DIRECTORY` | `glitchygames performance-pages DIRECTORY` |
+| `record-trace` | yes | exists, with `--random-seed` and `--headless` | `glitchygames record-trace GAME PATH [same options]` |
+| `replay-trace` | yes | exists, with its options `--headless`, `--replay-fps`, `--replay-pause-at-frame`, `--audit`, `--rebaseline NEW`, `--compare-processing`, `--max-processing-slowdown`, `--replay-digest`, `--random-seed`, and (Task D11) `--compare-trace OLD`, `--compare-alpha PERCENT` (and the hidden `--replay-frame-stream PORT:TOKEN`) | `glitchygames replay-trace PATH [same options] [--game GAME]` (the game comes from the recording) |
+| `record-session` | yes | `--record-session PATH --input-script M:N --frame-count N [--controls-tail M:N] [--polled-input] [--input-only-placements]` | `glitchygames record-session GAME PATH --input-script M:N --frame-count N [same options]` |
+| `record-golden-trace` | yes | `--record-golden-trace PATH --input-script M:N --frame-count N` | `glitchygames record-golden-trace GAME PATH --input-script M:N --frame-count N` |
+| `verify` | yes | `--verify [PATH …] [--only TEXT]` (default: the game's own) | `glitchygames verify [PATH …] [--only TEXT] [--game GAME …]` (`--game` repeatable, in the three `GAME` forms; default: `[tool.glitchygames] games`) |
+| `measure` | yes | `--measure [PATH …] [--force] [--allow-dirty \| --skip-dirty] [--only TEXT] [--code-tree TREE] [--rows-directory DIRECTORY] [--pending PATH]` | `glitchygames measure [PATH …] [same options] [--game GAME …]` (runs `GAME --measure` per game) |
+| `unmeasured` | no | `--unmeasured [--code-tree TREE] [--rows-directory DIRECTORY] [--pending PATH]` | `glitchygames unmeasured [same options] [--game GAME …]` |
+| `clear-published` | no | `--clear-published [--pending PATH]` | `glitchygames clear-published [--pending PATH]` |
+| `report` | no | `--report PATH [--threshold PERCENT] [--minimum-ms MS] [--spans N]` | `glitchygames report PATH [same options]` |
+| `performance-pages` | no | `--performance-pages DIRECTORY [--published]` | `glitchygames performance-pages DIRECTORY [--published]` |
+
+(Updated 2026-10-27, Task D10, to match `registry.TOOLS`, the reference: `--frame-count`, not
+`--frames`; `verify`/`measure`/`unmeasured` take their games as `--game`, once per game, beside
+the recordings' paths; every subcommand also takes `--project-root DIR`, and arguments after a
+bare `--` go to the game.)
 
 **How `GAME` is resolved** (the user, 2026-10-26, approving three forms so an uninstalled game
 works too). The command resolves it in this order and prints which form it used:
@@ -1242,9 +1254,9 @@ that module no longer imports (a moved script), it asks for `--game GAME`, in th
 | Key | Default | Ours |
 |---|---|---|
 | `games` | the project's `[project.scripts]` | the nine console scripts |
-| `golden-globs` | `["tests/fixtures/replays/**/*.jsonl.gz"]` | each member's `tests/fixtures/replays/` |
+| `golden-globs` | `["tests/fixtures/replays/**/*.jsonl.gz"]` | `["src/*/*/tests/fixtures/replays/golden*.jsonl.gz"]` |
 | `ledger-directory` | `"replay-ledger"` | `"quality/replay-ledger"` |
-| `pending-ledger` | `"replay-ledger/pending.jsonl"` | `"test-results/replay-metrics/pending.jsonl"` |
+| `pending-ledger` | `".glitchygames/pending-ledger.jsonl"` (the project's local directory, git-ignored; Task D2) | `"test-results/replay-metrics/pending.jsonl"` |
 | `published-ledger` | none (nothing published) | `"origin/gh-pages:<PUBLISHED_LEDGER_PATH>"` |
 | `landed-ref` | `"origin/main"` | `"origin/main"` |
 | `measured-paths` | `["src", "tests/fixtures/replays", "pyproject.toml"]` | today's `MEASURED_PATHS` |
@@ -1274,7 +1286,7 @@ unchanged (help text, destinations and defaults), with `--rebaseline` and `--aud
 `replay-trace` options. Their game handlers stay where they are; their command handlers start
 the game as a child.
 
-- [ ] **Step 1: failing tests.**
+- [x] **Step 1: failing tests.**
   - `test_every_tool_is_a_game_flag_and_a_command`: the set of `--<name>` tool flags in a
     stand-in game's parser equals the set of `glitchygames` subcommands, which equals
     `{tool.name for tool in TOOLS}`.
@@ -1294,7 +1306,7 @@ the game as a child.
   - `test_replay_trace_asks_for_game_when_the_recorded_module_is_gone`.
   - `test_glitchygames_record_trace_runs_the_game_as_a_child` and
     `test_glitchygames_replay_trace_finds_the_game_from_the_recording` (on a stand-in game).
-- [ ] **Step 2:** implement until they pass; lint; `CI=true nox -s test`; commit — "The engine
+- [x] **Step 2:** implement until they pass; lint; `CI=true nox -s test`; commit — "The engine
   describes its recording tools once, as game flags and as the glitchygames command".
 
 ### Task D2: Children without pytest, project settings, and the game's identity
@@ -1315,7 +1327,7 @@ values); `tests/replay/tools/test_{children,settings,identity}.py`.
   `recording_console_script`'s error text loses "`uv sync --all-packages`" and names the console
   script it looked for.
 
-- [ ] **Step 1: failing tests.**
+- [x] **Step 1: failing tests.**
   - `test_a_project_without_tool_glitchygames_gets_the_defaults`
   - `test_an_unknown_setting_is_refused_by_name`
   - `test_our_settings_equal_the_old_constants`: our `pyproject.toml` gives exactly today's
@@ -1325,7 +1337,7 @@ values); `tests/replay/tools/test_{children,settings,identity}.py`.
   - `test_a_game_knows_its_package_and_console_script` (a stand-in distribution), and
     `test_a_game_with_no_console_script_still_has_an_identity`.
   - `test_children_import_without_pytest` (in a subprocess with pytest blocked).
-- [ ] **Step 2:** implement; every caller reads settings; `CI=true nox -s test`; commit.
+- [x] **Step 2:** implement; every caller reads settings; `CI=true nox -s test`; commit.
 
 ### Task D3: Rows and recordings name the game's commit
 
@@ -1334,7 +1346,7 @@ None`; `ledger_rows_from_rebaseline` takes commit and dirty state from it, falli
 `source_revision`); `engine/game_engine.py:~1647` (sets it from
 `game_identity(game=…).package_directory`); `tests/replay/tools/test_provenance.py`.
 
-- [ ] **Step 1: failing tests.**
+- [x] **Step 1: failing tests.**
   - `test_a_stand_in_game_in_its_own_repository_records_its_own_commit`: write a stand-in game
     into a temporary `git init` repository with one commit. Rebaseline a recording through its
     console script. The header's `game_source_revision.commit` is that repository's commit, and
@@ -1343,7 +1355,7 @@ None`; `ledger_rows_from_rebaseline` takes commit and dirty state from it, falli
   - `test_a_recording_without_game_source_revision_still_loads_and_uses_the_engines`, using a
     committed golden from before this change.
   - `test_our_games_rows_are_unchanged`: one of our goldens produces the same commit as before.
-- [ ] **Step 2:** implement; `CI=true nox -s test`; commit.
+- [x] **Step 2:** implement; `CI=true nox -s test`; commit.
 
 ### Task D4a: The golden-trace harness moves into the engine
 
@@ -1362,9 +1374,9 @@ and `main`, calling the engine. The ~40 importing test modules are updated: engi
 the engine harness, and member tests may import `scripts.golden_inputs`. The `record-golden-trace`
 tool is added to `TOOLS`.
 
-- [ ] **Step 1:** move the tests with the code (`tests/replay/tools/test_golden_traces.py`). Add
+- [x] **Step 1:** move the tests with the code (`tests/replay/tools/test_golden_traces.py`). Add
   `test_record_golden_trace_on_a_stand_in_game_as_a_flag_and_a_command`.
-- [ ] **Step 2:** move the code; save engine-only coverage before and after; close any gap;
+- [x] **Step 2:** move the code; save engine-only coverage before and after; close any gap;
   every golden trace still matches (`tests/world/test_golden_traces.py`); commit.
 
 ### Task D4b: The scripted-session recorder moves into the engine
@@ -1380,10 +1392,10 @@ the engine. The per-game controls tails move to `scripts/golden_inputs.py`. The
 `record-session` tool is added (`--controls-tail M:N`, `--polled-input` and
 `--input-only-placements` as tool options).
 
-- [ ] **Step 1:** move the tests (`tests/replay/tools/test_scripted_sessions.py`). Add
+- [x] **Step 1:** move the tests (`tests/replay/tools/test_scripted_sessions.py`). Add
   `test_record_session_on_a_stand_in_game_as_a_flag_and_a_command` (the recording replays SUCCESS
   through `--replay-trace --headless`).
-- [ ] **Step 2:** move the code; coverage before and after; re-record nothing; prove one golden
+- [x] **Step 2:** move the code; coverage before and after; re-record nothing; prove one golden
   per game is byte-identical when re-recorded by `scripts/record_scripted_session.py --game`, into
   a scratch path; commit.
 
@@ -1398,12 +1410,12 @@ default; callers pass it; `testing/replays.py:~409` too); the `verify` tool (eac
 replayed headless in a child; one line per recording; exit `SUCCESS` only if all pass);
 `tests/replay/tools/test_{recordings,verify}.py`.
 
-- [ ] **Step 1: failing tests.**
+- [x] **Step 1: failing tests.**
   - `test_a_game_finds_its_own_goldens_and_demos_and_no_other_games`
   - `test_verify_passes_and_fails_per_recording_as_a_flag_and_a_command` (one good and one
     tampered recording; exit code and lines)
   - `test_verify_with_no_recordings_says_so`
-- [ ] **Step 2:** implement; commit.
+- [x] **Step 2:** implement; commit.
 
 ### Task D6: `measure`, `unmeasured` and `clear-published` move into the engine
 
@@ -1416,17 +1428,17 @@ replayed headless in a child; one line per recording; exit `SUCCESS` only if all
 - `clear_published`
 
 The tools `measure` (`--force`, `--allow-dirty | --skip-dirty`, `--only`, `--rows-directory`,
-`--code-tree`), `unmeasured` and `clear-published` are added. `glitchygames measure [GAME …]` runs
+`--code-tree`), `unmeasured` and `clear-published` are added. `glitchygames measure [--game GAME …]` runs
 `GAME --measure` per game and sums the exit codes, as today's loop does.
 `scripts/replay_metrics.py` is deleted: the nox sessions call `glitchygames measure` and
 `glitchygames clear-published`. `scripts/measure_staged_replays.py` keeps only git staging and its
 refusals, and calls `glitchygames unmeasured` and `glitchygames measure --rows-directory`.
 `tests/test_replay_metrics.py` moves to `tests/replay/tools/test_measure.py`, on stand-ins.
 
-- [ ] **Step 1:** move the tests; add `test_measure_a_stand_in_game_as_a_flag_and_a_command` (rows
+- [x] **Step 1:** move the tests; add `test_measure_a_stand_in_game_as_a_flag_and_a_command` (rows
   written to its `[tool.glitchygames]` pending ledger), `test_unmeasured_lists_then_empties`, and
   `test_measure_in_a_project_without_settings_creates_the_ledger_directory`.
-- [ ] **Step 2:** move the code; the pre-commit hook still measures and stages (its own tests
+- [x] **Step 2:** move the code; the pre-commit hook still measures and stages (its own tests
   pass unchanged apart from imports); `nox -s replay-metrics` works; commit.
 
 ### Task D7: `report` and `performance-pages` move into the engine
@@ -1443,11 +1455,11 @@ refusals, and calls `glitchygames unmeasured` and `glitchygames measure --rows-d
   calls the engine. If rendering imports anything outside the engine's runtime dependencies, that
   import is lazy and the tool reports the missing package by name.
 
-- [ ] **Step 1:** move the tests. Add:
+- [x] **Step 1:** move the tests. Add:
   - `test_report_never_builds_the_game`: a scene class whose constructor raises; `--report` exits
     `SUCCESS`
   - `test_report_and_performance_pages_as_a_flag_and_a_command`
-- [ ] **Step 2:** move the code; `nox -s docs` still builds the performance pages; commit.
+- [x] **Step 2:** move the code; `nox -s docs` still builds the performance pages; commit.
 
 ### Task D8: The pytest plugin auto-registers
 
@@ -1461,10 +1473,10 @@ refusals, and calls `glitchygames unmeasured` and `glitchygames measure --rows-d
 - `tests/replay/test_replay_plugin.py`: it stops importing `scripts.record_scripted_session`, and
   uses a stand-in fixture.
 
-- [ ] **Step 1: failing tests (pytester).**
+- [x] **Step 1: failing tests (pytester).**
   - `test_the_plugin_loads_without_a_conftest_line`
   - `test_a_project_with_no_recordings_and_no_settings_gets_no_items_and_no_output`
-- [ ] **Step 2:** implement; the collected count of golden-replay items is unchanged; commit.
+- [x] **Step 2:** implement; the collected count of golden-replay items is unchanged; commit.
 
 ### Task D9: The unseen game, end to end
 
@@ -1483,9 +1495,9 @@ clear-published (against a local bare repository as "published"). Assert:
 - the rows' commit is the stand-in repository's
 - a test that walks `TOOLS` fails if a new tool has no case here
 
-- [ ] **Step 1:** write it; it passes on the finished stage. Prove it bites: break one front end's
+- [x] **Step 1:** write it; it passes on the finished stage. Prove it bites: break one front end's
   option (in a scratch edit) and watch it fail, then restore.
-- [ ] **Step 2:** commit.
+- [x] **Step 2:** commit.
 
 ### Task D11: `--compare-trace`, the onion skin (runs after D9, before D10)
 
@@ -1544,12 +1556,12 @@ restart path (`replay/viewer.py`, `replay/driver.py`) to keep the child in step;
 - `plans/future-work.md`: the logical-name collision risk
 - this plan's Status
 
-- [ ] **Step 1:** write the docs; run `lint-docs` and the living-docs guard.
-- [ ] **Step 2:** verify:
+- [x] **Step 1:** write the docs; run `lint-docs` and the living-docs guard.
+- [x] **Step 2:** verify:
   - `nox -s lint static-analysis`, `CI=true nox -s test`, `uv run pytest` and
     `nox -s build-wheel`; the engine wheel has the `glitchygames` script and the pytest11 entry
   - `nox -s replay-metrics` and `nox -s docs`
   - the pre-commit hook on a real commit
   - for one game by hand: `<game> --record-trace`, `--replay-trace`, and
     `glitchygames report` on the result
-- [ ] **Step 3:** commit, then stop for the user's review.
+- [x] **Step 3:** commit, then stop for the user's review.

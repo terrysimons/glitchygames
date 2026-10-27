@@ -3,8 +3,9 @@
 A supervisor is called once per frame at a fixed place in the frame (after logic and events,
 before frame services, camera aim and positioning — see SceneManager._run_scene_frame), so what
 it reads is the frame's final logic state and what it changes is drawn this frame and seen by
-collision next frame. Today scripts/record_scripted_session.py uses it to play a golden input
-script. The watched-replay controls and recorded breakpoints (Part 2) and a future cheat device
+collision next frame. The engine's scripted-session recorder (``--record-session``,
+glitchygames/replay/tools/scripted_sessions.py) uses it to play an input script as a player's
+input. The watched-replay controls and recorded breakpoints (Part 2) and a future cheat device
 plug in here too (plans/2026-10-19-gameplay-replay.md, section 2).
 
 Supervisors are the scene manager's, not a scene's: they run whichever scene is active, a

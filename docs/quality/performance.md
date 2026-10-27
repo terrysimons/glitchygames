@@ -1,7 +1,7 @@
 # Replay Performance
 
 How long the engine takes to process each frame of the recorded sessions (the golden replays in
-`tests/fixtures/replays/` and the demos bundled with the games), commit by commit. Every
+each game's `tests/fixtures/replays/` and the demos bundled with the games), commit by commit. Every
 measurement replays a recording headless and unpaced on one machine (`--rebaseline`, which times
 each frame's work without the pacing sleep), so a line moves only when the code got faster or
 slower, or the machine changed. Times compare only on one machine: each machine (its CPU model)
@@ -17,7 +17,7 @@ and kind of run is its own line.
   each frame really took, start to start: how steady pacing was. Replays have none.
 
 - **Slowest frame across the recording, by commit**: a heatmap per machine. Each column is a
-  stretch of the recording (about 1% of it, start to end) and each row a commit; the colour is
+  stretch of the recording (about 1% of it, start to end) and each row a commit; the color is
   the slowest frame of that stretch. Hover a cell for its frames, its scene and the time. It
   shows time only: whether the work itself changed (frames whose content hash differs) is what
   `glitchygames report` shows. Measurements from before per-frame profiles have no row.
@@ -49,12 +49,27 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    machines vary).
 3. The history measured before this (rows naming their commit) was moved into the repository
    too (`scripts/import_published_ledger.py`). `nox -s replay-metrics` still measures by hand
-   into the local pending file (`test-results/replay-metrics/pending.jsonl`), which a local build
-   shows.
+   (`glitchygames measure`) into the local pending file
+   (`test-results/replay-metrics/pending.jsonl`), which a local build shows.
+
+The measuring and the pages are the engine's tools, so any game can keep its own ledger the same
+way ([Tools for any game](../architecture/gameplay_replay.md#tools-for-any-game)), with the
+paths in its `[tool.glitchygames]` (ours: `ledger-directory`, `pending-ledger`,
+`published-ledger`, `measured-paths`):
+
+```bash
+uv run glitchygames unmeasured --game <game>   # what is not measured yet on this machine
+uv run glitchygames measure --game <game>      # measure it into the pending ledger
+uv run glitchygames performance-pages <directory>   # the ledger and one graph page per recording
+```
+
+(`<game> --measure`, `--unmeasured` and `--performance-pages <directory>` are the same tools as
+the game's own flags.) Our docs build makes these pages through `scripts/mkdocs_hooks.py` and
+`scripts/generate_performance_graphs.py`, which only add our docs paths and the snippet below.
 
 A recording holds its own last ten runs too; `uv run glitchygames report PATH` (or
 `<game> --report PATH`) prints them, which frames got slower or faster between runs (only frames that did the same
-work, by their content hash), and where behaviour changed (the frames whose content hash
+work, by their content hash), and where behavior changed (the frames whose content hash
 differs, with both runs' commits). Design:
 `plans/2026-10-23-recording-metrics.md` (Parts 1 and 2).
 

@@ -74,6 +74,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | Papyrus sprites keep their unscaled native rect size | BUGS.md #59 | Latent; fixing it needs its own golden expected-difference class. |
 | Brave Adventurer's ground and walls stay drawn only because the parallax layers dirty the whole screen | BUGS.md #60 | Fragile; make the terrain `dirty = 2` or document the dependency. |
 | Brave Adventurer's and Papyrus's enemies (Cobra, Scarab, Scorpion) still draw in `update()` | `src/games/brave-adventurer/src/brave_adventurer/enemies.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | Harmless while their hitboxes do not depend on the pose (the scarab's bounds are the same at every roll angle); move drawing into `dt_tick` (the pose rule) if they ever do. |
+| `--log-level warning` (or error) does not quiet the `game.*` loggers in PaddleSlap: its module sets `logging.getLogger('game').setLevel(logging.INFO)` at import, which overrides the root level `GameEngine.args` sets (`logging.basicConfig`), so every engine logger under `game` keeps logging INFO (a `--compare-trace` child, started with `--log-level warning`, logs at INFO too). The engine's `game_objects/paddle.py` does the same for `game.paddle` | `src/games/paddleslap/src/paddleslap/__init__.py:50-51`, `src/glitchygames/game_objects/paddle.py:18-19` | Found 2026-10-27 in Stage D's by-hand check. Drop the `setLevel` calls (the level is the command line's). |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
@@ -129,9 +130,6 @@ arc was lost. What follows is left.
   covers them through members' tests or not at all): `collision/layers.py` 72;
   `scenes/scene.py` 1270->1276; `sprites/animated.py` 1096, 1098, 2039-2040 and their branches.
   Give the engine its own tests for them.
-- **`scripts/replay_metrics.py` binds `demo_packages=tuple(MEMBER_LAYERS)` at import.** Make it a
-  parameter, or default it to `None` and resolve it when called; tests patch it with `partial`
-  today.
 - **Member tests import helpers from root test modules** (`tests.collision.test_ball_paddle_collision`,
   `tests.world.test_frame_integration`). Move the shared helpers into non-test helper modules
   both can import.
@@ -140,6 +138,51 @@ arc was lost. What follows is left.
   `builtins.__import__`, `pytest.importorskip` or `importlib.util.find_spec`. The member-test
   naming check (`test_<distribution>*`) matches a prefix with no separator, so
   `test_bitmappyx.py` passes (the unique-name guard still catches clashes).
+
+## Engine tools after Stage D (2026-10-27, workspace packages part 3)
+
+Stage D moved every recording, replay and measurement tool into the engine
+(`src/glitchygames/replay/tools/`, `plans/2026-10-26-workspace-packages-3-demos.md`). Left:
+
+- **Logical-name collisions with outside packages.** `MEMBER_LAYERS`
+  (`src/glitchygames/logical_names.py`) still names our members' packages, so an outside game
+  whose package happens to be called `paddleslap` is labelled `games.paddleslap...` in its
+  recordings. Kept because a frozen binary or a wheel install has no `pyproject.toml` to read
+  the layers from; only `bundled_demos`' default stopped using it (Task D5). Fix: label a package
+  by its layer only when it is the installed workspace member (its distribution's name).
+- **`--profile` is ignored with a tool that runs in place of the game.** Since D4b, a game-flag
+  tool with a game handler (`--record-golden-trace`, `--record-session`, `--measure`,
+  `--report`, ...) runs from `GameEngine.__init__` (`registry.run_game_flag_tool`), before
+  `GameEngine.start` starts the profiler, so `--profile` prints nothing; before D4b a profile
+  was printed. Profile the handler too, or refuse `--profile` with such a tool.
+- **Restarting a game through its console script on Windows is untested.** `--verify`,
+  `--measure` and the onion skin start the running game again
+  (`children.running_game_command`), which on Windows sees a launcher `.exe` in `sys.orig_argv`.
+  Verify on Windows.
+- **A launcher package's identity.** `console_script_identity`
+  (`src/glitchygames/replay/tools/identity.py`, around lines 182-189) takes a console script's
+  entry-point package as the game's. For a launcher (one package's script starting another
+  package's game), `unmeasured` and the pre-commit hook then judge a different package's demos
+  and revision than that game's own `--measure` does. Our nine console scripts are pinned by a
+  test; resolve the launched game's package instead.
+- **Tool option names are reserved in every game.** Every tool's flag and option is added to every
+  game's parser (`registry.add_game_flags`), including generic names such as `report`'s
+  `--threshold`, `--minimum-ms` and `--spans`, so a game defining one of them fails at startup.
+  Ours are pinned by `test_no_tool_option_clashes_with_any_of_our_games_arguments`, and the
+  reserved names are documented (docs/architecture/gameplay_replay.md, "Tools for any game").
+  Consider tool-prefixed names (`--report-threshold`) before outside games depend on these.
+- **`tests/replay/tools/test_an_unseen_game.py` is slow:** about 94 s serial (20 s under
+  `-n auto`), against a 60 s target. Share the built project and installed console script
+  between cases, or run fewer `GAME` forms per tool.
+- **The debug overlay draws under OLD in `--compare-trace`.** `ReplaySources.draw_overlay` draws
+  the onion skin, and `SceneManager` draws the debug overlay before the doors' overlay, so OLD
+  covers it. A correct fix is a new doors hook called before the debug overlay, say
+  `EngineSources.draw_under_overlays(*, surface)`, implemented by the five `EngineSources`
+  (`LiveSources` as a no-op; `HostSources`, `RecordingSources` and `PlaybackSources` forwarding;
+  `ReplaySources` drawing the onion skin), with the onion skin moved from `draw_overlay` to it.
+- **`--compare-trace` in the browser.** It is not refused up front under Pyodide, where there are
+  no child processes; today a browser path has no options to give it. If one ever does, add
+  `sys.platform == 'emscripten'` to `compare.compare_trace_refusal`.
 
 ## World space follow-ups (feature/engine-world-space final review)
 

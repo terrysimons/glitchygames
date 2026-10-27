@@ -174,6 +174,30 @@ uv run bitmappy --timer-backend=fast --log-timer-jitter
 uv run bitmappy --timer-backend=fast --windows-timer-1ms
 ```
 
+### Recording, Replay and Measurement Tools
+The engine owns every tool (`src/glitchygames/replay/tools/`; `registry.TOOLS` is the reference
+for every flag and option). Each is a flag on every game and a `glitchygames` subcommand (also
+`python -m glitchygames`) with the same name and options; settings come from the project's
+`[tool.glitchygames]` (docs/architecture/gameplay_replay.md, "Tools for any game").
+```bash
+uv run glitchygames --help                                 # every tool, with its options
+uv run paddleslap --record-trace run.jsonl.gz              # record (or: glitchygames record-trace paddleslap run.jsonl.gz)
+uv run paddleslap --replay-trace run.jsonl.gz --headless   # replay (or: glitchygames replay-trace run.jsonl.gz --headless)
+uv run glitchygames report run.jsonl.gz                    # its runs, speed and behavior changes
+uv run glitchygames verify                                 # every game's goldens and bundled demos, headless
+uv run glitchygames verify --game paddleslap --only rally  # one game's, filtered
+uv run glitchygames unmeasured                             # what measure would measure on this machine
+uv run glitchygames measure --game paddleslap              # measure into the pending ledger
+uv run glitchygames performance-pages <directory>          # the ledger and graph pages
+# A scripted session (PaddleSlap's golden: 622 frames, with its controls tail and quit)
+uv run glitchygames record-session paddleslap out.jsonl.gz --headless \
+    --input-script scripts.golden_inputs:paddleslap_script --frame-count 600 \
+    --controls-tail scripts.golden_inputs:paddleslap_controls --input-only-placements
+# GAME is a script path, MODULE:CALLABLE, or a console script or module; arguments after a
+# bare -- go to the game. Our goldens are recorded by scripts/record_scripted_session.py and
+# scripts/record_golden_traces.py, which call the engine with scripts/golden_inputs.py
+```
+
 ### Example Games
 Every game is its own workspace package under `src/games/` (Part 2 of
 plans/2026-10-24-workspace-packages.md; the recipe is docs/architecture/game_packages.md), with
@@ -565,8 +589,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   the game; on the game both run from `__init__` (never built). Our docs build reaches it through
   `scripts/mkdocs_hooks.py` -> `scripts/generate_performance_graphs.py` (our docs paths and the
   `performance_graphs.md` snippet only; it passes our settings) -> the engine.
-  An option may be listed under several tools but is one game flag (`--headless` and
-  `--random-seed`: every tool that runs the game; `--input-script` and `--frame-count`:
+  An option may be listed under several tools but is one game flag (`--random-seed`: every tool
+  that runs the game; `--headless`: record-trace, replay-trace, record-golden-trace and
+  record-session; `--input-script` and `--frame-count`:
   record-golden-trace and record-session). `--random-seed` (the user's rule, 2026-10-26)
   defaults to None everywhere: a run or recording rolls a seed (the harness tools too; our
   goldens pass `RANDOM_SEED`), a replay uses the recording's; a replay given another seed plays
@@ -592,7 +617,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `ScriptedInputSupervisor`, `PostedPolledInput`, `GameDidNotQuitError`) runs any game for real
   with `--record-trace` while a supervisor posts the script. Our five games' scripts and controls
   tails are `scripts/golden_inputs.py`. Two tool flags at once are
-  refused, and a tool that runs no game must have a game handler. The general flags no tool
+  refused, and a tool that runs no game must have a game handler. Every tool's flag and option is
+  added to every game's parser, so a game may not define one of those names (`--threshold`,
+  `--only`, ...; `test_no_tool_option_clashes_with_any_of_our_games_arguments` checks ours). The general flags no tool
   lists (`--resolution`, ...) stay in `GameEngine.args`. A project's settings for the tools are
   `[tool.glitchygames]` in its `pyproject.toml` (`settings.py`: `load_project_settings(*,
   project_root)` -> `ProjectSettings`, kebab-case keys, unknown keys refused by name, defaults
@@ -799,7 +826,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   Each is a pytest item of its own: the plugin `src/glitchygames/testing/replays.py` (registered
   by the engine's `pytest11` entry point, named after its module, so no conftest loads it;
   `-p no:glitchygames.testing.replays` turns it off; it imports no pygame until it finds a
-  recording, so a project that is no game gets no item and no output from it) collects every `.../fixtures/replays/<console-script>/*.jsonl.gz`,
+  recording, so a project that is no game gets no item and no output from it, unless it has a
+  `fixtures/replays/<directory>/*.jsonl.gz`, whose non-console-script directory is a collection
+  error; a wheel install has pytest rewrite asserts throughout the engine package, harmless, with
+  `*-pytest-*.pyc` files in site-packages) collects every `.../fixtures/replays/<console-script>/*.jsonl.gz`,
   replays it in a child process through the console script's entry point with
   `--replay-trace PATH --headless`, and fails with the exit code and the printed report unless it
   exits `SUCCESS`; `tests/replay/test_golden_replays.py` keeps the fixture-set and tamper checks.
@@ -1273,8 +1303,8 @@ Features:
   to test with a real pad. Windows' and Linux's joystick drivers are not covered
 - Driver comparison (`tests/driver_comparison.py`; frames recorded by
   `src/glitchygames/testing/frame_fingerprints.py`, compared by
-  `src/glitchygames/testing/frame_comparison.py`, whose command line is
-  `scripts/compare_driver_frames.py`):
+  `src/glitchygames/testing/frame_comparison.py`, both shipped in the engine wheel, whose command
+  line is `scripts/compare_driver_frames.py`):
   outside CI, `uv run pytest` (and `nox -s test`) also starts the same command on the native
   driver (macOS cocoa + coreaudio, Windows windows, Linux wayland or x11 with dummy audio) as a
   child run, the usual workers split between them (native two thirds), then compares every frame

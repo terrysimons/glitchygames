@@ -220,14 +220,30 @@ any tool's configuration.
 
 ### 5. Update the scripts and tests that name it
 
-- `scripts/record_golden_traces.py`: add a `'<module>:<class>'` reference to `GAME_SCENES`
-  (never a module-level import of a member: the subprocess import test fails on one),
-  `GAME_MODULES` (whose value is the bare package name) and its input script's builder to
-  `SCRIPT_BUILDERS` (the script itself goes in `scripts/golden_inputs.py`, importing what it reads
-  of its game inside the functions that read it). `scripts/record_scripted_session.py`
-  derives its fixture directories from `GAME_MODULES` and the workspace
-  (`REPLAY_FIXTURE_DIRECTORIES`), and refuses
-  a game no member holds: only its docstring examples need editing.
+- The recording tools are the engine's, and the game has them without declaring anything
+  (`--record-golden-trace`, `--record-session`, `--verify`, `--measure`, ..., or
+  `glitchygames <tool>`: [Tools for any game](gameplay_replay.md#tools-for-any-game)). What this
+  repository adds is test data and its own tables:
+  - `scripts/golden_inputs.py`: the game's golden input script (`<package>_script`) and controls
+    tail (`<package>_controls`), each a callable taking no arguments that returns an
+    `InputScript`, importing what it reads of its game inside the function. Any tool reaches
+    them as `MODULE:NAME` from the repository root
+    (`--input-script scripts.golden_inputs:<package>_script`,
+    `--controls-tail scripts.golden_inputs:<package>_controls`).
+  - `scripts/record_golden_traces.py`: add a `'<module>:<class>'` reference to `GAME_SCENES`
+    (never a module-level import of a member: the subprocess import test fails on one),
+    `GAME_MODULES` (whose value is the bare package name) and its input script's builder to
+    `SCRIPT_BUILDERS`. It records on the engine's golden-trace harness
+    (`glitchygames.replay.tools.golden_traces`).
+  - `scripts/record_scripted_session.py` records the golden replay on the engine's
+    scripted-session recorder (`glitchygames.replay.tools.scripted_sessions`, the
+    `record-session` tool). Add the game's controls tail to `CONTROLS_TAIL_BUILDERS`, and the
+    game to `INPUT_ONLY_PLACEMENT_GAMES` or `POLLED_INPUT_GAMES` when its script needs it. It
+    derives its fixture directories from `GAME_MODULES` and the workspace
+    (`REPLAY_FIXTURE_DIRECTORIES`), and refuses a game no member holds; edit its docstring's
+    commands too.
+  - The root `pyproject.toml`'s `[tool.glitchygames] games`: add the member's console script, so
+    `glitchygames verify` and `glitchygames measure` with no `--game` take its recordings.
 - `tests/replay/test_golden_replays.py`: its imports, `GAMEPLAY_ACTION_MAPS`,
   `ENGINE_SCENE_CONTROLS`, `UNEXERCISED_CONTROLS` and any table naming the game.
 - Engine tests no longer borrow a game, by import or by path: `tests/test_suite_collection.py`
@@ -317,6 +333,8 @@ uv run pytest --dummy-only --no-cov -q tests/test_suite_collection.py \
     tests/test_our_measured_recordings.py tests/test_measure_staged_replays.py \
     tests/test_generate_performance_graphs.py tests/replay tests/world <borrowing tests>
 uv run pytest                               # the whole suite, both drivers, 100% coverage
+uv run <console-script> --verify            # its golden replay and bundled demos, replayed headless
+uv run glitchygames unmeasured --game <console-script>   # what --measure would measure of it
 uv build --package <distribution>           # the member builds on its own
 uv run python -m scripts.build_browser_bundle <console-script> --output <scratch directory>
 uv run nox -s browser -- <console-script>   # its browser bundle, served and opened
@@ -334,8 +352,9 @@ new place. Its first frame records the scene's module, so its content hash chang
 
 ### 9. Commit
 
-The `replay-metrics` pre-commit hook measures every recording on the new code and stages the
-rows (about 12 s). It refuses a commit with untracked files under `src/` or a partial commit, so
+The `replay-metrics` pre-commit hook (`scripts/measure_staged_replays.py`, which runs
+`glitchygames unmeasured`, then `glitchygames measure --code-tree TREE --rows-directory DIR`)
+measures every recording on the new code and stages the rows (about 12 s). It refuses a commit with untracked files under `src/` or a partial commit, so
 stage the whole move (`git add -A src tests scripts docs`) before committing.
 
 ## Special cases

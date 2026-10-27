@@ -5,8 +5,9 @@ engine version and same recording give bit-identical sprite traces: every frame'
 `rect` and `visible` match the recording. Audio is played during a replay but is not compared.
 
 This page covers recording, exact replay, watching a replay (with step back and bookmarks),
-headless runs, the determinism audit, golden replays and rebaselining them, in-game playback
-(demos, instant replay, ghosts), and the rules game code follows so its sessions replay. See
+headless runs, the determinism audit, golden replays and rebaselining them, the tools any game
+gets (as its own flags and as the `glitchygames` command), in-game playback (demos, instant
+replay, ghosts), and the rules game code follows so its sessions replay. See
 `plans/2026-10-19-gameplay-replay.md` for the design and `plans/future-work.md` for the
 follow-ups.
 
@@ -36,7 +37,15 @@ uv run paddleslap --replay-trace session.jsonl.gz --headless --max-processing-sl
 
 # Onion skin: watch a replay with another recording's frames drawn over it, half transparent
 uv run paddleslap --replay-trace new-session.jsonl.gz --compare-trace session.jsonl.gz
+
+# The same tools as the glitchygames command (the game comes from the recording), and a
+# recording's runs, speed changes and behavior changes
+uv run glitchygames replay-trace session.jsonl.gz --headless
+uv run glitchygames report session.jsonl.gz
 ```
+
+Every flag above is one of the engine's tools, which every game has without declaring anything;
+[Tools for any game](#tools-for-any-game) lists them all.
 
 ## The doors
 
@@ -642,7 +651,9 @@ Each game's workspace member holds a recorded session of it in
 `<member>/tests/fixtures/replays/golden.jsonl.gz` (PaddleSlap, Clockwork Keep, Mr. Muncher and
 Drawing Fire; both Brave Adventurer editions as `golden-classic.jsonl.gz` and
 `golden-papyrus.jsonl.gz`).
-`scripts/record_scripted_session.py` recorded them through the real engine loop, with a
+`scripts/record_scripted_session.py` recorded them through the real engine loop (on the
+engine's scripted-session recorder, the `record-session` tool below, with our games' input
+scripts and controls tails from `scripts/golden_inputs.py`), with a
 supervisor posting each game's golden input script, then the game's controls tail: input that
 presses the controls the script does not, pauses and resumes, and ends with the game's own quit
 control, so every golden replay ends on a QUIT the game posted and diverges when a control stops
@@ -725,6 +736,157 @@ truncated OLD gives a truncated NEW, whose replay matches up to its cut-off and 
 `UNUSABLE_INPUT` (65) like any truncated recording. Replacing a golden fixture with it stays a
 deliberate, reviewed step: read the summary, check the change is the intended one, then move
 NEW over the fixture yourself.
+
+## Tools for any game
+
+Every recording, replay and measurement tool belongs to the engine
+(`src/glitchygames/replay/tools/`), so a game the engine has never seen can record, replay,
+verify, rebaseline, measure, report on and graph its recordings with only the `glitchygames`
+wheel installed. A game passes itself to the engine (`GameEngine(game=Game)`) and declares
+nothing else: its package, package directory, console script and git revision all come from that
+object (`identity.py`).
+
+Each tool is reachable two ways, with the same name and the same options:
+
+- **As a flag on the game.** `GameEngine.args` adds every tool to every game's command line
+  (`uv run paddleslap --report session.jsonl.gz`). A tool that does not run the game, or runs it
+  in a harness of its own, runs in place of the game, before the engine starts pygame: no window
+  opens and no scene is built.
+- **As the `glitchygames` command** (also `python -m glitchygames`), one subcommand per tool
+  (`uv run glitchygames report session.jsonl.gz`). A subcommand whose tool runs the game starts
+  the game as a child process with the tool's flag. Arguments after a bare `--` go to that game
+  unchanged (`glitchygames record-trace paddleslap run.jsonl.gz -- --resolution 640x480`), and
+  `--project-root DIR` names the project the tool works on (default: the nearest directory up
+  whose `pyproject.toml` has `[tool.glitchygames]`, else the nearest with a `pyproject.toml`).
+
+Both front ends are generated from one table, `TOOLS` in
+`src/glitchygames/replay/tools/registry.py`, which is the reference for every flag, option,
+default and help text (`glitchygames --help` lists each tool with its options;
+`glitchygames TOOL --help` describes them). `tests/replay/tools/test_registry.py` walks the table
+and fails if a tool or option differs between the front ends, and
+`tests/replay/tools/test_an_unseen_game.py` runs every tool, both ways, on a stand-in game in its
+own git repository.
+
+| Tool | Runs the game? | On the game | As the command |
+|---|---|---|---|
+| `record-trace` | yes | `--record-trace PATH [--random-seed N] [--headless]` | `glitchygames record-trace GAME PATH` with the same options |
+| `replay-trace` | yes | `--replay-trace PATH` with `--headless`, `--replay-fps`, `--replay-pause-at-frame N`, `--audit`, `--rebaseline NEW`, `--compare-processing`, `--max-processing-slowdown PERCENT`, `--replay-digest PATH`, `--random-seed N`, `--compare-trace OLD`, `--compare-alpha PERCENT` | `glitchygames replay-trace PATH [the same options] [--game GAME]` (the game comes from the recording's header) |
+| `record-golden-trace` | in its harness | `--record-golden-trace PATH --input-script MODULE:NAME --frame-count N [--random-seed N] [--headless]` | `glitchygames record-golden-trace GAME PATH` with the same options |
+| `record-session` | in its recorder | `--record-session PATH --input-script MODULE:NAME --frame-count N [--controls-tail MODULE:NAME] [--polled-input] [--input-only-placements] [--random-seed N] [--headless]` | `glitchygames record-session GAME PATH` with the same options |
+| `verify` | in children | `--verify [PATH ...] [--only TEXT]` (default: the game's own recordings) | `glitchygames verify [PATH ...] [--only TEXT] [--game GAME ...]` (default: `[tool.glitchygames] games`) |
+| `measure` | in children | `--measure [PATH ...] [--force] [--allow-dirty \| --skip-dirty] [--only TEXT] [--code-tree TREE] [--rows-directory DIRECTORY] [--pending PATH]` | `glitchygames measure [PATH ...]` with the same options `[--game GAME ...]` |
+| `unmeasured` | no | `--unmeasured [--code-tree TREE] [--rows-directory DIRECTORY] [--pending PATH]` | `glitchygames unmeasured` with the same options `[--game GAME ...]` |
+| `clear-published` | no | `--clear-published [--pending PATH]` | `glitchygames clear-published [--pending PATH]` |
+| `report` | no | `--report PATH [--threshold PERCENT] [--minimum-ms MS] [--spans N]` | `glitchygames report PATH` with the same options |
+| `performance-pages` | no | `--performance-pages DIRECTORY [--published]` | `glitchygames performance-pages DIRECTORY [--published]` |
+
+- An option several tools list is one flag on the game: `--random-seed` (every tool that runs
+  the game) and `--headless` (the four that record or replay). `--random-seed` is never needed:
+  a recording rolls a seed (kept in it) and a replay uses the recording's. `verify` and
+  `measure` refuse one (exit 64): they always compare, and measure each recording under its own
+  seed.
+- **Rebaseline and audit are options of `replay-trace`** (`--rebaseline NEW`, `--audit`), since
+  they take the same recording and find the game the same way; so is the onion skin
+  (`--compare-trace OLD`, above). `--replay-frame-stream PORT:TOKEN` is a hidden option the
+  onion skin gives OLD's child; it is in neither front end's help.
+- **One tool at a time:** a game given two tool flags is refused (exit 64), and so is a tool
+  missing a required option (`--input-script`, `--frame-count`).
+- **Reserved names.** Every tool's flag and option is added to every game's parser, so a game
+  must not define an argument of the same name (`--threshold`, `--spans`, `--only`, `--force`,
+  ...): its parser would fail at startup. Our games are checked by a test; the full list is
+  `glitchygames --help`.
+
+### `GAME`
+
+The command's `GAME` (and `--game`) takes three forms, read in this order; the command says
+which one it used (`glitchygames replay-trace: running paddleslap (an installed console
+script)`):
+
+| `GAME` looks like | Meaning | The child it runs |
+|---|---|---|
+| contains `/` or ends in `.py` | a script path | `python <path> --<tool> ...` |
+| contains `:` | an entry point `MODULE:CALLABLE` | `python -c` calling it, with the flags in `sys.argv` |
+| a plain name | an installed console script, else an importable module | the console script's entry point, else `python -m <module>` |
+
+A plain name matching nothing is refused with all three forms named. Every form ends in the
+game's own `GameEngine(game=Game)`, which adds the flags, so the game never knows how it was
+started. `replay-trace` takes the game from the recording's header and asks for `--game` when
+that game's module no longer imports (a script that moved).
+
+### A game's own recordings
+
+`--verify` and `--measure` with no paths take the game's own recordings: the goldens that match
+`[tool.glitchygames] golden-globs` and that the game's console script replays, plus its bundled
+demos (`<package>/demos/*.jsonl.gz`; `recordings.py`). The command with no paths runs
+`GAME --verify` (or `--measure`) for each `--game`, else for each of `[tool.glitchygames]
+games`; with paths, each recording is replayed by the game its header names (or by the one
+`--game`).
+
+- `verify` replays each recording headless in a child process, prints `PASS <name>: <result>`
+  or `FAIL <name>: <exit code>: <why>` per recording and `verify: N of M recordings passed`, and exits 0 only
+  when every one matched (or none was found, which it says), 1 when the only failures diverged,
+  else the first other failure's code.
+- `measure` rebaselines each recording headless in a child into the run ledger (see
+  [Replay Performance](../quality/performance.md)), skipping what this machine already measured
+  for the game's commit. A row's commit is the game's own (its package directory's checkout),
+  not the engine's. A game with uncommitted changes, or no known commit, is refused (exit 64)
+  unless `--allow-dirty` (a trial row, never published) or `--skip-dirty` (nothing measured,
+  exit 0). `unmeasured` lists what `measure` would measure, without running a game.
+
+### Input scripts
+
+`record-golden-trace` and `record-session` drive the game with an input script:
+`--input-script MODULE:NAME` names a callable taking no arguments that returns an `InputScript`
+(`glitchygames.replay.tools.golden_traces`: `press`/`release` per frame, and placements), its
+module looked for in the current directory first. `--controls-tail MODULE:NAME` (record-session)
+names the keys played after the script's frames, ending with the game's own quit. A golden
+trace runs the game's scene in a headless harness at 1/60 second per frame and samples every
+sprite each frame; a session runs the game for real, at its own pace, with `--record-trace`.
+Our five games' scripts and controls tails are test data in `scripts/golden_inputs.py`
+(`--input-script scripts.golden_inputs:paddleslap_script`, run from the repository root);
+`scripts/record_golden_traces.py` and `scripts/record_scripted_session.py` keep only our
+games' tables and call the engine.
+
+### Project settings (`[tool.glitchygames]`)
+
+A project's settings for the tools live in `[tool.glitchygames]` in its `pyproject.toml`
+(`src/glitchygames/replay/tools/settings.py`). Every key has a default that fits a standard
+layout, so a project without the table (a player's own local runs) works as it is. Keys are
+kebab-case, an unknown key is refused by name, and every path is relative to the project root.
+A path that does not exist yet (no ledger directory before the first measurement) is created
+by the tool that writes it, or reported; it is never a traceback.
+
+| Key | Default | Ours (the root `pyproject.toml`) |
+|---|---|---|
+| `games` | the project's `[project.scripts]` | the nine members' console scripts |
+| `golden-globs` | `["tests/fixtures/replays/**/*.jsonl.gz"]` | `["src/*/*/tests/fixtures/replays/golden*.jsonl.gz"]` |
+| `ledger-directory` | `"replay-ledger"` | `"quality/replay-ledger"` |
+| `pending-ledger` | `".glitchygames/pending-ledger.jsonl"` | `"test-results/replay-metrics/pending.jsonl"` |
+| `published-ledger` | none (nothing published) | `"origin/gh-pages:quality/metrics/replay-ledger.jsonl"` (`REF:PATH`) |
+| `landed-ref` | `"origin/main"` | `"origin/main"` |
+| `measured-paths` | `["src", "tests/fixtures/replays", "pyproject.toml"]` | the same, and `uv.lock` |
+| `unmeasured-paths` | `[]` | the members' `tests/`, but for their `tests/fixtures/replays/` |
+| `recording-renames` | `{}` | each moved recording, old path to new |
+
+The project's local directory, `.glitchygames/`, holds what the tools write and nobody commits;
+it gets a `.gitignore` of `*` when it is made.
+
+### The golden-replay pytest plugin
+
+The pytest plugin `glitchygames.testing.replays` registers itself through the engine's `pytest11`
+entry point (named after its module), so every pytest run of a project with glitchygames
+installed collects that project's recordings (Golden replays, above) with no conftest line.
+
+- A project that is no game gets no item and no output from it, unless it has a
+  `fixtures/replays/<directory>/*.jsonl.gz`: a directory there that is not a console script is a
+  collection error. `pytest -p no:glitchygames.testing.replays` turns the plugin off.
+- Under a wheel install, pytest rewrites the asserts of the whole `glitchygames` package (it
+  rewrites every module of a distribution that has a `pytest11` entry point): harmless, but it
+  writes `*-pytest-*.pyc` files into `site-packages`.
+- The engine wheel also ships `glitchygames.testing.frame_comparison` (comparing the frames
+  test runs presented on different SDL drivers, with `glitchygames.testing.frame_fingerprints`,
+  which records them); `scripts/compare_driver_frames.py` and `scripts/driver_frame_matrix.py`
+  are its command lines.
 
 ## In-game playback
 

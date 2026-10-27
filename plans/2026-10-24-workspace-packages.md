@@ -15,7 +15,9 @@ merged). Part 3 (the demos) DONE on feature/workspace-packages-3a-src-layout (20
 every member in a `src/` layout; Stage B, the three demos are members of the `demos` layer and
 `src/glitchygames/examples/` and `EXAMPLES_LAYERS` are gone; Stage C, engine tests stop borrowing
 members and the guards cover every member; commits 832c76e6..abbbba09 and the C6 commits on top, the
-last hash pinned at merge; awaiting the final review; see [its
+last hash pinned at merge; then Stage D, the engine owns every recording, replay and
+measurement tool, as game flags and as the `glitchygames` command (D1-D11 done 2026-10-27,
+awaiting the final review and the user's look at `--compare-trace`); see [its
 plan](2026-10-26-workspace-packages-3-demos.md)); Part 5 (the browser IDE) NOT STARTED.
 Plan written 2026-10-24; amended 2026-10-25: everything under `src/`, decision 7; logical names
 in recordings, decision 8; where recordings live, decision 9; amended 2026-10-26: Part 4 runs
@@ -202,8 +204,10 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
   glitchygames` resolves to the installed package (Part 1). Coverage maps the installed copies
   back to `src/` (`[tool.coverage.paths]`), so the report names the files in the repository.
 - A moved recording keeps its run-ledger history (`RECORDING_PATH_RENAMES`,
-  `src/glitchygames/recording_metrics.py`, Part 1): the engine's move already moves PaddleSlap's
-  bundled demo, and every later move adds one line per moved recording (old and new path).
+  `src/glitchygames/recording_metrics.py`, Part 1; since Part 3 Stage D, the root
+  `pyproject.toml`'s `[tool.glitchygames.recording-renames]`): the engine's move already moves
+  PaddleSlap's bundled demo, and every later move adds one line per moved recording (old and new
+  path).
 - Every committed recording names its game and scenes by logical names that resolve
   (`tests/replay/test_recording_logical_names.py`, Part 1), and the engine's `MEMBER_LAYERS`
   equals the workspace (`tests/test_workspace_config.py`). Recordings change only by Part 1's
@@ -247,6 +251,14 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
 - A check of a directory's contents reads the names git tracks, never the file system, so an
   ignored file (`.DS_Store`) cannot fail it, and runs git without the ambient `GIT_*` variables,
   so it also works inside a hook (`tests/test_workspace_packages.py` `tracked_entry_names`).
+- The engine owns every recording, replay and measurement tool (Part 3, Stage D, 2026-10-27:
+  `src/glitchygames/replay/tools/`), so a game the engine has never seen can record, replay,
+  verify, rebaseline, measure, report on and graph its recordings with only the engine's wheel;
+  `scripts/` keeps only this repository's policy (our games' input scripts in
+  `scripts/golden_inputs.py`, the pre-commit hook's git staging, the docs snippets). Game flags
+  and `glitchygames` subcommands share names and options: both are generated from one table,
+  `registry.TOOLS`, and `tests/replay/tools/test_registry.py` fails if they differ;
+  `tests/replay/tools/test_an_unseen_game.py` runs every tool both ways on a stand-in game.
 
 ## Parts
 

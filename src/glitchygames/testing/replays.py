@@ -65,8 +65,10 @@ found, when pytest is capturing output. (Deferring the import was chosen over se
 still import pygame at start-up in projects that have no recording, ahead of their own
 configuration, such as this suite's tests/harness.py SDL defaults.)
 
-Recordings are made by ``--record-trace``; this project's fixtures (each member's
-``<member>/tests/fixtures/replays/``) are recorded by scripts/record_scripted_session.py.
+Recordings are made by ``--record-trace``, or by the scripted-session recorder
+(``--record-session``, glitchygames/replay/tools/scripted_sessions.py); this project's fixtures
+(each member's ``<member>/tests/fixtures/replays/``) are recorded by
+scripts/record_scripted_session.py, on that recorder.
 
 The collector follows pytest's "Working with non-python tests" example
 (https://docs.pytest.org/en/stable/example/nonpython.html).
