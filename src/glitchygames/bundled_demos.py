@@ -6,9 +6,11 @@ and its game is the console script whose entry point is in the module ``<package
 (``paddleslap:main``). ``bundled_demos`` finds them where the packages are installed
 (``importlib.util.find_spec``, which imports no game): the repository's sources under a
 development install (``uv sync`` installs editable), ``site-packages`` under a built one. It is
-the one lookup: the replay pytest plugin (``glitchygames.testing.replays.bundled_demo_paths``)
-and scripts/replay_metrics.py both call it, each with its own reaction to a demo no console
-script replays (the plugin raises; the measurement reports the demo unreplayable).
+the one lookup: the replay pytest plugin (``glitchygames.testing.replays.bundled_demo_paths``),
+a game's own recordings (``glitchygames.replay.tools.recordings``) and scripts/replay_metrics.py
+all call it, each with its own reaction to a demo no console script replays (the plugin raises;
+the measurement reports the demo unreplayable). Each caller names the packages it searches:
+there is no default (an unseen game's package is no workspace member's, Stage D, Task D5).
 
 A leaf of the engine for tools: it imports neither pygame nor a game.
 """
@@ -21,7 +23,6 @@ import importlib.util
 import operator
 from pathlib import Path
 
-from glitchygames.logical_names import MEMBER_LAYERS
 from glitchygames.tracing import is_bookmarked_copy
 
 CONSOLE_SCRIPTS_GROUP = 'console_scripts'
@@ -89,15 +90,15 @@ def package_demo_paths(*, package_directory: Path) -> list[Path]:
     )
 
 
-def bundled_demos(*, packages: tuple[str, ...] = tuple(MEMBER_LAYERS)) -> list[BundledDemo]:
+def bundled_demos(*, packages: tuple[str, ...]) -> list[BundledDemo]:
     """Return every demo bundled in an installed package, with the console script that replays it.
 
     A package that is not installed has no demos to find (``uv sync --all-packages`` installs
     every member), nor has a plain module (no directory to hold ``demos/``).
 
     Args:
-        packages: The top-level import packages to search: every workspace member's
-            (``glitchygames.logical_names.MEMBER_LAYERS``) unless given.
+        packages: The top-level import packages to search (a game's own: its identity's
+            ``package``; this repository's members: ``glitchygames.logical_names.MEMBER_LAYERS``).
 
     Returns:
         The demos, sorted by path.

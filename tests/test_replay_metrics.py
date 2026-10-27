@@ -63,6 +63,7 @@ from tests.test_recording_metrics import ledger_row, with_uncommitted_changes
 from tests.workspace_expectations import (
     EXPECTED_BUNDLED_DEMOS,
     GAMES_LAYER,
+    MEMBER_PACKAGES,
     check_every_game_holds_a_golden,
     member_goldens,
 )
@@ -532,7 +533,8 @@ class TestTheRecordings:
             if path not in goldens
         }
         engine_demos = {
-            (demo.console_script, demo.package, demo.path.name) for demo in bundled_demos()
+            (demo.console_script, demo.package, demo.path.name)
+            for demo in bundled_demos(packages=MEMBER_PACKAGES)
         }
 
         assert measured_demos == engine_demos

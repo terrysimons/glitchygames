@@ -21,10 +21,10 @@ from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.tools.children import replay_recording_headless
 from glitchygames.testing.replays import bundled_demo_paths
-from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS
+from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS, MEMBER_PACKAGES
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-BUNDLED_DEMOS = bundled_demo_paths()
+BUNDLED_DEMOS = bundled_demo_paths(packages=MEMBER_PACKAGES)
 
 
 def test_paddleslap_ships_a_demo():
@@ -34,7 +34,7 @@ def test_paddleslap_ships_a_demo():
     non-editable. This is the replay test's expected set (an empty parametrization would skip,
     not fail), so the demos it replays are exactly these.
     """
-    demos = bundled_demos()
+    demos = bundled_demos(packages=MEMBER_PACKAGES)
     members = workspace_members(project_root=PROJECT_ROOT)
 
     assert {(demo.package, demo.path.name) for demo in demos} == EXPECTED_BUNDLED_DEMOS

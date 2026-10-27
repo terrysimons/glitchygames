@@ -62,7 +62,6 @@ import pytest
 
 from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
-from glitchygames.logical_names import MEMBER_LAYERS
 from glitchygames.replay.tools.children import (
     REPLAY_FIXTURES_PATH_PARTS,
     recording_console_script,
@@ -125,9 +124,7 @@ def is_under_replay_fixtures(*, directory: Path) -> bool:
     )
 
 
-def bundled_demo_paths(
-    *, packages: tuple[str, ...] = tuple(MEMBER_LAYERS)
-) -> list[tuple[str, Path]]:
+def bundled_demo_paths(*, packages: tuple[str, ...]) -> list[tuple[str, Path]]:
     """Return every demo bundled in an installed package, with the console script that replays it.
 
     The demos are ``glitchygames.bundled_demos.bundled_demos``'s (the one lookup, which
@@ -135,8 +132,8 @@ def bundled_demo_paths(
     replays is to refuse it.
 
     Args:
-        packages: The top-level import packages to search: every workspace member's
-            (``glitchygames.logical_names.MEMBER_LAYERS``) unless given.
+        packages: The top-level import packages to search (there is no default, as
+            ``bundled_demos`` has none).
 
     Returns:
         ``(console script, demo path)`` pairs, sorted by path.

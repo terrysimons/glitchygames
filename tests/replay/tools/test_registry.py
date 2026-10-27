@@ -72,6 +72,10 @@ THE_THREE_GAME_FORMS = (
 )
 # The command's console script ([project.scripts])
 COMMAND_CONSOLE_SCRIPT = 'glitchygames'
+# The one option the command has that no game flag has: --game, which names the game to run
+# (replay-trace's game when its recording's no longer imports; verify's games, repeatable). A
+# game needs no --game: it is the game. Every other option is the same on both front ends
+COMMAND_ONLY_FLAGS = frozenset({'--game'})
 
 
 class FlagToolScene(Scene):
@@ -196,6 +200,7 @@ def test_each_tools_options_match_on_both_front_ends():
     """
     game = game_parser()
     subcommands = subcommand_parsers(parser=build_command_parser())
+    every_command_only_flag: set[str] = set()
     for tool in TOOLS:
         subcommand = subcommands[tool.name]
         # Each option's first flag (a switch's second is its --no- form)
@@ -208,6 +213,9 @@ def test_each_tools_options_match_on_both_front_ends():
         command_only = {
             argument.flag for argument in tool.command_arguments if not argument.positional
         }
+        # The documented exemption, and only it (COMMAND_ONLY_FLAGS)
+        assert command_only <= COMMAND_ONLY_FLAGS, tool.name
+        every_command_only_flag |= command_only
         assert tool_flags - command_only == {option.flag for option in tool.options}, tool.name
         for option in tool.options:
             on_the_game = action_for(parser=game, flag=option.flag)
@@ -219,6 +227,8 @@ def test_each_tools_options_match_on_both_front_ends():
         assert not command_only & {
             flag for action in game._actions for flag in action.option_strings
         }
+    # The exemption names nothing no tool needs
+    assert every_command_only_flag == COMMAND_ONLY_FLAGS
 
 
 def test_the_existing_trace_flags_are_unchanged():
@@ -920,6 +930,13 @@ EVERY_KIND_OPTIONS: tuple[tuple[ToolOptionKind, list[str], object, list[str]], .
     ('switch', ['--a-switch'], True, ['--a-switch']),
     ('reference', ['--a-reference', 'm:n'], 'm:n', ['--a-reference', 'm:n']),
     ('game', ['--a-game', 'g'], 'g', ['--a-game', 'g']),
+    (
+        'games',
+        ['--a-games', 'g', '--a-games', 'h'],
+        ['g', 'h'],
+        ['--a-games', 'g', '--a-games', 'h'],
+    ),
+    ('text', ['--a-text', 'gold'], 'gold', ['--a-text', 'gold']),
 )
 
 

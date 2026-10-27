@@ -14,7 +14,11 @@ from glitchygames.recording import SCENE_START_FIELD
 from glitchygames.replay.driver import GAME_HEADER_FIELD
 from glitchygames.testing.replays import bundled_demo_paths
 from glitchygames.tracing import TraceReader, read_trace
-from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS, every_games_golden
+from tests.workspace_expectations import (
+    EXPECTED_BUNDLED_DEMOS,
+    MEMBER_PACKAGES,
+    every_games_golden,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 COMMITTED_RECORDINGS = sorted([
@@ -24,7 +28,7 @@ COMMITTED_RECORDINGS = sorted([
         for member in workspace_members(project_root=PROJECT_ROOT)
         for recording in member.replay_fixtures_directory.glob('*.jsonl.gz')
     ),
-    *(path for _console_script, path in bundled_demo_paths()),
+    *(path for _console_script, path in bundled_demo_paths(packages=MEMBER_PACKAGES)),
 ])
 
 
@@ -83,7 +87,7 @@ def test_the_committed_recordings_are_all_checked():
     by path). An empty parametrization above would skip, not fail; this cannot pass on zero.
     """
     goldens = every_games_golden(project_root=PROJECT_ROOT)
-    demos = bundled_demos()
+    demos = bundled_demos(packages=MEMBER_PACKAGES)
     unresolved: list[tuple[Path, object]] = []
     for recording in [*goldens, *(demo.path for demo in demos)]:
         with TraceReader(path=recording) as reader:

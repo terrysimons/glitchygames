@@ -45,6 +45,7 @@ from glitchygames.replay.tools.traces import (
     record_trace_command,
     replay_trace_command,
 )
+from glitchygames.replay.tools.verify import verify_command, verify_on_the_game
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -62,9 +63,21 @@ HELP_WIDTH = 80
 
 # How a ToolOption's value is read: a path, several paths, an integer, a count (an integer >= 0),
 # a percentage >= 0, one of its choices, an on flag (store_true), an on/off switch
-# (--x/--no-x), a MODULE:NAME reference, or a game (children.GAME_FORMS)
+# (--x/--no-x), a MODULE:NAME reference, a game (children.GAME_FORMS), games (the option given
+# once per game: --game a --game b), or plain text
 type ToolOptionKind = Literal[
-    'path', 'paths', 'int', 'count', 'percent', 'choice', 'flag', 'switch', 'reference', 'game'
+    'path',
+    'paths',
+    'int',
+    'count',
+    'percent',
+    'choice',
+    'flag',
+    'switch',
+    'reference',
+    'game',
+    'games',
+    'text',
 ]
 # What a tool's own flag takes: one path (--replay-trace PATH), several (--verify [PATH ...]) or
 # no value at all (--unmeasured)
@@ -83,6 +96,8 @@ KIND_SETTINGS: dict[ToolOptionKind, dict[str, Any]] = {
     'switch': {'action': argparse.BooleanOptionalAction},
     'reference': {},
     'game': {},
+    'games': {'action': 'append'},
+    'text': {},
 }
 
 
@@ -267,6 +282,10 @@ def option_on_the_command_line(*, option: ToolOption, value: object) -> list[str
     """
     if option.kind == 'switch' and value is False:
         return [f'--no-{option.flag.removeprefix("--")}']
+    if option.kind == 'games':
+        # argparse's action='append': the option once per game, as it was given
+        games = cast('list[str]', value)
+        return [part for game in games for part in (option.flag, game)]
     return [option.flag, *flag_values(kind=option.kind, value=value)]
 
 
@@ -775,6 +794,28 @@ GAME_OVERRIDE_OPTION = ToolOption(
         f"game the recording's header names): {GAME_FORMS_TEXT}"
     ),
 )
+# verify's option: which of the recordings to verify
+ONLY_OPTION = ToolOption(
+    flag='--only',
+    kind='text',
+    metavar='TEXT',
+    help=(
+        'with --verify: verify only the recordings whose path (relative to the project, for '
+        'one inside it) contains TEXT'
+    ),
+)
+# The command's verify takes the games whose recordings it verifies (none given: the project's
+# [tool.glitchygames] games); a game verifying itself needs none
+GAMES_OPTION = ToolOption(
+    flag='--game',
+    kind='games',
+    metavar='GAME',
+    help=(
+        "a game whose own recordings to verify, given once per game (default: the project's "
+        '[tool.glitchygames] games); with PATHs, the one game that replays them (default: the '
+        f"game each recording's header names): {GAME_FORMS_TEXT}"
+    ),
+)
 
 TOOLS: tuple[Tool, ...] = (
     Tool(
@@ -851,5 +892,23 @@ TOOLS: tuple[Tool, ...] = (
         command_handler=record_session_command,
         value_help='where the recording goes',
         command_arguments=(GAME_ARGUMENT,),
+    ),
+    Tool(
+        name='verify',
+        help=(
+            'replay recordings headless, each in a child process, and print one line per '
+            "recording saying whether it matched (default: the game's own goldens and bundled "
+            f'demos); exits {ExitCode.SUCCESS:d} only when every one matched (or none was '
+            f'found), {ExitCode.REPLAY_DIVERGED:d} when the only failures are divergences, '
+            "otherwise the first other failure's exit code (default: off)"
+        ),
+        options=(ONLY_OPTION,),
+        runs_game=True,
+        # The game's recordings are replayed by children; the game itself never runs
+        game_handler=verify_on_the_game,
+        command_handler=verify_command,
+        value_kind='paths',
+        value_help=("the recordings to verify (default: the games' own goldens and bundled demos)"),
+        command_arguments=(GAMES_OPTION,),
     ),
 )

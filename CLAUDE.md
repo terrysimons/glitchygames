@@ -494,7 +494,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`, `--headless`,
   `--record-golden-trace PATH` with `--input-script MODULE:NAME`, `--frame-count N`,
   `--random-seed` and `--headless`, `--record-session PATH` with those and `--controls-tail
-  MODULE:NAME`, `--polled-input`, `--input-only-placements`), and `GameEngine.__init__`
+  MODULE:NAME`, `--polled-input`, `--input-only-placements`, `--verify [PATH ...]` with
+  `--only TEXT`), and `GameEngine.__init__`
   (`_run_game_flag_tool`, before the engine starts pygame or opens a window) runs a tool with a
   game handler in its place and exits with its code: one that doesn't run the game, or one that
   runs it its own way (record-golden-trace in the golden-trace harness, record-session in the
@@ -505,7 +506,19 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   (`glitchygames record-trace GAME PATH`, `glitchygames replay-trace PATH [--game GAME]`,
   `glitchygames record-golden-trace GAME PATH --input-script MODULE:NAME --frame-count N`,
   `glitchygames record-session GAME PATH --input-script MODULE:NAME --frame-count N`,
-  `--project-root DIR`; arguments after a bare `--` go to the game). It starts the game as a child
+  `glitchygames verify [PATH ...] [--only TEXT] [--game GAME ...]`,
+  `--project-root DIR`; arguments after a bare `--` go to the game). `--game` is the one
+  command-only option (`COMMAND_ONLY_FLAGS` in `tests/replay/tools/test_registry.py`): a game needs
+  none, it is the game. `verify` (`verify.py`) replays each recording headless in a child (no
+  seed: it always compares), prints `PASS|FAIL <name>: <why>` per recording and `verify: N of M
+  recordings passed`, and exits SUCCESS only when all matched (or none was found, which it says),
+  REPLAY_DIVERGED when the only failures diverged, else the first other failure's code. On the
+  game it runs from `__init__` (the game is never built) and replays through the game started
+  again (`children.running_game_command`); with no PATHs it verifies the game's own recordings
+  (`recordings.game_recordings(*, identity, settings, project_root)`: the `golden-globs` goldens
+  its console script replays, plus `<package>/demos/*.jsonl.gz`). The command with no PATHs runs
+  `GAME --verify` per game (`--game`, else `[tool.glitchygames] games`); with PATHs each is
+  replayed by the game its header names (or the one `--game`). It starts the game as a child
   (`children.py`: `resolve_game` reads `GAME` as a script path, `MODULE:CALLABLE`, an installed
   console script or a module; `replay-trace` takes the game from the recording's header and asks
   for `--game` when its module no longer imports). `children.py` also holds the console-script
@@ -586,9 +599,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - Bundled demos (Part 3 Task 4): a workspace member's `<package>/demos/<name>.jsonl.gz` ships in
   its wheel as package data (hatch includes every file in the package; no pyproject change).
   One engine lookup finds them in the installed packages,
-  `glitchygames.bundled_demos.bundled_demos()` (`BundledDemo`: console script, path, install
-  name); the replay plugin's `bundled_demo_paths`
-  and scripts/replay_metrics.py call it. Development installs are editable (`uv sync`; the
+  `glitchygames.bundled_demos.bundled_demos(*, packages)` (`BundledDemo`: console script, path,
+  install name; `packages` is required, no default since Stage D Task D5: a game passes its own,
+  our tests `tests/workspace_expectations.MEMBER_PACKAGES`); the replay plugin's
+  `bundled_demo_paths(*, packages)`, `replay/tools/recordings.py` and scripts/replay_metrics.py
+  call it. Development installs are editable (`uv sync`; the
   `replay-metrics` nox session runs `uv run --all-packages`), so the ledger names a demo by its
   repository path; outside a repository, by its install name. PaddleSlap's is
   `src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz`. PaddleSlap has no title screen, so its

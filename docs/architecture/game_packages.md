@@ -379,7 +379,8 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
 - **Bundled demos** ship inside the package as package data, `<package>/demos/<name>.jsonl.gz`
   (PaddleSlap's `paddleslap/demos/rally.jsonl.gz`, read through `Path(__file__).parent`). The
   engine finds them in the installed packages: `glitchygames.bundled_demos.bundled_demos()`
-  (`find_spec` over `MEMBER_LAYERS`; bookmarked copies left out) returns `BundledDemo` records
+  (`find_spec` over the packages its caller names, with no default; bookmarked copies left out)
+  returns `BundledDemo` records
   (console script, installed path, install name). It is the one lookup: the replay plugin's
   `bundled_demo_paths` (which raises for a demo no console script replays) and
   `scripts/replay_metrics.py` (which reports it unreplayable) both call it. Development installs

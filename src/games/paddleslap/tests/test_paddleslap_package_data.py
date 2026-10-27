@@ -13,6 +13,6 @@ RALLY_DEMO_PATH = Path(paddleslap.__file__).parent / 'demos' / 'rally.jsonl.gz'
 
 def test_bundled_demos_are_found_in_member_packages():
     """The rally demo is found inside the paddleslap package and replayed by its console script."""
-    assert ('paddleslap', RALLY_DEMO_PATH) in bundled_demo_paths()
+    assert ('paddleslap', RALLY_DEMO_PATH) in bundled_demo_paths(packages=('paddleslap',))
     assert RALLY_DEMO_PATH == paddleslap.PADDLESLAP_DEMO_PATH
     assert RALLY_DEMO_PATH.is_file()

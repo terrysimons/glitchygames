@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import dataclasses
+import inspect
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
@@ -14,12 +16,15 @@ from glitchygames.bundled_demos import (
     package_demo_paths,
 )
 from glitchygames.replay.driver import write_bookmarked_copy
+from glitchygames.testing.replays import bundled_demo_paths
 from tests.stand_in_games import (
     write_stand_in_distribution,
     write_stand_in_package,
     write_stand_in_recording,
 )
-from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # A stand-in recording's frames: a bookmark on frame 2 needs at least 2, and 3 leaves a frame
 # after the bookmark
@@ -127,17 +132,19 @@ def test_packages_without_demos_and_those_not_installed_have_none(tmp_path, monk
     assert demos == []
 
 
-def test_every_member_package_is_searched_by_default():
-    """Without packages, the demos come from every workspace member's (MEMBER_LAYERS), sorted.
+def test_the_packages_to_search_are_always_given():
+    """No default: a caller names the packages it searches (Stage D, Task D5).
 
-    By ``(package, name)``, never by a path re-derived from the package directories: nox's test
-    sessions install the members non-editable.
+    The default was every workspace member's (``MEMBER_LAYERS``), which an unseen game is not;
+    a game's own demos are its package's (``glitchygames.replay.tools.recordings``).
     """
-    demos = bundled_demos()
+    for lookup in (bundled_demos, bundled_demo_paths):
+        packages = inspect.signature(lookup).parameters['packages']
 
-    assert {(demo.package, demo.path.name) for demo in demos} == EXPECTED_BUNDLED_DEMOS
-    assert all(demo.path.parent.name == BUNDLED_DEMO_DIRECTORY_NAME for demo in demos)
-    assert [demo.path for demo in demos] == sorted(demo.path for demo in demos)
+        assert packages.default is inspect.Parameter.empty, lookup.__name__
+        with pytest.raises(TypeError, match='packages'):
+            # Called as a caller that names no packages would call it
+            cast('Callable[[], object]', lookup)()
 
 
 def test_a_console_script_is_found_by_the_module_of_its_entry_point(tmp_path, monkeypatch):

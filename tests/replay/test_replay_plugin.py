@@ -29,6 +29,7 @@ from tests.stand_in_games import (
     write_stand_in_package,
     write_stand_in_recording,
 )
+from tests.workspace_expectations import MEMBER_PACKAGES
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -366,7 +367,9 @@ def test_bundled_demo_paths_refuses_a_demo_of_a_game_without_a_console_script(
 
 def test_bundled_demo_paths_are_exactly_the_engines_bundled_demos():
     """The plugin reports the engine's lookup (glitchygames.bundled_demos), nothing of its own."""
-    assert bundled_demo_paths() == [(demo.console_script, demo.path) for demo in bundled_demos()]
+    assert bundled_demo_paths(packages=MEMBER_PACKAGES) == [
+        (demo.console_script, demo.path) for demo in bundled_demos(packages=MEMBER_PACKAGES)
+    ]
 
 
 # A conftest for an in-process inner run: it takes the plugin's collection hook by import, so

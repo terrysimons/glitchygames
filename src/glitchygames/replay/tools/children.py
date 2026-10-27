@@ -342,11 +342,26 @@ def entry_point_command(*, entry_point: importlib.metadata.EntryPoint) -> list[s
     return [sys.executable, '-c', load_and_call]
 
 
+def headless_replay_arguments(*, recording: Path) -> list[str]:
+    """Return a game's arguments that replay a recording headless, its log quiet.
+
+    No ``--random-seed``: the replay takes the recording's own, so it compares every frame
+    (Stage D's decision 17).
+
+    Args:
+        recording: The recording to replay.
+
+    Returns:
+        ``--replay-trace``, the recording, ``--headless`` and a quiet log level.
+
+    """
+    return ['--replay-trace', str(recording), '--headless', '--log-level', 'warning']
+
+
 def replay_command(*, entry_point: importlib.metadata.EntryPoint, recording: Path) -> list[str]:
     """Build the child command that replays a recording headless through a game's entry point.
 
-    The child is ``entry_point_command``'s, with ``--replay-trace``, ``--headless`` and a quiet
-    log level.
+    The child is ``entry_point_command``'s, with ``headless_replay_arguments``.
 
     Args:
         entry_point: The game's console script entry point.
@@ -358,12 +373,36 @@ def replay_command(*, entry_point: importlib.metadata.EntryPoint, recording: Pat
     """
     return [
         *entry_point_command(entry_point=entry_point),
-        '--replay-trace',
-        str(recording),
-        '--headless',
-        '--log-level',
-        'warning',
+        *headless_replay_arguments(recording=recording),
     ]
+
+
+def running_game_command() -> list[str]:
+    """Return the command that starts this process's game again, without the game's arguments.
+
+    This process's interpreter (``sys.executable``), then what its command line named before the
+    game's own arguments (``sys.orig_argv``, whose tail is ``sys.argv[1:]``): a script
+    (``game.py``), a module (``-m game``), code (``-c ...``) or an installed console script's
+    executable, with any interpreter options before them. A game given a tool flag uses it to
+    replay recordings through itself, however it was started, console script or not.
+
+    Returns:
+        The command, as an argument list.
+
+    Raises:
+        RuntimeError: If this process's arguments are no longer the tail of its command line
+            (changed after it started), so where the program ends can't be told.
+
+    """
+    game_arguments = sys.argv[1:]
+    program_end = len(sys.orig_argv) - len(game_arguments)
+    if program_end < 1 or sys.orig_argv[program_end:] != game_arguments:
+        message = (
+            'cannot tell how this game was started: its arguments are not the end of its '
+            f'command line ({sys.orig_argv!r})'
+        )
+        raise RuntimeError(message)
+    return [sys.executable, *sys.orig_argv[1:program_end]]
 
 
 def replay_recording_headless(*, console_script: str, path: Path) -> CompletedProcess[str]:

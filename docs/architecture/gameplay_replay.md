@@ -742,8 +742,9 @@ game-over screen plays after 10 seconds without a press. The engine finds them, 
 installed game, with `glitchygames.bundled_demos.bundled_demos()`: each `BundledDemo` (a frozen
 record) holds the game's console script (None when no installed console script is in the
 package), the demo's installed path and its install name (`paddleslap/demos/rally.jsonl.gz`,
-the same under any install). It searches the installed packages `MEMBER_LAYERS` names
-(`importlib.util.find_spec`, importing no game), leaves out bookmarked copies and sorts them by
+the same under any install). It searches the installed packages its caller names (required,
+with no default: a game's own package for `--verify`, `MEMBER_LAYERS`' for our tests;
+`importlib.util.find_spec`, importing no game), leaves out bookmarked copies and sorts them by
 path. `tests/replay/test_bundled_demos.py` replays every one headless (through
 `glitchygames.testing.replays.bundled_demo_paths`, which refuses a demo nothing replays), so a
 change that makes a demo diverge fails in CI before it ships; scripts/replay_metrics.py measures

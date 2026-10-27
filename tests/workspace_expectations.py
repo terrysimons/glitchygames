@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 from scripts.workspace_packages import members_in_layer
 
+from glitchygames.logical_names import MEMBER_LAYERS
 from glitchygames.tracing import is_bookmarked_copy
 
 if TYPE_CHECKING:
@@ -37,6 +38,10 @@ GOLDEN_SUFFIX = '.jsonl.gz'
 # (src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz). Never by path: nox's test sessions
 # install the members non-editable, so a demo's path is in site-packages there
 EXPECTED_BUNDLED_DEMOS = frozenset({('paddleslap', 'rally.jsonl.gz')})
+# The import packages whose bundled demos the workspace's tests search: every member's
+# (glitchygames.bundled_demos.bundled_demos takes them explicitly, with no default: Stage D,
+# Task D5)
+MEMBER_PACKAGES = tuple(MEMBER_LAYERS)
 # The goldens, by (games-layer distribution, file name), written out by hand: every games-layer
 # member holds at least one, Brave Adventurer one per game (5 games, 6 goldens)
 EXPECTED_GOLDENS = frozenset({

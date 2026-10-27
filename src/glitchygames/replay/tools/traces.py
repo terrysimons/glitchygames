@@ -29,6 +29,7 @@ The command says on standard error which game it runs and how it read it.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import sys
 from pathlib import Path
@@ -167,25 +168,98 @@ def record_trace_command(
     )
 
 
-def ask_for_game(*, tool: Tool, reason: str) -> ExitCode:
-    """Say that the recording's game can't be found, and how to name it with ``--game``.
+def asking_for_game(*, reason: str) -> str:
+    """Say that a recording's game can't be found, and how to name it with ``--game``.
 
     Args:
-        tool: The tool.
         reason: Why the recording's game can't be found.
 
     Returns:
-        ``ExitCode.OPTIONS_REFUSED``.
+        The message.
 
     """
-    say(tool=tool, message=f'{reason}; name the game with --game GAME ({"; ".join(GAME_FORMS)})')
-    return ExitCode.OPTIONS_REFUSED
+    return f'{reason}; name the game with --game GAME ({"; ".join(GAME_FORMS)})'
+
+
+@dataclasses.dataclass(frozen=True)
+class RecordedGameRefusal:
+    """Why a recording's own game can't replay it (``find_recorded_game``).
+
+    Attributes:
+        exit_code: How the tool ends for it: ``ExitCode.MISSING_INPUT`` (no recording),
+            ``ExitCode.UNUSABLE_INPUT`` (not a recording) or ``ExitCode.OPTIONS_REFUSED`` (its
+            game can't be found: ``--game`` names it).
+        reason: Why, in a line (``asking_for_game``'s, for a game that can't be found).
+
+    """
+
+    exit_code: ExitCode
+    reason: str
+
+
+def find_recorded_game(
+    *, recording: Path, project_root: Path
+) -> tuple[str, GameLaunch] | RecordedGameRefusal:
+    """Find the game a recording's header names: the console script that starts its module.
+
+    Args:
+        recording: The recording.
+        project_root: The project (where the game's module may be found too).
+
+    Returns:
+        The console script and how to start it, or why it can't be found.
+
+    """
+    try:
+        game_module = recorded_game_module(path=recording)
+    except FileNotFoundError:
+        return RecordedGameRefusal(
+            exit_code=ExitCode.MISSING_INPUT, reason=f'{recording}: no such recording'
+        )
+    # A TraceFormatError is a ValueError
+    except OSError, ValueError:
+        return RecordedGameRefusal(
+            exit_code=ExitCode.UNUSABLE_INPUT, reason=f'{recording}: not a readable recording'
+        )
+    except KeyError as error:
+        return game_not_found(reason=f'{error.args[0]}, so it names no game')
+    if not module_is_importable(module=game_module, search_directory=project_root):
+        return game_not_found(
+            reason=f"{recording}: its game's module {game_module!r} no longer imports"
+        )
+    try:
+        console_script = console_script_for_game_module(
+            entry_points=installed_console_scripts(), game_module=game_module
+        )
+    except KeyError as error:
+        return game_not_found(
+            reason=f'{recording}: no one console script starts it ({error.args[0]})'
+        )
+    entry_point = game_entry_point(console_script=console_script)
+    return console_script, GameLaunch(
+        form='console-script', command=entry_point_command(entry_point=entry_point)
+    )
+
+
+def game_not_found(*, reason: str) -> RecordedGameRefusal:
+    """Refuse a recording whose game can't be found, asking for ``--game``.
+
+    Args:
+        reason: Why its game can't be found.
+
+    Returns:
+        ``ExitCode.OPTIONS_REFUSED``, with ``asking_for_game``'s message.
+
+    """
+    return RecordedGameRefusal(
+        exit_code=ExitCode.OPTIONS_REFUSED, reason=asking_for_game(reason=reason)
+    )
 
 
 def recorded_game_launch(
     *, tool: Tool, recording: Path, arguments: argparse.Namespace
 ) -> tuple[str, GameLaunch] | ExitCode:
-    """Find the game a recording's header names: the console script that starts its module.
+    """Find the game a recording's header names, saying on standard error why when it can't.
 
     Args:
         tool: The replay-trace tool.
@@ -193,41 +267,15 @@ def recorded_game_launch(
         arguments: The subcommand's parsed arguments (``--project-root``).
 
     Returns:
-        The console script and how to start it; or the exit code when it can't be found:
-        ``ExitCode.MISSING_INPUT`` (no recording), ``ExitCode.UNUSABLE_INPUT`` (not a
-        recording) or ``ExitCode.OPTIONS_REFUSED`` (its game can't be found: ``--game``).
+        The console script and how to start it (``find_recorded_game``); or the exit code
+        when it can't be found.
 
     """
-    try:
-        game_module = recorded_game_module(path=recording)
-    except FileNotFoundError:
-        say(tool=tool, message=f'{recording}: no such recording')
-        return ExitCode.MISSING_INPUT
-    # A TraceFormatError is a ValueError
-    except OSError, ValueError:
-        say(tool=tool, message=f'{recording}: not a readable recording')
-        return ExitCode.UNUSABLE_INPUT
-    except KeyError as error:
-        return ask_for_game(tool=tool, reason=f'{error.args[0]}, so it names no game')
-    if not module_is_importable(
-        module=game_module, search_directory=project_root(arguments=arguments)
-    ):
-        return ask_for_game(
-            tool=tool,
-            reason=f"{recording}: its game's module {game_module!r} no longer imports",
-        )
-    try:
-        console_script = console_script_for_game_module(
-            entry_points=installed_console_scripts(), game_module=game_module
-        )
-    except KeyError as error:
-        return ask_for_game(
-            tool=tool, reason=f'{recording}: no one console script starts it ({error.args[0]})'
-        )
-    entry_point = game_entry_point(console_script=console_script)
-    return console_script, GameLaunch(
-        form='console-script', command=entry_point_command(entry_point=entry_point)
-    )
+    found = find_recorded_game(recording=recording, project_root=project_root(arguments=arguments))
+    if isinstance(found, RecordedGameRefusal):
+        say(tool=tool, message=found.reason)
+        return found.exit_code
+    return found
 
 
 def replay_trace_command(
