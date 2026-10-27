@@ -185,7 +185,8 @@ def _milliseconds(seconds: float) -> float:
 
 
 def _hover_detail(*, row: LedgerRow) -> str:
-    revision = row.run.source_revision
+    # The game's commit date, as the row's commit is the game's
+    revision = row.run.game_or_engine_revision
     committed = '' if revision is None or revision.committed_at is None else revision.committed_at
     parts = [f'committed {committed[:10]}', f'measured {row.run.measured_at[:16]}']
     if row.frame_count is not None:

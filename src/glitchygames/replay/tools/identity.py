@@ -12,7 +12,9 @@ The game passes itself to the engine (``GameEngine(game=Game)``) and declares no
   in that package and starts the game's module (``children.console_script_for_game_module``);
 - **distribution**: the installed distribution that holds the package
   (``importlib.metadata.packages_distributions``), else the console script's distribution (an
-  editable install's metadata lists no packages, only its ``.pth`` file).
+  editable install's metadata lists no packages, only its ``.pth`` file);
+- **source revision** (``game_source_revision``): the package directory's commit, looked up as
+  the engine's own is; each run records it beside the engine's, and a ledger row names it.
 
 Whatever isn't found is None: a game no console script starts, or one no distribution holds, still
 has an identity.
@@ -27,6 +29,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from glitchygames.build_info import package_source_revision
 from glitchygames.replay.tools.children import (
     console_script_for_game_module,
     installed_console_scripts,
@@ -36,6 +39,7 @@ if TYPE_CHECKING:
     from importlib.machinery import ModuleSpec
     from importlib.metadata import EntryPoint
 
+    from glitchygames.build_info import SourceRevision
     from glitchygames.scenes import Scene
 
 # What separates an entry point's module from its callable (``paddleslap:main``)
@@ -152,3 +156,29 @@ def game_identity(*, game: type[Scene] | Scene) -> GameIdentity:
         console_script=None if entry_point is None else entry_point.name,
         distribution=distribution_of(package=package, entry_point=entry_point),
     )
+
+
+def game_source_revision(*, game: type[Scene] | Scene) -> SourceRevision | None:
+    """Return the source revision of a game's package: the commit a ledger row names.
+
+    Looked up in the game's package directory (``GameIdentity.package_directory``) as the
+    engine's is in its own (``glitchygames.build_info.package_source_revision``: a checkout
+    that tracks the package, then an archive, then a build stamp, else unknown), so a game
+    outside this repository names its own commit. Only the directory is looked up here, with
+    the function ``game_identity`` uses for it: the console script and distribution lookups
+    scan every installed distribution (a third of a second), and a run looks this up as it
+    starts.
+
+    Args:
+        game: The game's scene class, as passed to ``GameEngine(game=...)``, or a scene.
+
+    Returns:
+        The revision (``UNKNOWN_REVISION`` when none answered), or None when the game's package
+        directory can't be found: the run then names only the engine's.
+
+    """
+    scene_class = game if isinstance(game, type) else type(game)
+    package_directory = package_directory_of(package=scene_class.__module__.partition('.')[0])
+    if package_directory is None:
+        return None
+    return package_source_revision(package_directory=package_directory)

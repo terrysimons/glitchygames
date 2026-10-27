@@ -112,6 +112,7 @@ from glitchygames.replay.rebuild import (
     relaunch_replay,
     restart_command,
 )
+from glitchygames.replay.tools.identity import game_source_revision
 from glitchygames.replay.tools.registry import add_game_flags, run_game_flag_tool
 from glitchygames.replay.viewer import run_watched_replay_async
 from glitchygames.scenes import Scene, SceneManager
@@ -809,7 +810,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 destination=Path(rebaseline_path),
                 # A headless replay: its frames are not paced
                 measurement_run=self.measurement_run(
-                    processing_paced=False, rebaselined_from=options['replay_trace']
+                    game=game, processing_paced=False, rebaselined_from=options['replay_trace']
                 ),
                 game_class=type(game) if isinstance(game, Scene) else game,
             )
@@ -1448,14 +1449,22 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         return scene.NAME or scene.__class__.__name__
 
     def measurement_run(
-        self: Self, *, processing_paced: bool, rebaselined_from: str | None
+        self: Self,
+        *,
+        game: type[Scene] | Scene,
+        processing_paced: bool,
+        rebaselined_from: str | None,
     ) -> MeasurementRun:
         """Return this run's provenance for a recording's ``measurement_runs`` (newest first).
 
         Its ``measured_at`` is the real time now: provenance only, never replayed or served to
-        the game (tests/test_engine_doors.py allows this read for that reason).
+        the game (tests/test_engine_doors.py allows this read for that reason). It names the
+        game's source revision beside the engine's (``game_source_revision``): a ledger row's
+        commit is the game's, so a game outside this repository names its own.
 
         Args:
+            game: The game scene class or instance (a rebaseline names its run before
+                ``GameEngine.game`` is set).
             processing_paced: Whether the run paces its frames (a live run with a target FPS; a
                 rebaseline, a headless replay, is not paced).
             rebaselined_from: The recording this run rebaselines, or None for a fresh recording.
@@ -1483,6 +1492,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             hash_scheme=CONTENT_HASH_SCHEME,
             pacing_timer=pacing_timer,
             source_revision=engine_source_revision(),
+            game_source_revision=game_source_revision(game=game),
             machine_state=current_machine_state(),
         )
 
@@ -1523,7 +1533,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # paces its frames when it has a target FPS (0 is uncapped)
             MEASUREMENT_RUNS_HEADER_FIELD: [
                 self.measurement_run(
-                    processing_paced=self.scene_manager.target_fps > 0, rebaselined_from=None
+                    game=game_class,
+                    processing_paced=self.scene_manager.target_fps > 0,
+                    rebaselined_from=None,
                 ).to_json()
             ],
         }

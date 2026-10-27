@@ -5476,6 +5476,11 @@ class TestProcessingComparison:
             if imported_engine_is_the_checkouts()
             else RevisionSource.BUILD_STAMP
         )
+        # The game's revision beside it (glitchygames/replay/tools/identity.py): the harness's
+        # game is in this checkout's tests package, so it names the engine's commit
+        assert run.game_source_revision is not None
+        assert run.game_source_revision.source is RevisionSource.GIT_CHECKOUT
+        assert run.game_source_revision.commit == run.source_revision.commit
         # The machine's state as the run started (glitchygames/machine_state.py)
         assert run.machine_state is not None
         assert run.machine_state == current_machine_state()

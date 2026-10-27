@@ -80,18 +80,20 @@ GIT_TIMEOUT_SECONDS = 30.0
 
 
 def short_commit(*, run: MeasurementRun | None) -> str | None:
-    """Return a run's commit, abbreviated.
+    """Return a run's commit, abbreviated: the game's, else the engine's.
 
     Args:
         run: The run, or None (unreadable).
 
     Returns:
-        The first ``SHORT_COMMIT_DIGITS`` digits of its commit, or None when unknown.
+        The first ``SHORT_COMMIT_DIGITS`` digits of its commit
+        (``MeasurementRun.game_or_engine_revision``), or None when unknown.
 
     """
-    if run is None or run.source_revision is None or run.source_revision.commit is None:
+    revision = None if run is None else run.game_or_engine_revision
+    if revision is None or revision.commit is None:
         return None
-    return run.source_revision.commit[:SHORT_COMMIT_DIGITS]
+    return revision.commit[:SHORT_COMMIT_DIGITS]
 
 
 def machine_label(*, run: MeasurementRun) -> str:
@@ -758,14 +760,21 @@ class LedgerRow(BaseModel):
 
     @property
     def commit(self: Self) -> str | None:
-        """The run's full commit, or None when unknown."""
-        revision = self.run.source_revision
+        """The run's full commit, or None when unknown.
+
+        The game's (``MeasurementRun.game_or_engine_revision``): the engine's only for a run
+        from before ``game_source_revision``, or of a game whose package was not found.
+        """
+        revision = self.run.game_or_engine_revision
         return None if revision is None else revision.commit
 
     @property
     def measured_uncommitted_changes(self: Self) -> bool:
-        """Whether the run's checkout had uncommitted changes (unknown counts as none)."""
-        revision = self.run.source_revision
+        """Whether the run's checkout had uncommitted changes (unknown counts as none).
+
+        The game's checkout, as for ``commit``.
+        """
+        revision = self.run.game_or_engine_revision
         return revision is not None and bool(revision.uncommitted_changes)
 
     @property
@@ -887,10 +896,10 @@ def landed_rows(
     """Return the rows whose measured code landed, each labelled with the commit it landed in.
 
     A row naming a code tree that landed (``code_tree.landed_code_trees``) takes that commit
-    and its date, as committed code. A row naming one that did not (an intermediate commit's, a
-    branch's that never merged or was behind main) is left out, unless ``keep_unlanded`` (a
-    local build, showing a branch's rows before it merges). A row naming no code tree (the
-    history measured by commit) passes through.
+    and its date, as committed code (its game's revision does: ``_landed_run``). A row naming
+    one that did not (an intermediate commit's, a branch's that never merged or was behind
+    main) is left out, unless ``keep_unlanded`` (a local build, showing a branch's rows before
+    it merges). A row naming no code tree (the history measured by commit) passes through.
 
     Args:
         rows: The rows.
@@ -911,22 +920,43 @@ def landed_rows(
             if keep_unlanded:
                 kept.append(row)
             continue
-        revision = row.run.source_revision
-        landed_revision = (
-            SourceRevision(source=RevisionSource.GIT_CHECKOUT) if revision is None else revision
-        ).model_copy(
-            update={
-                'commit': landing.commit,
-                'committed_at': landing.committed_at,
-                'uncommitted_changes': False,
-            }
-        )
-        kept.append(
-            row.model_copy(
-                update={'run': row.run.model_copy(update={'source_revision': landed_revision})}
-            )
-        )
+        kept.append(row.model_copy(update={'run': _landed_run(run=row.run, landing=landing)}))
     return kept
+
+
+def _landed_run(*, run: MeasurementRun, landing: LandedCommit) -> MeasurementRun:
+    """Return a run labelled with the commit its code tree landed in, as committed code.
+
+    The code tree is the project's, so the landing commit is the game's: the game's revision
+    takes it when the run names one. The engine's takes it too when it named the same commit
+    (one checkout, as in this repository) or the run names no game revision (a run from before
+    the field); another repository's engine keeps its own.
+
+    Returns:
+        The run, relabelled.
+
+    """
+    landed_fields = {
+        'commit': landing.commit,
+        'committed_at': landing.committed_at,
+        'uncommitted_changes': False,
+    }
+    engine_revision = run.source_revision
+    game_revision = run.game_source_revision
+    update: dict[str, SourceRevision] = {}
+    if game_revision is not None:
+        update['game_source_revision'] = game_revision.model_copy(update=landed_fields)
+    if game_revision is None or (
+        engine_revision is not None
+        and engine_revision.commit is not None
+        and engine_revision.commit == game_revision.commit
+    ):
+        update['source_revision'] = (
+            SourceRevision(source=RevisionSource.GIT_CHECKOUT)
+            if engine_revision is None
+            else engine_revision
+        ).model_copy(update=landed_fields)
+    return run.model_copy(update=update)
 
 
 def ledger_text(*, rows: Iterable[LedgerRow]) -> str:
@@ -958,7 +988,7 @@ def _instant(text: str | None) -> datetime:
 
 
 def _row_order(row: LedgerRow) -> tuple[datetime, datetime]:
-    revision = row.run.source_revision
+    revision = row.run.game_or_engine_revision
     return (
         _instant(None if revision is None else revision.committed_at),
         _instant(row.run.measured_at),
@@ -1072,6 +1102,11 @@ def ledger_rows_from_rebaseline(
     allowed_uncommitted_changes: bool,
 ) -> list[LedgerRow]:
     """Return the ledger rows of a rebaselined recording: its newest run, then each it held.
+
+    Each row's commit and uncommitted-changes flag are its run's game's
+    (``MeasurementRun.game_source_revision``), else, for a run from before that field or of a
+    game whose package was not found, the engine's (``source_revision``): see
+    ``LedgerRow.commit``.
 
     Args:
         recording: The original recording's repository-relative path.

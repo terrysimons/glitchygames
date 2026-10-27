@@ -27,6 +27,7 @@ from glitchygames.tracing import FRAMES_FIELD, read_trace, write_trace
 from tests.stand_in_games import (
     StandInGame,
     record_stand_in_game,
+    stamp_stand_in_game,
     use_stand_in_game,
     write_stand_in_game,
 )
@@ -61,6 +62,8 @@ def test_a_real_recording_reports_every_run_and_no_behaviour_change(tmp_path, ca
     """
     install_directory = tmp_path / 'site-packages'
     game = write_stand_in_game(directory=install_directory)
+    # A game of this checkout, as ours are: its runs name the engine's commit as the game's
+    stamp_stand_in_game(game=game, revision=source_revision())
     use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
     recording = record_stand_in_game(game=game, path=tmp_path / 'recorded.jsonl.gz')
     recorded_header = read_trace(path=recording)[MEASUREMENT_RUNS_HEADER_FIELD]
@@ -76,8 +79,8 @@ def test_a_real_recording_reports_every_run_and_no_behaviour_change(tmp_path, ca
     frame_count = len(read_trace(path=path)[FRAMES_FIELD])
     assert f'{path}: {frame_count} frames, {recorded_runs + 2} runs' in output
     assert output.count('rebaselined from') == 2 + recorded_rebaselines
-    # The two new runs name the commit of the engine they ran (this checkout's, or the build
-    # stamp's under a built install), never an unknown one
+    # The two new runs name the game's commit (its stamp: this checkout's, as the engine they ran
+    # names), never an unknown one
     engine_commit = source_revision().commit
     assert engine_commit is not None
     for new_run in range(2):

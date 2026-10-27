@@ -741,7 +741,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   newest-first `content_hash` (64 bits of SHA-256 of its content fields as JSON decodes them,
   re-encoded compact and key-sorted, scheme 1; each frame field is content or a measurement, enforced) and `processing_seconds`
   lists, and the header `measurement_runs` (each run's provenance: machine, paced and its pacing timer, versions, the
-  engine's `source_revision` (see Source revision), the `machine_state`
+  engine's `source_revision` (see Source revision) and the game's `game_source_revision`, the `machine_state`
   (`src/glitchygames/machine_state.py`: CPU, memory, mains or battery, macOS thermal report, CI),
   a `summary` (`RunSummary`: processing p50/p95/p99/max, worst frame and scene, frames over the
   target FPS budget, the live run's frame times; filled in when the next run stacks, since a
@@ -864,7 +864,12 @@ installed in another repository's `.venv` does not count), a git archive
 source zips write the commit in), a build stamp (`_build_info.json`, written by
 `scripts/write_build_stamp.py` around `nox -s build-wheel`/`build-binary`/`test`, gitignored, packaged
 through hatch `artifacts`), else unknown. Every recorded run holds it
-(`MeasurementRun.source_revision`; `engine_source_revision()` looks it up once per process)
+(`MeasurementRun.source_revision`; `engine_source_revision()` looks it up once per process), and
+the game's beside it (`MeasurementRun.game_source_revision`: the same lookup in the game's package
+directory, `glitchygames.replay.tools.identity.game_source_revision`; None when that directory is
+not found, or for a run from before the field). A ledger row's commit and uncommitted-changes flag
+are the game's (`MeasurementRun.game_or_engine_revision`), the engine's only when there is no game
+revision: a game outside this repository names its own commit. Here both are one checkout
 
 **Screen Shake and Rumble** (`src/glitchygames/effects/shake.py`, `src/glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`

@@ -25,6 +25,10 @@ so the engine's tests import no workspace member and run no member's code:
     layered (``games.<package>:<Scene>``) as a member's are. Only the child processes that run
     it import it: this process must not (it would leave the entry in the global dict).
 
+- ``stamp_stand_in_game``: give a stand-in's package a build stamp naming a revision, so its runs
+  name that commit as the game's (``MeasurementRun.game_source_revision``): with the engine's
+  revision, it stands for a game of this checkout, as ours are. Without one, a stand-in in
+  ``tmp_path`` is in no checkout, so its runs name an unknown game revision.
 - ``use_stand_in_game``: put a stand-in's install directory on ``sys.path`` (for the metadata
   lookups this process makes) and on ``PYTHONPATH`` (for the child processes that start it).
 - ``record_stand_in_game``: record a stand-in game's session in a child process
@@ -40,6 +44,7 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
+from glitchygames.build_info import BUILD_STAMP_FILE_NAME
 from glitchygames.bundled_demos import BUNDLED_DEMO_DIRECTORY_NAME, CONSOLE_SCRIPTS_GROUP
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import run_command
@@ -50,6 +55,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import pytest
+
+    from glitchygames.build_info import SourceRevision
 
 # How many frames a stand-in game runs before it quits itself: enough for a tampered frame 10
 # and the frames after it
@@ -303,6 +310,25 @@ def write_stand_in_game(
         scene_name=scene_name,
         install_directory=directory,
         layer=layer,
+    )
+
+
+def stamp_stand_in_game(*, game: StandInGame, revision: SourceRevision) -> None:
+    """Write a build stamp into a stand-in game's package, naming ``revision``.
+
+    The stamp is read as an engine's is (``glitchygames.build_info.stamped_revision``), when no
+    checkout tracks the package and it holds no archive file: a stand-in in ``tmp_path``.
+
+    Args:
+        game: The stand-in game.
+        revision: The revision its runs name as the game's (its ``source`` is not stored: a
+            stamp's is always ``BUILD_STAMP``).
+
+    """
+    stamp_fields = revision.to_json()
+    del stamp_fields['source']
+    (game.install_directory / game.package / BUILD_STAMP_FILE_NAME).write_text(
+        json.dumps(stamp_fields, indent=2, sort_keys=True) + '\n', encoding='utf-8'
     )
 
 

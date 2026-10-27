@@ -222,6 +222,23 @@ def source_revision(*, package_directory: Path = PACKAGE_DIRECTORY) -> SourceRev
 
 
 @functools.cache
+def package_source_revision(*, package_directory: Path) -> SourceRevision:
+    """Return a package's source revision, looked up once per process (git takes a while).
+
+    A game's package (``glitchygames.replay.tools.identity.game_source_revision``): every run
+    of a process names the revision its first run found, as for the engine's.
+
+    Args:
+        package_directory: The package's directory.
+
+    Returns:
+        The revision (``source_revision``).
+
+    """
+    return source_revision(package_directory=package_directory)
+
+
+@functools.cache
 def engine_source_revision() -> SourceRevision:
     """Return this engine's source revision, looked up once per process (git takes a while).
 

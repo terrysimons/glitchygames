@@ -86,7 +86,8 @@ def describe_run(*, run_index: int, run: MeasurementRun | None) -> str:
     if run is None:
         return f'run {run_index}: unreadable'
     commit = short_commit(run=run) or UNKNOWN_COMMIT
-    if run.source_revision is not None and run.source_revision.uncommitted_changes:
+    revision = run.game_or_engine_revision
+    if revision is not None and revision.uncommitted_changes:
         commit = f'{commit} (uncommitted changes)'
     power = (
         run.machine_state.power_source

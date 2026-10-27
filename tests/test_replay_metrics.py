@@ -52,6 +52,7 @@ from tests.replay.test_replay_plugin import REPO_FIXTURE
 from tests.stand_in_games import (
     StandInGame,
     record_stand_in_game,
+    stamp_stand_in_game,
     use_stand_in_game,
     write_stand_in_distribution,
     write_stand_in_game,
@@ -148,6 +149,8 @@ def stand_in_game(tmp_path_factory, monkeypatch) -> StandInGame:
     """
     install_directory = tmp_path_factory.mktemp('site-packages')
     game = write_stand_in_game(directory=install_directory)
+    # A game of this checkout, as ours are: its runs name the engine's commit as the game's
+    stamp_stand_in_game(game=game, revision=source_revision())
     use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
     return game
 
@@ -163,6 +166,7 @@ def mark_runs_from_a_clean_checkout(*, path: Path) -> None:
     def clean(trace: dict) -> None:
         for recorded_run in trace[MEASUREMENT_RUNS_HEADER_FIELD]:
             recorded_run['source_revision']['uncommitted_changes'] = False
+            recorded_run['game_source_revision']['uncommitted_changes'] = False
 
     rewrite_recording(recording_path=path, change=clean)
 
@@ -1243,6 +1247,8 @@ def stand_in_project_with_a_demo(
     (project_root / 'pyproject.toml').write_text(ROOT_PYPROJECT, encoding='utf-8')
     install_directory = project_root / 'site-packages'
     game = write_stand_in_game(directory=install_directory)
+    # A game of this checkout, as ours are: its runs name the engine's commit as the game's
+    stamp_stand_in_game(game=game, revision=source_revision())
     use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
     demo_path = install_directory / game.package / 'demos' / 'rally.jsonl.gz'
     demo_path.parent.mkdir()
