@@ -167,10 +167,13 @@ Stage D moved every recording, replay and measurement tool into the engine
   test; resolve the launched game's package instead.
 - **Tool option names are reserved in every game.** Every tool's flag and option is added to every
   game's parser (`registry.add_game_flags`), including generic names such as `report`'s
-  `--threshold`, `--minimum-ms` and `--spans`, so a game defining one of them fails at startup.
-  Ours are pinned by `test_no_tool_option_clashes_with_any_of_our_games_arguments`, and the
-  reserved names are documented (docs/architecture/gameplay_replay.md, "Tools for any game").
-  Consider tool-prefixed names (`--report-threshold`) before outside games depend on these.
+  `--threshold`, `--minimum-ms` and `--spans`, so a game defining one of them is refused at
+  startup, on every run. Since the final Stage D review's fixes the refusal is clear
+  (`GameEngine.initialize_arguments`, `reserved_flag_refusal`: exit 64, naming the flag and
+  saying the engine reserves it, not an argparse traceback). Ours are pinned by
+  `test_no_tool_option_clashes_with_any_of_our_games_arguments`, and the reserved names are
+  documented (docs/architecture/gameplay_replay.md, "Tools for any game"). Still deferred: the
+  rename to tool-prefixed names (`--report-threshold`) before outside games depend on these.
 - **`tests/replay/tools/test_an_unseen_game.py` is slow:** about 94 s serial (20 s under
   `-n auto`), against a 60 s target. Share the built project and installed console script
   between cases, or run fewer `GAME` forms per tool.
@@ -183,6 +186,63 @@ Stage D moved every recording, replay and measurement tool into the engine
 - **`--compare-trace` in the browser.** It is not refused up front under Pyodide, where there are
   no child processes; today a browser path has no options to give it. If one ever does, add
   `sys.platform == 'emscripten'` to `compare.compare_trace_refusal`.
+
+From the final Stage D review (`.superpowers/sdd/2026-10-26-workspace-packages-3-demos/
+final-review-stage-d.md`, Minors the controller deferred, 2026-10-27; I1-I4, M1, M3, M4, M6 and
+the reserved-flag refusal were fixed):
+
+- **M2: children find the project again for themselves.** `glitchygames verify|measure
+  --project-root DIR` starts `GAME --verify|--measure` with `DIR` as its working directory
+  (`traces.run_game_with_tool`), and the child runs `verify.verify_project_root` (through
+  `settings.find_project_root`) again from there. If `DIR` has no `[tool.glitchygames]` and an
+  ancestor has one, the parent reads `DIR`'s settings but the child works on the ancestor's
+  (other goldens, another pending ledger). Fix: pass the resolved root to the child, through an
+  environment variable `verify_project_root` honors (say `GLITCHYGAMES_PROJECT_ROOT`) or a
+  hidden option (as `--replay-frame-stream` is hidden: `ToolOption(hidden=True)`).
+- **M5: half of decision 17's seed rows run only through the game flag.** The command runs rows
+  2, 4 and 6 and the audit refusal (`tests/replay/tools/test_an_unseen_game.py`, `SEED_ROWS`);
+  rows 1, 3, 5 and 7 run only as flags, there and in `tests/replay/tools/test_random_seed.py`.
+  The command forwards the seed verbatim (`Tool.child_arguments`), so the risk is low, but the
+  "every tool, both front ends" constraint is not literally met for the seed table. Fix:
+  parametrize `SEED_ROWS` over both front ends (mind the file's run time, above), or record
+  there why one front end is enough.
+- **M7: "no installed console script" misleads a pipx user.** `children.resolve_game` searches
+  only this interpreter's distributions (`game_entry_point`), so a game installed with pipx (its
+  console script on `PATH`, in another environment) is refused with "no installed console script
+  or importable module has that name". Fix: say "in this Python environment" with
+  `sys.executable`, and suggest the script-path or `MODULE:CALLABLE` form
+  (`children.unknown_game_message`).
+- **M8: game arguments without `--` get no hint.** `glitchygames record-trace mygame
+  run.jsonl.gz --resolution 640x480` (no `--`) fails with argparse's "unrecognized arguments".
+  Fix: in `command.main`, parse with `parse_known_args` and, for unknown arguments on a tool that
+  runs the game, refuse with "(arguments for the game go after a bare --)" (exit 2, argparse's,
+  or 64 to match the other usage refusals: decide with the user).
+- **M9: `report` on a directory says "no such recording"** (exit 66, `MISSING_INPUT`), which is
+  wrong about why (`src/glitchygames/replay/tools/report.py`). A path that exists but is not a
+  file is unusable input (65; glitchygames/exit_codes.py says so), or say "is a directory".
+- **M10a: `compare._accept`'s post-deadline race** (from the D10 review;
+  `src/glitchygames/replay/tools/compare.py`, `_accept`, around lines 662-670). When a stranger's
+  connection is refused after the connect deadline, the wait ends at once
+  (`_never_connected`), though OLD's real child may already be in the listener's backlog. Fix:
+  before giving up, accept once more without blocking and check that connection's token.
+- **M10b: "behaviour" in `report`'s help** (`registry.TOOLS`, the `report` tool's `help`, from
+  scripts/recording_report.py; accepted earlier). The project's prose is American: "behavior".
+  Its help text is pinned by the tests that compare it with the script's old parser.
+
+Found while fixing that review (2026-10-27):
+
+- **The command's SIGTERM kills a recording child outright.** `glitchygames record-trace`,
+  `record-session` and `replay-trace` wait on their game through `process.run_command`
+  (`children.launch_game` with no timeout), so when the command is stopped by a signal,
+  `subprocess.run` SIGKILLs the game: its recording is left unclosed (it still reads up to its
+  last full frame). `verify` and `measure`'s games are stopped gently
+  (`process.run_command_stopped_at_timeout`: SIGTERM, then the kill after the grace period),
+  which lets the game's engine close what it writes. Consider the gentle stop for every launch.
+- **`unmeasured`'s child has no timeout.** `measure.child_unmeasured` starts a game named
+  otherwise than by its console script with `--unmeasured` and `timeout_seconds=None`; a script
+  that is no game would hang it as `verify` and `measure` did before `game-timeout-seconds`
+  (games from the settings are console scripts, read without starting them, so only `--game`
+  names reach it). Give it the same timeout.
 
 ## World space follow-ups (feature/engine-world-space final review)
 

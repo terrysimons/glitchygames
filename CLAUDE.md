@@ -178,7 +178,10 @@ uv run bitmappy --timer-backend=fast --windows-timer-1ms
 The engine owns every tool (`src/glitchygames/replay/tools/`; `registry.TOOLS` is the reference
 for every flag and option). Each is a flag on every game and a `glitchygames` subcommand (also
 `python -m glitchygames`) with the same name and options; settings come from the project's
-`[tool.glitchygames]` (docs/architecture/gameplay_replay.md, "Tools for any game").
+`[tool.glitchygames]` (docs/architecture/gameplay_replay.md, "Tools for any game"). Both front
+ends run a tool inside the engine's crash boundary (`game_engine.run_inside_tool_crash_boundary`:
+a crash exits 70, a signal stops and reaps the game first, a missing required option exits 64),
+and `game-timeout-seconds` bounds each game `verify` and `measure` start.
 ```bash
 uv run glitchygames --help                                 # every tool, with its options
 uv run paddleslap --record-trace run.jsonl.gz              # record (or: glitchygames record-trace paddleslap run.jsonl.gz)

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Tasks A1-C6 done (+B5b, user-added), 2026-10-26; final review passed (fixes 016c53ba, nits 6a8df329). Stage D (the engine owns every recording tool) PLANNED 2026-10-26; D1-D11 DONE 2026-10-27 (D10: docs, cleanups and the stage's verification), awaiting the final branch review and the user's look at `--compare-trace` (D11 Step 3).
+**Status:** Tasks A1-C6 done (+B5b, user-added), 2026-10-26; final review passed (fixes 016c53ba, nits 6a8df329). Stage D (the engine owns every recording tool) PLANNED 2026-10-26; D1-D11 DONE 2026-10-27 (D10: docs, cleanups and the stage's verification); final Stage D review fixes DONE 2026-10-27 (I1-I4, M1, M3, M4, M6 and the reserved-flag refusal; M2, M5, M7-M10 in `plans/future-work.md`), awaiting the user's review and look at `--compare-trace` (D11 Step 3).
 Stage A DONE; Stage B DONE (B1-B7, automated verification green; the user runs each demo by
 hand); Stage C DONE (C1-C6). (Originally PLANNED 2026-10-26.)
 Written from a read-only survey of `feature/workspace-packages-4-bitmappy` at fc4a93d5 (PR #110), which becomes
@@ -1068,8 +1068,13 @@ proving it isn't Bitmappy-specific.
 ## Stage D: the engine owns every recording, replay and measurement tool
 
 **Status:** DONE 2026-10-27 (D1-D9, D11, then D10: the docs, the deferred cleanups and the stage's
-verification), apart from D11 Step 3 (the user's look at a watched `--compare-trace`); awaiting the
-final branch review. Planned 2026-10-26, after Stage C's final review, on the same branch and PR
+verification), apart from D11 Step 3 (the user's look at a watched `--compare-trace`). The final
+Stage D review's fixes are DONE 2026-10-27: the command runs inside the engine's crash boundary
+(I1), `verify` fails unclaimed goldens and a project claims its own (I2), `game-timeout-seconds`
+(I3), a rolled golden-trace seed is recorded (I4), `--project-root`'s per-tool default (M1),
+unreadable pending ledgers (M3), missing required options exit 64 on both front ends (M4), git
+variables (M6), and a clear refusal for a game argument named as an engine flag; the other
+Minors are in `plans/future-work.md`. Planned 2026-10-26, after Stage C's final review, on the same branch and PR
 (the user, 2026-10-26: "Let's do it here"). Where this section and the code differ, the code's
 `registry.TOOLS` is the reference (the tools table was brought in line in D10).
 
