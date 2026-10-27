@@ -317,7 +317,9 @@ def stamp_stand_in_game(*, game: StandInGame, revision: SourceRevision) -> None:
     """Write a build stamp into a stand-in game's package, naming ``revision``.
 
     The stamp is read as an engine's is (``glitchygames.build_info.stamped_revision``), when no
-    checkout tracks the package and it holds no archive file: a stand-in in ``tmp_path``.
+    checkout tracks the package and it holds no archive file: a stand-in in ``tmp_path``. Its
+    uncommitted-changes flag is ``revision``'s, fixed when the stamp is written (not a live
+    ``git status`` in the child that runs the game).
 
     Args:
         game: The stand-in game.

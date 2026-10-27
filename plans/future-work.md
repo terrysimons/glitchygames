@@ -491,6 +491,29 @@ only replays; Part 2 Task 1).
 - Optional: lazy-import `speech_recognition` so the audio import chain doesn't load `aifc` (its
   deprecation warning is already filtered in `pyproject.toml`).
 - ty reports 50 pre-existing `unused-ignore-comment` warnings (identical on main).
+- **Stamp each game's build with its own revision** (found 2026-10-26, Part 3 Stage D, Task D3
+  review).
+  - Since D3, every recorded run names its game's source revision
+    (`MeasurementRun.game_source_revision`). It is looked up in the game's package directory
+    (`glitchygames.replay.tools.identity.game_source_revision` →
+    `build_info.package_source_revision`), in this order: a git checkout that tracks it, then
+    `_git_archival.txt`, then `_build_info.json`, else unknown. A ledger row's commit is that
+    revision's, the engine's only when no game revision was recorded.
+  - The builds stamp only the engine: `noxfile.py` `_build_stamp` (around line 1408) runs
+    `scripts/write_build_stamp.py`, which writes `src/glitchygames/_build_info.json` alone.
+  - So an installed member wheel (`nox -s build-wheel`, or nox's own non-editable test install)
+    and the frozen Bitmappy binary (`build-binary`) have a game package with no checkout, archive
+    or stamp. Their recordings now name an unknown game commit; before D3 they showed the engine
+    stamp's commit.
+  - No ledger row is affected today: every path that writes rows runs editable members from the
+    checkout (`uv run`).
+  - Fix: write a stamp into each game package as well, with `build_info.write_build_stamp` per
+    package directory. Either `write_build_stamp.py` takes the members' package directories, or
+    `_build_stamp` loops over them. Remove the stamps afterwards, as for the engine's, and ship
+    `_build_info.json` in each member's wheel (hatch `artifacts`, as the engine's
+    `pyproject.toml` does).
+  - Then test that a built member wheel's recording names its game commit with source
+    `build-stamp`.
 
 ## Upstream issues to file
 

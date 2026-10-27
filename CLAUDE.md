@@ -869,7 +869,7 @@ the game's beside it (`MeasurementRun.game_source_revision`: the same lookup in 
 directory, `glitchygames.replay.tools.identity.game_source_revision`; None when that directory is
 not found, or for a run from before the field). A ledger row's commit and uncommitted-changes flag
 are the game's (`MeasurementRun.game_or_engine_revision`), the engine's only when there is no game
-revision: a game outside this repository names its own commit. Here both are one checkout
+revision: a game outside this repository names its own commit. Here both are one checkout.
 
 **Screen Shake and Rumble** (`src/glitchygames/effects/shake.py`, `src/glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`

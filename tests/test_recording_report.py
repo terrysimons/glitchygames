@@ -85,6 +85,10 @@ def test_a_real_recording_reports_every_run_and_no_behaviour_change(tmp_path, ca
     assert engine_commit is not None
     for new_run in range(2):
         assert f'run {new_run}: {engine_commit[:SHORT_COMMIT_DIGITS]}' in output
+    # Each child also named its own engine's revision (this checkout's, or the build stamp's
+    # under a built install), never an unknown one
+    new_runs = read_trace(path=path)[MEASUREMENT_RUNS_HEADER_FIELD][:2]
+    assert [new_run['source_revision']['commit'] for new_run in new_runs] == [engine_commit] * 2
     assert 'paced live run' in output
     assert 'frame time p50' in output
     assert 'processing p50' in output

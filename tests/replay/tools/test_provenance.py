@@ -6,7 +6,9 @@ or row from before the field has none, and falls back to the engine's, as before
 repository the game and the engine are one checkout, so our rows don't change.
 
 On stand-in games (tests/stand_in_games.py), each in its own temporary git repository, never
-one of our members; a committed golden of ours is only read as a file, by path.
+one of our members. The recording and the row from before the field are fixed copies in
+``tests/fixtures/provenance/`` (see ``PROVENANCE_FIXTURES``), never the live files: a rebaseline
+or a new measurement must not change what these tests pin.
 """
 
 from __future__ import annotations
@@ -53,19 +55,28 @@ from tests.stand_in_games import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-# A committed golden from before game_source_revision existed, only read as a file (copied into
-# tmp_path first); its runs name the engine's commit and nothing of the game's
+# Fixed copies of a recording and a ledger row from before game_source_revision existed. Each
+# file's bytes are the committed file at 4e6f7e86 (the commit before Task D3), copied with
+# ``git show 4e6f7e86:<path>``, and never change:
+PROVENANCE_FIXTURES = PROJECT_ROOT / 'tests' / 'fixtures' / 'provenance'
+# - src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz (last changed in a97efbe9):
+#   its runs name the engine's commit and nothing of the game's
 GOLDEN_FROM_BEFORE_THE_FIELD = (
-    PROJECT_ROOT / 'src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz'
+    PROVENANCE_FIXTURES / 'clockwork-keep-golden-before-game-source-revision.jsonl.gz'
 )
-# The committed ledger rows, all from before the field
-LEDGER_DIRECTORY = PROJECT_ROOT / 'quality' / 'replay-ledger'
+# - quality/replay-ledger/<this name>: a row the pre-commit hook measured before the field
+ROW_FILE_FROM_BEFORE_THE_FIELD = PROVENANCE_FIXTURES / (
+    '0220a12030cd-apple-m4-max-202610270503432821460000-'
+    'src-games-brave-adventurer-tests-fixtures-replays-golden-classic.json'
+)
 GIT_TIMEOUT_SECONDS = 30.0
 # A commit no checkout here has: what another repository's game names
 ANOTHER_REPOSITORYS_COMMIT = 'a' * 40
 LANDED_COMMIT = LandedCommit(commit='b' * 40, committed_at='2026-10-26T12:00:00+00:00')
 CODE_TREE = 'c' * 40
 MACHINE = 'a machine'
+# The engine's commit in the hand-built runs
+ENGINE_COMMIT = 'e' * 40
 
 
 def git(*arguments: str, directory: Path) -> str:
@@ -230,10 +241,8 @@ def test_a_recording_without_game_source_revision_still_loads_and_uses_the_engin
 
 
 def test_a_ledger_row_from_before_game_source_revision_still_loads():
-    """The committed row files load unchanged, each naming its engine commit."""
-    row_file = min(LEDGER_DIRECTORY.glob('*.json'))
-
-    parsed = parse_ledger(text=row_file.read_text(encoding='utf-8'))
+    """A row file committed before the field loads unchanged, naming its engine's commit."""
+    parsed = parse_ledger(text=ROW_FILE_FROM_BEFORE_THE_FIELD.read_text(encoding='utf-8'))
 
     assert parsed.unreadable_lines == 0
     assert parsed.rows
@@ -322,7 +331,12 @@ def scene_class_in(*, module: str) -> type[Scene]:
 
 def test_a_game_whose_package_is_not_found_records_no_game_revision():
     """No package directory: no game revision, and the run's commit is the engine's."""
-    assert game_source_revision(game=scene_class_in(module='no_such_game_package.game')) is None
+    revision = game_source_revision(game=scene_class_in(module='no_such_game_package.game'))
+
+    assert revision is None
+    row = a_row(run=a_run(engine_revision=ENGINE_REVISION, game_revision=revision))
+    assert row.commit == ENGINE_COMMIT
+    assert short_commit(run=row.run) == ENGINE_COMMIT[:7]
 
 
 def test_a_game_outside_any_checkout_names_an_unknown_revision(tmp_path, monkeypatch):
@@ -382,7 +396,7 @@ def a_row(*, run: MeasurementRun, code_tree: str | None = None) -> LedgerRow:
 
 ENGINE_REVISION = SourceRevision(
     source=RevisionSource.BUILD_STAMP,
-    commit='e' * 40,
+    commit=ENGINE_COMMIT,
     committed_at='2026-10-20T12:00:00+00:00',
     uncommitted_changes=False,
 )
