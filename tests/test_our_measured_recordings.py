@@ -26,12 +26,8 @@ from glitchygames.replay.tools.measure import (
 )
 from glitchygames.replay.tools.recordings import game_recordings
 from glitchygames.replay.tools.settings import load_project_settings
-from tests.workspace_expectations import (
-    EXPECTED_BUNDLED_DEMOS,
-    GAMES_LAYER,
-    MEMBER_PACKAGES,
-    check_every_game_holds_a_golden,
-)
+from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS, GAMES_LAYER, MEMBER_PACKAGES
+from tests.workspace_goldens import check_every_game_holds_a_golden
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUR_SETTINGS = load_project_settings(project_root=PROJECT_ROOT)

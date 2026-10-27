@@ -19,7 +19,6 @@ import numpy as np
 import pygame
 import pytest
 from pydantic import BaseModel, ConfigDict
-from scripts.workspace_packages import ENGINE_DIRECTORY
 
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -79,6 +78,7 @@ from glitchygames.sources import (
 )
 from glitchygames.state import MemorySaveManager, SaveManager, open_saves
 from tests.ast_scanning import PROJECT_ROOT, scanned_source_files
+from tests.engine_source import ENGINE_DIRECTORY
 from tests.input.test_input_state import snapshot_with
 
 if TYPE_CHECKING:

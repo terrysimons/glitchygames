@@ -1029,6 +1029,388 @@ def test_an_exempt_module_importing_no_member_is_stale(tmp_path):
     ]
 
 
+# The scripts/ package: this repository's tools and policy, which the engine's tests never import
+# (Part 3, Stage D's constraints: the engine's tools moved into glitchygames.replay.tools)
+SCRIPTS_PACKAGE = 'scripts'
+# The root tests' own package: its helper modules are followed, so a test that reaches scripts/
+# through a helper is found too (Task D9: tests/workspace_expectations.py once took
+# tests/replay/test_replay_plugin.py there)
+ROOT_TESTS_PACKAGE = 'tests'
+# The root test files that test a script, each with the scripts it tests: they may import them
+# (the controller's pre-flight ruling for Stage D, 2026-10-26: "exempting each remaining
+# script's own test file by name"). A test of the engine that uses a script's code as its test
+# data is listed only while it does (the sprite tests: the legacy loader and the stack prototype)
+SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
+    'tests/replay/test_record_scripted_session.py': ('scripts/record_scripted_session.py',),
+    'tests/sprites/test_animated_sprite.py': ('scripts/sprite_stack.py',),
+    'tests/sprites/test_legacy_sprite_glyphs.py': ('scripts/raw_sprite_loader.py',),
+    'tests/sprites/test_sprite_color_map_limits.py': ('scripts/raw_sprite_loader.py',),
+    'tests/test_browser_touch_controls.py': ('scripts/build_browser_bundle.py',),
+    'tests/test_build_browser_bundle.py': ('scripts/build_browser_bundle.py',),
+    'tests/test_build_info.py': ('scripts/write_build_stamp.py',),
+    'tests/test_build_sdl_x11.py': ('scripts/build_sdl_x11.py',),
+    'tests/test_compare_driver_frames.py': ('scripts/compare_driver_frames.py',),
+    'tests/test_complexity_report.py': ('scripts/complexity_report.py',),
+    'tests/test_driver_configurations.py': ('scripts/driver_configurations.py',),
+    'tests/test_driver_frame_matrix.py': ('scripts/driver_frame_matrix.py',),
+    'tests/test_gen_ref_pages.py': ('scripts/gen_ref_pages.py',),
+    'tests/test_generate_complexity_graphs.py': (
+        'scripts/generate_complexity_graphs.py',
+        'scripts/mkdocs_hooks.py',
+    ),
+    'tests/test_generate_performance_graphs.py': (
+        'scripts/generate_performance_graphs.py',
+        'scripts/mkdocs_hooks.py',
+    ),
+    'tests/test_import_published_ledger.py': ('scripts/import_published_ledger.py',),
+    'tests/test_measure_staged_replays.py': ('scripts/measure_staged_replays.py',),
+    'tests/test_microphone_capture_check.py': ('scripts/microphone_capture_check.py',),
+    'tests/test_mkdocs_hooks_browser_games.py': ('scripts/mkdocs_hooks.py',),
+    'tests/test_record_golden_traces.py': (
+        'scripts/record_golden_traces.py',
+        'scripts/golden_inputs.py',
+        'scripts/record_scripted_session.py',
+    ),
+    'tests/test_workspace_packages.py': (
+        'scripts/workspace_packages.py',
+        'scripts/git_checkout.py',
+    ),
+}
+# Why a source guard may reach scripts/: tests/ast_scanning.py's scanned_source_files lists the
+# members' packages with scripts/workspace_packages.py, so the guard reads every member's source
+SOURCE_GUARD_REASON = (
+    "a guard over the engine's and every member's source (tests/ast_scanning.py "
+    'scanned_source_files lists the members with scripts/workspace_packages.py)'
+)
+# The root test files that check this repository itself (its workspace, its members' goldens,
+# demos and console scripts, its CI and its suite), not the engine, each with its reason (Task
+# D9's decision: the controller's ruling named only script tests; these test no script but read
+# the workspace through one, which an engine test never needs). They may reach scripts/ too
+REPOSITORY_TEST_FILES: dict[str, str] = {
+    'tests/engine/test_engine_lifecycle.py': (
+        "powers on every member's console script (test_every_game_powers_on_through_its_own_main), "
+        'listed from the workspace'
+    ),
+    'tests/replay/test_bundled_demos.py': "replays our members' bundled demos",
+    'tests/replay/test_golden_replays.py': "replays our members' goldens with our games' tables",
+    'tests/replay/test_recording_logical_names.py': (
+        'checks the logical names of every committed recording of our members'
+    ),
+    'tests/test_ci_config.py': "checks the CI configuration against the workspace's members",
+    'tests/test_driver_comparison.py': (
+        "tests the suite's driver-comparison plugin (tests/driver_comparison.py), which compares "
+        'frames with scripts/compare_driver_frames.py'
+    ),
+    'tests/test_engine_context.py': SOURCE_GUARD_REASON,
+    'tests/test_engine_doors.py': SOURCE_GUARD_REASON,
+    'tests/test_engine_wheel.py': (
+        'checks the engine wheel holds no member (read from the workspace)'
+    ),
+    'tests/test_our_measured_recordings.py': "checks our games' recordings are all measured",
+    'tests/test_randomness.py': SOURCE_GUARD_REASON,
+    'tests/test_recording.py': SOURCE_GUARD_REASON,
+    'tests/test_suite_collection.py': (
+        "the suite's own collection and import guards, over every test root"
+    ),
+    'tests/test_workspace_config.py': (
+        "checks the workspace's configuration (members, extras, docs)"
+    ),
+    'tests/test_workspace_expectations.py': (
+        'checks the hand-written expected sets against a workspace (tests/workspace_goldens.py)'
+    ),
+    'tests/world/test_golden_traces.py': (
+        "replays our games' golden traces with scripts/record_golden_traces.py's games and scripts"
+    ),
+}
+
+
+def root_test_module_name(*, relative: str) -> str:
+    """Return the module a file under the root tests/ is imported as.
+
+    Args:
+        relative: Its path from the repository (``tests/replay/helpers.py``).
+
+    Returns:
+        Its module (``tests.replay.helpers``; a package's ``__init__.py`` is the package).
+
+    """
+    parts = list(Path(relative).with_suffix('').parts)
+    if parts[-1] == '__init__':
+        parts.pop()
+    return '.'.join(parts)
+
+
+def imported_module_names(*, tree: ast.Module, module: str, is_package: bool) -> set[str]:
+    """Return every module a root test module may import, at any level.
+
+    Absolute imports, relative imports (resolved against ``module``) and literal string loads
+    (``importlib.import_module``, ``__import__``) of ``scripts`` and ``tests`` count. For ``from
+    X import y`` both ``X`` and ``X.y`` are named (``y`` may be a submodule), and so is every
+    package above a module (importing it runs their ``__init__``).
+
+    Args:
+        tree: The module's parsed source.
+        module: Its module name.
+        is_package: Whether it is a package's ``__init__.py``.
+
+    Returns:
+        The module names (some may name no module: a function imported by ``from``).
+
+    """
+    watched = frozenset({SCRIPTS_PACKAGE, ROOT_TESTS_PACKAGE})
+    named: set[str] = set()
+    for found in member_imports(tree=tree, member_packages=watched):
+        named.add(found.module)
+        if found.name is not None:
+            named.add(f'{found.module}.{found.name}')
+    package = module if is_package else module.rpartition('.')[0]
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.level > 0:
+            base = package.split('.')[: len(package.split('.')) - (node.level - 1)]
+            resolved = '.'.join([*base, *([node.module] if node.module else [])])
+            named.add(resolved)
+            named.update(f'{resolved}.{alias.name}' for alias in node.names)
+    parents = {
+        '.'.join(name.split('.')[:depth])
+        for name in named
+        for depth in range(1, name.count('.') + 1)
+    }
+    return named | parents
+
+
+def root_test_import_graph(*, project_root: Path) -> dict[str, frozenset[str]]:
+    """Return what each module under the root tests/ imports of ``scripts`` and ``tests``.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        Module name -> the module names it imports (``imported_module_names``).
+
+    """
+    return {
+        root_test_module_name(relative=relative): frozenset(
+            imported_module_names(
+                tree=tree,
+                module=root_test_module_name(relative=relative),
+                is_package=relative.endswith('__init__.py'),
+            )
+        )
+        for relative, tree in _root_test_modules(project_root=project_root)
+    }
+
+
+def path_to_scripts(*, graph: dict[str, frozenset[str]], module: str) -> list[str] | None:
+    """Return the shortest chain of imports from a root test module to a ``scripts`` module.
+
+    Only the root tests' own modules are followed (a module of ``tests`` that is in ``graph``).
+
+    Args:
+        graph: ``root_test_import_graph``'s.
+        module: The test module.
+
+    Returns:
+        ``[module, helper, ..., 'scripts.<name>']``, or None when it reaches none.
+
+    """
+    came_from: dict[str, str | None] = {module: None}
+    queue = [module]
+    while queue:
+        current = queue.pop(0)
+        for imported in sorted(graph.get(current, frozenset())):
+            if imported in came_from:
+                continue
+            if imported.partition('.')[0] == SCRIPTS_PACKAGE and imported != SCRIPTS_PACKAGE:
+                chain = [imported, current]
+                previous = came_from[current]
+                while previous is not None:
+                    chain.append(previous)
+                    previous = came_from[previous]
+                return chain[::-1]
+            if imported in graph:
+                came_from[imported] = current
+                queue.append(imported)
+    return None
+
+
+def root_test_files(*, project_root: Path) -> list[str]:
+    """Return every test module under the root tests/ (``test_*.py``), relative, sorted.
+
+    Returns:
+        Their paths from the repository.
+
+    """
+    return sorted(
+        path.relative_to(project_root).as_posix()
+        for path in (project_root / ROOT_TESTS_PACKAGE).rglob('test_*.py')
+        if '__pycache__' not in path.parts
+    )
+
+
+def engine_tests_reaching_scripts(*, project_root: Path, exempt: frozenset[str]) -> list[str]:
+    """Return each root test module that imports ``scripts``, directly or through a helper.
+
+    The engine's tests test the engine as a game sees it: installed, with no scripts/ (Stage D:
+    "No engine module imports ``scripts.*``, and no engine test does"). Every import counts, at
+    any level, through any chain of the root tests' own modules (the controller's note to Task
+    D9: a direct-import check missed tests/replay/test_replay_plugin.py, which reached
+    ``scripts.workspace_packages`` through tests/workspace_expectations.py).
+
+    Args:
+        project_root: The repository.
+        exempt: The test files that may (``SCRIPT_TEST_FILES``, ``REPOSITORY_TEST_FILES``).
+
+    Returns:
+        ``<file>: <module> -> <helper> -> ... -> scripts.<name>`` for each, sorted by file.
+
+    """
+    graph = root_test_import_graph(project_root=project_root)
+    findings: list[str] = []
+    for relative in root_test_files(project_root=project_root):
+        if relative in exempt:
+            continue
+        chain = path_to_scripts(graph=graph, module=root_test_module_name(relative=relative))
+        if chain is not None:
+            findings.append(f'{relative}: {" -> ".join(chain)}')
+    return findings
+
+
+def stale_scripts_import_exemptions(
+    *,
+    project_root: Path,
+    script_tests: dict[str, tuple[str, ...]],
+    repository_tests: dict[str, str],
+) -> list[str]:
+    """Return each exemption from ``engine_tests_reaching_scripts`` that no longer applies.
+
+    Args:
+        project_root: The repository.
+        script_tests: ``SCRIPT_TEST_FILES``'s shape.
+        repository_tests: ``REPOSITORY_TEST_FILES``'s shape.
+
+    Returns:
+        ``<file>: <why it is stale>`` for each, the script tests first, each list in its order.
+
+    """
+    graph = root_test_import_graph(project_root=project_root)
+    stale: list[str] = []
+    for relative in [*script_tests, *repository_tests]:
+        if not (project_root / relative).is_file():
+            stale.append(f'{relative}: no such file')
+        elif path_to_scripts(graph=graph, module=root_test_module_name(relative=relative)) is None:
+            stale.append(f'{relative}: reaches no scripts.* any more')
+        stale.extend(
+            f'{relative}: tests {script}, which is gone'
+            for script in script_tests.get(relative, ())
+            if not (project_root / script).is_file()
+        )
+    return stale
+
+
+def test_no_engine_test_reaches_scripts():
+    """No root test imports scripts/, directly or through a helper, apart from the exemptions."""
+    exempt = frozenset(SCRIPT_TEST_FILES) | frozenset(REPOSITORY_TEST_FILES)
+
+    assert engine_tests_reaching_scripts(project_root=PROJECT_ROOT, exempt=exempt) == []
+
+
+def test_every_scripts_import_exemption_still_applies():
+    """Each exempt file exists and still reaches scripts/, and each script it tests exists."""
+    assert (
+        stale_scripts_import_exemptions(
+            project_root=PROJECT_ROOT,
+            script_tests=SCRIPT_TEST_FILES,
+            repository_tests=REPOSITORY_TEST_FILES,
+        )
+        == []
+    )
+
+
+def test_the_two_exemption_lists_do_not_overlap():
+    """A file is exempt for one reason: it tests a script, or it checks this repository."""
+    assert not set(SCRIPT_TEST_FILES) & set(REPOSITORY_TEST_FILES)
+
+
+def write_planted_tests(*, project_root: Path) -> None:
+    """Plant root tests reaching scripts/ in each way, and one that does not, in a repository.
+
+    - ``test_engine_thing.py``: two helpers deep (``expected`` -> ``workspace`` -> scripts)
+    - ``test_by_relative.py``: through a helper that imports its sibling relatively
+    - ``test_function_level.py``: an import inside a test function
+    - ``test_string_load.py``: ``importlib.import_module('scripts.tool')``
+    - ``test_by_package.py``: through a helpers package whose ``__init__`` imports scripts
+    - ``test_clean.py``: a helper that imports only pygame
+    - ``test_tool.py``: a script's own test (exempt in the test)
+    """
+    for relative, source in {
+        'scripts/tool.py': 'THING = 1\n',
+        'tests/__init__.py': '',
+        'tests/helpers/__init__.py': '',
+        'tests/helpers/workspace.py': 'from scripts.tool import THING\n',
+        'tests/helpers/expected.py': 'from tests.helpers.workspace import THING\n',
+        'tests/helpers/relative.py': 'from .workspace import THING\n',
+        'tests/helpers/clean.py': 'import pygame\n',
+        'tests/loaded/__init__.py': 'import scripts.tool\n',
+        'tests/loaded/inner.py': 'VALUE = 2\n',
+        'tests/test_engine_thing.py': 'from tests.helpers.expected import THING\n',
+        'tests/test_by_relative.py': 'from tests.helpers import relative\n',
+        'tests/test_function_level.py': 'def test_tool():\n    import scripts.tool\n',
+        'tests/test_string_load.py': (
+            "import importlib\n\nTOOL = importlib.import_module('scripts.tool')\n"
+        ),
+        'tests/test_by_package.py': 'from tests.loaded.inner import VALUE\n',
+        'tests/test_clean.py': 'from tests.helpers import clean\n',
+        'tests/test_tool.py': 'from scripts import tool\n',
+    }.items():
+        write_root_test(project_root=project_root, relative=relative, source=source)
+
+
+def test_a_root_test_reaching_scripts_in_any_way_is_found_with_its_chain(tmp_path):
+    """Every way a root test reaches scripts/ is found, with the chain of imports that does.
+
+    Directly, at function level, by a string load, or through helpers, relative imports and a
+    package's ``__init__``.
+    """
+    write_planted_tests(project_root=tmp_path)
+
+    assert engine_tests_reaching_scripts(
+        project_root=tmp_path, exempt=frozenset({'tests/test_tool.py'})
+    ) == [
+        ('tests/test_by_package.py: tests.test_by_package -> tests.loaded -> scripts.tool'),
+        (
+            'tests/test_by_relative.py: tests.test_by_relative -> tests.helpers.relative -> '
+            'tests.helpers.workspace -> scripts.tool'
+        ),
+        (
+            'tests/test_engine_thing.py: tests.test_engine_thing -> tests.helpers.expected -> '
+            'tests.helpers.workspace -> scripts.tool'
+        ),
+        'tests/test_function_level.py: tests.test_function_level -> scripts.tool',
+        'tests/test_string_load.py: tests.test_string_load -> scripts.tool',
+    ]
+
+
+def test_a_stale_scripts_import_exemption_is_found(tmp_path):
+    """A missing file, a file that reaches no script, and a script that is gone are reported."""
+    write_planted_tests(project_root=tmp_path)
+
+    assert stale_scripts_import_exemptions(
+        project_root=tmp_path,
+        script_tests={
+            'tests/test_tool.py': ('scripts/tool.py', 'scripts/deleted_tool.py'),
+            'tests/test_no_such_file.py': ('scripts/tool.py',),
+        },
+        repository_tests={
+            'tests/test_clean.py': 'reads the workspace',
+            'tests/test_engine_thing.py': 'reads the workspace',
+        },
+    ) == [
+        'tests/test_tool.py: tests scripts/deleted_tool.py, which is gone',
+        'tests/test_no_such_file.py: no such file',
+        'tests/test_clean.py: reaches no scripts.* any more',
+    ]
+
+
 # Directories of test data, not test modules (a member's golden replays live in fixtures/)
 TEST_DATA_DIRECTORY_NAMES = frozenset({'fixtures', '__pycache__'})
 

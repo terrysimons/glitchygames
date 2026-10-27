@@ -14,7 +14,9 @@ import ast
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Self
 
-from scripts.workspace_packages import ENGINE_DIRECTORY, source_package_directories
+from scripts.workspace_packages import source_package_directories
+
+from tests.engine_source import ENGINE_DIRECTORY
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

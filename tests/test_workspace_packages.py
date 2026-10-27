@@ -7,11 +7,15 @@ from pathlib import Path
 import pytest
 from scripts.git_checkout import run_git as scripts_run_git
 from scripts.workspace_packages import (
+    ENGINE_DIRECTORY,
+    ENGINE_PACKAGE,
     WorkspaceMember,
     members_in_layer,
     source_package_directories,
     workspace_members,
 )
+
+from tests import engine_source
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -361,3 +365,9 @@ def test_the_root_goldens_are_the_engines_own():
     assert [
         name for name in sorted(game_names) if (ROOT_REPLAY_FIXTURES_DIRECTORY / name).exists()
     ] == []
+
+
+def test_the_engine_tests_know_the_engines_source_directory_as_the_workspace_does():
+    """tests/engine_source.py keeps its own copy, so engine tests need not import this script."""
+    assert engine_source.ENGINE_PACKAGE == ENGINE_PACKAGE
+    assert engine_source.ENGINE_DIRECTORY == ENGINE_DIRECTORY

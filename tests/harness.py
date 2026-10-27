@@ -17,7 +17,6 @@ from hypothesis import settings
 from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
 
 import pygame
-from scripts.workspace_packages import ENGINE_DIRECTORY
 
 from glitchygames import engine_context, pixel_snap, randomness, sources
 from glitchygames.backgrounds import set_active_default_background_pattern
@@ -44,6 +43,7 @@ from tests.display_canvas import (
     show_canvas,
     show_canvas_on_new_display,
 )
+from tests.engine_source import ENGINE_DIRECTORY
 from tests.garbage_collection import process_peak_memory_collector
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import (

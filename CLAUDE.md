@@ -570,7 +570,14 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   goldens pass `RANDOM_SEED`), a replay uses the recording's; a replay given another seed plays
   the inputs out under it without comparing or writing (headless: the rebaseline's summary, exit
   0), `--rebaseline NEW --random-seed N` records them under N, and `--audit` under another seed is
-  refused (rule 19 of `replay/driver.py`). The
+  refused (rule 19 of `replay/driver.py`). The end-to-end proof is
+  `tests/replay/tools/test_an_unseen_game.py` (Task D9): a stand-in game in its own git
+  repository in `tmp_path` (package under `src/`, a launcher script, an input-script module, a
+  golden, a local bare repository as its published ledger), run through every tool in `TOOLS` on
+  both front ends and in all three `GAME` forms, in a project with a `[tool.glitchygames]` and in
+  one without; each case checks the exit, exactly the files written, the stand-in's commit in its
+  rows and runs, and (an import watch in the children's `sitecustomize`) that no child imported
+  `scripts`, `tests` or a member; a tool in `TOOLS` without a case there fails it. The
   golden-trace harness (`golden_traces.py`: `record_trace(*, scene_class, script, frame_count,
   ...)`, `replay_golden_recording(*, scene_class, script, path, ...)`, `golden_game`,
   `GoldenTraceEngine`, `InputScript`, `press`/`release`) runs any game by its scene class and an
@@ -1202,13 +1209,25 @@ Features:
   (`engine_test_imports_of_members`) fail on any import of one, at any level and by a literal
   `importlib.import_module`/`__import__` string. An engine test that needs a game uses a
   stand-in (`tests/stand_in_harness_games.py`, `tests/stand_in_games.py`) or discovers the members
-  through the workspace and asserts the hand-written expectations in
-  `tests/workspace_expectations.py`, which are edited when a game, golden, bundled demo or console
-  script is added. The only exemptions (`MEMBER_IMPORT_EXEMPT_MODULES`, `MEMBER_IMPORT_EXEMPT_NAMES`,
+  through the workspace (`tests/workspace_goldens.py`) and asserts the hand-written expectations
+  in `tests/workspace_expectations.py` (which imports no `scripts.*`), which are edited when a
+  game, golden, bundled demo or console script is added. The only exemptions
+  (`MEMBER_IMPORT_EXEMPT_MODULES`, `MEMBER_IMPORT_EXEMPT_NAMES`,
   each with its reason and date) are the golden-replay control tables
   (`tests/replay/golden_replay_controls.py`) and the per-game world rules' named imports in
   `tests/world/test_golden_traces.py`; a stale exemption fails too. The tools in `scripts/` are
   out of scope
+- No engine test reaches `scripts/` (Part 3 Stage D, Task D9): `tests/test_suite_collection.py`
+  (`engine_tests_reaching_scripts`) follows every root test module's imports, at any level, by a
+  literal string, relative or through a package, through the root tests' own helper modules, and
+  fails naming the chain (`tests.x -> tests.helper -> scripts.y`). Exempt by name: a script's own
+  test (`SCRIPT_TEST_FILES`, with the scripts it tests) and a test of this repository itself
+  (`REPOSITORY_TEST_FILES`, with its reason: the workspace, our members' goldens, demos and
+  console scripts, CI, the suite, and the source guards that scan every member through
+  `tests/ast_scanning.py`); a stale exemption (no file, no `scripts.*` reached, or a script gone)
+  fails too. The engine's own source directory for the engine's tests is
+  `tests/engine_source.py` (kept equal to `scripts/workspace_packages.py`'s by
+  `tests/test_workspace_packages.py`)
 - `tests/harness.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
   plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`).
 - Real pads never reach tests: `tests/sdl_defaults.py` defaults SDL's macOS joystick drivers off

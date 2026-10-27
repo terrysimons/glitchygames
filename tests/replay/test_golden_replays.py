@@ -63,11 +63,8 @@ from tests.stand_in_games import (
     write_stand_in_distribution,
 )
 from tests.stand_in_harness_games import SteeredPaddleScene, steered_paddle_script
-from tests.workspace_expectations import (
-    EXPECTED_GAME_CONSOLE_SCRIPTS,
-    GAMES_LAYER,
-    every_games_golden,
-)
+from tests.workspace_expectations import EXPECTED_GAME_CONSOLE_SCRIPTS, GAMES_LAYER
+from tests.workspace_goldens import every_games_golden
 
 if TYPE_CHECKING:
     from pathlib import Path

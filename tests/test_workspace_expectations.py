@@ -1,7 +1,8 @@
 """The cross-member tests' expected sets fail on a workspace missing what they expect.
 
-tests/workspace_expectations.py is what keeps the tests that discover members from passing on
-zero: these plant a workspace in tmp_path without a game, and with a game that holds no golden.
+tests/workspace_expectations.py (the expected sets) and tests/workspace_goldens.py (what is
+read from the workspace) keep the tests that discover members from passing on zero: these plant
+a workspace in tmp_path without a game, and with a game that holds no golden.
 """
 
 from __future__ import annotations
@@ -13,8 +14,8 @@ from scripts.workspace_packages import members_in_layer
 
 from glitchygames.replay.driver import write_bookmarked_copy
 from tests.stand_in_games import write_stand_in_recording
-from tests.workspace_expectations import (
-    EXPECTED_GOLDENS,
+from tests.workspace_expectations import EXPECTED_GOLDENS
+from tests.workspace_goldens import (
     check_every_game_holds_a_golden,
     every_games_golden,
     member_goldens,

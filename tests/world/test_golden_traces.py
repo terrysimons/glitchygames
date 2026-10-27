@@ -32,6 +32,7 @@ from scripts.record_golden_traces import (
     GAME_SCENES,
     GOLDEN_DIRECTORY,
     GOLDEN_TRACE_GAMES,
+    PROJECT_ROOT,
     SCRIPT_BUILDERS,
     golden_path,
 )
@@ -50,7 +51,12 @@ from clockwork_keep.player import Tinker
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.logical_names import logical_name
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
-from glitchygames.replay.tools.golden_traces import RANDOM_SEED, record_trace
+from glitchygames.replay.driver import GAME_HEADER_FIELD
+from glitchygames.replay.tools.golden_traces import (
+    RANDOM_SEED,
+    record_trace,
+    replay_golden_recording,
+)
 from glitchygames.tracing import (
     TRACE_FORMAT_VERSION,
     TraceReader,
@@ -59,6 +65,7 @@ from glitchygames.tracing import (
     write_trace,
 )
 from glitchygames.world import CULL_MARGIN_PIXELS, is_world_positioned
+from tests.workspace_goldens import every_games_golden
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -1445,6 +1452,54 @@ def test_altered_middle_frame_is_found_at_its_frame_and_sprite(game_key, tmp_pat
     ]
     unexplained, _ = unexplained_and_stale(differences=differences, expected=[])
     assert unexplained == differences
+
+
+# The golden scripts' own round trip, moved here from tests/world/test_gameplay_replay.py (Part 3,
+# Stage D, Task D9) with our games' scripts, so that engine test reaches no scripts.*: how many
+# frames each game's golden script records, and the seed it records under (the seed those tests
+# used: tests/world/test_gameplay_recording.py RANDOM_SEED)
+GOLDEN_SCRIPT_FRAMES = 300
+GOLDEN_SCRIPT_SEED = 123
+
+
+def test_the_golden_scripts_games_are_the_games_of_the_members_goldens():
+    """The tool's games are exactly the games the workspace's members hold goldens of.
+
+    Each key is mapped to its logical name explicitly (its scene class's), and compared with
+    the ``game`` of every golden of every games-layer member (each holds at least one), so
+    the parametrization below cannot pass on zero.
+    """
+    recorded_games: set[str] = set()
+    for golden in every_games_golden(project_root=PROJECT_ROOT):
+        with TraceReader(path=golden) as reader:
+            recorded_games.add(reader.header[GAME_HEADER_FIELD])
+
+    assert {
+        logical_name(scene_class=GAME_SCENES[game_key]) for game_key in GAME_SCENES
+    } == recorded_games
+
+
+@pytest.mark.parametrize('game_key', sorted(GAME_SCENES))
+def test_golden_script_recording_replays_without_divergence(game_key, tmp_path):
+    """The game's golden script, recorded and replayed through the harness, does not diverge.
+
+    The game is one a member holds a golden of (the test above).
+    """
+    recording_path = tmp_path / f'{game_key}.jsonl.gz'
+    record_trace(
+        scene_class=GAME_SCENES[game_key],
+        script=SCRIPT_BUILDERS[game_key](),
+        frame_count=GOLDEN_SCRIPT_FRAMES,
+        recording_path=recording_path,
+        random_seed=GOLDEN_SCRIPT_SEED,
+    )
+    result = replay_golden_recording(
+        scene_class=GAME_SCENES[game_key],
+        script=SCRIPT_BUILDERS[game_key](),
+        path=recording_path,
+    )
+    assert result.divergence is None
+    assert result.frames_replayed == GOLDEN_SCRIPT_FRAMES
 
 
 class TestTraceComparison:

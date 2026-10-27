@@ -14,7 +14,6 @@ import ast
 from typing import TYPE_CHECKING
 
 import pytest
-from scripts.workspace_packages import ENGINE_DIRECTORY
 
 from tests.ast_scanning import (
     PROJECT_ROOT,
@@ -23,6 +22,7 @@ from tests.ast_scanning import (
     scanned_source_files,
     write_project_with_member_module,
 )
+from tests.engine_source import ENGINE_DIRECTORY
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

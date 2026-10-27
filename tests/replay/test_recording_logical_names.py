@@ -14,11 +14,8 @@ from glitchygames.recording import SCENE_START_FIELD
 from glitchygames.replay.driver import GAME_HEADER_FIELD
 from glitchygames.testing.replays import bundled_demo_paths
 from glitchygames.tracing import TraceReader, read_trace
-from tests.workspace_expectations import (
-    EXPECTED_BUNDLED_DEMOS,
-    MEMBER_PACKAGES,
-    every_games_golden,
-)
+from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS, MEMBER_PACKAGES
+from tests.workspace_goldens import every_games_golden
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 COMMITTED_RECORDINGS = sorted([
