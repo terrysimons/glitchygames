@@ -4,6 +4,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 234. A Bitmappy Controller-Manager Test Depends on the Tests Before It
+- **Description**: `MultiControllerManager` (`src/apps/bitmappy/src/bitmappy/controllers/manager.py`, around lines 69-105) is a process-wide singleton: `__new__` returns the class's `_instance`, and `__init__` returns early once `_initialized` is set. `TestMultiControllerManager.setup_method` in `src/apps/bitmappy/tests/test_bitmappy_multi_controller.py` (around line 29) builds the manager with `MultiControllerManager()` and never resets it, so `test_initialization` (around line 33, asserting `controllers == {}`, `assigned_controllers == {}` and `next_controller_id == 0`) gets whatever instance an earlier test on the same pytest-xdist worker left, controllers included. The `editor` fixture in `src/apps/bitmappy/tests/conftest.py` (around line 21) resets `_instance` with `mocker.patch.object`, but only for its own test: the patch puts the old instance back afterwards. Expected: every test that builds a manager starts from a fresh one.
+- **Status**: Active
+- **Priority**: Low (test isolation only; the app uses one manager per process)
+- **Reporter**: Found by a Stage D implementer (workspace packages Part 3), 2026-10-26
+- **Date Reported**: 2026-10-26
+- **Details**: Seen once in `CI=true nox -s test` (it fails depending on test order); the test passes alone (3 of 3 runs) and passed on the rerun. Likely fix: reset `_instance` and `_initialized` in that class's `setup_method`, or in an autouse fixture in Bitmappy's `conftest.py` (with `mocker.patch.object`, as the `editor` fixture does), and check the other test classes that build a manager directly.
+- **Files**: `src/apps/bitmappy/src/bitmappy/controllers/manager.py`, `src/apps/bitmappy/tests/test_bitmappy_multi_controller.py`, `src/apps/bitmappy/tests/conftest.py`
+
 ### 233. The Demos Render Their Text Without Antialiasing
 - **Description**: The demos draw their text with pygame's antialias flag off, so it looks blocky ("the fonts are garbage": the user, 2026-10-26, running the demos by hand). Every such call: in `src/demos/dt-demo/src/dt_demo/__init__.py`, the scene's (`Game`) `update()` renders the countdown (around line 118, `self.font.render(..., False, ...)`), the FPS line (around line 123) and the record time (around line 130) with `False` as the second (antialias) argument; in `src/demos/joystick-demo/src/joystick_demo/__init__.py`, `_draw_line` draws every readout line with `self.font.render(text, antialias=False, color=color)` (around line 159). The text-input demo is not affected: its `InputBox` renders with antialiasing on (`src/glitchygames/ui/inputs.py`, around lines 106 and 171).
 - **Status**: Active
