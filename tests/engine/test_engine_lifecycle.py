@@ -760,7 +760,6 @@ def test_every_game_console_script_is_covered():
     assert set(GAME_CONSOLE_SCRIPTS) == members_console_scripts
     # Written out by hand (tests/workspace_expectations.py): 5 games, 3 demos and Bitmappy
     assert set(GAME_CONSOLE_SCRIPTS) == EXPECTED_ALL_CONSOLE_SCRIPTS
-    assert len(GAME_CONSOLE_SCRIPTS) == len(EXPECTED_ALL_CONSOLE_SCRIPTS)
 
 
 @pytest.mark.usefixtures('engine_run_environment')

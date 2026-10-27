@@ -221,8 +221,9 @@ any tool's configuration.
 
 - `scripts/record_golden_traces.py`: add a `'<module>:<class>'` reference to `GAME_SCENES`
   (never a module-level import of a member: the subprocess import test fails on one), and
-  `GAME_MODULES` (whose value is the bare package name). `scripts/record_scripted_session.py` derives its fixture
-  directories from `GAME_MODULES` and the workspace (`REPLAY_FIXTURE_DIRECTORIES`), and refuses
+  `GAME_MODULES` (whose value is the bare package name). `scripts/record_scripted_session.py`
+  derives its fixture directories from `GAME_MODULES` and the workspace
+  (`REPLAY_FIXTURE_DIRECTORIES`), and refuses
   a game no member holds: only its docstring examples need editing.
 - `tests/replay/test_golden_replays.py`: its imports, `GAMEPLAY_ACTION_MAPS`,
   `ENGINE_SCENE_CONTROLS`, `UNEXERCISED_CONTROLS` and any table naming the game.

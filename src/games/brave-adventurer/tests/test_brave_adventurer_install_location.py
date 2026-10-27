@@ -24,4 +24,6 @@ def test_the_old_example_packages_are_gone(old_package):
         'the move; rm -rf src/glitchygames/examples tests/examples'
     )
     old_directory = PROJECT_ROOT.joinpath('src', *old_package.split('.'))
-    assert not old_directory.exists()
+    assert not old_directory.exists(), (
+        f'{old_directory} still exists: an ignored leftover of the move; rm -rf {old_directory}'
+    )
