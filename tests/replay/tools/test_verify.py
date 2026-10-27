@@ -27,12 +27,12 @@ from glitchygames.replay.tools.verify import (
     replay_outcome,
     verification_exit_code,
 )
-from glitchygames.scenes import Scene
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 from tests.stand_in_games import (
     RECORD_TIMEOUT_SECONDS,
     STAND_IN_GAME_FRAMES,
     STAND_IN_GAME_RESOLUTION,
+    GameThatIsNeverBuilt,
     StandInGame,
     record_stand_in_game,
     stand_in_game_source,
@@ -53,23 +53,6 @@ GOLDEN_DIRECTORY_PARTS = ('tests', 'fixtures', 'replays')
 ONE_LINE_PER_ENGINE = 'Game Title: '
 # What a child's replay prints when it diverges
 DIVERGED_AT_THE_TAMPERED_FRAME = f'Replay diverged at frame {TAMPERED_FRAME}'
-
-
-class GameThatIsNeverBuilt(Scene):
-    """A game for the in-process engine test: its scene must never be built for ``--verify``."""
-
-    NAME = 'GameThatIsNeverBuilt'
-    VERSION = '1.0'
-
-    def __init__(self, options=None, groups=None) -> None:
-        """Fail at once: verifying runs children, never this scene.
-
-        Raises:
-            AssertionError: Always.
-
-        """
-        message = '--verify built the scene'
-        raise AssertionError(message)
 
 
 @pytest.fixture

@@ -33,6 +33,8 @@ so the engine's tests import no workspace member and run no member's code:
   lookups this process makes) and on ``PYTHONPATH`` (for the child processes that start it).
 - ``record_stand_in_game``: record a stand-in game's session in a child process
   (``--record-trace``), as a player's live run would.
+- ``GameThatIsNeverBuilt``: a scene class whose constructor fails, for the in-process tests of
+  the tools that run in place of the game (from ``GameEngine.__init__``).
 """
 
 from __future__ import annotations
@@ -49,6 +51,7 @@ from glitchygames.bundled_demos import BUNDLED_DEMO_DIRECTORY_NAME, CONSOLE_SCRI
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import OutputCapture, run_command
 from glitchygames.replay.tools.children import REPLAY_FIXTURES_PATH_PARTS
+from glitchygames.scenes import Scene
 from glitchygames.tracing import TRACE_FORMAT_VERSION, write_trace
 
 if TYPE_CHECKING:
@@ -67,6 +70,28 @@ RECORD_TIMEOUT_SECONDS = 120.0
 STAND_IN_GAME_RESOLUTION = '320x240'
 # Live recordings are paced at this rate: a paced live run, as a player's is
 STAND_IN_GAME_TARGET_FPS = '60'
+
+
+class GameThatIsNeverBuilt(Scene):
+    """A game whose scene must never be built: a tool given as its game flag runs in its place.
+
+    The in-process engine tests of the tools that run from ``GameEngine.__init__`` (``--verify``,
+    ``--measure``, ``--report``, ``--performance-pages``, ...) pass it as the game: building it
+    fails the run.
+    """
+
+    NAME = 'GameThatIsNeverBuilt'
+    VERSION = '1.0'
+
+    def __init__(self, options=None, groups=None) -> None:
+        """Fail at once: the tool reads, or runs children, never this scene.
+
+        Raises:
+            AssertionError: Always.
+
+        """
+        message = 'a tool given as a game flag built the scene'
+        raise AssertionError(message)
 
 
 @dataclasses.dataclass(frozen=True)

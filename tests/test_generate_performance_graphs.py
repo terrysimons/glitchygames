@@ -11,8 +11,10 @@ in tmp_path.
 
 from __future__ import annotations
 
+import filecmp
 import json
 import re
+import shutil
 from typing import TYPE_CHECKING
 
 import pytest
@@ -20,6 +22,7 @@ from mkdocs.exceptions import PluginError
 from scripts import mkdocs_hooks
 from scripts.generate_performance_graphs import (
     LEDGER_NAME,
+    PROJECT_ROOT,
     PROJECT_SETTINGS,
     SNIPPET_NAME,
     generate_performance_page,
@@ -27,6 +30,7 @@ from scripts.generate_performance_graphs import (
 )
 
 from glitchygames.code_tree import staged_code_tree
+from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_history import FrameTimeSummary
 from glitchygames.recording_metrics import (
     FrameProfile,
@@ -36,6 +40,7 @@ from glitchygames.recording_metrics import (
     parse_ledger,
     write_row_files,
 )
+from glitchygames.replay.tools import command
 from glitchygames.replay.tools.settings import ProjectSettings
 from tests.ledger_repositories import clone_with_published_ledger, git
 from tests.test_code_tree import LEDGER_DIRECTORY, PATHS
@@ -168,7 +173,7 @@ def test_the_snippet_follows_the_pages_in_the_docs_tree(tmp_path):
     assert again.written == ()
 
 
-def test_a_published_build_leaves_out_rows_from_uncommitted_changes(tmp_path):
+def test_the_docs_trees_published_build_leaves_out_rows_from_uncommitted_changes(tmp_path):
     """The merged ledger and the table lose the trial; the rest is kept."""
     clone, pending, rows = published_and_pending(tmp_path=tmp_path)
     metrics = tmp_path / 'metrics'
@@ -278,7 +283,7 @@ def clone_with_measured_rows(*, tmp_path: Path) -> tuple[Path, LedgerRow, Ledger
     return clone, landed, unlanded, commit
 
 
-def test_a_published_build_shows_the_rows_whose_code_landed(tmp_path):
+def test_the_docs_trees_published_build_counts_the_rows_whose_code_landed(tmp_path):
     """The repository's row files: the landed one labelled with its commit, the other left out."""
     clone, landed, _unlanded, commit = clone_with_measured_rows(tmp_path=tmp_path)
     metrics = tmp_path / 'metrics'
@@ -300,7 +305,7 @@ def test_a_published_build_shows_the_rows_whose_code_landed(tmp_path):
     )
 
 
-def test_a_local_build_also_shows_rows_whose_code_has_not_landed(tmp_path):
+def test_the_docs_trees_local_build_also_counts_rows_whose_code_has_not_landed(tmp_path):
     """A branch's rows show locally before it merges."""
     clone, _landed, _unlanded, _commit = clone_with_measured_rows(tmp_path=tmp_path)
 
@@ -359,3 +364,54 @@ def test_the_settings_given_are_the_ones_read(tmp_path):
 
     assert (theirs.published_rows, theirs.repository_rows) == (1, 0)
     assert (ours.published_rows, ours.repository_rows) == (0, 1)
+
+
+def test_a_deploys_pages_are_the_engines_published_build(tmp_path, mocker):
+    """The hook's gh-deploy build writes what ``glitchygames performance-pages --published`` does.
+
+    The same project (our settings: this repository's pyproject.toml), the same rows: a landed
+    and an unlanded row file, a clean and a trial pending row. Only the snippet is the script's.
+    """
+    clone, _landed, _unlanded, _commit = clone_with_measured_rows(tmp_path=tmp_path)
+    shutil.copy(PROJECT_ROOT / 'pyproject.toml', clone / 'pyproject.toml')
+    pending = clone / PROJECT_SETTINGS.pending_ledger
+    pending.parent.mkdir(parents=True)
+    trial = ledger_row(measured_at='2026-10-26T09:00:00+00:00').model_copy(
+        update={'run': with_uncommitted_changes(run(commit=NEWER_COMMIT))}
+    )
+    pending.write_text(ledger_text(rows=[ledger_row(), trial]), encoding='utf-8')
+    performance_script = mkdocs_hooks.load_performance_script()
+    mocker.patch.object(performance_script, 'PROJECT_ROOT', clone)
+    mocker.patch.object(performance_script, 'METRICS_DIR', tmp_path / 'deployed')
+    mocker.patch.object(performance_script, 'PENDING_LEDGER_PATH', pending)
+    mocker.patch.object(mkdocs_hooks.BUILD_STATE, 'command', None)
+    mkdocs_hooks.on_startup(command='gh-deploy', dirty=False)
+
+    mkdocs_hooks.generate_performance_graphs()
+    status = command.main([
+        'performance-pages',
+        str(tmp_path / 'tool'),
+        '--published',
+        '--project-root',
+        str(clone),
+    ])
+
+    assert status == ExitCode.SUCCESS
+    comparison = filecmp.dircmp(tmp_path / 'deployed', tmp_path / 'tool', ignore=[SNIPPET_NAME])
+    assert (comparison.left_only, comparison.right_only, comparison.diff_files) == ([], [], [])
+    assert len(comparison.same_files) == 2
+    deployed = parse_ledger(text=(tmp_path / 'deployed' / LEDGER_NAME).read_text(encoding='utf-8'))
+    assert not any(row.from_uncommitted_changes for row in deployed.rows)
+
+
+def test_the_mkdocs_hook_stops_the_build_when_the_pending_ledger_cannot_be_read(tmp_path, mocker):
+    """A pending ledger that is not UTF-8 becomes mkdocs's PluginError, naming the file."""
+    pending = tmp_path / 'pending.jsonl'
+    pending.write_bytes(b'\xff\xfe not a ledger\n')
+    performance_script = mkdocs_hooks.load_performance_script()
+    mocker.patch.object(performance_script, 'PROJECT_ROOT', tmp_path)
+    mocker.patch.object(performance_script, 'METRICS_DIR', tmp_path / 'metrics')
+    mocker.patch.object(performance_script, 'PENDING_LEDGER_PATH', pending)
+
+    with pytest.raises(PluginError, match=f'{pending}: the ledger cannot be read'):
+        mkdocs_hooks.generate_performance_graphs()

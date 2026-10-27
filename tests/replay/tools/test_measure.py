@@ -70,6 +70,7 @@ from tests.replay.test_replay_plugin import REPO_FIXTURE
 from tests.stand_in_games import (
     RECORD_TIMEOUT_SECONDS,
     STAND_IN_GAME_RESOLUTION,
+    GameThatIsNeverBuilt,
     StandInGame,
     record_stand_in_game,
     stamp_stand_in_game,
@@ -108,23 +109,6 @@ MEMBER_GOLDEN_GLOB = 'src/*/*/tests/fixtures/replays/golden*.jsonl.gz'
 GOLDEN_DIRECTORY_PARTS = ('tests', 'fixtures', 'replays')
 # A console script no environment installs
 NO_SUCH_GAME = 'glitchygames-no-such-game'
-
-
-class GameThatIsNeverBuilt(Scene):
-    """A game for the in-process engine test: its scene must never be built for ``--measure``."""
-
-    NAME = 'GameThatIsNeverBuilt'
-    VERSION = '1.0'
-
-    def __init__(self, options=None, groups=None) -> None:
-        """Fail at once: measuring runs children, never this scene.
-
-        Raises:
-            AssertionError: Always.
-
-        """
-        message = '--measure built the scene'
-        raise AssertionError(message)
 
 
 def clean_revision() -> SourceRevision:

@@ -512,7 +512,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `glitchygames unmeasured [--code-tree TREE] [--rows-directory DIR] [--pending PATH] [--game GAME
   ...]`, `glitchygames clear-published [--pending PATH]`,
   `glitchygames report PATH [--threshold PERCENT] [--minimum-ms MS] [--spans N]`,
-  `glitchygames performance-pages DIRECTORY`, each with
+  `glitchygames performance-pages DIRECTORY [--published]`, each with
   `--project-root DIR`; arguments after a bare `--` go to the game). `--game` is the one
   command-only option (`COMMAND_ONLY_FLAGS` in `tests/replay/tools/test_registry.py`): a game needs
   none, it is the game. `verify` (`verify.py`) replays each recording headless in a child (no
@@ -556,8 +556,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   scripts/recording_report.py; output byte-identical) prints a recording's runs, speed changes
   and behaviour-change map. `performance-pages DIRECTORY` (`replay/tools/performance_pages.py`,
   D7: the rendering half of scripts/generate_performance_graphs.py and its source merge) writes a
-  local build of the project's ledger and graph pages (`merged_ledger`: row files landed by git,
-  published and pending rows, from the settings given; `write_performance_pages`). Neither runs
+  local build (default) of the project's ledger and graph pages (`merged_ledger`: row files landed by git,
+  published and pending rows, from the settings given; `write_performance_pages`); with
+  `--published` it builds what a deploy publishes (trials and unlanded row files left out), through
+  the same `build_performance_pages` the docs hook's gh-deploy build uses. Neither runs
   the game; on the game both run from `__init__` (never built). Our docs build reaches it through
   `scripts/mkdocs_hooks.py` -> `scripts/generate_performance_graphs.py` (our docs paths and the
   `performance_graphs.md` snippet only; it passes our settings) -> the engine.

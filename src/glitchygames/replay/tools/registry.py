@@ -931,7 +931,7 @@ MINIMUM_MS_OPTION = ToolOption(
     flag='--minimum-ms',
     kind='number',
     metavar='MS',
-    help=('with --report: milliseconds it must change by too (smaller changes are timer noise)'),
+    help='with --report: milliseconds it must change by too (smaller changes are timer noise)',
     default=DEFAULT_MINIMUM_MS,
 )
 SPANS_OPTION = ToolOption(
@@ -940,6 +940,18 @@ SPANS_OPTION = ToolOption(
     metavar='N',
     help='with --report: how many spans each comparison lists',
     default=DEFAULT_SPAN_LIMIT,
+)
+# performance-pages' option (glitchygames/replay/tools/performance_pages.py): the build a deploy
+# publishes, as our docs site's mkdocs hook builds it for gh-deploy
+PUBLISHED_OPTION = ToolOption(
+    flag='--published',
+    kind='flag',
+    help=(
+        'with --performance-pages: build what a deploy publishes, leaving out rows measured on '
+        'uncommitted changes and row files whose code has not landed (default: a local build, '
+        'which shows them, labelled)'
+    ),
+    default=False,
 )
 
 TOOLS: tuple[Tool, ...] = (
@@ -1113,7 +1125,7 @@ TOOLS: tuple[Tool, ...] = (
             'published and pending rows, merged) and one graph page per recording, processing '
             'and frame times by commit; runs no game (default: off)'
         ),
-        options=(),
+        options=(PUBLISHED_OPTION,),
         runs_game=False,
         game_handler=performance_pages_on_the_game,
         command_handler=performance_pages_command,

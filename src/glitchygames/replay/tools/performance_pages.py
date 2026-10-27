@@ -28,20 +28,27 @@ site's paths and the snippet its page includes, and calls this module:
 A file is rewritten only when its text changed (``write_if_changed``), and graph pages of
 recordings no longer in the ledger are removed.
 
-The front ends (glitchygames/replay/tools/registry.py) write a local build (rows from uncommitted
-changes shown, labelled) of the project's pages into DIRECTORY. They run no game:
+``build_performance_pages`` is one build, local or published: the tool and our docs site's
+mkdocs hook (scripts/generate_performance_graphs.py: published for ``gh-deploy``) both build
+through it, so a deploy's pages are the tool's ``--published`` ones.
 
-- **On the game**: ``mygame --performance-pages DIRECTORY`` (``performance_pages_on_the_game``)
-  runs from ``GameEngine.__init__``, before the engine starts pygame: the game is neither built
-  nor shown.
-- **The command**: ``glitchygames performance-pages DIRECTORY`` (``performance_pages_command``).
+The front ends (glitchygames/replay/tools/registry.py) write the project's pages into DIRECTORY:
+a local build (rows from uncommitted changes shown, labelled), or with ``--published`` what a
+deploy publishes. They run no game:
+
+- **On the game**: ``mygame --performance-pages DIRECTORY [--published]``
+  (``performance_pages_on_the_game``) runs from ``GameEngine.__init__``, before the engine
+  starts pygame: the game is neither built nor shown.
+- **The command**: ``glitchygames performance-pages DIRECTORY [--published]``
+  (``performance_pages_command``).
 
 Both find the project as verify does (``verify.verify_project_root``) and read its settings from
 there; a DIRECTORY in the project's local directory (``.glitchygames/``) is made through
 ``settings.ensure_local_directory`` (``measure.ensure_directory``).
 
-Exit codes: ``SUCCESS``; ``UNUSABLE_INPUT`` for settings that can't be read, or row files git
-can't date (no repository); ``CANNOT_WRITE_OUTPUT`` when DIRECTORY can't be written.
+Exit codes: ``SUCCESS``; ``UNUSABLE_INPUT`` for settings that can't be read, a pending ledger
+that can't be read (no permission, not UTF-8: ``UnreadableLedgerError``, naming it), or row files
+git can't date (no repository); ``CANNOT_WRITE_OUTPUT`` when DIRECTORY can't be written.
 """
 
 from __future__ import annotations
@@ -139,6 +146,21 @@ class LedgerSources(BaseModel):
     published_rows: int
     pending_rows: int
     unreadable_lines: int
+
+
+class UnreadableLedgerError(ValueError):
+    """A ledger file that exists but can't be read (no permission, not UTF-8), with its path."""
+
+    def __init__(self, *, path: Path, cause: OSError | UnicodeDecodeError) -> None:
+        """Name the file and why it can't be read.
+
+        Args:
+            path: The ledger file.
+            cause: What reading it raised.
+
+        """
+        super().__init__(f'{path}: the ledger cannot be read ({cause})')
+        self.path = path
 
 
 class WrittenPages(BaseModel):
@@ -549,6 +571,9 @@ def merged_ledger(
     Returns:
         The rows and how many each source gave.
 
+    Raises:
+        UnreadableLedgerError: If the pending ledger exists but can't be read.
+
     """
     repository = read_row_files(directory=project_root / settings.ledger_directory)
     landed = (
@@ -570,7 +595,10 @@ def merged_ledger(
             project_root=project_root, published_ledger=settings.published_ledger
         )
     )
-    pending = read_ledger_file(path=pending_path)
+    try:
+        pending = read_ledger_file(path=pending_path)
+    except (OSError, UnicodeDecodeError) as error:
+        raise UnreadableLedgerError(path=pending_path, cause=error) from error
     rows = merge_ledgers(ledgers=[landed, published.rows, pending.rows])
     if not include_uncommitted_changes:
         rows = publishable_rows(rows=rows)
@@ -628,12 +656,72 @@ def write_performance_pages(
     )
 
 
-def performance_pages_in(*, project_root: Path, directory: Path, prefix: str) -> ExitCode:
-    """Write a local build of the project's performance pages into a directory.
+class PerformancePagesBuild(BaseModel):
+    """What ``build_performance_pages`` merged and wrote.
+
+    Attributes:
+        sources: The merged rows and how many each source gave.
+        pages: What was written and removed.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    sources: LedgerSources
+    pages: WrittenPages
+
+
+def build_performance_pages(
+    *,
+    project_root: Path,
+    settings: ProjectSettings,
+    directory: Path,
+    pending_path: Path,
+    published: bool,
+) -> PerformancePagesBuild:
+    """Merge the project's ledger and write its pages: one build, local or published.
+
+    The tool (``--published`` or not) and our docs site's mkdocs hook (published for
+    ``gh-deploy``, local for ``build`` and ``serve``: scripts/generate_performance_graphs.py)
+    both build through this, so a deploy's pages are the tool's published ones. A pending
+    ledger that can't be read raises ``merged_ledger``'s ``UnreadableLedgerError`` before
+    anything is written.
+
+    Args:
+        project_root: The project.
+        settings: Its settings.
+        directory: Where the pages go (created when missing, after the rows are read).
+        pending_path: Its pending ledger (``pending-ledger``, unless a caller says otherwise).
+        published: Build what a deploy publishes: leave out rows measured on uncommitted
+            changes and row files whose code has not landed (``merged_ledger``'s
+            ``include_uncommitted_changes`` False). Otherwise a local build shows them, labelled.
+
+    Returns:
+        The merged rows and the pages written.
+
+    """
+    sources = merged_ledger(
+        project_root=project_root,
+        settings=settings,
+        pending_path=pending_path,
+        include_uncommitted_changes=not published,
+    )
+    # Made once the rows are read, so a build that can't read them writes nothing; one in the
+    # project's local directory (.glitchygames/) gets its .gitignore
+    ensure_directory(directory=directory, project_root=project_root)
+    pages = write_performance_pages(rows=sources.rows, directory=directory, settings=settings)
+    return PerformancePagesBuild(sources=sources, pages=pages)
+
+
+def performance_pages_in(
+    *, project_root: Path, directory: Path, published: bool, prefix: str
+) -> ExitCode:
+    """Write the project's performance pages into a directory (``build_performance_pages``).
 
     Args:
         project_root: The project.
         directory: Where the pages go.
+        published: Build what a deploy publishes (``--published``), not a local build.
         prefix: What starts a line about a failure (the tool's).
 
     Returns:
@@ -646,27 +734,26 @@ def performance_pages_in(*, project_root: Path, directory: Path, prefix: str) ->
         sys.stderr.write(f'{prefix} {error}\n')
         return ExitCode.UNUSABLE_INPUT
     try:
-        sources = merged_ledger(
+        build = build_performance_pages(
             project_root=project_root,
             settings=settings,
+            directory=directory,
             pending_path=pending_path_of(given=None, settings=settings, project_root=project_root),
-            include_uncommitted_changes=True,
+            published=published,
         )
+    except UnreadableLedgerError as error:
+        sys.stderr.write(f'{prefix} {error}\n')
+        return ExitCode.UNUSABLE_INPUT
     except RuntimeError as error:
         # git could not date the row files (landed_code_trees): no repository, or a broken one
         sys.stderr.write(f'{prefix} {error}\n')
         return ExitCode.UNUSABLE_INPUT
-    try:
-        written = write_performance_pages(
-            rows=sources.rows,
-            directory=ensure_directory(directory=directory, project_root=project_root),
-            settings=settings,
-        )
     except OSError as error:
         sys.stderr.write(f'{prefix} could not write the performance pages: {error}\n')
         return ExitCode.CANNOT_WRITE_OUTPUT
+    sources = build.sources
     sys.stdout.write(
-        f'Graphed {len(written.pages)} recordings from {len(sources.rows)} ledger rows '
+        f'Graphed {len(build.pages.pages)} recordings from {len(sources.rows)} ledger rows '
         f'({sources.repository_rows} in the repository, {sources.published_rows} published, '
         f'{sources.pending_rows} pending) into {directory}\n'
     )
@@ -679,7 +766,7 @@ def performance_pages_on_the_game(
     """Run ``--performance-pages DIRECTORY`` on a game (the game takes no part: the ledger does).
 
     Args:
-        options: The game's parsed options (``performance_pages``).
+        options: The game's parsed options (``performance_pages``, ``published``).
         game: The game (unused: the ledger is the project's).
 
     Returns:
@@ -690,6 +777,7 @@ def performance_pages_on_the_game(
     return performance_pages_in(
         project_root=verify_project_root(given=None),
         directory=Path(options['performance_pages']),
+        published=options['published'],
         prefix='performance-pages:',
     )
 
@@ -697,7 +785,7 @@ def performance_pages_on_the_game(
 def performance_pages_command(
     *, tool: Tool, arguments: argparse.Namespace, game_arguments: list[str]
 ) -> int:
-    """Run ``glitchygames performance-pages DIRECTORY``.
+    """Run ``glitchygames performance-pages DIRECTORY [--published]``.
 
     Args:
         tool: The performance-pages tool.
@@ -712,5 +800,6 @@ def performance_pages_command(
     return performance_pages_in(
         project_root=verify_project_root(given=arguments.project_root),
         directory=Path(arguments.performance_pages),
+        published=arguments.published,
         prefix=f'glitchygames {tool.name}:',
     )

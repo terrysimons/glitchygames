@@ -40,11 +40,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.recording_metrics import MILLISECONDS_PER_SECOND, short_commit
-from glitchygames.replay.tools.performance_pages import (
-    merged_ledger,
-    write_if_changed,
-    write_performance_pages,
-)
+from glitchygames.replay.tools.performance_pages import build_performance_pages, write_if_changed
 from glitchygames.replay.tools.settings import ProjectSettings, load_project_settings
 
 if TYPE_CHECKING:
@@ -222,15 +218,15 @@ def generate_performance_page(
         What was generated.
 
     """
-    sources = merged_ledger(
+    # The engine's one build: a deploy's pages are glitchygames performance-pages --published's
+    build = build_performance_pages(
         project_root=project_root,
         settings=settings,
+        directory=metrics_directory,
         pending_path=pending_path,
-        include_uncommitted_changes=include_uncommitted_changes,
+        published=not include_uncommitted_changes,
     )
-    pages = write_performance_pages(
-        rows=sources.rows, directory=metrics_directory, settings=settings
-    )
+    sources, pages = build.sources, build.pages
     counts = PerformancePage(
         rows=len(sources.rows),
         repository_rows=sources.repository_rows,

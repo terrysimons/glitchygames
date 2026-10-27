@@ -42,6 +42,8 @@ from typing import TYPE_CHECKING, Literal, Protocol
 
 from mkdocs.exceptions import PluginError
 
+from glitchygames.replay.tools.performance_pages import UnreadableLedgerError
+
 if TYPE_CHECKING:
     from collections.abc import Callable
     from types import ModuleType
@@ -136,7 +138,8 @@ def generate_performance_graphs() -> None:
     """Generate the performance graphs into the script's ``METRICS_DIR``.
 
     Raises:
-        PluginError: A file could not be read or written; the build stops.
+        PluginError: A file could not be read or written (a pending ledger that can't be read
+            too: ``UnreadableLedgerError``); the build stops.
 
     """
     performance_script = load_performance_script()
@@ -149,7 +152,7 @@ def generate_performance_graphs() -> None:
             pending_path=performance_script.PENDING_LEDGER_PATH,
             include_uncommitted_changes=BUILD_STATE.command in LOCAL_BUILD_COMMANDS,
         )
-    except OSError as error:
+    except (OSError, UnreadableLedgerError) as error:
         message = f'Could not generate the performance graphs: {error}'
         raise PluginError(message) from error
 

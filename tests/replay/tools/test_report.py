@@ -34,9 +34,9 @@ from glitchygames.replay.tools import command
 from glitchygames.replay.tools.children import rebaseline_recording_headless
 from glitchygames.replay.tools.registry import add_game_flags, build_command_parser, tool_named
 from glitchygames.replay.tools.report import describe_run, describe_summary, report_lines
-from glitchygames.scenes import Scene
 from glitchygames.tracing import FRAMES_FIELD, read_trace, write_trace
 from tests.stand_in_games import (
+    GameThatIsNeverBuilt,
     StandInGame,
     record_stand_in_game,
     stamp_stand_in_game,
@@ -46,23 +46,6 @@ from tests.stand_in_games import (
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-
-class GameThatIsNeverBuilt(Scene):
-    """A game for the in-process engine test: its scene must never be built for ``--report``."""
-
-    NAME = 'GameThatIsNeverBuilt'
-    VERSION = '1.0'
-
-    def __init__(self, options=None, groups=None) -> None:
-        """Fail at once: reporting reads the recording, never this scene.
-
-        Raises:
-            AssertionError: Always.
-
-        """
-        message = '--report built the scene'
-        raise AssertionError(message)
 
 
 def report_through_the_command(*, arguments: list[str]) -> int:

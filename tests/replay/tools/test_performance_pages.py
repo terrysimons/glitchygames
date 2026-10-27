@@ -46,15 +46,20 @@ from glitchygames.replay.tools.performance_pages import (
     recording_charts,
     write_performance_pages,
 )
+from glitchygames.replay.tools.registry import tool_named
 from glitchygames.replay.tools.settings import (
     GITIGNORE_FILE_NAME,
     LOCAL_DIRECTORY_NAME,
     ProjectSettings,
 )
-from glitchygames.scenes import Scene
 from tests.ledger_repositories import clone_with_published_ledger, git
 from tests.replay.tools.test_report import hand_built_recording
-from tests.stand_in_games import RECORD_TIMEOUT_SECONDS, write_stand_in_game
+from tests.stand_in_games import (
+    RECORD_TIMEOUT_SECONDS,
+    GameThatIsNeverBuilt,
+    use_stand_in_game,
+    write_stand_in_game,
+)
 from tests.test_recording_metrics import (
     NEWER_COMMIT,
     OLDER_COMMIT,
@@ -100,23 +105,6 @@ OLDER_PROFILE = FrameProfile(
 NEWER_PROFILE = FrameProfile(
     frame_count=4, max_microseconds=(150, 250, 350, 450), scene_runs=((0, 'Game'),)
 )
-
-
-class GameThatIsNeverBuilt(Scene):
-    """A game for the in-process engine test: ``--performance-pages`` never builds its scene."""
-
-    NAME = 'GameThatIsNeverBuilt'
-    VERSION = '1.0'
-
-    def __init__(self, options=None, groups=None) -> None:
-        """Fail at once: the pages are made from the ledger, never this scene.
-
-        Raises:
-            AssertionError: Always.
-
-        """
-        message = '--performance-pages built the scene'
-        raise AssertionError(message)
 
 
 def stand_in_row(**fields) -> LedgerRow:
@@ -257,7 +245,7 @@ def test_the_ledgers_merge_into_the_directory_with_a_page_per_recording(tmp_path
     assert again.written == ()
 
 
-def test_a_published_build_leaves_out_rows_from_uncommitted_changes(tmp_path):
+def test_the_engines_published_build_leaves_out_rows_from_uncommitted_changes(tmp_path):
     """The merged ledger and every graph lose the trial; the rest is kept."""
     clone, pending, rows = published_and_pending(tmp_path=tmp_path)
     pages = tmp_path / 'pages'
@@ -372,7 +360,7 @@ def clone_with_measured_rows(*, tmp_path: Path) -> tuple[Path, LedgerRow, Ledger
     return clone, landed, unlanded, commit
 
 
-def test_a_published_build_shows_the_rows_whose_code_landed(tmp_path):
+def test_the_engines_published_build_shows_the_rows_whose_code_landed(tmp_path):
     """The project's row files: the landed one labelled with its commit, the other left out."""
     clone, landed, _unlanded, commit = clone_with_measured_rows(tmp_path=tmp_path)
 
@@ -388,7 +376,7 @@ def test_a_published_build_shows_the_rows_whose_code_landed(tmp_path):
     assert sources.rows[0].commit == commit
 
 
-def test_a_local_build_also_shows_rows_whose_code_has_not_landed(tmp_path):
+def test_the_engines_local_build_also_shows_rows_whose_code_has_not_landed(tmp_path):
     """A branch's rows show locally before it merges."""
     clone, _landed, _unlanded, _commit = clone_with_measured_rows(tmp_path=tmp_path)
 
@@ -429,8 +417,6 @@ def stand_in_game(tmp_path_factory, monkeypatch) -> StandInGame:
         The stand-in game.
 
     """
-    from tests.stand_in_games import use_stand_in_game
-
     install_directory = tmp_path_factory.mktemp('site-packages')
     game = write_stand_in_game(directory=install_directory)
     use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
@@ -617,3 +603,94 @@ def test_a_row_without_a_frame_count_and_profiles_of_different_lengths():
     assert heatmap['z'] == [[0.1, 0.2, 0.3], [0.15, 0.25, None]]
     assert heatmap['customdata'][0][0] == 'frames 0-0, max 0.100 ms'
     assert not heatmap['customdata'][1][2]
+
+
+def project_with_trials_and_unlanded_rows(*, tmp_path: Path) -> tuple[Path, set[str], set[str]]:
+    """A stand-in project whose sources hold rows only a local build shows.
+
+    Its row files: one landed, one whose code never landed. Its pending ledger: a clean row and
+    a trial (measured on uncommitted changes).
+
+    Returns:
+        The project, the keys of the rows both builds show, and of those only a local one does.
+
+    """
+    project, landed, unlanded, _commit = clone_with_measured_rows(tmp_path=tmp_path)
+    (project / 'pyproject.toml').write_text(STAND_IN_PYPROJECT, encoding='utf-8')
+    clean = stand_in_row(recording=DEMO)
+    trial = stand_in_row(measured_at='2026-10-26T09:00:00+00:00').model_copy(
+        update={'run': with_uncommitted_changes(run(commit=NEWER_COMMIT))}
+    )
+    pending = project / STAND_IN_PENDING_LEDGER
+    pending.parent.mkdir()
+    pending.write_text(ledger_text(rows=[clean, trial]), encoding='utf-8')
+    return project, {landed.key, clean.key}, {unlanded.key, trial.key}
+
+
+def ledger_keys(*, directory: Path) -> set[str]:
+    """Return the keys of the rows of the ledger file a build wrote.
+
+    Returns:
+        The keys.
+
+    """
+    text = (directory / STAND_IN_LEDGER_NAME).read_text(encoding='utf-8')
+    return {row.key for row in parse_ledger(text=text).rows}
+
+
+def test_the_published_switch_builds_what_a_deploy_publishes(
+    tmp_path, capsys, monkeypatch, stand_in_game
+):
+    """``--published`` leaves out exactly the trials and the unlanded rows, on both front ends.
+
+    Without it the build is local (both kinds shown); with it, as the game's flag or the
+    command's option, the same published pages.
+    """
+    project, both, local_only = project_with_trials_and_unlanded_rows(tmp_path=tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    local = command.main(['performance-pages', 'local', '--project-root', str(project)])
+    published = command.main([
+        'performance-pages',
+        'published',
+        '--published',
+        '--project-root',
+        str(project),
+    ])
+    flag_status, _flag_output, flag_errors = run_stand_in_game(
+        game=stand_in_game,
+        arguments=['--performance-pages', str(tmp_path / 'flag-published'), '--published'],
+        working_directory=project,
+    )
+
+    assert (local, published, flag_status) == (ExitCode.SUCCESS,) * 3, flag_errors
+    assert ledger_keys(directory=tmp_path / 'local') == both | local_only
+    assert ledger_keys(directory=tmp_path / 'published') == both
+    comparison = filecmp.dircmp(tmp_path / 'published', tmp_path / 'flag-published')
+    assert (comparison.left_only, comparison.right_only, comparison.diff_files) == ([], [], [])
+    assert 'Graphed 2 recordings from 2 ledger rows' in capsys.readouterr().out
+    published_switch = [option.flag for option in tool_named(name='performance-pages').options]
+    assert published_switch == ['--published']
+
+
+@pytest.mark.parametrize('unreadable', ['not permitted', 'not utf-8'])
+def test_an_unreadable_pending_ledger_is_unusable_input_naming_it(tmp_path, capsys, unreadable):
+    """A pending ledger that can't be read (no permission, not UTF-8): said, never a traceback."""
+    (tmp_path / 'pyproject.toml').write_text(STAND_IN_PYPROJECT, encoding='utf-8')
+    pending = tmp_path / STAND_IN_PENDING_LEDGER
+    pending.parent.mkdir()
+    if unreadable == 'not permitted':
+        pending.write_text(ledger_text(rows=[stand_in_row()]), encoding='utf-8')
+        pending.chmod(0)
+    else:
+        pending.write_bytes(b'\xff\xfe not a ledger\n')
+
+    try:
+        status = command.main(['performance-pages', 'pages', '--project-root', str(tmp_path)])
+    finally:
+        pending.chmod(0o644)
+
+    assert status == ExitCode.UNUSABLE_INPUT
+    errors = capsys.readouterr().err
+    assert f'{pending}: the ledger cannot be read' in errors
+    assert not (tmp_path / 'pages').exists()
