@@ -371,6 +371,42 @@ def test_the_project_is_the_nearest_directory_above_with_a_pyproject(tmp_path):
     assert find_project_root(start=outer / 'packages') == outer
 
 
+def test_a_member_without_settings_belongs_to_the_project_above_that_has_them(tmp_path):
+    """Inside a workspace member, the root whose pyproject has [tool.glitchygames] is the project.
+
+    The controller's ruling (Task D5's fix round): the member's own pyproject would otherwise
+    own the ledger and name recordings relative to the member.
+    """
+    root = tmp_path / 'workspace'
+    member = root / 'src' / 'games' / 'rally'
+    deep = member / 'src' / 'rally'
+    deep.mkdir(parents=True)
+    (root / PYPROJECT_FILE_NAME).write_text(
+        '[project]\nname = "workspace"\n\n[tool.glitchygames]\ngames = ["rally"]\n',
+        encoding='utf-8',
+    )
+    (member / PYPROJECT_FILE_NAME).write_text('[project]\nname = "rally"\n', encoding='utf-8')
+
+    assert find_project_root(start=deep) == root
+    assert find_project_root(start=member) == root
+    # A member with settings of its own is its own project
+    (member / PYPROJECT_FILE_NAME).write_text(
+        '[project]\nname = "rally"\n\n[tool.glitchygames]\n', encoding='utf-8'
+    )
+    assert find_project_root(start=deep) == member
+
+
+def test_a_pyproject_that_is_not_toml_has_no_settings_table_when_looking_up(tmp_path):
+    """A pyproject that is not TOML is still the nearest: refused when its settings are read."""
+    outer = tmp_path / 'outer'
+    inner = outer / 'inner'
+    inner.mkdir(parents=True)
+    (outer / PYPROJECT_FILE_NAME).write_text('[project\n', encoding='utf-8')
+    (inner / PYPROJECT_FILE_NAME).write_text('not toml = = =\n', encoding='utf-8')
+
+    assert find_project_root(start=inner) == inner
+
+
 def test_no_project_above_is_none(tmp_path, mocker):
     """No pyproject.toml in the directory or any above it: None."""
     mocker.patch.object(Path, 'is_file', return_value=False)

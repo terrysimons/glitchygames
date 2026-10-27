@@ -6,11 +6,12 @@ and its game is the console script whose entry point is in the module ``<package
 (``paddleslap:main``). ``bundled_demos`` finds them where the packages are installed
 (``importlib.util.find_spec``, which imports no game): the repository's sources under a
 development install (``uv sync`` installs editable), ``site-packages`` under a built one. It is
-the one lookup: the replay pytest plugin (``glitchygames.testing.replays.bundled_demo_paths``),
-a game's own recordings (``glitchygames.replay.tools.recordings``) and scripts/replay_metrics.py
-all call it, each with its own reaction to a demo no console script replays (the plugin raises;
-the measurement reports the demo unreplayable). Each caller names the packages it searches:
-there is no default (an unseen game's package is no workspace member's, Stage D, Task D5).
+the one lookup: the replay pytest plugin (``glitchygames.testing.replays.bundled_demo_paths``)
+and a game's own recordings (``glitchygames.replay.tools.recordings``, which ``--verify`` and
+``--measure`` take) call it, each with its own reaction to a demo no console script replays (the
+plugin raises; a game's recordings are those its own console script replays). Each caller
+names the packages it searches: there is no default (an unseen game's package is no workspace
+member's, Stage D, Task D5).
 
 A leaf of the engine for tools: it imports neither pygame nor a game.
 """

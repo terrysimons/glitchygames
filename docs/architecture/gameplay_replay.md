@@ -747,8 +747,8 @@ with no default: a game's own package for `--verify`, `MEMBER_LAYERS`' for our t
 `importlib.util.find_spec`, importing no game), leaves out bookmarked copies and sorts them by
 path. `tests/replay/test_bundled_demos.py` replays every one headless (through
 `glitchygames.testing.replays.bundled_demo_paths`, which refuses a demo nothing replays), so a
-change that makes a demo diverge fails in CI before it ships; scripts/replay_metrics.py measures
-the same demos (reporting a demo nothing replays as unreplayable).
+change that makes a demo diverge fails in CI before it ships; `glitchygames measure` measures
+the same demos (each game's `--measure` takes its own package's, as `--verify` does).
 
 ### Instant replay
 

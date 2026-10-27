@@ -74,7 +74,8 @@ THE_THREE_GAME_FORMS = (
 COMMAND_CONSOLE_SCRIPT = 'glitchygames'
 # The command has two options no game flag has, and the sync test skips each by name:
 # - --game, a tool's own command argument (Tool.command_arguments), which names the game to run
-#   (replay-trace's game when its recording's no longer imports; verify's games, repeatable). A
+#   (replay-trace's game when its recording's no longer imports; verify's, measure's and
+#   unmeasured's games, repeatable). A
 #   game needs no --game: it is the game. COMMAND_ONLY_FLAGS holds it, and only it;
 # - --project-root (registry.PROJECT_ROOT_FLAG), the command's own flag on every subcommand, which
 #   no tool lists (a game finds its project from its current directory).
@@ -397,7 +398,8 @@ MOVED_OPTIONS_AS_THEY_WERE = (
             'without comparing or writing anything (headless, it prints what differed and exits '
             '0); --replay-trace OLD --rebaseline NEW --random-seed N records them under it in '
             'NEW; --audit under another seed is refused, and so is any seed given to --verify '
-            '(it always compares)'
+            '(it always compares) or --measure (it rebaselines each recording under its '
+            'recorded seed)'
         ),
         None,
         int,
@@ -440,8 +442,9 @@ def test_an_option_listed_under_several_tools_is_one_game_flag_and_each_tools_op
 
     every_game_runner = ['record-trace', 'replay-trace', 'record-golden-trace', 'record-session']
     assert shared['--headless'] == every_game_runner
-    # verify lists it only to refuse it (it always compares: test_verify.py)
-    assert shared['--random-seed'] == [*every_game_runner, 'verify']
+    # verify and measure list it only to refuse it (they always replay under the recorded seed:
+    # test_verify.py, test_measure.py)
+    assert shared['--random-seed'] == [*every_game_runner, 'verify', 'measure']
     assert shared['--input-script'] == ['record-golden-trace', 'record-session']
     assert shared['--frame-count'] == ['record-golden-trace', 'record-session']
     for flag, names in shared.items():

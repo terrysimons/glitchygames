@@ -274,24 +274,54 @@ def load_project_settings(*, project_root: Path) -> ProjectSettings:
         raise ProjectSettingsError(_refusal(pyproject=pyproject, error=error)) from None
 
 
-def find_project_root(*, start: Path) -> Path | None:
-    """Return the project a directory is in: the nearest of it and those above with a pyproject.
+def has_settings_table(*, pyproject: Path) -> bool:
+    """Tell whether a pyproject.toml has a ``[tool.glitchygames]`` table.
 
-    How a tool run from inside a project (``tests/fixtures/``) finds the project's settings and
-    recordings, as git finds its repository.
+    Args:
+        pyproject: The file.
+
+    Returns:
+        True if it holds the table; False if it doesn't, or isn't TOML (its settings are refused
+        when they are read, by ``load_project_settings``).
+
+    """
+    try:
+        document = tomllib.loads(pyproject.read_text(encoding='utf-8'))
+    except tomllib.TOMLDecodeError:
+        return False
+    tool = document.get('tool')
+    return isinstance(tool, dict) and SETTINGS_TABLE in tool
+
+
+def find_project_root(*, start: Path) -> Path | None:
+    """Return the project a directory is in, as git finds its repository.
+
+    How a tool run from inside a project (``tests/fixtures/``, a workspace member's directory)
+    finds the project's settings and recordings. The nearest pyproject.toml with a
+    ``[tool.glitchygames]`` table wins, so inside a workspace member without one the workspace
+    root that has them is the project (the controller's ruling, Part 3 Stage D, Task D5's fix
+    round: the member would otherwise own the ledger); a project with no such table anywhere is
+    its nearest pyproject.toml.
 
     Args:
         start: The directory to look from (the current directory, usually).
 
     Returns:
-        The nearest of ``start`` and its ancestors holding a ``pyproject.toml``, or None.
+        The nearest of ``start`` and its ancestors whose ``pyproject.toml`` has
+        ``[tool.glitchygames]``; else the nearest holding a ``pyproject.toml``; else None.
 
     """
     absolute = start.absolute()
+    nearest: Path | None = None
     for directory in (absolute, *absolute.parents):
-        if (directory / PYPROJECT_FILE_NAME).is_file():
+        pyproject = directory / PYPROJECT_FILE_NAME
+        if not pyproject.is_file():
+            continue
+        if has_settings_table(pyproject=pyproject):
             return directory
-    return None
+        if nearest is None:
+            nearest = directory
+    return nearest
 
 
 def ensure_local_directory(*, directory: Path) -> Path:

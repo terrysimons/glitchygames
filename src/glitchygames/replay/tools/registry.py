@@ -37,6 +37,14 @@ from glitchygames.argument_types import non_negative_int, non_negative_percent
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.driver import REPLAY_FPS_CHOICES
 from glitchygames.replay.tools.children import GAME_FORMS
+from glitchygames.replay.tools.measure import (
+    clear_published_command,
+    clear_published_on_the_game,
+    measure_command,
+    measure_on_the_game,
+    unmeasured_command,
+    unmeasured_on_the_game,
+)
 from glitchygames.replay.tools.traces import (
     record_golden_trace_command,
     record_golden_trace_on_the_game,
@@ -737,7 +745,8 @@ RANDOM_SEED_OPTION = ToolOption(
         'without comparing or writing anything (headless, it prints what differed and exits '
         f'{ExitCode.SUCCESS:d}); --replay-trace OLD --rebaseline NEW --random-seed N records '
         'them under it in NEW; --audit under another seed is refused, and so is any seed '
-        'given to --verify (it always compares)'
+        'given to --verify (it always compares) or --measure (it rebaselines each recording '
+        'under its recorded seed)'
     ),
     default=None,
 )
@@ -817,24 +826,80 @@ GAME_OVERRIDE_OPTION = ToolOption(
         f"game the recording's header names): {GAME_FORMS_TEXT}"
     ),
 )
-# verify's option: which of the recordings to verify
+# verify's and measure's option: which of the recordings to verify or measure (one option for
+# both: the controller's note to Task D6)
 ONLY_OPTION = ToolOption(
     flag='--only',
     kind='text',
     metavar='TEXT',
     help=(
-        'with --verify: verify only the recordings whose path (relative to the project, for '
-        'one inside it) contains TEXT'
+        'with --verify or --measure: only the recordings whose name (the path relative to the '
+        'project, for one inside it) contains TEXT'
     ),
 )
-# The command's verify takes the games whose recordings it verifies (none given: the project's
-# [tool.glitchygames] games); a game verifying itself needs none
+# measure's options (glitchygames/replay/tools/measure.py), as scripts/replay_metrics.py's
+# measure command described them (help reworded for the game's own revision)
+FORCE_OPTION = ToolOption(
+    flag='--force',
+    kind='flag',
+    help='with --measure: measure even what this commit (or --code-tree) already measured',
+    default=False,
+)
+ALLOW_DIRTY_OPTION = ToolOption(
+    flag='--allow-dirty',
+    kind='flag',
+    help=(
+        "with --measure: measure despite the game's uncommitted changes or unknown commit (a "
+        'trial: its rows say so, and never count as measuring the commit); not with '
+        '--skip-dirty'
+    ),
+    default=False,
+)
+SKIP_DIRTY_OPTION = ToolOption(
+    flag='--skip-dirty',
+    kind='flag',
+    help=(
+        'with --measure: when the game has uncommitted changes or an unknown commit, measure '
+        'nothing and succeed; not with --allow-dirty'
+    ),
+    default=False,
+)
+CODE_TREE_OPTION = ToolOption(
+    flag='--code-tree',
+    kind='text',
+    metavar='TREE',
+    help=(
+        'with --measure or --unmeasured: the code measured, as a git tree of what can change '
+        'the replays (glitchygames/code_tree.py): the measured run names it, and a recording '
+        'measured for it on this machine is skipped (default: judged by the commit)'
+    ),
+)
+ROWS_DIRECTORY_OPTION = ToolOption(
+    flag='--rows-directory',
+    kind='path',
+    metavar='DIRECTORY',
+    help=(
+        'with --measure or --unmeasured: the rows are row files there (the ledger directory), '
+        'written instead of appended to the pending ledger, and read as measured'
+    ),
+)
+PENDING_OPTION = ToolOption(
+    flag='--pending',
+    kind='path',
+    metavar='PATH',
+    help=(
+        'with --measure, --unmeasured or --clear-published: the pending ledger file (default: '
+        "the project's [tool.glitchygames] pending-ledger)"
+    ),
+)
+# The command's verify, measure and unmeasured take the games whose recordings they work on
+# (none given: the project's [tool.glitchygames] games); a game working on itself needs none
 GAMES_OPTION = ToolOption(
     flag='--game',
     kind='games',
     metavar='GAME',
     help=(
-        "a game whose own recordings to verify, given once per game (default: the project's "
+        "a game whose own recordings to work on, given once per game (default: the project's "
         '[tool.glitchygames] games); with PATHs, the one game that replays them (default: the '
         f"game each recording's header names): {GAME_FORMS_TEXT}"
     ),
@@ -934,5 +999,59 @@ TOOLS: tuple[Tool, ...] = (
         value_kind='paths',
         value_help=("the recordings to verify (default: the games' own goldens and bundled demos)"),
         command_arguments=(GAMES_OPTION,),
+    ),
+    Tool(
+        name='measure',
+        help=(
+            "rebaseline recordings headless, each in a child process, measuring every frame's "
+            "processing time into the run ledger (default: the game's own goldens and bundled "
+            "demos not yet measured for the game's commit on this machine); exits "
+            f'{ExitCode.SUCCESS:d} when every one was measured or already was, '
+            f"{ExitCode.OPTIONS_REFUSED:d} for a game's uncommitted changes or unknown commit, "
+            f'{ExitCode.INTERNAL_ERROR:d} when one could not be measured (default: off)'
+        ),
+        # --random-seed is listed only to be refused, on both front ends alike (measure.py)
+        options=(
+            FORCE_OPTION,
+            ALLOW_DIRTY_OPTION,
+            SKIP_DIRTY_OPTION,
+            ONLY_OPTION,
+            CODE_TREE_OPTION,
+            ROWS_DIRECTORY_OPTION,
+            PENDING_OPTION,
+            RANDOM_SEED_OPTION,
+        ),
+        runs_game=True,
+        # The recordings are rebaselined by children; the game itself never runs
+        game_handler=measure_on_the_game,
+        command_handler=measure_command,
+        value_kind='paths',
+        value_help="the recordings to measure (default: the games' own goldens and bundled demos)",
+        command_arguments=(GAMES_OPTION,),
+    ),
+    Tool(
+        name='unmeasured',
+        help=(
+            'list the recordings --measure would measure, one per line (the summary goes to '
+            'standard error); runs no game (default: off)'
+        ),
+        options=(CODE_TREE_OPTION, ROWS_DIRECTORY_OPTION, PENDING_OPTION),
+        runs_game=False,
+        game_handler=unmeasured_on_the_game,
+        command_handler=unmeasured_command,
+        value_kind='flag',
+        command_arguments=(GAMES_OPTION,),
+    ),
+    Tool(
+        name='clear-published',
+        help=(
+            'remove the pending rows the published ledger now holds (after a publish); runs no '
+            'game (default: off)'
+        ),
+        options=(PENDING_OPTION,),
+        runs_game=False,
+        game_handler=clear_published_on_the_game,
+        command_handler=clear_published_command,
+        value_kind='flag',
     ),
 )

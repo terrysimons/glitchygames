@@ -10,7 +10,13 @@ from __future__ import annotations
 import sys
 import types
 
-from glitchygames.replay.tools.identity import GameIdentity, game_identity
+import pytest
+
+from glitchygames.replay.tools.identity import (
+    GameIdentity,
+    console_script_identity,
+    game_identity,
+)
 from glitchygames.scenes import Scene
 from tests.stand_in_games import (
     use_stand_in_game,
@@ -141,3 +147,20 @@ def test_a_game_whose_module_cannot_be_found_has_no_directory(mocker):
         console_script=None,
         distribution=None,
     )
+
+
+def test_a_console_scripts_game_is_known_without_importing_it(tmp_path, monkeypatch):
+    """What the command knows of a game it names by console script: the same identity.
+
+    Read from the console script's entry point and the package's spec (Task D6's ``unmeasured``
+    command): the stand-in package is never imported here.
+    """
+    game = write_stand_in_game(directory=tmp_path, package='stand_in_rally')
+    use_stand_in_game(install_directory=tmp_path, monkeypatch=monkeypatch)
+
+    identity = console_script_identity(console_script=game.console_script)
+
+    assert identity == game_identity(game=scene_class_in(module='stand_in_rally.game'))
+    assert 'stand_in_rally' not in sys.modules
+    with pytest.raises(KeyError):
+        console_script_identity(console_script='glitchygames-no-such-game')

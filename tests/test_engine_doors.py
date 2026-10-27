@@ -163,6 +163,10 @@ ALLOWED_FUNCTION_BYPASSES: dict[str, dict[str, frozenset[str]]] = {
         'record_trace': frozenset({'pygame.event.post'}),
         'discard_environment_events': frozenset({'pygame.event.get', 'pygame.event.post'}),
     },
+    # A measurement's wall time for its summary line (describe_measurement's seconds), outside
+    # any game: the rebaseline child measures the frames. Moved from scripts/replay_metrics.py
+    # unchanged (Stage D, Task D6)
+    'replay/tools/measure.py': {'measure': frozenset({'time.perf_counter'})},
 }
 
 

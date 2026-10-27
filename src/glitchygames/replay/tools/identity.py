@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING
 from glitchygames.build_info import package_source_revision
 from glitchygames.replay.tools.children import (
     console_script_for_game_module,
+    game_entry_point,
     installed_console_scripts,
 )
 
@@ -155,6 +156,36 @@ def game_identity(*, game: type[Scene] | Scene) -> GameIdentity:
         package_directory=package_directory_of(package=package),
         console_script=None if entry_point is None else entry_point.name,
         distribution=distribution_of(package=package, entry_point=entry_point),
+    )
+
+
+def console_script_identity(*, console_script: str) -> GameIdentity:
+    """Return the identity of the game an installed console script starts, without importing it.
+
+    What the ``glitchygames`` command knows of a game it names by its console script and does
+    not run (``unmeasured``): its package is the top-level package of the console script's entry
+    point (``paddleslap`` for ``paddleslap:main``), the package a game's scene is in for every
+    game a console script starts here (Brave Adventurer's launcher: ``brave_adventurer_modes``,
+    its title scene's). The distribution is the console script's own (the one that installs
+    it), not looked up through ``importlib.metadata.packages_distributions``: that scans every
+    installed file (most of a second per game), and a console script is installed with the
+    package it starts. A console script no installed package has is ``game_entry_point``'s
+    ``KeyError``.
+
+    Args:
+        console_script: The console script's name (``[project.scripts]``).
+
+    Returns:
+        The identity (``package_directory`` None when the package isn't found).
+
+    """
+    entry_point = game_entry_point(console_script=console_script)
+    package = entry_point.value.partition(ENTRY_POINT_SEPARATOR)[0].partition('.')[0]
+    return GameIdentity(
+        package=package,
+        package_directory=package_directory_of(package=package),
+        console_script=console_script,
+        distribution=None if entry_point.dist is None else entry_point.dist.name,
     )
 
 

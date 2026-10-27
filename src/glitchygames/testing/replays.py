@@ -43,7 +43,7 @@ workspace member's package (``<package>/demos/<name>.jsonl.gz``, found by
 ``glitchygames.bundled_demos``, listed by ``bundled_demo_paths``) are outside the suite's
 directories, so tests/replay/test_bundled_demos.py replays each one through it.
 ``rebaseline_recording_headless`` runs the same child with ``--rebaseline NEW``
-(scripts/replay_metrics.py measures every recording through it).
+(``glitchygames.replay.tools.measure`` measures every recording through it).
 
 Loading the plugin: ``pytest_plugins = ['glitchygames.testing.replays']`` in the root conftest
 (this project's ``conftest.py``), or ``pytest -p glitchygames.testing.replays``. Recordings are
@@ -128,8 +128,8 @@ def bundled_demo_paths(*, packages: tuple[str, ...]) -> list[tuple[str, Path]]:
     """Return every demo bundled in an installed package, with the console script that replays it.
 
     The demos are ``glitchygames.bundled_demos.bundled_demos``'s (the one lookup, which
-    scripts/replay_metrics.py uses too); this caller's reaction to a demo no console script
-    replays is to refuse it.
+    ``glitchygames.replay.tools.recordings`` uses too); this caller's reaction to a demo no
+    console script replays is to refuse it.
 
     Args:
         packages: The top-level import packages to search (there is no default, as

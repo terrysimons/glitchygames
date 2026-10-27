@@ -5,8 +5,8 @@ from __future__ import annotations
 from scripts.import_published_ledger import import_published_ledger
 
 from glitchygames.recording_metrics import ledger_text, read_row_files
+from tests.ledger_repositories import clone_with_published_ledger
 from tests.test_recording_metrics import ledger_row
-from tests.test_replay_metrics import clone_with_published_ledger
 
 
 def test_every_published_row_becomes_a_row_file_once(tmp_path):

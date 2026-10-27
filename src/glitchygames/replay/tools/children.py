@@ -433,7 +433,11 @@ def replay_recording_headless(*, console_script: str, path: Path) -> CompletedPr
 
 
 def rebaseline_recording_headless(
-    *, console_script: str, path: Path, new_path: Path
+    *,
+    console_script: str,
+    path: Path,
+    new_path: Path,
+    game_arguments: Sequence[str] = (),
 ) -> CompletedProcess[str]:
     """Rebaseline a recording headless through a game's console script, in a child process.
 
@@ -445,6 +449,8 @@ def rebaseline_recording_headless(
         console_script: The game's console script (``[project.scripts]``).
         path: The recording.
         new_path: Where the rebaselined recording goes (never ``path``: refused).
+        game_arguments: More arguments for the game, after the rebaseline's (the game's own,
+            which ``--measure`` passes on as verify does; none by default).
 
     Returns:
         The finished child: ``returncode`` is the rebaseline's ``ExitCode`` and ``stdout`` its
@@ -453,10 +459,13 @@ def rebaseline_recording_headless(
     """
     entry_point = game_entry_point(console_script=console_script)
     return run_command(
-        command=with_options_appended(
-            arguments=replay_command(entry_point=entry_point, recording=path),
-            appended=['--rebaseline', str(new_path)],
-        ),
+        command=[
+            *with_options_appended(
+                arguments=replay_command(entry_point=entry_point, recording=path),
+                appended=['--rebaseline', str(new_path)],
+            ),
+            *game_arguments,
+        ],
         environment=os.environ,
         timeout_seconds=REPLAY_TIMEOUT_SECONDS,
         capture_output=True,

@@ -507,6 +507,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `glitchygames record-golden-trace GAME PATH --input-script MODULE:NAME --frame-count N`,
   `glitchygames record-session GAME PATH --input-script MODULE:NAME --frame-count N`,
   `glitchygames verify [PATH ...] [--only TEXT] [--game GAME ...]`,
+  `glitchygames measure [PATH ...] [--force] [--allow-dirty | --skip-dirty] [--only TEXT]
+  [--code-tree TREE] [--rows-directory DIR] [--pending PATH] [--game GAME ...]`,
+  `glitchygames unmeasured [--code-tree TREE] [--rows-directory DIR] [--pending PATH] [--game GAME
+  ...]`, `glitchygames clear-published [--pending PATH]`,
   `--project-root DIR`; arguments after a bare `--` go to the game). `--game` is the one
   command-only option (`COMMAND_ONLY_FLAGS` in `tests/replay/tools/test_registry.py`): a game needs
   none, it is the game. `verify` (`verify.py`) replays each recording headless in a child (no
@@ -520,14 +524,32 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   its console script replays, plus `<package>/demos/*.jsonl.gz`). The command with no PATHs runs
   `GAME --verify` per game (`--game`, else `[tool.glitchygames] games`); with PATHs each is
   replayed by the game its header names (or the one `--game`). Both find the project the same
-  way (`--project-root`, else the nearest directory up with a `pyproject.toml`,
-  `settings.find_project_root`; none is said) and pass the game's other arguments to the games they
+  way (`--project-root`, else the nearest directory up whose `pyproject.toml` has
+  `[tool.glitchygames]`, else the nearest with a `pyproject.toml`, so inside a workspace member
+  the root is the project: `settings.find_project_root`, Stage D Task D6; none is said) and pass the game's other arguments to the games they
   start (the command's after `--`; the game's own beside `--verify`, `registry.tool_free_arguments`).
   A replay that crashes before its engine starts exits 1 and counts as a divergence (user, 2026-10-27). It starts the game as a child
   (`children.py`: `resolve_game` reads `GAME` as a script path, `MODULE:CALLABLE`, an installed
   console script or a module; `replay-trace` takes the game from the recording's header and asks
   for `--game` when its module no longer imports). `children.py` also holds the console-script
   lookups and the headless child replay/rebaseline the pytest plugin uses (pytest-free).
+  `measure`, `unmeasured` and `clear-published` (`replay/tools/measure.py`, Stage D Task D6, moved
+  from the deleted scripts/replay_metrics.py) are the run ledger's tools: `--measure [PATH ...]`
+  rebaselines the game's own recordings (or the PATHs) headless through its console script into
+  the project's pending ledger (or `--rows-directory`, row files), skipping what this machine
+  measured for the game's commit (or `--code-tree`); each recording under its recorded seed, so
+  `--random-seed` is refused as verify refuses it. The commit, refusal and rows are the GAME's
+  revision (`identity.game_source_revision`, else the engine's): uncommitted changes or an
+  unknown commit are refused OPTIONS_REFUSED unless `--allow-dirty` (a trial row) or
+  `--skip-dirty` (nothing measured, SUCCESS). `glitchygames measure` runs `GAME --measure` per
+  game (`--game`, else `[tool.glitchygames] games`) and exits with the first failure's code
+  (`combined_exit_code`); with the settings' games, a golden none of them replays is a failure
+  line naming why (`unclaimed_goldens`). `unmeasured` lists, one ledger name per line (summary on
+  stderr), what `measure` would measure (`missing_measurements`); the command reads a console
+  script's game without starting it (`identity.console_script_identity`). `clear-published` drops
+  the pending rows the published ledger holds. A pending ledger under `.glitchygames/` is made
+  through `settings.ensure_local_directory`; settings come from the project found, never from a
+  module-level read of ours.
   An option may be listed under several tools but is one game flag (`--headless` and
   `--random-seed`: every tool that runs the game; `--input-script` and `--frame-count`:
   record-golden-trace and record-session). `--random-seed` (the user's rule, 2026-10-26)
@@ -607,7 +629,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `glitchygames.bundled_demos.bundled_demos(*, packages)` (`BundledDemo`: console script, path,
   install name; `packages` is required, no default since Stage D Task D5: a game passes its own,
   our tests `tests/workspace_expectations.MEMBER_PACKAGES`); the replay plugin's
-  `bundled_demo_paths(*, packages)`, `replay/tools/recordings.py` and scripts/replay_metrics.py
+  `bundled_demo_paths(*, packages)` and `replay/tools/recordings.py` (which measure uses)
   call it. Development installs are editable (`uv sync`; the
   `replay-metrics` nox session runs `uv run --all-packages`), so the ledger names a demo by its
   repository path; outside a repository, by its install name. PaddleSlap's is
@@ -810,7 +832,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   ledger lives in the repository, one file per row (`quality/replay-ledger/`; design
   `plans/2026-10-25-measured-rows-in-the-repository.md`): the `replay-metrics` pre-commit hook
   (`scripts/measure_staged_replays.py`, its docstring the rules; installed by `.envrc` when
-  missing) measures every golden replay and bundled demo when this machine has no rows for the
+  missing; it keeps only git staging and its refusals, and runs `glitchygames unmeasured` then
+  `glitchygames measure --code-tree TREE --rows-directory DIR` in its own process) measures every
+  golden replay and bundled demo when this machine has no rows for the
   staged code tree (`src/glitchygames/code_tree.py`: a git tree of only the root
   `pyproject.toml`'s `[tool.glitchygames]` `measured-paths`, `src/` (the engine, games, demos,
   apps; less its `unmeasured-paths`, the members' `tests/` but for their
@@ -820,11 +844,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   tree (`LedgerRow.code_tree`), into the same commit, plus the `history-...` row files it wrote
   (a recording's earlier header runs, written only when measured on a commit on `origin/main`
   without uncommitted changes, and never again under a moved recording's new path:
-  `replay_metrics.rows_to_write`, `LedgerRow.held_key`; none without an `origin/main`) (refused for a partial `git commit <path>`
+  `measure.rows_to_write`, `LedgerRow.held_key`; none without an `origin/main`) (refused for a partial `git commit <path>`
   or untracked files under the measured paths; `SKIP=replay-metrics` skips it); every docs build reads them and keeps the rows whose tree
   landed (`landed_code_trees`: the tree of each commit that added rows, i.e. main's squash
   merge; `landed_rows`), labelled with that commit, then merges gh-pages' ledger and local
-  pending rows (`nox -s replay-metrics`, `scripts/replay_metrics.py`) and graphs them
+  pending rows (`nox -s replay-metrics`: `glitchygames measure`) and graphs them
   (`scripts/generate_performance_graphs.py`, docs/quality/performance.md); CircleCI's
   `deploy-docs` publishes after each merge (`nox -s docs-deploy` refuses unless HEAD is on
   origin/main). A branch updated from main is measured by its next commit, or by hand: `uv run

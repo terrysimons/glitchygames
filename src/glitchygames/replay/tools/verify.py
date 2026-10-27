@@ -26,8 +26,10 @@ A replay that crashes before its engine starts (in the game's own code before
 count as divergences"). Its line still ends with the exception.
 
 Both front ends find the project the same way (``verify_project_root``): ``--project-root`` when
-the command is given it, else the nearest directory at or above the current one with a
-``pyproject.toml`` (``settings.find_project_root``), else the current directory. When settings
+the command is given it, else the nearest directory at or above the current one whose
+``pyproject.toml`` has ``[tool.glitchygames]``, else the nearest with a ``pyproject.toml``
+(``settings.find_project_root``: inside a workspace member, the workspace root), else the
+current directory. When settings
 are read there (no PATHs) and it has no ``pyproject.toml``, they say the defaults are used.
 
 A seed is refused on both front ends (``seed_refusal``), before any replay runs, with
@@ -324,9 +326,9 @@ def verify_project_root(*, given: Path | None) -> Path:
         given: The command's ``--project-root``, or None (always, on the game).
 
     Returns:
-        ``given``; else the nearest directory at or above the current one with a
-        ``pyproject.toml`` (``find_project_root``); else the current directory, said on its
-        own line.
+        ``given``; else the project the current directory is in (``find_project_root``: the
+        nearest ``pyproject.toml`` with ``[tool.glitchygames]``, else the nearest one); else the
+        current directory.
 
     """
     if given is not None:

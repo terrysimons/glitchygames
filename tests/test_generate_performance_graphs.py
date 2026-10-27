@@ -2,7 +2,7 @@
 
 Design: plans/2026-10-23-recording-metrics-1-frame-performance-history.md. The published ledger
 comes from a throwaway repository whose ``origin`` has a ``gh-pages`` branch (built as
-tests/test_replay_metrics.py builds it); the pending rows are a file in tmp_path.
+tests/ledger_repositories.py builds it); the pending rows are a file in tmp_path.
 """
 
 from __future__ import annotations
@@ -36,6 +36,7 @@ from glitchygames.recording_metrics import (
     write_row_files,
 )
 from glitchygames.replay.tools.settings import ProjectSettings
+from tests.ledger_repositories import clone_with_published_ledger, git
 from tests.test_code_tree import LEDGER_DIRECTORY, PATHS
 from tests.test_recording_metrics import (
     NEWER_COMMIT,
@@ -44,7 +45,6 @@ from tests.test_recording_metrics import (
     run,
     with_uncommitted_changes,
 )
-from tests.test_replay_metrics import clone_with_published_ledger, git
 
 if TYPE_CHECKING:
     from pathlib import Path

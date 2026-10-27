@@ -311,26 +311,25 @@ def lint_docs(session: nox.Session) -> None:
 _GIT_FETCH_STATUSES = [0, 1, 128]
 
 
-def _replay_metrics(session: nox.Session, *arguments: str) -> None:
-    """Run scripts/replay_metrics.py in the project's environment (``uv run``), as a module.
+def _glitchygames(session: nox.Session, *arguments: str) -> None:
+    """Run the engine's ``glitchygames`` command in the project's environment (``uv run``).
 
-    It imports scripts.workspace_packages, so it runs as ``python -m scripts.replay_metrics``.
-
-    The rebaselines it starts must run this checkout's package (the project's editable install)
-    to know their commit: a nox venv's built copy of the package cannot name it. The install is
-    editable, the engine and every member (``--all-packages``; never ``--no-editable``, which
-    only the test sessions' ``_install_from_lockfile`` passes): the bundled demos are found
-    where the packages are installed (glitchygames/bundled_demos.py), so an editable install
-    finds them in the repository and the ledger names them by their repository paths.
+    The measurement tools (``measure``, ``clear-published``: glitchygames/replay/tools/
+    measure.py) start each game as a child, whose rebaselines must run this checkout's packages
+    (the project's editable install) to know their commit: a nox venv's built copy of a package
+    cannot name it. The install is editable, the engine and every member (``--all-packages``;
+    never ``--no-editable``, which only the test sessions' ``_install_from_lockfile`` passes):
+    the bundled demos are found where the packages are installed (glitchygames/bundled_demos.py),
+    so an editable install finds them in the repository and the ledger names them by their
+    repository paths. The command runs in the repository, which it takes as the project
+    (its ``[tool.glitchygames]``: the games, the ledgers).
     """
     session.run(
         'uv',
         'run',
         '--frozen',
         '--all-packages',
-        'python',
-        '-m',
-        'scripts.replay_metrics',
+        'glitchygames',
         *arguments,
         external=True,
         # Unset (nox drops None): a session's own venv is not the project's, and uv would warn;
@@ -343,11 +342,13 @@ def _replay_metrics(session: nox.Session, *arguments: str) -> None:
 def replay_metrics(session: nox.Session) -> None:
     """Measure every golden replay and bundled demo on this machine into the run ledger.
 
-    scripts/replay_metrics.py rebaselines each recording headless (a few seconds each), which
-    measures every frame's processing time, and appends one row per recording to
-    test-results/replay-metrics/pending.jsonl; ``nox -s docs-deploy`` publishes the rows with the
-    docs site (gh-pages), whose Performance page graphs them. A recording already measured for
-    this commit on this machine is skipped. A checkout with uncommitted changes is refused.
+    ``glitchygames measure`` (glitchygames/replay/tools/measure.py) starts each game the
+    project names (``[tool.glitchygames] games``) with ``--measure``, which rebaselines each of
+    its recordings headless (a few seconds each), measuring every frame's processing time, and
+    appends one row per recording to test-results/replay-metrics/pending.jsonl; ``nox -s
+    docs-deploy`` publishes the rows with the docs site (gh-pages), whose Performance page
+    graphs them. A recording already measured for this commit on this machine is skipped. A
+    checkout with uncommitted changes is refused.
 
     Usage:
         nox -s replay-metrics                    # Measure what this commit has not measured
@@ -355,7 +356,7 @@ def replay_metrics(session: nox.Session) -> None:
         nox -s replay-metrics -- --allow-dirty   # A trial on uncommitted changes (rows say so)
         nox -s replay-metrics -- --only muncher  # Only recordings whose path contains "muncher"
     """
-    _replay_metrics(session, 'measure', *session.posargs)
+    _glitchygames(session, 'measure', *session.posargs)
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='docs-deploy', default=False)
@@ -406,14 +407,14 @@ def docs_deploy(session: nox.Session) -> None:
         success_codes=_GIT_FETCH_STATUSES if build_only else [0],
     )
     if measure:
-        _replay_metrics(session, 'measure', '--skip-dirty')
+        _glitchygames(session, 'measure', '--skip-dirty')
     # The browser games, published with the docs as play/ (scripts/mkdocs_hooks.py)
     session.run('python', '-m', 'scripts.build_browser_bundle', 'all')
     if build_only:
         session.run('mkdocs', 'build', '--strict')
         return
     session.run('mkdocs', 'gh-deploy', '--strict')
-    _replay_metrics(session, 'clear-published')
+    _glitchygames(session, 'clear-published')
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='docs-serve', default=False)

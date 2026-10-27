@@ -1268,8 +1268,8 @@ FORMER_EXAMPLES_EXEMPT_PATHS: dict[str, str] = {
     'src/games/paddleslap/tests/test_paddleslap_recording_history.py': (
         'the golden replay is old-format: its scene start names the module as it was'
     ),
-    'tests/test_replay_metrics.py': (
-        'old-format recordings and the ledger rows keyed by their old paths'
+    'tests/replay/tools/test_measure.py': (
+        "a ledger row keyed by a moved recording's old path (recording-renames)"
     ),
     'docs/architecture/game_packages.md': (
         'the recipe for moving a game out of the engine: its history lines name where games were'

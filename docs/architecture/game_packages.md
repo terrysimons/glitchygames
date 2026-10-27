@@ -314,7 +314,7 @@ uv run pytest --dummy-only --no-cov -q tests/test_suite_collection.py \
     tests/test_workspace_config.py tests/test_workspace_packages.py tests/test_logical_names.py \
     tests/test_browser_touch_controls.py tests/test_build_browser_bundle.py \
     tests/engine/test_engine_lifecycle.py tests/test_recording_metrics.py \
-    tests/test_replay_metrics.py tests/test_measure_staged_replays.py \
+    tests/test_our_measured_recordings.py tests/test_measure_staged_replays.py \
     tests/test_generate_performance_graphs.py tests/replay tests/world <borrowing tests>
 uv run pytest                               # the whole suite, both drivers, 100% coverage
 uv build --package <distribution>           # the member builds on its own
@@ -383,12 +383,13 @@ stage the whole move (`git add -A src tests scripts docs`) before committing.
   returns `BundledDemo` records
   (console script, installed path, install name). It is the one lookup: the replay plugin's
   `bundled_demo_paths` (which raises for a demo no console script replays) and
-  `scripts/replay_metrics.py` (which reports it unreplayable) both call it. Development installs
+  `glitchygames.replay.tools.recordings.game_recordings` (a game's own demos, which `--verify`
+  and `--measure` take) both call it. Development installs
   are editable (`uv sync`, and the `replay-metrics` nox session's `uv run --all-packages`), so
   the demos are found in the repository and the ledger names them by repository path; under a
   built install (`site-packages`, as nox's test sessions install on purpose) a recording outside
-  the repository is named by its install name (`scripts/replay_metrics.py`
-  `recording_ledger_name`). A demo moved twice needs a `recording-renames` line from each
+  the repository is named by its install name
+  (`glitchygames.replay.tools.measure.recording_ledger_name`). A demo moved twice needs a `recording-renames` line from each
   old path.
 - **Engine-private names**: a member uses only the engine's public API. Where a game reaches
   into the engine, give the engine a public read-only API first, then move the game. PaddleSlap

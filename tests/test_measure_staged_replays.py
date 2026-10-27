@@ -1,7 +1,8 @@
 """scripts/measure_staged_replays.py: the pre-commit hook that measures what a commit holds.
 
-Driven against a real git repository in tmp_path (real staging, real code trees); only the
-replay measurement itself is replaced (``replay_metrics.run``), by one that writes the row files
+Driven against a real git repository in tmp_path (real staging, real code trees, the engine's
+real ``glitchygames unmeasured``); only the replay measurement itself is replaced
+(``glitchygames measure``, through the hook's ``glitchygames``), by one that writes the row files
 a real measurement would. The pre-commit framework's own part (stashing unstaged changes, then
 restoring them; a file the hook stages joining the commit) was proven in a throwaway repository
 before the hook was written (plans/2026-10-25-measured-rows-in-the-repository.md).
@@ -9,18 +10,21 @@ before the hook was written (plans/2026-10-25-measured-rows-in-the-repository.md
 
 from __future__ import annotations
 
+import json
 import os
-from functools import partial
 from typing import TYPE_CHECKING
 
 import pytest
 from scripts import measure_staged_replays
 from scripts.measure_staged_replays import measure_staged
-from scripts.replay_metrics import metric_recordings, recording_ledger_name
 
 from glitchygames.code_tree import staged_code_tree
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_metrics import read_row_files, write_row_files
+from glitchygames.replay.tools import command
+from glitchygames.replay.tools.identity import console_script_identity
+from glitchygames.replay.tools.measure import ledger_names
+from glitchygames.replay.tools.settings import load_project_settings
 from tests.stand_in_games import write_stand_in_distribution, write_stand_in_package
 from tests.test_code_tree import LEDGER_DIRECTORY, PATHS, git, write
 from tests.test_recording_metrics import ledger_row
@@ -31,28 +35,34 @@ if TYPE_CHECKING:
 # The machine the stand-in rows were measured on (ledger_row's)
 MACHINE = ledger_row().machine
 # The goldens the stand-in measurement measures (the repository holds a file for each): their
-# folders are stand-in console scripts, installed as replay_metrics.metric_recordings requires
+# folders are stand-in console scripts, installed so the engine can tell whose they are, and the
+# repository's games
 RECORDING_NAMES = ('stand-in-rally', 'stand-in-tower')
 # The bundled demos it measures: one stand-in package's, whose entry point is stand-in-rally's
 STAND_IN_DEMO_PACKAGES = ('stand_in_rally',)
 STAND_IN_DEMO_NAMES = ('rally.jsonl.gz',)
 # What the hook measures: those goldens and the stand-in's bundled demo, never an installed
-# member's (the hook's own metric_recordings call is given STAND_IN_DEMO_PACKAGES)
+# member's (the repository's [tool.glitchygames] games are the stand-ins alone)
 MEASURED_RECORDING_COUNT = len(RECORDING_NAMES) + len(STAND_IN_DEMO_NAMES)
-# The repository's root project: a workspace without members (metric_recordings reads it)
-ROOT_PYPROJECT = '[project]\nname = "stand-in"\n'
+# The repository's root project: its games, and what a code tree holds and where the rows are
+# (this repository's, as the hook reads them from the repository it is given)
+ROOT_PYPROJECT = (
+    '[project]\nname = "stand-in"\n\n[tool.glitchygames]\n'
+    f'games = {json.dumps(list(RECORDING_NAMES))}\n'
+    f'ledger-directory = {json.dumps(LEDGER_DIRECTORY)}\n'
+    f'measured-paths = {json.dumps(list(PATHS.measured))}\n'
+    f'unmeasured-paths = {json.dumps(list(PATHS.unmeasured))}\n'
+)
 
 
 @pytest.fixture
 def stand_in_games(tmp_path_factory, monkeypatch, mocker) -> None:
-    """Install the stand-in console scripts and demo package; make the hook measure only them.
+    """Install the stand-in console scripts and demo package, on a machine labelled MACHINE.
 
     One stand-in distribution holds a console script per golden folder (RECORDING_NAMES); the
     stand-in package ``stand_in_rally`` bundles a demo and holds stand-in-rally's entry point.
-    The hook calls ``replay_metrics.metric_recordings`` and ``recording_ledger_name`` with their
-    default demo packages (every workspace member's): those calls are given
-    STAND_IN_DEMO_PACKAGES instead. The demo lies outside the repository, so it is named by its
-    install name, as a built install's is.
+    The demo lies outside the repository, so it is named by its install name, as a built
+    install's is. The engine labels this machine as the stand-in rows do (``ledger_row``'s).
     """
     installed = tmp_path_factory.mktemp('site-packages')
     write_stand_in_distribution(
@@ -67,15 +77,7 @@ def stand_in_games(tmp_path_factory, monkeypatch, mocker) -> None:
         directory=installed, package='stand_in_rally', demo_names=STAND_IN_DEMO_NAMES
     )
     monkeypatch.syspath_prepend(installed)
-    for name, function in (
-        ('metric_recordings', metric_recordings),
-        ('recording_ledger_name', recording_ledger_name),
-    ):
-        mocker.patch.object(
-            measure_staged_replays.replay_metrics,
-            name,
-            partial(function, demo_packages=STAND_IN_DEMO_PACKAGES),
-        )
+    mocker.patch('glitchygames.replay.tools.measure.this_machine', return_value=MACHINE)
 
 
 @pytest.fixture
@@ -111,14 +113,22 @@ def stand_in_measurement(
 
     ``history_recording`` also writes a history row (a run the recording held, no code tree).
     The measurement skips a recording already measured for the tree, as the real one does, and
-    fails (``outcome``) after writing ``fail_after`` recordings when that is given.
+    fails (``outcome``) after writing ``fail_after`` recordings when that is given. Every other
+    ``glitchygames`` subcommand (``unmeasured``) is the engine's own.
 
     Returns:
-        The mock (its calls are the measurements).
+        A mock whose calls are the measurements.
 
     """
+    measurements = mocker.MagicMock()
 
-    def measure(*, arguments: list[str]) -> ExitCode:
+    def glitchygames(*, arguments: list[str]) -> int:
+        if arguments[0] != 'measure':
+            return command.main(arguments)
+        measurements(arguments=arguments)
+        return stand_in_measure(arguments=arguments)
+
+    def stand_in_measure(*, arguments: list[str]) -> ExitCode:
         tree = arguments[arguments.index('--code-tree') + 1]
         held = {
             row.recording
@@ -126,12 +136,17 @@ def stand_in_measurement(
             if row.code_tree == tree
         }
         written = 0
-        for _, path in metric_recordings(
-            project_root=repository, demo_packages=STAND_IN_DEMO_PACKAGES
-        ).replayable:
-            recording = recording_ledger_name(
-                path=path, project_root=repository, demo_packages=STAND_IN_DEMO_PACKAGES
+        settings = load_project_settings(project_root=repository)
+        recordings = [
+            recording
+            for console_script in RECORDING_NAMES
+            for recording in ledger_names(
+                identity=console_script_identity(console_script=console_script),
+                settings=settings,
+                project_root=repository,
             )
+        ]
+        for recording in recordings:
             if recording in held:
                 continue
             if fail_after is not None and written == fail_after:
@@ -148,7 +163,8 @@ def stand_in_measurement(
                 write_row_files(rows=[history], directory=repository / LEDGER_DIRECTORY)
         return outcome
 
-    return mocker.patch.object(measure_staged_replays.replay_metrics, 'run', side_effect=measure)
+    mocker.patch.object(measure_staged_replays, 'glitchygames', side_effect=glitchygames)
+    return measurements
 
 
 def staged_rows(*, repository: Path) -> list[str]:
@@ -169,9 +185,7 @@ def run_hook(*, repository: Path) -> int:
         Its exit code.
 
     """
-    return measure_staged(
-        repository=repository, rows_directory=repository / LEDGER_DIRECTORY, machine=MACHINE
-    )
+    return measure_staged(repository=repository, rows_directory=repository / LEDGER_DIRECTORY)
 
 
 def test_a_code_commit_is_measured_and_its_rows_staged_with_it(mocker, repository):
@@ -343,19 +357,16 @@ def test_the_hook_is_configured_to_run_before_each_commit():
     assert 'stages: [pre-commit]' in configuration
 
 
-def test_main_measures_this_repository_on_this_machine(mocker):
-    """main() runs the measuring step here, labelled with this machine."""
+def test_main_measures_this_repository_into_its_ledger_directory(mocker):
+    """main() runs the measuring step here, its rows in this repository's ledger directory."""
     core = mocker.patch.object(measure_staged_replays, 'measure_staged', return_value=0)
-    mocker.patch.object(
-        measure_staged_replays.replay_metrics, 'this_machine', return_value='This Machine'
-    )
+    root = measure_staged_replays.PROJECT_ROOT
 
     assert measure_staged_replays.main() == 0
 
     core.assert_called_once_with(
-        repository=measure_staged_replays.PROJECT_ROOT,
-        rows_directory=measure_staged_replays.ROWS_DIRECTORY,
-        machine='This Machine',
+        repository=root,
+        rows_directory=root / load_project_settings(project_root=root).ledger_directory,
     )
 
 
@@ -367,3 +378,20 @@ def test_installing_the_hooks_installs_the_measuring_one_too():
 
     assert 'default_install_hook_types: [pre-commit, pre-push]' in configuration
     assert 'pre-commit install' in environment
+
+
+def test_an_unmeasured_listing_that_fails_measures_so_the_failure_is_said(mocker, repository):
+    """``glitchygames unmeasured`` refusing (a game not installed): measuring runs, and says."""
+    measure = stand_in_measurement(mocker, repository=repository)
+    pyproject = repository / 'pyproject.toml'
+    pyproject.write_text(
+        pyproject.read_text(encoding='utf-8').replace(
+            'games = [', 'games = ["glitchygames-no-such-game", '
+        ),
+        encoding='utf-8',
+    )
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 10\n')
+
+    assert run_hook(repository=repository) == ExitCode.SUCCESS
+
+    measure.assert_called_once()
