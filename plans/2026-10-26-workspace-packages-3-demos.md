@@ -1106,6 +1106,24 @@ scripts, staging rows in the pre-commit hook, and the docs snippet text.
     engine (the user: "the script aliases should be registered to hook the engine calls").
 15. **The golden-replay pytest plugin auto-registers** through a `pytest11` entry point.
 16. **Project settings live in `[tool.glitchygames]`** in `pyproject.toml`.
+17. **`--random-seed` defaults to `None` everywhere** (the user, 2026-10-26: "If none, we roll
+    random, if something, we use the something. If something on a replay, we use something, if
+    it's None on a replay, we use the game seed from the replay"; "That allows us to test all
+    combinations without changing much"). A recording or run with `None` rolls a random seed,
+    logged in the recording. A replay with `None` uses the recorded seed. Refined the same day (the
+    user: "I don't think we should force a replay that has a new seed - that would cause issues
+    for the golden samples ... maybe we need to set a flag to have it update the replay?"): a
+    replay given a different seed replays OLD's inputs under it without comparing and records
+    nothing (the user: "we can replay the game but just not record a new version"; `--audit`
+    still refuses it). With `--rebaseline NEW` it replays OLD's inputs under that seed into NEW
+    (OLD untouched), confirmed by the user: "if you rebaseline then
+    we will replace the seed if and only if provided". The harness tools lose their fixed default;
+    our scripts pass `20261018`.
+18. **`--compare-trace OLD` onion-skins two runs** (the user, 2026-10-26: "consider adding a
+    --compare-trace that is able to be run to do the onion skinning"; placed as Task D11). An
+    option of `replay-trace`: NEW replays watched and solid, OLD's same-numbered frame is drawn
+    over it at `--compare-alpha` (default 50%). OLD is replayed by a headless child process in
+    lockstep, streaming its frames, so NEW's replay is untouched.
 
 **Calls made while planning** (the controller's; the user may overturn any):
 - **Rebaseline and audit stay options of `replay-trace`** (the controller's recommendation; the
@@ -1195,7 +1213,7 @@ Part 3's Global Constraints all apply, and in addition:
 | Tool | Runs the game? | As a game flag | As a command |
 |---|---|---|---|
 | `record-trace` | yes | exists | `glitchygames record-trace GAME PATH` |
-| `replay-trace` | yes | exists, with its options `--headless`, `--replay-fps`, `--replay-pause-at-frame`, `--audit`, `--rebaseline NEW`, `--compare-processing`, `--max-processing-slowdown`, `--replay-digest` | `glitchygames replay-trace PATH [same options]` (the game comes from the recording) |
+| `replay-trace` | yes | exists, with its options `--headless`, `--replay-fps`, `--replay-pause-at-frame`, `--audit`, `--rebaseline NEW`, `--compare-processing`, `--max-processing-slowdown`, `--replay-digest`, and (Task D11) `--compare-trace OLD`, `--compare-alpha PERCENT` | `glitchygames replay-trace PATH [same options]` (the game comes from the recording) |
 | `record-session` | yes | `--record-session PATH --input-script M:N --frames N` | `glitchygames record-session GAME PATH --input-script M:N --frames N` |
 | `record-golden-trace` | yes | `--record-golden-trace PATH --input-script M:N --frames N` | `glitchygames record-golden-trace GAME PATH …` |
 | `verify` | yes | `--verify [PATH …]` (default: the game's own) | `glitchygames verify [GAME …]` (default: `[tool.glitchygames] games`) |
@@ -1468,6 +1486,46 @@ clear-published (against a local bare repository as "published"). Assert:
 - [ ] **Step 1:** write it; it passes on the finished stage. Prove it bites: break one front end's
   option (in a scratch edit) and watch it fail, then restore.
 - [ ] **Step 2:** commit.
+
+### Task D11: `--compare-trace`, the onion skin (runs after D9, before D10)
+
+**Files:** `replay/tools/compare.py` (new); `replay/tools/children.py` (the frame-streaming child);
+`replay/tools/registry.py` (the two options on `replay-trace`); the replay viewer's step and
+restart path (`replay/viewer.py`, `replay/driver.py`) to keep the child in step;
+`tests/replay/tools/test_compare_trace.py`; D9's unseen-game test gains a `--compare-trace` case.
+
+**Behavior** (decision 18):
+- `--replay-trace NEW --compare-trace OLD [--compare-alpha PERCENT]`, on the game and as
+  `glitchygames replay-trace NEW --compare-trace OLD …`. NEW replays watched, as normal and drawn
+  solid; after each presented frame, OLD's frame of the same number is blended over it at
+  `PERCENT` (default 50, range 0-100, refused outside it).
+- OLD is replayed by a headless child (`<OLD's game> --replay-trace OLD --headless` plus a
+  hidden frame-stream option) that writes each frame's pixels to a pipe; the parent reads one
+  frame per NEW frame. Nothing in NEW's replay state changes; memory holds one frame.
+- OLD shorter than NEW: its last frame stays, labelled "OLD ended at frame N". NEW shorter: the
+  replay ends as usual and the child is stopped.
+- Refused before anything runs: `--headless` (an onion skin is watched; the headless
+  equivalent is row 5 or `--rebaseline`), different screen sizes, `--audit`, `--rebaseline`.
+- Works with every seed row: `--replay-trace OLD --random-seed N --compare-trace OLD` shows OLD
+  over its new-seed run (row 5).
+- Pause and frame-step move both runs together. The viewer's step back restarts NEW at an
+  earlier frame; the child restarts at the same frame (the same `--replay-pause-at-frame` path).
+- The child is always stopped and reaped when the replay ends, fails or is interrupted.
+
+- [ ] **Step 1: failing tests** (stand-in game):
+  - `test_one_blended_frame_has_the_expected_pixels`: two stand-in recordings with known
+    colors at a known spot; the blended pixel equals the 50% mix (and a `--compare-alpha 25`
+    case).
+  - `test_the_child_streams_one_frame_per_frame_in_order`.
+  - `test_a_shorter_old_holds_its_last_frame_with_the_label`.
+  - `test_compare_trace_refuses_headless_audit_rebaseline_and_different_sizes`.
+  - `test_compare_trace_through_both_front_ends`.
+  - `test_the_child_is_reaped_when_the_replay_ends_or_fails`.
+  - `test_a_step_back_restarts_the_child_at_the_same_frame`.
+- [ ] **Step 2:** implement; lint; `CI=true nox -s test`; commit.
+- [ ] **Step 3: the user's look.** Give the user one `!` command for a watched compare on a real
+  game (for example a PaddleSlap golden against a row-5 replay of it under another seed), and
+  record what they report in the task report.
 
 ### Task D10: Docs, then Stage D's verification
 
