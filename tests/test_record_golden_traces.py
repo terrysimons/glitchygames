@@ -18,7 +18,7 @@ from typing import Any
 import pytest
 from scripts import record_golden_traces
 
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CHILD_TIMEOUT_SECONDS = 60.0
@@ -74,7 +74,7 @@ def run_child(*, program: str) -> Any:
         command=[sys.executable, '-c', program],
         environment={**os.environ, 'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'},
         timeout_seconds=CHILD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=PROJECT_ROOT,
     )
     assert completed.returncode == 0, completed.stdout

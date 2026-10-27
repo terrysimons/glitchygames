@@ -16,7 +16,7 @@ from types import SimpleNamespace
 import pytest
 
 from glitchygames import process
-from glitchygames.process import start_command, stop_command
+from glitchygames.process import OutputCapture, start_command, stop_command
 
 # SIGKILL's number on POSIX (Windows' signal module has no SIGKILL)
 SIGKILL_NUMBER = 9
@@ -82,7 +82,7 @@ class TestRunCommand:
             command=[sys.executable, '-c', 'import os; print(os.getcwd())'],
             environment=os.environ,
             timeout_seconds=WAIT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
             working_directory=tmp_path,
         )
 
@@ -94,10 +94,39 @@ class TestRunCommand:
             command=[sys.executable, '-c', 'import os; print(os.getcwd())'],
             environment=os.environ,
             timeout_seconds=WAIT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
         )
 
         assert completed.stdout.strip() == str(Path.cwd().resolve())
+
+    @pytest.mark.parametrize(
+        ('capture', 'captured_output', 'captured_error'),
+        [
+            (OutputCapture.NONE, None, None),
+            (OutputCapture.TOGETHER, 'out\nerr\n', None),
+            (OutputCapture.APART, 'out\n', 'err\n'),
+        ],
+    )
+    def test_each_capture_keeps_what_it_says(self, capture, captured_output, captured_error):
+        """None: neither stream; together: both in stdout; apart: each in its own."""
+        completed = process.run_command(
+            command=[
+                sys.executable,
+                '-c',
+                'import sys; print("out", flush=True); print("err", file=sys.stderr, flush=True)',
+            ],
+            environment=os.environ,
+            timeout_seconds=WAIT_SECONDS,
+            capture_output=capture,
+        )
+
+        assert completed.stdout == captured_output
+        assert completed.stderr == captured_error
+        assert list(OutputCapture) == [
+            OutputCapture.NONE,
+            OutputCapture.TOGETHER,
+            OutputCapture.APART,
+        ]
 
 
 class TestStartCommand:

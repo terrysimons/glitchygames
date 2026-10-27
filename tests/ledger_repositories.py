@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.replay.tools.settings import load_project_settings
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -44,7 +44,7 @@ def git(*, repository: Path, arguments: list[str]) -> str:
         ],
         environment=os.environ,
         timeout_seconds=GIT_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=repository,
     )
     assert completed.returncode == 0, completed.stdout

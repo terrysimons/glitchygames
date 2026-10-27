@@ -87,7 +87,7 @@ from glitchygames.bundled_demos import BUNDLED_DEMO_DIRECTORY_NAME, DEMO_SUFFIX,
 from glitchygames.code_tree import commit_has_landed, landed_ref_exists
 from glitchygames.exit_codes import ExitCode
 from glitchygames.machine_state import current_machine_state
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.recording_metrics import (
     is_measured,
     ledger_rows_from_rebaseline,
@@ -101,6 +101,9 @@ from glitchygames.recording_metrics import (
 )
 from glitchygames.replay.processing import machine_description
 from glitchygames.replay.tools.children import (
+    ENTRY_POINT_SEPARATOR,
+    SCRIPT_PATH_SEPARATOR,
+    SCRIPT_SUFFIX,
     UnknownGameError,
     rebaseline_recording_headless,
     recording_console_script,
@@ -159,9 +162,21 @@ RANDOM_SEED_FLAG = '--random-seed'
 DIRTY_FLAGS = ('--allow-dirty', '--skip-dirty')
 # How resolve_game names a GAME read as an installed console script (children.GameForm)
 CONSOLE_SCRIPT_FORM = 'console-script'
-# What an unmeasured listing's summary says (report_unmeasured writes it; the command reads a
-# child game's back, child_unmeasured): "<prefix> N of M recording(s) not measured ..."
-UNMEASURED_SUMMARY = re.compile(r'(?P<missing>\d+) of (?P<total>\d+) recordings? not measured ')
+# What an unmeasured listing's summary counts, "N of M recording(s) not measured": one format
+# that report_unmeasured writes (unmeasured_counts) and the command reads back from a child game
+# (unmeasured_total), so the two can't drift
+UNMEASURED_COUNTS = '{missing} of {total} {noun} not measured'
+RECORDING_NOUN = 'recording'
+RECORDINGS_NOUN = 'recordings'
+UNMEASURED_SUMMARY = re.compile(
+    re
+    .escape(UNMEASURED_COUNTS)
+    .replace(re.escape('{missing}'), r'(?P<missing>\d+)')
+    .replace(re.escape('{total}'), r'(?P<total>\d+)')
+    .replace(re.escape('{noun}'), f'(?:{RECORDINGS_NOUN}|{RECORDING_NOUN})')
+)
+# How long a git listing of the project may take (git_listed_files)
+GIT_TIMEOUT_SECONDS = 60.0
 # What makes a directory a regular package
 PACKAGE_MARKER = '__init__.py'
 # Directories the project walk for bundled demos never enters: a virtual environment (holding
@@ -842,19 +857,71 @@ def unclaimed_goldens(
     return unclaimed
 
 
-def project_demo_paths(*, project_root: Path) -> list[Path]:
-    """Return the bundled demos in the project's own packages: ``<package>/demos/*.jsonl.gz``.
+def is_bundled_demo(*, path: Path) -> bool:
+    """Tell whether a file is a top-level package's bundled demo: ``<package>/demos/*.jsonl.gz``.
 
-    The project's tree is walked (hidden directories, virtual environments, caches and installed
-    copies left out) for a top-level import package's ``demos/`` directory (its parent holds
-    ``__init__.py``, the directory above that none), as ``glitchygames.bundled_demos`` finds them
-    in an installed package. Bookmarked copies are left out.
+    Its ``demos/`` directory's parent holds ``__init__.py`` and the directory above that none,
+    as ``glitchygames.bundled_demos`` finds them in an installed package; bookmarked copies are
+    not demos.
+
+    Args:
+        path: The file.
+
+    Returns:
+        True for a bundled demo.
+
+    """
+    package = path.parent.parent
+    return (
+        path.parent.name == BUNDLED_DEMO_DIRECTORY_NAME
+        and path.name.endswith(DEMO_SUFFIX)
+        and (package / PACKAGE_MARKER).is_file()
+        and not (package.parent / PACKAGE_MARKER).is_file()
+        and not is_bookmarked_copy(path=path)
+    )
+
+
+def git_listed_files(*, project_root: Path) -> list[Path] | None:
+    """Return the files git keeps in a checkout: tracked, and untracked but not ignored.
+
+    The browser bundles' rule (``git ls-files --cached --others --exclude-standard``,
+    scripts/git_checkout.py), so ignored trees (``build/``, ``dist/``, other checkouts inside
+    the repository) are none of the project's.
 
     Args:
         project_root: The project.
 
     Returns:
-        The demos' paths, sorted.
+        The files (absolute), or None when the project is not in a git checkout (or git is
+        missing).
+
+    """
+    try:
+        listed = run_command(
+            command=['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+            environment=os.environ,
+            timeout_seconds=GIT_TIMEOUT_SECONDS,
+            capture_output=OutputCapture.APART,
+            working_directory=project_root,
+        )
+    except OSError:
+        return None
+    if listed.returncode != 0:
+        return None
+    return [project_root / name for name in (listed.stdout or '').split('\0') if name]
+
+
+def walked_files(*, project_root: Path) -> list[Path]:
+    """Return the files of a project that is no git checkout, but its hidden trees and environments.
+
+    Hidden directories, virtual environments (``pyvenv.cfg``), caches and installed copies are
+    not entered.
+
+    Args:
+        project_root: The project.
+
+    Returns:
+        The files.
 
     """
     found: list[Path] = []
@@ -867,39 +934,82 @@ def project_demo_paths(*, project_root: Path) -> list[Path]:
             and name not in SKIPPED_DIRECTORY_NAMES
             and not (here / name / VIRTUAL_ENVIRONMENT_MARKER).exists()
         )
-        package = here.parent
-        if (
-            here.name != BUNDLED_DEMO_DIRECTORY_NAME
-            or not (package / PACKAGE_MARKER).is_file()
-            or (package.parent / PACKAGE_MARKER).is_file()
-        ):
-            continue
-        found.extend(
-            here / name
-            for name in files
-            if name.endswith(DEMO_SUFFIX) and not is_bookmarked_copy(path=here / name)
-        )
-    return sorted(found)
+        found.extend(here / name for name in files)
+    return found
+
+
+def project_demo_paths(*, project_root: Path) -> list[Path]:
+    """Return the bundled demos in the project's own packages (``is_bundled_demo``).
+
+    In a git checkout, among the files git keeps (``git_listed_files``: ignored trees are none of
+    the project's); otherwise among all of its files (``walked_files``).
+
+    Args:
+        project_root: The project.
+
+    Returns:
+        The demos' paths, sorted.
+
+    """
+    files = git_listed_files(project_root=project_root)
+    if files is None:
+        files = walked_files(project_root=project_root)
+    return sorted(path for path in files if is_bundled_demo(path=path))
+
+
+def top_level_package_of_script(*, script: Path) -> str | None:
+    """Return the top-level package a script is in (the highest directory with ``__init__.py``).
+
+    Args:
+        script: The script.
+
+    Returns:
+        The package's name, or None for a script in no package.
+
+    """
+    package: str | None = None
+    directory = script.resolve().parent
+    while (directory / PACKAGE_MARKER).is_file():
+        package = directory.name
+        directory = directory.parent
+    return package
+
+
+def game_package(*, game: str) -> str | None:
+    """Return the top-level import package of a game, in any of the forms GAME takes.
+
+    As ``children.resolve_game`` reads them: a script path (the package it is in, if any), an
+    entry point ``MODULE:CALLABLE`` (its module's), an installed console script
+    (``identity.console_script_identity``'s), else a module (its own top-level package).
+
+    Args:
+        game: The game, as ``[tool.glitchygames] games`` or ``--game`` names it.
+
+    Returns:
+        The package, or None for a script in no package.
+
+    """
+    if SCRIPT_PATH_SEPARATOR in game or game.endswith(SCRIPT_SUFFIX):
+        return top_level_package_of_script(script=Path(game))
+    if ENTRY_POINT_SEPARATOR in game:
+        return game.partition(ENTRY_POINT_SEPARATOR)[0].partition('.')[0]
+    try:
+        return console_script_identity(console_script=game).package
+    except KeyError:
+        return game.partition('.')[0]
 
 
 def game_packages(*, games: Sequence[str]) -> set[str]:
-    """Return the import packages of the games named by an installed console script.
+    """Return the import packages of the games (``game_package``, every GAME form).
 
     Args:
         games: The games (``[tool.glitchygames] games``).
 
     Returns:
-        Their packages (``identity.console_script_identity``); a game in another form, or not
-        installed, has none here.
+        Their packages.
 
     """
-    packages: set[str] = set()
-    for game in games:
-        try:
-            packages.add(console_script_identity(console_script=game).package)
-        except KeyError:
-            continue
-    return packages
+    return {package for game in games if (package := game_package(game=game)) is not None}
 
 
 def unclaimed_demos(*, games: Sequence[str], project_root: Path) -> list[UnreplayableRecording]:
@@ -1389,10 +1499,38 @@ def report_unmeasured(
         if code_tree is not None
         else "at their game's commit"
     )
-    sys.stderr.write(
-        f'{prefix} {len(missing)} of {total} recording{"" if total == 1 else "s"} not measured '
-        f'{judged_by} on {machine}\n'
+    counts = unmeasured_counts(missing=len(missing), total=total)
+    sys.stderr.write(f'{prefix} {counts} {judged_by} on {machine}\n')
+
+
+def unmeasured_counts(*, missing: int, total: int) -> str:
+    """Return an unmeasured listing's counts, as its summary says them (``UNMEASURED_COUNTS``).
+
+    Args:
+        missing: How many are unmeasured.
+        total: How many were looked at.
+
+    Returns:
+        ``N of M recording(s) not measured``.
+
+    """
+    return UNMEASURED_COUNTS.format(
+        missing=missing, total=total, noun=RECORDING_NOUN if total == 1 else RECORDINGS_NOUN
     )
+
+
+def unmeasured_total(*, text: str) -> int | None:
+    """Read how many recordings an unmeasured listing looked at, from its summary.
+
+    Args:
+        text: The listing's standard error (``report_unmeasured``'s summary is in it).
+
+    Returns:
+        The summary's total, or None when there is no summary.
+
+    """
+    summary = UNMEASURED_SUMMARY.search(text)
+    return None if summary is None else int(summary.group('total'))
 
 
 def ledger_names(
@@ -1529,18 +1667,14 @@ def child_unmeasured(
         command=[*launch.command, *tool.child_arguments(arguments=arguments)],
         environment={**os.environ, PYGAME_BANNER_VARIABLE: '1'},
         timeout_seconds=None,
-        capture_output='apart',
+        capture_output=OutputCapture.APART,
         working_directory=arguments.project_root,
     )
     error = finished.stderr or ''
     sys.stderr.write(error)
     listed = [line for line in (finished.stdout or '').splitlines() if line.strip()]
-    summary = UNMEASURED_SUMMARY.search(error)
-    return (
-        finished.returncode,
-        len(listed) if summary is None else int(summary.group('total')),
-        listed,
-    )
+    total = unmeasured_total(text=error)
+    return finished.returncode, len(listed) if total is None else total, listed
 
 
 def unmeasured_command(

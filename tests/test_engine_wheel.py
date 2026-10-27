@@ -7,7 +7,7 @@ from pathlib import Path
 
 from scripts.workspace_packages import ENGINE_PACKAGE, workspace_members
 
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENGINE_SOUND_WHEEL_PATHS = (
@@ -30,7 +30,7 @@ def test_the_engine_wheel_holds_the_engine_alone(tmp_path):
         command=[uv, 'build', '--wheel', '--out-dir', str(tmp_path)],
         environment=os.environ,
         timeout_seconds=WHEEL_BUILD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=PROJECT_ROOT,
     )
 

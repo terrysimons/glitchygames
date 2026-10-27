@@ -65,7 +65,7 @@ from filelock import FileLock, Timeout
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Sequence
@@ -178,7 +178,7 @@ def run_tool(*, command: Sequence[str], working_directory: Path, timeout_seconds
             command=command,
             environment=os.environ,
             timeout_seconds=timeout_seconds,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
             working_directory=working_directory,
         )
     except TimeoutExpired as error:

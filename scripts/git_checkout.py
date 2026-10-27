@@ -6,7 +6,7 @@ import os
 import shutil
 from pathlib import Path
 
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 
 GIT_TIMEOUT_SECONDS = 30.0
 
@@ -50,7 +50,7 @@ def run_git(*, arguments: list[str], directory: Path) -> tuple[int, str]:
         command=[git_program, *arguments],
         environment=environment_without_git_variables(),
         timeout_seconds=GIT_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=directory,
     )
     return completed.returncode, completed.stdout

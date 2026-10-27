@@ -21,7 +21,7 @@ import tempfile
 from pathlib import Path
 from typing import Protocol
 
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 
 log: logging.Logger = logging.getLogger('game.audio.tts')
 
@@ -107,7 +107,7 @@ class MacOSTTS:
                 ],
                 environment=os.environ,
                 timeout_seconds=30,
-                capture_output=True,
+                capture_output=OutputCapture.TOGETHER,
             )
         except TimeoutExpired, OSError:
             log.exception('TTS generation failed')

@@ -33,7 +33,7 @@ from glitchygames.input.state import InputSnapshot, current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.movement import Speed
 from glitchygames.pixel_snap import PixelSnapMode, active_default_snap_mode
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.randomness import capture_stream_states, random_stream
 from glitchygames.replay.ghosts import GhostRecorder, GhostSample, GhostSprite, GhostTrack
 from glitchygames.replay.tools.golden_traces import (
@@ -1228,7 +1228,7 @@ class TestSceneStartCaptureScope:
             ],
             environment=dict(os.environ),
             timeout_seconds=60.0,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
         )
         assert completed.returncode == 0, completed.stdout
         assert completed.stdout.strip().splitlines()[-1] == '[]'

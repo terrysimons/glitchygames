@@ -42,7 +42,7 @@ from typing import TYPE_CHECKING, Any, Self, cast
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.build_info import RevisionSource, SourceRevision
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
     PROCESSING_SECONDS_FIELD,
@@ -1033,7 +1033,7 @@ def published_ledger_text(*, project_root: Path, published_ledger: str | None) -
             command=['git', 'show', published_ledger],
             environment=os.environ,
             timeout_seconds=GIT_TIMEOUT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
             working_directory=project_root,
         )
     except OSError, TimeoutExpired:

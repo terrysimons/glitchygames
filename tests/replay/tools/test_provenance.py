@@ -28,7 +28,7 @@ from glitchygames.build_info import (
 )
 from glitchygames.code_tree import LandedCommit
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.recording_history import MeasurementRun, recorded_measurement_runs
 from glitchygames.recording_metrics import (
     LedgerOrigin,
@@ -100,7 +100,7 @@ def git(*arguments: str, directory: Path) -> str:
             'GIT_COMMITTER_EMAIL': 'test@example.com',
         },
         timeout_seconds=GIT_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
     assert completed.returncode == 0, completed.stdout
     return completed.stdout.strip()

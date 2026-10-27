@@ -37,7 +37,7 @@ from glitchygames.input import devices as devices_module
 from glitchygames.input.state import IDLE_INPUT, apply_snapshot_changes
 from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_name
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.randomness import engine_random
 from glitchygames.recording import (
     CONTROL_EVENTS_FIELD,
@@ -348,7 +348,7 @@ def run_self_terminating_game(*, game_file: Path, extra_arguments: tuple[str, ..
         ],
         environment=environment,
         timeout_seconds=SIGNAL_CHILD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
 
 

@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from scripts.generate_complexity_graphs import (
     TOOL_TIMEOUT_SECONDS,
     WILY_BUILD_TIMEOUT_SECONDS,
@@ -89,7 +89,7 @@ def complexity_report(*, project_root: Path, rank: bool) -> str:
             ),
             environment={**os.environ, 'COLUMNS': REPORT_COLUMNS},
             timeout_seconds=TOOL_TIMEOUT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
             working_directory=project_root,
         )
         if completed.returncode not in WILY_DIFF_EXIT_STATUSES:

@@ -17,7 +17,7 @@ import pygame
 import pytest
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import CompletedProcess, TimeoutExpired, run_command
+from glitchygames.process import CompletedProcess, OutputCapture, TimeoutExpired, run_command
 from glitchygames.replay.tools import command, registry, traces, verify
 from glitchygames.replay.tools.children import running_game_command
 from glitchygames.replay.tools.identity import GameIdentity
@@ -132,7 +132,7 @@ def run_game_flag(
         ],
         environment=os.environ,
         timeout_seconds=RECORD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=working_directory,
     )
     return completed.returncode, completed.stdout or ''
@@ -298,7 +298,7 @@ def test_a_game_run_as_a_script_verifies_the_paths_it_is_given(tmp_path):
         command=[sys.executable, str(script), *arguments, '--record-trace', str(recording)],
         environment=os.environ,
         timeout_seconds=RECORD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=tmp_path,
     )
     assert recorded.returncode == ExitCode.SUCCESS, recorded.stdout
@@ -307,14 +307,14 @@ def test_a_game_run_as_a_script_verifies_the_paths_it_is_given(tmp_path):
         command=[sys.executable, str(script), *arguments, '--verify', str(recording)],
         environment=os.environ,
         timeout_seconds=RECORD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=tmp_path,
     )
     found = run_command(
         command=[sys.executable, str(script), *arguments, '--verify'],
         environment=os.environ,
         timeout_seconds=RECORD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=tmp_path,
     )
 

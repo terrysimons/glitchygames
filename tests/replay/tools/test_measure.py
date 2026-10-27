@@ -29,7 +29,7 @@ from glitchygames.build_info import (
 )
 from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import CompletedProcess, run_command
+from glitchygames.process import CompletedProcess, OutputCapture, run_command
 from glitchygames.recording_history import CONTENT_HASH_FIELD, MEASUREMENT_RUNS_HEADER_FIELD
 from glitchygames.recording_metrics import (
     LedgerOrigin,
@@ -1150,7 +1150,7 @@ def run_game_flag(
         ],
         environment=os.environ,
         timeout_seconds=RECORD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=working_directory,
     )
     return completed.returncode, completed.stdout or ''
@@ -1908,3 +1908,120 @@ def test_a_demo_no_measured_game_bundles_fails_measure_and_is_listed_unmeasured(
     assert listed == ExitCode.SUCCESS
     assert listing.out.splitlines() == [name]
     assert f'{name}: a demo bundled in orphan_game' in listing.err
+
+
+@pytest.mark.parametrize('form', ['entry-point', 'module'])
+def test_a_game_named_another_way_claims_its_packages_demo(
+    tmp_path, capsys, monkeypatch, form, stand_in_game
+):
+    """``games = ['pkg:main']`` or ``['pkg']``: the package's demo is the game's, not unclaimed.
+
+    The reviewer's case: the game is installed with a console script too, so its child measures
+    the demo; were it also unclaimed, ``measure`` would fail and ``unmeasured`` list it twice.
+    """
+    project = tmp_path / 'project'
+    game = write_stand_in_game(directory=project / 'src', package='stand_in_lobby')
+    stamp_stand_in_game(game=game, revision=clean_revision())
+    use_stand_in_game(install_directory=project / 'src', monkeypatch=monkeypatch)
+    # Runnable as a module too (python -m stand_in_lobby), as the module form starts it
+    (project / 'src' / game.package / '__main__.py').write_text(
+        f'from {game.package} import main\n\nmain()\n', encoding='utf-8'
+    )
+    demo = project / 'src' / game.package / 'demos' / 'run.jsonl.gz'
+    demo.parent.mkdir()
+    record_stand_in_game(game=game, path=demo)
+    named = f'{game.package}:main' if form == 'entry-point' else game.package
+    (project / 'pyproject.toml').write_text(
+        f'[tool.glitchygames]\ngames = [{named!r}]\npending-ledger = {STAND_IN_PENDING_LEDGER!r}\n',
+        encoding='utf-8',
+    )
+    name = f'src/{game.package}/demos/run.jsonl.gz'
+
+    assert measure.game_packages(games=[named]) == {game.package}
+    assert not measure.unclaimed_demos(games=[named], project_root=project)
+    listed = command.main(['unmeasured', '--project-root', str(project)])
+    listing = capsys.readouterr()
+    measured = command.main(['measure', '--project-root', str(project)])
+
+    assert listed == ExitCode.SUCCESS
+    assert listing.out.splitlines() == [name]
+    assert 'a demo bundled in' not in listing.err
+    assert measured == ExitCode.SUCCESS
+    assert measured_recordings(project_root=project) == [name]
+
+
+def test_a_script_games_package_is_the_one_its_script_is_in(tmp_path):
+    """A script inside a package claims that top-level package; a plain script claims none."""
+    package = tmp_path / 'scripted_game'
+    (package / 'levels').mkdir(parents=True)
+    (package / '__init__.py').write_text('', encoding='utf-8')
+    (package / 'levels' / '__init__.py').write_text('', encoding='utf-8')
+    inside = package / 'levels' / 'play.py'
+    inside.write_text('', encoding='utf-8')
+    plain = tmp_path / 'play.py'
+    plain.write_text('', encoding='utf-8')
+
+    assert measure.game_packages(games=[str(inside)]) == {'scripted_game'}
+    assert measure.game_packages(games=[str(plain)]) == set()
+
+
+def test_an_unmeasured_childs_total_is_read_from_its_summary(
+    tmp_path, capsys, stand_in_game, stand_in_golden
+):
+    """A child with one measured and one unmeasured recording: 1 of 2, not the 1 it listed."""
+    project = write_stand_in_project(
+        project_root=tmp_path / 'project', game=stand_in_game, goldens=(stand_in_golden,)
+    )
+    second = project.joinpath(
+        *GOLDEN_DIRECTORY_PARTS, stand_in_game.console_script, 'second.jsonl.gz'
+    )
+    shutil.copy(stand_in_golden, second)
+    status, output = run_game_flag(
+        game=stand_in_game, arguments=['--measure', '--only', 'second'], working_directory=project
+    )
+    assert status == ExitCode.SUCCESS, output
+    script = project / 'script_game.py'
+    script.write_text(
+        f'import {stand_in_game.package}\n{stand_in_game.package}.main()\n', encoding='utf-8'
+    )
+
+    listed = command.main(['unmeasured', '--game', str(script), '--project-root', str(project)])
+
+    output = capsys.readouterr()
+    assert listed == ExitCode.SUCCESS
+    assert output.out.splitlines() == [stand_in_golden_ledger_name(game=stand_in_game)]
+    assert 'glitchygames unmeasured: 1 of 2 recordings not measured' in output.err
+    assert measure.unmeasured_total(text='x: 3 of 1 recording not measured at y') == 1
+    assert measure.unmeasured_total(text='no summary') is None
+
+
+def test_a_demo_in_a_git_ignored_tree_is_not_the_projects(tmp_path, stand_in_golden):
+    """In a git checkout, ignored trees (build/, other checkouts) hold none of its demos."""
+    project = tmp_path / 'project'
+    project.mkdir()
+    git(repository=project, arguments=['init', '--quiet'])
+    (project / '.gitignore').write_text('build/\n', encoding='utf-8')
+    kept = write_package_with_a_demo(
+        directory=project / 'src', package='orphan_game', demo=stand_in_golden
+    )
+    write_package_with_a_demo(
+        directory=project / 'build' / 'lib', package='orphan_game', demo=stand_in_golden
+    )
+
+    assert measure.project_demo_paths(project_root=project) == [kept]
+    # Not a checkout: everything is walked (but hidden trees and environments)
+    not_a_checkout = tmp_path / 'plain'
+    shutil.copytree(project / 'src', not_a_checkout / 'src')
+    shutil.copytree(project / 'build', not_a_checkout / 'build')
+    assert len(measure.project_demo_paths(project_root=not_a_checkout)) == 2
+
+
+def test_without_git_the_project_is_walked(tmp_path, mocker, stand_in_golden):
+    """No git to ask (a player's machine): every file is walked, as for a project not in git."""
+    demo = write_package_with_a_demo(
+        directory=tmp_path / 'project', package='orphan_game', demo=stand_in_golden
+    )
+    mocker.patch.dict(os.environ, {'PATH': str(tmp_path / 'no-programs')})
+
+    assert measure.git_listed_files(project_root=tmp_path / 'project') is None
+    assert measure.project_demo_paths(project_root=tmp_path / 'project') == [demo]

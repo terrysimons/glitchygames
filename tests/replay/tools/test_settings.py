@@ -14,7 +14,7 @@ import pytest
 
 from glitchygames.code_tree import CodeTreePaths
 from glitchygames.logical_names import LAYERS
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.replay.tools.settings import (
     LOCAL_DIRECTORY_GITIGNORE,
     PYPROJECT_FILE_NAME,
@@ -339,7 +339,7 @@ def test_a_file_in_the_local_directory_is_not_seen_by_git(tmp_path):
         command=['git', 'init', '--quiet'],
         environment=os.environ,
         timeout_seconds=60.0,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=tmp_path,
     )
     directory = ensure_local_directory(directory=tmp_path / '.glitchygames')
@@ -349,7 +349,7 @@ def test_a_file_in_the_local_directory_is_not_seen_by_git(tmp_path):
         command=['git', 'status', '--porcelain', '--untracked-files=all'],
         environment=os.environ,
         timeout_seconds=60.0,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=tmp_path,
     )
 

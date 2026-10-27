@@ -28,7 +28,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 
 GIT_TIMEOUT_SECONDS = 60.0
 
@@ -66,7 +66,7 @@ def run_git(*, repository: Path, arguments: list[str], index_file: Path | None =
         command=command,
         environment=environment,
         timeout_seconds=GIT_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=repository,
     )
     if completed.returncode != 0:
@@ -248,7 +248,7 @@ def _git_succeeds(*, repository: Path, arguments: list[str]) -> bool:
         command=['git', *arguments],
         environment=dict(os.environ),
         timeout_seconds=GIT_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=repository,
     )
     return completed.returncode == 0

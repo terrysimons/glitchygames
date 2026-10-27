@@ -37,7 +37,7 @@ from typing import TYPE_CHECKING, TextIO
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 from scripts.build_sdl_x11 import (
     X11_PREFIX,
     BuildError,
@@ -191,7 +191,7 @@ def docker_running(*, environment: Mapping[str, str]) -> bool:
             command=['docker', 'info', '--format', '{{.ServerVersion}}'],
             environment=environment,
             timeout_seconds=DOCKER_CHECK_TIMEOUT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
         )
     except FileNotFoundError, TimeoutExpired:
         return False

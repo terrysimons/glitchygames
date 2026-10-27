@@ -22,7 +22,7 @@ import pytest
 
 from glitchygames.exit_codes import ExitCode
 from glitchygames.logical_names import logical_name
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.randomness import random_stream
 from glitchygames.replay.driver import LENGTH_DIVERGENCE
 from glitchygames.replay.tools import command
@@ -202,7 +202,7 @@ def test_record_golden_trace_on_a_stand_in_game_as_a_flag_and_a_command(
         ],
         environment=os.environ,
         timeout_seconds=CHILD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=stand_in_project,
     )
     command_status = command.main([

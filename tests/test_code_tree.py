@@ -21,7 +21,7 @@ from glitchygames.code_tree import (
     staged_code_tree,
     untracked_measured_files,
 )
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.replay.tools.settings import load_project_settings
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -52,7 +52,7 @@ def git(*, repository: Path, arguments: list[str]) -> str:
         ],
         environment=os.environ,
         timeout_seconds=60.0,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=repository,
     )
     assert completed.returncode == 0, completed.stdout

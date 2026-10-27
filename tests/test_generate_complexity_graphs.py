@@ -46,7 +46,7 @@ from scripts.generate_complexity_graphs import (
 )
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -103,7 +103,7 @@ def git(*, repository: Path, arguments: list[str], committed_at_second: int | No
         ],
         environment=environment,
         timeout_seconds=60.0,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=repository,
     )
     assert completed.returncode == 0, completed.stdout

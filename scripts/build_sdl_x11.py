@@ -51,7 +51,7 @@ from typing import TYPE_CHECKING, TextIO
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -411,7 +411,7 @@ def run_step(*, step: BuildStep, build: SdlX11Build, environment: Mapping[str, s
             command=step.command,
             environment=environment,
             timeout_seconds=step.timeout_seconds,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
             working_directory=step.working_directory,
         )
     except TimeoutExpired:
@@ -609,7 +609,7 @@ def check_library(
             ],
             environment=child_environment,
             timeout_seconds=CHECK_TIMEOUT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
         )
     except TimeoutExpired:
         message = f'the x11 check took longer than {CHECK_TIMEOUT_SECONDS:.0f} s'

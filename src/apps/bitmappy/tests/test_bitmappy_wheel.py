@@ -7,7 +7,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 
 # src/apps/bitmappy/tests/ -> the repository root, where `uv build --package` runs
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -28,7 +28,7 @@ def test_the_sprite_library_ships_in_its_wheel(tmp_path):
         command=[uv, 'build', '--package', 'bitmappy', '--wheel', '--out-dir', str(tmp_path)],
         environment=os.environ,
         timeout_seconds=WHEEL_BUILD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=PROJECT_ROOT,
     )
 

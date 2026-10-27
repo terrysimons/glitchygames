@@ -47,7 +47,7 @@ from typing import TYPE_CHECKING, Literal
 
 from glitchygames.bundled_demos import CONSOLE_SCRIPTS_GROUP
 from glitchygames.logical_names import module_for_logical_module
-from glitchygames.process import run_command, with_options_appended
+from glitchygames.process import OutputCapture, run_command, with_options_appended
 from glitchygames.replay.driver import GAME_HEADER_FIELD
 from glitchygames.tracing import TraceReader
 
@@ -428,7 +428,7 @@ def replay_recording_headless(*, console_script: str, path: Path) -> CompletedPr
         command=replay_command(entry_point=entry_point, recording=path),
         environment=os.environ,
         timeout_seconds=REPLAY_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
 
 
@@ -468,7 +468,7 @@ def rebaseline_recording_headless(
         ],
         environment=os.environ,
         timeout_seconds=REPLAY_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
 
 
@@ -584,7 +584,7 @@ def launch_game(
     launch: GameLaunch,
     arguments: Sequence[str],
     working_directory: Path | None = None,
-    capture_output: bool = False,
+    capture_output: OutputCapture = OutputCapture.NONE,
 ) -> CompletedProcess[str]:
     """Start a game as a child process with a tool's arguments, and wait for it to end.
 
@@ -596,8 +596,8 @@ def launch_game(
         launch: How to start the game (``resolve_game``).
         arguments: The game's command-line arguments (the tool's flag first).
         working_directory: The child's working directory (None: this process's).
-        capture_output: True to capture its standard output and error together in ``stdout``;
-            False to let it write to this process's.
+        capture_output: What is captured of its output (``process.OutputCapture``; none: it
+            writes to this process's).
 
     Returns:
         The finished child: ``returncode`` is the game's exit status.

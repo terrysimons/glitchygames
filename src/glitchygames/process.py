@@ -23,7 +23,8 @@ import os
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] — runs the engine's own game commands (argument list, no shell)
 import sys
-from typing import TYPE_CHECKING, Literal, TextIO
+from enum import StrEnum
+from typing import TYPE_CHECKING, TextIO
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -38,6 +39,30 @@ CompletedProcess = subprocess.CompletedProcess
 RunningProcess = subprocess.Popen
 # How long stop_command lets a child end on its own before killing it
 STOP_GRACE_SECONDS = 10.0
+
+
+class OutputCapture(StrEnum):
+    """What ``run_command`` does with a child's standard output and error.
+
+    Attributes:
+        NONE: Neither is captured: the child writes to this process's.
+        TOGETHER: Both are captured together, in the result's ``stdout``.
+        APART: Each is captured on its own, in ``stdout`` and ``stderr`` (a child whose
+            standard output is a listing: ``glitchygames unmeasured``'s).
+
+    """
+
+    NONE = 'none'
+    TOGETHER = 'together'
+    APART = 'apart'
+
+
+# The subprocess settings (stdout, stderr) that make each capture
+OUTPUT_STREAMS: dict[OutputCapture, tuple[int | None, int | None]] = {
+    OutputCapture.NONE: (None, None),
+    OutputCapture.TOGETHER: (subprocess.PIPE, subprocess.STDOUT),
+    OutputCapture.APART: (subprocess.PIPE, subprocess.PIPE),
+}
 # Arguments after a bare -- are not options: appended options go before it
 END_OF_OPTIONS = '--'
 
@@ -108,7 +133,7 @@ def run_command(
     command: Sequence[str],
     environment: Mapping[str, str],
     timeout_seconds: float | None,
-    capture_output: bool | Literal['apart'] = False,
+    capture_output: OutputCapture = OutputCapture.NONE,
     working_directory: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command (an argument list, never a shell) as a child process and wait for it.
@@ -122,10 +147,9 @@ def run_command(
         environment: The child's whole environment, in place before its interpreter starts.
         timeout_seconds: Kill the child (TimeoutExpired) after this long; None waits for as long
             as it runs (a restarted watched replay, glitchygames/replay/rebuild.py).
-        capture_output: True to capture standard output and error together in ``stdout``;
-            ``'apart'`` to capture them apart, in ``stdout`` and ``stderr`` (a child whose
-            standard output is a listing: ``glitchygames unmeasured``'s); False to let the
-            child write to this process's.
+        capture_output: What is captured of the child's standard output and error
+            (``OutputCapture``: none, together in ``stdout``, or apart in ``stdout`` and
+            ``stderr``).
         working_directory: The child's working directory (None: this process's), e.g. a
             build's directory for SDL's configure script (scripts/build_sdl_x11.py).
 
@@ -134,17 +158,12 @@ def run_command(
         when captured apart, else None).
 
     """
+    standard_output, standard_error = OUTPUT_STREAMS[capture_output]
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with a game's command line plus fixed flags, as an argument list (no shell)
         list(command),
         env=dict(environment),
-        stdout=subprocess.PIPE if capture_output else None,
-        stderr=(
-            None
-            if not capture_output
-            else subprocess.PIPE
-            if capture_output == 'apart'
-            else subprocess.STDOUT
-        ),
+        stdout=standard_output,
+        stderr=standard_error,
         text=True,
         check=False,
         timeout=timeout_seconds,

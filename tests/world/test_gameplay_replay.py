@@ -35,7 +35,7 @@ from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_module_name, logical_name
 from glitchygames.machine_state import current_machine_state
 from glitchygames.opacity import OPAQUE
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.recording import (
     EXTERNAL_ORIGIN,
     INTERNAL_ORIGIN,
@@ -4796,7 +4796,7 @@ def run_child(*, command: list[str], timeout_seconds: float):
         command=command,
         environment=os.environ,
         timeout_seconds=timeout_seconds,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
 
 

@@ -66,7 +66,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 from glitchygames.replay.tools.children import (
     REPLAY_TIMEOUT_SECONDS,
     UnknownGameError,
@@ -247,7 +247,7 @@ def verify_one(
             command=[*game, *headless_replay_arguments(recording=path), *game_arguments],
             environment=os.environ,
             timeout_seconds=REPLAY_TIMEOUT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
             working_directory=working_directory,
         )
     except TimeoutExpired:

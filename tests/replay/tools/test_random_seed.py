@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.replay.driver import ReplayOptions, ReplaySources
 from glitchygames.replay.tools.golden_traces import InputScript, record_trace
 from glitchygames.replay.tools.registry import RANDOM_SEED_OPTION, TOOLS
@@ -116,7 +116,7 @@ def replay_stand_in_game(
         ],
         environment=os.environ,
         timeout_seconds=RECORD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=working_directory,
     )
     return completed.returncode, completed.stdout or ''

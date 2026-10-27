@@ -35,7 +35,7 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 
 PACKAGE_DIRECTORY = Path(__file__).resolve().parent
 ARCHIVE_FILE_NAME = '_git_archival.txt'
@@ -109,7 +109,7 @@ def _git_output(*, arguments: list[str], directory: Path) -> str | None:
             command=[git_program, '-C', str(directory), *arguments],
             environment=os.environ,
             timeout_seconds=GIT_TIMEOUT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
         )
     except OSError, TimeoutExpired:
         return None

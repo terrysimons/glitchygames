@@ -17,7 +17,7 @@ import pytest
 
 from glitchygames.bundled_demos import CONSOLE_SCRIPTS_GROUP
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.replay.tools.children import (
     GAME_FORMS,
     REPLAY_FIXTURES_PATH_PARTS,
@@ -283,7 +283,7 @@ def test_children_import_without_pytest():
         command=[sys.executable, '-c', check],
         environment=os.environ,
         timeout_seconds=CHILD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
 
     assert finished.returncode == ExitCode.SUCCESS, finished.stdout
@@ -463,7 +463,7 @@ def test_launch_game_runs_its_command_with_the_arguments_in_the_project_root(tmp
         launch=launch,
         arguments=['--replay-trace', 'run.jsonl.gz'],
         working_directory=tmp_path,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
 
     assert finished.returncode == ExitCode.SUCCESS

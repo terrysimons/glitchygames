@@ -32,7 +32,7 @@ from glitchygames.build_info import (
     stamped_revision,
     write_build_stamp,
 )
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 from glitchygames.recording_history import MeasurementRun, latest_measurement_run
 from tests.harness import CHECKOUT_ENGINE_DIRECTORY
 
@@ -66,7 +66,7 @@ def _git(*arguments: str, directory: Path) -> str:
         command=[git_program, '-C', str(directory), *arguments],
         environment=environment,
         timeout_seconds=30.0,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
     assert completed.returncode == 0, completed.stdout
     return completed.stdout.strip()

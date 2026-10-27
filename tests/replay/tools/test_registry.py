@@ -21,7 +21,7 @@ from glitchygames import __main__ as glitchygames_main
 from glitchygames.argument_types import non_negative_int, non_negative_percent
 from glitchygames.engine import GameEngine
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.replay.tools import command, registry
 from glitchygames.replay.tools.children import entry_point_command, game_entry_point
 from glitchygames.replay.tools.registry import (
@@ -175,7 +175,7 @@ def run_child(*, command: list[str], environment: dict[str, str] | None = None) 
         command=command,
         environment=os.environ if environment is None else environment,
         timeout_seconds=CHILD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
 
 

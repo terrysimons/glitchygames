@@ -25,7 +25,7 @@ from glitchygames import live_sources
 from glitchygames.events import GAMEEVENT
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.state import IDLE_INPUT
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.recording import EVENT_BATCHES_FIELD, EXTERNAL_ORIGIN, post_event
 from glitchygames.replay.tools import command, scripted_sessions
 from glitchygames.replay.tools.golden_traces import (
@@ -207,7 +207,7 @@ def run_stand_in_game(
         ],
         environment=os.environ,
         timeout_seconds=RECORD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
         working_directory=working_directory,
     )
     return completed.returncode, completed.stdout or ''
