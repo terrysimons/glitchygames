@@ -13,6 +13,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 from scripts.record_golden_traces import GameSceneClasses
@@ -27,26 +28,38 @@ IMPORTED_MEMBERS_PROGRAM = """
 import json
 import sys
 
+from pathlib import Path
+
 import scripts.record_golden_traces
 import scripts.record_scripted_session
+from scripts.workspace_packages import workspace_members
 
-from glitchygames.logical_names import MEMBER_LAYERS
-
+members = {
+    package
+    for member in workspace_members(project_root=Path.cwd())
+    for package in member.import_packages
+}
 loaded = {module.partition('.')[0] for module in sys.modules}
-print(json.dumps(sorted(loaded & set(MEMBER_LAYERS))))
+print(json.dumps([len(members), sorted(loaded & members)]))
 """
 # A child that looks up one game: only that game's member is imported
 LOOKED_UP_GAME_PROGRAM = """
 import json
 import sys
 
+from pathlib import Path
+
 from scripts.record_golden_traces import GAME_SCENES
+from scripts.workspace_packages import workspace_members
 
-from glitchygames.logical_names import MEMBER_LAYERS
-
+members = {
+    package
+    for member in workspace_members(project_root=Path.cwd())
+    for package in member.import_packages
+}
 scene_class = GAME_SCENES['clockwork_keep']
 loaded = {module.partition('.')[0] for module in sys.modules}
-print(json.dumps([scene_class.__name__, sorted(loaded & set(MEMBER_LAYERS))]))
+print(json.dumps([scene_class.__name__, sorted(loaded & members)]))
 """
 # A stand-in game module, written to tmp_path: its import is visible in sys.modules
 STAND_IN_MODULE = 'stand_in_lazy_scene'
@@ -60,7 +73,7 @@ class LazyScene(Scene):
 STAND_IN_REFERENCE = f'{STAND_IN_MODULE}:LazyScene'
 
 
-def run_child(*, program: str) -> object:
+def run_child(*, program: str) -> Any:
     """Run a Python program in a fresh interpreter from the repository; return its JSON line.
 
     Returns:
@@ -79,8 +92,15 @@ def run_child(*, program: str) -> object:
 
 
 def test_importing_the_harness_imports_no_member():
-    """A fresh interpreter that imports the harness's scripts holds no member package."""
-    assert run_child(program=IMPORTED_MEMBERS_PROGRAM) == []
+    """A fresh interpreter that imports the harness's scripts holds no member package.
+
+    The member packages are the workspace's (every member's ``import_packages``, read in the
+    child from the repository it runs in), and there are some.
+    """
+    member_package_count, loaded_members = run_child(program=IMPORTED_MEMBERS_PROGRAM)
+
+    assert member_package_count > 0
+    assert loaded_members == []
 
 
 def test_looking_up_a_game_imports_only_its_member():

@@ -67,7 +67,11 @@ from tests.stand_in_harness_games import (
     register_stand_in_game,
     steered_paddle_script,
 )
-from tests.workspace_expectations import GAMES_LAYER, every_games_golden
+from tests.workspace_expectations import (
+    EXPECTED_GAME_CONSOLE_SCRIPTS,
+    GAMES_LAYER,
+    every_games_golden,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -105,8 +109,9 @@ def golden_id(path: Path) -> str:
 def test_every_fixture_directory_is_a_game_console_script():
     """Each fixture's place names a game's console script (so the replay knows the game).
 
-    The expected set is the workspace's: every games-layer member holds at least one golden,
-    and the goldens are replayed by exactly the games-layer members' console scripts.
+    The expected set: the goldens are exactly EXPECTED_GOLDENS (written out by hand: every
+    games-layer member holds at least one), and they are replayed by exactly the games-layer
+    members' console scripts, which are EXPECTED_GAME_CONSOLE_SCRIPTS (written out by hand: 5).
     """
     every_games_golden(project_root=PROJECT_ROOT)
     games_console_scripts = {
@@ -115,6 +120,7 @@ def test_every_fixture_directory_is_a_game_console_script():
         for console_script in member.console_scripts
     }
 
+    assert games_console_scripts == EXPECTED_GAME_CONSOLE_SCRIPTS
     assert {recording_console_script(path=path) for path in REPLAY_FIXTURES} == (
         games_console_scripts
     )
