@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Tasks A1-C6 done (+B5b, user-added), 2026-10-26; awaiting the final review.
+**Status:** Tasks A1-C6 done (+B5b, user-added), 2026-10-26; final review passed (fixes 016c53ba, nits 6a8df329). Stage D (the engine owns every recording tool) PLANNED 2026-10-26, awaiting the user's review.
 Stage A DONE; Stage B DONE (B1-B7, automated verification green; the user runs each demo by
 hand); Stage C DONE (C1-C6). (Originally PLANNED 2026-10-26.)
 Written from a read-only survey of `feature/workspace-packages-4-bitmappy` at fc4a93d5 (PR #110), which becomes
@@ -21,6 +21,8 @@ If anything differs, correct the plan before branching.
   `src/glitchygames/examples/` is deleted.
 - **Stage C:** the engine's tests stop importing members by name, and Part 4's Bitmappy-only
   guards cover every member.
+- **Stage D:** the engine owns every recording, replay and measurement tool, as game flags and
+  as the `glitchygames` command (added 2026-10-26; see "Stage D" below).
 
 **Architecture:** One plan in three stages, done in order on **one branch,
 `feature/workspace-packages-3a-src-layout`, for one PR** (the user, 2026-10-26). Each stage
@@ -1059,4 +1061,434 @@ proving it isn't Bitmappy-specific.
   - `nox -s lint static-analysis`, `CI=true nox -s test`, `uv run pytest` and
     `nox -s build-wheel`
   - one golden replay per game, through its console script
+- [ ] **Step 3:** commit, then stop for the user's review.
+
+---
+
+## Stage D: the engine owns every recording, replay and measurement tool
+
+**Status:** PLANNED 2026-10-26; not started. Added after Stage C's final review, on the same branch
+and PR (the user, 2026-10-26: "Let's do it here").
+
+**Goal.** A game the engine has never seen can record, replay, verify, rebaseline, measure, report
+on and graph its recordings with only the installed `glitchygames` wheel. One set of tools serves
+three users: the engine's own tests, our bundled games' goldens and demos, and a player recording
+and replaying their own local runs (the user, 2026-10-26: "good tools for testing the engine and
+bundled games, as well as user-centric tooling to reuse the same tools for their own local plays").
+
+**Architecture.** A new engine subpackage, `glitchygames.replay.tools`, holds every tool, described
+once in one table (`TOOLS`). Two front ends are built from that table, so their names can't drift:
+- **On the game.** `GameEngine.args` adds every tool as a `--<name>` flag to the game's own
+  command line. A flag that doesn't run the game (`--measure`, `--report`, …) runs *instead of*
+  the game, in `_begin_run`, as `--list-input-devices` already does.
+- **The `glitchygames` command.** A console script in the engine wheel, with the same names as
+  subcommands. It reads recordings and the ledger itself, and starts the game as a child process
+  (`<console script> --<name> …`) whenever the game has to run.
+
+The game passes itself to the engine (`GameEngine(game=Game)`, as today) and declares nothing
+else. Its package, package directory, console script and git revision all come from that object.
+The project's settings live in `[tool.glitchygames]` in its `pyproject.toml`, with defaults that
+fit a standard layout. `scripts/` keeps only this repository's policy: the five games' input
+scripts, staging rows in the pre-commit hook, and the docs snippet text.
+
+### Stage D decisions (the user's, 2026-10-26)
+
+12. **Anything the engine can own, it owns.** That covers recording, scripted sessions, golden
+    traces, replay, verification, rebaselining, measurement, the ledger, reports and performance
+    pages (the user: "Anything the engine can own, it should. A game we've never seen should be
+    able to be recorded, replayed, etc..."; "all of those tools need to be in the engine").
+13. **The game passes itself into the engine; the engine injects the flags** (the user: "the
+    engine should be able to inject all of the recording arguments into the game's argument
+    section … The game never needs to know anything about it otherwise").
+14. **Both front ends: flags on the game and a `glitchygames` command, with synced names, and
+    tests for all of it** (the user: "we should do both. And tests for all. And keep the command
+    and flags name sync'd"). The script aliases are registered console scripts that call the
+    engine (the user: "the script aliases should be registered to hook the engine calls").
+15. **The golden-replay pytest plugin auto-registers** through a `pytest11` entry point.
+16. **Project settings live in `[tool.glitchygames]`** in `pyproject.toml`.
+
+**Calls made while planning** (the controller's; the user may overturn any):
+- **Rebaseline and audit stay options of `replay-trace`** (the controller's recommendation; the
+  user agreed, 2026-10-26). They already are; they take the same recording, find the game the same way and
+  share replay-trace's other options. As separate tools they would either copy those options or
+  change the game flag's shape (`--rebaseline OLD NEW`), breaking every existing use.
+  `glitchygames --help` lists them under `replay-trace` so they stay discoverable. That leaves 10
+  tools.
+- **The package is `glitchygames.replay.tools`** (the user, 2026-10-26). Importing it loads pygame
+  (through `glitchygames.replay`'s `__init__`), which is fine: pygame-ce is a required dependency
+  (the user: "Anything importing anything glitchygames would need pygame"). What matters is that a
+  tool that doesn't run the game builds no scene and opens no window, and that the command's
+  output carries no pygame banner (`PYGAME_HIDE_SUPPORT_PROMPT` is set before any import).
+- **Aliases: only `glitchygames` and `python -m glitchygames` for now** (the user, 2026-10-26:
+  "Enough for now").
+- **The existing names stay:** `record-trace`, `replay-trace` and `rebaseline`. They are already
+  in every recording's docs, the recipe and CI, and synced names only need one name per tool, not
+  a new one. Cost if wrong: a rename task with aliases.
+- **A ledger row's commit is the game's.** The game's source revision is recorded beside the
+  engine's (`MeasurementRun.game_source_revision`). The row's commit and uncommitted-changes flag
+  come from the game, falling back to the engine's for a recording that predates the field. In
+  this repository both are the same checkout, so our rows don't change (Task D3 pins that).
+- **`MEMBER_LAYERS` stays for logical names for now.** A frozen binary or a wheel install has no
+  `pyproject.toml` to read, and an unseen game already gets plain module names. Only
+  `bundled_demos`' default stops using it (Task D5). The name-collision risk (an outside package
+  named `paddleslap` would be labelled `games.paddleslap`) goes in `plans/future-work.md`.
+- **Our five games' input scripts stay in `scripts/`.** The tools reach them as `MODULE:NAME`
+  references (`--input-script scripts.golden_inputs:paddleslap`, run from the repository root).
+  They are test data, not engine code.
+
+### Stage D Global Constraints
+
+Part 3's Global Constraints all apply, and in addition:
+- **Every tool is registered once, in `TOOLS`,** and the game flag `--<name>` and the subcommand
+  `glitchygames <name>` are generated from it. Nothing adds a tool flag or subcommand by hand.
+- **No engine module imports `scripts.*`,** and no engine test does (the Stage C guard already
+  forbids members; Task D1 extends it to `scripts`, apart from the test files that test a
+  script).
+- **Importing `glitchygames.replay.tools` never imports pytest** (it stays in the `dev` extra).
+  Importing pygame is fine (a required dependency); opening a display is not, for any tool that
+  doesn't run the game, and the command prints no pygame banner.
+- **Every tool has tests through both front ends:** the game flag (on a stand-in game) and the
+  command.
+- **A move keeps behavior:** each script function moved into the engine keeps its tests, which
+  move with it (to `tests/replay/tools/`), and gain a stand-in in place of any of our games.
+  Decision 11's before/after engine coverage applies to every task.
+- **Recordings and ledger rows keep their format,** apart from the one added optional field
+  (Task D3). Old recordings and old rows must still load; a test pins each.
+
+### Stage D Review Focus
+
+1. **The two front ends drifting apart:** a tool reachable as a flag but not as a command, or with
+   different options or defaults. The sync test (Task D1) compares names *and* each tool's options.
+2. **A flag that doesn't run the game still building the game:** `--report run.jsonl.gz` must not
+   open a window or construct the scene. Tests assert that no scene is built and the exit code is
+   right (Tasks D5-D7).
+3. **The pytest plugin loading in projects that aren't games** once it is auto-registered: it must
+   add no items and print nothing where there is no `fixtures/replays/`
+   directory and no `[tool.glitchygames]` (Task D8, tested with pytester in a bare project).
+4. **An unseen game's rows naming the engine's commit** (the provenance bug the audit found).
+   Task D3 tests a stand-in game in its own temporary git repository.
+5. **A project without `[tool.glitchygames]`** (a player's own local runs): every tool must work on
+   the defaults alone, and a path from the defaults that doesn't exist (no ledger directory yet)
+   is created or reported, never a traceback (Tasks D2 and D9).
+
+### Stage D File Structure
+
+| File | Responsibility |
+|---|---|
+| `src/glitchygames/replay/tools/registry.py` | `Tool`, `ToolOption`, `TOOLS`, `add_game_flags(parser)`, `build_command_parser()`, `run_game_flag_tool(options, game) -> ExitCode \| None` |
+| `src/glitchygames/replay/tools/command.py` | the `glitchygames` console script: `main()` |
+| `src/glitchygames/replay/tools/children.py` | games run as child processes (moved from `testing/replays.py`; no pytest) |
+| `src/glitchygames/replay/tools/settings.py` | `ProjectSettings`, read from `[tool.glitchygames]` |
+| `src/glitchygames/replay/tools/identity.py` | `GameIdentity`: a game object's package, directory, console script and revision |
+| `src/glitchygames/replay/tools/golden_traces.py` | the sprite-trace harness (from `scripts/record_golden_traces.py`) |
+| `src/glitchygames/replay/tools/scripted_sessions.py` | the scripted-session recorder (from `scripts/record_scripted_session.py`) |
+| `src/glitchygames/replay/tools/recordings.py` | a game's goldens and bundled demos |
+| `src/glitchygames/replay/tools/measure.py` | measurement, `unmeasured`, `clear-published` (from `scripts/replay_metrics.py`) |
+| `src/glitchygames/replay/tools/report.py` | the recording report (from `scripts/recording_report.py`) |
+| `src/glitchygames/replay/tools/performance_pages.py` | the performance pages (from `scripts/generate_performance_graphs.py`) |
+| `tests/replay/tools/` | the engine's tests for all of it, on stand-in games |
+| `scripts/golden_inputs.py` (new) | our five games' input scripts and controls tails, as `MODULE:NAME` targets |
+| root `pyproject.toml` | `glitchygames` console script, `pytest11` entry point, our `[tool.glitchygames]` |
+
+### The tools (names identical as `--<name>` and `glitchygames <name>`)
+
+| Tool | Runs the game? | As a game flag | As a command |
+|---|---|---|---|
+| `record-trace` | yes | exists | `glitchygames record-trace GAME PATH` |
+| `replay-trace` | yes | exists, with its options `--headless`, `--replay-fps`, `--replay-pause-at-frame`, `--audit`, `--rebaseline NEW`, `--compare-processing`, `--max-processing-slowdown`, `--replay-digest` | `glitchygames replay-trace PATH [same options]` (the game comes from the recording) |
+| `record-session` | yes | `--record-session PATH --input-script M:N --frames N` | `glitchygames record-session GAME PATH --input-script M:N --frames N` |
+| `record-golden-trace` | yes | `--record-golden-trace PATH --input-script M:N --frames N` | `glitchygames record-golden-trace GAME PATH …` |
+| `verify` | yes | `--verify [PATH …]` (default: the game's own) | `glitchygames verify [GAME …]` (default: `[tool.glitchygames] games`) |
+| `measure` | yes | `--measure [PATH …]` | `glitchygames measure [GAME …]` (runs `GAME --measure` per game) |
+| `unmeasured` | no | `--unmeasured` | `glitchygames unmeasured [GAME …]` |
+| `clear-published` | no | `--clear-published` | `glitchygames clear-published` |
+| `report` | no | `--report PATH` | `glitchygames report PATH` |
+| `performance-pages` | no | `--performance-pages DIRECTORY` | `glitchygames performance-pages DIRECTORY` |
+
+**How `GAME` is resolved** (the user, 2026-10-26, approving three forms so an uninstalled game
+works too). The command resolves it in this order and prints which form it used:
+
+| `GAME` looks like | Meaning | The child it runs |
+|---|---|---|
+| contains `/` or ends in `.py` | a script path | `python <path> --<tool> …` |
+| contains `:` | an entry point `MODULE:CALLABLE` | `python -c` calling it, with the flags in `sys.argv` |
+| a plain name | an installed console script (`game_entry_point`), else an importable module | `<script> --<tool> …`, else `python -m <module> --<tool> …` |
+
+A plain name matching nothing is an error naming all three forms. Every form ends in the game's
+`GameEngine(game=Game)`, which injects the flags, so the game never knows how it was started.
+`replay-trace` takes the game from the recording's header (`console_script_for_game_module`); when
+that module no longer imports (a moved script), it asks for `--game GAME`, in the same three forms.
+
+`[tool.glitchygames]` keys, with defaults for an unseen project:
+
+| Key | Default | Ours |
+|---|---|---|
+| `games` | the project's `[project.scripts]` | the nine console scripts |
+| `golden-globs` | `["tests/fixtures/replays/**/*.jsonl.gz"]` | each member's `tests/fixtures/replays/` |
+| `ledger-directory` | `"replay-ledger"` | `"quality/replay-ledger"` |
+| `pending-ledger` | `"replay-ledger/pending.jsonl"` | `"test-results/replay-metrics/pending.jsonl"` |
+| `published-ledger` | none (nothing published) | `"origin/gh-pages:<PUBLISHED_LEDGER_PATH>"` |
+| `landed-ref` | `"origin/main"` | `"origin/main"` |
+| `measured-paths` | `["src", "tests/fixtures/replays", "pyproject.toml"]` | today's `MEASURED_PATHS` |
+| `unmeasured-paths` | `[]` | today's member-test pathspecs |
+| `recording-renames` | `{}` | today's `RECORDING_PATH_RENAMES` |
+
+### Task D1: The tool table, both front ends, and the sync test
+
+**Files:** `replay/tools/{__init__,registry,command}.py`;
+`glitchygames/__main__.py` (`python -m glitchygames`); `engine/game_engine.py` (`args` adds
+`add_game_flags`, and `_begin_run` dispatches `run_game_flag_tool`); root `pyproject.toml`
+(`glitchygames = "glitchygames.replay.tools.command:main"`); `tests/replay/tools/test_registry.py`;
+the Stage C import guard gains `scripts`.
+
+**Interfaces:**
+- `Tool(name: str, help: str, options: tuple[ToolOption, ...], runs_game: bool, game_handler, command_handler)`.
+- `ToolOption(flag: str, help: str, kind: Literal['path', 'paths', 'int', 'reference', 'flag'], required: bool)`.
+- `GameLaunch(form: Literal['script', 'entry-point', 'console-script', 'module'], command: list[str])`;
+  `resolve_game(*, game: str) -> GameLaunch` (raises `UnknownGameError` naming the three forms);
+  `launch_game(*, launch: GameLaunch, arguments: list[str]) -> CompletedProcess[str]`.
+- `add_game_flags(parser) -> None`; `build_command_parser() -> argparse.ArgumentParser`;
+  `run_game_flag_tool(*, options: dict[str, Any], game: type[Scene] | Scene) -> ExitCode | None`
+  (None: no tool flag was given, so run the game).
+
+The existing `--record-trace`, `--replay-trace` and `--rebaseline` definitions move into `TOOLS`
+unchanged (help text, destinations and defaults), with `--rebaseline` and `--audit` as
+`replay-trace` options. Their game handlers stay where they are; their command handlers start
+the game as a child.
+
+- [ ] **Step 1: failing tests.**
+  - `test_every_tool_is_a_game_flag_and_a_command`: the set of `--<name>` tool flags in a
+    stand-in game's parser equals the set of `glitchygames` subcommands, which equals
+    `{tool.name for tool in TOOLS}`.
+  - `test_each_tools_options_match_on_both_front_ends`: per tool, the option flags, kinds,
+    `required` and defaults agree.
+  - `test_the_existing_trace_flags_are_unchanged`: `--record-trace`, `--replay-trace` and
+    `--rebaseline` parse to the same `OPTIONS` keys and values as before.
+  - `test_glitchygames_help_lists_every_tool`, and `test_a_game_help_lists_every_tool`.
+  - `test_importing_the_replay_tools_imports_no_pytest` (in a subprocess).
+  - `test_the_command_prints_no_pygame_banner`: `glitchygames --help`'s stdout starts with the usage.
+  - `test_python_m_glitchygames_is_the_command`.
+  - `test_no_tool_option_clashes_with_any_of_our_games_arguments`: every member's game parser
+    builds with the tool flags added.
+  - `test_game_resolves_each_form` (a script path, `MODULE:CALLABLE`, a console script, a module;
+    each launch's command), `test_a_plain_name_prefers_the_console_script_over_the_module`, and
+    `test_an_unknown_game_names_all_three_forms`.
+  - `test_replay_trace_asks_for_game_when_the_recorded_module_is_gone`.
+  - `test_glitchygames_record_trace_runs_the_game_as_a_child` and
+    `test_glitchygames_replay_trace_finds_the_game_from_the_recording` (on a stand-in game).
+- [ ] **Step 2:** implement until they pass; lint; `CI=true nox -s test`; commit — "The engine
+  describes its recording tools once, as game flags and as the glitchygames command".
+
+### Task D2: Children without pytest, project settings, and the game's identity
+
+**Files:** `replay/tools/{children,settings,identity}.py`; `testing/replays.py` (the plugin keeps
+its pytest parts; every importer of the moved helpers is updated, with no re-export);
+`code_tree.py` and `recording_metrics.py` (their repository constants become `ProjectSettings`
+fields, read where they were used); root `pyproject.toml` (`[tool.glitchygames]` with today's
+values); `tests/replay/tools/test_{children,settings,identity}.py`.
+
+**Interfaces:**
+- `ProjectSettings` (pydantic, `extra='forbid'`, kebab-case aliases, the keys in the table above);
+  `load_project_settings(*, project_root: Path) -> ProjectSettings`.
+- `GameIdentity(package: str, package_directory: Path, console_script: str | None, distribution: str | None)`;
+  `game_identity(*, game: type[Scene] | Scene) -> GameIdentity`.
+- `children.py` keeps today's names and signatures (`replay_command`,
+  `replay_recording_headless`, `rebaseline_recording_headless`, `recording_console_script`, …).
+  `recording_console_script`'s error text loses "`uv sync --all-packages`" and names the console
+  script it looked for.
+
+- [ ] **Step 1: failing tests.**
+  - `test_a_project_without_tool_glitchygames_gets_the_defaults`
+  - `test_an_unknown_setting_is_refused_by_name`
+  - `test_our_settings_equal_the_old_constants`: our `pyproject.toml` gives exactly today's
+    `LEDGER_DIRECTORY`, `MEASURED_PATHS`, the member-test pathspecs, the pending path, the
+    published path and ref, and `RECORDING_PATH_RENAMES`. Copy the values into the test by hand
+    before deleting the constants.
+  - `test_a_game_knows_its_package_and_console_script` (a stand-in distribution), and
+    `test_a_game_with_no_console_script_still_has_an_identity`.
+  - `test_children_import_without_pytest` (in a subprocess with pytest blocked).
+- [ ] **Step 2:** implement; every caller reads settings; `CI=true nox -s test`; commit.
+
+### Task D3: Rows and recordings name the game's commit
+
+**Files:** `recording_metrics.py` (`MeasurementRun.game_source_revision: SourceRevision | None =
+None`; `ledger_rows_from_rebaseline` takes commit and dirty state from it, falling back to
+`source_revision`); `engine/game_engine.py:~1647` (sets it from
+`game_identity(game=…).package_directory`); `tests/replay/tools/test_provenance.py`.
+
+- [ ] **Step 1: failing tests.**
+  - `test_a_stand_in_game_in_its_own_repository_records_its_own_commit`: write a stand-in game
+    into a temporary `git init` repository with one commit. Rebaseline a recording through its
+    console script. The header's `game_source_revision.commit` is that repository's commit, and
+    the ledger row's commit equals it, not the engine's.
+  - `test_a_dirty_game_checkout_marks_the_row_dirty`.
+  - `test_a_recording_without_game_source_revision_still_loads_and_uses_the_engines`, using a
+    committed golden from before this change.
+  - `test_our_games_rows_are_unchanged`: one of our goldens produces the same commit as before.
+- [ ] **Step 2:** implement; `CI=true nox -s test`; commit.
+
+### Task D4a: The golden-trace harness moves into the engine
+
+**Files:** `replay/tools/golden_traces.py` gets the general parts listed in the audit:
+- `GameSceneClasses`, `FrameObserver`, `RecordTraceHooks`, `press`/`release`, `InputScript`
+- `deterministic_environment`, `command_line`, `GoldenTraceSceneManager`, `GoldenTraceEngine`
+- `discard_environment_events`, `ENVIRONMENT_EVENT_TYPES`, `FRAME_SECONDS`, `RANDOM_SEED`,
+  `SCREEN_RESOLUTION`
+- `record_trace` and `replay_golden_recording`, re-keyed to `(*, scene_class, script: InputScript, …)`
+  in place of `game_key`
+
+`scripts/golden_inputs.py` (new) gets the per-game scripts, constants and helper classes
+(`PaddleTracker`, `MuncherSteering`, `DrawingFireMouse`, …). `scripts/record_golden_traces.py`
+shrinks to `GAME_SCENES`, `GAME_MODULES`, `SCRIPT_BUILDERS`, `GOLDEN_TRACE_GAMES`, `golden_path`
+and `main`, calling the engine. The ~40 importing test modules are updated: engine tests import
+the engine harness, and member tests may import `scripts.golden_inputs`. The `record-golden-trace`
+tool is added to `TOOLS`.
+
+- [ ] **Step 1:** move the tests with the code (`tests/replay/tools/test_golden_traces.py`). Add
+  `test_record_golden_trace_on_a_stand_in_game_as_a_flag_and_a_command`.
+- [ ] **Step 2:** move the code; save engine-only coverage before and after; close any gap;
+  every golden trace still matches (`tests/world/test_golden_traces.py`); commit.
+
+### Task D4b: The scripted-session recorder moves into the engine
+
+**Files:** `replay/tools/scripted_sessions.py` gets `PostedPolledInput`, `polled_input_follows`,
+`ScriptedInputSupervisor`, `GameDidNotQuitError`, `QUIT_WAIT_FRAMES`, and
+`record_scripted_session(*, scene_class, script, frame_count, path, controls_tail=None,
+polled_input=False, input_only_placements=False, random_seed=RANDOM_SEED)`. The supervisor's
+game-key checks become those two flags. `scripts/record_scripted_session.py` shrinks to our games'
+tables (`INPUT_ONLY_PLACEMENT_GAMES`, `POLLED_INPUT_GAMES`, `CONTROLS_TAIL_BUILDERS`,
+`REPLAY_FIXTURE_DIRECTORIES`, `GOLDEN_FIXTURE_NAMES`, `fixture_path`) and a `--game` CLI calling
+the engine. The per-game controls tails move to `scripts/golden_inputs.py`. The
+`record-session` tool is added (`--controls-tail M:N`, `--polled-input` and
+`--input-only-placements` as tool options).
+
+- [ ] **Step 1:** move the tests (`tests/replay/tools/test_scripted_sessions.py`). Add
+  `test_record_session_on_a_stand_in_game_as_a_flag_and_a_command` (the recording replays SUCCESS
+  through `--replay-trace --headless`).
+- [ ] **Step 2:** move the code; coverage before and after; re-record nothing; prove one golden
+  per game is byte-identical when re-recorded by `scripts/record_scripted_session.py --game`, into
+  a scratch path; commit.
+
+### Task D5: A game's recordings, and `verify`
+
+**Files:** `replay/tools/recordings.py`
+(`game_recordings(*, identity, settings, project_root) -> list[Recording]`, where
+`Recording(console_script: str, path: Path, kind: Literal['golden', 'demo'])`: the goldens that match
+`golden-globs` and belong to this game's console script, plus the demos in
+`<package>/demos/`); `bundled_demos.py` (`packages` becomes required, with no `MEMBER_LAYERS`
+default; callers pass it; `testing/replays.py:~409` too); the `verify` tool (each recording
+replayed headless in a child; one line per recording; exit `SUCCESS` only if all pass);
+`tests/replay/tools/test_{recordings,verify}.py`.
+
+- [ ] **Step 1: failing tests.**
+  - `test_a_game_finds_its_own_goldens_and_demos_and_no_other_games`
+  - `test_verify_passes_and_fails_per_recording_as_a_flag_and_a_command` (one good and one
+    tampered recording; exit code and lines)
+  - `test_verify_with_no_recordings_says_so`
+- [ ] **Step 2:** implement; commit.
+
+### Task D6: `measure`, `unmeasured` and `clear-published` move into the engine
+
+**Files:** `replay/tools/measure.py` gets from `scripts/replay_metrics.py`:
+- `MeasureResult`, `UnreplayableRecording`, `this_machine`, `MeasureSettings`
+- `measure_recording`, `describe_measurement`, `_already_measured`, the `measure` loop
+- `rows_to_write`, with its "landed" rule on `settings.landed_ref`
+- `missing_measurements(*, rows, recordings, code_tree, machine)` (from
+  `measure_staged_replays._fully_measured_here`)
+- `clear_published`
+
+The tools `measure` (`--force`, `--allow-dirty | --skip-dirty`, `--only`, `--rows-directory`,
+`--code-tree`), `unmeasured` and `clear-published` are added. `glitchygames measure [GAME …]` runs
+`GAME --measure` per game and sums the exit codes, as today's loop does.
+`scripts/replay_metrics.py` is deleted: the nox sessions call `glitchygames measure` and
+`glitchygames clear-published`. `scripts/measure_staged_replays.py` keeps only git staging and its
+refusals, and calls `glitchygames unmeasured` and `glitchygames measure --rows-directory`.
+`tests/test_replay_metrics.py` moves to `tests/replay/tools/test_measure.py`, on stand-ins.
+
+- [ ] **Step 1:** move the tests; add `test_measure_a_stand_in_game_as_a_flag_and_a_command` (rows
+  written to its `[tool.glitchygames]` pending ledger), `test_unmeasured_lists_then_empties`, and
+  `test_measure_in_a_project_without_settings_creates_the_ledger_directory`.
+- [ ] **Step 2:** move the code; the pre-commit hook still measures and stages (its own tests
+  pass unchanged apart from imports); `nox -s replay-metrics` works; commit.
+
+### Task D7: `report` and `performance-pages` move into the engine
+
+**Files:**
+- `replay/tools/report.py`: `scripts/recording_report.py` whole, with its tests. The script is
+  deleted.
+- `replay/tools/performance_pages.py`:
+  - the rendering half of `scripts/generate_performance_graphs.py`
+  - `write_performance_pages(*, rows, directory)`
+  - the source merge (row files, landed trees, published ledger, pending), driven by
+    `ProjectSettings`
+- `scripts/generate_performance_graphs.py` keeps the docs paths and `performance_snippet`, and
+  calls the engine. If rendering imports anything outside the engine's runtime dependencies, that
+  import is lazy and the tool reports the missing package by name.
+
+- [ ] **Step 1:** move the tests. Add:
+  - `test_report_never_builds_the_game`: a scene class whose constructor raises; `--report` exits
+    `SUCCESS`
+  - `test_report_and_performance_pages_as_a_flag_and_a_command`
+- [ ] **Step 2:** move the code; `nox -s docs` still builds the performance pages; commit.
+
+### Task D8: The pytest plugin auto-registers
+
+**Files:**
+- root `pyproject.toml`: `[project.entry-points.pytest11] glitchygames =
+  "glitchygames.testing.replays"`
+- root `conftest.py`: drop the manual load (and its comment)
+- `testing/replays.py`: loading it prints nothing (no pygame banner) in any project. It collects the configured games' bundled demos too, unless
+  `tests/replay/test_bundled_demos.py` already covers them; pick one, never both, and record which
+  in the task report.
+- `tests/replay/test_replay_plugin.py`: it stops importing `scripts.record_scripted_session`, and
+  uses a stand-in fixture.
+
+- [ ] **Step 1: failing tests (pytester).**
+  - `test_the_plugin_loads_without_a_conftest_line`
+  - `test_a_project_with_no_recordings_and_no_settings_gets_no_items_and_no_output`
+- [ ] **Step 2:** implement; the collected count of golden-replay items is unchanged; commit.
+
+### Task D9: The unseen game, end to end
+
+**Files:** `tests/replay/tools/test_an_unseen_game.py`.
+
+Build a project in `tmp_path`: `git init`, a stand-in game distribution with a console script, a
+`[tool.glitchygames]` (and a second run with none), an input script, and nothing from this
+repository on `sys.path` (the children get an environment without the repository root).
+The game is launched in **each of the three `GAME` forms** (the project's script path, its
+`MODULE:main`, and its console script once installed). Then, **through both front ends, every tool
+in `TOOLS`**: record-trace, replay-trace (with `--rebaseline` and `--audit`),
+record-session, record-golden-trace, verify, measure, unmeasured, report, performance-pages and
+clear-published (against a local bare repository as "published"). Assert:
+- each tool's exit code
+- the files it wrote
+- the rows' commit is the stand-in repository's
+- a test that walks `TOOLS` fails if a new tool has no case here
+
+- [ ] **Step 1:** write it; it passes on the finished stage. Prove it bites: break one front end's
+  option (in a scratch edit) and watch it fail, then restore.
+- [ ] **Step 2:** commit.
+
+### Task D10: Docs, then Stage D's verification
+
+**Files:**
+- `docs/architecture/gameplay_replay.md`: a "Tools for any game" section, with the tool table,
+  `[tool.glitchygames]` and both front ends
+- `docs/architecture/game_packages.md`: the recipe's steps name the tools and `golden_inputs.py`
+- `docs/quality/performance.md`, and `CLAUDE.md` (Common Commands, the recording sections)
+- the game docs that cite moved functions
+- the engine module docstrings
+- the master plan's "What every part keeps true": the engine owns every recording tool; game
+  flags and commands share names
+- `plans/future-work.md`: the logical-name collision risk
+- this plan's Status
+
+- [ ] **Step 1:** write the docs; run `lint-docs` and the living-docs guard.
+- [ ] **Step 2:** verify:
+  - `nox -s lint static-analysis`, `CI=true nox -s test`, `uv run pytest` and
+    `nox -s build-wheel`; the engine wheel has the `glitchygames` script and the pytest11 entry
+  - `nox -s replay-metrics` and `nox -s docs`
+  - the pre-commit hook on a real commit
+  - for one game by hand: `<game> --record-trace`, `--replay-trace`, and
+    `glitchygames report` on the result
 - [ ] **Step 3:** commit, then stop for the user's review.
