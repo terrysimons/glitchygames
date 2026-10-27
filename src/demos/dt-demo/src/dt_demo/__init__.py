@@ -64,7 +64,7 @@ class Game(Scene):
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:
-        """Add game-specific arguments to the gloal parser.
+        """Add game-specific arguments to the global parser.
 
         This class method will get called automatically by the GameEngine class.
 

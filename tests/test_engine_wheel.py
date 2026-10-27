@@ -60,5 +60,14 @@ def test_the_engine_wheel_holds_the_engine_alone(tmp_path):
         if name.endswith('.toml') and not name.startswith(f'{ENGINE_PACKAGE}/assets/')
     ]
     assert not stray_sprite_files
+    sprites = sorted(
+        name
+        for name in names
+        if name.startswith(f'{ENGINE_PACKAGE}/assets/') and name.endswith('.toml')
+    )
+    assert sprites == [
+        f'{ENGINE_PACKAGE}/assets/eraser.toml',
+        f'{ENGINE_PACKAGE}/assets/raspberry.toml',
+    ]
     sounds = sorted(name for name in names if name.startswith('glitchygames/resources/sounds/'))
     assert sounds == sorted(ENGINE_SOUND_WHEEL_PATHS)

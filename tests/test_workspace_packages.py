@@ -298,8 +298,14 @@ def test_the_engines_examples_directory_is_gone():
     )
 
     assert not tracked
-    assert not (PROJECT_ROOT / 'src' / 'glitchygames' / 'examples').exists()
-    assert not (PROJECT_ROOT / 'tests' / 'examples').exists()
+    for leftover_directory in (
+        PROJECT_ROOT / 'src' / 'glitchygames' / 'examples',
+        PROJECT_ROOT / 'tests' / 'examples',
+    ):
+        assert not leftover_directory.exists(), (
+            f'{leftover_directory} still exists: ignored leftovers of the move (__pycache__); '
+            'rm -rf src/glitchygames/examples tests/examples'
+        )
 
 
 def test_tracked_entry_names_leaves_out_ignored_and_untracked_files(tmp_path):

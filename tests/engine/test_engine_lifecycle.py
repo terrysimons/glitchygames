@@ -38,6 +38,7 @@ from glitchygames.sources import active_sources
 from glitchygames.testing.replays import game_entry_point
 from glitchygames.timing import FastTimer
 from tests.input.stand_in_devices import STAND_IN_PAD, STAND_IN_STICK, install_stand_in_devices
+from tests.workspace_expectations import EXPECTED_ALL_CONSOLE_SCRIPTS
 
 # GameEngine parses sys.argv when it is constructed: a small window (the conftest puts the
 # 800x600 test display back after the test), no frame pacing, quiet logs
@@ -734,8 +735,6 @@ NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-clien
 GAME_CONSOLE_SCRIPTS = tuple(
     sorted(set(declared_console_scripts(project_root=PROJECT_ROOT)) - NOT_GAME_CONSOLE_SCRIPTS)
 )
-# How many there are today: 5 games, 3 demos and Bitmappy (a new member's script changes it)
-GAME_CONSOLE_SCRIPT_COUNT = 9
 
 
 class PowerOnPlayed(BaseException):
@@ -759,7 +758,9 @@ def test_every_game_console_script_is_covered():
     }
 
     assert set(GAME_CONSOLE_SCRIPTS) == members_console_scripts
-    assert len(GAME_CONSOLE_SCRIPTS) == GAME_CONSOLE_SCRIPT_COUNT
+    # Written out by hand (tests/workspace_expectations.py): 5 games, 3 demos and Bitmappy
+    assert set(GAME_CONSOLE_SCRIPTS) == EXPECTED_ALL_CONSOLE_SCRIPTS
+    assert len(GAME_CONSOLE_SCRIPTS) == len(EXPECTED_ALL_CONSOLE_SCRIPTS)
 
 
 @pytest.mark.usefixtures('engine_run_environment')

@@ -1036,9 +1036,10 @@ def misnamed_member_test_modules(*, members: Sequence[WorkspaceMember]) -> list[
     """Return each module in a member's tests, at any depth, not named for its distribution.
 
     Rootless tests are imported by their bare file names, so every module is named
-    ``test_<distribution with - as _>*.py`` (``test_mr_muncher*.py``; Brave Adventurer's four
-    packages share ``test_brave_adventurer*.py``). ``conftest.py`` is the one exception;
-    test-data directories (``fixtures``) are not scanned.
+    ``test_<distribution with - as _>.py`` or ``test_<distribution with - as _>_*.py``
+    (``test_mr_muncher_*.py``; Brave Adventurer's four packages share
+    ``test_brave_adventurer_*.py``), so ``test_bitmappyx.py`` is misnamed. ``conftest.py`` is the
+    one exception; test-data directories (``fixtures``) are not scanned.
 
     Args:
         members: The workspace's members.
@@ -1058,8 +1059,8 @@ def misnamed_member_test_modules(*, members: Sequence[WorkspaceMember]) -> list[
                 for python_file in member.tests_directory.rglob('*.py')
                 if not TEST_DATA_DIRECTORY_NAMES
                 & set(python_file.relative_to(member.tests_directory).parts)
-                and python_file.name != 'conftest.py'
-                and not fnmatch.fnmatch(python_file.name, f'{prefix}*.py')
+                and python_file.name not in {'conftest.py', f'{prefix}.py'}
+                and not fnmatch.fnmatch(python_file.name, f'{prefix}_*.py')
             )
         )
     return misnamed
@@ -1089,6 +1090,7 @@ def test_a_misnamed_member_test_module_in_a_subdirectory_is_found(tmp_path):
             (
                 'conftest.py',
                 'test_bitmappy_tools.py',
+                'test_bitmappyx.py',
                 'canvas/conftest.py',
                 'canvas/test_bitmappy_canvas.py',
                 'canvas/test_canvas.py',
@@ -1113,6 +1115,7 @@ def test_a_misnamed_member_test_module_in_a_subdirectory_is_found(tmp_path):
 
     assert misnamed_member_test_modules(members=[bitmappy, space_game]) == [
         'bitmappy: tests/canvas/test_canvas.py',
+        'bitmappy: tests/test_bitmappyx.py',
         'space-game: tests/fleet/test_bitmappy_fleet.py',
         'space-game: tests/test_spacegame_orbits.py',
     ]

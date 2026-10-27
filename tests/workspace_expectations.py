@@ -7,7 +7,9 @@ recording fails. Two kinds of expectation, kept apart:
 - **Written out by hand** (read from the repository on 2026-10-26, edited deliberately when a
   game, golden, demo or console script is added or removed): ``EXPECTED_GOLDENS`` (the six
   goldens by ``(distribution, file name)``), ``EXPECTED_GAME_CONSOLE_SCRIPTS`` (the five
-  games-layer console scripts) and ``EXPECTED_BUNDLED_DEMOS`` (by ``(package, name)``).
+  games-layer console scripts), ``EXPECTED_ALL_CONSOLE_SCRIPTS`` (the nine members' console
+  scripts: the games, the demos and Bitmappy) and ``EXPECTED_BUNDLED_DEMOS`` (by
+  ``(package, name)``).
 - **Read from the workspace** (scripts/workspace_packages.py): which members are in the
   ``games`` layer, and where each keeps its goldens. The goldens found there are the same glob
   the tests' own discovery uses, so on their own they would check little: they are always
@@ -53,6 +55,18 @@ EXPECTED_GAME_CONSOLE_SCRIPTS = frozenset({
     'drawing-fire',
     'mr-muncher',
     'paddleslap',
+})
+# Every member's console script, written out by hand: the five games, the three demos and Bitmappy
+EXPECTED_ALL_CONSOLE_SCRIPTS = frozenset({
+    'bitmappy',
+    'brave-adventurer',
+    'clockwork-keep',
+    'drawing-fire',
+    'dt-demo',
+    'joystick-demo',
+    'mr-muncher',
+    'paddleslap',
+    'text-input-demo',
 })
 
 
