@@ -50,9 +50,8 @@ from glitchygames.build_info import BUILD_STAMP_FILE_NAME
 from glitchygames.bundled_demos import BUNDLED_DEMO_DIRECTORY_NAME, CONSOLE_SCRIPTS_GROUP
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import OutputCapture, run_command
-from glitchygames.replay.tools.children import REPLAY_FIXTURES_PATH_PARTS
 from glitchygames.scenes import Scene
-from glitchygames.tracing import TRACE_FORMAT_VERSION, write_trace
+from glitchygames.tracing import REPLAY_FIXTURES_PATH_PARTS, TRACE_FORMAT_VERSION, write_trace
 
 if TYPE_CHECKING:
     from pathlib import Path

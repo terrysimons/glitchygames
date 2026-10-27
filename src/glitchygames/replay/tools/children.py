@@ -49,16 +49,13 @@ from glitchygames.bundled_demos import CONSOLE_SCRIPTS_GROUP
 from glitchygames.logical_names import module_for_logical_module
 from glitchygames.process import OutputCapture, run_command, with_options_appended
 from glitchygames.replay.driver import GAME_HEADER_FIELD
-from glitchygames.tracing import TraceReader
+from glitchygames.tracing import REPLAY_FIXTURES_PATH_PARTS, TraceReader
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
     from glitchygames.process import CompletedProcess
 
-# A recording is collected from .../fixtures/replays/<console-script>/<name>.jsonl.gz, or from a
-# workspace member's <member>/tests/fixtures/replays/<name>.jsonl.gz
-REPLAY_FIXTURES_PATH_PARTS = ('fixtures', 'replays')
 # The directory a workspace member's fixtures/ is in: <member>/tests/
 MEMBER_TESTS_DIRECTORY_NAME = 'tests'
 # Kill a replay child that runs longer than this (a headless replay of a few hundred frames

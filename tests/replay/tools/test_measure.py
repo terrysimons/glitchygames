@@ -66,7 +66,6 @@ from glitchygames.scenes import Scene
 from glitchygames.tracing import FRAMES_FIELD, is_bookmarked_copy, read_trace
 from tests.ledger_repositories import clone_with_published_ledger, git
 from tests.replay.replay_helpers import rewrite_recording
-from tests.replay.test_replay_plugin import REPO_FIXTURE
 from tests.stand_in_games import (
     RECORD_TIMEOUT_SECONDS,
     STAND_IN_GAME_RESOLUTION,
@@ -319,7 +318,7 @@ class TestRecordingLedgerNames:
         monkeypatch.syspath_prepend(site_packages)
         # Under the same import path as the demo, but not in its package's demos/
         stray = site_packages / 'stand_in_game' / 'rally.jsonl.gz'
-        shutil.copy(REPO_FIXTURE, stray)
+        write_stand_in_recording(path=stray, frame_count=STAND_IN_RECORDING_FRAMES)
 
         with pytest.raises(ValueError, match='nor an installed bundled demo'):
             recording_ledger_name(

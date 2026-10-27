@@ -20,7 +20,6 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.process import OutputCapture, run_command
 from glitchygames.replay.tools.children import (
     GAME_FORMS,
-    REPLAY_FIXTURES_PATH_PARTS,
     GameLaunch,
     UnknownGameError,
     console_script_for_game_module,
@@ -34,6 +33,7 @@ from glitchygames.replay.tools.children import (
     replay_recording_headless,
     resolve_game,
 )
+from glitchygames.tracing import REPLAY_FIXTURES_PATH_PARTS
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 from tests.stand_in_games import (
     StandInGame,

@@ -2,11 +2,11 @@
 
 A fixture is ``<member>/tests/fixtures/replays/<name>.jsonl.gz``, recorded through the
 real engine by scripts/record_scripted_session.py. Each fixture is itself a test item: the replay
-plugin (glitchygames/testing/replays.py, loaded by the root conftest) replays it headless through
-the game's console script entry point (``--replay-trace PATH --headless``: GameEngine +
-SceneManager.start, not the golden harness) and fails with the printed divergence report unless
-it exits ``ExitCode.SUCCESS``. The tests here check that the fixtures exist, are in game
-directories, and that a replay through the engine really compares.
+plugin (glitchygames/testing/replays.py, registered by the engine's pytest11 entry point)
+replays it headless through the game's console script entry point (``--replay-trace PATH
+--headless``: GameEngine + SceneManager.start, not the golden harness) and fails with the
+printed divergence report unless it exits ``ExitCode.SUCCESS``. The tests here check that the
+fixtures exist, are in game directories, and that a replay through the engine really compares.
 
 The controls rule: every golden replay pauses and resumes, exercises every keyboard control the
 game binds, and ends with the game's own quit control (the recorder's controls tail,

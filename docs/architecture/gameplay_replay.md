@@ -616,13 +616,17 @@ working. `tests/replay/test_golden_replays.py` enforces it: every control the ga
 ActionMaps, plus the keys the engine's pause screen hard-codes) must be pressed in its golden
 replay, or be listed in `UNEXERCISED_CONTROLS` with the reason (gamepad controls: no scripted
 session has a gamepad). Each recording is a test item of its own:
-the pytest plugin `src/glitchygames/testing/replays.py` (loaded by the root `conftest.py`) collects
+the pytest plugin `src/glitchygames/testing/replays.py` (registered by the engine's `pytest11`
+entry point, `glitchygames.testing.replays`, in every pytest run with glitchygames installed) collects
 every `.../fixtures/replays/<console-script>/<name>.jsonl.gz` as `<console-script>/<name>`,
 replays it headless in a child process through the console script's entry point
 (`--replay-trace PATH --headless`) and fails, with the exit code and the child's output (the
 divergence report), unless it exits `ExitCode.SUCCESS`. A directory that is not a console script
-is a collection error. Another project's games can use the plugin the same way
-(`pytest_plugins = ['glitchygames.testing.replays']`). Re-record a fixture only deliberately,
+is a collection error. Another project's games get the plugin the same way, with nothing to
+configure; loading it by name as well (`pytest_plugins = ['glitchygames.testing.replays']` or
+`-p glitchygames.testing.replays`) still loads it once, and `-p no:glitchygames.testing.replays`
+turns it off. The plugin imports no pygame (and prints no banner) until it finds a recording, so
+a project that is no game gets no item and no output from it. Re-record a fixture only deliberately,
 after finding out why it stopped replaying; the commands are in the script's docstring. After
 an intentional change, rebaseline it instead (below), so it keeps its recorded inputs.
 

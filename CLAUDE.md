@@ -761,8 +761,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   real engine loop by `scripts/record_scripted_session.py` (our games' policy over the engine's
   `scripted_sessions.record_scripted_session`: a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).
-  Each is a pytest item of its own: the plugin `src/glitchygames/testing/replays.py` (root
-  `conftest.py` `pytest_plugins`) collects every `.../fixtures/replays/<console-script>/*.jsonl.gz`,
+  Each is a pytest item of its own: the plugin `src/glitchygames/testing/replays.py` (registered
+  by the engine's `pytest11` entry point, named after its module, so no conftest loads it;
+  `-p no:glitchygames.testing.replays` turns it off; it imports no pygame until it finds a
+  recording, so a project that is no game gets no item and no output from it) collects every `.../fixtures/replays/<console-script>/*.jsonl.gz`,
   replays it in a child process through the console script's entry point with
   `--replay-trace PATH --headless`, and fails with the exit code and the printed report unless it
   exits `SUCCESS`; `tests/replay/test_golden_replays.py` keeps the fixture-set and tamper checks.

@@ -55,6 +55,16 @@ glitchygames-client = "glitchygames.api.client:run"
 # started through glitchygames/__main__.py, which hides pygame's banner first
 glitchygames = "glitchygames.__main__:main"
 
+# The golden-replay pytest plugin (glitchygames/testing/replays.py) registers itself: any project
+# with glitchygames installed has its fixtures/replays/ recordings collected with no conftest
+# line. It imports neither the engine nor pygame until it finds a recording, so a project that is
+# no game gets no item and no output from it. Named after its module, not `glitchygames`: a
+# project that still loads it by name (`-p glitchygames.testing.replays`, or `pytest_plugins`)
+# then loads it once (pytest refuses one module registered under two names).
+# `-p no:glitchygames.testing.replays` turns it off
+[project.entry-points.pytest11]
+"glitchygames.testing.replays" = "glitchygames.testing.replays"
+
 [project.optional-dependencies]
 docs = [
   "mkdocs",

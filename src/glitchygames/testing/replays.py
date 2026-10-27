@@ -45,9 +45,27 @@ directories, so tests/replay/test_bundled_demos.py replays each one through it.
 ``rebaseline_recording_headless`` runs the same child with ``--rebaseline NEW``
 (``glitchygames.replay.tools.measure`` measures every recording through it).
 
-Loading the plugin: ``pytest_plugins = ['glitchygames.testing.replays']`` in the root conftest
-(this project's ``conftest.py``), or ``pytest -p glitchygames.testing.replays``. Recordings are
-made by ``--record-trace``; this project's fixtures (each member's
+Loading the plugin: it registers itself, through the engine's ``pytest11`` entry point
+(``pyproject.toml``), in every pytest run of any project with glitchygames installed: no conftest
+line is needed. Its entry point is named after this module, ``glitchygames.testing.replays``, so
+a project that still loads it by name (``pytest -p glitchygames.testing.replays``, or
+``pytest_plugins = ['glitchygames.testing.replays']`` in a conftest) loads the same plugin once:
+pytest skips a plugin already registered under the name it is asked for, but refuses one module
+registered under two names. ``pytest -p no:glitchygames.testing.replays`` turns it off.
+
+Because every pytest run loads it, a project that is no game must get nothing from it: no item
+(only a ``.jsonl.gz`` under ``fixtures/replays/`` is collected) and no output. pygame prints a
+banner when it is first imported, so this module imports neither the engine's replay tools nor
+pygame when it loads: only pygame-free leaves (``glitchygames.bundled_demos``,
+``glitchygames.exit_codes``, ``glitchygames.tracing``). The child-process helpers
+(glitchygames/replay/tools/children.py, which import pygame through ``glitchygames.replay``) are
+imported inside ``ReplayFile.collect`` and ``ReplayItem.runtest``, once a recording has been
+found, when pytest is capturing output. (Deferring the import was chosen over setting
+``PYGAME_HIDE_SUPPORT_PROMPT`` at load: that would change every project's environment, and would
+still import pygame at start-up in projects that have no recording, ahead of their own
+configuration, such as this suite's tests/harness.py SDL defaults.)
+
+Recordings are made by ``--record-trace``; this project's fixtures (each member's
 ``<member>/tests/fixtures/replays/``) are recorded by scripts/record_scripted_session.py.
 
 The collector follows pytest's "Working with non-python tests" example
@@ -62,12 +80,7 @@ import pytest
 
 from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
-from glitchygames.replay.tools.children import (
-    REPLAY_FIXTURES_PATH_PARTS,
-    recording_console_script,
-    replay_recording_headless,
-)
-from glitchygames.tracing import is_bookmarked_copy
+from glitchygames.tracing import REPLAY_FIXTURES_PATH_PARTS, is_bookmarked_copy
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -76,7 +89,8 @@ if TYPE_CHECKING:
 RECORDING_SUFFIX = '.jsonl.gz'
 # A recording is collected from .../fixtures/replays/<console-script>/<name>.jsonl.gz, or from a
 # workspace member's <member>/tests/fixtures/replays/<name>.jsonl.gz (REPLAY_FIXTURES_PATH_PARTS,
-# glitchygames/replay/tools/children.py, with the console script lookup that reads them)
+# glitchygames/tracing.py; the console script lookup that reads them is
+# glitchygames/replay/tools/children.py's)
 REPLAY_FIXTURES_LAYOUT = (
     f'{"/".join(REPLAY_FIXTURES_PATH_PARTS)}/<console-script>/<name>{RECORDING_SUFFIX} '
     f"(a workspace member's: <member>/tests/{'/'.join(REPLAY_FIXTURES_PATH_PARTS)}/"
@@ -175,6 +189,10 @@ class ReplayFile(pytest.File):
         }:
             message = f'{self.path}: recordings go in {REPLAY_FIXTURES_LAYOUT}'
             raise pytest.Collector.CollectError(message)
+        # Imported here, once a recording is found: it imports the engine and pygame (see the
+        # module docstring, "Loading the plugin")
+        from glitchygames.replay.tools.children import recording_console_script
+
         try:
             console_script = recording_console_script(path=self.path)
         except KeyError as error:
@@ -197,6 +215,12 @@ class ReplayItem(pytest.Item):
         fails with run_command's ``subprocess.TimeoutExpired``.
 
         """
+        # Imported here, as in ReplayFile.collect (which has imported it already)
+        from glitchygames.replay.tools.children import (
+            recording_console_script,
+            replay_recording_headless,
+        )
+
         # ReplayFile.collect has checked the recording has a console script
         finished = replay_recording_headless(
             console_script=recording_console_script(path=self.path), path=self.path

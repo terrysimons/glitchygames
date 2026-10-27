@@ -1,24 +1,31 @@
 """Recordings under .../fixtures/replays/<console-script>/ become pytest items.
 
-The plugin is glitchygames/testing/replays.py. The root conftest loads it for this suite; the
-pytester runs here have their own configuration, so they load it with ``-p``. They run pytest in
-a fresh interpreter: this one has already imported the plugin, so an in-process run would warn
-that it cannot rewrite the plugin's assertions.
+The plugin is glitchygames/testing/replays.py. It registers itself through the engine's
+``pytest11`` entry point (named after its module), so every pytest run with glitchygames
+installed loads it, this suite's and each pytester run's alike. Most pytester runs here also
+name it with ``-p``, which loading it explicitly must still allow. They run pytest in a fresh
+interpreter: this one has already imported the plugin, so an in-process run that names it would
+warn that it cannot rewrite the plugin's assertions (the in-process runs below name none).
 """
 
 from __future__ import annotations
 
+import importlib
+import os
 import shutil
+import sys
 from typing import TYPE_CHECKING
 
+import pygame
 import pytest
-from scripts.record_scripted_session import fixture_path
 
 from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.replay.driver import write_bookmarked_copy
-from glitchygames.replay.tools.children import REPLAY_FIXTURES_PATH_PARTS
+from glitchygames.replay.tools import children
 from glitchygames.testing.replays import bundled_demo_paths
+from glitchygames.tracing import REPLAY_FIXTURES_PATH_PARTS
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 from tests.stand_in_games import (
     StandInGame,
@@ -35,8 +42,33 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 PLUGIN_MODULE = 'glitchygames.testing.replays'
-# A golden's bytes, for the tests whose recording is never replayed (only where it lies matters)
-REPO_FIXTURE = fixture_path(game_key='paddleslap')
+# The plugin's name as the engine's pytest11 entry point registers it (pyproject.toml): its
+# module's, so an explicit load by that name is the same plugin, and ``-p no:<it>`` blocks it
+PLUGIN_ENTRY_POINT_NAME = PLUGIN_MODULE
+# The distribution pytest's header names for the entry point's plugin (``plugins: ...``)
+ENGINE_DISTRIBUTION = 'glitchygames'
+# pygame's banner variable: unset for the runs that check the plugin prints no banner
+PYGAME_BANNER_VARIABLE = 'PYGAME_HIDE_SUPPORT_PROMPT'
+# Loads the plugin module alone in a fresh interpreter and prints which of the modules that
+# would print pygame's banner (or import it) are then imported
+PLUGIN_LOAD_IMPORTS_SCRIPT = f"""
+import sys
+import {PLUGIN_MODULE}
+print(sorted(name for name in ('pygame', 'glitchygames.replay') if name in sys.modules))
+"""
+# The engine modules the plugin imports when it loads: pygame-free leaves. pytest loads an entry
+# point plugin before pytest-cov starts measuring, so these modules' top-level lines run before
+# coverage does in every run of this suite (test_a_fresh_load_of_the_plugin_... loads them again)
+PLUGIN_LOAD_MODULES = (
+    PLUGIN_MODULE,
+    'glitchygames.bundled_demos',
+    'glitchygames.exit_codes',
+    'glitchygames.tracing',
+)
+# The engine's replay tools, which import pygame: the plugin imports them only for a recording
+REPLAY_TOOLS_PACKAGE = 'glitchygames.replay'
+# The start of pygame's banner (``pygame-ce 2.5.8 (SDL 2.32.10, Python 3.14.8)``)
+PYGAME_BANNER_START = f'pygame-ce {pygame.version.ver}'
 # The top directory of pytester's copy of the fixture layout (fixtures/replays/<console-script>/)
 FIXTURES_DIRECTORY_NAME = REPLAY_FIXTURES_PATH_PARTS[0]
 # A pytest run of one recording takes a few seconds
@@ -85,6 +117,22 @@ def stand_in_game(tmp_path_factory, monkeypatch) -> StandInGame:
 
 
 @pytest.fixture
+def placed_only_recording(tmp_path_factory) -> Path:
+    """Return a stand-in recording for the tests where only where a copy lies matters.
+
+    It is never replayed (its directories name no game, or the wrong depth), so a recording the
+    trace writer makes (``write_stand_in_recording``, no game run) is enough.
+
+    Returns:
+        Its path (outside pytester's directory).
+
+    """
+    path = tmp_path_factory.mktemp('placed-only') / 'rally.jsonl.gz'
+    write_stand_in_recording(path=path, frame_count=COLLECTED_ONLY_RECORDING_FRAMES)
+    return path
+
+
+@pytest.fixture
 def stand_in_recording(stand_in_game, tmp_path_factory) -> Path:
     """Return a recording of the stand-in game's session, made by a child ``--record-trace``.
 
@@ -114,7 +162,7 @@ def game_directory(*, pytester: pytest.Pytester, console_script: str) -> Path:
 
 
 def copy_fixture_into(
-    *, pytester: pytest.Pytester, console_script: str, name: str, source: Path = REPO_FIXTURE
+    *, pytester: pytest.Pytester, console_script: str, name: str, source: Path
 ) -> Path:
     """Copy a recording to ``fixtures/replays/<console_script>/<name>``.
 
@@ -122,8 +170,8 @@ def copy_fixture_into(
         pytester: pytest's fixture for running pytest in a temporary directory.
         console_script: The game directory's name.
         name: The copy's file name.
-        source: The recording copied (the PaddleSlap golden's bytes when only its place
-            matters, never replayed).
+        source: The recording copied (``placed_only_recording`` when only its place matters,
+            never replayed).
 
     Returns:
         The copy's path.
@@ -208,9 +256,14 @@ def test_a_recording_can_be_skipped_from_a_marker(pytester, stand_in_game):
     assert 'INTERNALERROR' not in result.stdout.str()
 
 
-def test_unknown_game_directory_fails_at_collection(pytester):
+def test_unknown_game_directory_fails_at_collection(pytester, placed_only_recording):
     """A directory that names no console script is a collection error that says so."""
-    copy_fixture_into(pytester=pytester, console_script='no-such-game', name='rally.jsonl.gz')
+    copy_fixture_into(
+        pytester=pytester,
+        console_script='no-such-game',
+        name='rally.jsonl.gz',
+        source=placed_only_recording,
+    )
 
     result = run_pytest(pytester=pytester)
 
@@ -259,13 +312,13 @@ def test_a_bookmarked_copy_is_not_collected(pytester, stand_in_game):
     collected.stdout.no_fnmatch_line('*rally.bookmarked*')
 
 
-def test_misplaced_recordings_fail_at_collection(pytester):
+def test_misplaced_recordings_fail_at_collection(pytester, placed_only_recording):
     """A recording under fixtures/replays/ but not directly in a game's directory is an error."""
     replays_directory = pytester.path.joinpath(*REPLAY_FIXTURES_PATH_PARTS)
     nested_directory = replays_directory / 'paddleslap' / 'old'
     nested_directory.mkdir(parents=True)
-    shutil.copy(REPO_FIXTURE, replays_directory / 'stray.jsonl.gz')
-    shutil.copy(REPO_FIXTURE, nested_directory / 'rally.jsonl.gz')
+    shutil.copy(placed_only_recording, replays_directory / 'stray.jsonl.gz')
+    shutil.copy(placed_only_recording, nested_directory / 'rally.jsonl.gz')
 
     result = run_pytest(pytester=pytester)
 
@@ -331,6 +384,169 @@ def test_missing_recording_fails_as_unusable(pytester, stand_in_game):
     ])
 
 
+def collect_only(*, pytester: pytest.Pytester, plugin_options: tuple[str, ...]) -> pytest.RunResult:
+    """Collect ``fixtures`` in a fresh interpreter, loading the plugin only as told.
+
+    Args:
+        pytester: pytest's fixture for running pytest in a temporary directory.
+        plugin_options: The options about the plugin (none: it loads by its entry point alone).
+
+    Returns:
+        pytester's run result.
+
+    """
+    return pytester.runpytest_subprocess(
+        *plugin_options,
+        '-p',
+        'no:cacheprovider',
+        '--collect-only',
+        '-q',
+        FIXTURES_DIRECTORY_NAME,
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
+
+
+def test_the_plugin_loads_without_a_conftest_line(pytester, stand_in_game):
+    """With glitchygames installed, a project's recordings are collected with no conftest line.
+
+    The engine's pytest11 entry point registers the plugin: the run names it nowhere, and the
+    recording is one item (only collected, never replayed).
+    """
+    script = stand_in_game.console_script
+    write_collected_only_recording(pytester=pytester, console_script=script, name='rally.jsonl.gz')
+
+    collected = collect_only(pytester=pytester, plugin_options=())
+
+    collected.stdout.fnmatch_lines([f'fixtures/replays/{script}/rally.jsonl.gz::{script}/rally'])
+    collected.stdout.fnmatch_lines(['1 test collected*'])
+
+
+@pytest.mark.parametrize(
+    'plugin_options',
+    [
+        pytest.param(('-p', PLUGIN_MODULE), id='by -p'),
+        pytest.param((), id='by a conftest'),
+    ],
+)
+def test_loading_the_plugin_explicitly_too_collects_each_recording_once(
+    pytester, stand_in_game, plugin_options
+):
+    """A project that still loads the plugin by name gets each recording once, and no error.
+
+    The entry point registers it as well, so an explicit load must not register it twice
+    (pluggy refuses one module under two names; the entry point has the module's name, which
+    pytest skips as already registered) or collect each recording twice.
+    """
+    script = stand_in_game.console_script
+    write_collected_only_recording(pytester=pytester, console_script=script, name='rally.jsonl.gz')
+    if not plugin_options:
+        pytester.makeconftest(f'pytest_plugins = [{PLUGIN_MODULE!r}]\n')
+
+    collected = collect_only(pytester=pytester, plugin_options=plugin_options)
+
+    assert collected.ret == pytest.ExitCode.OK, collected.stdout.str()
+    collected.stdout.fnmatch_lines([f'fixtures/replays/{script}/rally.jsonl.gz::{script}/rally'])
+    collected.stdout.fnmatch_lines(['1 test collected*'])
+
+
+def test_no_glitchygames_disables_the_plugin(pytester, stand_in_game):
+    """``-p no:glitchygames.testing.replays`` blocks the entry point: a recording is no item."""
+    script = stand_in_game.console_script
+    write_collected_only_recording(pytester=pytester, console_script=script, name='rally.jsonl.gz')
+
+    collected = collect_only(
+        pytester=pytester, plugin_options=('-p', f'no:{PLUGIN_ENTRY_POINT_NAME}')
+    )
+
+    assert collected.ret == pytest.ExitCode.NO_TESTS_COLLECTED, collected.stdout.str()
+    collected.stdout.no_fnmatch_line('*rally.jsonl.gz*')
+
+
+def test_loading_the_plugin_imports_neither_pygame_nor_the_engines_replay_tools():
+    """Every pytest run loads the plugin, so loading it imports no pygame (nor its banner).
+
+    The replay tools (``glitchygames.replay``, which imports pygame) are imported only once a
+    recording is found. A fresh interpreter, so this suite's own imports do not count.
+    """
+    environment = {
+        name: value for name, value in os.environ.items() if name != PYGAME_BANNER_VARIABLE
+    }
+
+    finished = run_command(
+        command=[sys.executable, '-c', PLUGIN_LOAD_IMPORTS_SCRIPT],
+        environment=environment,
+        timeout_seconds=SUBPROCESS_TIMEOUT_SECONDS,
+        capture_output=OutputCapture.TOGETHER,
+    )
+
+    assert finished.returncode == 0, finished.stdout
+    assert finished.stdout == '[]\n'
+
+
+def test_a_fresh_load_of_the_plugin_imports_only_its_pygame_free_leaves(monkeypatch):
+    """Loading the plugin in this interpreter imports the leaves it names, not the replay tools.
+
+    The plugin, its leaves and every ``glitchygames.replay`` module are taken out of
+    ``sys.modules`` (``monkeypatch`` puts them, and the packages' attributes naming them, back
+    afterwards), then the plugin is imported as its entry point imports it. The fresh load runs
+    their top-level lines while coverage measures, which the entry point's own load (before
+    pytest-cov starts) never does.
+    """
+    removed_names = [
+        name
+        for name in sys.modules
+        if name in PLUGIN_LOAD_MODULES
+        or name == REPLAY_TOOLS_PACKAGE
+        or name.startswith(f'{REPLAY_TOOLS_PACKAGE}.')
+    ]
+    for name in removed_names:
+        parent_name, _, child_name = name.rpartition('.')
+        parent = sys.modules.get(parent_name)
+        if parent is not None and hasattr(parent, child_name):
+            monkeypatch.setattr(parent, child_name, getattr(parent, child_name))
+        monkeypatch.delitem(sys.modules, name)
+
+    importlib.import_module(PLUGIN_MODULE)
+
+    assert [name for name in PLUGIN_LOAD_MODULES if name not in sys.modules] == []
+    assert [
+        name
+        for name in sys.modules
+        if name == REPLAY_TOOLS_PACKAGE or name.startswith(f'{REPLAY_TOOLS_PACKAGE}.')
+    ] == []
+
+
+def test_a_project_with_no_recordings_and_no_settings_gets_no_items_and_no_output(
+    pytester, monkeypatch, placed_only_recording
+):
+    """A project that is no game gets nothing from the auto-registered plugin.
+
+    The project has no ``fixtures/replays/`` and no ``pyproject.toml`` (so no
+    ``[tool.glitchygames]``); a ``.jsonl.gz`` outside ``fixtures/replays/`` is no recording of
+    the plugin's. pygame's banner variable is unset, as in a project that never heard of it:
+    the plugin is loaded (pytest lists it among its plugins), yet nothing is collected, pygame's
+    banner is nowhere in the output, and the project's files are unchanged.
+    """
+    monkeypatch.delenv(PYGAME_BANNER_VARIABLE, raising=False)
+    project = pytester.mkdir('project')
+    shutil.copy(placed_only_recording, project / 'notes.jsonl.gz')
+    (project / 'data').mkdir()
+    shutil.copy(placed_only_recording, project / 'data' / 'rally.jsonl.gz')
+    files_before = sorted(path.relative_to(project) for path in project.rglob('*'))
+
+    result = pytester.runpytest_subprocess(
+        '-p', 'no:cacheprovider', str(project), timeout=SUBPROCESS_TIMEOUT_SECONDS
+    )
+
+    assert result.ret == pytest.ExitCode.NO_TESTS_COLLECTED, result.stdout.str()
+    result.stdout.fnmatch_lines([f'plugins:*{ENGINE_DISTRIBUTION}-*'])
+    result.stdout.fnmatch_lines(['*no tests ran*'])
+    assert PYGAME_BANNER_START not in result.stdout.str()
+    assert PYGAME_BANNER_START not in result.stderr.str()
+    assert not result.stderr.lines
+    assert sorted(path.relative_to(project) for path in project.rglob('*')) == files_before
+
+
 def test_bundled_demo_paths_pairs_each_demo_with_its_games_console_script(tmp_path, monkeypatch):
     """A package's demos/*.jsonl.gz are demos of the console script whose entry point is in it.
 
@@ -372,17 +588,13 @@ def test_bundled_demo_paths_are_exactly_the_engines_bundled_demos():
     ]
 
 
-# A conftest for an in-process inner run: it takes the plugin's collection hook by import, so
-# the inner run collects recordings without loading (and asking to rewrite) the plugin module,
-# which this interpreter has already imported. In-process, the coverage of the collector and the
-# item is measured, and the child replay can be replaced at its boundary.
-IN_PROCESS_PLUGIN_CONFTEST = """
-from glitchygames.testing.replays import pytest_collect_file
-"""
-
-
 def run_pytest_in_process(*, pytester: pytest.Pytester) -> pytest.RunResult:
-    """Run pytest over ``fixtures`` in this interpreter, with the plugin's collection hook.
+    """Run pytest over ``fixtures`` in this interpreter, with the plugin its entry point loads.
+
+    In-process, the coverage of the collector and the item is measured, and the child replay can
+    be replaced at its boundary (``children.replay_recording_headless``, which the item imports
+    when it runs). The inner run registers the module this interpreter has already imported, by
+    its entry point; it names no plugin, so it asks to rewrite nothing already imported.
 
     Args:
         pytester: pytest's fixture for running pytest in a temporary directory.
@@ -391,7 +603,6 @@ def run_pytest_in_process(*, pytester: pytest.Pytester) -> pytest.RunResult:
         pytester's run result.
 
     """
-    pytester.makeconftest(IN_PROCESS_PLUGIN_CONFTEST)
     return pytester.runpytest_inprocess('-p', 'no:cacheprovider', FIXTURES_DIRECTORY_NAME)
 
 
@@ -447,8 +658,6 @@ class TestPluginInProcess:
             bookmarks=[2],
             destination=fixture.with_name('rally.bookmarked.jsonl.gz'),
         )
-        pytester.makeconftest(IN_PROCESS_PLUGIN_CONFTEST)
-
         result = pytester.runpytest_inprocess(
             '-p', 'no:cacheprovider', '--collect-only', '-q', FIXTURES_DIRECTORY_NAME
         )
@@ -477,13 +686,12 @@ class TestPluginInProcess:
         Only the stand-in's console script is needed: the child is replaced.
         """
         from glitchygames.process import CompletedProcess
-        from glitchygames.testing import replays
 
         write_collected_only_recording(
             pytester=pytester, console_script=stand_in_game.console_script, name='rally.jsonl.gz'
         )
         replay_child = mocker.patch.object(
-            replays,
+            children,
             'replay_recording_headless',
             return_value=CompletedProcess(
                 args=[], returncode=int(exit_code), stdout='the child said this\n'
@@ -502,13 +710,12 @@ class TestPluginInProcess:
         Only the stand-in's console script is needed: the child is replaced.
         """
         from glitchygames.process import CompletedProcess
-        from glitchygames.testing import replays
 
         write_collected_only_recording(
             pytester=pytester, console_script=stand_in_game.console_script, name='rally.jsonl.gz'
         )
         mocker.patch.object(
-            replays,
+            children,
             'replay_recording_headless',
             return_value=CompletedProcess(args=[], returncode=int(ExitCode.SUCCESS), stdout=''),
         )
