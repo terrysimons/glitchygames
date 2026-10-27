@@ -1377,7 +1377,7 @@ class TestTransitionCapture:
             assert not arriving_scene.player.visible
 
 
-class TestPaddleSlapInTheFrame:
+class TestWorldBallsInTheFrame:
     """A PaddleSlap-like scene's world-space balls are drawn where its logic left them."""
 
     def test_paddle_hit_and_spawned_ball_are_drawn_at_their_world_positions(self):

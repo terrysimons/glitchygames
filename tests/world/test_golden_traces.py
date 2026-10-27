@@ -1425,7 +1425,7 @@ class SeededWanderScene(Scene):
         self.wanderer.dirty = 1
 
 
-def test_same_random_seed_gives_identical_paddleslap_traces(mocker: MockerFixture):
+def test_same_random_seed_gives_identical_traces(mocker: MockerFixture):
     """--random-seed 123 twice plays a seeded game identically; seed 124 plays differently.
 
     The game is a stand-in for PaddleSlap (SeededWanderScene): every random draw comes from the
