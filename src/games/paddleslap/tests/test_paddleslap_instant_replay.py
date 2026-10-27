@@ -14,7 +14,7 @@ from scripts.record_golden_traces import GAME_SCENES
 
 from glitchygames.instant_replay import JOURNAL_START_FRAME, InstantReplayJournal
 from glitchygames.replay.playback import INSTANT_PLAYBACK, PlaybackOptions, start_playback
-from glitchygames.replay.tools.golden_traces import record_trace
+from glitchygames.replay.tools.golden_traces import RANDOM_SEED, record_trace
 from glitchygames.scenes import Scene, SceneManager
 
 if TYPE_CHECKING:
@@ -78,6 +78,7 @@ class TestAnExampleGame:
             scene_class=scene_class,
             script=paddleslap_script(),
             frame_count=2 * PADDLESLAP_JOURNALED_FRAMES + 1,
+            random_seed=RANDOM_SEED,
             frame_observer=start_and_watch,
         )
         assert [outcome.reason for outcome in outcomes] == ['end_of_recording']

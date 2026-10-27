@@ -7,9 +7,11 @@ the table to check):
 
 - **On the game** (``add_game_flags``): ``GameEngine.args`` adds each tool to the game's own
   command line as ``--<name>`` (with the tool's options as flags of their own), so any game the
-  engine runs has them without declaring anything. A tool that doesn't run the game runs instead
-  of it (``run_game_flag_tool``, from ``GameEngine._begin_run``); one that does is the game's
-  run, which the engine already handles (``--record-trace``, ``--replay-trace``).
+  engine runs has them without declaring anything. A tool with a game handler runs in place of
+  the game's own run (``run_game_flag_tool``, from ``GameEngine.__init__``, before the engine
+  starts pygame): one that runs no game, or one that runs the game in a harness of its own
+  (``--record-golden-trace``, ``--record-session``). A tool without one is the game's run, which
+  the engine already handles (``--record-trace``, ``--replay-trace``).
 - **As the ``glitchygames`` command** (``build_command_parser``, glitchygames/replay/tools/
   command.py): each tool is a subcommand with the same name and options, plus the command's own
   arguments (the game to run, ``--project-root``). A subcommand whose tool runs the game starts
@@ -38,6 +40,8 @@ from glitchygames.replay.tools.children import GAME_FORMS
 from glitchygames.replay.tools.traces import (
     record_golden_trace_command,
     record_golden_trace_on_the_game,
+    record_session_command,
+    record_session_on_the_game,
     record_trace_command,
     replay_trace_command,
 )
@@ -515,17 +519,32 @@ def given(*, value: object) -> bool:
     return value is not None and value is not False
 
 
+def given_tools(*, options: dict[str, Any], tools: Sequence[Tool] | None = None) -> list[Tool]:
+    """Return the tools a game's parsed options give as flags, in the table's order.
+
+    Args:
+        options: The game's parsed options (``GameEngine.OPTIONS``).
+        tools: The tools (``TOOLS`` unless given).
+
+    Returns:
+        Each tool whose flag was given (``given``).
+
+    """
+    tools = TOOLS if tools is None else tools
+    return [tool for tool in tools if given(value=options.get(tool.destination))]
+
+
 def run_game_flag_tool(
     *,
     options: dict[str, Any],
     game: type[Scene] | Scene,
     tools: Sequence[Tool] | None = None,
 ) -> ExitCode | None:
-    """Run the tool given as a game flag in place of the game, if it doesn't run the game.
+    """Run the tool given as a game flag in place of the game's run, if it has a game handler.
 
-    Called by ``GameEngine._begin_run``, as ``--list-input-devices`` is, before the game's scene
-    is built. One tool at a time: two tool flags given together are refused, so neither is
-    silently skipped.
+    Called by ``GameEngine.__init__`` (``_run_game_flag_tool``) before the engine starts pygame,
+    opens its window or builds the game's scene. One tool at a time: two tool flags given
+    together are refused, so neither is silently skipped.
 
     Args:
         options: The game's parsed options (``GameEngine.OPTIONS``).
@@ -535,20 +554,20 @@ def run_game_flag_tool(
     Returns:
         The tool's exit code; ``ExitCode.OPTIONS_REFUSED`` when it lacks a required option or
         another tool was given too; or None when the game is to run (no tool flag was given,
-        or the tool given runs the game, which the engine's run handles).
+        or the tool given has no game handler: the game's own run handles it).
 
     """
     tools = TOOLS if tools is None else tools
-    given_tools = [tool for tool in tools if given(value=options.get(tool.destination))]
-    if not given_tools:
+    tools_given = given_tools(options=options, tools=tools)
+    if not tools_given:
         return None
-    if len(given_tools) > 1:
+    if len(tools_given) > 1:
         LOG.error(
             'one tool at a time: %s were given together',
-            ' and '.join(tool.flag for tool in given_tools),
+            ' and '.join(tool.flag for tool in tools_given),
         )
         return ExitCode.OPTIONS_REFUSED
-    (tool,) = given_tools
+    (tool,) = tools_given
     missing = [
         option.flag
         for option in tool.options
@@ -659,29 +678,39 @@ HEADLESS_OPTION = ToolOption(
     ),
     default=False,
 )
-# Listed by record-trace (a recording's seed is chosen when recording; a replay takes the
-# recorded one), and a general engine flag too: every game has it, as GameEngine.args defined it
-# before the table (it moved from its Graphics Options group to the tools' Diagnostics Options)
+# Listed by every tool that records or replays (the stage's tools table, the controller's
+# shared-option ruling and the user's seed rule, 2026-10-26), and a general engine flag too:
+# every game has it, as GameEngine.args defined it before the table (it moved from its Graphics
+# Options group to the tools' Diagnostics Options). None by default for every tool and a plain
+# run (the user: "If none, we roll random, if something, we use the something"); a replay under
+# another seed plays out without comparing ("we can replay the game but just not record a new
+# version"), and only a rebaseline records it (rule 19 of glitchygames/replay/driver.py)
 RANDOM_SEED_OPTION = ToolOption(
     flag='--random-seed',
     kind='int',
     help=(
-        'master seed for every engine random stream (default: a random 64-bit seed, '
-        'logged in recordings)'
+        'master seed for every engine random stream. Not given, a run or recording rolls a '
+        "random 64-bit seed (logged in the recording) and a replay uses the recording's. "
+        "Given, a run or recording uses it, and a replay given the recording's own compares "
+        "as always; a replay given another plays the recording's inputs out under it "
+        'without comparing or writing anything (headless, it prints what differed and exits '
+        f'{ExitCode.SUCCESS:d}); --replay-trace OLD --rebaseline NEW --random-seed N records '
+        'them under it in NEW; --audit under another seed is refused'
     ),
     default=None,
 )
-# record-golden-trace's options: the input script (golden_traces.load_input_script reads it:
-# a callable taking no arguments that returns an InputScript) and how many frames it runs
+# record-golden-trace's and record-session's options: the input script
+# (golden_traces.load_input_script reads it: a callable taking no arguments that returns an
+# InputScript) and how many of its frames run
 INPUT_SCRIPT_OPTION = ToolOption(
     flag='--input-script',
     kind='reference',
     metavar='MODULE:NAME',
     required=True,
     help=(
-        'with --record-golden-trace: the input script, a callable taking no arguments that '
-        'returns an InputScript (glitchygames.replay.tools.golden_traces); MODULE is looked '
-        'for in the current directory first'
+        'with --record-golden-trace or --record-session: the input script, a callable taking '
+        'no arguments that returns an InputScript (glitchygames.replay.tools.golden_traces); '
+        'MODULE is looked for in the current directory first'
     ),
 )
 FRAME_COUNT_OPTION = ToolOption(
@@ -689,7 +718,42 @@ FRAME_COUNT_OPTION = ToolOption(
     kind='count',
     metavar='N',
     required=True,
-    help='with --record-golden-trace: how many frames to record, each 1/60 second',
+    help=(
+        "with --record-golden-trace or --record-session: how many of the input script's "
+        'frames to record (a golden trace runs each for 1/60 second; a session runs them at '
+        "the game's own pace)"
+    ),
+)
+# record-session's own options (glitchygames/replay/tools/scripted_sessions.py)
+CONTROLS_TAIL_OPTION = ToolOption(
+    flag='--controls-tail',
+    kind='reference',
+    metavar='MODULE:NAME',
+    help=(
+        "with --record-session: key events played after the input script's frames, ending "
+        "with the game's own quit control, so the session ends when the game quits (named as "
+        "--input-script is); without it the session ends after the script's frames"
+    ),
+)
+POLLED_INPUT_OPTION = ToolOption(
+    flag='--polled-input',
+    kind='flag',
+    help=(
+        "with --record-session: the game reads its controls from the frame's polled input "
+        "(current_input()), so the session's snapshots show the script's posted input, as a "
+        "real player's would"
+    ),
+    default=False,
+)
+INPUT_ONLY_PLACEMENTS_OPTION = ToolOption(
+    flag='--input-only-placements',
+    kind='flag',
+    help=(
+        "with --record-session: the input script's placements only steer its own input (they "
+        'move no sprite), so they may run inside the session; otherwise a session stops '
+        "before the script's first placement"
+    ),
+    default=False,
 )
 # The command's GAME (children.resolve_game reads it)
 GAME_FORMS_TEXT = '; '.join(GAME_FORMS)
@@ -742,6 +806,7 @@ TOOLS: tuple[Tool, ...] = (
             REBASELINE_OPTION,
             REPLAY_DIGEST_OPTION,
             HEADLESS_OPTION,
+            RANDOM_SEED_OPTION,
         ),
         runs_game=True,
         # The game's own run replays (GameEngine._start_requested_replay)
@@ -762,6 +827,29 @@ TOOLS: tuple[Tool, ...] = (
         game_handler=record_golden_trace_on_the_game,
         command_handler=record_golden_trace_command,
         value_help='where the golden trace goes',
+        command_arguments=(GAME_ARGUMENT,),
+    ),
+    Tool(
+        name='record-session',
+        help=(
+            'record a scripted session: the game run for real (its own frame loop and pace) '
+            "with --record-trace while a supervisor plays an input script as a player's input, "
+            'then an optional controls tail ending with its quit (default: off)'
+        ),
+        options=(
+            INPUT_SCRIPT_OPTION,
+            FRAME_COUNT_OPTION,
+            CONTROLS_TAIL_OPTION,
+            POLLED_INPUT_OPTION,
+            INPUT_ONLY_PLACEMENTS_OPTION,
+            RANDOM_SEED_OPTION,
+            HEADLESS_OPTION,
+        ),
+        runs_game=True,
+        # The game runs in the scripted-session recorder, in place of its own run
+        game_handler=record_session_on_the_game,
+        command_handler=record_session_command,
+        value_help='where the recording goes',
         command_arguments=(GAME_ARGUMENT,),
     ),
 )

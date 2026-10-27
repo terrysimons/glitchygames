@@ -97,6 +97,8 @@ from glitchygames.replay.driver import (
     GAME_HEADER_FIELD,
     GAME_MODULE_HEADER_FIELD,
     INPUT_CAPTURE_FORMAT_HEADER_FIELD,
+    OPTIONS_HEADER_FIELD,
+    RANDOM_SEED_HEADER_FIELD,
     REAL_REPLAY_FPS,
     SOURCE_TRUNCATED_HEADER_FIELD,
     Divergence,
@@ -130,7 +132,8 @@ class RebaselineSummary(BaseModel):
     """What changed between OLD and the current code (rule 5).
 
     Attributes:
-        path: Where the new recording was written.
+        path: Where the new recording was written, or None when nothing was (a reseeded replay:
+            ``describe_reseeded_replay``).
         first_divergence: The first difference (of any kind), or None when nothing differs.
         frames_differing: How many compared frames differed.
         sprites_affected: Every sprite that differed in them, in the order first found.
@@ -143,7 +146,7 @@ class RebaselineSummary(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra='forbid')
 
-    path: Path
+    path: Path | None
     first_divergence: Divergence | None
     frames_differing: int
     sprites_affected: list[str]
@@ -153,12 +156,12 @@ class RebaselineSummary(BaseModel):
     first_undelivered_input_frame: int | None
 
     @classmethod
-    def from_result(cls, *, result: ReplayResult, path: Path) -> RebaselineSummary:
+    def from_result(cls, *, result: ReplayResult, path: Path | None) -> RebaselineSummary:
         """Summarize a rebaseline's replay result.
 
         Args:
             result: The replay's settled result (after ``ReplaySources.finish_run``).
-            path: Where the new recording was written.
+            path: Where the new recording was written, or None when nothing was.
 
         Returns:
             The summary.
@@ -214,6 +217,34 @@ class RebaselineSummary(BaseModel):
         if lost_input is not None:
             line = f'{line}; {lost_input}'
         return line
+
+    def describe_reseeded_replay(self: Self, *, random_seed: int, recorded_seed: int) -> str:
+        """Describe a replay under another seed than recorded, which writes nothing.
+
+        A replay given ``--random-seed N`` other than its recording's plays the recording's
+        inputs out under N without stopping at a difference, as a rebaseline does
+        (glitchygames/replay/driver.py, rule 19), and reports what differed the same way.
+
+        Args:
+            random_seed: The seed it ran under.
+            recorded_seed: The recording's seed.
+
+        Returns:
+            ``Replayed N frames under random seed S (recorded under R): <differences>``, the
+            lost input as ``describe`` gives it, and that nothing was recorded.
+
+        """
+        line = (
+            f'Replayed {self.frames_replayed} frames under random seed {random_seed} (recorded '
+            f'under {recorded_seed}): {self._describe_differences()}'
+        )
+        lost_input = self.describe_lost_input()
+        if lost_input is not None:
+            line = f'{line}; {lost_input}'
+        return (
+            f'{line}\nNothing was recorded (to record the replay under this seed: '
+            '--replay-trace OLD --rebaseline NEW --random-seed N)'
+        )
 
     def _describe_differences(self: Self) -> str:
         divergence = self.first_divergence
@@ -423,6 +454,15 @@ class Rebaseline:
             game_class=self._game_class,
             original_recording=self._replay_sources.recording,
         )
+        replay_seed = self._replay_sources.random_seed
+        if replay_seed != header.get(RANDOM_SEED_HEADER_FIELD):
+            # Replayed under a seed given in place of OLD's (--rebaseline NEW --random-seed N):
+            # NEW holds OLD's inputs under that seed, so its header and options name it
+            header[RANDOM_SEED_HEADER_FIELD] = replay_seed
+            header[OPTIONS_HEADER_FIELD] = {
+                **header.get(OPTIONS_HEADER_FIELD, {}),
+                RANDOM_SEED_HEADER_FIELD: replay_seed,
+            }
         recorder = GameplayRecorder(path=self._partial_path, header=header)
         install_sources(
             sources=RecordingSources(

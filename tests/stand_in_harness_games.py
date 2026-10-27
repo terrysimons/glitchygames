@@ -1,12 +1,11 @@
 """Stand-ins for the games the golden-trace harness runs.
 
 The harness's ``record_trace`` and ``replay_golden_recording``
-(glitchygames/replay/tools/golden_traces.py) take a scene class and an input script, so an
-engine test passes a stand-in's directly. ``record_scripted_session`` and
-``replay_through_engine`` still find a game and its input script by key (``GAME_SCENES``,
-``SCRIPT_BUILDERS`` in scripts/record_golden_traces.py): an engine test that runs a game through
-them runs a stand-in instead, registered under a stand-in key for that test alone
-(``register_stand_in_game``), so the engine's tests import no game and run no game's code.
+(glitchygames/replay/tools/golden_traces.py), the scripted-session recorder's
+``record_scripted_session`` (glitchygames/replay/tools/scripted_sessions.py) and the tests'
+``replay_through_engine`` (tests/replay/replay_helpers.py) take a scene class and an input
+script, so an engine test passes a stand-in's directly: the engine's tests import no game, run
+no game's code and import nothing from ``scripts`` (this module imports only the engine).
 
 ``TowerFloorScene`` stands in for Clockwork Keep's golden script: a 900-frame session with key
 taps on known frames, an elevator ride (the engine's ``ElevatorTransition``) and a pause through
@@ -14,8 +13,8 @@ the engine's ``PauseScene``.
 
 ``SteeredPaddleScene`` stands in for PaddleSlap's rally in a short scripted session: a paddle
 steered by key events (``steered_paddle_script``). Its facts: it reads key events (so the
-session records external key events) and polls no input (its key is in no
-``POLLED_INPUT_GAMES``); its script places no sprite; the paddle is a sprite on every frame; it
+session records external key events) and polls no input (it needs no
+``polled_input``); its script places no sprite; the paddle is a sprite on every frame; it
 moves a fixed step per frame, so a replay is deterministic; it posts no event of its own; its
 only controls are the arrows, and the base scene's quit keys (Q, ESC) end it (``pygame.K_x``
 does nothing).
@@ -26,21 +25,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
-from scripts.record_golden_traces import GAME_SCENES, SCRIPT_BUILDERS
 
 from glitchygames.replay.tools.golden_traces import InputScript, press, release
 from glitchygames.scenes import Scene
 from glitchygames.transitions.elevator import ElevatorTransition
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from pytest_mock import MockerFixture
-
     from glitchygames.events.base import KeyEvent
-
-# The key a stand-in game is registered under for one test: no game has it
-STAND_IN_GAME_KEY = 'stand_in_game'
 
 # The tower session's frames and key frames, copied from Clockwork Keep's golden script
 # (scripts/golden_inputs.py, clockwork_keep_script, and the 900 frames the
@@ -75,33 +66,6 @@ CLIMBER_STEP = 2
 HOP_HEIGHT = 30
 CLIMBER_COLOR = (230, 180, 60)
 FLOOR_COLORS = ((40, 30, 60), (30, 60, 40))
-
-
-def register_stand_in_game(
-    *,
-    mocker: MockerFixture,
-    scene_class: type[Scene],
-    script_builder: Callable[[], InputScript] = InputScript,
-    game_key: str = STAND_IN_GAME_KEY,
-) -> str:
-    """Register a stand-in game with the golden-trace harness for this test only.
-
-    The harness's registries are patched with ``mocker.patch.dict``, so the key is gone again
-    when the test ends.
-
-    Args:
-        mocker: pytest-mock's fixture.
-        scene_class: The stand-in game's scene.
-        script_builder: Builds its input script (none by default).
-        game_key: The key it is registered under.
-
-    Returns:
-        The key, for the harness's functions.
-
-    """
-    mocker.patch.dict(GAME_SCENES, {game_key: scene_class})
-    mocker.patch.dict(SCRIPT_BUILDERS, {game_key: script_builder})
-    return game_key
 
 
 class Climber(pygame.sprite.DirtySprite):

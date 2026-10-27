@@ -46,7 +46,7 @@ import sys
 
 from pathlib import Path
 
-from scripts.record_golden_traces import (GAME_SCENES)
+from scripts.record_golden_traces import GAME_SCENES
 from scripts.workspace_packages import workspace_members
 
 members = {

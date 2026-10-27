@@ -1,9 +1,10 @@
-"""``glitchygames record-trace``, ``replay-trace`` and ``record-golden-trace``: the game runs.
+"""``glitchygames record-trace``, ``replay-trace``, ``record-golden-trace``, ``record-session``.
 
-Each tool runs the game, so its subcommand starts it as a child process with the tool's flag
-(``Tool.child_arguments``: ``--record-trace PATH``, ``--replay-trace PATH``,
-``--record-golden-trace PATH`` and the options given), where the game's own engine records or
-replays exactly as the flag on the game does. The child's exit status is the command's.
+Each of these tools runs the game, so its subcommand starts it as a child process with the
+tool's flag (``Tool.child_arguments``: ``--record-trace PATH``, ``--replay-trace PATH``,
+``--record-golden-trace PATH``, ``--record-session PATH`` and the options given), where the
+game's own engine records or replays exactly as the flag on the game does. The child's exit
+status is the command's.
 
 - ``record-trace GAME PATH``: ``GAME`` is read by ``children.resolve_game`` (a script path, an
   entry point, a console script or a module).
@@ -12,6 +13,11 @@ replays exactly as the flag on the game does. The child's exit status is the com
   game's own run (``record_golden_trace_on_the_game``): the game's scene class, driven by the
   input script for N frames at a fixed 1/60 second, every sprite sampled each frame
   (glitchygames/replay/tools/golden_traces.py).
+- ``record-session GAME PATH --input-script MODULE:NAME --frame-count N``: ``GAME`` is read as
+  ``record-trace``'s is. On the game, the flag records a scripted session in place of the game's
+  own run (``record_session_on_the_game``): the game's scene class run for real, its own frame
+  loop recorded with ``--record-trace``, while a supervisor plays the input script (and a
+  ``--controls-tail``) as a player's input (glitchygames/replay/tools/scripted_sessions.py).
 - ``replay-trace PATH``: the game is the one the recording's header names: the installed console
   script that starts its module (``children.console_script_for_game_module``). When that module
   no longer imports (a moved script), or no console script starts it, the command asks for
@@ -302,8 +308,8 @@ def record_golden_trace_on_the_game(
     The game's scene class (a scene the game passed in is run by its class) runs in the
     golden-trace harness, driven by ``--input-script MODULE:NAME`` (``load_input_script``: a
     callable taking no arguments that returns an ``InputScript``) for ``--frame-count N``
-    frames, seeded by ``--random-seed`` (the harness's ``RANDOM_SEED`` when not given, so a
-    golden trace is reproducible without one). The trace is written to PATH with the golden
+    frames, seeded by ``--random-seed`` (a random seed when not given, as any run rolls one:
+    a reproducible golden trace gives one). The trace is written to PATH with the golden
     source (``GOLDEN_TRACE_SOURCE``), as scripts/record_golden_traces.py writes ours.
 
     Args:
@@ -325,12 +331,11 @@ def record_golden_trace_on_the_game(
         script = golden_traces.load_input_script(reference=options['input_script'])
     except golden_traces.InputScriptError as error:
         return refused(message=f'--input-script: {error}', exit_code=ExitCode.OPTIONS_REFUSED)
-    random_seed: int | None = options.get('random_seed')
     trace = golden_traces.record_trace(
         scene_class=type(game) if isinstance(game, Scene) else game,
         script=script,
         frame_count=options['frame_count'],
-        random_seed=golden_traces.RANDOM_SEED if random_seed is None else random_seed,
+        random_seed=options.get('random_seed'),
     )
     path = Path(options['record_golden_trace'])
     try:
@@ -338,6 +343,89 @@ def record_golden_trace_on_the_game(
     except OSError as error:
         return refused(
             message=f'--record-golden-trace: cannot write {path} ({error})',
+            exit_code=ExitCode.CANNOT_WRITE_OUTPUT,
+        )
+    return ExitCode.SUCCESS
+
+
+def record_session_command(
+    *, tool: Tool, arguments: argparse.Namespace, game_arguments: list[str]
+) -> int:
+    """Run ``glitchygames record-session GAME PATH``: the game records a scripted session.
+
+    ``GAME`` is read and started as ``record-trace``'s is (``record_trace_command``); the child
+    gets ``--record-session PATH`` and the input script, frame count, controls tail, flags and
+    seed given.
+
+    Args:
+        tool: The record-session tool.
+        arguments: The subcommand's parsed arguments.
+        game_arguments: The arguments after a bare ``--``, for the game.
+
+    Returns:
+        The game's exit status, or ``ExitCode.OPTIONS_REFUSED`` when ``GAME`` names no game.
+
+    """
+    return record_trace_command(tool=tool, arguments=arguments, game_arguments=game_arguments)
+
+
+def record_session_on_the_game(*, options: dict[str, Any], game: type[Scene] | Scene) -> ExitCode:
+    """Run ``--record-session PATH`` on a game: record a scripted session in place of its run.
+
+    The game's scene class (a scene the game passed in is run by its class) runs for real in
+    the scripted-session recorder (glitchygames/replay/tools/scripted_sessions.py), recorded to
+    PATH, while ``--input-script MODULE:NAME`` is played for ``--frame-count N`` frames, then
+    ``--controls-tail MODULE:NAME`` when given (both read by ``load_input_script``), seeded by
+    ``--random-seed`` (a random seed when not given), with ``--polled-input`` and
+    ``--input-only-placements`` as given.
+
+    Args:
+        options: The game's parsed options (``GameEngine.OPTIONS``).
+        game: The game (its class, or a scene the game passed in).
+
+    Returns:
+        ``ExitCode.SUCCESS`` once the session is recorded; ``ExitCode.OPTIONS_REFUSED`` when an
+        input script reference names no input script, or the script cannot be recorded as
+        input for that many frames (a placement inside the session, input before frame 0, a
+        controls tail that is not key events only); ``ExitCode.UNUSABLE_INPUT`` when the
+        controls tail's quit did not end the game (the recording is written, but does not end
+        with the game quitting); ``ExitCode.CANNOT_WRITE_OUTPUT`` when the recording's
+        directory can't be made.
+
+    """
+    # Imported here: the recorder imports the engine, which imports the tool table (this module)
+    from glitchygames.replay.tools import golden_traces, scripted_sessions
+    from glitchygames.scenes import Scene
+
+    controls_tail_reference: str | None = options.get('controls_tail')
+    try:
+        script = golden_traces.load_input_script(reference=options['input_script'])
+        controls_tail = (
+            None
+            if controls_tail_reference is None
+            else golden_traces.load_input_script(reference=controls_tail_reference)
+        )
+    except golden_traces.InputScriptError as error:
+        return refused(message=f'--record-session: {error}', exit_code=ExitCode.OPTIONS_REFUSED)
+    path = Path(options['record_session'])
+    try:
+        scripted_sessions.record_scripted_session(
+            scene_class=type(game) if isinstance(game, Scene) else game,
+            script=script,
+            frame_count=options['frame_count'],
+            path=path,
+            controls_tail=controls_tail,
+            polled_input=bool(options.get('polled_input')),
+            input_only_placements=bool(options.get('input_only_placements')),
+            random_seed=options.get('random_seed'),
+        )
+    except scripted_sessions.GameDidNotQuitError as error:
+        return refused(message=f'--record-session: {error}', exit_code=ExitCode.UNUSABLE_INPUT)
+    except ValueError as error:
+        return refused(message=f'--record-session: {error}', exit_code=ExitCode.OPTIONS_REFUSED)
+    except OSError as error:
+        return refused(
+            message=f'--record-session: cannot write {path} ({error})',
             exit_code=ExitCode.CANNOT_WRITE_OUTPUT,
         )
     return ExitCode.SUCCESS

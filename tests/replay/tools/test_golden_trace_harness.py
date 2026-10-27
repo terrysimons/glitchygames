@@ -88,6 +88,10 @@ def not_a_script():
 '''
 # How many frames the tool records: fewer than the stand-in game runs before it quits itself
 GOLDEN_FRAME_COUNT = 12
+# What the engine logs when it is built after pygame was started: a second engine would
+WARNING_OF_A_SECOND_ENGINE = 'pygame was initialized before the engine'
+# What the engine logs once per engine it builds (print_game_info)
+ONE_LINE_PER_ENGINE = 'Game Title: '
 
 # The lazy scene mapping's stand-in game module, written to tmp_path: its import is visible in
 # sys.modules
@@ -177,6 +181,9 @@ def test_record_golden_trace_on_a_stand_in_game_as_a_flag_and_a_command(
         STAND_IN_INPUT_SCRIPT,
         '--frame-count',
         str(GOLDEN_FRAME_COUNT),
+        # The stand-in's mover steps by a seeded random amount: both front ends under one seed
+        '--random-seed',
+        str(RANDOM_SEED),
         '--headless',
     ]
 
@@ -186,7 +193,7 @@ def test_record_golden_trace_on_a_stand_in_game_as_a_flag_and_a_command(
             '-c',
             f'import {stand_in_game.package}; {stand_in_game.package}.main()',
             '--log-level',
-            'error',
+            'info',
             '--resolution',
             STAND_IN_GAME_RESOLUTION,
             '--record-golden-trace',
@@ -212,6 +219,10 @@ def test_record_golden_trace_on_a_stand_in_game_as_a_flag_and_a_command(
 
     errors = capfd.readouterr().err
     assert flag_run.returncode == ExitCode.SUCCESS, flag_run.stdout
+    # One engine: the harness's, built before anything started pygame (the game's own engine
+    # dispatches the tool before it starts pygame or opens a window)
+    assert WARNING_OF_A_SECOND_ENGINE not in flag_run.stdout
+    assert flag_run.stdout.count(ONE_LINE_PER_ENGINE) == 1, flag_run.stdout
     assert command_status == ExitCode.SUCCESS, errors
     assert (
         f'glitchygames record-golden-trace: running {stand_in_game.console_script} '
@@ -422,9 +433,8 @@ def test_the_game_flag_records_a_golden_trace_in_place_of_the_game(
 ):
     """``--record-golden-trace`` runs the harness on the game's scene class and writes the trace.
 
-    Without ``--random-seed`` the run uses the harness's ``RANDOM_SEED``, so it equals
-    ``record_trace``'s own run under the golden source; a scene the game passed in is run by
-    its class.
+    Under the same ``--random-seed`` it equals ``record_trace``'s own run under the golden
+    source; a scene the game passed in is run by its class.
     """
     monkeypatch.chdir(stand_in_project)
     path = tmp_path / 'golden.jsonl.gz'
@@ -435,14 +445,17 @@ def test_the_game_flag_records_a_golden_trace_in_place_of_the_game(
         random_seed=RANDOM_SEED,
     )
 
-    exit_code = run_game_flag_tool(options=golden_trace_options(path=path), game=NudgedScene)
+    exit_code = run_game_flag_tool(
+        options=golden_trace_options(path=path, random_seed=RANDOM_SEED), game=NudgedScene
+    )
 
     assert exit_code == ExitCode.SUCCESS
     assert read_trace(path=path) == {'source': GOLDEN_TRACE_SOURCE, **expected}
     scene_path = tmp_path / 'scene.jsonl.gz'
     assert (
         run_game_flag_tool(
-            options=golden_trace_options(path=scene_path), game=NudgedScene(options={})
+            options=golden_trace_options(path=scene_path, random_seed=RANDOM_SEED),
+            game=NudgedScene(options={}),
         )
         == ExitCode.SUCCESS
     )
@@ -573,7 +586,7 @@ def test_a_reference_that_is_not_a_scene_class_is_refused():
 
 
 def test_patching_registers_a_stand_in_and_restores_without_importing(mocker, lazy_scene_module):
-    """mocker.patch.dict (register_stand_in_game) adds and removes a key: nothing is imported.
+    """mocker.patch.dict adds and removes a key: nothing is imported.
 
     Its copy, clear and update keep the other games as references, so a test that registers a
     stand-in game imports no game at all.

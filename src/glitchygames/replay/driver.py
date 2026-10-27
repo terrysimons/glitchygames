@@ -213,6 +213,17 @@ session again, and every frame's sprites are compared with the recorded frame. T
     live posts. A frame's ``playback_answers`` are kept for the frame
     (``recorded_playback_answers``): the playback scope answers the replayed code's playback
     requests with them (glitchygames/replay/playback.py, ``answered_playback_request``).
+19. Seed (``--random-seed``; the user's decisions, 2026-10-26): a replay runs under its
+    recording's seed (``random_seed``), unless given another (``ReplayOptions.random_seed``,
+    which ``start_replay`` reads before the recorded options are applied). Given the recorded
+    one, nothing changes. Given another, the replay is reseeded (``ReplaySources.is_reseeded``):
+    the recording's inputs are played out under it (the engine's streams are seeded with it,
+    here and in the engine), a difference never stops it (as in rule 17), and the run's
+    ``random_seed`` option names it. A reseeded rebaseline writes NEW under that seed (NEW's
+    header and options name it); a plain reseeded replay writes nothing and exits ``SUCCESS``
+    whatever it found (``ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING``), its report the
+    rebaseline's summary of what differed. ``--audit`` is a check, so the engine refuses one
+    under another seed.
 """
 
 from __future__ import annotations
@@ -474,6 +485,9 @@ class ReplayExitPolicy(enum.Enum):
     # ExitCode.SUCCESS whatever the result (--rebaseline: the new recording is the outcome),
     # but ExitCode.REBASELINE_INPUT_LOST when the run lost recorded input
     SUCCESS_AFTER_WRITING = 'success'
+    # ExitCode.SUCCESS whatever the result: a replay under another seed than recorded
+    # (--random-seed N; rule 19), which plays the recording's inputs out and compares nothing
+    SUCCESS_WITHOUT_COMPARING = 'success-without-comparing'
 
 
 class ReplayOptions(BaseModel):
@@ -523,6 +537,10 @@ class ReplayOptions(BaseModel):
             one (``--compare-processing``; glitchygames/replay/processing.py).
         max_processing_slowdown_percent: The slowdown a replay that matched may show before it
             exits ``PROCESSING_SLOWER`` (``--max-processing-slowdown``), or None for no check.
+        random_seed: The master seed the replay runs the recording's inputs under in place of
+            the recorded one (``--random-seed N``; rule 19), or None (the default) for the
+            recorded seed. A seed other than the recorded one makes the replay reseeded
+            (``ReplaySources.is_reseeded``).
 
     """
 
@@ -545,6 +563,7 @@ class ReplayOptions(BaseModel):
     serves_redelivered_events: bool = False
     compare_processing: bool = False
     max_processing_slowdown_percent: float | None = Field(default=None, ge=0)
+    random_seed: int | None = None
 
 
 # The options of a replay given none (a test's, a tool's): watched without the start screen,
@@ -906,6 +925,7 @@ class ReplayResult:
         Returns:
             Under ``ReplayExitPolicy.SUCCESS_AFTER_WRITING``: ``REBASELINE_INPUT_LOST`` when the
             run lost recorded input (``has_lost_input``), else ``SUCCESS``. Under
+            ``ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING``: ``SUCCESS``. Under
             ``ReplayExitPolicy.RESULT``: ``SUCCESS`` when the replay matched to the end of the
             recording or was quit or restarted before it; ``UNUSABLE_INPUT`` when it matched up
             to the cut-off of a truncated recording; ``REPLAY_DIVERGED`` when it diverged, or is
@@ -918,6 +938,8 @@ class ReplayResult:
         """
         if policy == ReplayExitPolicy.SUCCESS_AFTER_WRITING:
             return ExitCode.REBASELINE_INPUT_LOST if self.has_lost_input else ExitCode.SUCCESS
+        if policy == ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING:
+            return ExitCode.SUCCESS
         if self.divergence is not None:
             return ExitCode.REPLAY_DIVERGED
         if self.end_reason in {END_OF_RECORDING_END_REASON, QUIT_END_REASON, RESTART_END_REASON}:
@@ -1067,6 +1089,41 @@ def _recorded_seed(*, header: dict[str, Any]) -> int:
     return random_seed
 
 
+def replay_seed_and_options(
+    *, recorded_seed: int, options: ReplayOptions
+) -> tuple[int, ReplayOptions, bool]:
+    """Return the seed a replay runs under, how it runs and whether it is reseeded (rule 19).
+
+    Under another seed than recorded it plays the recording's inputs out without stopping at
+    a difference; unless it rebaselines (rule 17: NEW is its outcome), it exits ``SUCCESS``
+    whatever it found.
+
+    Args:
+        recorded_seed: The recording's seed.
+        options: The replay's options as given (``random_seed``: the seed given, or None).
+
+    Returns:
+        The seed (the given one, else the recorded one); the options: as given under the
+        recorded seed, else with ``stop_on_divergence`` False and, but for a rebaseline's,
+        ``ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING``; and whether the seed is another than
+        recorded.
+
+    """
+    if options.random_seed is None or options.random_seed == recorded_seed:
+        return recorded_seed, options, False
+    reseeded = options.model_copy(
+        update={
+            'stop_on_divergence': False,
+            'exit_policy': (
+                options.exit_policy
+                if options.exit_policy == ReplayExitPolicy.SUCCESS_AFTER_WRITING
+                else ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING
+            ),
+        }
+    )
+    return options.random_seed, reseeded, True
+
+
 def _sprite_differences(
     *, frame_index: int, recorded: dict[str, Any], replayed: dict[str, Any]
 ) -> Iterator[Divergence]:
@@ -1201,7 +1258,12 @@ class ReplaySources:
         recording: The recorded frames.
         options: How the replay is run (``ReplayOptions``).
         result: How the replay went so far.
-        random_seed: The recorded master seed.
+        random_seed: The replay's master seed: the recorded one, or one given in its place
+            (``ReplayOptions.random_seed``; rule 19).
+        recorded_seed: The recording's own master seed (its header's ``random_seed``).
+        is_reseeded: True when the replay runs under another seed than recorded (rule 19): it
+            never stops at a difference, and its options say so (``stop_on_divergence``
+            False; ``ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING`` unless it rebaselines).
         controls: The watched replay's controls (rule 14; unused by a headless replay).
         viewer: The watched replay's outer loop (rule 14, glitchygames/replay/viewer.py).
         bookmarks: Saves the viewer's bookmarks into a copy of the recording (rule 16).
@@ -1250,8 +1312,11 @@ class ReplaySources:
 
         """
         self.header = header
-        self.options = options
-        self.random_seed = _recorded_seed(header=header)
+        # The recorded seed is read (and checked) whatever the replay runs under
+        self.recorded_seed = _recorded_seed(header=header)
+        self.random_seed, self.options, self.is_reseeded = replay_seed_and_options(
+            recorded_seed=self.recorded_seed, options=options
+        )
         self._recorded_at = _recorded_start(header=header)
         # A bookmarked copy of a cut-off recording ends as its source did (rule 16)
         self.recording = RecordedFrames(
@@ -2988,6 +3053,9 @@ def start_replay(
         compare_processing=bool(options.get('compare_processing'))
         or options.get('max_processing_slowdown') is not None,
         max_processing_slowdown_percent=options.get('max_processing_slowdown'),
+        # Read before the recorded options are applied (random_seed is not local): a given seed
+        # replaces the recorded one (rule 19)
+        random_seed=options.get('random_seed'),
     )
     sources = ReplaySources.from_path(path=path, options=replay_options)
     check_recorded_game(header=sources.header, game_class=game_class, is_rebaseline=is_rebaseline)
@@ -3000,6 +3068,9 @@ def start_replay(
             installed_version,
         )
     apply_recorded_options(options=options, recorded=sources.header.get(OPTIONS_HEADER_FIELD, {}))
+    if sources.is_reseeded:
+        # The run's options name the seed it runs under (rule 19), as a rebaseline's NEW does
+        options['random_seed'] = sources.random_seed
     apply_recorded_screen_size(
         options=options, screen_size=recorded_screen_size(header=sources.header)
     )

@@ -10,9 +10,10 @@ runs it on the game it is given, with an input script named ``MODULE:NAME``
 
 Determinism:
     - Every frame runs with ``dt`` fixed at 1/60 second.
-    - Every game is started with ``--random-seed`` (``RANDOM_SEED`` unless given): all the
-      randomness a game draws from the engine's named streams (``glitchygames/randomness.py``)
-      is fixed by it. Nothing is patched.
+    - A game started with ``--random-seed`` (``random_seed``; our goldens pass ``RANDOM_SEED``)
+      draws all the randomness of the engine's named streams (``glitchygames/randomness.py``)
+      from it. Without one the run rolls a random seed, as any run does (the user's seed rule,
+      2026-10-26). Nothing is patched.
     - A game clock read from ``Scene.game_time`` is driven by the fixed dt (exactly 1/60 second
       per unpaused frame), so no clock is patched.
     - Save files go to a fresh temporary directory, so high scores on disk cannot leak in.
@@ -365,8 +366,9 @@ def load_input_script(*, reference: str) -> InputScript:
 def deterministic_environment(*, save_root: Path) -> Generator[None]:
     """Replace the save directory, then restore it.
 
-    Randomness needs no replacement: ``_start_game`` passes ``--random-seed``. Clocks need
-    none either: a game clock read from Scene.game_time is driven by the harness's fixed dt.
+    Randomness needs no replacement: ``_start_game`` passes ``--random-seed`` when given one.
+    Clocks need none either: a game clock read from Scene.game_time is driven by the harness's
+    fixed dt.
 
     Args:
         save_root: Directory the games' save files go to.
@@ -475,14 +477,31 @@ class GoldenTraceEngine(GameEngine):
         self.scene_manager.switch_to_scene(game)
 
 
+def seed_arguments(*, random_seed: int | None) -> list[str]:
+    """Return the command-line arguments that give a run its master seed.
+
+    Args:
+        random_seed: The seed, or None for none (a run rolls one; a replay takes its
+            recording's).
+
+    Returns:
+        ``['--random-seed', N]``, or nothing.
+
+    """
+    return [] if random_seed is None else ['--random-seed', str(random_seed)]
+
+
 def _start_game(
-    *, scene_class: type[Scene], random_seed: int, extra_arguments: list[str] | None = None
+    *,
+    scene_class: type[Scene],
+    random_seed: int | None,
+    extra_arguments: list[str] | None = None,
 ) -> GoldenTraceSceneManager:
     """Construct the game engine and install the game's scene.
 
     Args:
         scene_class: The game's scene class.
-        random_seed: The run's master seed (``--random-seed``).
+        random_seed: The run's master seed (``--random-seed``), or None (``seed_arguments``).
         extra_arguments: More command-line arguments (``--replay-trace PATH``).
 
     Returns:
@@ -498,8 +517,7 @@ def _start_game(
         'warning',
         '--input-mode',
         'joystick',
-        '--random-seed',
-        str(random_seed),
+        *seed_arguments(random_seed=random_seed),
         *(extra_arguments or []),
     ]):
         engine = GoldenTraceEngine(game=scene_class)
@@ -510,13 +528,16 @@ def _start_game(
 
 @contextlib.contextmanager
 def golden_game(
-    *, scene_class: type[Scene], random_seed: int, extra_arguments: list[str] | None = None
+    *,
+    scene_class: type[Scene],
+    random_seed: int | None,
+    extra_arguments: list[str] | None = None,
 ) -> Generator[GoldenTraceSceneManager]:
     """Start a game in the harness with temporary saves; tear it all down afterwards.
 
     Args:
         scene_class: The game's scene class.
-        random_seed: The run's master seed (``--random-seed``).
+        random_seed: The run's master seed (``--random-seed``), or None (``seed_arguments``).
         extra_arguments: More command-line arguments (``--replay-trace PATH``).
 
     Yields:
@@ -560,7 +581,7 @@ def record_trace(
     script: InputScript,
     frame_count: int,
     recording_path: Path | None = None,
-    random_seed: int = RANDOM_SEED,
+    random_seed: int | None = None,
     **hooks: Unpack[RecordTraceHooks],
 ) -> dict[str, Any]:
     """Run a game headless with its scripted input and record every sprite each frame.
@@ -572,7 +593,8 @@ def record_trace(
         recording_path: If given, the engine also records the run there as ``--record-trace``
             would (GameEngine.start_trace_recording), for checking recordings against the
             harness's own frames.
-        random_seed: The run's master seed, passed as ``--random-seed``.
+        random_seed: The run's master seed, passed as ``--random-seed``; None rolls one, as
+            any run does (our golden traces pass ``RANDOM_SEED``).
         **hooks: Optional callbacks into the run, by keyword (``RecordTraceHooks``).
 
     Returns:
@@ -652,9 +674,10 @@ def replay_golden_recording(
 
     """
     # Headless: a watched replay would pause at its end (or divergence) instead of stopping
+    # No seed: a replay runs under its recording's (another is refused)
     with golden_game(
         scene_class=scene_class,
-        random_seed=RANDOM_SEED,
+        random_seed=None,
         extra_arguments=['--replay-trace', str(path), '--headless'],
     ) as manager:
         engine = manager.game_engine

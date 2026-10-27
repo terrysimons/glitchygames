@@ -35,6 +35,7 @@ os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 from glitchygames.replay.tools.golden_traces import (
     GOLDEN_TRACE_SOURCE,
+    RANDOM_SEED,
     GameSceneClasses,
     record_trace,
 )
@@ -125,6 +126,8 @@ def main() -> None:
             scene_class=GAME_SCENES[game_key],
             script=SCRIPT_BUILDERS[game_key](),
             frame_count=DEFAULT_FRAME_COUNT,
+            # Our goldens' fixed seed: without one the harness rolls a random seed, as any run
+            random_seed=RANDOM_SEED,
         )
         # Our golden traces name their game by its key (the harness's default is the scene's
         # logical name); the key stays where it was in the header

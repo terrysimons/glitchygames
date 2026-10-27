@@ -50,7 +50,7 @@ from clockwork_keep.player import Tinker
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.logical_names import logical_name
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
-from glitchygames.replay.tools.golden_traces import record_trace
+from glitchygames.replay.tools.golden_traces import RANDOM_SEED, record_trace
 from glitchygames.tracing import (
     TRACE_FORMAT_VERSION,
     TraceReader,
@@ -1350,6 +1350,8 @@ def test_game_matches_golden_trace(game_key):
         scene_class=scene_class,
         script=SCRIPT_BUILDERS[game_key](),
         frame_count=len(baseline['frames']),
+        # The seed the baselines were recorded under (scripts/record_golden_traces.py)
+        random_seed=RANDOM_SEED,
         frame_observer=world_sampler,
     )
 

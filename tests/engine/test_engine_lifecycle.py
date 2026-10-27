@@ -627,41 +627,63 @@ def tool_that_runs_no_game(*, calls: list[dict[str, Any]], exit_code: ExitCode) 
 
 @pytest.mark.usefixtures('engine_run_environment')
 class TestGameFlagTools:
-    """A tool flag whose tool doesn't run the game runs in its place (``run_game_flag_tool``)."""
+    """A tool flag with a game handler runs in place of the game (``run_game_flag_tool``).
+
+    It runs while the engine is built, before the engine starts pygame or opens a window (Stage
+    D, Task D4b: a harness tool builds its own engine, so a second one inside the game's must
+    never start), and the process ends with the tool's exit code.
+    """
 
     def test_the_tool_replaces_the_game(self, mocker):
-        """The tool runs with the game and its options; the game's scene is never built."""
+        """The tool runs with the game and its options; pygame is never started for the game."""
         calls: list[dict[str, Any]] = []
         tool = tool_that_runs_no_game(calls=calls, exit_code=ExitCode.SUCCESS)
         mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
-        engine = build_engine(
-            mocker,
-            game=GameWhoseConstructorRaises,
-            extra_arguments=('--report-thing', 'run.jsonl.gz'),
-        )
-        frames_started = mocker.spy(engine.scene_manager, 'start')
+        pygame_started = mocker.spy(pygame, 'init')
 
-        engine.start()
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
 
-        frames_started.assert_not_called()
+        assert exit_information.value.code == ExitCode.SUCCESS
         assert calls == [{'path': 'run.jsonl.gz', 'game': GameWhoseConstructorRaises}]
+        pygame_started.assert_not_called()
 
     def test_a_tool_that_fails_ends_the_run_with_its_exit_code(self, mocker):
         """Any other exit code than SUCCESS ends the run with it, the game never built."""
         calls: list[dict[str, Any]] = []
         tool = tool_that_runs_no_game(calls=calls, exit_code=ExitCode.UNUSABLE_INPUT)
         mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
-        engine = build_engine(
-            mocker,
-            game=GameWhoseConstructorRaises,
-            extra_arguments=('--report-thing', 'run.jsonl.gz'),
-        )
 
         with pytest.raises(SystemExit) as exit_information:
-            engine.start()
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
 
         assert exit_information.value.code == ExitCode.UNUSABLE_INPUT
         assert len(calls) == 1
+
+    def test_a_headless_tool_puts_the_sdl_driver_variables_back(self, mocker):
+        """``--headless`` chose the dummy drivers for the tool; they are put back after it."""
+        calls: list[dict[str, Any]] = []
+        tool = tool_that_runs_no_game(calls=calls, exit_code=ExitCode.SUCCESS)
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+        mocker.patch.dict(os.environ, {'SDL_VIDEODRIVER': 'a-driver-of-its-own'})
+
+        with pytest.raises(SystemExit):
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--headless', '--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert len(calls) == 1
+        assert os.environ['SDL_VIDEODRIVER'] == 'a-driver-of-its-own'
 
 
 @pytest.mark.usefixtures('engine_run_environment')

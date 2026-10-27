@@ -84,7 +84,7 @@ Its recordings name it `games.mr_muncher.game:MrMuncherScene`, its golden replay
 | `src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py` | The parts: maze, levels, actors, pictures, scenery, sounds, autopilot |
 | `src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz` | The golden replay (2,072 frames) |
 | `scripts/golden_inputs.py` | `mr_muncher_script` and `MuncherSteering` (the autopilot pressing arrow keys) |
-| `scripts/record_scripted_session.py` | `mr_muncher_controls` (the golden replay's controls tail) and the command that records the fixture |
+| `scripts/record_scripted_session.py`, `scripts/golden_inputs.py` | The command that records the fixture; `mr_muncher_controls` (the golden replay's controls tail) |
 
 ## Scenes and how they switch
 

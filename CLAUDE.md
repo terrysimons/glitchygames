@@ -493,27 +493,43 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   and `--headless`, `--replay-trace` and its options `--replay-fps`, `--audit`, `--compare-processing`, `--max-processing-slowdown`,
   `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`, `--headless`,
   `--record-golden-trace PATH` with `--input-script MODULE:NAME`, `--frame-count N`,
-  `--random-seed` and `--headless`), and `_begin_run` runs a tool that doesn't run the game, or
-  that runs it its own way (record-golden-trace runs the golden-trace harness), in its place
+  `--random-seed` and `--headless`, `--record-session PATH` with those and `--controls-tail
+  MODULE:NAME`, `--polled-input`, `--input-only-placements`), and `GameEngine.__init__`
+  (`_run_game_flag_tool`, before the engine starts pygame or opens a window) runs a tool with a
+  game handler in its place and exits with its code: one that doesn't run the game, or one that
+  runs it its own way (record-golden-trace in the golden-trace harness, record-session in the
+  scripted-session recorder), so the game's own engine never builds a second one
   (`run_game_flag_tool`). The
   `glitchygames` console script (and `python -m glitchygames`, both via
   `src/glitchygames/__main__.py`, which hides pygame's banner first) has the same tools as subcommands
   (`glitchygames record-trace GAME PATH`, `glitchygames replay-trace PATH [--game GAME]`,
   `glitchygames record-golden-trace GAME PATH --input-script MODULE:NAME --frame-count N`,
+  `glitchygames record-session GAME PATH --input-script MODULE:NAME --frame-count N`,
   `--project-root DIR`; arguments after a bare `--` go to the game). It starts the game as a child
   (`children.py`: `resolve_game` reads `GAME` as a script path, `MODULE:CALLABLE`, an installed
   console script or a module; `replay-trace` takes the game from the recording's header and asks
   for `--game` when its module no longer imports). `children.py` also holds the console-script
   lookups and the headless child replay/rebaseline the pytest plugin uses (pytest-free).
-  An option may be listed under several tools but is one game flag (`--headless`: every tool
-  that runs the game; record-trace and record-golden-trace also list `--random-seed`). The
+  An option may be listed under several tools but is one game flag (`--headless` and
+  `--random-seed`: every tool that runs the game; `--input-script` and `--frame-count`:
+  record-golden-trace and record-session). `--random-seed` (the user's rule, 2026-10-26)
+  defaults to None everywhere: a run or recording rolls a seed (the harness tools too; our
+  goldens pass `RANDOM_SEED`), a replay uses the recording's; a replay given another seed plays
+  the inputs out under it without comparing or writing (headless: the rebaseline's summary, exit
+  0), `--rebaseline NEW --random-seed N` records them under N, and `--audit` under another seed is
+  refused (rule 19 of `replay/driver.py`). The
   golden-trace harness (`golden_traces.py`: `record_trace(*, scene_class, script, frame_count,
   ...)`, `replay_golden_recording(*, scene_class, script, path, ...)`, `golden_game`,
   `GoldenTraceEngine`, `InputScript`, `press`/`release`) runs any game by its scene class and an
   `InputScript`; `load_input_script(*, reference)` reads `--input-script MODULE:NAME`: a callable
   taking no arguments that returns an `InputScript`, its module looked for in the current
   directory first. A trace's `game` is the scene's logical name (our goldens relabel theirs with
-  the game key). Our five games' scripts are `scripts/golden_inputs.py`. Two tool flags at once are
+  the game key). The scripted-session recorder (`scripted_sessions.py`:
+  `record_scripted_session(*, scene_class, script, frame_count, path, controls_tail=None,
+  polled_input=False, input_only_placements=False, random_seed=None)`,
+  `ScriptedInputSupervisor`, `PostedPolledInput`, `GameDidNotQuitError`) runs any game for real
+  with `--record-trace` while a supervisor posts the script. Our five games' scripts and controls
+  tails are `scripts/golden_inputs.py`. Two tool flags at once are
   refused, and a tool that runs no game must have a game handler. The general flags no tool
   lists (`--resolution`, ...) stay in `GameEngine.args`. A project's settings for the tools are
   `[tool.glitchygames]` in its `pyproject.toml` (`settings.py`: `load_project_settings(*,
@@ -687,7 +703,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   script: `GAME_CONSOLE_SCRIPTS`), and its bundled demos in
   `<package>/demos/`.
   They are recorded through the
-  real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
+  real engine loop by `scripts/record_scripted_session.py` (our games' policy over the engine's
+  `scripted_sessions.record_scripted_session`: a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).
   Each is a pytest item of its own: the plugin `src/glitchygames/testing/replays.py` (root
   `conftest.py` `pytest_plugins`) collects every `.../fixtures/replays/<console-script>/*.jsonl.gz`,

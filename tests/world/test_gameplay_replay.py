@@ -22,7 +22,6 @@ import pygame
 import pytest
 from pydantic import ValidationError
 from scripts.record_golden_traces import GAME_SCENES, PROJECT_ROOT, SCRIPT_BUILDERS
-from scripts.record_scripted_session import record_scripted_session
 
 from glitchygames import logical_names, recording_history
 from glitchygames.build_info import RevisionSource, engine_source_revision
@@ -110,9 +109,11 @@ from glitchygames.replay.rebuild import REBUILD_PROGRESS_INTERVAL_SECONDS, Rebui
 from glitchygames.replay.tools.golden_traces import (
     GoldenTraceEngine,
     GoldenTraceSceneManager,
+    InputScript,
     record_trace,
     replay_golden_recording,
 )
+from glitchygames.replay.tools.scripted_sessions import record_scripted_session
 from glitchygames.replay.viewer import MAX_INNER_FRAMES_PER_TICK
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
@@ -141,7 +142,6 @@ from tests.replay.replay_helpers import (
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import live_sdl_driver_state, restore_run_sdl_drivers
 from tests.stand_in_games import record_stand_in_game, use_stand_in_game, write_stand_in_game
-from tests.stand_in_harness_games import register_stand_in_game
 from tests.workspace_expectations import every_games_golden
 from tests.world import test_gameplay_recording as recording_test_module
 from tests.world.test_gameplay_recording import (
@@ -1036,6 +1036,7 @@ class TestRoundTrip:
             script=SCRIPT_BUILDERS[game_key](),
             frame_count=GOLDEN_SCRIPT_FRAMES,
             recording_path=recording_path,
+            random_seed=RANDOM_SEED,
         )
         result = replay_golden_recording(
             scene_class=GAME_SCENES[game_key],
@@ -1848,7 +1849,7 @@ class DisplayHeightScene(Scene):
         self.all_sprites.add(self.marker)
 
 
-def record_on_a_window_of_another_size(*, mocker, game_key: str, path: Path) -> None:
+def record_on_a_window_of_another_size(*, mocker, path: Path) -> None:
     """Record a game asking for 800x480 on a window the window manager makes 800x600."""
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch('pygame.quit')
@@ -1856,10 +1857,10 @@ def record_on_a_window_of_another_size(*, mocker, game_key: str, path: Path) -> 
     window_manager = window_manager_choosing_size(mocker=mocker, size=WINDOW_MANAGER_SIZE)
     try:
         record_scripted_session(
-            game_key=game_key,
+            scene_class=DisplayHeightScene,
+            script=InputScript(),
             frame_count=DISPLAY_SIZE_FRAME_COUNT,
             path=path,
-            exercise_controls=False,
         )
     finally:
         mocker.stop(window_manager)
@@ -1873,14 +1874,15 @@ class TestRecordedDisplaySize:
     )
     def test_a_recording_on_a_window_of_another_size_replays_at_that_size(self, mocker, tmp_path):
         """The game places its sprite from the display height, so the size must be the same."""
-        game_key = register_stand_in_game(mocker=mocker, scene_class=DisplayHeightScene)
         recording_path = tmp_path / 'display-height.jsonl.gz'
-        record_on_a_window_of_another_size(mocker=mocker, game_key=game_key, path=recording_path)
+        record_on_a_window_of_another_size(mocker=mocker, path=recording_path)
         header = read_trace_result(path=recording_path).trace
         assert header['options']['resolution'] == '800x480'
         assert header['screen_size'] == list(WINDOW_MANAGER_SIZE)
 
-        replay = replay_through_engine(mocker=mocker, game_key=game_key, path=recording_path)
+        replay = replay_through_engine(
+            mocker=mocker, scene_class=DisplayHeightScene, path=recording_path
+        )
 
         assert replay.exit_status == ExitCode.SUCCESS, replay.result.divergence
         assert replay.result.frames_replayed == DISPLAY_SIZE_FRAME_COUNT

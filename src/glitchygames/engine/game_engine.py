@@ -105,7 +105,7 @@ from glitchygames.replay.driver import (
     start_replay,
 )
 from glitchygames.replay.processing import machine_description
-from glitchygames.replay.rebaseline import Rebaseline, rebaseline_refusal
+from glitchygames.replay.rebaseline import Rebaseline, RebaselineSummary, rebaseline_refusal
 from glitchygames.replay.rebuild import (
     ViewerState,
     parse_viewer_state,
@@ -113,7 +113,7 @@ from glitchygames.replay.rebuild import (
     restart_command,
 )
 from glitchygames.replay.tools.identity import game_source_revision
-from glitchygames.replay.tools.registry import add_game_flags, run_game_flag_tool
+from glitchygames.replay.tools.registry import add_game_flags, given_tools, run_game_flag_tool
 from glitchygames.replay.viewer import run_watched_replay_async
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
@@ -785,6 +785,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Before anything starts the display or the mixer (pygame.init() below)
         if options.get('headless'):
             self._enter_headless_mode()
+        # A tool given as a game flag that runs in place of the game runs now, before this
+        # engine starts pygame or opens a window: a harness tool builds its own engine (a second
+        # one inside this one would find pygame started and resize this one's window), and a
+        # tool that runs no game needs none
+        self._run_game_flag_tool(game=game, options=options)
 
         # NOTE: Game is coupled to event manager for unhandled event routing.
         # Decoupling tracked in https://glitchy-games.atlassian.net/browse/GG-22
@@ -1678,6 +1683,36 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         finally:
             self._restore_signal_handlers()
 
+    def _run_game_flag_tool(
+        self: Self, *, game: type[Scene] | Scene, options: dict[str, Any]
+    ) -> None:
+        """Run the tool given as a game flag in place of the game, and end the process.
+
+        Called by ``__init__`` right after the options are read (and ``--headless`` chose the
+        dummy drivers), before this engine starts pygame, opens its window or installs its
+        doors: a tool with a game handler (``run_game_flag_tool``,
+        glitchygames/replay/tools/registry.py) never needs them. The golden-trace and
+        scripted-session tools build their own engine for the game, which then starts pygame
+        once, at its own size; a tool that runs no game builds nothing. The process ends with
+        the tool's exit code (``exit_with``: SystemExit), ``ExitCode.SUCCESS`` included, so the
+        game's ``start()`` never runs. The SDL driver variables ``--headless`` set are put back
+        first. Nothing happens when no such tool was given.
+
+        Args:
+            game: The game (its class, or a scene the game passed in).
+            options: The game's parsed options.
+
+        """
+        # Only a tool with a game handler runs here; two tool flags without one (--record-trace
+        # with --replay-trace) are left to the replay's own refusal, which says what to use
+        if not any(tool.game_handler is not None for tool in given_tools(options=options)):
+            return
+        tool_exit_code = run_game_flag_tool(options=options, game=game)
+        # A tool with a game handler always ends the run (its code, or a refusal's)
+        assert tool_exit_code is not None
+        self._restore_sdl_driver_variables()
+        exit_with(exit_code=tool_exit_code)
+
     def _start_requested_replay(
         self: Self, *, game: type[Scene] | Scene, options: dict[str, Any]
     ) -> ReplaySources | None:
@@ -1733,6 +1768,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             refusal = error
         else:
             if options.get('audit'):
+                self._refuse_an_audit_under_another_seed(
+                    replay_trace_path=replay_trace_path, sources=sources
+                )
                 self._refuse_auditing_a_truncated_recording(
                     replay_trace_path=replay_trace_path, sources=sources
                 )
@@ -1752,6 +1790,35 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ),
             cause=refusal,
         )
+
+    def _refuse_an_audit_under_another_seed(
+        self: Self, *, replay_trace_path: str, sources: ReplaySources
+    ) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED for ``--audit`` under another seed than recorded.
+
+        An audit checks that a recording replays the same each time; under another seed
+        (``--random-seed N``, rule 19 of glitchygames/replay/driver.py) nothing is compared, so
+        there is nothing to check, and it is refused before anything runs (the user's decision,
+        2026-10-26). A plain replay under that seed plays the inputs out, and a rebaseline
+        records them.
+
+        Args:
+            replay_trace_path: The recording (for the message).
+            sources: The replay's sources (``is_reseeded``).
+
+        """
+        if not sources.is_reseeded:
+            return
+        self.log.error(
+            'Cannot audit %s under --random-seed %d: it was recorded under seed %d, and an '
+            "audit checks a replay under its recording's seed. To play its inputs out under "
+            'a new seed, replay it without --audit; to record them under it: --replay-trace '
+            'OLD --rebaseline NEW --random-seed N',
+            replay_trace_path,
+            sources.random_seed,
+            sources.recorded_seed,
+        )
+        exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
     def _refuse_a_replay_display_of_another_size(self: Self, *, options: dict[str, Any]) -> None:
         """Exit with ExitCode.UNUSABLE_INPUT if the replay's window has another size than recorded.
@@ -2061,6 +2128,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             else:
                 self.rebaseline.discard()
                 report = f'{report}\n{self.rebaseline.destination} was not written'
+        elif self.replay_sources.is_reseeded and run_ended_by is None:
+            # Under another seed than recorded (rule 19 of glitchygames/replay/driver.py) the
+            # differences are what the replay reports, never a failure, and nothing is written
+            report = RebaselineSummary.from_result(
+                result=result, path=None
+            ).describe_reseeded_replay(
+                random_seed=self.replay_sources.random_seed,
+                recorded_seed=self.replay_sources.recorded_seed,
+            )
+            is_failure = False
         if result.processing is not None:
             # After the replay's own report (glitchygames/replay/processing.py)
             report = f'{report}\n{result.processing.describe()}'
@@ -2455,24 +2532,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     def _begin_run(self: Self) -> bool:
         """Start the run in the crash boundary: signal handlers, then the game or what runs instead.
 
-        A tool given as a game flag that doesn't run the game (``run_game_flag_tool``,
-        glitchygames/replay/tools/registry.py) runs in its place, and with --list-input-devices
-        the listing does (it is printed): nothing is built, so no frame runs.
+        With --list-input-devices the listing runs in place of the game (it is printed):
+        nothing is built, so no frame runs. (A tool given as a game flag that runs in place of
+        the game already ran, in ``__init__``: ``_run_game_flag_tool``.)
 
         Returns:
-            Whether the game is to be built and run (False after such a tool or the listing).
+            Whether the game is to be built and run (False after the listing).
 
         """
         # For the whole run, so a signal always ends it through start()'s teardown
         self._install_signal_handlers()
-
-        # In place of the game: its scene is never built, nothing is recorded. A tool that
-        # failed ends the run with its exit code (exit_with raises SystemExit)
-        tool_exit_code = run_game_flag_tool(options=GameEngine.OPTIONS, game=self.game)
-        if tool_exit_code is not None:
-            if tool_exit_code != ExitCode.SUCCESS:
-                exit_with(exit_code=tool_exit_code)
-            return False
 
         if GameEngine.OPTIONS.get('list_input_devices'):
             # In place of the game: its scene is never built, nothing is recorded

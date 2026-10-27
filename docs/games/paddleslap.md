@@ -627,7 +627,7 @@ docstring of `scripts/record_scripted_session.py`). Replay performance for both 
 | `src/glitchygames/scenes/builtin_scenes/game_over_scene.py` | `GameOverScene`, `TextSprite` |
 | `src/glitchygames/input/action_map.py` | `ActionMap` |
 | `scripts/golden_inputs.py`, `scripts/record_golden_traces.py` | The golden script (`paddleslap_script`, `PaddleTracker`) and the golden trace recorder |
-| `scripts/record_scripted_session.py` | The golden replay and demo recorder, and the controls tail |
+| `scripts/record_scripted_session.py` | The golden replay and demo recorder (the controls tail, `paddleslap_controls`, is in `scripts/golden_inputs.py`) |
 | `src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz` | The golden replay |
 | `tests/world/golden/paddleslap.jsonl.gz` | The golden trace baseline |
 | `src/games/paddleslap/tests/test_paddleslap.py`, and the move's: `test_paddleslap_logical_names.py`, `_install_location.py`, `_entry_points.py`, `_package_data.py`, `_recording_history.py` | The game's tests |

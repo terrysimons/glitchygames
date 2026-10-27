@@ -375,8 +375,14 @@ MOVED_OPTIONS_AS_THEY_WERE = (
     (
         '--random-seed',
         (
-            'master seed for every engine random stream (default: a random 64-bit seed, '
-            'logged in recordings)'
+            # The user's seed rule (2026-10-26): tests/replay/tools/test_random_seed.py
+            'master seed for every engine random stream. Not given, a run or recording rolls a '
+            "random 64-bit seed (logged in the recording) and a replay uses the recording's. "
+            "Given, a run or recording uses it, and a replay given the recording's own compares "
+            "as always; a replay given another plays the recording's inputs out under it "
+            'without comparing or writing anything (headless, it prints what differed and exits '
+            '0); --replay-trace OLD --rebaseline NEW --random-seed N records them under it in '
+            'NEW; --audit under another seed is refused'
         ),
         None,
         int,
@@ -405,8 +411,9 @@ def test_each_moved_option_is_unchanged_on_the_game(as_it_was):
 def test_an_option_listed_under_several_tools_is_one_game_flag_and_each_tools_option():
     """A shared option (--headless: every tool that runs the game) is one flag on the game.
 
-    Each tool that lists it has it as a subcommand option; record-trace and record-golden-trace
-    also share --random-seed.
+    Each tool that lists it has it as a subcommand option; every tool that records or replays
+    also shares --random-seed, and record-golden-trace and record-session share
+    --input-script and --frame-count.
     """
     game = game_parser()
     subcommands = subcommand_parsers(parser=build_command_parser())
@@ -416,8 +423,11 @@ def test_an_option_listed_under_several_tools_is_one_game_flag_and_each_tools_op
             tools_by_flag.setdefault(option.flag, []).append(tool.name)
     shared = {flag: names for flag, names in tools_by_flag.items() if len(names) > 1}
 
-    assert shared['--headless'] == ['record-trace', 'replay-trace', 'record-golden-trace']
-    assert shared['--random-seed'] == ['record-trace', 'record-golden-trace']
+    every_game_runner = ['record-trace', 'replay-trace', 'record-golden-trace', 'record-session']
+    assert shared['--headless'] == every_game_runner
+    assert shared['--random-seed'] == every_game_runner
+    assert shared['--input-script'] == ['record-golden-trace', 'record-session']
+    assert shared['--frame-count'] == ['record-golden-trace', 'record-session']
     for flag, names in shared.items():
         on_the_game = [action for action in game._actions if flag in action.option_strings]
         assert len(on_the_game) == 1, flag

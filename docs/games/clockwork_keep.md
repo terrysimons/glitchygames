@@ -697,7 +697,7 @@ the native-driver comparison while iterating).
 | `src/glitchygames/transitions/elevator.py` | `ElevatorTransition` (engine, written for this game) |
 | `src/glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The pause and game-over screens |
 | `scripts/golden_inputs.py`, `scripts/record_golden_traces.py` | The golden input script (`clockwork_keep_script`) and the golden trace recorder (on the engine's harness, `src/glitchygames/replay/tools/golden_traces.py`) |
-| `scripts/record_scripted_session.py` | Records the golden replay (`clockwork_keep_controls` is its tail) |
+| `scripts/record_scripted_session.py` | Records the golden replay (`clockwork_keep_controls`, in `scripts/golden_inputs.py`, is its tail) |
 | `tests/world/golden/clockwork_keep.jsonl.gz` | Golden trace baseline |
 | `src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz` | Golden replay fixture |
 | `src/games/clockwork-keep/tests/test_clockwork_keep.py` | The game's tests |

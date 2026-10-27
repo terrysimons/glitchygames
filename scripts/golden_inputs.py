@@ -5,12 +5,15 @@ Each builder takes no arguments and returns a fresh ``InputScript``
 engine's tools (``--input-script scripts.golden_inputs:paddleslap_script``, run from the
 repository root; ``load_input_script``). scripts/record_golden_traces.py names each game's
 builder (``SCRIPT_BUILDERS``) for its golden trace, and scripts/record_scripted_session.py for
-its golden replay. They are this repository's test data, not engine code.
+its golden replay. Each game's controls tail (``*_controls``), which its golden replay plays
+after the script (``--controls-tail scripts.golden_inputs:paddleslap_controls``), is here too.
+They are this repository's test data, not engine code.
 
 Games are loaded only when needed: each script imports what it reads of its game where it reads
 it, so importing this module imports no workspace member.
 
-Moved from scripts/record_golden_traces.py (Stage D, Task D4a), unchanged.
+Moved from scripts/record_golden_traces.py (Stage D, Task D4a), unchanged; the controls tails
+from scripts/record_scripted_session.py (Task D4b), unchanged.
 """
 
 from __future__ import annotations
@@ -63,7 +66,7 @@ PADDLESLAP_PADDLE_KEYS: tuple[tuple[int, int], tuple[int, int]] = (
     (pygame.K_w, pygame.K_s),
     (pygame.K_UP, pygame.K_DOWN),
 )
-# A paddle holds still while the tracked ball's centre is within this many pixels of its own
+# A paddle holds still while the tracked ball's center is within this many pixels of its own
 PADDLESLAP_TRACKING_DEAD_ZONE_PIXELS = 12
 
 
@@ -533,3 +536,114 @@ def drawing_fire_script() -> InputScript:
         held_frames=drawing_fire_leave_hold_frames(),
     )
     return script
+
+
+# The controls tails: input a golden replay session plays after the golden script's frames
+# (scripts/record_scripted_session.py CONTROLS_TAIL_BUILDERS; never part of a script, so the golden
+# traces never see them). Moved from scripts/record_scripted_session.py (Stage D, Task D4b),
+# unchanged.
+
+
+def _pause_with(tail: InputScript, *, key: int, pause_frame: int, resume_frame: int) -> None:
+    """Pause with a key, then resume from the engine's pause screen with SPACE.
+
+    Args:
+        tail: The controls tail to add to.
+        key: The game's pause key (tapped within one frame, as the golden scripts do).
+        pause_frame: The tail frame the pause key is tapped before.
+        resume_frame: The tail frame SPACE is pressed before (released two frames later).
+
+    """
+    tail.at(pause_frame, press(key), release(key))
+    tail.at(resume_frame, press(pygame.K_SPACE))
+    tail.at(resume_frame + 2, release(pygame.K_SPACE))
+
+
+def clockwork_keep_controls() -> InputScript:
+    """Clockwork Keep: run right (left shift), jump with SPACE, interact, pause, quit with Q.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    tail.at(10, press(pygame.K_LSHIFT))
+    tail.at(12, press(pygame.K_RIGHT))
+    tail.at(40, release(pygame.K_RIGHT))
+    tail.at(42, release(pygame.K_LSHIFT))
+    tail.tap(60, pygame.K_SPACE, held_frames=12)
+    # Interact away from an elevator: the press is read, nothing rides
+    tail.tap(90, pygame.K_w, held_frames=4)
+    _pause_with(tail, key=pygame.K_ESCAPE, pause_frame=110, resume_frame=160)
+    tail.at(200, press(pygame.K_q))
+    return tail
+
+
+def brave_adventurer_controls() -> InputScript:
+    """Brave Adventurer (both editions): walk left, jump with SPACE, quit with Q.
+
+    The golden script already pauses (ESC) and resumes, inside the recorded frames.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    tail.at(10, press(pygame.K_LEFT))
+    tail.tap(20, pygame.K_SPACE, held_frames=12)
+    tail.at(50, release(pygame.K_LEFT))
+    tail.at(70, press(pygame.K_q))
+    return tail
+
+
+def paddleslap_controls() -> InputScript:
+    """PaddleSlap: quit with both of the base scene's quit keys, Q and ESC, released together.
+
+    PaddleSlap binds no quit of its own: the engine's Scene quits on the release of Q or ESC
+    (each release posts a QUIT), so the recording holds two internal QUITs and a replay in which
+    either key no longer quits diverges.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    tail.at(10, press(pygame.K_q))
+    tail.at(12, press(pygame.K_ESCAPE))
+    tail.at(20, release(pygame.K_q), release(pygame.K_ESCAPE))
+    return tail
+
+
+def mr_muncher_controls() -> InputScript:
+    """Mr. Muncher: steer with WASD (the autopilot uses the arrows), pause with P, quit with Q.
+
+    The golden script already pauses with ESC and resumes. The tail is short: the fixture must
+    stay under 100 KB.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    for tap_frame, key in ((5, pygame.K_w), (20, pygame.K_a), (35, pygame.K_s), (50, pygame.K_d)):
+        tail.tap(tap_frame, key, held_frames=10)
+    _pause_with(tail, key=pygame.K_p, pause_frame=65, resume_frame=95)
+    tail.at(120, press(pygame.K_q))
+    return tail
+
+
+def drawing_fire_controls() -> InputScript:
+    """Drawing Fire: quit with Q (the base scene quits on its release).
+
+    The golden script already uses every control the game reads, the left mouse button and the
+    mouse included. Drawing Fire has no pause (tests/replay/test_golden_replays.py
+    GAMES_WITHOUT_A_PAUSE), and Escape is the keyboard's Back, never a quit.
+
+    Returns:
+        The controls tail (frames count from the tail's first frame).
+
+    """
+    tail = InputScript()
+    tail.at(10, press(pygame.K_q))
+    tail.at(12, release(pygame.K_q))
+    return tail

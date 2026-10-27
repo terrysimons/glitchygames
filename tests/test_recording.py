@@ -1232,6 +1232,10 @@ _PUMP_SEAMS = frozenset({
     # unchanged (Stage D, Task D4a); the frame's own pump still reads every batch it records
     ('replay/tools/golden_traces.py', 'discard_environment_events'),
     ('replay/tools/golden_traces.py', 'golden_game'),
+    # The scripted-session recorder stands outside the game too: before and after a session it
+    # empties the queue a caller (a test) left, so the session records none of it. Moved from
+    # scripts/record_scripted_session.py (Stage D, Task D4b), the same clear in a helper
+    ('replay/tools/scripted_sessions.py', 'clear_events_left_queued'),
 })
 _QUEUE_READING_ATTRIBUTES = frozenset({'get', 'poll', 'wait', 'peek', 'pump', 'clear'})
 _EVENT_MODULE_NAMES = frozenset({'event', 'fastevent'})
