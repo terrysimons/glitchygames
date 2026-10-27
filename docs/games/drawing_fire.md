@@ -121,7 +121,7 @@ anyone: players drop into and out of them, and the next one starts on its own.
 | `src/games/drawing-fire/src/drawing_fire/seat_drawing.py` | The join note, the seat cards, the soldier highlight, and the debug seat tags and panel |
 | `src/games/drawing-fire/src/drawing_fire/sprites/soldier.toml` | The soldier sprite (stand, walk and down), with its `[swatches.livery]` parts |
 | `scripts/simulate_drawing_fire.py` | Headless computer-against-computer battles across seeds (the tuning tool) |
-| `src/games/drawing-fire/tests/` | The tests, one file per module, plus the simulation's and `test_drawing_fire_after_the_move.py` |
+| `src/games/drawing-fire/tests/` | The tests, one file per module, plus the simulation's and the move's (`test_drawing_fire_logical_names.py`, `_install_location.py`, `_recording_history.py`, `_wheel.py`) |
 | `src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz` | The golden replay (1,614 frames) |
 | `scripts/record_golden_traces.py` | `drawing_fire_script` and `DrawingFireMouse` (the golden replay's player) |
 | `scripts/record_scripted_session.py` | `drawing_fire_controls` (the controls tail: Q) and the command that records the fixture |

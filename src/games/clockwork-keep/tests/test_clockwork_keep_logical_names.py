@@ -1,9 +1,8 @@
-"""Clockwork Keep moved out of glitchygames/examples: its logical names and history stayed."""
+"""Clockwork Keep's scenes keep the logical names its recordings hold."""
 
 from __future__ import annotations
 
 import gzip
-import importlib.util
 import inspect
 import json
 from pathlib import Path
@@ -11,14 +10,10 @@ from pathlib import Path
 import clockwork_keep.game
 from clockwork_keep.game import ClockworkKeepScene
 from glitchygames.logical_names import logical_name
-from glitchygames.recording_metrics import RECORDING_PATH_RENAMES
 from glitchygames.scenes import Scene
 
 # The member's golden replay, directly in its tests/fixtures/replays/
 GOLDEN_REPLAY_PATH = Path(__file__).parent / 'fixtures' / 'replays' / 'golden.jsonl.gz'
-# Its golden's ledger name, and the one it had before the move
-GOLDEN_REPOSITORY_PATH = 'src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz'
-GOLDEN_FORMER_PATH = 'tests/fixtures/replays/clockwork-keep/golden.jsonl.gz'
 
 
 def scenes_the_golden_starts() -> set[str]:
@@ -52,26 +47,3 @@ def test_clockwork_keep_keeps_its_logical_names():
     assert started <= scenes.keys()
     for name, scene_class in scenes.items():
         assert name == f'games.clockwork_keep.game:{scene_class.__qualname__}'
-
-
-def test_the_old_example_package_is_gone():
-    """Nothing is left in glitchygames/examples to import (a stale __pycache__ would be)."""
-    assert importlib.util.find_spec('glitchygames.examples') is None
-
-
-def test_clockwork_keeps_golden_keeps_its_history():
-    """Clockwork Keep's golden moved into its member: its rows from before the move follow."""
-    assert RECORDING_PATH_RENAMES[GOLDEN_FORMER_PATH] == GOLDEN_REPOSITORY_PATH
-
-
-def test_clockwork_keep_is_imported_from_its_src_directory():
-    """Clockwork Keep's package is under its member's src/ (or site-packages in a wheel install)."""
-    import clockwork_keep
-
-    member_source_directory = Path(__file__).resolve().parents[1] / 'src'
-    package_directory = Path(clockwork_keep.__file__).resolve().parent
-
-    assert (
-        package_directory.parent == member_source_directory
-        or 'site-packages' in package_directory.parts
-    ), f'{package_directory} is not under {member_source_directory} or site-packages'

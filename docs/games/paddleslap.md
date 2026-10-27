@@ -630,4 +630,4 @@ docstring of `scripts/record_scripted_session.py`). Replay performance for both 
 | `scripts/record_scripted_session.py` | The golden replay and demo recorder, and the controls tail |
 | `src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz` | The golden replay |
 | `tests/world/golden/paddleslap.jsonl.gz` | The golden trace baseline |
-| `src/games/paddleslap/tests/test_paddleslap.py`, `src/games/paddleslap/tests/test_paddleslap_after_the_move.py` | The game's tests |
+| `src/games/paddleslap/tests/test_paddleslap.py`, and the move's: `test_paddleslap_logical_names.py`, `_install_location.py`, `_entry_points.py`, `_wheel.py`, `_recording_history.py` | The game's tests |

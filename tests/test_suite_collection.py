@@ -806,7 +806,7 @@ def misnamed_bitmappy_test_modules(*, tests_directory: Path) -> list[str]:
 def test_bitmappys_test_modules_are_named_for_it():
     """Every module in Bitmappy's tests, subdirectories included, is named test_bitmappy*.py."""
     assert misnamed_bitmappy_test_modules(tests_directory=BITMAPPY_TESTS_DIRECTORY) == []
-    assert (BITMAPPY_TESTS_DIRECTORY / 'test_bitmappy_after_the_move.py').is_file()
+    assert (BITMAPPY_TESTS_DIRECTORY / 'test_bitmappy_logical_names.py').is_file()
 
 
 def test_a_misnamed_bitmappy_test_module_in_a_subdirectory_is_found(tmp_path):
@@ -911,26 +911,42 @@ FORMER_EXAMPLES_EXEMPT_PATHS: dict[str, str] = {
     'src/glitchygames/recording_metrics.py': (
         'RECORDING_PATH_RENAMES keys: the old paths of the recordings that moved'
     ),
-    'src/demos/dt-demo/tests/test_dt_demo_after_the_move.py': 'the move out of the engine',
-    'src/demos/joystick-demo/tests/test_joystick_demo_after_the_move.py': (
-        'the move out of the engine'
+    'src/demos/dt-demo/tests/test_dt_demo_install_location.py': (
+        'the move out of the engine: nothing is left of the old package'
     ),
-    'src/demos/text-input-demo/tests/test_text_input_demo_after_the_move.py': (
-        'the move out of the engine'
+    'src/demos/dt-demo/tests/test_dt_demo_entry_points.py': (
+        'the move out of the engine: the old python -m command it replaces'
     ),
-    'src/games/brave-adventurer/tests/test_brave_adventurer_after_the_move.py': (
-        'the move out of the engine'
+    'src/demos/joystick-demo/tests/test_joystick_demo_install_location.py': (
+        'the move out of the engine: nothing is left of the old package'
     ),
-    'src/games/clockwork-keep/tests/test_clockwork_keep_after_the_move.py': (
-        'the move out of the engine'
+    'src/demos/joystick-demo/tests/test_joystick_demo_entry_points.py': (
+        'the move out of the engine: the old python -m command it replaces'
     ),
-    'src/games/drawing-fire/tests/test_drawing_fire_after_the_move.py': (
-        'the move out of the engine'
+    'src/demos/text-input-demo/tests/test_text_input_demo_install_location.py': (
+        'the move out of the engine: nothing is left of the old package'
     ),
-    'src/games/mr-muncher/tests/test_logical_names_after_the_move.py': (
-        'the move out of the engine'
+    'src/demos/text-input-demo/tests/test_text_input_demo_entry_points.py': (
+        'the move out of the engine: the old python -m command it replaces'
     ),
-    'src/games/paddleslap/tests/test_paddleslap_after_the_move.py': 'the move out of the engine',
+    'src/games/brave-adventurer/tests/test_brave_adventurer_install_location.py': (
+        'the move out of the engine: nothing is left of the old package'
+    ),
+    'src/games/clockwork-keep/tests/test_clockwork_keep_install_location.py': (
+        'the move out of the engine: nothing is left of the old package'
+    ),
+    'src/games/drawing-fire/tests/test_drawing_fire_install_location.py': (
+        'the move out of the engine: nothing is left of the old package'
+    ),
+    'src/games/mr-muncher/tests/test_mr_muncher_logical_names.py': (
+        'the move out of the engine: an old-format recording names the old module'
+    ),
+    'src/games/paddleslap/tests/test_paddleslap_install_location.py': (
+        'the move out of the engine: nothing is left of the old package'
+    ),
+    'src/games/paddleslap/tests/test_paddleslap_entry_points.py': (
+        'the move out of the engine: the old python -m command it replaces'
+    ),
     'src/demos/dt-demo/src/dt_demo/__main__.py': (
         'docstring: the old python -m command, kept as history'
     ),
@@ -959,7 +975,7 @@ FORMER_EXAMPLES_EXEMPT_PATHS: dict[str, str] = {
         'the recipe for moving a game out of the engine: its history lines name where games were'
     ),
     'docs/games/clockwork_keep.md': (
-        'describes test_clockwork_keep_after_the_move.py, which asserts the old package is gone'
+        'describes test_clockwork_keep_install_location.py, which asserts the old package is gone'
     ),
     'plans/2026-10-24-workspace-packages.md': 'the master plan: the decisions and the history',
     'tests/test_workspace_packages.py': (

@@ -175,11 +175,18 @@ any tool's configuration.
 
 - `src/games/<game>/pyproject.toml` (above) and `README.md`. The package's `__init__.py`
   re-exports `main`.
-- A `tests/test_<package>_after_the_move.py` (Mr. Muncher's is `test_logical_names_after_the_move.py`,
-  the first; every later member names its own, since `tests/test_suite_collection.py` refuses a
-  test file name used twice): the game's classes keep the logical names its recordings hold, its
-  golden's old path maps to its new one in `RECORDING_PATH_RENAMES` (its history follows it), and
-  `importlib.util.find_spec('glitchygames.examples.<package>')` is None.
+- The move's tests, one file per subject, each named `test_<distribution with - as _>_<subject>.py`
+  (`tests/test_suite_collection.py` refuses a test file named for anything else, or a name used
+  twice). A member has only the subjects it has tests for:
+  - `_logical_names.py`: the game's classes keep the logical names its recordings hold (every
+    member has this one);
+  - `_install_location.py`: the package imports from `<member>/src/` (or `site-packages` in a
+    wheel install), and `importlib.util.find_spec('glitchygames.examples.<package>')` is None;
+  - `_wheel.py`: the member's wheel holds only its package, plus its data (sprites, demos,
+    resources);
+  - `_entry_points.py`: the console script and `python -m <package>` resolve to `main`;
+  - `_recording_history.py`: the golden's old path maps to its new one in
+    `RECORDING_PATH_RENAMES` (its history follows it), and so does every other moved recording.
 
 ### 3. Register it in the root configuration
 
@@ -237,8 +244,9 @@ any tool's configuration.
   ```
 
   (grep's `.` matches any character, so the dotted pattern finds the slashed path too) prints
-  only the `RECORDING_PATH_RENAMES` line (the old path is its point) and the member's
-  after-the-move test (its history check on that line, its old-package check and docstring).
+  only the `RECORDING_PATH_RENAMES` line (the old path is its point) and the member's move tests
+  (the history check on that line in `_recording_history.py`, the old-package check and docstring
+  in `_install_location.py`).
   `plans/`, `quality/` (ledger rows) and `BUGS.md` are history and keep the old paths.
 
 ### 6. The browser build
