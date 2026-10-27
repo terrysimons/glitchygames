@@ -34,6 +34,12 @@ The trace format (gzip JSON Lines with keyframes and deltas, ``StableSpriteIds``
 reader and writer) lives in ``glitchygames/tracing.py``; identical traces give identical
 bytes.
 
+Games are loaded only when needed: many engine tests import this script for its harness
+(``GoldenTraceEngine``, ``GoldenTraceSceneManager``, ``command_line``) and run no game, so
+importing it imports no workspace member. ``GAME_SCENES`` imports a game's scene class the first
+time it is looked up (``GameSceneClasses``), and each input script imports what it reads of its
+game where it reads it.
+
 Usage:
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy uv run python scripts/record_golden_traces.py
 """
@@ -41,42 +47,36 @@ Usage:
 from __future__ import annotations
 
 import contextlib
+import importlib
 import math
 import os
 import sys
 import tempfile
+from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, TypedDict, Unpack, override
+from typing import TYPE_CHECKING, Any, Protocol, Self, TypedDict, Unpack, override
 
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
 
-import paddleslap
-from brave_adventurer.game import BraveAdventurerScene
-from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
-from clockwork_keep.game import ClockworkKeepScene
-from drawing_fire.game import DrawingFireScene
-from drawing_fire.seats import LEAVE_HOLD_SECONDS, Stage
 from glitchygames.engine import GameEngine
 from glitchygames.engine_context import current_context
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
-from glitchygames.scenes import SceneManager
+from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import SCENE_MANAGERS_SLOT
 from glitchygames.state import manager as save_manager_module
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.tracing import StableSpriteIds, sample_scene_frame, write_trace
-from mr_muncher.autopilot import Autopilot
-from mr_muncher.game import MrMuncherScene
-from mr_muncher.maze import Direction
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator
+    from collections.abc import Callable, Generator, Iterable, Iterator, Mapping
+
+    from _typeshed import SupportsKeysAndGetItem
 
     from glitchygames.replay import ReplayResult
-    from glitchygames.scenes import Scene
 
 # Project root (scripts/ is one level below project root)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -103,15 +103,115 @@ ENVIRONMENT_EVENT_TYPES: tuple[int, ...] = (
     pygame.KEYMAPCHANGED,
 )
 
-# Game key -> the game's scene class, for every game with a golden input script
-GAME_SCENES: dict[str, type[Scene]] = {
-    'clockwork_keep': ClockworkKeepScene,
-    'brave_adventurer': BraveAdventurerScene,
-    'brave_adventurer_papyrus': PapyrusBraveAdventurerScene,
-    'paddleslap': paddleslap.Game,
-    'mr_muncher': MrMuncherScene,
-    'drawing_fire': DrawingFireScene,
-}
+
+class GameSceneClasses(MutableMapping[str, type[Scene]]):
+    """Game key -> the game's scene class, each imported the first time it is looked up.
+
+    A game is held as a reference, ``'<module>:<class>'``, until its first lookup imports the
+    module (``importlib.import_module``) and keeps the class. Keys, length and membership import
+    nothing, and neither do ``copy``, ``clear`` and ``update`` from another of these (which
+    ``unittest.mock.patch.dict`` uses to register a stand-in game for one test): only a lookup
+    imports a game.
+    """
+
+    def __init__(self: Self, entries: Mapping[str, str | type[Scene]]) -> None:
+        """Hold the games.
+
+        Args:
+            entries: Game key -> its scene class, or a ``'<module>:<class>'`` reference to it.
+
+        """
+        self._entries: dict[str, str | type[Scene]] = dict(entries)
+
+    @override
+    def __getitem__(self: Self, game_key: str) -> type[Scene]:
+        """Return a game's scene class, importing it on its first lookup.
+
+        Args:
+            game_key: The game.
+
+        Returns:
+            The scene class.
+
+        Raises:
+            TypeError: If the reference names something other than a Scene subclass.
+
+        """
+        entry = self._entries[game_key]
+        if isinstance(entry, str):
+            module_name, _, class_name = entry.partition(':')
+            scene_class: object = getattr(importlib.import_module(module_name), class_name)
+            if not isinstance(scene_class, type) or not issubclass(scene_class, Scene):
+                message = f'{entry!r} is not a Scene subclass'
+                raise TypeError(message)
+            entry = scene_class
+            self._entries[game_key] = entry
+        return entry
+
+    @override
+    def __setitem__(self: Self, game_key: str, scene_class: type[Scene]) -> None:
+        self._entries[game_key] = scene_class
+
+    @override
+    def __delitem__(self: Self, game_key: str) -> None:
+        del self._entries[game_key]
+
+    @override
+    def __iter__(self: Self) -> Iterator[str]:
+        return iter(self._entries)
+
+    @override
+    def __len__(self: Self) -> int:
+        return len(self._entries)
+
+    @override
+    def __contains__(self: Self, game_key: object) -> bool:
+        return game_key in self._entries
+
+    @override
+    def clear(self: Self) -> None:
+        """Remove every game, importing none (the inherited clear looks each one up)."""
+        self._entries.clear()
+
+    def copy(self: Self) -> GameSceneClasses:
+        """Return a new mapping of the same games, importing none.
+
+        Returns:
+            The copy: references stay references.
+
+        """
+        return GameSceneClasses(self._entries)
+
+    @override
+    def update(
+        self: Self,
+        other: SupportsKeysAndGetItem[str, type[Scene]] | Iterable[tuple[str, type[Scene]]] = (),
+        /,
+        **scene_classes: type[Scene],
+    ) -> None:
+        """Add games; another of these mappings' references are added unimported.
+
+        Args:
+            other: The games to add: a mapping or (game key, scene class) pairs.
+            **scene_classes: More games, by key.
+
+        """
+        if isinstance(other, GameSceneClasses):
+            self._entries.update(other._entries)
+            other = ()
+        super().update(other, **scene_classes)
+
+
+# Game key -> the game's scene class, for every game with a golden input script: each in its
+# own workspace member's package, imported only when the game is looked up
+GAME_SCENES = GameSceneClasses({
+    'clockwork_keep': 'clockwork_keep.game:ClockworkKeepScene',
+    'brave_adventurer': 'brave_adventurer.game:BraveAdventurerScene',
+    'brave_adventurer_papyrus': 'brave_adventurer_papyrus.game:PapyrusBraveAdventurerScene',
+    'paddleslap': 'paddleslap:Game',
+    'mr_muncher': 'mr_muncher.game:MrMuncherScene',
+    'drawing_fire': 'drawing_fire.game:DrawingFireScene',
+})
 
 # Game key -> the package holding the game: every game is in its own workspace member's package
 # (plans/2026-10-24-workspace-packages.md), which scripts/record_scripted_session.py finds its
@@ -141,14 +241,15 @@ GOLDEN_TRACE_GAMES: tuple[str, ...] = (
 # Where the Brave Adventurer script puts the player (world x on screen 2, ground level)
 BRAVE_ADVENTURER_SKIP_TO_WORLD_X = 2400.0
 
-# Mr. Muncher: the arrow key for each direction; the autopilot presses a key again if the player
+# Mr. Muncher: the arrow key for each direction (by the name of its mr_muncher.maze.Direction
+# member, so this script imports no game); the autopilot presses a key again if the player
 # still wants another way this many frames after it was pressed; it walks into a muncher (once)
 # after this much of the level's game time; the script pauses and resumes on these frames
-MR_MUNCHER_DIRECTION_KEYS: dict[Direction, int] = {
-    Direction.UP: pygame.K_UP,
-    Direction.LEFT: pygame.K_LEFT,
-    Direction.DOWN: pygame.K_DOWN,
-    Direction.RIGHT: pygame.K_RIGHT,
+MR_MUNCHER_DIRECTION_KEYS: dict[str, int] = {
+    'UP': pygame.K_UP,
+    'LEFT': pygame.K_LEFT,
+    'DOWN': pygame.K_DOWN,
+    'RIGHT': pygame.K_RIGHT,
 }
 MR_MUNCHER_REPRESS_FRAMES = 4
 MR_MUNCHER_SEEK_CAPTURE_SECONDS = 22.0
@@ -158,14 +259,12 @@ MR_MUNCHER_RESUME_FRAME = 660
 # Drawing Fire: the keyboard player's seat name (the first seat opened); the frames before
 # which the left mouse button goes down (True) or up (False); the frame the script starts
 # holding Escape (after the player's first death) and how many frames longer than the seats'
-# LEAVE_HOLD_SECONDS (counted in frames of FRAME_SECONDS) it holds it, so a little over a second
+# LEAVE_HOLD_SECONDS (counted in frames of FRAME_SECONDS) it holds it, so a little over a second,
+# as drawing_fire_leave_hold_frames counts it
 DRAWING_FIRE_PLAYER_NAME = 'P1'
 DRAWING_FIRE_FIRE_BUTTON_CHANGES: dict[int, bool] = {150: True, 380: False, 400: True, 600: False}
 DRAWING_FIRE_LEAVE_FRAME = 1500
 DRAWING_FIRE_LEAVE_SPARE_FRAMES = 10
-DRAWING_FIRE_LEAVE_HOLD_FRAMES = (
-    math.ceil(LEAVE_HOLD_SECONDS / FRAME_SECONDS) + DRAWING_FIRE_LEAVE_SPARE_FRAMES
-)
 # The mouse follows its target only once the target's chest is more than this many pixels from
 # it, as a hand on a mouse does (and so a walking target is not a motion every frame)
 DRAWING_FIRE_AIM_SLACK_PIXELS = 8
@@ -320,6 +419,8 @@ def stand_on_first_elevator(scene: Scene) -> None:
         scene: The active Clockwork Keep floor.
 
     """
+    from clockwork_keep.game import ClockworkKeepScene
+
     assert isinstance(scene, ClockworkKeepScene)
     elevator = scene.elevator_sprites[0]
     player = scene.player
@@ -371,6 +472,9 @@ def _place_before_screen_three(scene: Scene) -> None:
         scene: The active Brave Adventurer scene.
 
     """
+    from brave_adventurer.game import BraveAdventurerScene
+    from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+
     assert isinstance(scene, BraveAdventurerScene | PapyrusBraveAdventurerScene)
     scene.player.world_x = BRAVE_ADVENTURER_SKIP_TO_WORLD_X
 
@@ -419,7 +523,9 @@ class PaddleTracker:
             Key releases and presses that change which keys are held.
 
         """
-        if not isinstance(scene, paddleslap.Game) or not self.is_enabled:
+        from paddleslap import Game as PaddleSlapGame
+
+        if not isinstance(scene, PaddleSlapGame) or not self.is_enabled:
             return []
         live_balls = [ball for ball in scene.balls if ball.alive()]
         paddles = (scene.player1, scene.player2)
@@ -520,6 +626,8 @@ class MuncherSteering:
                 seconds of the level's game time; None never.
 
         """
+        from mr_muncher.autopilot import Autopilot
+
         self.autopilot = Autopilot(seek_capture_after_seconds=seek_capture_after_seconds)
         self.held_key: int | None = None
         self.frames_held = 0
@@ -535,6 +643,8 @@ class MuncherSteering:
             Key releases and presses.
 
         """
+        from mr_muncher.game import MrMuncherScene
+
         if not isinstance(scene, MrMuncherScene):
             return []
         self.frames_held += 1
@@ -544,7 +654,7 @@ class MuncherSteering:
         direction = self.autopilot.choose_direction(scene=scene)
         if direction is None:
             return []
-        key = MR_MUNCHER_DIRECTION_KEYS[direction]
+        key = MR_MUNCHER_DIRECTION_KEYS[direction.name]
         if key != self.held_key:
             return self._hold(key)
         if (
@@ -675,6 +785,9 @@ class DrawingFireMouse:
             enemy stands.
 
         """
+        from drawing_fire.game import DrawingFireScene
+        from drawing_fire.seats import Stage
+
         if not isinstance(scene, DrawingFireScene):
             return None
         seat = scene.seats.players.get(DRAWING_FIRE_PLAYER_NAME)
@@ -687,6 +800,21 @@ class DrawingFireMouse:
         target = min(enemies, key=lambda enemy: (abs(enemy.x - soldier.x), enemy.soldier_id))
         target_x, target_y = target.chest
         return (round(target_x), round(target_y))
+
+
+def drawing_fire_leave_hold_frames() -> int:
+    """Return how many frames Drawing Fire's script holds Escape to leave its seat.
+
+    The seats' LEAVE_HOLD_SECONDS, counted in frames of FRAME_SECONDS, and
+    DRAWING_FIRE_LEAVE_SPARE_FRAMES more.
+
+    Returns:
+        The frames.
+
+    """
+    from drawing_fire.seats import LEAVE_HOLD_SECONDS
+
+    return math.ceil(LEAVE_HOLD_SECONDS / FRAME_SECONDS) + DRAWING_FIRE_LEAVE_SPARE_FRAMES
 
 
 def drawing_fire_script() -> InputScript:
@@ -727,7 +855,7 @@ def drawing_fire_script() -> InputScript:
     script.tap(
         DRAWING_FIRE_LEAVE_FRAME,
         pygame.K_ESCAPE,
-        held_frames=DRAWING_FIRE_LEAVE_HOLD_FRAMES,
+        held_frames=drawing_fire_leave_hold_frames(),
     )
     return script
 
