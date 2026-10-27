@@ -413,5 +413,5 @@ def test_the_mkdocs_hook_stops_the_build_when_the_pending_ledger_cannot_be_read(
     mocker.patch.object(performance_script, 'METRICS_DIR', tmp_path / 'metrics')
     mocker.patch.object(performance_script, 'PENDING_LEDGER_PATH', pending)
 
-    with pytest.raises(PluginError, match=f'{pending}: the ledger cannot be read'):
+    with pytest.raises(PluginError, match=f'{re.escape(str(pending))}: the ledger cannot be read'):
         mkdocs_hooks.generate_performance_graphs()

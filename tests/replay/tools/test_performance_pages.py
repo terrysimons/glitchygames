@@ -13,6 +13,7 @@ Design: plans/2026-10-23-recording-metrics-1-frame-performance-history.md.
 
 from __future__ import annotations
 
+import errno
 import filecmp
 import json
 import os
@@ -37,7 +38,7 @@ from glitchygames.recording_metrics import (
     performance_series,
     write_row_files,
 )
-from glitchygames.replay.tools import command
+from glitchygames.replay.tools import command, performance_pages
 from glitchygames.replay.tools.performance_pages import (
     DEFAULT_LEDGER_NAME,
     PLOTLY_JS_URL,
@@ -674,21 +675,28 @@ def test_the_published_switch_builds_what_a_deploy_publishes(
 
 
 @pytest.mark.parametrize('unreadable', ['not permitted', 'not utf-8'])
-def test_an_unreadable_pending_ledger_is_unusable_input_naming_it(tmp_path, capsys, unreadable):
-    """A pending ledger that can't be read (no permission, not UTF-8): said, never a traceback."""
+def test_an_unreadable_pending_ledger_is_unusable_input_naming_it(
+    tmp_path, capsys, mocker, unreadable
+):
+    """A pending ledger that can't be read (no permission, not UTF-8): said, never a traceback.
+
+    The missing permission is injected at the read: ``chmod(0)`` blocks no read on Windows or
+    for root, so a real one would not fail everywhere this runs.
+    """
     (tmp_path / 'pyproject.toml').write_text(STAND_IN_PYPROJECT, encoding='utf-8')
     pending = tmp_path / STAND_IN_PENDING_LEDGER
     pending.parent.mkdir()
     if unreadable == 'not permitted':
         pending.write_text(ledger_text(rows=[stand_in_row()]), encoding='utf-8')
-        pending.chmod(0)
+        mocker.patch.object(
+            performance_pages,
+            'read_ledger_file',
+            side_effect=PermissionError(errno.EACCES, 'Permission denied', str(pending)),
+        )
     else:
         pending.write_bytes(b'\xff\xfe not a ledger\n')
 
-    try:
-        status = command.main(['performance-pages', 'pages', '--project-root', str(tmp_path)])
-    finally:
-        pending.chmod(0o644)
+    status = command.main(['performance-pages', 'pages', '--project-root', str(tmp_path)])
 
     assert status == ExitCode.UNUSABLE_INPUT
     errors = capsys.readouterr().err
