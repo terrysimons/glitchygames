@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
-"""Report a recording's runs: provenance, speed changes and the behaviour-change map.
+"""The ``report`` tool: a recording's runs, speed changes and behaviour-change map.
 
 Design: plans/2026-10-23-recording-metrics-2-behaviour-change-map.md (Part 2 of
-plans/2026-10-23-recording-metrics.md). A recording holds up to ten runs (each ``--rebaseline``
-stacks one; glitchygames/recording_history.py); this prints, newest first:
+plans/2026-10-23-recording-metrics.md); moved here whole from scripts/recording_report.py (Part 3,
+Stage D, Task D7). A recording holds up to ten runs (each ``--rebaseline`` stacks one;
+glitchygames/recording_history.py); this prints, newest first:
 
 1. **Runs:** each run's commit (abbreviated, with ``uncommitted changes`` when the checkout had
    them), machine (CPU model), power source, when it measured and what it rebaselined, then its
@@ -17,12 +17,17 @@ stacks one; glitchygames/recording_history.py); this prints, newest first:
    differs, with the first changed frame's scene and both runs' commits: where to look, and the
    commit range to bisect.
 
-The analysis is glitchygames/recording_metrics.py; this is its command line.
+The analysis is glitchygames/recording_metrics.py; this is its command line, on both front ends
+(glitchygames/replay/tools/registry.py). It runs no game:
+
+- **On the game**: ``mygame --report PATH [--threshold PERCENT] [--minimum-ms MS] [--spans N]``
+  (``report_on_the_game``) runs from ``GameEngine.__init__``, before the engine starts pygame:
+  the game is neither built nor shown.
+- **The command**: ``glitchygames report PATH [same options]`` (``report_command``).
 
 Usage:
-    uv run python scripts/recording_report.py \
-        src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz
-    uv run python scripts/recording_report.py PATH --threshold 10 --minimum-ms 0.1 --spans 50
+    uv run glitchygames report src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz
+    uv run glitchygames report PATH --threshold 10 --minimum-ms 0.1 --spans 50
 
 Exit codes: ``SUCCESS``; ``MISSING_INPUT`` when the file does not exist; ``UNUSABLE_INPUT`` when
 it is not a readable recording.
@@ -30,7 +35,6 @@ it is not a readable recording.
 
 from __future__ import annotations
 
-import argparse
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -54,17 +58,21 @@ from glitchygames.recording_metrics import (
 from glitchygames.tracing import FRAMES_FIELD, TraceFormatError, read_trace
 
 if TYPE_CHECKING:
+    import argparse
     from collections.abc import Sequence
 
     from glitchygames.recording_history import MeasurementRun
     from glitchygames.recording_metrics import FrameSpan, ProcessingSpan
+    from glitchygames.replay.tools.registry import Tool
+    from glitchygames.scenes import Scene
 
 # How many spans each comparison lists before condensing the rest into a count
 DEFAULT_SPAN_LIMIT = 20
 PERCENT = 100.0
-PARSER_DESCRIPTION = (
-    "Report a recording's runs: provenance, speed changes and the behaviour-change map"
-)
+# --threshold's and --minimum-ms's defaults (the registry's options), as the script's parser had
+# them: recording_metrics' defaults, in percent and milliseconds
+DEFAULT_THRESHOLD_PERCENT = DEFAULT_SPEED_CHANGE_RATIO * PERCENT
+DEFAULT_MINIMUM_MS = DEFAULT_MINIMUM_CHANGE_SECONDS * MILLISECONDS_PER_SECOND
 
 
 def _milliseconds(seconds: float) -> str:
@@ -203,48 +211,19 @@ def report_lines(
     return lines
 
 
-def parse_arguments(arguments: Sequence[str]) -> argparse.Namespace:
-    """Parse the command line.
-
-    Returns:
-        The options.
-
-    """
-    parser = argparse.ArgumentParser(description=PARSER_DESCRIPTION)
-    parser.add_argument('path', type=Path, help='the recording (.jsonl.gz)')
-    parser.add_argument(
-        '--threshold',
-        type=float,
-        default=DEFAULT_SPEED_CHANGE_RATIO * PERCENT,
-        help='percent a same-work frame must change by to count as slower or faster',
-    )
-    parser.add_argument(
-        '--minimum-ms',
-        type=float,
-        default=DEFAULT_MINIMUM_CHANGE_SECONDS * MILLISECONDS_PER_SECOND,
-        help='milliseconds it must change by too (smaller changes are timer noise)',
-    )
-    parser.add_argument(
-        '--spans',
-        type=int,
-        default=DEFAULT_SPAN_LIMIT,
-        help='how many spans each comparison lists',
-    )
-    return parser.parse_args(arguments)
-
-
-def run(*, arguments: Sequence[str]) -> ExitCode:
-    """Print the report for the recording the command line names.
+def report(*, path: Path, threshold_percent: float, minimum_ms: float, span_limit: int) -> ExitCode:
+    """Print the report for a recording.
 
     Args:
-        arguments: The command line, without the program.
+        path: The recording (named, as given, in the report's first line).
+        threshold_percent: How much a same-work frame's time must change, in percent.
+        minimum_ms: How much it must change in milliseconds too.
+        span_limit: How many spans each comparison lists.
 
     Returns:
         The exit code (see the module docstring).
 
     """
-    options = parse_arguments(arguments)
-    path: Path = options.path
     if not path.is_file():
         sys.stderr.write(f'{path}: no such recording\n')
         return ExitCode.MISSING_INPUT
@@ -256,18 +235,51 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
     lines = report_lines(
         path=path,
         trace=trace,
-        threshold_percent=options.threshold,
-        minimum_ms=options.minimum_ms,
-        span_limit=options.spans,
+        threshold_percent=threshold_percent,
+        minimum_ms=minimum_ms,
+        span_limit=span_limit,
     )
     sys.stdout.write('\n'.join(lines) + '\n')
     return ExitCode.SUCCESS
 
 
-def main() -> None:
-    """Command line: see the module docstring."""
-    sys.exit(run(arguments=sys.argv[1:]))
+def report_on_the_game(*, options: dict[str, Any], game: type[Scene] | Scene) -> ExitCode:
+    """Run ``--report PATH`` on a game (the game takes no part: the recording is read).
+
+    Args:
+        options: The game's parsed options (``report``, ``threshold``, ``minimum_ms``,
+            ``spans``).
+        game: The game (unused).
+
+    Returns:
+        ``report``'s exit code.
+
+    """
+    del game
+    return report(
+        path=Path(options['report']),
+        threshold_percent=options['threshold'],
+        minimum_ms=options['minimum_ms'],
+        span_limit=options['spans'],
+    )
 
 
-if __name__ == '__main__':
-    main()
+def report_command(*, tool: Tool, arguments: argparse.Namespace, game_arguments: list[str]) -> int:
+    """Run ``glitchygames report PATH [--threshold PERCENT] [--minimum-ms MS] [--spans N]``.
+
+    Args:
+        tool: The report tool (unused: the report names no tool).
+        arguments: The subcommand's parsed arguments.
+        game_arguments: Always empty (the tool runs no game).
+
+    Returns:
+        ``report``'s exit code.
+
+    """
+    del tool, game_arguments
+    return report(
+        path=Path(arguments.report),
+        threshold_percent=arguments.threshold,
+        minimum_ms=arguments.minimum_ms,
+        span_limit=arguments.spans,
+    )

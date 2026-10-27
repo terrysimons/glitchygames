@@ -934,6 +934,7 @@ EVERY_KIND_OPTIONS: tuple[tuple[ToolOptionKind, list[str], object, list[str]], .
     ('int', ['--a-int', '-3'], -3, ['--a-int', '-3']),
     ('count', ['--a-count', '4'], 4, ['--a-count', '4']),
     ('percent', ['--a-percent', '2.5'], 2.5, ['--a-percent', '2.5']),
+    ('number', ['--a-number', '-0.5'], -0.5, ['--a-number', '-0.5']),
     ('choice', ['--a-choice', 'two'], 'two', ['--a-choice', 'two']),
     ('flag', ['--a-flag'], True, ['--a-flag']),
     ('switch', ['--a-switch'], True, ['--a-switch']),

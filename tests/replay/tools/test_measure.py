@@ -948,7 +948,8 @@ class TestClearingPublishedRows:
             update={'allowed_uncommitted_changes': True}
         )
         pending.write_text(ledger_text(rows=[clean, trial]), encoding='utf-8')
-        # What a gh-deploy build published (scripts/generate_performance_graphs.py)
+        # What a gh-deploy build published (performance_pages.merged_ledger, through
+        # scripts/generate_performance_graphs.py)
         published = ledger_text(rows=publishable_rows(rows=[clean, trial]))
         clear_published(pending_path=pending, published_text=published)
         assert read_ledger_file(path=pending).rows == (trial,)

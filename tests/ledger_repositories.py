@@ -1,9 +1,10 @@
 """Throwaway git repositories for the ledger tests: one whose origin publishes a ledger.
 
 Moved out of tests/test_replay_metrics.py (Part 3, Stage D, Task D6) when its tests moved to
-tests/replay/tools/test_measure.py, so the tests of other scripts that read a published ledger
-(tests/test_generate_performance_graphs.py, tests/test_import_published_ledger.py) need not
-import an engine test. Nothing here touches this repository's remotes or the network.
+tests/replay/tools/test_measure.py, so the other tests that read a published ledger
+(tests/test_generate_performance_graphs.py, tests/replay/tools/test_performance_pages.py,
+tests/test_import_published_ledger.py) need not import an engine test. Nothing here touches
+this repository's remotes or the network.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from glitchygames.replay.tools.settings import load_project_settings
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 GIT_TIMEOUT_SECONDS = 60.0
 # Where this repository publishes its ledger on its ref ([tool.glitchygames] published-ledger):
-# the scripts that read it (scripts/generate_performance_graphs.py, import_published_ledger.py)
+# what reads it (scripts/generate_performance_graphs.py, import_published_ledger.py)
 # read it there
 _OUR_PUBLISHED_LEDGER_PATH = load_project_settings(project_root=PROJECT_ROOT).published_ledger_path
 assert _OUR_PUBLISHED_LEDGER_PATH is not None, 'this repository publishes its ledger'

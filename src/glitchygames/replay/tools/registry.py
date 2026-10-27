@@ -45,6 +45,17 @@ from glitchygames.replay.tools.measure import (
     unmeasured_command,
     unmeasured_on_the_game,
 )
+from glitchygames.replay.tools.performance_pages import (
+    performance_pages_command,
+    performance_pages_on_the_game,
+)
+from glitchygames.replay.tools.report import (
+    DEFAULT_MINIMUM_MS,
+    DEFAULT_SPAN_LIMIT,
+    DEFAULT_THRESHOLD_PERCENT,
+    report_command,
+    report_on_the_game,
+)
 from glitchygames.replay.tools.traces import (
     record_golden_trace_command,
     record_golden_trace_on_the_game,
@@ -70,15 +81,16 @@ PROJECT_ROOT_FLAG = '--project-root'
 HELP_WIDTH = 80
 
 # How a ToolOption's value is read: a path, several paths, an integer, a count (an integer >= 0),
-# a percentage >= 0, one of its choices, an on flag (store_true), an on/off switch
-# (--x/--no-x), a MODULE:NAME reference, a game (children.GAME_FORMS), games (the option given
-# once per game: --game a --game b), or plain text
+# a percentage >= 0, a number (any float), one of its choices, an on flag (store_true), an on/off
+# switch (--x/--no-x), a MODULE:NAME reference, a game (children.GAME_FORMS), games (the option
+# given once per game: --game a --game b), or plain text
 type ToolOptionKind = Literal[
     'path',
     'paths',
     'int',
     'count',
     'percent',
+    'number',
     'choice',
     'flag',
     'switch',
@@ -99,6 +111,7 @@ KIND_SETTINGS: dict[ToolOptionKind, dict[str, Any]] = {
     'int': {'type': int},
     'count': {'type': non_negative_int},
     'percent': {'type': non_negative_percent},
+    'number': {'type': float},
     'choice': {},
     'flag': {'action': 'store_true'},
     'switch': {'action': argparse.BooleanOptionalAction},
@@ -905,6 +918,30 @@ GAMES_OPTION = ToolOption(
     ),
 )
 
+# report's options (glitchygames/replay/tools/report.py), as scripts/recording_report.py's parser
+# described them: the same types (any number, any integer) and defaults
+THRESHOLD_OPTION = ToolOption(
+    flag='--threshold',
+    kind='number',
+    metavar='PERCENT',
+    help='with --report: percent a same-work frame must change by to count as slower or faster',
+    default=DEFAULT_THRESHOLD_PERCENT,
+)
+MINIMUM_MS_OPTION = ToolOption(
+    flag='--minimum-ms',
+    kind='number',
+    metavar='MS',
+    help=('with --report: milliseconds it must change by too (smaller changes are timer noise)'),
+    default=DEFAULT_MINIMUM_MS,
+)
+SPANS_OPTION = ToolOption(
+    flag='--spans',
+    kind='int',
+    metavar='N',
+    help='with --report: how many spans each comparison lists',
+    default=DEFAULT_SPAN_LIMIT,
+)
+
 TOOLS: tuple[Tool, ...] = (
     Tool(
         name='record-trace',
@@ -1053,5 +1090,34 @@ TOOLS: tuple[Tool, ...] = (
         game_handler=clear_published_on_the_game,
         command_handler=clear_published_command,
         value_kind='flag',
+    ),
+    Tool(
+        name='report',
+        help=(
+            "print a recording's runs (provenance and summary), how the same work's processing "
+            'time changed between adjacent runs, and where its behaviour changed (the frames '
+            f'whose content hash differs); exits {ExitCode.SUCCESS:d}, '
+            f'{ExitCode.MISSING_INPUT:d} for a missing file or {ExitCode.UNUSABLE_INPUT:d} for '
+            'one that is no recording; runs no game (default: off)'
+        ),
+        options=(THRESHOLD_OPTION, MINIMUM_MS_OPTION, SPANS_OPTION),
+        runs_game=False,
+        game_handler=report_on_the_game,
+        command_handler=report_command,
+        value_help='the recording (.jsonl.gz)',
+    ),
+    Tool(
+        name='performance-pages',
+        help=(
+            "write the project's performance pages into DIRECTORY: its run ledger (row files, "
+            'published and pending rows, merged) and one graph page per recording, processing '
+            'and frame times by commit; runs no game (default: off)'
+        ),
+        options=(),
+        runs_game=False,
+        game_handler=performance_pages_on_the_game,
+        command_handler=performance_pages_command,
+        value_metavar='DIRECTORY',
+        value_help='where the pages go (created when missing)',
     ),
 )

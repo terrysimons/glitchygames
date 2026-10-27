@@ -1,8 +1,12 @@
-"""scripts/generate_performance_graphs.py graphs the run ledger for the docs site.
+"""scripts/generate_performance_graphs.py: our docs site's performance pages and their snippet.
 
-Design: plans/2026-10-23-recording-metrics-1-frame-performance-history.md. The published ledger
-comes from a throwaway repository whose ``origin`` has a ``gh-pages`` branch (built as
-tests/ledger_repositories.py builds it); the pending rows are a file in tmp_path.
+Design: plans/2026-10-23-recording-metrics-1-frame-performance-history.md. The pages are the
+engine's (glitchygames/replay/tools/performance_pages.py, tested in
+tests/replay/tools/test_performance_pages.py since Part 3, Stage D, Task D7); what is tested here
+is the script's: the snippet docs/quality/performance.md includes, the settings it is given, and
+the mkdocs hook that runs it. The published ledger comes from a throwaway repository whose
+``origin`` has a ``gh-pages`` branch (tests/ledger_repositories.py); the pending rows are a file
+in tmp_path.
 """
 
 from __future__ import annotations
@@ -16,12 +20,10 @@ from mkdocs.exceptions import PluginError
 from scripts import mkdocs_hooks
 from scripts.generate_performance_graphs import (
     LEDGER_NAME,
-    PLOTLY_JS_URL,
+    PROJECT_SETTINGS,
     SNIPPET_NAME,
     generate_performance_page,
-    graph_page_name,
     published_ledger_path,
-    recording_charts,
 )
 
 from glitchygames.code_tree import staged_code_tree
@@ -32,7 +34,6 @@ from glitchygames.recording_metrics import (
     LedgerRow,
     ledger_text,
     parse_ledger,
-    performance_series,
     write_row_files,
 )
 from glitchygames.replay.tools.settings import ProjectSettings
@@ -127,13 +128,14 @@ def published_and_pending(*, tmp_path: Path) -> tuple[Path, Path, list[LedgerRow
     return clone, pending, [older, live_row(), newer, demo]
 
 
-def test_the_ledgers_merge_into_the_docs_tree_with_a_page_per_recording(tmp_path):
-    """The merged ledger, one graph page per recording and the snippet are written."""
+def test_the_snippet_follows_the_pages_in_the_docs_tree(tmp_path):
+    """The engine's ledger and pages, then the snippet that frames them; nothing again unchanged."""
     clone, pending, rows = published_and_pending(tmp_path=tmp_path)
     metrics = tmp_path / 'docs' / 'quality' / 'metrics'
 
     page = generate_performance_page(
         project_root=clone,
+        settings=PROJECT_SETTINGS,
         metrics_directory=metrics,
         pending_path=pending,
         include_uncommitted_changes=True,
@@ -144,36 +146,21 @@ def test_the_ledgers_merge_into_the_docs_tree_with_a_page_per_recording(tmp_path
     merged = parse_ledger(text=(metrics / LEDGER_NAME).read_text(encoding='utf-8')).rows
     assert {row.key for row in merged} == {row.key for row in rows}
     assert page.graph_pages == ('paddleslap-rally.html', 'paddleslap-golden.html')
-    assert set(page.written) == {LEDGER_NAME, SNIPPET_NAME, *page.graph_pages}
-    golden_page = (metrics / 'paddleslap-golden.html').read_text(encoding='utf-8')
-    assert PLOTLY_JS_URL in golden_page
+    assert page.written == (LEDGER_NAME, *page.graph_pages, SNIPPET_NAME)
     charts = page_charts(path=metrics / 'paddleslap-golden.html')
     assert charts['commits'] == ['abc1234', 'def5678']
-    assert [trace['name'] for trace in charts['frame_time']] == [
-        'Apple M4 Max, paced live run: p50',
-        'Apple M4 Max, paced live run: p99',
-        'Apple M4 Max, paced live run: max',
-    ]
-    p50 = charts['processing'][0]
-    assert (p50['x'], p50['y']) == (['abc1234', 'def5678'], [1.0, 2.0])
-    assert 'uncommitted changes' in p50['customdata'][1]
     snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
     assert 'Generated from 4 ledger rows (0 in the repository, 2 published, 3 pending)' in snippet
     assert '`def5678 (uncommitted changes)`' in snippet
     assert '<iframe src="../metrics/paddleslap-golden.html"' in snippet
     assert f'[{LEDGER_NAME}](metrics/{LEDGER_NAME})' in snippet
-
-    (heatmap,) = charts['heatmaps']
-    assert heatmap['name'] == 'Apple M4 Max, unpaced replay'
-    assert heatmap['y'] == ['abc1234', 'def5678']
-    assert heatmap['x'] == [0, 1, 2, 3]
-    assert heatmap['z'] == [[0.1, 0.2, None, 0.4], [0.15, 0.25, 0.35, 0.45]]
-    assert heatmap['customdata'][0][3] == 'frames 3-3, scene Pause, max 0.400 ms'
-    assert heatmap['customdata'][0][2] == 'frames 2-2, scene Game, not timed'
-    assert 'whether the work changed' in golden_page
+    assert snippet.index('paddleslap/demos/rally.jsonl.gz`') < snippet.index(
+        'replays/golden.jsonl.gz`'
+    )
 
     again = generate_performance_page(
         project_root=clone,
+        settings=PROJECT_SETTINGS,
         metrics_directory=metrics,
         pending_path=pending,
         include_uncommitted_changes=True,
@@ -182,12 +169,13 @@ def test_the_ledgers_merge_into_the_docs_tree_with_a_page_per_recording(tmp_path
 
 
 def test_a_published_build_leaves_out_rows_from_uncommitted_changes(tmp_path):
-    """The merged ledger, the table and every graph lose the trial; the rest is kept."""
+    """The merged ledger and the table lose the trial; the rest is kept."""
     clone, pending, rows = published_and_pending(tmp_path=tmp_path)
     metrics = tmp_path / 'metrics'
 
     page = generate_performance_page(
         project_root=clone,
+        settings=PROJECT_SETTINGS,
         metrics_directory=metrics,
         pending_path=pending,
         include_uncommitted_changes=False,
@@ -197,22 +185,20 @@ def test_a_published_build_leaves_out_rows_from_uncommitted_changes(tmp_path):
     merged = parse_ledger(text=(metrics / LEDGER_NAME).read_text(encoding='utf-8')).rows
     assert not any(row.from_uncommitted_changes for row in merged)
     assert len(merged) == len(rows) - 1
-    charts = page_charts(path=metrics / 'paddleslap-golden.html')
-    assert charts['commits'] == ['abc1234']
-    assert charts['heatmaps'][0]['y'] == ['abc1234']
     snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
     assert 'uncommitted changes' not in snippet
     assert 'Generated from 3 ledger rows' in snippet
 
 
-def test_pages_of_recordings_that_left_the_ledger_are_removed(tmp_path):
-    """A stale graph page is removed; an empty ledger says how to measure."""
+def test_an_empty_ledger_says_how_to_measure(tmp_path):
+    """A stale graph page is removed (the engine's rule), and the snippet says how to measure."""
     metrics = tmp_path / 'metrics'
     metrics.mkdir()
     (metrics / 'gone-golden.html').write_text('old', encoding='utf-8')
 
     page = generate_performance_page(
         project_root=tmp_path,
+        settings=PROJECT_SETTINGS,
         metrics_directory=metrics,
         pending_path=tmp_path / 'none.jsonl',
         include_uncommitted_changes=False,
@@ -222,27 +208,6 @@ def test_pages_of_recordings_that_left_the_ledger_are_removed(tmp_path):
     assert not (metrics / 'gone-golden.html').exists()
     assert 'No measurements yet' in (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
     assert not (metrics / LEDGER_NAME).read_text(encoding='utf-8')
-
-
-def test_a_series_without_a_budget_has_no_over_budget_trace():
-    """Uncapped recordings have no frame budget: nothing to count."""
-    row = ledger_row()
-    assert row.summary is not None
-    uncapped = row.model_copy(
-        update={'summary': row.summary.model_copy(update={'frames_over_budget': None})}
-    )
-    charts = recording_charts(series_list=performance_series(rows=[uncapped], recording_renames={}))
-    assert charts['over_budget'] == []
-    assert charts['frame_time'] == []
-    # Rows without a profile have no heatmap line
-    assert charts['heatmaps'] == []
-
-
-def test_graph_page_names():
-    """The console script and the recording's name, without the suffix."""
-    assert graph_page_name(recording=GOLDEN, console_script='mr-muncher') == (
-        'mr-muncher-golden.html'
-    )
 
 
 @pytest.mark.parametrize(
@@ -320,6 +285,7 @@ def test_a_published_build_shows_the_rows_whose_code_landed(tmp_path):
 
     page = generate_performance_page(
         project_root=clone,
+        settings=PROJECT_SETTINGS,
         metrics_directory=metrics,
         pending_path=tmp_path / 'no-pending.jsonl',
         include_uncommitted_changes=False,
@@ -340,6 +306,7 @@ def test_a_local_build_also_shows_rows_whose_code_has_not_landed(tmp_path):
 
     page = generate_performance_page(
         project_root=clone,
+        settings=PROJECT_SETTINGS,
         metrics_directory=tmp_path / 'metrics',
         pending_path=tmp_path / 'no-pending.jsonl',
         include_uncommitted_changes=True,
@@ -359,3 +326,36 @@ def test_a_project_that_publishes_no_ledger_is_refused_naming_the_setting():
     """The docs pages need a published ledger: without published-ledger, an error, not a crash."""
     with pytest.raises(ValueError, match='published-ledger'):
         published_ledger_path(settings=ProjectSettings())
+
+
+def test_the_settings_given_are_the_ones_read(tmp_path):
+    """Another project's settings: its ledger directory and published path, never ours."""
+    published = ledger_row(commit=OLDER_COMMIT, committed_at=OLDER_COMMITTED_AT)
+    clone = clone_with_published_ledger(
+        tmp_path=tmp_path,
+        ledger=ledger_text(rows=[published]),
+        published_path='elsewhere/ledger.jsonl',
+    )
+    settings = ProjectSettings(
+        published_ledger='origin/gh-pages:elsewhere/ledger.jsonl', ledger_directory='rows'
+    )
+    # Our ledger directory's row files would be read by our settings: not by these
+    write_row_files(rows=[ledger_row()], directory=clone / LEDGER_DIRECTORY)
+
+    theirs = generate_performance_page(
+        project_root=clone,
+        settings=settings,
+        metrics_directory=tmp_path / 'theirs',
+        pending_path=tmp_path / 'no-pending.jsonl',
+        include_uncommitted_changes=True,
+    )
+    ours = generate_performance_page(
+        project_root=clone,
+        settings=PROJECT_SETTINGS,
+        metrics_directory=tmp_path / 'ours',
+        pending_path=tmp_path / 'no-pending.jsonl',
+        include_uncommitted_changes=True,
+    )
+
+    assert (theirs.published_rows, theirs.repository_rows) == (1, 0)
+    assert (ours.published_rows, ours.repository_rows) == (0, 1)

@@ -20,7 +20,7 @@ and kind of run is its own line.
   stretch of the recording (about 1% of it, start to end) and each row a commit; the colour is
   the slowest frame of that stretch. Hover a cell for its frames, its scene and the time. It
   shows time only: whether the work itself changed (frames whose content hash differs) is what
-  `scripts/recording_report.py` shows. Measurements from before per-frame profiles have no row.
+  `glitchygames report` shows. Measurements from before per-frame profiles have no row.
 
 Hover a point for the commit's date and when it was measured.
 
@@ -52,8 +52,8 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    into the local pending file (`test-results/replay-metrics/pending.jsonl`), which a local build
    shows.
 
-A recording holds its own last ten runs too; `uv run python scripts/recording_report.py PATH`
-prints them, which frames got slower or faster between runs (only frames that did the same
+A recording holds its own last ten runs too; `uv run glitchygames report PATH` (or
+`<game> --report PATH`) prints them, which frames got slower or faster between runs (only frames that did the same
 work, by their content hash), and where behaviour changed (the frames whose content hash
 differs, with both runs' commits). Design:
 `plans/2026-10-23-recording-metrics.md` (Parts 1 and 2).

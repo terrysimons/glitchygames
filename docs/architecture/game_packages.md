@@ -330,7 +330,7 @@ tests and its borrowing tests (`--cov=<package> --cov-fail-under=0`) shows its c
 
 The golden replay is not re-recorded: its bytes are unchanged, and it replays strictly from its
 new place. Its first frame records the scene's module, so its content hash changes:
-`scripts/recording_report.py` shows that this is the only difference.
+`glitchygames report` shows that this is the only difference.
 
 ### 9. Commit
 

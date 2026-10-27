@@ -1,16 +1,23 @@
-"""scripts/recording_report.py reports a recording's runs, speed changes and behaviour changes.
+"""The ``report`` tool (replay/tools/report.py): a recording's runs, speed and behaviour changes.
 
-Design: plans/2026-10-23-recording-metrics-2-behaviour-change-map.md. The real recording is a
+Moved from tests/test_recording_report.py with scripts/recording_report.py (Part 3, Stage D, Task
+D7). Design: plans/2026-10-23-recording-metrics-2-behaviour-change-map.md. The real recording is a
 stand-in game's (tests/stand_in_games.py) live recording rebaselined twice through its console
 script (two runs stacked on the run it already holds), so its runs are all of the same work; the
-behaviour change is a hand-built recording written with the trace writer.
+behaviour change is a hand-built recording written with the trace writer. Each front end is
+tested: the ``glitchygames report`` command, and ``--report`` on a game in this process, with a
+scene that must never be built (and on the stand-in game in a child, in
+tests/replay/tools/test_performance_pages.py: both tools as a flag and a command).
 """
 
 from __future__ import annotations
 
+import argparse
+import sys
 from typing import TYPE_CHECKING, Any
 
-from scripts.recording_report import report_lines, run
+import pygame
+import pytest
 
 from glitchygames.build_info import source_revision
 from glitchygames.exit_codes import ExitCode
@@ -20,9 +27,14 @@ from glitchygames.recording_history import (
     MEASUREMENT_RUNS_HEADER_FIELD,
     PROCESSING_SECONDS_FIELD,
     MeasurementRun,
+    RunSummary,
 )
 from glitchygames.recording_metrics import SHORT_COMMIT_DIGITS
+from glitchygames.replay.tools import command
 from glitchygames.replay.tools.children import rebaseline_recording_headless
+from glitchygames.replay.tools.registry import add_game_flags, build_command_parser, tool_named
+from glitchygames.replay.tools.report import describe_run, describe_summary, report_lines
+from glitchygames.scenes import Scene
 from glitchygames.tracing import FRAMES_FIELD, read_trace, write_trace
 from tests.stand_in_games import (
     StandInGame,
@@ -34,6 +46,33 @@ from tests.stand_in_games import (
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+class GameThatIsNeverBuilt(Scene):
+    """A game for the in-process engine test: its scene must never be built for ``--report``."""
+
+    NAME = 'GameThatIsNeverBuilt'
+    VERSION = '1.0'
+
+    def __init__(self, options=None, groups=None) -> None:
+        """Fail at once: reporting reads the recording, never this scene.
+
+        Raises:
+            AssertionError: Always.
+
+        """
+        message = '--report built the scene'
+        raise AssertionError(message)
+
+
+def report_through_the_command(*, arguments: list[str]) -> int:
+    """Run ``glitchygames report`` in this process.
+
+    Returns:
+        Its exit status.
+
+    """
+    return command.main(['report', *arguments])
 
 
 def rebaselined_twice(*, game: StandInGame, recording: Path, tmp_path: Path) -> Path:
@@ -73,7 +112,7 @@ def test_a_real_recording_reports_every_run_and_no_behaviour_change(tmp_path, ca
     )
     path = rebaselined_twice(game=game, recording=recording, tmp_path=tmp_path)
 
-    assert run(arguments=[str(path)]) == ExitCode.SUCCESS
+    assert report_through_the_command(arguments=[str(path)]) == ExitCode.SUCCESS
 
     output = capsys.readouterr().out
     frame_count = len(read_trace(path=path)[FRAMES_FIELD])
@@ -141,9 +180,9 @@ def test_a_changed_run_shows_its_spans_and_its_slower_frames(tmp_path, capsys):
     path = tmp_path / 'changed.jsonl.gz'
     hand_built_recording(path=path)
 
-    assert run(arguments=[str(path), '--threshold', '50', '--minimum-ms', '0.5']) == (
-        ExitCode.SUCCESS
-    )
+    assert report_through_the_command(
+        arguments=[str(path), '--threshold', '50', '--minimum-ms', '0.5']
+    ) == (ExitCode.SUCCESS)
 
     output = capsys.readouterr().out
     assert (
@@ -169,10 +208,115 @@ def test_the_span_limit_condenses_long_lists(tmp_path):
 
 def test_a_missing_file_and_a_file_that_is_not_a_recording(tmp_path, capsys):
     """Each exits with its own code and says why on standard error."""
-    assert run(arguments=[str(tmp_path / 'missing.jsonl.gz')]) == ExitCode.MISSING_INPUT
+    assert (
+        report_through_the_command(arguments=[str(tmp_path / 'missing.jsonl.gz')])
+        == ExitCode.MISSING_INPUT
+    )
     not_a_recording = tmp_path / 'not.jsonl.gz'
     not_a_recording.write_text('hello', encoding='utf-8')
-    assert run(arguments=[str(not_a_recording)]) == ExitCode.UNUSABLE_INPUT
+    assert report_through_the_command(arguments=[str(not_a_recording)]) == ExitCode.UNUSABLE_INPUT
     errors = capsys.readouterr().err
     assert 'missing.jsonl.gz: no such recording' in errors
     assert 'not a gzip trace' in errors
+
+
+def test_report_never_builds_the_game(mocker, tmp_path, capsys):
+    """``--report`` on a game runs while the engine is built: no pygame, no scene, SUCCESS.
+
+    The scene's constructor raises, so building it would fail the run; the report is printed
+    instead, the same report the command prints.
+    """
+    from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
+
+    path = tmp_path / 'changed.jsonl.gz'
+    hand_built_recording(path=path)
+    assert report_through_the_command(arguments=[str(path), '--spans', '0']) == ExitCode.SUCCESS
+    command_output = capsys.readouterr().out
+    pygame_started = mocker.spy(pygame, 'init')
+    mocker.patch.object(sys, 'argv', ['the-game', '--report', str(path), '--spans', '0'])
+
+    with pytest.raises(SystemExit) as exit_information:
+        GoldenTraceEngine(game=GameThatIsNeverBuilt)
+
+    assert exit_information.value.code == ExitCode.SUCCESS
+    pygame_started.assert_not_called()
+    assert capsys.readouterr().out == command_output
+    assert '    ... and 1 more span' in command_output
+
+
+def test_the_game_flag_reports_a_missing_or_unreadable_recording(mocker, tmp_path, capsys):
+    """``--report`` exits with the command's codes for a missing file and one that is no trace."""
+    from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
+
+    not_a_recording = tmp_path / 'not.jsonl.gz'
+    not_a_recording.write_text('hello', encoding='utf-8')
+    exit_codes = []
+    for path in (tmp_path / 'missing.jsonl.gz', not_a_recording):
+        mocker.patch.object(sys, 'argv', ['the-game', '--report', str(path)])
+        with pytest.raises(SystemExit) as exit_information:
+            GoldenTraceEngine(game=GameThatIsNeverBuilt)
+        exit_codes.append(exit_information.value.code)
+
+    assert exit_codes == [ExitCode.MISSING_INPUT, ExitCode.UNUSABLE_INPUT]
+    errors = capsys.readouterr().err
+    assert 'missing.jsonl.gz: no such recording' in errors
+    assert 'not a gzip trace' in errors
+
+
+def test_the_reports_options_read_as_the_scripts_did():
+    """The defaults and types scripts/recording_report.py's parser had, on both front ends.
+
+    Any number for the two thresholds and any integer for the span limit, as its ``float`` and
+    ``int`` types took them (a negative value included), so a command line that worked still does.
+    """
+    game = argparse.ArgumentParser()
+    add_game_flags(parser=game, tools=(tool_named(name='report'),))
+    command_parser = build_command_parser()
+
+    defaults = command_parser.parse_args(['report', 'run.jsonl.gz'])
+    given = command_parser.parse_args([
+        'report',
+        'run.jsonl.gz',
+        '--threshold',
+        '-5',
+        '--minimum-ms',
+        '0.05',
+        '--spans',
+        '-1',
+    ])
+    on_the_game = vars(game.parse_args(['--report', 'run.jsonl.gz', '--threshold', '7.5']))
+
+    assert (defaults.threshold, defaults.minimum_ms, defaults.spans) == (25.0, 0.2, 20)
+    assert (given.threshold, given.minimum_ms, given.spans) == (-5.0, 0.05, -1)
+    assert (on_the_game['threshold'], on_the_game['minimum_ms'], on_the_game['spans']) == (
+        7.5,
+        0.2,
+        20,
+    )
+
+
+def test_an_unreadable_run_and_a_run_without_times_are_said_so():
+    """A header entry that can't be read, and a run that measured no processing times."""
+    assert describe_run(run_index=2, run=None) == 'run 2: unreadable'
+    assert describe_summary(summary=None) == 'no processing times'
+
+
+def test_a_summary_without_a_budget_or_frame_times_stops_at_its_worst_frame():
+    """An uncapped replay's run: no budget to count against, no live frame times."""
+    summary = RunSummary(
+        measured_frames=3,
+        total_processing_seconds=0.003,
+        p50_processing_seconds=0.001,
+        p95_processing_seconds=0.001,
+        p99_processing_seconds=0.001,
+        max_processing_seconds=0.001,
+        worst_frame=0,
+        worst_frame_scene=None,
+        budget_seconds=None,
+        frames_over_budget=None,
+        frame_time=None,
+    )
+
+    assert describe_summary(summary=summary) == (
+        '3 frames, processing p50 1.000 ms, p95 1.000 ms, p99 1.000 ms, max 1.000 ms (frame 0)'
+    )

@@ -511,6 +511,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   [--code-tree TREE] [--rows-directory DIR] [--pending PATH] [--game GAME ...]`,
   `glitchygames unmeasured [--code-tree TREE] [--rows-directory DIR] [--pending PATH] [--game GAME
   ...]`, `glitchygames clear-published [--pending PATH]`,
+  `glitchygames report PATH [--threshold PERCENT] [--minimum-ms MS] [--spans N]`,
+  `glitchygames performance-pages DIRECTORY`, each with
   `--project-root DIR`; arguments after a bare `--` go to the game). `--game` is the one
   command-only option (`COMMAND_ONLY_FLAGS` in `tests/replay/tools/test_registry.py`): a game needs
   none, it is the game. `verify` (`verify.py`) replays each recording headless in a child (no
@@ -550,6 +552,15 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   the pending rows the published ledger holds. A pending ledger under `.glitchygames/` is made
   through `settings.ensure_local_directory`; settings come from the project found, never from a
   module-level read of ours.
+  `report` (`replay/tools/report.py`, Stage D Task D7, moved whole from the deleted
+  scripts/recording_report.py; output byte-identical) prints a recording's runs, speed changes
+  and behaviour-change map. `performance-pages DIRECTORY` (`replay/tools/performance_pages.py`,
+  D7: the rendering half of scripts/generate_performance_graphs.py and its source merge) writes a
+  local build of the project's ledger and graph pages (`merged_ledger`: row files landed by git,
+  published and pending rows, from the settings given; `write_performance_pages`). Neither runs
+  the game; on the game both run from `__init__` (never built). Our docs build reaches it through
+  `scripts/mkdocs_hooks.py` -> `scripts/generate_performance_graphs.py` (our docs paths and the
+  `performance_graphs.md` snippet only; it passes our settings) -> the engine.
   An option may be listed under several tools but is one game flag (`--headless` and
   `--random-seed`: every tool that runs the game; `--input-script` and `--frame-count`:
   record-golden-trace and record-session). `--random-seed` (the user's rule, 2026-10-26)
@@ -849,7 +860,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   landed (`landed_code_trees`: the tree of each commit that added rows, i.e. main's squash
   merge; `landed_rows`), labelled with that commit, then merges gh-pages' ledger and local
   pending rows (`nox -s replay-metrics`: `glitchygames measure`) and graphs them
-  (`scripts/generate_performance_graphs.py`, docs/quality/performance.md); CircleCI's
+  (the engine's `performance-pages`, through `scripts/generate_performance_graphs.py`,
+  docs/quality/performance.md); CircleCI's
   `deploy-docs` publishes after each merge (`nox -s docs-deploy` refuses unless HEAD is on
   origin/main). A branch updated from main is measured by its next commit, or by hand: `uv run
   python -m scripts.measure_staged_replays`, then commit what it stages Each measured row carries a `FrameProfile` (about 100 buckets of the run's slowest frame
@@ -858,9 +870,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   uncommitted changes (`LedgerRow.from_uncommitted_changes`, e.g. `--allow-dirty`) are left out
   of a published build (the hook's `on_startup` sees `gh-deploy`; no startup event counts as
   published) and shown, labelled, in a local `mkdocs build`/`serve`; they stay in the pending
-  file after a deploy (`clear-published` removes only rows gh-pages holds). `uv run python
-  scripts/recording_report.py PATH` prints a recording's runs, speed changes and
-  behaviour-change map
+  file after a deploy (`clear-published` removes only rows gh-pages holds). `uv run glitchygames
+  report PATH` prints a recording's runs, speed changes and behaviour-change map
 - Bookmarks (watched replay): B bookmarks the frame shown, S saves `x.bookmarked.jsonl.gz`
   (header `bookmarked_copy_of`; only such a file is updated in place) with a
   `{"kind": "breakpoint", "label": "bookmark"}` control event in frame N - 1 per bookmark N; a

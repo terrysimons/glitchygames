@@ -1,6 +1,6 @@
-"""PaddleSlap's own recording history, as scripts/recording_report.py reports it.
+"""PaddleSlap's own recording history, as the engine's ``glitchygames report`` reports it.
 
-Split from the engine's tests (tests/test_recording_report.py, whose end-to-end test of the
+Split from the engine's tests (tests/replay/tools/test_report.py, whose end-to-end test of the
 report stays there). PaddleSlap's golden predates the game's move out of
 ``glitchygames.examples``, so its frame-0 scene start names the old module; a rebaseline names
 the new one, both under the logical name ``games.paddleslap:Game``. The report shows that as the
@@ -13,9 +13,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.recording_report import run
-
 from glitchygames.exit_codes import ExitCode
+from glitchygames.replay.tools import command
 from glitchygames.replay.tools.children import rebaseline_recording_headless
 from glitchygames.replay.tools.settings import load_project_settings
 from glitchygames.tracing import FRAMES_FIELD, read_trace
@@ -45,7 +44,7 @@ def test_a_rebaseline_shows_the_games_move_as_a_frame_0_behaviour_change(tmp_pat
     )
     assert completed.returncode == ExitCode.SUCCESS, completed.stdout
 
-    assert run(arguments=[str(rebaselined)]) == ExitCode.SUCCESS
+    assert command.main(['report', str(rebaselined)]) == ExitCode.SUCCESS
 
     output = capsys.readouterr().out
     # The first of the new runs differs from the golden's newest run in frame 0 only: a scene

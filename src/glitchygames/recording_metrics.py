@@ -1,8 +1,8 @@
 """Metrics from recordings' histories: speed changes, behaviour changes and the run ledger.
 
-A leaf beside glitchygames/recording_history.py (no engine imports), shared by
-scripts/recording_report.py, glitchygames/replay/tools/measure.py and the docs site's performance
-graphs (scripts/generate_performance_graphs.py). Designs:
+A leaf beside glitchygames/recording_history.py (no engine imports), shared by the engine's
+tools: glitchygames/replay/tools/report.py, measure.py and performance_pages.py (the docs site's
+performance graphs, through scripts/generate_performance_graphs.py). Designs:
 plans/2026-10-23-recording-metrics-1-frame-performance-history.md (Part 1) and
 plans/2026-10-23-recording-metrics-2-behaviour-change-map.md (Part 2).
 
