@@ -17,16 +17,20 @@ from scripts.gen_ref_pages import reference_page_path
 from scripts.workspace_packages import WorkspaceMember, workspace_members
 
 from glitchygames import logical_names
-from tests.ast_scanning import import_bindings, scanned_source_files
+from tests.ast_scanning import (
+    import_bindings,
+    member_import_packages,
+    member_imports,
+    scanned_source_files,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Bitmappy's package when it was in the engine (it is the member src/apps/bitmappy now)
 BITMAPPY_PACKAGE = 'glitchygames.bitmappy'
-# Bitmappy's package since it became a workspace member (src/apps/bitmappy)
-BITMAPPY_MEMBER_PACKAGE = 'bitmappy'
-# The sprite library's path inside the engine, which Bitmappy owns
+# The sprite library's path when it was in the engine, which Bitmappy owns
 BITMAPPY_SPRITE_PATH_SEGMENTS = "'examples', 'resources', 'sprites'"
 MEMBERS = workspace_members(project_root=PROJECT_ROOT)
 # Each pattern matches a whole string literal first, so a // or ,] inside a string is data
@@ -322,30 +326,114 @@ def test_the_real_pyright_configuration_parses():
     ]
 
 
-def absolute_imported_module_names(*, tree: ast.Module) -> list[str]:
-    """List the modules a module imports absolutely, in walk order (relative imports left out).
+def engine_files_importing_a_member(
+    *, project_root: Path, members: Sequence[WorkspaceMember]
+) -> list[str]:
+    """List every import of a workspace member by the engine's source (decision 10).
+
+    The engine is installed without its games, demos and apps, so it never imports one: a member
+    depends on the engine, never the reverse. Every import counts, at any level, and so does a
+    string load with a literal name (``importlib.import_module('paddleslap')``).
 
     Args:
-        tree: The parsed module.
+        project_root: The repository.
+        members: The workspace's members.
 
     Returns:
-        Each ``import`` alias's module and each absolute ``from ... import``'s module.
+        ``<file>:<line>: <import>`` for each, in scan order (files relative to the engine).
 
     """
-    module_names: list[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            module_names.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module is not None:
-            module_names.append(node.module)
-    return module_names
+    member_packages = member_import_packages(members=members)
+    offences: list[str] = []
+    for key, source_path in scanned_source_files(project_root=project_root):
+        # Keys under src/ are workspace members; the engine's are relative to its package
+        if key.startswith('src/'):
+            continue
+        tree = ast.parse(source_path.read_text(encoding='utf-8'))
+        offences.extend(
+            f'{key}:{found.line}: {found.describe()}'
+            for found in member_imports(tree=tree, member_packages=member_packages)
+        )
+    return offences
 
 
-def engine_files_pointing_into_bitmappy(*, project_root: Path) -> list[str]:
-    """List the engine files (outside bitmappy/) that import Bitmappy or name its sprite path.
+def test_the_engine_imports_no_member():
+    """No engine file imports a game, demo or app."""
+    assert engine_files_importing_a_member(project_root=PROJECT_ROOT, members=MEMBERS) == []
 
-    Bitmappy is imported as ``glitchygames.bitmappy`` (where it was) or as the member's own
-    top-level ``bitmappy`` (where it is): both are offences.
+
+def write_engine_module(*, project_root: Path, source: str) -> list[WorkspaceMember]:
+    """Write a repository whose engine holds one module and whose one member is space-game.
+
+    Args:
+        project_root: The repository.
+        source: The engine module's source (``src/glitchygames/outside.py``).
+
+    Returns:
+        Bitmappy (as it is) and the synthetic second member, src/games/space-game.
+
+    """
+    engine_directory = project_root / 'src' / 'glitchygames'
+    engine_directory.mkdir(parents=True)
+    (engine_directory / 'outside.py').write_text(source, encoding='utf-8')
+    member_directory = project_root / 'src' / 'games' / 'space-game'
+    (member_directory / 'src' / 'space_game').mkdir(parents=True)
+    (member_directory / 'src' / 'space_game' / 'ships.py').write_text(
+        'import bitmappy\n', encoding='utf-8'
+    )
+    (member_directory / 'pyproject.toml').write_text(
+        '[project]\nname = "space-game"\n\n'
+        '[tool.hatch.build.targets.wheel]\npackages = ["src/space_game"]\n',
+        encoding='utf-8',
+    )
+    (project_root / 'pyproject.toml').write_text(
+        '[tool.uv.workspace]\nmembers = ["src/games/space-game"]\n', encoding='utf-8'
+    )
+    bitmappy = next(member for member in MEMBERS if member.distribution == 'bitmappy')
+    return [bitmappy, *workspace_members(project_root=project_root)]
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected_offences'),
+    [
+        ('import bitmappy\n', ['outside.py:1: import bitmappy']),
+        ('import bitmappy.utils\n', ['outside.py:1: import bitmappy.utils']),
+        ('from bitmappy import main\n', ['outside.py:1: from bitmappy import main']),
+        (
+            'from bitmappy.editor import BitmapEditorScene as Editor\n',
+            ['outside.py:1: from bitmappy.editor import BitmapEditorScene'],
+        ),
+        ('import space_game\n', ['outside.py:1: import space_game']),
+        (
+            'def load():\n    from space_game.ships import Ship\n    return Ship\n',
+            ['outside.py:2: from space_game.ships import Ship'],
+        ),
+        (
+            "import importlib\n\nGAME = importlib.import_module('space_game.ships')\n",
+            ['outside.py:3: import space_game.ships'],
+        ),
+        ("SHIPS = __import__('space_game')\n", ['outside.py:1: import space_game']),
+        ('from . import space_game\nimport glitchygames.sprites\n', []),
+    ],
+)
+def test_the_guard_finds_each_way_the_engine_imports_a_member(tmp_path, source, expected_offences):
+    """Each spelling of an import of either member is reported; the members' own are not.
+
+    The synthetic member's own module imports Bitmappy, which is the member's business.
+    """
+    members = write_engine_module(project_root=tmp_path, source=source)
+
+    assert (
+        engine_files_importing_a_member(project_root=tmp_path, members=members) == expected_offences
+    )
+
+
+def engine_files_pointing_at_bitmappys_old_places(*, project_root: Path) -> list[str]:
+    """List the engine files that name where Bitmappy was in the engine.
+
+    Bitmappy was the engine's ``glitchygames.bitmappy``, and its sprite library was the engine's
+    ``examples/resources/sprites``. Both are its member's now (src/apps/bitmappy); importing the
+    old package, or naming the old path, points the engine back into it.
 
     Args:
         project_root: The repository.
@@ -358,7 +446,7 @@ def engine_files_pointing_into_bitmappy(*, project_root: Path) -> list[str]:
     offences: list[str] = []
     for key, source_path in scanned_source_files(project_root=project_root):
         # Keys under src/ are workspace members; the engine's are relative to its package
-        if key.startswith(('src/', 'bitmappy/')):
+        if key.startswith('src/'):
             continue
         source = source_path.read_text(encoding='utf-8')
         tree = ast.parse(source)
@@ -376,20 +464,14 @@ def engine_files_pointing_into_bitmappy(*, project_root: Path) -> list[str]:
             for alias in node.names
             if alias.name.startswith(BITMAPPY_PACKAGE)
         )
-        # The member's package, in any spelling (`from bitmappy.editor import ...` too)
-        offences.extend(
-            f'{key}: imports {module_name}'
-            for module_name in absolute_imported_module_names(tree=tree)
-            if module_name.split('.')[0] == BITMAPPY_MEMBER_PACKAGE
-        )
         if BITMAPPY_SPRITE_PATH_SEGMENTS in source:
             offences.append(f'{key}: names the sprite path {BITMAPPY_SPRITE_PATH_SEGMENTS}')
     return offences
 
 
-def test_the_engine_outside_bitmappy_points_nowhere_into_it():
-    """No engine file outside bitmappy/ imports Bitmappy or names its sprite library's path."""
-    assert engine_files_pointing_into_bitmappy(project_root=PROJECT_ROOT) == []
+def test_the_engine_points_nowhere_bitmappy_was():
+    """No engine file imports glitchygames.bitmappy or names Bitmappy's old sprite path."""
+    assert engine_files_pointing_at_bitmappys_old_places(project_root=PROJECT_ROOT) == []
 
 
 @pytest.mark.parametrize(
@@ -401,30 +483,17 @@ def test_the_engine_outside_bitmappy_points_nowhere_into_it():
         ),
         ('from glitchygames import bitmappy\n', 'imports glitchygames.bitmappy'),
         ('import glitchygames.bitmappy.utils\n', 'imports glitchygames.bitmappy.utils'),
-        ('import bitmappy\n', 'imports bitmappy'),
-        ('import bitmappy.utils\n', 'imports bitmappy.utils'),
-        ('from bitmappy import main\n', 'imports bitmappy'),
-        ('from bitmappy.editor import BitmapEditorScene\n', 'imports bitmappy.editor'),
         (
             "PATH = ('examples', 'resources', 'sprites')\n",
             "names the sprite path 'examples', 'resources', 'sprites'",
         ),
     ],
 )
-def test_the_guard_finds_each_way_to_point_into_bitmappy(tmp_path, source, expected_offence):
-    """The guard reports an import (each spelling, either package) and the sprite path.
+def test_the_guard_finds_each_way_to_point_where_bitmappy_was(tmp_path, source, expected_offence):
+    """The guard reports an import of the old package (each spelling) and the old sprite path."""
+    write_engine_module(project_root=tmp_path, source=source)
 
-    It spares bitmappy/ (where the package was, inside the engine).
-    """
-    engine_directory = tmp_path / 'src' / 'glitchygames'
-    (engine_directory / 'bitmappy').mkdir(parents=True)
-    (engine_directory / 'bitmappy' / 'inside.py').write_text(source, encoding='utf-8')
-    (engine_directory / 'outside.py').write_text(source, encoding='utf-8')
-    (tmp_path / 'pyproject.toml').write_text(
-        '[tool.uv.workspace]\nmembers = []\n', encoding='utf-8'
-    )
-
-    offences = engine_files_pointing_into_bitmappy(project_root=tmp_path)
+    offences = engine_files_pointing_at_bitmappys_old_places(project_root=tmp_path)
 
     assert len(offences) == 1
     assert offences[0].startswith('outside.py: ')

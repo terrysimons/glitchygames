@@ -1067,8 +1067,19 @@ Features:
   edit `sys.path`: `tests/test_suite_collection.py` fails on any `sys.path.insert` or
   `sys.path.append` in a test file. A member's tests (`src/<layer>/<member>/tests/`, no
   `__init__.py`) are rootless, so pytest imports each file under its bare name: name every file
-  after its package, which for Bitmappy is `test_bitmappy_*.py` (subdirectories included; the same
-  guard checks it)
+  `test_<distribution with - as _>*.py` (`test_mr_muncher_*.py`, `test_bitmappy_*.py`;
+  subdirectories included; `misnamed_member_test_modules` checks every member). A member's move
+  tests are one file per subject (`_logical_names`, `_install_location`, `_wheel`,
+  `_entry_points`, `_recording_history`)
+- The engine never imports a member, in its source or its tests: `tests/test_workspace_config.py`
+  (`engine_files_importing_a_member`) and `tests/test_suite_collection.py`
+  (`engine_test_imports_of_members`) fail on any import of one, at any level and by a literal
+  `importlib.import_module`/`__import__` string. An engine test that needs a game writes a
+  stand-in. The only exemptions (`MEMBER_IMPORT_EXEMPT_MODULES`, `MEMBER_IMPORT_EXEMPT_NAMES`,
+  each with its reason and date) are the golden-replay control tables
+  (`tests/replay/golden_replay_controls.py`) and the per-game world rules' named imports in
+  `tests/world/test_golden_traces.py`; a stale exemption fails too. The tools in `scripts/` are
+  out of scope
 - `tests/harness.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
   plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`).
 - Real pads never reach tests: `tests/sdl_defaults.py` defaults SDL's macOS joystick drivers off

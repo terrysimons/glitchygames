@@ -13,11 +13,21 @@ import json
 import re
 import tomllib
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from scripts.git_checkout import run_git
+from scripts.workspace_packages import WorkspaceMember, workspace_members
 
-from tests.ast_scanning import import_bindings, qualified_name
+from tests.ast_scanning import (
+    import_bindings,
+    member_import_packages,
+    member_imports,
+    qualified_name,
+)
 from tests.harness import CHECKOUT_ENGINE_DIRECTORY, imported_engine_directory
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 PROJECT_ROOT = Path(__file__).parent.parent
 TESTS_ROOT = PROJECT_ROOT / 'tests'
@@ -725,104 +735,387 @@ def test_an_unclosed_fence_in_one_bug_entry_does_not_hide_the_next(tmp_path):
     ) == ['BUGS.md:10: glitchygames/ui/y.py']
 
 
-def engine_test_imports_of_bitmappy(*, project_root: Path) -> list[str]:
-    """Return every file under the root tests/ that imports Bitmappy, as ``<file>:<line>``.
+MEMBERS = workspace_members(project_root=PROJECT_ROOT)
+# Why the per-game world rules of tests/world/test_golden_traces.py may import these internals
+GOLDEN_TRACE_WORLD_RULES_REASON = (
+    'the per-game world rules (TestWorldRules, the EXPECTED_DIFFERENCES rule helpers and the '
+    "*_OLD_FALL_POSES constants) measure the games' own drawings and players (the user, "
+    '2026-10-26, narrowed by the controller to these names)'
+)
+# The root test modules that may import any member, each with its reason and decision date
+MEMBER_IMPORT_EXEMPT_MODULES: dict[str, str] = {
+    'tests/replay/golden_replay_controls.py': (
+        "the golden replays' per-game control tables, cross-member infrastructure moved here "
+        'unchanged from tests/replay/test_golden_replays.py, which stays guarded (the '
+        'controller, 2026-10-26)'
+    ),
+}
+# The only named imports of a member a root test module may make: (module, imported name) ->
+# reason. Matched by module and name, so an alias (`Player as AdventurerPlayer`) changes nothing.
+MEMBER_IMPORT_EXEMPT_NAMES: dict[str, dict[tuple[str, str], str]] = {
+    'tests/world/test_golden_traces.py': {
+        ('brave_adventurer', 'constants'): GOLDEN_TRACE_WORLD_RULES_REASON,
+        ('brave_adventurer.drawing', 'draw_player'): GOLDEN_TRACE_WORLD_RULES_REASON,
+        ('brave_adventurer.drawing', 'draw_scarab'): GOLDEN_TRACE_WORLD_RULES_REASON,
+        ('brave_adventurer.player', 'Player'): GOLDEN_TRACE_WORLD_RULES_REASON,
+        ('brave_adventurer_core', 'constants'): GOLDEN_TRACE_WORLD_RULES_REASON,
+        ('brave_adventurer_papyrus.player', 'PapyrusPlayer'): GOLDEN_TRACE_WORLD_RULES_REASON,
+        (
+            'brave_adventurer_papyrus.sprite_utils',
+            'apply_transparency_and_scale',
+        ): GOLDEN_TRACE_WORLD_RULES_REASON,
+        ('clockwork_keep.constants', 'PLAYER_HEIGHT'): GOLDEN_TRACE_WORLD_RULES_REASON,
+        ('clockwork_keep.constants', 'PLAYER_WIDTH'): GOLDEN_TRACE_WORLD_RULES_REASON,
+        ('clockwork_keep.drawing', 'draw_tinker'): GOLDEN_TRACE_WORLD_RULES_REASON,
+        ('clockwork_keep.player', 'Tinker'): GOLDEN_TRACE_WORLD_RULES_REASON,
+    },
+}
 
-    Bitmappy is a workspace member (src/apps/bitmappy); its tests live there, so the engine's
-    tests never need it.
 
-    Args:
-        project_root: The repository (its tests/ directory is scanned).
-
-    Returns:
-        ``<file>:<line>`` for each import of a module whose top level is ``bitmappy``, sorted.
-
-    """
-    tests_directory = project_root / 'tests'
-    findings: list[str] = []
-    for python_file in sorted(tests_directory.rglob('*.py')):
-        if '__pycache__' in python_file.parts:
-            continue
-        relative = python_file.relative_to(project_root)
-        module = ast.parse(python_file.read_text(encoding='utf-8'), filename=str(python_file))
-        for node in ast.walk(module):
-            if isinstance(node, ast.ImportFrom) and node.level == 0:
-                imported_names = [node.module or '']
-            elif isinstance(node, ast.Import):
-                imported_names = [alias.name for alias in node.names]
-            else:
-                continue
-            if any(name.split('.')[0] == 'bitmappy' for name in imported_names):
-                findings.append(f'{relative.as_posix()}:{node.lineno}')
-    return findings
-
-
-def test_no_engine_test_imports_bitmappy():
-    """The engine's tests import no Bitmappy module: Bitmappy's tests are in its member."""
-    assert engine_test_imports_of_bitmappy(project_root=PROJECT_ROOT) == []
-
-
-def test_an_engine_test_importing_bitmappy_is_found(tmp_path):
-    """Both spellings of an import of Bitmappy are reported, a relative import is not."""
-    (tmp_path / 'tests' / 'tools').mkdir(parents=True)
-    (tmp_path / 'tests' / 'tools' / 'test_editor.py').write_text(
-        'import bitmappy.editor\nfrom bitmappy import main\nfrom . import bitmappy\n',
-        encoding='utf-8',
-    )
-
-    assert engine_test_imports_of_bitmappy(project_root=tmp_path) == [
-        'tests/tools/test_editor.py:1',
-        'tests/tools/test_editor.py:2',
+def _root_test_modules(*, project_root: Path) -> list[tuple[str, ast.Module]]:
+    """Return each Python file under the root tests/ (no __pycache__), keyed by its path, parsed."""
+    return [
+        (
+            python_file.relative_to(project_root).as_posix(),
+            ast.parse(python_file.read_text(encoding='utf-8'), filename=str(python_file)),
+        )
+        for python_file in sorted((project_root / 'tests').rglob('*.py'))
+        if '__pycache__' not in python_file.parts
     ]
 
 
-BITMAPPY_TESTS_DIRECTORY = PROJECT_ROOT / 'src' / 'apps' / 'bitmappy' / 'tests'
+def engine_test_imports_of_members(
+    *, project_root: Path, members: Sequence[WorkspaceMember]
+) -> list[str]:
+    """Return every import of a member package by a file under the root tests/.
+
+    The engine's tests test the engine: a game, demo or app is tested in its member, and an
+    engine test that needs a game writes a stand-in (decision 7, the user, 2026-10-26). Every
+    file under tests/ is scanned, helpers too, and every import in it, at any level. Only
+    ``MEMBER_IMPORT_EXEMPT_MODULES`` and ``MEMBER_IMPORT_EXEMPT_NAMES`` are exempt.
+
+    The tools in scripts/ are out of scope: they are not tests. ``scripts/record_golden_traces.py``
+    is the one root tests import, and it loads no game when imported (only when a game runs).
+
+    Args:
+        project_root: The repository (its tests/ directory is scanned).
+        members: The workspace's members.
+
+    Returns:
+        ``<file>:<line>: <import>`` for each import that is not exempt, sorted by file and line.
+
+    """
+    member_packages = member_import_packages(members=members)
+    findings: list[str] = []
+    for relative, tree in _root_test_modules(project_root=project_root):
+        if relative in MEMBER_IMPORT_EXEMPT_MODULES:
+            continue
+        exempt_names = MEMBER_IMPORT_EXEMPT_NAMES.get(relative, {})
+        findings.extend(
+            f'{relative}:{found.line}: {found.describe()}'
+            for found in member_imports(tree=tree, member_packages=member_packages)
+            if found.name is None or (found.module, found.name) not in exempt_names
+        )
+    return findings
+
+
+def stale_member_import_exemptions(
+    *, project_root: Path, members: Sequence[WorkspaceMember]
+) -> list[str]:
+    """Return each member-import exemption that no longer applies, so the lists can't rot.
+
+    Args:
+        project_root: The repository.
+        members: The workspace's members.
+
+    Returns:
+        ``<file>: <why the exemption is stale>`` for each, in the lists' order.
+
+    """
+    member_packages = member_import_packages(members=members)
+    stale: list[str] = []
+    for relative in MEMBER_IMPORT_EXEMPT_MODULES:
+        path = project_root / relative
+        if not path.is_file():
+            stale.append(f'{relative}: no such file')
+        elif not member_imports(
+            tree=ast.parse(path.read_text(encoding='utf-8')), member_packages=member_packages
+        ):
+            stale.append(f'{relative}: imports no member')
+    for relative, exempt_names in MEMBER_IMPORT_EXEMPT_NAMES.items():
+        path = project_root / relative
+        if not path.is_file():
+            stale.append(f'{relative}: no such file')
+            continue
+        imported = {
+            (found.module, found.name)
+            for found in member_imports(
+                tree=ast.parse(path.read_text(encoding='utf-8')), member_packages=member_packages
+            )
+        }
+        stale.extend(
+            f'{relative}: no longer imports {name} from {module}'
+            for module, name in exempt_names
+            if (module, name) not in imported
+        )
+    return stale
+
+
+def test_no_engine_test_imports_a_member():
+    """No file under the root tests/ imports a game, demo or app, apart from the exemptions."""
+    assert engine_test_imports_of_members(project_root=PROJECT_ROOT, members=MEMBERS) == []
+
+
+def test_every_member_import_exemption_still_applies():
+    """Each exempt module still imports a member, and each exempt name is still imported."""
+    assert stale_member_import_exemptions(project_root=PROJECT_ROOT, members=MEMBERS) == []
+
+
+def stand_in_member(*, project_root: Path) -> WorkspaceMember:
+    """A second, synthetic member, src/games/space-game with its package space_game.
+
+    Args:
+        project_root: The repository it is in (its directory is not written).
+
+    Returns:
+        The member.
+
+    """
+    return WorkspaceMember(
+        directory=project_root / 'src' / 'games' / 'space-game',
+        distribution='space-game',
+        import_packages=('space_game',),
+        console_scripts=(),
+    )
+
+
+def write_root_test(*, project_root: Path, relative: str, source: str) -> None:
+    """Write a file under a repository's root tests/ (its directories too)."""
+    path = project_root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(source, encoding='utf-8')
+
+
+GOLDEN_TRACES_TEST = 'tests/world/test_golden_traces.py'
+GOLDEN_REPLAY_CONTROLS = 'tests/replay/golden_replay_controls.py'
+
+
+def copy_golden_traces_test(*, project_root: Path, appended: str = '') -> None:
+    """Copy the real tests/world/test_golden_traces.py into a repository, with source appended."""
+    source = (PROJECT_ROOT / GOLDEN_TRACES_TEST).read_text(encoding='utf-8')
+    write_root_test(
+        project_root=project_root, relative=GOLDEN_TRACES_TEST, source=source + appended
+    )
+
+
+def test_a_non_exempt_member_import_in_the_golden_traces_test_is_found(tmp_path):
+    """Only the named imports are exempt in that file: another name from the same module is not."""
+    copy_golden_traces_test(
+        project_root=tmp_path,
+        appended='\nfrom clockwork_keep.player import TinkerController\nimport space_game\n',
+    )
+    line_count = len((tmp_path / GOLDEN_TRACES_TEST).read_text(encoding='utf-8').splitlines())
+    members = [*MEMBERS, stand_in_member(project_root=tmp_path)]
+
+    assert engine_test_imports_of_members(project_root=tmp_path, members=members) == [
+        (
+            f'{GOLDEN_TRACES_TEST}:{line_count - 1}: '
+            'from clockwork_keep.player import TinkerController'
+        ),
+        f'{GOLDEN_TRACES_TEST}:{line_count}: import space_game',
+    ]
+
+
+def test_an_exempt_name_imported_under_an_alias_is_not_found(tmp_path):
+    """An exempt name stays exempt under any alias (``Tinker as KeepTinker``)."""
+    copy_golden_traces_test(
+        project_root=tmp_path,
+        appended=(
+            '\n\ndef rules():\n'
+            '    from clockwork_keep.player import Tinker as KeepTinker\n'
+            '    from brave_adventurer import constants as adventurer_constants\n'
+            '    return KeepTinker, adventurer_constants\n'
+        ),
+    )
+
+    assert engine_test_imports_of_members(project_root=tmp_path, members=MEMBERS) == []
+
+
+def test_a_function_level_member_import_is_found(tmp_path):
+    """An import inside a function counts, and so does an import of the synthetic member."""
+    write_root_test(
+        project_root=tmp_path,
+        relative='tests/test_paddles.py',
+        source=(
+            'def test_paddles():\n'
+            '    from paddleslap import Game\n'
+            '    import space_game.ships\n'
+            '    from . import paddleslap\n'
+            '    return Game, space_game, paddleslap\n'
+        ),
+    )
+    members = [*MEMBERS, stand_in_member(project_root=tmp_path)]
+
+    assert engine_test_imports_of_members(project_root=tmp_path, members=members) == [
+        'tests/test_paddles.py:2: from paddleslap import Game',
+        'tests/test_paddles.py:3: import space_game.ships',
+    ]
+
+
+def test_a_member_loaded_by_its_name_as_a_string_is_found(tmp_path):
+    """``importlib.import_module`` and ``__import__`` of a literal member name count."""
+    write_root_test(
+        project_root=tmp_path,
+        relative='tests/helpers/loading.py',
+        source=(
+            'import importlib\n'
+            'from importlib import import_module as load\n\n'
+            "GAME = importlib.import_module('paddleslap')\n"
+            "SHIPS = load('space_game.ships')\n"
+            "DEMO = __import__('dt_demo')\n"
+            "ENGINE = importlib.import_module('glitchygames')\n"
+            'NAMED = importlib.import_module(GAME.__name__)\n'
+        ),
+    )
+    members = [*MEMBERS, stand_in_member(project_root=tmp_path)]
+
+    assert engine_test_imports_of_members(project_root=tmp_path, members=members) == [
+        'tests/helpers/loading.py:4: import paddleslap',
+        'tests/helpers/loading.py:5: import space_game.ships',
+        'tests/helpers/loading.py:6: import dt_demo',
+    ]
+
+
+def test_a_member_import_in_the_exempt_module_is_not_found(tmp_path):
+    """The golden-replay control tables' module may import any member, at any level."""
+    write_root_test(
+        project_root=tmp_path,
+        relative=GOLDEN_REPLAY_CONTROLS,
+        source='import paddleslap\n\n\ndef tables():\n    import space_game\n',
+    )
+    members = [*MEMBERS, stand_in_member(project_root=tmp_path)]
+
+    assert engine_test_imports_of_members(project_root=tmp_path, members=members) == []
+
+
+def test_a_stale_member_import_exemption_is_found(tmp_path):
+    """A missing exempt module, and an exempt name the file stopped importing, are reported."""
+    write_root_test(
+        project_root=tmp_path,
+        relative=GOLDEN_TRACES_TEST,
+        source=(
+            (PROJECT_ROOT / GOLDEN_TRACES_TEST)
+            .read_text(encoding='utf-8')
+            .replace('from clockwork_keep.drawing import draw_tinker\n', '')
+        ),
+    )
+
+    assert stale_member_import_exemptions(project_root=tmp_path, members=MEMBERS) == [
+        f'{GOLDEN_REPLAY_CONTROLS}: no such file',
+        f'{GOLDEN_TRACES_TEST}: no longer imports draw_tinker from clockwork_keep.drawing',
+    ]
+
+
+def test_an_exempt_module_importing_no_member_is_stale(tmp_path):
+    """The exempt module importing no member, and a missing exempt-names file, are reported."""
+    write_root_test(
+        project_root=tmp_path, relative=GOLDEN_REPLAY_CONTROLS, source='import pygame\n'
+    )
+
+    assert stale_member_import_exemptions(project_root=tmp_path, members=MEMBERS) == [
+        f'{GOLDEN_REPLAY_CONTROLS}: imports no member',
+        f'{GOLDEN_TRACES_TEST}: no such file',
+    ]
+
+
 # Directories of test data, not test modules (a member's golden replays live in fixtures/)
 TEST_DATA_DIRECTORY_NAMES = frozenset({'fixtures', '__pycache__'})
 
 
-def misnamed_bitmappy_test_modules(*, tests_directory: Path) -> list[str]:
-    """Return each module in Bitmappy's tests, at any depth, not named ``test_bitmappy*.py``.
+def misnamed_member_test_modules(*, members: Sequence[WorkspaceMember]) -> list[str]:
+    """Return each module in a member's tests, at any depth, not named for its distribution.
 
-    Rootless tests are imported by their bare file names, so every module is named for Bitmappy.
-    ``conftest.py`` is the one exception; test-data directories (``fixtures``) are not scanned.
+    Rootless tests are imported by their bare file names, so every module is named
+    ``test_<distribution with - as _>*.py`` (``test_mr_muncher*.py``; Brave Adventurer's four
+    packages share ``test_brave_adventurer*.py``). ``conftest.py`` is the one exception;
+    test-data directories (``fixtures``) are not scanned.
 
     Args:
-        tests_directory: Bitmappy's tests directory (src/apps/bitmappy/tests).
+        members: The workspace's members.
 
     Returns:
-        The misnamed modules, relative to the tests directory, sorted.
+        ``<distribution>: tests/<module>`` for each misnamed module, sorted within each member,
+        in the members' order.
 
     """
-    return sorted(
-        python_file.relative_to(tests_directory).as_posix()
-        for python_file in tests_directory.rglob('*.py')
-        if not TEST_DATA_DIRECTORY_NAMES & set(python_file.relative_to(tests_directory).parts)
-        and python_file.name != 'conftest.py'
-        and not fnmatch.fnmatch(python_file.name, 'test_bitmappy*.py')
+    misnamed: list[str] = []
+    for member in members:
+        prefix = f'test_{member.distribution.replace("-", "_")}'
+        misnamed.extend(
+            f'{member.distribution}: tests/{relative}'
+            for relative in sorted(
+                python_file.relative_to(member.tests_directory).as_posix()
+                for python_file in member.tests_directory.rglob('*.py')
+                if not TEST_DATA_DIRECTORY_NAMES
+                & set(python_file.relative_to(member.tests_directory).parts)
+                and python_file.name != 'conftest.py'
+                and not fnmatch.fnmatch(python_file.name, f'{prefix}*.py')
+            )
+        )
+    return misnamed
+
+
+def test_every_members_test_modules_are_named_for_it():
+    """Every module in every member's tests, subdirectories included, is named for the member."""
+    assert misnamed_member_test_modules(members=MEMBERS) == []
+    # Each member's move tests are split by subject, and every member has the logical-names one
+    for member in MEMBERS:
+        logical_names = f'test_{member.distribution.replace("-", "_")}_logical_names.py'
+        assert (member.tests_directory / logical_names).is_file(), member.distribution
+
+
+def test_a_misnamed_member_test_module_in_a_subdirectory_is_found(tmp_path):
+    """Each member's misnamed modules are reported; conftest.py and fixtures/ are not."""
+    bitmappy = WorkspaceMember(
+        directory=tmp_path / 'src' / 'apps' / 'bitmappy',
+        distribution='bitmappy',
+        import_packages=('bitmappy',),
+        console_scripts=(),
     )
-
-
-def test_bitmappys_test_modules_are_named_for_it():
-    """Every module in Bitmappy's tests, subdirectories included, is named test_bitmappy*.py."""
-    assert misnamed_bitmappy_test_modules(tests_directory=BITMAPPY_TESTS_DIRECTORY) == []
-    assert (BITMAPPY_TESTS_DIRECTORY / 'test_bitmappy_logical_names.py').is_file()
-
-
-def test_a_misnamed_bitmappy_test_module_in_a_subdirectory_is_found(tmp_path):
-    """A subdirectory's misnamed module is reported; conftest.py and fixtures/ are not."""
-    (tmp_path / 'canvas' / 'fixtures').mkdir(parents=True)
-    for relative in (
-        'conftest.py',
-        'test_bitmappy_tools.py',
-        'canvas/conftest.py',
-        'canvas/test_bitmappy_canvas.py',
-        'canvas/test_canvas.py',
-        'canvas/fixtures/sprite_data.py',
+    space_game = stand_in_member(project_root=tmp_path)
+    for member, relatives in (
+        (
+            bitmappy,
+            (
+                'conftest.py',
+                'test_bitmappy_tools.py',
+                'canvas/conftest.py',
+                'canvas/test_bitmappy_canvas.py',
+                'canvas/test_canvas.py',
+                'canvas/fixtures/sprite_data.py',
+            ),
+        ),
+        (
+            space_game,
+            (
+                'test_space_game.py',
+                'test_space_game_ships.py',
+                'test_spacegame_orbits.py',
+                'fleet/test_bitmappy_fleet.py',
+                'fixtures/replays/ships.py',
+            ),
+        ),
     ):
-        (tmp_path / relative).write_text('', encoding='utf-8')
+        for relative in relatives:
+            path = member.tests_directory / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('', encoding='utf-8')
 
-    assert misnamed_bitmappy_test_modules(tests_directory=tmp_path) == ['canvas/test_canvas.py']
+    assert misnamed_member_test_modules(members=[bitmappy, space_game]) == [
+        'bitmappy: tests/canvas/test_canvas.py',
+        'space-game: tests/fleet/test_bitmappy_fleet.py',
+        'space-game: tests/test_spacegame_orbits.py',
+    ]
 
 
 SYS_PATH_EDITS = frozenset({'sys.path.insert', 'sys.path.append'})
