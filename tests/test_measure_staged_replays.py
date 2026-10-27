@@ -10,6 +10,7 @@ before the hook was written (plans/2026-10-25-measured-rows-in-the-repository.md
 from __future__ import annotations
 
 import os
+from functools import partial
 from typing import TYPE_CHECKING
 
 import pytest
@@ -17,10 +18,10 @@ from scripts import measure_staged_replays
 from scripts.measure_staged_replays import measure_staged
 from scripts.replay_metrics import metric_recordings, recording_ledger_name
 
-from glitchygames.bundled_demos import bundled_demos
 from glitchygames.code_tree import LEDGER_DIRECTORY, staged_code_tree
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_metrics import read_row_files, write_row_files
+from tests.stand_in_games import write_stand_in_distribution, write_stand_in_package
 from tests.test_code_tree import git, write
 from tests.test_recording_metrics import ledger_row
 
@@ -29,20 +30,57 @@ if TYPE_CHECKING:
 
 # The machine the stand-in rows were measured on (ledger_row's)
 MACHINE = ledger_row().machine
-# The recordings the stand-in measurement measures (the repository holds a file for each): their
-# folders are installed games' console scripts, as replay_metrics.metric_recordings requires
-RECORDING_NAMES = ('paddleslap', 'clockwork-keep')
-# What the hook measures: those, and every installed package's bundled demo
-# (glitchygames.bundled_demos finds them where the packages are installed, not in this
-# stand-in repository)
-MEASURED_RECORDING_COUNT = len(RECORDING_NAMES) + len(bundled_demos())
+# The goldens the stand-in measurement measures (the repository holds a file for each): their
+# folders are stand-in console scripts, installed as replay_metrics.metric_recordings requires
+RECORDING_NAMES = ('stand-in-rally', 'stand-in-tower')
+# The bundled demos it measures: one stand-in package's, whose entry point is stand-in-rally's
+STAND_IN_DEMO_PACKAGES = ('stand_in_rally',)
+STAND_IN_DEMO_NAMES = ('rally.jsonl.gz',)
+# What the hook measures: those goldens and the stand-in's bundled demo, never an installed
+# member's (the hook's own metric_recordings call is given STAND_IN_DEMO_PACKAGES)
+MEASURED_RECORDING_COUNT = len(RECORDING_NAMES) + len(STAND_IN_DEMO_NAMES)
 # The repository's root project: a workspace without members (metric_recordings reads it)
 ROOT_PYPROJECT = '[project]\nname = "stand-in"\n'
 
 
 @pytest.fixture
-def repository(tmp_path: Path) -> Path:
-    """Return a repository with one commit of engine code.
+def stand_in_games(tmp_path_factory, monkeypatch, mocker) -> None:
+    """Install the stand-in console scripts and demo package; make the hook measure only them.
+
+    One stand-in distribution holds a console script per golden folder (RECORDING_NAMES); the
+    stand-in package ``stand_in_rally`` bundles a demo and holds stand-in-rally's entry point.
+    The hook calls ``replay_metrics.metric_recordings`` and ``recording_ledger_name`` with their
+    default demo packages (every workspace member's): those calls are given
+    STAND_IN_DEMO_PACKAGES instead. The demo lies outside the repository, so it is named by its
+    install name, as a built install's is.
+    """
+    installed = tmp_path_factory.mktemp('site-packages')
+    write_stand_in_distribution(
+        directory=installed,
+        distribution='stand-in-games',
+        console_scripts={
+            'stand-in-rally': 'stand_in_rally:main',
+            'stand-in-tower': 'stand_in_tower:main',
+        },
+    )
+    write_stand_in_package(
+        directory=installed, package='stand_in_rally', demo_names=STAND_IN_DEMO_NAMES
+    )
+    monkeypatch.syspath_prepend(installed)
+    for name, function in (
+        ('metric_recordings', metric_recordings),
+        ('recording_ledger_name', recording_ledger_name),
+    ):
+        mocker.patch.object(
+            measure_staged_replays.replay_metrics,
+            name,
+            partial(function, demo_packages=STAND_IN_DEMO_PACKAGES),
+        )
+
+
+@pytest.fixture
+def repository(tmp_path: Path, stand_in_games) -> Path:
+    """Return a repository with one commit of engine code, its goldens' games installed.
 
     Returns:
         Its directory.
@@ -88,8 +126,12 @@ def stand_in_measurement(
             if row.code_tree == tree
         }
         written = 0
-        for _, path in metric_recordings(project_root=repository).replayable:
-            recording = recording_ledger_name(path=path, project_root=repository)
+        for _, path in metric_recordings(
+            project_root=repository, demo_packages=STAND_IN_DEMO_PACKAGES
+        ).replayable:
+            recording = recording_ledger_name(
+                path=path, project_root=repository, demo_packages=STAND_IN_DEMO_PACKAGES
+            )
             if recording in held:
                 continue
             if fail_after is not None and written == fail_after:

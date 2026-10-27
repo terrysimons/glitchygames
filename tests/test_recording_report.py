@@ -1,9 +1,9 @@
 """scripts/recording_report.py reports a recording's runs, speed changes and behaviour changes.
 
-Design: plans/2026-10-23-recording-metrics-2-behaviour-change-map.md. The real recording is the
-PaddleSlap golden replay rebaselined twice through its console script (two runs stacked on the
-runs it already holds), so its two newest runs are of the same work; the behaviour change is a
-hand-built recording written with the trace writer.
+Design: plans/2026-10-23-recording-metrics-2-behaviour-change-map.md. The real recording is a
+stand-in game's (tests/stand_in_games.py) live recording rebaselined twice through its console
+script (two runs stacked on the run it already holds), so its runs are all of the same work; the
+behaviour change is a hand-built recording written with the trace writer.
 """
 
 from __future__ import annotations
@@ -22,62 +22,64 @@ from glitchygames.recording_history import (
 )
 from glitchygames.testing.replays import rebaseline_recording_headless
 from glitchygames.tracing import FRAMES_FIELD, read_trace, write_trace
-from tests.replay.test_replay_plugin import REPO_FIXTURE
+from tests.stand_in_games import (
+    StandInGame,
+    record_stand_in_game,
+    use_stand_in_game,
+    write_stand_in_game,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-def rebaselined_twice(*, tmp_path: Path) -> Path:
-    """Rebaseline the PaddleSlap golden replay, then the result again.
+def rebaselined_twice(*, game: StandInGame, recording: Path, tmp_path: Path) -> Path:
+    """Rebaseline a stand-in game's recording through its console script, then the result again.
 
     Returns:
-        The second rebaseline's recording (the golden's runs plus two).
+        The second rebaseline's recording (the recording's runs plus two).
 
     """
     first = tmp_path / 'first.jsonl.gz'
     second = tmp_path / 'second.jsonl.gz'
-    for source, target in ((REPO_FIXTURE, first), (first, second)):
+    for source, target in ((recording, first), (first, second)):
         completed = rebaseline_recording_headless(
-            console_script='paddleslap', path=source, new_path=target
+            console_script=game.console_script, path=source, new_path=target
         )
         assert completed.returncode == ExitCode.SUCCESS, completed.stdout
     return second
 
 
-def test_a_real_recording_reports_every_run_and_no_behaviour_change(tmp_path, capsys):
-    """Two new runs of the same work: provenance, summaries, no change in behaviour."""
-    path = rebaselined_twice(tmp_path=tmp_path)
-    golden_header = read_trace(path=REPO_FIXTURE)[MEASUREMENT_RUNS_HEADER_FIELD]
-    golden_runs = len(golden_header)
-    golden_rebaselines = sum(
-        1 for golden_run in golden_header if golden_run.get('rebaselined_from')
+def test_a_real_recording_reports_every_run_and_no_behaviour_change(tmp_path, capsys, monkeypatch):
+    """Two new runs of the same work: provenance, summaries, no change in behaviour.
+
+    The stand-in game is seeded and deterministic, so every run of its recording did the same
+    work (no frame-0 history change, unlike a golden recorded before its game moved). Its
+    recording holds one earlier run of its own: a paced live run, which measured frame times.
+    """
+    install_directory = tmp_path / 'site-packages'
+    game = write_stand_in_game(directory=install_directory)
+    use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
+    recording = record_stand_in_game(game=game, path=tmp_path / 'recorded.jsonl.gz')
+    recorded_header = read_trace(path=recording)[MEASUREMENT_RUNS_HEADER_FIELD]
+    recorded_runs = len(recorded_header)
+    recorded_rebaselines = sum(
+        1 for recorded_run in recorded_header if recorded_run.get('rebaselined_from')
     )
-    golden_frames = read_trace(path=REPO_FIXTURE)[FRAMES_FIELD]
-    golden_unchanged_pairs = sum(
-        1
-        for newer_index in range(golden_runs - 1)
-        if all(
-            frame[CONTENT_HASH_FIELD][newer_index] == frame[CONTENT_HASH_FIELD][newer_index + 1]
-            for frame in golden_frames
-        )
-    )
+    path = rebaselined_twice(game=game, recording=recording, tmp_path=tmp_path)
 
     assert run(arguments=[str(path)]) == ExitCode.SUCCESS
 
     output = capsys.readouterr().out
     frame_count = len(read_trace(path=path)[FRAMES_FIELD])
-    assert f'{path}: {frame_count} frames, {golden_runs + 2} runs' in output
-    # The rebaselines know their commit (this checkout); the golden's oldest run predates that
-    assert output.count('rebaselined from') == 2 + golden_rebaselines
-    assert f'run {golden_runs + 1}: commit unknown' in output
+    assert f'{path}: {frame_count} frames, {recorded_runs + 2} runs' in output
+    assert output.count('rebaselined from') == 2 + recorded_rebaselines
     assert 'paced live run' in output
     assert 'frame time p50' in output
     assert 'processing p50' in output
     assert 'Behaviour changes (content hash, adjacent runs):' in output
-    # The two new runs did the same work. How the first of them differs from the golden's newest
-    # run is PaddleSlap's own history, checked in its member's test_paddleslap_recording_history.py
-    assert output.count('no behaviour change in') == 1 + golden_unchanged_pairs
+    # Every adjacent pair of the recording's runs and the two new ones did the same work
+    assert output.count('no behaviour change in') == recorded_runs + 1
     assert 'Processing (same work only' in output
 
 
