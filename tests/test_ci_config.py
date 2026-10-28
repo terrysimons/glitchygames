@@ -342,7 +342,7 @@ class LoggingRecordingSession(RecordingSession):
 
 
 def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monkeypatch):
-    """``nox -s test-linux-ci``: the job's image, 2 GB without swap, 1 CPU, its environment.
+    """``nox -s test-linux-ci``: the job's amd64 image, 2 GB without swap, 1 CPU, its environment.
 
     Read from .circleci/config.yml, so a change to the job changes the session too.
     """
@@ -356,7 +356,9 @@ def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monke
     docker_run = next(command for command in session.commands if command[:2] == ('docker', 'run'))
     python_version = pipeline_parameter_default(name='PYTHON_LATEST_VERSION')
     assert f'cimg/python:{python_version}' in docker_run
-    assert {'--memory=2g', '--memory-swap=2g', '--cpus=1'} <= set(docker_run)
+    assert {'--memory=2g', '--memory-swap=2g', '--cpus=1', '--platform=linux/amd64'} <= set(
+        docker_run
+    )
     environment = {
         docker_run[index + 1] for index, argument in enumerate(docker_run) if argument == '--env'
     }

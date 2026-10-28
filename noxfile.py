@@ -845,6 +845,7 @@ _CIRCLECI_CONFIG = Path('.circleci/config.yml')
 _CIRCLECI_LINUX_JOB = 'build-and-test-linux'
 _CIRCLECI_DOCKER_RESOURCES = {'small': ('2g', '1'), 'medium': ('4g', '2'), 'large': ('8g', '4')}
 _LINUX_CI_RESULTS = Path('test-results/linux-ci')
+_LINUX_CI_PLATFORM = 'linux/amd64'
 _LINUX_CI_UV_CACHE_VOLUME = 'glitchygames-linux-ci-uv-cache'
 _LINUX_CI_UV_CACHE = '/uv-cache'
 _LINUX_CI_PROJECT = '/home/circleci/project'
@@ -995,9 +996,8 @@ def test_linux_ci(session: nox.Session) -> None:
     checkout (the working tree, uncommitted changes included, without .venv, .nox and the
     outputs), installs fontconfig, uv and Python at the job's versions and runs
     ``uvx nox -s test``, as the job does. The test results come back to test-results/linux-ci/
-    (junit.xml). The uv cache is kept in a Docker volume between runs. Docker runs the image
-    for this machine's architecture (arm64 on Apple silicon; CircleCI's is amd64), so resident
-    sizes are close to CI's, not equal.
+    (junit.xml). The uv cache is kept in a Docker volume between runs. The image is amd64, as
+    CircleCI's machines are (the same wheels; emulated on Apple silicon, so slower than CI).
     """
     configuration = _CIRCLECI_CONFIG.read_text(encoding='utf-8')
     image, resource_class, job_environment = _linux_ci_job_settings(configuration=configuration)
@@ -1029,6 +1029,9 @@ def test_linux_ci(session: nox.Session) -> None:
             # The same as --memory: no swap on top of it
             f'--memory-swap={memory}',
             f'--cpus={cpus}',
+            # CircleCI's machines are amd64: the same wheels (taplo has no arm64 Linux wheel, and
+            # building it from source ran out of the 2 GB), emulated on Apple silicon
+            f'--platform={_LINUX_CI_PLATFORM}',
             *(
                 argument
                 for name, value in environment.items()
