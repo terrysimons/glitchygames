@@ -304,3 +304,22 @@ def test_the_wheel_build_builds_every_workspace_package(mocker):
     session.run.assert_called_once_with(
         'uv', 'build', '--all-packages', '--wheel', '--out-dir', 'dist', external=True
     )
+
+
+def test_only_the_linux_job_sets_the_memory_limit():
+    """The Linux job (2 GB, serial) stops a run past 1600 MB, naming the test (memory_guard.py).
+
+    Only there: the macOS and Windows jobs have the memory, and the plugin needs Linux's
+    ``/proc/self/statm`` anyway. The resource class and the worker count stay as they were.
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    linux_job = configuration[
+        configuration.index('\n  build-and-test-linux:\n') : configuration.index(
+            '\n  build-and-test-macos:\n'
+        )
+    ]
+
+    assert configuration.count('GLITCHYGAMES_TEST_RSS_LIMIT_MB') == 1
+    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in linux_job
+    assert '    resource_class: small\n' in linux_job
+    assert '      PYTEST_WORKERS: "0"\n' in linux_job

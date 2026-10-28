@@ -11,9 +11,12 @@ suite needs are declared here; the shared test harness (tests/harness.py) is one
 # tests.driver_comparison runs a local run on the native SDL driver too and compares the
 # frames glitchygames.testing.frame_fingerprints records (it must configure before that plugin
 # reads its variables: its hook is tryfirst)
+# tests.memory_guard stops a run past GLITCHYGAMES_TEST_RSS_LIMIT_MB (the Linux CI job's), naming
+# the test, instead of the kernel's signal 9 (BUGS.md #235); unset, it does nothing
 pytest_plugins = [
     'tests.harness',
     'pytester',
     'tests.driver_comparison',
     'glitchygames.testing.frame_fingerprints',
+    'tests.memory_guard',
 ]
