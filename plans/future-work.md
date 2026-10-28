@@ -635,6 +635,19 @@ only replays; Part 2 Task 1).
     `nox -s ...` directly, so no wrapper process waits on it.
   - It changes the test step of both the Linux and macOS jobs (and the shared commands), so check
     the Windows job and the cache keys too; measure the guard's peak before and after.
+- **Move safety back to 3.8 or later** (found 2026-10-28 by the dependency upgrade on
+  `feature/test-memory-reduction`).
+  - `uv sync --upgrade --all-extras --all-groups --all-packages` resolved safety to 3.2.3
+    (released 2024-06-10), down from 3.8.1 (released 2026-05-29): safety 3.8.1 requires
+    `filelock<4`, and filelock 4.2.4 fixes thirteen CVEs. The owner kept the upgrade
+    (2026-10-28).
+  - The lock forks on it: Python 3.14 (and 3.15 on Windows) gets filelock 4.2.4 with safety
+    3.2.3; Python 3.15 on macOS and Linux still gets filelock 3.32.7 with safety 3.8.1. Nothing
+    runs 3.15 today, and `nox -s lint-cves` audits only 3.14's branch.
+  - Once a safety release allows filelock 4, move safety (`nox -s safety-scan`) back to 3.8 or
+    later and check that the lock no longer forks.
+  - The other option, dropping safety because pip-audit already scans in `nox -s lint`
+    (`lint-cves`), was offered and not chosen.
 - **Stamp each game's build with its own revision** (found 2026-10-26, Part 3 Stage D, Task D3
   review).
   - Since D3, every recorded run names its game's source revision
