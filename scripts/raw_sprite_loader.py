@@ -20,8 +20,9 @@ from glitchygames.pixels import rgb_565_triplet_generator, rgb_triplet_generator
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SPRITE_GLYPHS, Sprite
 
+# Its level is the command line's (--log-level; debug shows this demo's debug lines): never
+# set here, where at import it reached every game.* logger of a process importing it (BUGS.md #236)
 LOG = logging.getLogger('game')
-LOG.setLevel(logging.INFO)
 
 
 class BitmappyLegacySprite(Sprite):

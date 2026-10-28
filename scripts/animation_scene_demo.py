@@ -15,8 +15,6 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.scenes import Scene
 from glitchygames.sprites.animated import AnimatedSprite
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -97,6 +95,8 @@ def main() -> int:
         int: Exit code (0 for success).
 
     """
+    # Configured as the demo starts, never at import (BUGS.md #236)
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     # Initialize pygame
     pygame.init()
 

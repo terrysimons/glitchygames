@@ -19,8 +19,9 @@ from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import Sprite, SpriteFactory
 
+# Its level is the command line's (--log-level; debug shows this demo's debug lines): never
+# set here, where at import it reached every game.* logger of a process importing it (BUGS.md #236)
 log: logging.Logger = logging.getLogger('game')
-log.setLevel(logging.DEBUG)
 
 
 class BitmappySprite(Sprite):
