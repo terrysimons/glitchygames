@@ -17,6 +17,7 @@ import asyncio
 import contextlib
 import dataclasses
 import importlib
+import logging
 import os
 import socket
 import sys
@@ -1312,6 +1313,9 @@ def test_a_stream_cut_off_by_an_error_ends_old_there(color_game, mocker, caplog)
 
     Its child, which nobody reads any more, stops itself promptly.
     """
+    # INFO records: the level is the run's (--log-cli-level, WARNING in CI), never a module's
+    # (BUGS.md #236; this passed in CI only while a script imported at collection set game to INFO)
+    caplog.set_level(logging.INFO)
     onion_skin = OnionSkin(
         old_path=color_game.old,
         alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
@@ -1926,6 +1930,9 @@ def test_live_play_uses_olds_seed_unless_one_is_given(
 
     A recording of it holds the seed played.
     """
+    # INFO records: the level is the run's (--log-cli-level, WARNING in CI), never a module's
+    # (BUGS.md #236; this passed in CI only while a script imported at collection set game to INFO)
+    caplog.set_level(logging.INFO)
     new = tmp_path / 'new.jsonl.gz'
     run = live_play(
         mocker=mocker,

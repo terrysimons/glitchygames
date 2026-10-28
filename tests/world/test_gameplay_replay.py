@@ -1055,6 +1055,10 @@ class TestDivergence:
         self, mocker, tmp_path, caplog, capsys
     ):
         """A replay without --headless logs its report (stdout stays clean) and still exits."""
+        # INFO records: the level is the run's (--log-cli-level, WARNING in CI), never a module's
+        # (BUGS.md #236: it passed in CI only while a script imported at collection set game
+        # to INFO)
+        caplog.set_level(logging.INFO)
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
         shutdown_spy = mocker.spy(GoldenTraceEngine, '_shutdown')
