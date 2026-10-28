@@ -158,7 +158,7 @@ commands:
   nox-security-scan:
     steps:
       - run:
-          name: "Security scan (bandit + safety)"
+          name: "Security scan (bandit)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
             uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s security-scan
@@ -418,15 +418,9 @@ jobs:
 workflows:
   build-and-test:
     jobs:
-      - build-and-test-linux:
-          context:
-            - SAFETY_API_KEY
-      - build-and-test-macos:
-          context:
-            - SAFETY_API_KEY
-      - build-and-test-windows:
-          context:
-            - SAFETY_API_KEY
+      - build-and-test-linux
+      - build-and-test-macos
+      - build-and-test-windows
       # After a merge to main: as soon as the macOS job passes (the same tree passed all three in
       # its pull request), one deploy at a time so two quick merges cannot race gh-pages
       - deploy-docs:

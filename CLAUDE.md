@@ -95,7 +95,7 @@ basedpyright
 ```bash
 # --- Aggregate sessions ---
 nox -s format              # Run ALL formatters (code + TOML)
-nox -s lint                # Run ALL linters (code, docs, YAML, TOML, CI, deps, dead code, CVEs)
+nox -s lint                # Run ALL linters (code, docs, YAML, TOML, CI, deps, dead code)
 
 # --- Individual format sessions ---
 nox -s format-code         # Format Python code (ruff format + import sorting)
@@ -111,7 +111,6 @@ nox -s lint-github-actions # Lint GitHub Actions workflows only
 nox -s lint-toml           # Lint TOML files (taplo)
 nox -s lint-dependencies   # Check dependency issues (deptry)
 nox -s lint-dead-code      # Detect dead code (vulture)
-nox -s lint-cves           # Audit dependencies for known CVEs (pip-audit)
 
 # --- Static type analysis ---
 nox -s static-analysis              # Run ALL type checkers (basedpyright + ty)
@@ -134,9 +133,8 @@ nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/C
 nox -s code-complexity     # wily: the working tree's changes against HEAD (history measured in a temporary worktree, never in yours); `-- --graphs` generates docs/quality/graphs/ (gitignored), `-- --rank` ranks files
 
 # --- Security ---
-nox -s security-scan       # Run ALL security scans (bandit + safety)
+nox -s security-scan       # Run ALL security scans (bandit)
 nox -s bandit-scan         # Run bandit only
-nox -s safety-scan         # Run safety only
 
 # --- Build / Package ---
 nox -s build               # Build binary (PyInstaller) + wheel

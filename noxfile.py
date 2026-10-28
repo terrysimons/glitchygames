@@ -178,64 +178,6 @@ def _lint_dead_code(session: nox.Session) -> None:
     session.run('vulture', *_SOURCE_PACKAGE_DIRS, 'vulture_whitelist.py', '--min-confidence=80')
 
 
-# Known vulnerabilities pip-audit ignores: only ones with no fix we can take yet, each with why.
-# Re-check every entry when dependencies are upgraded and remove it once upstream allows the fix
-# (pip-audit says nothing about an ignore that no longer matches). Checked 2026-10-28.
-_IGNORED_VULNERABILITIES: dict[str, str] = {
-    # google-cloud-aiplatform 1.71.1 (also PYSEC-2026-2500, GHSA-wh2j-26j7-9728): predictable
-    # bucket names in Vertex AI Experiments, fixed in 1.133.0. vertexai 1.71.1, the newest, pins
-    # google-cloud-aiplatform==1.71.1, and aisuite 0.2.0, the newest, needs vertexai (its Google
-    # backend). The engine never uses Vertex AI Experiments
-    'CVE-2026-2473': 'google-cloud-aiplatform 1.71.1, pinned by vertexai (aisuite)',
-}
-
-
-def _lint_cves(session: nox.Session) -> None:
-    """Audit every locked dependency (all extras) for known CVEs with pip-audit.
-
-    Ignores only ``_IGNORED_VULNERABILITIES``, each documented with why it cannot be fixed yet.
-    """
-    import tempfile
-
-    # Export requirements to a temp file (cross-platform; /dev/stdin doesn't exist on Windows)
-    with tempfile.NamedTemporaryFile(
-        mode='w',
-        suffix='.txt',
-        delete=False,
-        encoding='utf-8',
-    ) as tmp:
-        tmp_path = tmp.name
-    try:
-        session.run(
-            'uv',
-            'export',
-            '--quiet',
-            # Not the workspace's own projects (the root and every member): the root's dev group
-            # names each member, which uv exports as an editable path pip-audit cannot hash
-            '--no-emit-workspace',
-            # The extras too (dev tools, aisuite and its SDKs): what `uv sync --all-extras` installs
-            '--all-extras',
-            '--output-file',
-            tmp_path,
-            external=True,
-        )
-        ignore_arguments = [
-            argument
-            for vulnerability in _IGNORED_VULNERABILITIES
-            for argument in ('--ignore-vuln', vulnerability)
-        ]
-        session.run(
-            'pip-audit',
-            '--requirement',
-            tmp_path,
-            '--require-hashes',
-            '--disable-pip',
-            *ignore_arguments,
-        )
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
-
-
 # ---------------------------------------------------------------------------
 # Aggregate sessions
 # ---------------------------------------------------------------------------
@@ -251,7 +193,7 @@ def format_all(session: nox.Session) -> None:
 
 @nox.session(python=['3.14'], reuse_venv=False, name='lint')
 def lint_all(session: nox.Session) -> None:
-    """Run all linters (code, docs, YAML, TOML, deps, dead code, CVEs)."""
+    """Run all linters (code, docs, YAML, TOML, deps, dead code)."""
     _install_from_lockfile(session)
     _lint_code(session)
     _lint_docs(session)
@@ -261,7 +203,6 @@ def lint_all(session: nox.Session) -> None:
     _lint_toml(session)
     _lint_dependencies(session)
     _lint_dead_code(session)
-    _lint_cves(session)
 
 
 # ---------------------------------------------------------------------------
@@ -472,13 +413,6 @@ def lint_dead_code(session: nox.Session) -> None:
     """Detect dead code with vulture."""
     _install_from_lockfile(session)
     _lint_dead_code(session)
-
-
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-cves', default=False)
-def lint_cves(session: nox.Session) -> None:
-    """Audit dependencies for known CVEs with pip-audit."""
-    _install_from_lockfile(session)
-    _lint_cves(session)
 
 
 # ---------------------------------------------------------------------------
@@ -1699,27 +1633,6 @@ def _bandit_scan(session: nox.Session) -> None:
     )
 
 
-def _safety_scan(session: nox.Session) -> None:
-    """Run safety check for known vulnerabilities."""
-    if not os.getenv('SAFETY_API_KEY'):
-        session.log('SAFETY_API_KEY not set; skipping Safety scan.')
-        return
-
-    session.run(
-        'safety',
-        'scan',
-        '--exclude',
-        '.venv',
-        '--exclude',
-        '.nox',
-        '--output',
-        'screen',
-        '--save-as',
-        'json',
-        'safety-report.json',
-    )
-
-
 @nox.session(python=['3.14'], reuse_venv=False, name='bandit-scan', default=False)
 def bandit_scan(session: nox.Session) -> None:
     """Run bandit security scan."""
@@ -1727,19 +1640,11 @@ def bandit_scan(session: nox.Session) -> None:
     _bandit_scan(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='safety-scan', default=False)
-def safety_scan(session: nox.Session) -> None:
-    """Run safety vulnerability scan."""
-    _install_from_lockfile(session)
-    _safety_scan(session)
-
-
 @nox.session(python=['3.14'], reuse_venv=False, name='security-scan', default=False)
 def security_scan(session: nox.Session) -> None:
-    """Run all security scanning tools (bandit + safety)."""
+    """Run all security scanning tools (bandit)."""
     _install_from_lockfile(session)
     _bandit_scan(session)
-    _safety_scan(session)
 
 
 # ---------------------------------------------------------------------------

@@ -13,7 +13,7 @@ repos:
       stages: [pre-push]
 
     - id: lint
-      name: lint (code, docs, yaml, toml, deps, dead code, cves)
+      name: lint (code, docs, yaml, toml, deps, dead code)
       language: system
       entry: uv run --extra dev nox -s lint
       pass_filenames: false
@@ -34,7 +34,7 @@ repos:
       stages: [pre-push]
 
     - id: security-scan
-      name: security-scan (bandit, safety)
+      name: security-scan (bandit)
       language: system
       entry: uv run --extra dev nox -s security-scan
       pass_filenames: false

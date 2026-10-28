@@ -47,7 +47,7 @@ pip install --find-links dist "glitchygames[apps]"     # the engine and Bitmappy
 
 | Extra | Purpose |
 |-------|---------|
-| `dev` | nox, pytest (cov, xdist, mock, benchmark), hypothesis, ruff, basedpyright, ty, bandit, safety, pip-audit, deptry, vulture, wily, pyinstaller |
+| `dev` | nox, pytest (cov, xdist, mock, benchmark), hypothesis, ruff, basedpyright, ty, bandit, deptry, vulture, wily, pyinstaller |
 | `docs` | MkDocs documentation generation |
 
 The sprite API server and client (FastAPI, uvicorn, httpx, apng, pillow) are core dependencies; the `api` extra is empty.
@@ -380,7 +380,7 @@ nox -s test
 # Type checkers (basedpyright + ty)
 nox -s static-analysis
 
-# Security scanning (bandit + safety)
+# Security scanning (bandit)
 nox -s security-scan
 
 # Performance benchmarks

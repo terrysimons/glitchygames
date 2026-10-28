@@ -182,9 +182,8 @@ cython_debug/
 .DS_Store
 site/
 
-# Generated reports (nox -s bandit-scan / safety-scan) and API client output
+# Generated reports (nox -s bandit-scan) and API client output
 bandit-report.json
-safety-report.json
 /auto-generated/
 
 # Rejected or leftover patch files
