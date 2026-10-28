@@ -1120,6 +1120,9 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/test_workspace_config.py': (
         "checks the workspace's configuration (members, extras, docs)"
     ),
+    'tests/test_workspace_sprite_files.py': (
+        "checks every member's sprite files, found from the workspace"
+    ),
     'tests/test_workspace_expectations.py': (
         'checks the hand-written expected sets against a workspace (tests/workspace_goldens.py)'
     ),
