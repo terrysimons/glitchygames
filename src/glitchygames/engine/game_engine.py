@@ -3136,13 +3136,17 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         so the options show at every level, the default WARNING included; it prints on every
         launch and in every engine the test suite starts (plans/future-work.md). The options are
         a replay's as recorded, which ``start_replay`` put in place before the start.
+
+        ``random_seed`` is the seed the run uses (``self.random_seed``: rolled, given, OLD's or
+        the recording's), not the option as given, which is None when the seed was rolled (the
+        owner, 2026-10-28: "The seed should definitely be in the options"); rolled or given is
+        on the INFO line (``_log_the_runs_seed``), hidden at the default WARNING.
         """
         # The game's (the engine's own NAME names no game); the engine's only when no game was
         # given, which _begin_start refuses next
         game_name = getattr(self.game, 'NAME', type(self).NAME)
-        self.log.critical(
-            '%s', startup_options_block(game_name=game_name, options=GameEngine.OPTIONS)
-        )
+        shown_options = {**GameEngine.OPTIONS, 'random_seed': self.random_seed}
+        self.log.critical('%s', startup_options_block(game_name=game_name, options=shown_options))
 
     def _begin_start(self: Self) -> cProfile.Profile | None:
         """Log the start and the options, check there is a game, start the profiler (``--profile``).

@@ -236,8 +236,9 @@ games.
 - Bootstraps command-line arguments for all games
 - Pre-computes `EVENT_HANDLERS` dict for O(1) event dispatch
 - Logging: a game logs at `--log-level warning` by default (the owner, 2026-10-28; the tools'
-  level), so the seed, the exit code and the end-of-run performance reports (INFO) show only
-  with `--log-level info`. Each failure a player sees (exit 70 from a run's or a game flag
+  level), so the exit code, whether the seed was rolled or given, and the end-of-run performance
+  reports (INFO) show only with `--log-level info`; the seed itself is always in the options
+  block below. Each failure a player sees (exit 70 from a run's or a game flag
   tool's crash, a failed teardown, a failed playback) logs `exit_codes.BUG_REPORT_HINT` after
   its traceback ("run the game again with --log-level info and include the output"; not the
   `glitchygames` command's, which has no `--log-level`). Every engine start logs the whole

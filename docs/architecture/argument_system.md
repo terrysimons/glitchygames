@@ -154,9 +154,9 @@ flowchart TD
 ### Logging level and the startup options block
 
 A game logs at WARNING unless `--log-level` says otherwise (the owner, 2026-10-28: games default
-to WARNING, as the replay tools do), so a plain run prints only warnings and worse: the seed a
-run rolled, the exit code it ended with and the end-of-run performance reports are INFO, shown
-with `--log-level info`. Nothing else sets a level (the logger guards: no level set at import).
+to WARNING, as the replay tools do), so a plain run prints only warnings and worse: the exit
+code it ended with, whether its seed was rolled or given, and the end-of-run performance reports
+are INFO, shown with `--log-level info`. Nothing else sets a level (the logger guards: no level set at import).
 Each failure a player sees (a crash, exit 70; a failed teardown; a playback that failed) logs
 one more line after its traceback, `exit_codes.BUG_REPORT_HINT`: "To report this, run the game
 again with --log-level info and include the output." The `glitchygames` command has no
@@ -179,6 +179,8 @@ nested mapping is indented below its name. Path options (the tools' and the engi
 recording's header stores) are shown relative to the project root when inside it and absolute
 otherwise. An option whose name holds key, token, secret, password or credential, in any case,
 shows `<redacted>`. The environment is never read. A replay's options are the recorded run's.
+`random_seed` is the seed the run uses, rolled or given (the owner, 2026-10-28: "The seed should
+definitely be in the options"), never None, so `--random-seed` with it plays the run again.
 
 ## Complete Flag Reference
 

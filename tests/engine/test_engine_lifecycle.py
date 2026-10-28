@@ -1129,3 +1129,28 @@ class TestStartupOptions:
         assert option_shown(record=record, name='api_key') == (
             game_engine_module.REDACTED_OPTION_VALUE
         )
+
+    def test_a_rolled_seed_is_shown_as_the_seed_the_run_uses(self, mocker, caplog):
+        """No --random-seed: the block shows the rolled seed, not None, so the run can be redone.
+
+        The owner, 2026-10-28: "The seed should definitely be in the options".
+        """
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class)
+
+        with caplog.at_level(logging.WARNING):
+            engine.start()
+
+        (record,) = startup_option_records(caplog, game_name=game_class.NAME)
+        assert option_shown(record=record, name='random_seed') == str(engine.random_seed)
+
+    def test_a_given_seed_is_shown(self, mocker, caplog):
+        """--random-seed 5: the block shows 5."""
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class, extra_arguments=('--random-seed', '5'))
+
+        with caplog.at_level(logging.WARNING):
+            engine.start()
+
+        (record,) = startup_option_records(caplog, game_name=game_class.NAME)
+        assert option_shown(record=record, name='random_seed') == '5'
