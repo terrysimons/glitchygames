@@ -78,5 +78,8 @@ def main(arguments: Sequence[str] | None = None, *, tools: Sequence[Tool] | None
             tool.command_handler, tool=tool, arguments=parsed, game_arguments=game_arguments
         ),
         tool_description=tool.flag,
+        # The command has no --log-level (its log is WARNING), so a crash names no way to rerun
+        # it louder: a game's own crash (in a child) names its own
+        report_hint=None,
     )
     return shell_exit_status(returncode=exit_status)

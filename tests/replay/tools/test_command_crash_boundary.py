@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from glitchygames.exit_codes import SIGNAL_EXIT_STATUS_BASE, ExitCode
+from glitchygames.exit_codes import BUG_REPORT_HINT, SIGNAL_EXIT_STATUS_BASE, ExitCode
 from glitchygames.process import start_command
 from glitchygames.replay.tools import command
 from glitchygames.replay.tools.registry import Tool, ToolOption, run_game_flag_tool
@@ -116,6 +116,8 @@ def test_a_tool_that_crashes_exits_internal_error_as_on_the_game(caplog):
     ]
     assert record.exc_info is not None
     assert 'it broke' in caplog.text
+    # The command has no --log-level, so it never tells a player to rerun it with one
+    assert BUG_REPORT_HINT not in caplog.text
 
 
 def test_ctrl_c_in_the_commands_tool_exits_interrupted():

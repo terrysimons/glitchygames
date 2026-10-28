@@ -26,7 +26,7 @@ from glitchygames.events.audio import AudioEventManager
 from glitchygames.events.joystick import JoystickEventManager
 from glitchygames.events.keyboard import KeyboardEventManager
 from glitchygames.events.mouse import MouseEventManager
-from glitchygames.exit_codes import ExitCode
+from glitchygames.exit_codes import BUG_REPORT_HINT, ExitCode
 from glitchygames.host import HostSources
 from glitchygames.input import device_listing
 from glitchygames.live_sources import LiveSources
@@ -157,6 +157,24 @@ def build_engine(mocker, *, game: type[Scene], extra_arguments: tuple[str, ...] 
     """
     mocker.patch.object(sys, 'argv', ['test_engine_lifecycle', *ENGINE_ARGUMENTS, *extra_arguments])
     return GoldenTraceEngine(game=game)
+
+
+def bug_report_hints_follow_each_traceback(caplog) -> bool:
+    """Tell whether every record with a traceback is followed by the bug-report hint at ERROR.
+
+    Returns:
+        True when there is at least one traceback and the next record after each is
+        ``BUG_REPORT_HINT``, logged at ERROR.
+
+    """
+    records = caplog.records
+    traceback_positions = [index for index, record in enumerate(records) if record.exc_info]
+    return bool(traceback_positions) and all(
+        index + 1 < len(records)
+        and records[index + 1].getMessage() == BUG_REPORT_HINT
+        and records[index + 1].levelno == logging.ERROR
+        for index in traceback_positions
+    )
 
 
 def logged_crash_scene_names(caplog) -> list[str]:
@@ -356,6 +374,8 @@ class TestStartExitStatus:
         crash_records = [record for record in caplog.records if record.exc_info is not None]
         assert len(crash_records) == 1
         assert crash_records[0].exc_info[1] is run_error
+        # Exit 70: the player is told how to report it, after the traceback
+        assert bug_report_hints_follow_each_traceback(caplog)
 
     def test_a_deliberate_system_exit_passes_through_unchanged(self, mocker):
         engine = engine_whose_run_raises(
@@ -377,6 +397,7 @@ class TestStartExitStatus:
         engine._shutdown.assert_called_once_with(run_ended_by=ExitCode.INTERRUPTED.describe())
         assert f'Exiting with {ExitCode.INTERRUPTED.describe()}' in caplog.text
         assert all(record.exc_info is None for record in caplog.records)
+        assert BUG_REPORT_HINT not in caplog.text
 
     def test_signal_handlers_are_restored_even_when_the_teardown_does_not(self, mocker):
         """start() restores what it installed itself, so a mocked _shutdown leaks nothing."""
@@ -408,6 +429,7 @@ class TestStartExitStatus:
         logged_errors = [record.exc_info[1] for record in caplog.records if record.exc_info]
         expected_errors = [teardown_error] if run_error is None else [run_error, teardown_error]
         assert logged_errors == expected_errors
+        assert bug_report_hints_follow_each_traceback(caplog)
         assert f'Exiting with {ExitCode.INTERNAL_ERROR.describe()}' in caplog.text
 
 
@@ -734,6 +756,8 @@ class TestGameFlagTools:
 
         assert exit_information.value.code == ExitCode.INTERNAL_ERROR
         assert 'the tool broke' in caplog.text
+        # A game takes --log-level, so its tool's crash tells the player to rerun it at info
+        assert bug_report_hints_follow_each_traceback(caplog)
 
     def test_ctrl_c_in_a_tool_exits_interrupted(self, mocker):
         """Ctrl-C (KeyboardInterrupt) during a tool exits INTERRUPTED, as during a run."""
@@ -1018,3 +1042,90 @@ class TestCrtPowerOnBeforeEveryGame:
         engine.start()
 
         player.assert_not_called()
+
+
+# A value no options block may show: the --api-key of GameWithASecretOption
+VALUE_NEVER_SHOWN = 'not-a-real-key-0123456789'
+
+
+class GameWithASecretOption(FirstFrameGame):
+    """A game with an option whose name suggests a secret (``--api-key``)."""
+
+    NAME = 'GameWithASecretOption'
+
+    @classmethod
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        """Add ``--api-key``.
+
+        Returns:
+            The parser.
+
+        """
+        parser.add_argument('--api-key', default=None)
+        return parser
+
+
+def startup_option_records(caplog, *, game_name: str) -> list[logging.LogRecord]:
+    """Return the startup options blocks the engine logged for a game.
+
+    Returns:
+        The records whose message starts with the block's heading.
+
+    """
+    return [
+        record
+        for record in caplog.records
+        if record.name == 'game.engine'
+        and record.getMessage().startswith(f'Options for {game_name} ')
+    ]
+
+
+def option_shown(*, record: logging.LogRecord, name: str) -> str:
+    """Return what a startup options block shows for one top-level option.
+
+    Returns:
+        The text after ``=`` on the option's line.
+
+    """
+    (line,) = [
+        line
+        for line in record.getMessage().splitlines()[1:]
+        if line.split('=', 1)[0].strip() == name
+    ]
+    return line.split('=', 1)[1].strip()
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestStartupOptions:
+    """Every engine start logs the run's options once, at CRITICAL (the owner, 2026-10-28)."""
+
+    @pytest.mark.parametrize('level', ['debug', 'info', 'warning', 'error', 'critical'])
+    def test_the_options_show_once_at_every_level(self, mocker, caplog, level):
+        """At any --log-level, the default warning included, one CRITICAL block per start."""
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class, extra_arguments=('--log-level', level))
+
+        # The logging level the run asked for (basicConfig is a no-op under pytest's handlers)
+        with caplog.at_level(level.upper()):
+            engine.start()
+
+        (record,) = startup_option_records(caplog, game_name=game_class.NAME)
+        assert record.levelno == logging.CRITICAL
+        assert option_shown(record=record, name='log_level') == repr(level)
+
+    def test_a_secret_looking_option_is_redacted(self, mocker, caplog):
+        """--api-key's value never reaches the log; the block shows <redacted> in its place."""
+        engine = build_engine(
+            mocker,
+            game=GameWithASecretOption,
+            extra_arguments=('--api-key', VALUE_NEVER_SHOWN),
+        )
+
+        with caplog.at_level(logging.WARNING):
+            engine.start()
+
+        (record,) = startup_option_records(caplog, game_name=GameWithASecretOption.NAME)
+        assert VALUE_NEVER_SHOWN not in caplog.text
+        assert option_shown(record=record, name='api_key') == (
+            game_engine_module.REDACTED_OPTION_VALUE
+        )

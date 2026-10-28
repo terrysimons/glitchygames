@@ -12,9 +12,11 @@ import math
 import multiprocessing
 import os
 import platform
+import pprint
 import signal
 import sys
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -53,7 +55,7 @@ from glitchygames.events.midi import MidiEventManager
 from glitchygames.events.mouse import MouseEventManager
 from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
-from glitchygames.exit_codes import ExitCode
+from glitchygames.exit_codes import BUG_REPORT_HINT, ExitCode
 from glitchygames.fonts import FontManager
 from glitchygames.host import GameHost, HostSources
 from glitchygames.input.device_listing import list_input_devices
@@ -160,7 +162,7 @@ from glitchygames.timing import (
 from glitchygames.tracing import TraceFormatError
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Generator, Mapping, Sequence
+    from collections.abc import Awaitable, Callable, Generator, Sequence
     from types import FrameType
 
     from glitchygames.input.state import InputSnapshot
@@ -386,7 +388,7 @@ def restore_default_signal_handling(*, signal_numbers: list[int]) -> None:
 
 
 def run_inside_tool_crash_boundary(
-    *, run_tool: Callable[[], int], tool_description: str
+    *, run_tool: Callable[[], int], tool_description: str, report_hint: str | None
 ) -> tuple[int, BaseException | None]:
     """Run a tool inside the crash boundary and signal handling a game's run gets.
 
@@ -401,13 +403,16 @@ def run_inside_tool_crash_boundary(
       reaped a child first, as for a signal);
     - a recording write that failed part way: ``ExitCode.CANNOT_WRITE_OUTPUT``;
     - any other exception: ``ExitCode.INTERNAL_ERROR``, logged with its traceback as
-      ``Runtime error during game execution @ tool '<tool>'``.
+      ``Runtime error during game execution @ tool '<tool>'``, then ``report_hint`` (an ERROR
+      line of its own) when there is one.
 
     A SystemExit (a signal handler's) passes through with its own code.
 
     Args:
         run_tool: Runs the tool and returns its exit status.
         tool_description: How the log names the tool (its flag: ``--verify``).
+        report_hint: What to do to report a crash (``BUG_REPORT_HINT``, on a game, which takes
+            ``--log-level``), or None (the ``glitchygames`` command, which has no such option).
 
     Returns:
         The exit status, and the exception that ended the tool (None when it returned).
@@ -425,6 +430,9 @@ def run_inside_tool_crash_boundary(
         exit_status, cause = ExitCode.CANNOT_WRITE_OUTPUT, error
     except Exception as error:
         LOG.exception("Runtime error during game execution @ tool '%s'", tool_description)
+        if report_hint is not None:
+            # Its own line after the traceback (logged above), where a player reads last
+            LOG.error(report_hint)  # ruff: ignore[error-instead-of-exception]
         exit_status, cause = ExitCode.INTERNAL_ERROR, error
     finally:
         # A signal's SystemExit (exit_on_signal) passes through with its own code
@@ -502,22 +510,173 @@ def stored_options(*, options: Mapping[str, Any]) -> dict[str, Any]:
         The options to store.
 
     """
+    return _with_path_options_converted(options=options, convert=stored_path)
+
+
+def _with_path_options_converted(
+    *,
+    options: Mapping[str, Any],
+    convert: Callable[..., str],
+) -> dict[str, Any]:
+    """Return options with every path option's path (or each of its paths) converted.
+
+    The path options are a tool's own value or a path option of one
+    (``path_option_destinations``) and ``ENGINE_PATH_OPTIONS``; every other option is kept as
+    given. Shared by ``stored_options`` and ``displayed_options``.
+
+    Args:
+        options: The parsed options.
+        convert: Called as ``convert(path=..., project_root=...)`` with the project root the
+            current directory is in (``find_project_root``); returns the path to keep.
+
+    Returns:
+        The converted options.
+
+    """
     path_options = path_option_destinations() | ENGINE_PATH_OPTIONS
     project_root = find_project_root(start=Path.cwd())
-    stored: dict[str, Any] = {}
+    converted: dict[str, Any] = {}
     for name, value in options.items():
         if name in path_options and isinstance(value, str | os.PathLike):
-            stored[name] = stored_path(
+            converted[name] = convert(
                 path=cast('str | os.PathLike[str]', value), project_root=project_root
             )
         elif name in path_options and isinstance(value, list | tuple):
-            stored[name] = [
-                stored_path(path=path, project_root=project_root)
+            converted[name] = [
+                convert(path=path, project_root=project_root)
                 for path in cast('Sequence[str | os.PathLike[str]]', value)
             ]
         else:
-            stored[name] = value
-    return stored
+            converted[name] = value
+    return converted
+
+
+# The startup options block (GameEngine._log_the_startup_options): an option whose name holds
+# one of these, in any case, shows REDACTED_OPTION_VALUE instead of its value (the coordinator's
+# ruling, 2026-10-28; the AI tooling's API keys must never reach a log)
+SECRET_OPTION_NAME_PARTS = ('key', 'token', 'secret', 'password', 'credential')
+REDACTED_OPTION_VALUE = '<redacted>'
+# Each nesting level of the block indents this much more
+OPTIONS_BLOCK_INDENT = '    '
+# pprint's width for a value that does not fit on one line
+OPTIONS_BLOCK_WIDTH = 100
+
+
+def is_secret_option_name(*, name: str) -> bool:
+    """Tell whether an option's name suggests a secret (a key, token, password, ...).
+
+    Args:
+        name: The option's name.
+
+    Returns:
+        True when the name holds one of ``SECRET_OPTION_NAME_PARTS``, in any case.
+
+    """
+    lowered = name.lower()
+    return any(part in lowered for part in SECRET_OPTION_NAME_PARTS)
+
+
+def displayed_path(*, path: str | os.PathLike[str], project_root: Path | None) -> str:
+    """Return a path as the startup options block shows it.
+
+    Inside the project, its stored path (``stored_path``: relative to the root, POSIX-style);
+    anywhere else absolute (the coordinator's ruling, 2026-10-28), where ``stored_path`` would
+    keep only the file name, or a path in another checkout.
+
+    Args:
+        path: The path as given.
+        project_root: The project's root (``find_project_root``), or None.
+
+    Returns:
+        The path to show.
+
+    """
+    resolved = Path(path).expanduser().resolve()
+    if project_root is not None:
+        stored = stored_path(path=path, project_root=project_root)
+        # The stored path is shown only when it leads back to the path from this project's root
+        if (project_root.resolve() / stored).resolve() == resolved:
+            return stored
+    return str(resolved)
+
+
+def displayed_options(*, options: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a run's options with every path option shown by ``displayed_path``.
+
+    The path options are ``stored_options``' (``path_option_destinations`` and
+    ``ENGINE_PATH_OPTIONS``); every other option is kept as given.
+
+    Args:
+        options: The parsed options.
+
+    Returns:
+        The options to show.
+
+    """
+    return _with_path_options_converted(options=options, convert=displayed_path)
+
+
+def options_block_lines(*, options: Mapping[Any, Any], indent: str) -> list[str]:
+    """Return an options mapping's lines: sorted, ``name = value``, aligned, nested indented.
+
+    A name that suggests a secret (``is_secret_option_name``) shows ``REDACTED_OPTION_VALUE``,
+    whatever its value, at any depth. A non-empty mapping is shown below its name, one level
+    deeper; any other value is ``pprint``'s, its further lines (a long list) under the first.
+
+    Args:
+        options: The options (or a mapping nested in one).
+        indent: The lines' indentation.
+
+    Returns:
+        The lines, without line ends.
+
+    """
+    names = sorted(options, key=str)
+    width = max((len(str(name)) for name in names), default=0)
+    lines: list[str] = []
+    for name in names:
+        value = options[name]
+        prefix = f'{indent}{str(name).ljust(width)} = '
+        if is_secret_option_name(name=str(name)):
+            lines.append(f'{prefix}{REDACTED_OPTION_VALUE}')
+        elif isinstance(value, Mapping) and value:
+            lines.append(prefix.rstrip())
+            lines.extend(
+                options_block_lines(
+                    options=cast('Mapping[Any, Any]', value),
+                    indent=indent + OPTIONS_BLOCK_INDENT,
+                )
+            )
+        else:
+            # Any value at all (an empty mapping too): pformat writes each as Python would
+            first, *rest = pprint.pformat(
+                cast('object', value), width=max(OPTIONS_BLOCK_WIDTH - len(prefix), 1)
+            ).splitlines()
+            lines.append(f'{prefix}{first}')
+            lines.extend(f'{" " * len(prefix)}{line}' for line in rest)
+    return lines
+
+
+def startup_options_block(*, game_name: str, options: Mapping[str, Any]) -> str:
+    """Return the startup options block: a run's whole options dictionary, pretty printed.
+
+    The owner, 2026-10-28: the game's startup options dictionary, "Pretty printed", logged at
+    CRITICAL so it shows at every level. Sorted names, one ``name = value`` per line, aligned;
+    nested values indented; paths by ``displayed_options``; nothing secret
+    (``is_secret_option_name``). The environment is never read.
+
+    Args:
+        game_name: The game's name, for the heading.
+        options: The run's options.
+
+    Returns:
+        The heading line, then one line per option (more for a nested or long value).
+
+    """
+    lines = options_block_lines(
+        options=displayed_options(options=options), indent=OPTIONS_BLOCK_INDENT
+    )
+    return '\n'.join([f'Options for {game_name} (secrets redacted):', *lines])
 
 
 class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
@@ -1996,6 +2155,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             exit_status, cause = run_inside_tool_crash_boundary(
                 run_tool=run_the_tool,
                 tool_description=' and '.join(tool.flag for tool in tools),
+                report_hint=BUG_REPORT_HINT,
             )
         finally:
             # After a signal's SystemExit (exit_on_signal) too, which passes through
@@ -2858,6 +3018,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self._shutdown(run_ended_by=run_ended_by)
         except Exception as error:
             self.log.exception('The teardown failed')
+            # Its own line after the traceback (logged above), where a player reads last
+            self.log.error(BUG_REPORT_HINT)  # ruff: ignore[error-instead-of-exception]
             teardown_error = error
         finally:
             # Again (it is idempotent): _shutdown restores them, but not if it failed first
@@ -2967,8 +3129,23 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         )
         exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
+    def _log_the_startup_options(self: Self) -> None:
+        """Log the run's options at CRITICAL, once per engine start (``startup_options_block``).
+
+        CRITICAL "for now" (the owner, 2026-10-28: "Log that at critical" ... "Do it for now"),
+        so the options show at every level, the default WARNING included; it prints on every
+        launch and in every engine the test suite starts (plans/future-work.md). The options are
+        a replay's as recorded, which ``start_replay`` put in place before the start.
+        """
+        # The game's (the engine's own NAME names no game); the engine's only when no game was
+        # given, which _begin_start refuses next
+        game_name = getattr(self.game, 'NAME', type(self).NAME)
+        self.log.critical(
+            '%s', startup_options_block(game_name=game_name, options=GameEngine.OPTIONS)
+        )
+
     def _begin_start(self: Self) -> cProfile.Profile | None:
-        """Log the start, check there is a game and start the profiler (``--profile``).
+        """Log the start and the options, check there is a game, start the profiler (``--profile``).
 
         Returns:
             The running profiler, or None.
@@ -2981,6 +3158,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         logging.getLogger('game')
 
         self.log.info('Starting game engine for game: %s', type(self).NAME)
+        self._log_the_startup_options()
         if self.game is None:
             raise RuntimeError(GAME_NOT_INITIALIZED_MSG)
 
@@ -3036,6 +3214,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         except Exception as error:
             scene_name = self._resolve_scene_name_for_error()
             self.log.exception("Runtime error during game execution @ scene '%s'", scene_name)
+            # Its own line after the traceback (logged above), where a player reads last
+            self.log.error(BUG_REPORT_HINT)  # ruff: ignore[error-instead-of-exception]
             exit_code = ExitCode.INTERNAL_ERROR
             run_ended_by = exit_code.describe()
             run_error = error

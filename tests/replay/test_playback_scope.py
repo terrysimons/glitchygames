@@ -19,6 +19,7 @@ from glitchygames import logical_names
 from glitchygames.audio.live import VoiceState
 from glitchygames.audio.synth import Waveform
 from glitchygames.events import FPSEVENT, GAMEEVENT
+from glitchygames.exit_codes import BUG_REPORT_HINT
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, ReplayDeviceRegistry
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.live_sources import LiveSources
@@ -397,6 +398,8 @@ class TestPlaybackErrors:
             assert active_sources() is sources_before
             assert random_stream(COUNTING_STREAM_NAME).getstate() == expected_state
             assert 'boom' in caplog.text
+            # The player saw the playback stop: told how to report it
+            assert BUG_REPORT_HINT in caplog.messages
             assert outcome_reason(manager) == 'error'
             # The live game goes on
             step(manager)
@@ -421,6 +424,7 @@ class TestPlaybackErrors:
             expected_stream.setstate(expected_state)
             assert live_scene.marker.rect.x == int(expected_stream.random() * MARKER_TRAVEL)
             assert 'no setup' in caplog.text
+            assert BUG_REPORT_HINT in caplog.messages
             assert outcome_reason(manager) == 'error'
 
     def test_a_recording_without_a_scene_start_starts_nothing(self, tmp_path, caplog):

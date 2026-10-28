@@ -71,6 +71,9 @@ because the ``os.EX_*`` names exist only on Unix, and the engine runs on Windows
 A file that exists but cannot be read (no permission, a directory, not gzip) is unusable input
 (65), not missing input (66): only a file that does not exist is 66.
 
+``BUG_REPORT_HINT`` is the line logged after each failure a player sees, so a report carries the
+run's INFO output.
+
 This module is a leaf: it imports nothing from the engine, so anything may import it.
 """
 
@@ -80,6 +83,12 @@ import enum
 
 # Stopped by signal N: the process exits with this plus N (the shell convention)
 SIGNAL_EXIT_STATUS_BASE = 128
+
+# The line logged after each failure a player sees (a run's or a game flag tool's crash, exit
+# 70; a failed teardown; a playback that failed). A game logs at WARNING by default, so the
+# startup facts a report needs are logged only at INFO (the owner, 2026-10-28: "run with
+# --log-level info", no banner, no log file)
+BUG_REPORT_HINT = 'To report this, run the game again with --log-level info and include the output.'
 
 
 class ExitCode(enum.IntEnum):

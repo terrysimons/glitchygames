@@ -24,6 +24,7 @@ from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.events.mouse import MousePointer
+from glitchygames.exit_codes import BUG_REPORT_HINT
 from glitchygames.game_frames import game_frame_clock, restart_game_frame_clock
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
 from glitchygames.input.input_devices import InputDevices
@@ -2030,6 +2031,8 @@ class SceneManager(SceneInterface, events.EventManager):
             self._enter_playback(request=request)
         except Exception:
             LOG.exception('The %s playback could not start; the live game goes on', request.kind)
+            # Its own line after the traceback (logged above), where a player reads last
+            LOG.error(BUG_REPORT_HINT)  # ruff: ignore[error-instead-of-exception]
             self._exit_playback(reason='error')
 
     def _end_frame_at_doors(self: Self, *, frame_dt: float, processing_seconds: float) -> None:
@@ -2066,6 +2069,8 @@ class SceneManager(SceneInterface, events.EventManager):
             step()
         except Exception:
             LOG.exception('Playback failed; returning to the live game')
+            # Its own line after the traceback (logged above), where a player reads last
+            LOG.error(BUG_REPORT_HINT)  # ruff: ignore[error-instead-of-exception]
             self._exit_playback(reason='error')
 
     def _run_frame_contents(self: Self) -> None:
