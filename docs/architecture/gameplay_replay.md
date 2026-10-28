@@ -467,10 +467,14 @@ whatever NEW shows there; every other pixel is NEW's, exactly. So:
 | eaten | there | OLD's dot, half transparent, over your floor |
 | eaten | eaten | your floor |
 
-A frame both runs share draws nothing. Two costs of the rule: a part of OLD's sprite drawn in
-a background color (the floor's) is not shown, and a background made of many small colors (a
-texture, a gradient) may show some of them as items. The blend costs about 2.4 ms a frame when
-the runs match and 4.7 ms with a few sprites apart, for an 800x480 window. NEW replays, compares and
+A frame both runs share draws nothing. Three costs of the rule: a part of OLD's sprite drawn in
+a background color (the floor's) is not shown; a background made of many small colors (a
+texture, a gradient) may show some of them as items; and one color covering 5% or more of OLD's
+frame is background even when it is OLD's item (a large sprite, about 139x139 pixels at
+800x480, many pickups of one color, a full-screen overlay), so it vanishes from the ghost. The
+blend costs about 2.4 ms a frame when the runs match and 4.7 ms with a few sprites apart, for an
+800x480 window; a frame whose every pixel has a color of its own (noise) costs about 19 ms, and
+a textured backdrop falls in between. NEW replays, compares and
 exits exactly as it would alone: only the shown copy is drawn on. The `glitchygames` command
 takes the same options (`glitchygames replay-trace NEW --compare-trace OLD`).
 
@@ -941,8 +945,11 @@ path above and of every path the tools write into a file: a recording header's p
 header and its newest run, which a ledger row copies) and a ledger row's recording. It is the
 nearest project above the current directory (`find_project_root`), or `--project-root` where a
 subcommand takes it; the tools start each game in it. A path inside the project is stored
-relative to it, POSIX-style. A path outside it, or any path with no project, is stored as its
-file name only (`stored_path`), so no user name, home or scratch directory is ever written.
+relative to it, POSIX-style. A path inside another checkout of the same project (a clone or a
+worktree: the nearest directory above the path whose `pyproject.toml` has the same
+`[project] name`) is stored relative to that checkout's root. Any other path (another project,
+no project) is stored as its file name only (`stored_path`), so no user name, home or scratch
+directory is ever written.
 `tests/test_our_stored_paths.py` checks every committed recording header and ledger row.
 
 ### The golden-replay pytest plugin

@@ -790,8 +790,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   options are `REPLAY_LOCAL_OPTIONS`
 - Stored paths (D15 item 4): every path the tools write into a file (a recording header's path
   options, `rebaselined_from`, a ledger row's recording) is relative to the project root
-  (`find_project_root`, the settings' anchor; `--project-root` where a subcommand takes it), or
-  the file name alone for a path outside it (`replay/tools/settings.py` `stored_path`;
+  (`find_project_root`, the settings' anchor; `--project-root` where a subcommand takes it), a
+  path in another checkout of the same project (same `[project] name`) relative to that
+  checkout's root, or the file name alone for any other path outside it (`replay/tools/settings.py` `stored_path`;
   `GameEngine` `stored_options`). `tests/test_our_stored_paths.py` fails on an absolute path in
   any tracked recording header or row-shaped JSON; the recording-renames table is refused when a
   path is absolute or a new path is itself an old one, and each new path must exist

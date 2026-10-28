@@ -82,6 +82,62 @@ def test_a_path_outside_the_project_or_with_no_project_is_its_file_name(tmp_path
     assert stored_path(path=elsewhere, project_root=None) == 'session.jsonl.gz'
 
 
+def write_checkout(*, directory: Path, name: str) -> Path:
+    """Make ``directory`` a checkout of the project ``name``, with a member of another name inside.
+
+    Returns:
+        The directory.
+
+    """
+    write_project(directory=directory)
+    (directory / 'pyproject.toml').write_text(
+        f'[project]\nname = "{name}"\n\n[tool.glitchygames]\n', encoding='utf-8'
+    )
+    member = directory / 'src' / 'games' / 'mr-muncher'
+    member.mkdir(parents=True)
+    (member / 'pyproject.toml').write_text('[project]\nname = "mr-muncher"\n', encoding='utf-8')
+    return directory
+
+
+def test_a_path_in_another_checkout_of_the_project_is_relative_to_that_checkout(tmp_path):
+    """A recording in another clone of this project keeps its path in the project."""
+    project = write_checkout(directory=tmp_path / 'project', name='space-game')
+    other_checkout = write_checkout(directory=tmp_path / 'space-game-wasm', name='space-game')
+    recording = other_checkout / 'src' / 'games' / 'mr-muncher' / 'tests' / 'golden.jsonl.gz'
+
+    assert stored_path(path=recording, project_root=project) == (
+        'src/games/mr-muncher/tests/golden.jsonl.gz'
+    )
+
+
+def test_a_path_in_another_project_is_its_file_name(tmp_path):
+    """A recording in a project of another name is stored by its file name only."""
+    project = write_checkout(directory=tmp_path / 'project', name='space-game')
+    other_project = write_checkout(directory=tmp_path / 'other', name='other-game')
+    recording = other_project / 'src' / 'games' / 'mr-muncher' / 'tests' / 'golden.jsonl.gz'
+
+    assert stored_path(path=recording, project_root=project) == 'golden.jsonl.gz'
+
+
+def test_a_path_in_no_project_is_its_file_name(tmp_path):
+    """No project above the path (nor one given): its file name only."""
+    project = write_checkout(directory=tmp_path / 'project', name='space-game')
+    loose = tmp_path / 'scratch' / 'runs' / 'session.jsonl.gz'
+
+    assert stored_path(path=loose, project_root=project) == 'session.jsonl.gz'
+    assert stored_path(path=loose, project_root=None) == 'session.jsonl.gz'
+
+
+def test_a_broken_pyproject_above_a_path_is_no_checkout_of_ours(tmp_path):
+    """A pyproject.toml that is no TOML never stops a writer: the file name is stored."""
+    project = write_checkout(directory=tmp_path / 'project', name='space-game')
+    broken = tmp_path / 'broken'
+    broken.mkdir()
+    (broken / 'pyproject.toml').write_text('[project\n', encoding='utf-8')
+
+    assert stored_path(path=broken / 'a.jsonl.gz', project_root=project) == 'a.jsonl.gz'
+
+
 @pytest.mark.parametrize(
     ('text', 'absolute'),
     [
@@ -218,3 +274,16 @@ def test_a_rename_to_a_missing_recording_is_found(tmp_path):
     assert recording_renames_problems(settings=settings, project_root=tmp_path) == [
         'old/b.jsonl.gz is renamed to new/b.jsonl.gz, which does not exist'
     ]
+
+
+@pytest.mark.parametrize(
+    'pyproject_text', ['[project\n', '[tool.glitchygames]\n'], ids=['broken', 'no-name']
+)
+def test_a_project_without_a_readable_name_has_no_other_checkouts(tmp_path, pyproject_text):
+    """Our own project's name unknown: a path outside it is stored by its file name only."""
+    project = tmp_path / 'project'
+    project.mkdir()
+    (project / 'pyproject.toml').write_text(pyproject_text, encoding='utf-8')
+    other_checkout = write_checkout(directory=tmp_path / 'other', name='space-game')
+
+    assert stored_path(path=other_checkout / 'a.jsonl.gz', project_root=project) == 'a.jsonl.gz'

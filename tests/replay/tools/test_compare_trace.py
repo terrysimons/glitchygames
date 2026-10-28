@@ -2357,7 +2357,7 @@ def test_a_color_at_exactly_the_share_is_a_background_color(pixels, is_backgroun
 
 
 def test_olds_sprite_pixels_in_a_background_color_are_not_shown():
-    """The rule's known cost: OLD's sprite drawn in the floor's own color shows no ghost there."""
+    """The rule's known cost: OLD's sprite drawn in the wall's own color shows no ghost there."""
     compositor = GhostCompositor(alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT)
     new = ghost_frame(items={OLD_ITEM_AT: NEW_ITEM})
     old = ghost_frame(items={OLD_ITEM_AT: WALL})
@@ -2365,6 +2365,19 @@ def test_olds_sprite_pixels_in_a_background_color_are_not_shown():
     compositor.draw(surface=new, old=old_pixels(surface=old))
 
     assert rgb_of(surface=new, position=OLD_ITEM_AT) == NEW_ITEM
+
+
+def test_an_old_frame_drawn_again_over_another_new_frame_draws_as_a_fresh_one():
+    """OLD's colors, worked out once per OLD frame, give each NEW frame what a fresh draw would."""
+    old = old_pixels(surface=ghost_frame(items={DOT_AT: DOT, OLD_ITEM_AT: OLD_ITEM}))
+    reused = GhostCompositor(alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT)
+    for new_items in ({}, {OLD_ITEM_AT: NEW_ITEM, NEW_ITEM_AT: NEW_ITEM}):
+        drawn_again = ghost_frame(items=new_items)
+        reused.draw(surface=drawn_again, old=old)
+        fresh = ghost_frame(items=new_items)
+        GhostCompositor(alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT).draw(surface=fresh, old=old)
+
+        assert frame_bytes(surface=drawn_again) == frame_bytes(surface=fresh), new_items
 
 
 @pytest.mark.parametrize('item_count', [1, 30], ids=['few-items', 'many-items'])

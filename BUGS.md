@@ -157,7 +157,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
   32. Closed 2026-10-27 (done before D15; the Part 2 draft audit): a stale entry fails `tests/test_workspace_config.py` `test_no_configuration_entry_names_a_member_path_the_workspace_does_not_derive`. Was: noxfile._SOURCE_PACKAGE_DIRS check is a subset check (a stale extra entry passes)
   33. Task 9: member goldens enumerated in three places (REPLAY_FIXTURES, golden_replay_globs, REPLAY_FIXTURE_DIRECTORIES)
   34. Task 9: ReplayItem.runtest recomputes the console script collect already has
-  35. Task 9: nothing checks mr_muncher is imported from its installed distribution (defensive only)
+  35. Closed 2026-10-27 (already covered): `src/games/mr-muncher/tests/test_mr_muncher_install_location.py` asserts `mr_muncher` is imported from its member's `src/` (the editable install) or from `site-packages` (an installed wheel). Was: nothing checks mr_muncher is imported from its installed distribution (defensive only)
   36. Closed 2026-10-27 (moot): `python_files` is `["test_*.py"]` only, and the unique-names check is gone (item 31). Was: the unique-names check matches only test_*.py, not *_test.py
   37. Task 10: member_package_directory's LookupError path untested
   38. Closed 2026-10-27 (moot): `examples/` is gone, and nothing names it (`test_nothing_names_the_deleted_examples_package`). Was: test_the_engine_archive_no_longer_holds_the_moved_game checks only examples/mr_muncher

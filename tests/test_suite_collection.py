@@ -449,6 +449,9 @@ def bare_name_imports(*, members: Sequence[WorkspaceMember]) -> list[str]:
             python_file.parent.name
             for python_file in python_files
             if python_file.parent != member.tests_directory
+            # A name that is no identifier (v1.2) is never imported by a bare name, and
+            # find_spec would try its dotted parent
+            and python_file.parent.name.isidentifier()
             and importlib.util.find_spec(python_file.parent.name) is None
         }
         for python_file in python_files:
@@ -496,6 +499,9 @@ def test_a_bare_name_import_of_a_members_test_module_is_found(tmp_path):
     (tests_directory / 'pygame' / 'test_space_game_pygame.py').write_text(
         'import pygame\n', encoding='utf-8'
     )
+    # Nor does one whose name is no identifier (find_spec would import its dotted parent)
+    (tests_directory / 'v1.2').mkdir()
+    (tests_directory / 'v1.2' / 'test_space_game_versions.py').write_text('', encoding='utf-8')
     # Nor does a directory holding no module
     (tests_directory / 'art').mkdir()
     (tests_directory / 'fleet' / 'test_space_game_art.py').write_text(

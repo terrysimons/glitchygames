@@ -243,6 +243,18 @@ Found while fixing that review (2026-10-27):
   that is no game would hang it as `verify` and `measure` did before `game-timeout-seconds`
   (games from the settings are console scripts, read without starting them, so only `--game`
   names reach it). Give it the same timeout.
+- **A rebaseline carries OLD's old absolute paths into NEW** (review m5 of D15, 2026-10-27).
+  Every path the tools write into a file is stored relative to the project root
+  (`src/glitchygames/replay/tools/settings.py` `stored_path`), but `rebaseline_header`
+  (`src/glitchygames/replay/rebaseline.py`, near `header = dict(original_header)`) keeps OLD's
+  header as it is: OLD's `options` (its `record_trace` and other path options) and its earlier
+  `measurement_runs[*].rebaselined_from`. Rebaselining a recording made before D15 item 4, or
+  one recorded elsewhere, so carries absolute paths into NEW; only
+  `tests/test_our_stored_paths.py` catches them, and only in tracked files. Fix: pass the
+  inherited `options` through `stored_options` and each earlier run's `rebaselined_from`
+  through `stored_path`. `stored_options` lives in `src/glitchygames/engine/game_engine.py`,
+  which imports `rebaseline.py`, so it must first move below the engine (beside `stored_path`,
+  with `registry.path_option_destinations`, whose import would then have to stay light).
 
 ## World space follow-ups (feature/engine-world-space final review)
 

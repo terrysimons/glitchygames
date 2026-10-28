@@ -97,8 +97,13 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
     floor) leaves NEW's dot exact, and a dot NEW ate shows OLD's over NEW's floor (the user's
     report on D13's rule, which learned a background where the runs agreed and so took both
     runs' dots for background). Known costs: OLD's sprite pixels in a background color are not
-    shown (a sprite drawn in the floor's color), and a background of many small colors (a
-    texture or a gradient, each color under 5%) may show some of them as items. A held last
+    shown (a sprite drawn in the floor's color); a background of many small colors (a texture
+    or a gradient, each color under 5%) may show some of them as items; and a single color
+    covering 5% or more of OLD's frame is background even when it is OLD's item (a large
+    sprite, about 139x139 at 800x480, many pickups of one color, a full-screen overlay), so it
+    vanishes from the ghost. Telling the colors apart sorts OLD's frame once per new OLD frame:
+    about 2 ms for a game's frame, up to about 19 ms for one whose every pixel has a color of
+    its own (noise; a textured backdrop falls in between). A held last
     frame (rule 5) is drawn by the same rule, and the labels are drawn as before. Vectorized
     with numpy on the presented copy.
 11. **Pausing freezes the ghost** (decisions 18 and 19 as amended, Task D14; the user: "Yes,
@@ -607,7 +612,8 @@ class OnionSkin:
         self._has_ended = False
         self._is_stopped = False
         self._font: pygame.font.Font | None = None
-        # Draws OLD's items over NEW, learning the background as it goes (rule 10)
+        # Draws OLD's items over NEW, told apart by OLD's background colors, frame by frame
+        # (rule 10)
         self._compositor = GhostCompositor(alpha_percent=alpha_percent)
 
     @property
@@ -982,7 +988,9 @@ class GhostCompositor:
 
     Each frame on its own, no memory between frames: OLD's background colors are the exact
     colors covering at least ``BACKGROUND_COLOR_SHARE`` of OLD's frame, and OLD's items are the
-    pixels where OLD differs from NEW in a color that is none of them. Pixels are compared as
+    pixels where OLD differs from NEW in a color that is none of them. An item in a color that
+    covers that share (a large sprite, a full-screen overlay) is taken for background and not
+    drawn (rule 10's costs). Pixels are compared as
     32-bit numbers (RGBX rows viewed as ``uint32``), the X byte always ``FULLY_OPAQUE_ALPHA`` on
     both sides.
 

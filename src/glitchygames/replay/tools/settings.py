@@ -32,8 +32,9 @@ kebab-case, as pyproject.toml's are (stage D's settings table):
 recording header's path options, a run's ``rebaselined_from``, a ledger row's recording) is
 relative to the project root, the one these settings are read from (``find_project_root``: the
 nearest project; ``--project-root`` where a tool's subcommand takes it), POSIX-style; a path
-outside the project is stored as its file name only (``stored_path``), so no user name, home
-or scratch directory is ever written into a file meant to be committed.
+inside another checkout of the same project (the same ``[project] name``) relative to that
+checkout's root; any other path outside the project as its file name only (``stored_path``),
+so no user name, home or scratch directory is ever written into a file meant to be committed.
 
 Settings only name paths, relative to the project root: nothing is created or checked on disk
 when they are read. A path that doesn't exist yet (no ledger directory before the first
@@ -356,6 +357,23 @@ def project_name(*, project_root: Path) -> str | None:
     return name if isinstance(name, str) else None
 
 
+def _names_project(*, project_root: Path, name: str) -> bool:
+    """Tell whether a directory's pyproject.toml is the project ``name`` (unreadable: no).
+
+    Args:
+        project_root: The directory (its pyproject.toml exists).
+        name: The project's name.
+
+    Returns:
+        True when its ``[project] name`` is ``name``.
+
+    """
+    try:
+        return project_name(project_root=project_root) == name
+    except ProjectSettingsError:
+        return False
+
+
 def has_settings_table(*, pyproject: Path) -> bool:
     """Tell whether a pyproject.toml has a ``[tool.glitchygames]`` table.
 
@@ -375,7 +393,7 @@ def has_settings_table(*, pyproject: Path) -> bool:
     return isinstance(tool, dict) and SETTINGS_TABLE in tool
 
 
-def find_project_root(*, start: Path) -> Path | None:
+def find_project_root(*, start: Path, named: str | None = None) -> Path | None:
     """Return the project a directory is in, as git finds its repository.
 
     How a tool run from inside a project (``tests/fixtures/``, a workspace member's directory)
@@ -385,12 +403,19 @@ def find_project_root(*, start: Path) -> Path | None:
     round: the member would otherwise own the ledger); a project with no such table anywhere is
     its nearest pyproject.toml.
 
+    With ``named``, the checkout of that project a path lies in (``stored_path``): the nearest
+    of ``start`` and its ancestors whose ``pyproject.toml`` names that ``[project] name`` (a
+    workspace member's own pyproject.toml, of another name, is passed by), whether or not it
+    has the settings table; a pyproject.toml that cannot be read is passed by too.
+
     Args:
         start: The directory to look from (the current directory, usually).
+        named: The project's name to look for, or None for the project's settings above.
 
     Returns:
         The nearest of ``start`` and its ancestors whose ``pyproject.toml`` has
-        ``[tool.glitchygames]``; else the nearest holding a ``pyproject.toml``; else None.
+        ``[tool.glitchygames]``; else the nearest holding a ``pyproject.toml``; else None. With
+        ``named``: the nearest whose ``pyproject.toml`` is that project's, else None.
 
     """
     absolute = start.absolute()
@@ -398,6 +423,10 @@ def find_project_root(*, start: Path) -> Path | None:
     for directory in (absolute, *absolute.parents):
         pyproject = directory / PYPROJECT_FILE_NAME
         if not pyproject.is_file():
+            continue
+        if named is not None:
+            if _names_project(project_root=directory, name=named):
+                return directory
             continue
         if has_settings_table(pyproject=pyproject):
             return directory
@@ -428,9 +457,13 @@ def stored_path(*, path: str | os.PathLike[str], project_root: Path | None) -> s
     """Return a path as the tools store it in a file: relative to the project root.
 
     A relative path is read from the current directory, as the tool read it. A path inside the
-    project is stored relative to its root, POSIX-style (``src/games/x/golden.jsonl.gz``); a
-    path outside it (a scratch directory, another project), or any path when there is no
-    project, is stored as its file name only, so no user name or home directory is written.
+    project is stored relative to its root, POSIX-style (``src/games/x/golden.jsonl.gz``). A
+    path inside another checkout of the same project (a clone or worktree: the nearest
+    directory above it whose pyproject.toml has the project's ``[project] name``,
+    ``find_project_root(named=...)``) is stored relative to that checkout's root, the same way
+    (the user, 2026-10-27). Any other path (a scratch directory, another project), or any path
+    when there is no project, is stored as its file name only, so no user name or home
+    directory is written.
 
     Args:
         path: The path as given.
@@ -441,11 +474,32 @@ def stored_path(*, path: str | os.PathLike[str], project_root: Path | None) -> s
 
     """
     resolved = Path(path).expanduser().resolve()
-    if project_root is not None:
-        root = project_root.resolve()
-        if resolved.is_relative_to(root):
-            return resolved.relative_to(root).as_posix()
-    return resolved.name
+    if project_root is None:
+        return resolved.name
+    root = project_root.resolve()
+    if resolved.is_relative_to(root):
+        return resolved.relative_to(root).as_posix()
+    name = _project_name_or_none(project_root=root)
+    checkout = None if name is None else find_project_root(start=resolved.parent, named=name)
+    if checkout is None:
+        return resolved.name
+    return resolved.relative_to(checkout).as_posix()
+
+
+def _project_name_or_none(*, project_root: Path) -> str | None:
+    """Return a project's ``[project] name``, or None when it has none or cannot be read.
+
+    Args:
+        project_root: The project's root.
+
+    Returns:
+        The name, or None.
+
+    """
+    try:
+        return project_name(project_root=project_root)
+    except ProjectSettingsError:
+        return None
 
 
 def recording_renames_problems(*, settings: ProjectSettings, project_root: Path) -> list[str]:
