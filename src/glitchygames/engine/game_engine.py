@@ -114,14 +114,18 @@ from glitchygames.replay.rebuild import (
 )
 from glitchygames.replay.tools.compare import (
     DEFAULT_COMPARE_ALPHA_PERCENT,
+    CompareRefusal,
     FrameStream,
     FrameStreamAddress,
+    OldRecording,
     OnionSkin,
     compare_trace_refusal,
     first_streamed_frame,
     frame_stream_refusal,
     old_game_command,
     old_recording_refusal,
+    read_old_recording,
+    screen_size_refusal,
 )
 from glitchygames.replay.tools.identity import game_source_revision
 from glitchygames.replay.tools.registry import (
@@ -533,6 +537,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     # did not run.
     onion_skin: OnionSkin | None = None
     frame_stream: FrameStream | None = None
+    # OLD when --compare-trace OLD is played live (no --replay-trace; rule 9 of
+    # glitchygames/replay/tools/compare.py), else None
+    live_old_recording: OldRecording | None = None
 
     @classmethod
     def initialize_icon(cls: Any, icon: pygame.Surface | Path | str | None = None) -> None:
@@ -989,7 +996,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.random_seed: int = (
             self.replay_sources.random_seed
             if self.replay_sources is not None
-            else seed_engine_random(seed=options.get('random_seed'))
+            else seed_engine_random(seed=self._live_random_seed(options=options))
         )
         self._log_the_runs_seed(options=options)
         # The background a scene that sets none shows (glitchygames/backgrounds.py); without
@@ -1084,7 +1091,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                         # A recorded run captures scene starts from its first scene on, which
                         # is built before recording starts (glitchygames/scene_start.py)
                         captures_scene_starts=options.get('record_trace') is not None,
-                    )
+                    ),
+                    # Live play against OLD draws OLD over each presented frame
+                    overlay=self.onion_skin,
                 )
             )
             install_sources(sources=self.host.sources)
@@ -1148,6 +1157,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # replay is refused: the game would be set up on another size (rule 1 of
         # glitchygames/replay/driver.py)
         self._refuse_a_replay_display_of_another_size(options=options)
+        # Live play against OLD needs OLD's size too, checked on the window as it opened
+        self._refuse_a_live_display_of_another_size_than_old()
 
         self.initialize_event_handlers()
 
@@ -1847,11 +1858,32 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         if self.replay_sources is not None:
             return
-        self.log.info(
-            'Random seed %d (%s)',
-            self.random_seed,
-            'rolled' if options.get('random_seed') is None else 'given',
-        )
+        old = self.live_old_recording
+        if old is None:
+            how = 'rolled' if options.get('random_seed') is None else 'given'
+        elif options.get('random_seed') is None:
+            how = f"OLD's, from --compare-trace {old.path}"
+        else:
+            how = f'given; OLD was recorded under {old.random_seed}'
+        self.log.info('Random seed %d (%s)', self.random_seed, how)
+
+    def _live_random_seed(self: Self, *, options: dict[str, Any]) -> int | None:
+        """Return the seed live play is given: ``--random-seed N``, else OLD's, else None.
+
+        Live play against OLD starts under OLD's recorded seed, so OLD's ghost starts in the
+        same world (rule 9 of glitchygames/replay/tools/compare.py), unless a seed is given.
+
+        Args:
+            options: The parsed options.
+
+        Returns:
+            The seed, or None to roll one.
+
+        """
+        given_seed: int | None = options.get('random_seed')
+        if given_seed is None and self.live_old_recording is not None:
+            return self.live_old_recording.random_seed
+        return given_seed
 
     def _run_game_flag_tool(
         self: Self, *, game: type[Scene] | Scene, options: dict[str, Any]
@@ -1938,6 +1970,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if replay_trace_path is None:
             self._check_replay_options_without_a_recording(options=options)
             self._refuse_unwritable_outputs(options=options)
+            self._prepare_the_live_comparison_with_old(options=options)
             return None
         self._refuse_an_unsound_comparison_with_old(
             replay_trace_path=replay_trace_path, options=options
@@ -2045,7 +2078,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """Refuse --audit and --rebaseline without --replay-trace; warn about ignored options.
 
         Exits (``exit_with``) with ``ExitCode.OPTIONS_REFUSED`` for --audit or --rebaseline;
-        --replay-fps, --replay-digest and --replay-pause-at-frame are only warned about.
+        --replay-fps, --replay-digest, --replay-pause-at-frame, the processing comparison's
+        options and --replay-frame-stream are only warned about, and --compare-alpha without
+        --compare-trace (--compare-trace OLD alone plays live against OLD:
+        ``_prepare_the_live_comparison_with_old``).
 
         Args:
             options: The parsed options (no ``replay_trace``).
@@ -2063,12 +2099,64 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ('replay_pause_at_frame', '--replay-pause-at-frame'),
             ('compare_processing', '--compare-processing'),
             ('max_processing_slowdown', '--max-processing-slowdown'),
-            ('compare_trace', '--compare-trace'),
-            ('compare_alpha', '--compare-alpha'),
             ('replay_frame_stream', '--replay-frame-stream'),
         ):
             if options.get(option_name) is not None:
                 self.log.warning('%s is ignored without --replay-trace', flag)
+        if options.get('compare_trace') is None and options.get('compare_alpha') is not None:
+            self.log.warning('--compare-alpha is ignored without --compare-trace')
+
+    def _prepare_the_live_comparison_with_old(self: Self, *, options: dict[str, Any]) -> None:
+        """Give live play its onion skin when --compare-trace OLD is given without a replay.
+
+        Rule 9 of glitchygames/replay/tools/compare.py. Refused before anything runs, the run
+        exiting (``exit_with``): with --headless (``ExitCode.OPTIONS_REFUSED``), an OLD that
+        is missing (``ExitCode.MISSING_INPUT``) or not a readable recording
+        (``ExitCode.UNUSABLE_INPUT``). OLD's size is checked once the window opens
+        (``_refuse_a_live_display_of_another_size_than_old``). The child starts on the first
+        presented frame, inside the run, so the teardown always stops it.
+
+        Args:
+            options: The parsed options (no ``replay_trace``).
+
+        """
+        compare_trace_path = options.get('compare_trace')
+        if compare_trace_path is None:
+            return
+        old_path = Path(compare_trace_path)
+        refusal_reason = compare_trace_refusal(options=options)
+        if refusal_reason is not None:
+            self.log.error('Cannot play live against %s: %s', old_path, refusal_reason)
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+        old = read_old_recording(old_path=old_path)
+        if isinstance(old, CompareRefusal):
+            self.log.error('Cannot play live against %s: %s', old_path, old.reason)
+            exit_with(exit_code=old.exit_code)
+        self.live_old_recording = old
+        compare_alpha = options.get('compare_alpha')
+        self.onion_skin = OnionSkin(
+            old_path=old_path,
+            alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT if compare_alpha is None else compare_alpha,
+            game_command=old_game_command(old_path=old_path),
+            # Live play has no step back
+            pause_at_frame=None,
+        )
+
+    def _refuse_a_live_display_of_another_size_than_old(self: Self) -> None:
+        """Exit with ExitCode.UNUSABLE_INPUT if live play's window is not OLD's recorded size.
+
+        Before the first frame (rule 9 of glitchygames/replay/tools/compare.py): OLD's frames
+        are drawn over the live ones pixel for pixel. Nothing to check without live play
+        against OLD.
+        """
+        old = self.live_old_recording
+        if old is None:
+            return
+        refusal = screen_size_refusal(old=old, new_size=self.screen.get_size())
+        if refusal is None:
+            return
+        self.log.error('Cannot play live against %s: %s', old.path, refusal.reason)
+        exit_with(exit_code=refusal.exit_code)
 
     def _refuse_unwritable_outputs(self: Self, *, options: dict[str, Any]) -> None:
         """Exit with ExitCode.CANNOT_WRITE_OUTPUT if an output file of the run cannot be written.

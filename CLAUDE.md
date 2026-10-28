@@ -784,6 +784,16 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   streams from `first_streamed_frame` (N - 1). The teardown (`_shutdown`: `_end_the_comparison`,
   then `_shut_down_the_run` even if that failed) always stops and reaps the child. The three
   options are `REPLAY_LOCAL_OPTIONS`
+- `<game> --compare-trace OLD [--compare-alpha PERCENT]` without `--replay-trace` (Task D12,
+  decision 19; rule 9 of `replay/tools/compare.py`): live play against OLD. The same `OnionSkin`
+  is the live host's overlay (`HostSources.overlay`, drawn over each presented frame before
+  inner doors' overlay); a live frame's number is `HostSources.frames_ended`, the number
+  `--record-trace` gives it, so a recording of the run replayed with `--compare-trace OLD` pairs
+  the same frames. Live play runs under OLD's recorded seed unless `--random-seed N` is given
+  (`_live_random_seed`, logged by `_log_the_runs_seed`). Refused before anything runs:
+  `--headless` (64), OLD missing (66) or unreadable (65), another size than the opened window
+  (65, `_refuse_a_live_display_of_another_size_than_old`). `--record-trace NEW` may go with it;
+  no step back; game flag only (no `play` subcommand)
 - `--replay-fps {recorded,real}` (default `recorded`): FPS events, the performance stats and the
   overlay's performance panel use the recorded frame times (exact, compared) or this machine's
   measured ones (FPS events then not compared); logic always gets the recorded `dt`

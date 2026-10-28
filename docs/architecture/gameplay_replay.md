@@ -38,6 +38,9 @@ uv run paddleslap --replay-trace session.jsonl.gz --headless --max-processing-sl
 # Onion skin: watch a replay with another recording's frames drawn over it, half transparent
 uv run paddleslap --replay-trace new-session.jsonl.gz --compare-trace session.jsonl.gz
 
+# Play live against a recording: its frames drawn over yours, half transparent
+uv run paddleslap --compare-trace session.jsonl.gz
+
 # The same tools as the glitchygames command (the game comes from the recording), and a
 # recording's runs, speed changes and behavior changes
 uv run glitchygames replay-trace session.jsonl.gz --headless
@@ -475,6 +478,25 @@ replay's own rebuild.
 
 The child always ends with the replay: when it ends, fails, is interrupted or restarts. The
 contract is the docstring of `src/glitchygames/replay/tools/compare.py`.
+
+#### Live play against OLD (`<game> --compare-trace OLD`)
+
+Without `--replay-trace`, `--compare-trace OLD [--compare-alpha PERCENT]` lets you play the game
+live, with real input, while OLD's frame of the same number is drawn over each frame you see.
+OLD is replayed by the same headless child as above.
+
+- **Frame numbers** are the ones `--record-trace` would give the live frames. So
+  `--record-trace NEW --compare-trace OLD`, and later `--replay-trace NEW --compare-trace OLD`,
+  pair the same frames. A game's own pause screen still runs frames, and a recording counts
+  them, so OLD runs on while the game is paused.
+- **The seed:** the game plays under OLD's recorded seed, so the ghost starts in the same world,
+  unless `--random-seed N` is given. The log names the seed either way.
+- **OLD shorter than your play:** OLD's last frame stays, labelled `OLD ended at frame N`, and
+  play goes on. The child is stopped when the game quits, fails or is interrupted.
+- **Refused before anything runs:** with `--headless` (exit 64), an OLD that is missing (66) or
+  not a readable recording (65), or one recorded at another screen size than the game's window
+  (65). `--record-trace NEW` may be given too. There is no step back in live play, and this is a
+  game flag only.
 
 ### `--replay-fps {recorded,real}`
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Tasks A1-C6 done (+B5b, user-added), 2026-10-26; final review passed (fixes 016c53ba, nits 6a8df329). Stage D (the engine owns every recording tool) PLANNED 2026-10-26; D1-D11 DONE 2026-10-27 (D10: docs, cleanups and the stage's verification); final Stage D review fixes DONE 2026-10-27 (I1-I4, M1, M3, M4, M6 and the reserved-flag refusal; M2, M5, M7-M10 in `plans/future-work.md`), awaiting the user's review and look at `--compare-trace` (D11 Step 3).
+**Status:** Tasks A1-C6 done (+B5b, user-added), 2026-10-26; final review passed (fixes 016c53ba, nits 6a8df329). Stage D (the engine owns every recording tool) PLANNED 2026-10-26; D1-D11 DONE 2026-10-27 (D10: docs, cleanups and the stage's verification); final Stage D review fixes DONE 2026-10-27 (I1-I4, M1, M3, M4, M6 and the reserved-flag refusal; M2, M5, M7-M10 in `plans/future-work.md`), awaiting the user's review and look at `--compare-trace` (D11 Step 3). D12 (`--compare-trace` with live play, decision 19) DONE 2026-10-27, awaiting the user's look (D12 Step 3).
 Stage A DONE; Stage B DONE (B1-B7, automated verification green; the user runs each demo by
 hand); Stage C DONE (C1-C6). (Originally PLANNED 2026-10-26.)
 Written from a read-only survey of `feature/workspace-packages-4-bitmappy` at fc4a93d5 (PR #110), which becomes
@@ -1132,6 +1132,12 @@ scripts, staging rows in the pre-commit hook, and the docs snippet text.
     option of `replay-trace`: NEW replays watched and solid, OLD's same-numbered frame is drawn
     over it at `--compare-alpha` (default 50%). OLD is replayed by a headless child process in
     lockstep, streaming its frames, so NEW's replay is untouched.
+19. **`--compare-trace OLD` also works with live play** (the user, 2026-10-27: "--compare-trace
+    should work independently with a real live play."; Task D12). Without `--replay-trace`, the
+    game is played live with real input and OLD's frame N (the same child and stream as decision
+    18) is drawn over live frame N, numbered as `--record-trace` counts frames. Live play runs
+    under OLD's recorded seed unless `--random-seed N` is given. A game flag only: no `play`
+    subcommand, and `glitchygames replay-trace --compare-trace` is unchanged.
 
 **Calls made while planning** (the controller's; the user may overturn any):
 - **Rebaseline and audit stay options of `replay-trace`** (the controller's recommendation; the
@@ -1547,6 +1553,35 @@ restart path (`replay/viewer.py`, `replay/driver.py`) to keep the child in step;
 - [ ] **Step 3: the user's look.** Give the user one `!` command for a watched compare on a real
   game (for example a PaddleSlap golden against a row-5 replay of it under another seed), and
   record what they report in the task report.
+
+### Task D12: `--compare-trace OLD` with live play (the user's request, 2026-10-27)
+
+**Files:** `replay/tools/compare.py` (rule 9; `OldRecording`, `read_old_recording`,
+`screen_size_refusal`); `host.py` (`HostSources.overlay`, `frames_ended`);
+`engine/game_engine.py` (`_prepare_the_live_comparison_with_old`,
+`_refuse_a_live_display_of_another_size_than_old`, `_live_random_seed`); `replay/driver.py`
+(`recorded_random_seed`, made public); `tests/replay/tools/test_compare_trace.py`;
+`tests/test_host.py`.
+
+**Behavior** (decision 19): `<game> --compare-trace OLD [--compare-alpha PERCENT]` without
+`--replay-trace` plays live and draws OLD's frame N over live frame N at PERCENT. Frame N is the
+number `--record-trace` gives it (frames the host's doors ended before it; a game's own pause
+screen runs frames, which a recording counts, so OLD runs on through it). Live play uses OLD's
+seed unless `--random-seed N` is given (logged either way). OLD shorter: its last frame stays,
+labelled. The child is stopped and reaped on every exit path. Refused before anything runs:
+`--headless` (64), OLD missing (66) or unreadable (65), another screen size (65, checked once the
+window opens, before the first frame); `--audit` and `--rebaseline` are already refused without
+`--replay-trace`. `--record-trace NEW` may go with it. No step back. `--compare-alpha` without
+`--compare-trace` is warned about.
+
+- [x] **Step 1: failing tests** (the color stand-in, SDL dummy driver):
+  `test_live_play_blends_old_over_the_live_frame`, `test_live_play_uses_olds_seed_unless_one_is_given`,
+  `test_live_play_frame_numbers_match_a_recording_of_the_same_run`,
+  `test_live_play_holds_olds_last_frame_with_the_label`, `test_live_play_refusals`,
+  `test_live_play_reaps_the_child_on_quit_and_on_failure`; the warning test no longer expects
+  `--compare-trace is ignored without --replay-trace`.
+- [x] **Step 2:** implement; lint; `CI=true nox -s test`; commit (2026-10-27).
+- [ ] **Step 3: the user's look:** Mr. Muncher played live against its golden.
 
 ### Task D10: Docs, then Stage D's verification
 

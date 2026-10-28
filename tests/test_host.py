@@ -579,3 +579,46 @@ class TestGameHost:
 
         # 30 FPS on 120 Hz: every fourth tick, frame 10 on tick 37
         assert len(ticks) == 37
+
+
+class RecordingOverlay:
+    """An overlay that notes each frame it is asked to draw over."""
+
+    def __init__(self) -> None:
+        """Start with nothing drawn."""
+        self.frames_drawn: list[int] = []
+
+    def begin(self) -> None:
+        """Nothing to start."""
+
+    def draw(self, *, surface: pygame.Surface, frame_index: int) -> None:
+        assert surface is not None
+        self.frames_drawn.append(frame_index)
+
+
+class TestHostOverlay:
+    """An overlay (live play against OLD) is drawn over each frame, numbered as recorded."""
+
+    def test_the_overlay_draws_over_each_frame_by_the_frames_ended(self):
+        inner = RecordingDoors()
+        overlay = RecordingOverlay()
+        host = HostSources(inner=inner, overlay=overlay)  # type: ignore[arg-type]
+        surface = pygame.Surface((2, 2))
+
+        assert host.frames_ended == 0
+        host.draw_overlay(surface=surface)
+        host.end_frame(frame_number=0, dt=0.1, scene=None, control_events=[])
+        host.draw_overlay(surface=surface)
+        host.draw_overlay(surface=surface)
+        host.end_frame(frame_number=1, dt=0.1, scene=None, control_events=[])
+
+        assert host.frames_ended == 2
+        assert overlay.frames_drawn == [0, 1, 1]
+        # The inner doors' overlay is still asked for, after this one
+        assert [name for name, _ in inner.calls].count('draw_overlay') == 3
+
+    def test_an_overlay_makes_the_doors_draw_one(self):
+        live = LiveSources(random_seed=1, captures_scene_starts=False)
+
+        assert HostSources(inner=live).draws_overlay is False
+        assert HostSources(inner=live, overlay=RecordingOverlay()).draws_overlay is True

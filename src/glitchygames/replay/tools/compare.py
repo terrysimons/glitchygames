@@ -1,4 +1,4 @@
-"""``--compare-trace OLD``: the onion skin, OLD's frames drawn over a watched replay of NEW.
+"""``--compare-trace OLD``: the onion skin, OLD's frames drawn over a watched replay or live play.
 
 The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Task D11):
 
@@ -66,6 +66,20 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
    rebuild's own pause rule), so the child runs on through the frames NEW rebuilds unshown. The
    restarted replay starts the child as its rebuild begins (``ReplaySources.hold_frame``), so the
    two rebuilds run at once instead of one after the other.
+9. **Live play** (decision 19, Task D12). ``<game> --compare-trace OLD [--compare-alpha
+   PERCENT]`` without ``--replay-trace`` plays the game live, with real input, and draws OLD
+   over each live presented frame as rules 1 to 5 draw it over NEW (the same child, stream,
+   token, size cap and timeouts), through the live host's doors (``HostSources.overlay``,
+   glitchygames/host.py). A live frame's number is the one ``--record-trace`` records it as:
+   how many frames the host's doors ended before it (every frame the loop runs, a game's own
+   pause screen included, since a recording counts those too), so ``--record-trace NEW
+   --compare-trace OLD`` and a later ``--replay-trace NEW --compare-trace OLD`` pair the same
+   frames. The game plays under OLD's recorded seed (``OldRecording.random_seed``), so OLD's
+   ghost starts in the same world, unless ``--random-seed N`` is given; logged either way.
+   Refused before anything runs as rule 6 says (``--headless``; ``--audit`` and
+   ``--rebaseline`` need ``--replay-trace`` anyway), OLD's size checked against the live
+   window once it opens, before the first frame. ``--record-trace NEW`` may go with it. Live
+   play has no step back.
 """
 
 from __future__ import annotations
@@ -95,7 +109,7 @@ from glitchygames.process import (
     stop_command,
 )
 from glitchygames.replay.controls import FIRST_PAUSED_FRAME
-from glitchygames.replay.driver import recorded_screen_size
+from glitchygames.replay.driver import recorded_random_seed, recorded_screen_size
 from glitchygames.replay.tools.children import running_game_command
 from glitchygames.replay.tools.traces import RecordedGameRefusal, find_recorded_game
 from glitchygames.tracing import TraceFormatError, TraceReader
@@ -247,6 +261,49 @@ def frame_stream_refusal(*, options: Mapping[str, Any]) -> str | None:
     return None
 
 
+@dataclasses.dataclass(frozen=True)
+class OldRecording:
+    """What the onion skin needs from OLD's header, read once before anything runs.
+
+    Attributes:
+        path: OLD.
+        screen_size: The width and height it was recorded at, or None when its header holds
+            none (not the engine's recorder's).
+        random_seed: The seed it was recorded under (live play starts under it: rule 9).
+
+    """
+
+    path: Path
+    screen_size: tuple[int, int] | None
+    random_seed: int
+
+
+def read_old_recording(*, old_path: Path) -> OldRecording | CompareRefusal:
+    """Read OLD's header, or say why OLD cannot be compared with (rule 6).
+
+    Args:
+        old_path: OLD.
+
+    Returns:
+        OLD's size and seed, or the refusal: a missing OLD (``ExitCode.MISSING_INPUT``), or
+        one that is not a readable recording, its size or seed malformed or missing included
+        (``ExitCode.UNUSABLE_INPUT``; its child could not replay it).
+
+    """
+    try:
+        with TraceReader(path=old_path) as reader:
+            return OldRecording(
+                path=old_path,
+                screen_size=recorded_screen_size(header=reader.header),
+                random_seed=recorded_random_seed(header=reader.header),
+            )
+    except FileNotFoundError:
+        return CompareRefusal(exit_code=ExitCode.MISSING_INPUT, reason='no such recording')
+    # A TraceFormatError is a ValueError; an unreadable file (gzip.BadGzipFile) an OSError
+    except OSError, TraceFormatError:
+        return CompareRefusal(exit_code=ExitCode.UNUSABLE_INPUT, reason='not a readable recording')
+
+
 def old_recording_refusal(
     *, old_path: Path, new_header: Mapping[str, Any]
 ) -> CompareRefusal | None:
@@ -260,20 +317,33 @@ def old_recording_refusal(
         The refusal, or None.
 
     """
-    try:
-        with TraceReader(path=old_path) as reader:
-            old_size = recorded_screen_size(header=reader.header)
-    except FileNotFoundError:
-        return CompareRefusal(exit_code=ExitCode.MISSING_INPUT, reason='no such recording')
-    # A TraceFormatError is a ValueError; an unreadable file (gzip.BadGzipFile) an OSError
-    except OSError, TraceFormatError:
-        return CompareRefusal(exit_code=ExitCode.UNUSABLE_INPUT, reason='not a readable recording')
-    new_size = recorded_screen_size(header=new_header)
+    old = read_old_recording(old_path=old_path)
+    if isinstance(old, CompareRefusal):
+        return old
+    return screen_size_refusal(old=old, new_size=recorded_screen_size(header=new_header))
+
+
+def screen_size_refusal(
+    *, old: OldRecording, new_size: tuple[int, int] | None
+) -> CompareRefusal | None:
+    """Return why OLD cannot be drawn over NEW's frames of ``new_size`` (rule 6), if it can't.
+
+    Args:
+        old: OLD, as read.
+        new_size: NEW's width and height (a replay's recorded size, or live play's display),
+            or None when NEW's header holds none.
+
+    Returns:
+        The refusal (``ExitCode.UNUSABLE_INPUT``), or None: the same size, or a size missing
+        on either side (warned about).
+
+    """
+    old_size = old.screen_size
     if old_size is None or new_size is None:
         LOG.warning(
             'Comparing with %s: could not compare the screen sizes (%s has none in its header); '
             'OLD is drawn over NEW from the top left',
-            old_path,
+            old.path,
             'OLD' if old_size is None else 'NEW',
         )
         return None

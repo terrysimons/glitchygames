@@ -495,7 +495,10 @@ class FrameSink(Protocol):
 
 
 class FrameOverlay(Protocol):
-    """Draws over a watched replay's presented frame (``ReplaySources.onion_skin``; rule 20)."""
+    """Draws over a presented frame: a watched replay's (``ReplaySources.onion_skin``; rule 20).
+
+    Live play's too (``HostSources.overlay``; rule 9 of glitchygames/replay/tools/compare.py).
+    """
 
     def begin(self) -> None:
         """Get ready to draw (start what it needs), drawing nothing yet; idempotent."""
@@ -1108,7 +1111,7 @@ def recorded_screen_size(*, header: Mapping[str, Any]) -> tuple[int, int] | None
             raise TraceFormatError(message)
 
 
-def _recorded_seed(*, header: dict[str, Any]) -> int:
+def recorded_random_seed(*, header: Mapping[str, Any]) -> int:
     """Return the header's ``random_seed``.
 
     Raises:
@@ -1353,7 +1356,7 @@ class ReplaySources:
         """
         self.header = header
         # The recorded seed is read (and checked) whatever the replay runs under
-        self.recorded_seed = _recorded_seed(header=header)
+        self.recorded_seed = recorded_random_seed(header=header)
         self.random_seed, self.options, self.is_reseeded = replay_seed_and_options(
             recorded_seed=self.recorded_seed, options=options
         )

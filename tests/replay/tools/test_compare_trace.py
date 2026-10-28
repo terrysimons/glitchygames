@@ -1081,26 +1081,31 @@ def test_a_frame_stream_with_nobody_listening_is_refused(color_game, mocker, cap
 
 
 @pytest.mark.parametrize(
-    'arguments',
+    ('arguments', 'message'),
     [
-        ('--compare-trace', 'old.jsonl.gz'),
-        ('--compare-alpha', '25'),
-        ('--replay-frame-stream', '5'),
+        (('--compare-alpha', '25'), '--compare-alpha is ignored without --compare-trace'),
+        (('--replay-frame-stream', '5'), '--replay-frame-stream is ignored without --replay-trace'),
     ],
+    ids=['compare-alpha', 'replay-frame-stream'],
 )
-def test_without_a_replay_the_compare_options_are_ignored_with_a_warning(
-    color_game, mocker, caplog, arguments
+def test_without_a_replay_or_old_the_compare_options_are_ignored_with_a_warning(
+    color_game, mocker, caplog, arguments, message
 ):
-    """A live run given them warns that they do nothing (as --replay-fps does)."""
+    """A live run given them alone warns that they do nothing (as --replay-fps does).
+
+    (``--compare-trace OLD`` itself plays live against OLD: the live-play tests below.)
+    """
     with engine_environment(mocker):
         GoldenTraceSceneManager.install()
         try:
             with command_line(['--log-level', 'warning', '--headless', *arguments]):
-                GoldenTraceEngine(game=color_game.scene_class)
+                engine = GoldenTraceEngine(game=color_game.scene_class)
         finally:
             GoldenTraceSceneManager.uninstall()
 
-    assert f'{arguments[0]} is ignored without --replay-trace' in caplog.text
+    assert engine.onion_skin is None
+    assert message in caplog.text
+    assert '--compare-trace is ignored' not in caplog.text
 
 
 def test_a_compare_alpha_without_compare_trace_is_ignored_with_a_warning(
@@ -1620,3 +1625,379 @@ def test_an_onion_skin_that_fails_to_start_its_child_closes_its_listener(color_g
         assert onion_skin.process is not None
     finally:
         onion_skin.stop()
+
+
+# Live play against OLD (decision 19; Task D12): --compare-trace OLD without --replay-trace
+
+
+@dataclasses.dataclass(frozen=True)
+class LivePresented:
+    """One presented frame of live play against OLD.
+
+    Attributes:
+        frame_index: The live frame shown: the one a recording of the run counts it as (the
+            host's frames ended before it).
+        sample: The pixel at ``SAMPLE_POINT``, as presented.
+        old_frame_index: The OLD frame the onion skin held then (None: none yet).
+        label: The onion skin's label then (None: none).
+
+    """
+
+    frame_index: int
+    sample: tuple[int, int, int]
+    old_frame_index: int | None
+    label: str | None
+
+
+@dataclasses.dataclass(frozen=True)
+class LiveRun:
+    """How live play in this process went.
+
+    Attributes:
+        exit_status: Its exit status (None: it ended without a SystemExit).
+        engine: Its engine.
+        presented: Every frame it presented, in order.
+
+    """
+
+    exit_status: object
+    engine: GameEngine
+    presented: list[LivePresented]
+
+    @property
+    def onion_skin(self) -> OnionSkin:
+        """The run's onion skin (it must have one)."""
+        onion_skin = self.engine.onion_skin
+        assert onion_skin is not None
+        return onion_skin
+
+
+def live_play(
+    *, mocker: MockerFixture, scene_class: type[Scene], arguments: tuple[str, ...]
+) -> LiveRun:
+    """Play the color game live, in this process, on SDL's dummy driver (it quits itself).
+
+    Each presented frame's ``SAMPLE_POINT`` is kept (``pygame.display.flip`` is replaced:
+    nothing is shown).
+
+    Args:
+        mocker: pytest-mock's fixture.
+        scene_class: The game's scene class.
+        arguments: More arguments for the game.
+
+    Returns:
+        How it went.
+
+    """
+    presented: list[LivePresented] = []
+    engines: list[GameEngine] = []
+
+    def flip() -> None:
+        surface = pygame.display.get_surface()
+        assert surface is not None
+        engine = engines[0]
+        assert engine.host is not None
+        onion_skin = engine.onion_skin
+        presented.append(
+            LivePresented(
+                frame_index=engine.host.sources.frames_ended,
+                sample=rgb_at(surface=surface),
+                old_frame_index=None if onion_skin is None else onion_skin.held_frame_index,
+                label=None if onion_skin is None else onion_skin.label,
+            )
+        )
+
+    mocker.patch.object(pygame.display, 'flip', side_effect=flip)
+    exit_status: object = None
+    with engine_environment(mocker):
+        GoldenTraceSceneManager.install()
+        try:
+            with command_line([
+                '--log-level',
+                'info',
+                '--resolution',
+                f'{STAND_IN_SIZE[0]}x{STAND_IN_SIZE[1]}',
+                *arguments,
+            ]):
+                engine = GoldenTraceEngine(game=scene_class)
+            engines.append(engine)
+            try:
+                engine.start()
+            except SystemExit as exit_request:
+                exit_status = exit_request.code
+        finally:
+            GoldenTraceSceneManager.uninstall()
+    return LiveRun(exit_status=exit_status, engine=engine, presented=presented)
+
+
+def live_run_succeeded(*, run: LiveRun) -> bool:
+    """Tell whether live play ended normally (no exit status, or SUCCESS).
+
+    Returns:
+        True when it did.
+
+    """
+    return run.exit_status in {None, ExitCode.SUCCESS}
+
+
+@pytest.mark.parametrize(
+    ('alpha_arguments', 'percent'),
+    [((), DEFAULT_COMPARE_ALPHA_PERCENT), (('--compare-alpha', '25'), 25.0)],
+    ids=['default-50', 'alpha-25'],
+)
+def test_live_play_blends_old_over_the_live_frame(color_game, mocker, alpha_arguments, percent):
+    """Each live presented frame N is the live picture with OLD's frame N over it at the alpha."""
+    run = live_play(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        arguments=(
+            '--random-seed',
+            str(NEW_SEED),
+            '--compare-trace',
+            str(color_game.old),
+            *alpha_arguments,
+        ),
+    )
+
+    assert live_run_succeeded(run=run), run.exit_status
+    expected_red = 150 if percent == DEFAULT_COMPARE_ALPHA_PERCENT else 125
+    assert run.presented
+    for frame in run.presented:
+        assert frame.sample == (
+            expected_red,
+            *frame_color(seed=0, frame_index=frame.frame_index)[1:],
+        ), frame
+        assert frame.sample == blended(
+            new=frame_color(seed=NEW_SEED, frame_index=frame.frame_index),
+            old=frame_color(seed=OLD_SEED, frame_index=frame.frame_index),
+            percent=percent,
+        ), frame
+        assert frame.old_frame_index == frame.frame_index, frame
+        assert frame.label is None
+    assert [frame.frame_index for frame in run.presented] == list(range(len(run.presented)))
+
+
+@dataclasses.dataclass(frozen=True)
+class LiveSeedCase:
+    """A live run's seed arguments, the seed it plays under, and what its log says.
+
+    Attributes:
+        case: The test id.
+        seed_arguments: ``--random-seed N``, or nothing.
+        live_seed: The seed live play runs under.
+        logged: The seed's log line.
+
+    """
+
+    case: str
+    seed_arguments: tuple[str, ...]
+    live_seed: int
+    logged: str
+
+
+LIVE_SEED_CASES = (
+    LiveSeedCase(
+        case='olds-seed',
+        seed_arguments=(),
+        live_seed=OLD_SEED,
+        logged=f"Random seed {OLD_SEED} (OLD's, from --compare-trace",
+    ),
+    LiveSeedCase(
+        case='given-seed',
+        seed_arguments=('--random-seed', str(NEW_SEED)),
+        live_seed=NEW_SEED,
+        logged=f'Random seed {NEW_SEED} (given; OLD was recorded under {OLD_SEED})',
+    ),
+)
+
+
+@pytest.mark.parametrize('seed_case', LIVE_SEED_CASES, ids=[case.case for case in LIVE_SEED_CASES])
+def test_live_play_uses_olds_seed_unless_one_is_given(color_game, mocker, caplog, seed_case):
+    """Live play starts in OLD's world (its recorded seed), unless --random-seed N is given."""
+    run = live_play(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        arguments=(*seed_case.seed_arguments, '--compare-trace', str(color_game.old)),
+    )
+
+    assert live_run_succeeded(run=run), run.exit_status
+    assert run.engine.random_seed == seed_case.live_seed
+    assert seed_case.logged in caplog.text
+    assert run.presented
+    for frame in run.presented:
+        assert frame.sample == blended(
+            new=frame_color(seed=seed_case.live_seed, frame_index=frame.frame_index),
+            old=frame_color(seed=OLD_SEED, frame_index=frame.frame_index),
+            percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        ), frame
+
+
+def test_live_play_frame_numbers_match_a_recording_of_the_same_run(color_game, mocker, tmp_path):
+    """Recorded live against OLD, then replayed against OLD: each frame is paired with the same OLD.
+
+    The live frame number is the one the recording counts, so the pairing a replay of the
+    recording shows is the pairing live play showed.
+    """
+    new = tmp_path / 'new.jsonl.gz'
+    live = live_play(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        arguments=(
+            '--random-seed',
+            str(NEW_SEED),
+            '--record-trace',
+            str(new),
+            '--compare-trace',
+            str(color_game.old),
+        ),
+    )
+    assert live_run_succeeded(run=live), live.exit_status
+    assert recorded_frame_count(path=new) == live.engine.host.sources.frames_ended
+
+    replayed = watched_replay(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        recording=new,
+        arguments=('--compare-trace', str(color_game.old)),
+    )
+    assert replayed.exit_status == ExitCode.SUCCESS
+
+    live_pairs = {
+        frame.frame_index: (frame.old_frame_index, frame.sample) for frame in live.presented
+    }
+    replayed_pairs = {
+        frame.frame_index: (frame.old_frame_index, frame.sample)
+        for frame in replayed.presented
+        if frame.frame_index is not None
+    }
+    assert replayed_pairs
+    # Every frame the replay shows was shown live, with the same OLD frame and the same picture
+    for frame_index, pair in replayed_pairs.items():
+        assert live_pairs[frame_index] == pair, frame_index
+        assert pair[0] == frame_index
+
+
+def test_live_play_holds_olds_last_frame_with_the_label(color_game, mocker, tmp_path):
+    """OLD shorter than the play: its last frame stays, labelled, and play goes on."""
+    short_old = tmp_path / 'short-old.jsonl.gz'
+    short_old.write_bytes(color_game.old.read_bytes())
+    last_old_frame = 2
+
+    def keep_three_frames(trace: dict[str, Any]) -> None:
+        trace['frames'] = trace['frames'][: last_old_frame + 1]
+
+    rewrite_recording(recording_path=short_old, change=keep_three_frames)
+
+    run = live_play(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        arguments=('--random-seed', str(NEW_SEED), '--compare-trace', str(short_old)),
+    )
+
+    assert live_run_succeeded(run=run), run.exit_status
+    assert max(frame.frame_index for frame in run.presented) > last_old_frame
+    for frame in run.presented:
+        assert frame.sample == blended(
+            new=frame_color(seed=NEW_SEED, frame_index=frame.frame_index),
+            old=frame_color(seed=OLD_SEED, frame_index=min(frame.frame_index, last_old_frame)),
+            percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        ), frame
+        if frame.frame_index <= last_old_frame:
+            assert frame.old_frame_index == frame.frame_index, frame
+            assert frame.label is None, frame
+        else:
+            assert frame.old_frame_index == last_old_frame, frame
+            assert frame.label == OLD_ENDED_LABEL.format(frame_index=last_old_frame), frame
+
+
+LIVE_REFUSALS = (
+    Refusal(
+        case='headless', exit_code=ExitCode.OPTIONS_REFUSED, message='an onion skin is watched'
+    ),
+    Refusal(
+        case='different-size',
+        exit_code=ExitCode.UNUSABLE_INPUT,
+        message='OLD was recorded on a 160x120 display',
+    ),
+    Refusal(case='missing', exit_code=ExitCode.MISSING_INPUT, message='no such recording'),
+    Refusal(
+        case='not-a-recording',
+        exit_code=ExitCode.UNUSABLE_INPUT,
+        message='not a readable recording',
+    ),
+)
+
+
+@pytest.mark.parametrize('refusal', LIVE_REFUSALS, ids=[refusal.case for refusal in LIVE_REFUSALS])
+def test_live_play_refusals(color_game, mocker, tmp_path, caplog, refusal):
+    """Each is refused before anything runs: no child, nothing recorded."""
+    case = refusal.case
+    old = color_game.old
+    extra: tuple[str, ...] = ()
+    if case == 'headless':
+        extra = ('--headless',)
+    elif case == 'different-size':
+        old = record_stand_in_game(
+            game=color_game.game,
+            path=tmp_path / 'small.jsonl.gz',
+            extra_arguments=('--resolution', '160x120'),
+        )
+    elif case == 'missing':
+        old = tmp_path / 'missing.jsonl.gz'
+    else:
+        old = tmp_path / 'not-a-recording.jsonl.gz'
+        old.write_text('not a recording\n', encoding='utf-8')
+    new = tmp_path / 'new.jsonl.gz'
+    start_command = mocker.spy(compare, 'start_command')
+
+    status = constructed_exit_status(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        arguments=(
+            '--resolution',
+            f'{STAND_IN_SIZE[0]}x{STAND_IN_SIZE[1]}',
+            '--record-trace',
+            str(new),
+            '--compare-trace',
+            str(old),
+            *extra,
+        ),
+    )
+
+    assert status == refusal.exit_code
+    assert f'Cannot play live against {old}: {refusal.message}' in caplog.text
+    start_command.assert_not_called()
+    assert not new.exists()
+
+
+@pytest.mark.parametrize(
+    ('ending', 'exit_code'),
+    [('quits', None), ('fails', ExitCode.INTERNAL_ERROR), ('interrupted', ExitCode.INTERRUPTED)],
+)
+def test_live_play_reaps_the_child_on_quit_and_on_failure(color_game, mocker, ending, exit_code):
+    """However live play ends, OLD's child has ended and been waited for."""
+    if ending != 'quits':
+        mocker.patch.object(
+            color_game.scene_class,
+            'dt_tick',
+            raising_on_tick(
+                scene_class=color_game.scene_class,
+                tick_number=3,
+                error=RuntimeError('the game failed') if ending == 'fails' else KeyboardInterrupt(),
+            ),
+        )
+
+    run = live_play(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        arguments=('--compare-trace', str(color_game.old)),
+    )
+
+    if exit_code is None:
+        assert live_run_succeeded(run=run), run.exit_status
+    else:
+        assert run.exit_status == exit_code
+    onion_skin = run.onion_skin
+    assert onion_skin.process is not None
+    assert onion_skin.process.returncode is not None
+    assert onion_skin.is_stopped
