@@ -246,13 +246,16 @@ testpaths = [
   "src/apps/bitmappy/tests",
 ]
 python_files = ["test_*.py"]
-# Every test module is imported under a name made from its path (importlib mode, with each
-# directory a namespace package), never under its bare file name: two members may have test
-# files or helpers of the same name (the user, 2026-10-27: "we can't really control what a game
-# calls its files"). Nothing is put on sys.path for a test directory, so a member's helper is
-# imported by its qualified path from the repository root, which is on the path
-# (src.apps.bitmappy.tests.film_strip_support); tests/test_suite_collection.py guards both
-consider_namespace_packages = true
+# Every test module is imported under a name made from its path from the repository root
+# (importlib mode: src.apps.bitmappy.tests.test_bitmappy_film_strip, tests.replay.test_x), never
+# under its bare file name: two members may have test files or helpers of the same name (the
+# user, 2026-10-27: "we can't really control what a game calls its files"). Namespace packages
+# are not considered: with them the name would follow sys.path, which an editable engine install
+# changes (apps.bitmappy.tests...), so a module would get another name in another environment.
+# Nothing is put on sys.path for a test directory; the repository root is, so a member's helper
+# is imported by that same path (src.apps.bitmappy.tests.film_strip_support).
+# tests/test_suite_collection.py guards all of it
+consider_namespace_packages = false
 pythonpath = ["."]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

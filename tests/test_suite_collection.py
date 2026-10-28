@@ -404,15 +404,19 @@ def test_every_member_packages_tests_are_collected(pytestconfig):
 def test_tests_are_imported_by_their_paths(pytestconfig):
     """No test module is imported under its bare file name, so no two can collide (D15 item 5).
 
-    pytest's importlib import mode names each test module (and conftest.py) after its path,
-    every directory a namespace package; the repository root is on the path, so a member's
-    helper is imported by its qualified path (``src.apps.bitmappy.tests.film_strip_support``).
-    Two members may then hold test files or helpers of the same name (BUGS.md #224 item 31: the
-    user, 2026-10-27, "we can't really control what a game calls its files").
+    pytest's importlib import mode names each test module (and conftest.py) after its path
+    from the repository root, in every environment: namespace packages are not considered, as
+    with them the name would follow sys.path, which an editable install changes. The root is on
+    the path, so a member's helper is imported by the same path
+    (``src.apps.bitmappy.tests.film_strip_support``). Two members may then hold test files or
+    helpers of the same name (BUGS.md #224 item 31: the user, 2026-10-27, "we can't really
+    control what a game calls its files"). This module's own name is pinned here; a member's
+    is pinned by Bitmappy's ``test_bitmappy_test_module_names.py``.
     """
     assert pytestconfig.option.importmode == 'importlib'
-    assert pytestconfig.getini('consider_namespace_packages') is True
+    assert pytestconfig.getini('consider_namespace_packages') is False
     assert [Path(path) for path in pytestconfig.getini('pythonpath')] == [PROJECT_ROOT]
+    assert __name__ == 'tests.test_suite_collection'
 
 
 def bare_name_imports(*, members: Sequence[WorkspaceMember]) -> list[str]:

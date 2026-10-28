@@ -1277,9 +1277,11 @@ Features:
 - Tests import the installed packages (`uv sync` installs the engine and every member) and never
   edit `sys.path`: `tests/test_suite_collection.py` fails on any `sys.path.insert` or
   `sys.path.append` in a test file. A member's tests (`src/<layer>/<member>/tests/`, no
-  `__init__.py`) are rootless; pytest imports every test module and conftest by its path
-  (`--import-mode=importlib`, `consider_namespace_packages`, `pythonpath = ["."]`; D15 item 5),
-  so no two names collide, and a member's helper module is imported by its qualified path from
+  `__init__.py`) are rootless; pytest imports every test module and conftest under its path from
+  the repository root (`--import-mode=importlib`, `consider_namespace_packages = false`,
+  `pythonpath = ["."]`; D15 item 5: `src.apps.bitmappy.tests.test_bitmappy_film_strip` under
+  `uv run pytest` and nox alike, pinned by `test_bitmappy_test_module_names.py`), so no two names
+  collide, and a member's helper module is imported by its qualified path from
   the repository root (`src.apps.bitmappy.tests.film_strip_support`), never by a bare name
   (`test_no_member_test_imports_a_module_by_a_bare_name`). By convention every test file is
   named `test_<distribution with - as _>*.py` (`test_mr_muncher_*.py`, `test_bitmappy_*.py`;
