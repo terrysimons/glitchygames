@@ -20,6 +20,7 @@ from tests.memory_guard import (
     STATM_SOURCE,
     ResidentMemoryGuard,
     cgroup_memory_reader,
+    cgroup_reclaimable_slab_reader,
     guard_from_environment,
     memory_reader,
     original_standard_error,
@@ -350,8 +351,25 @@ def test_the_plugin_does_nothing_unset(pytester, monkeypatch):
     result.assert_outcomes(passed=1)
 
 
-def write_cgroup(directory: Path, *, limit: str, current: int, file: int, shmem: int) -> Path:
+def write_cgroup(  # ruff: ignore[too-many-arguments]
+    directory: Path,
+    *,
+    limit: str,
+    current: int,
+    file: int,
+    shmem: int,
+    slab_reclaimable: int | None = None,
+) -> Path:
     """Write the cgroup v2 files the container reader reads.
+
+    Args:
+        directory: Where to write them.
+        limit: ``memory.max``.
+        current: ``memory.current``.
+        file: ``memory.stat``'s page cache.
+        shmem: ``memory.stat``'s shared memory.
+        slab_reclaimable: ``memory.stat``'s reclaimable kernel slab, or None to leave it out
+            (an older kernel).
 
     Returns:
         The directory.
@@ -360,8 +378,10 @@ def write_cgroup(directory: Path, *, limit: str, current: int, file: int, shmem:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / 'memory.max').write_text(f'{limit}\n', encoding='ascii')
     (directory / 'memory.current').write_text(f'{current}\n', encoding='ascii')
+    slab = '' if slab_reclaimable is None else f'slab_reclaimable {slab_reclaimable}\n'
     (directory / 'memory.stat').write_text(
-        f'anon {current - file}\nfile {file}\nkernel 1000\nshmem {shmem}\n', encoding='ascii'
+        f'anon {current - file}\nfile {file}\nkernel 1000\nshmem {shmem}\n{slab}',
+        encoding='ascii',
     )
     return directory
 
@@ -508,3 +528,101 @@ def test_the_run_summary_names_the_peak_the_guard_saw(pytester, monkeypatch, tmp
 
     result.assert_outcomes(passed=2)
     result.stdout.fnmatch_lines([f'memory guard: peak 300 MiB of {STATM_SOURCE}, limit 1600 MiB'])
+
+
+def test_the_slab_reader_reads_the_reclaimable_kernel_slab(tmp_path: Path):
+    """memory.stat's slab_reclaimable, in bytes (the container's reading counts it)."""
+    cgroup = write_cgroup(
+        tmp_path / 'cgroup',
+        limit='2147483648',
+        current=mebibytes(1400),
+        file=0,
+        shmem=0,
+        slab_reclaimable=mebibytes(290),
+    )
+
+    reader = cgroup_reclaimable_slab_reader(directory=cgroup)
+
+    assert reader is not None
+    assert reader() == mebibytes(290)
+
+
+@pytest.mark.parametrize('cgroup_files', [True, False], ids=['no slab line', 'no cgroup'])
+def test_without_a_slab_line_there_is_no_slab_reader(tmp_path: Path, cgroup_files):
+    """An older kernel's memory.stat without slab_reclaimable, or no cgroup at all: no reader."""
+    cgroup = tmp_path / 'cgroup'
+    if cgroup_files:
+        write_cgroup(cgroup, limit='2147483648', current=mebibytes(10), file=0, shmem=0)
+
+    assert cgroup_reclaimable_slab_reader(directory=cgroup) is None
+
+
+def test_the_summary_names_the_slab_at_the_peak():
+    """The slab read with the highest reading, not with a later, lower one."""
+    guard = ResidentMemoryGuard(
+        limit_bytes=LIMIT_BYTES,
+        read_resident_bytes=StandInSampler(mebibytes(60), mebibytes(90), mebibytes(70)),
+        stop=RecordedStops(),
+        source=CGROUP_SOURCE,
+        read_reclaimable_slab_bytes=StandInSampler(mebibytes(20), mebibytes(30), mebibytes(99)),
+    )
+
+    for _ in range(3):
+        guard.check()
+
+    assert guard.describe_peak() == (
+        f'memory guard: peak 90 MiB of {CGROUP_SOURCE}, limit 100 MiB '
+        '(30 MiB of it reclaimable kernel slab)'
+    )
+
+
+def test_a_stop_names_the_slab_in_its_reading():
+    """Past the limit, the message says how much of the reading the kernel could reclaim."""
+    stops = RecordedStops()
+    guard = ResidentMemoryGuard(
+        limit_bytes=LIMIT_BYTES,
+        read_resident_bytes=StandInSampler(mebibytes(150)),
+        stop=stops,
+        source=CGROUP_SOURCE,
+        read_reclaimable_slab_bytes=StandInSampler(mebibytes(40)),
+    )
+
+    guard.check()
+
+    (message,) = stops.messages
+    assert message.splitlines()[1] == 'Of that reading, 40 MiB is reclaimable kernel slab'
+
+
+def test_without_a_slab_reader_neither_names_a_slab():
+    """The process's own reading (statm) counts no slab: the summary and the stop say nothing."""
+    stops = RecordedStops()
+    guard = make_guard(read_resident_bytes=StandInSampler(mebibytes(150)), stop=stops)
+
+    guard.check()
+
+    assert 'slab' not in guard.describe_peak()
+    assert 'slab' not in stops.messages[0]
+
+
+def test_the_run_summary_names_the_containers_slab(pytester, monkeypatch, tmp_path):
+    """Through pytest's hooks, in a container: the peak, then the slab counted in it."""
+    cgroup = write_cgroup(
+        tmp_path / 'cgroup',
+        limit='2147483648',
+        current=mebibytes(1400),
+        file=mebibytes(100),
+        shmem=0,
+        slab_reclaimable=mebibytes(290),
+    )
+    monkeypatch.setattr('tests.memory_guard.CGROUP_DIRECTORY', cgroup)
+    monkeypatch.setenv(LIMIT_VARIABLE, '1600')
+    pytester.makepyfile(test_inner_run=PLUGIN_RUN_TESTS)
+
+    result = pytester.runpytest_inprocess('-p', 'tests.memory_guard', '--assert=plain')
+
+    result.assert_outcomes(passed=2)
+    expected = (
+        f'memory guard: peak 1300 MiB of {CGROUP_SOURCE}, limit 1600 MiB '
+        '(290 MiB of it reclaimable kernel slab)'
+    )
+    result.stdout.fnmatch_lines([expected])
