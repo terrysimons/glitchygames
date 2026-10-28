@@ -1640,11 +1640,88 @@ def bandit_scan(session: nox.Session) -> None:
     _bandit_scan(session)
 
 
+# The committed CycloneDX SBOM (scripts/generate_sbom.py writes it, scripts/check_licenses.py and
+# grype read it) and grype's reviewed exceptions
+_SBOM_PATH = 'docs/sbom.cyclonedx.json'
+_GRYPE_CONFIG_PATH = '.grype.yaml'
+_SUPPLY_CHAIN_TOOLS = ('syft', 'grype')
+
+
+def _running_in_ci() -> bool:
+    """Return whether this is a CI run (``CI`` or ``CIRCLECI`` set, as CircleCI sets both).
+
+    Returns:
+        True in CI.
+
+    """
+    return bool(os.environ.get('CI') or os.environ.get('CIRCLECI'))
+
+
+def _supply_chain_scan(session: nox.Session) -> None:
+    """Write the SBOM with syft, scan it with grype, check its licenses, then check its drift.
+
+    Adapted from exoneris noxfile.py's ``security-scan`` (the owner, 2026-10-28: swap safety and
+    pip-audit for syft and grype). syft and grype are system binaries (Homebrew through .envrc
+    locally; CircleCI installs pinned, checksummed releases), not Python packages. Missing
+    locally, the scan warns and is skipped, so bandit still runs for a contributor without them;
+    missing in CI, the session fails, so CI never passes a scan that did not happen.
+
+    The SBOM is generated from this session's own virtualenv, which uv.lock fills with every
+    extra and the dev group (``_install_from_lockfile``), so it inventories exactly what the
+    lock installs on this platform (CI runs this on macOS, as the committed file was written).
+    grype fails on a high or critical finding not reviewed in .grype.yaml; the license check
+    applies scripts/check_licenses.py's policy. The drift check runs last, so one pass over a
+    dependency upgrade reports its CVE and license findings too, rather than stopping at
+    "commit the SBOM": it fails when the regenerated SBOM differs from the committed one (the
+    dependencies changed without it). Commit the regenerated SBOM with its uv.lock change.
+    """
+    missing_tools = [tool for tool in _SUPPLY_CHAIN_TOOLS if shutil.which(tool) is None]
+    if missing_tools:
+        message = (
+            f'{" and ".join(missing_tools)} not found on PATH: install with '
+            f'`brew install {" ".join(missing_tools)}` (or `direnv allow`)'
+        )
+        if _running_in_ci():
+            session.error(f'{message}; CI must run the SBOM, CVE and license scan')
+        session.warn(f'{message}; skipping the SBOM, CVE and license scan')
+        return
+    session.run(
+        'python',
+        'scripts/generate_sbom.py',
+        '--venv',
+        session.virtualenv.location,
+        '--output',
+        _SBOM_PATH,
+    )
+    drift_report = session.run(
+        'git', 'status', '--porcelain', '--', _SBOM_PATH, external=True, silent=True
+    )
+    drifted = [line.strip() for line in str(drift_report or '').splitlines() if line.strip()]
+    for drifted_file in drifted:
+        session.warn(f'SBOM drift: {drifted_file}')
+    session.run(
+        'grype',
+        f'sbom:{_SBOM_PATH}',
+        '--fail-on',
+        'high',
+        '--config',
+        _GRYPE_CONFIG_PATH,
+        external=True,
+    )
+    session.run('python', '-m', 'scripts.check_licenses', '--sbom', _SBOM_PATH)
+    if drifted:
+        session.error(
+            f'{_SBOM_PATH} differs from the committed one: the dependencies changed without '
+            'their SBOM. Commit the regenerated SBOM with the uv.lock change'
+        )
+
+
 @nox.session(python=['3.14'], reuse_venv=False, name='security-scan', default=False)
 def security_scan(session: nox.Session) -> None:
-    """Run all security scanning tools (bandit)."""
+    """Run all security scans: bandit, then the syft SBOM, grype CVEs and the license check."""
     _install_from_lockfile(session)
     _bandit_scan(session)
+    _supply_chain_scan(session)
 
 
 # ---------------------------------------------------------------------------
