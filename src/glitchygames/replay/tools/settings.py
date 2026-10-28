@@ -278,7 +278,8 @@ def _read_pyproject(*, pyproject: Path) -> dict[str, Any]:
     try:
         return tomllib.loads(pyproject.read_text(encoding='utf-8'))
     except tomllib.TOMLDecodeError as error:
-        message = f'{pyproject} is not valid TOML: {error}'
+        # Named with / as typed, on Windows too
+        message = f'{pyproject.as_posix()} is not valid TOML: {error}'
         raise ProjectSettingsError(message) from None
 
 

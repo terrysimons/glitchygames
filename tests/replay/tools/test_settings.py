@@ -8,7 +8,7 @@ repository's layout, and its values are pinned here against the module constants
 from __future__ import annotations
 
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
@@ -23,6 +23,7 @@ from glitchygames.replay.tools.settings import (
     ensure_local_directory,
     find_project_root,
     load_project_settings,
+    project_name,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -424,3 +425,39 @@ def test_no_project_above_is_none(tmp_path, mocker):
     mocker.patch.object(Path, 'is_file', return_value=False)
 
     assert find_project_root(start=tmp_path) is None
+
+
+class WindowsPyprojectThatIsNotToml(PureWindowsPath):
+    """A Windows path (its str() has backslashes) whose file exists and is not TOML.
+
+    A PureWindowsPath cannot be read here, so the two reads ``project_name`` makes are given.
+    """
+
+    def is_file(self) -> bool:
+        """Exist.
+
+        Returns:
+            True.
+
+        """
+        return True
+
+    def read_text(self, encoding: str) -> str:
+        """Hold a cut-off table header.
+
+        Returns:
+            Text that is not TOML.
+
+        """
+        del encoding
+        return '[project\n'
+
+
+def test_a_windows_pyproject_that_is_not_toml_is_named_with_slashes():
+    """The refusal names the pyproject with / (as_posix), never Windows' backslashes."""
+    with pytest.raises(ProjectSettingsError) as refused:
+        project_name(project_root=WindowsPyprojectThatIsNotToml('C:\\games\\space-game'))  # type: ignore[arg-type]
+
+    message = str(refused.value)
+    assert message.startswith('C:/games/space-game/pyproject.toml is not valid TOML'), message
+    assert '\\' not in message
