@@ -849,9 +849,10 @@ _LINUX_CI_PLATFORM = 'linux/amd64'
 _LINUX_CI_UV_CACHE_VOLUME = 'glitchygames-linux-ci-uv-cache'
 _LINUX_CI_UV_CACHE = '/uv-cache'
 _LINUX_CI_PROJECT = '/home/circleci/project'
-# What is never copied into the container: the host's environments and outputs
+# What is never copied into the container: the host's environments and outputs, and its local
+# tool settings (.claude/, ignored here only through a global excludes file the container lacks)
 _LINUX_CI_SKIPPED_DIRECTORIES = (
-    '.git',
+    '.claude',
     '.venv',
     '.nox',
     'test-results',
@@ -963,7 +964,11 @@ def _linux_ci_script(*, python_version: str, uv_version: str, nox_version: str) 
         The script (bash). It exits with the test session's status.
 
     """
-    skipped = ' '.join(f'--exclude=./{directory}' for directory in _LINUX_CI_SKIPPED_DIRECTORIES)
+    # Every .git too, at any depth (a submodule's .git file names this machine's .git/modules/)
+    skipped = ' '.join([
+        '--exclude=.git',
+        *(f'--exclude=./{directory}' for directory in _LINUX_CI_SKIPPED_DIRECTORIES),
+    ])
     return '\n'.join([
         'set -euo pipefail',
         f'sudo chown "$(id -u):$(id -g)" {_LINUX_CI_UV_CACHE}',
@@ -977,6 +982,21 @@ def _linux_ci_script(*, python_version: str, uv_version: str, nox_version: str) 
         "git config --global --add safe.directory '*'",
         f'git clone --quiet --no-checkout /source {_LINUX_CI_PROJECT}.git-clone',
         f'mv {_LINUX_CI_PROJECT}.git-clone/.git {_LINUX_CI_PROJECT}/.git',
+        # The clone has no index (--no-checkout): rebuilt from HEAD, so git compares the copied
+        # files with HEAD; and this checkout's own ignores (.git/info/exclude), so what it ignores
+        # is not untracked here
+        f'git -C {_LINUX_CI_PROJECT} reset --quiet',
+        f'cp /source/.git/info/exclude {_LINUX_CI_PROJECT}/.git/info/exclude || true',
+        # With this checkout's remote branches and tags, so origin/main is the one this checkout
+        # knows (the measurement tools compare commits with it), not its local main
+        (
+            f'git -C {_LINUX_CI_PROJECT} fetch --quiet --force /source '
+            "'+refs/remotes/*:refs/remotes/*' '+refs/tags/*:refs/tags/*'"
+        ),
+        (
+            f'git -C {_LINUX_CI_PROJECT} remote set-url origin '
+            '"$(git -C /source remote get-url origin)"'
+        ),
         f'cd {_LINUX_CI_PROJECT}',
         # "Install Linux system dependencies"
         'sudo apt-get update -qq',
