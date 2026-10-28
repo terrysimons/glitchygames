@@ -40,10 +40,13 @@ from glitchygames.replay.tools.children import running_game_command
 from glitchygames.replay.tools.compare import (
     DEFAULT_COMPARE_ALPHA_PERCENT,
     FRAME_HEADER,
+    FRAME_PIXEL_FORMAT,
     OLD_ENDED_LABEL,
     OLD_NOT_REPLAYED_LABEL,
     FrameStream,
+    GhostCompositor,
     OnionSkin,
+    decode_frame_pixels,
     first_streamed_frame,
     old_game_command,
     old_recording_refusal,
@@ -1340,7 +1343,7 @@ def test_a_frame_stream_writes_nothing_before_its_first_frame():
 
 def test_frames_that_will_be_dropped_are_not_decoded(color_game, mocker):
     """Read past without building a picture; only a frame drawn is decoded (OLD's last too)."""
-    decode = mocker.spy(pygame.image, 'frombytes')
+    decode = mocker.spy(compare, 'decode_frame_pixels')
     onion_skin = OnionSkin(
         old_path=color_game.old,
         alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
@@ -2095,3 +2098,160 @@ def test_compare_trace_is_refused_in_a_browser(color_game, mocker, caplog, run_k
     start_command.assert_not_called()
     assert engine.onion_skin is not None
     assert engine.onion_skin.process is None
+
+
+# The ghost draws only OLD's own items (decision 18 amended; Task D13)
+
+# A small frame: a background, and items at known pixels
+GHOST_FRAME_SIZE = (4, 3)
+BACKGROUND = (10, 20, 30)
+NEW_ITEM = (200, 40, 40)
+OLD_ITEM = (40, 200, 40)
+# Where NEW alone, OLD alone, and both have an item
+NEW_ITEM_AT = (0, 0)
+OLD_ITEM_AT = (1, 1)
+BOTH_ITEMS_AT = (2, 2)
+
+
+def ghost_frame(*, items: dict[tuple[int, int], tuple[int, int, int]]) -> pygame.Surface:
+    """Return a small frame of the background with ``items`` (pixel to color) on it.
+
+    Returns:
+        The frame.
+
+    """
+    surface = pygame.Surface(GHOST_FRAME_SIZE)
+    surface.fill(BACKGROUND)
+    for position, color in items.items():
+        surface.set_at(position, color)
+    return surface
+
+
+def old_pixels(*, surface: pygame.Surface):
+    """Return a frame's pixels as OLD's stream carries them, decoded.
+
+    Returns:
+        Its rows of RGB.
+
+    """
+    return decode_frame_pixels(
+        pixels=pygame.image.tobytes(surface, FRAME_PIXEL_FORMAT), size=surface.get_size()
+    )
+
+
+def rgb_of(*, surface: pygame.Surface, position: tuple[int, int]) -> tuple[int, int, int]:
+    """Return a surface's red, green and blue at ``position``.
+
+    Returns:
+        The color.
+
+    """
+    color = surface.get_at(position)
+    return (color.r, color.g, color.b)
+
+
+def learned_compositor(*, percent: float) -> GhostCompositor:
+    """Return a compositor whose background was learned from one agreeing frame.
+
+    Returns:
+        The compositor.
+
+    """
+    compositor = GhostCompositor(alpha_percent=percent)
+    first = ghost_frame(items={})
+    compositor.draw(surface=first, old=old_pixels(surface=ghost_frame(items={})))
+    return compositor
+
+
+def test_new_stays_opaque_where_only_new_has_an_item():
+    """NEW's item where OLD shows the background is exactly NEW's color: nothing over it."""
+    compositor = learned_compositor(percent=DEFAULT_COMPARE_ALPHA_PERCENT)
+    new = ghost_frame(items={NEW_ITEM_AT: NEW_ITEM})
+
+    compositor.draw(surface=new, old=old_pixels(surface=ghost_frame(items={})))
+
+    assert rgb_of(surface=new, position=NEW_ITEM_AT) == NEW_ITEM
+    assert rgb_of(surface=new, position=OLD_ITEM_AT) == BACKGROUND
+
+
+@pytest.mark.parametrize('percent', [DEFAULT_COMPARE_ALPHA_PERCENT, 25.0], ids=['50', '25'])
+def test_olds_item_is_drawn_at_the_alpha_over_new(percent):
+    """OLD's item is blended at the alpha over whatever NEW has: background, or NEW's own item."""
+    compositor = learned_compositor(percent=percent)
+    new = ghost_frame(items={NEW_ITEM_AT: NEW_ITEM, BOTH_ITEMS_AT: NEW_ITEM})
+    old = ghost_frame(items={OLD_ITEM_AT: OLD_ITEM, BOTH_ITEMS_AT: OLD_ITEM})
+
+    compositor.draw(surface=new, old=old_pixels(surface=old))
+
+    assert rgb_of(surface=new, position=OLD_ITEM_AT) == blended(
+        new=BACKGROUND, old=OLD_ITEM, percent=percent
+    )
+    assert rgb_of(surface=new, position=BOTH_ITEMS_AT) == blended(
+        new=NEW_ITEM, old=OLD_ITEM, percent=percent
+    )
+    # NEW's own item, with OLD's background there, stays solid
+    assert rgb_of(surface=new, position=NEW_ITEM_AT) == NEW_ITEM
+    expected_at_25 = (17, 65, 32)
+    if percent == 25.0:
+        assert rgb_of(surface=new, position=OLD_ITEM_AT) == expected_at_25
+
+
+def test_identical_frames_draw_nothing():
+    """A frame OLD and NEW share draws nothing, before a background is known and after."""
+    compositor = GhostCompositor(alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT)
+    for _ in range(2):
+        new = ghost_frame(items={NEW_ITEM_AT: NEW_ITEM})
+        compositor.draw(
+            surface=new, old=old_pixels(surface=ghost_frame(items={NEW_ITEM_AT: NEW_ITEM}))
+        )
+        assert pygame.image.tobytes(new, FRAME_PIXEL_FORMAT) == pygame.image.tobytes(
+            ghost_frame(items={NEW_ITEM_AT: NEW_ITEM}), FRAME_PIXEL_FORMAT
+        )
+
+
+def test_a_pixel_without_a_background_yet_falls_back_to_differs():
+    """With no background yet, OLD is drawn exactly where it differs from NEW."""
+    compositor = GhostCompositor(alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT)
+    new = ghost_frame(items={NEW_ITEM_AT: NEW_ITEM})
+    old = ghost_frame(items={OLD_ITEM_AT: OLD_ITEM})
+
+    compositor.draw(surface=new, old=old_pixels(surface=old))
+
+    # Unknown background: both differing pixels are drawn over, the agreeing ones are not
+    assert rgb_of(surface=new, position=NEW_ITEM_AT) == blended(
+        new=NEW_ITEM, old=BACKGROUND, percent=DEFAULT_COMPARE_ALPHA_PERCENT
+    )
+    assert rgb_of(surface=new, position=OLD_ITEM_AT) == blended(
+        new=BACKGROUND, old=OLD_ITEM, percent=DEFAULT_COMPARE_ALPHA_PERCENT
+    )
+    assert rgb_of(surface=new, position=BOTH_ITEMS_AT) == BACKGROUND
+    # The agreeing pixels became background: next frame, NEW's item there stays solid
+    later = ghost_frame(items={BOTH_ITEMS_AT: NEW_ITEM})
+    compositor.draw(surface=later, old=old_pixels(surface=ghost_frame(items={})))
+    assert rgb_of(surface=later, position=BOTH_ITEMS_AT) == NEW_ITEM
+
+
+@pytest.mark.parametrize('item_count', [1, 30], ids=['few-items', 'many-items'])
+def test_few_and_many_items_blend_alike(item_count):
+    """Gathered one by one (few) or blended whole and kept (many), OLD's items look the same."""
+    size = (8, 8)
+    compositor = GhostCompositor(alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT)
+    plain = pygame.Surface(size)
+    plain.fill(BACKGROUND)
+    compositor.draw(surface=plain, old=old_pixels(surface=plain))
+    positions = [(index % 8, index // 8) for index in range(item_count)]
+    old = pygame.Surface(size)
+    old.fill(BACKGROUND)
+    for position in positions:
+        old.set_at(position, OLD_ITEM)
+    new = pygame.Surface(size)
+    new.fill(BACKGROUND)
+
+    compositor.draw(surface=new, old=old_pixels(surface=old))
+
+    expected = blended(new=BACKGROUND, old=OLD_ITEM, percent=DEFAULT_COMPARE_ALPHA_PERCENT)
+    for x in range(8):
+        for y in range(8):
+            assert rgb_of(surface=new, position=(x, y)) == (
+                expected if (x, y) in positions else BACKGROUND
+            ), (x, y)

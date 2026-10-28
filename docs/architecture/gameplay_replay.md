@@ -35,10 +35,10 @@ uv run paddleslap --replay-trace session.jsonl.gz --rebaseline new-session.jsonl
 # recording's; with a limit, more than 10% slower exits 8
 uv run paddleslap --replay-trace session.jsonl.gz --headless --max-processing-slowdown 10
 
-# Onion skin: watch a replay with another recording's frames drawn over it, half transparent
+# Onion skin: watch a replay with another recording's items drawn over it, half transparent
 uv run paddleslap --replay-trace new-session.jsonl.gz --compare-trace session.jsonl.gz
 
-# Play live against a recording: its frames drawn over yours, half transparent
+# Play live against a recording: its items drawn over your game, half transparent
 uv run paddleslap --compare-trace session.jsonl.gz
 
 # The same tools as the glitchygames command (the game comes from the recording), and a
@@ -450,9 +450,18 @@ bookmarks survive restarts. In the restarted replay:
 
 ### Onion skin (`--compare-trace OLD`)
 
-`--replay-trace NEW --compare-trace OLD` watches NEW as usual, with OLD's frame of the same
-number drawn over each frame shown, at `--compare-alpha PERCENT` opacity (default 50; 0 to 100,
-anything else is refused by the parser). The status bar stays on top. NEW replays, compares and
+`--replay-trace NEW --compare-trace OLD` watches NEW as usual, with OLD's items from the frame of
+the same number drawn over each frame shown, at `--compare-alpha PERCENT` opacity (default 50; 0
+to 100, anything else is refused by the parser). NEW itself stays fully opaque: OLD's background
+is never drawn. The status bar stays on top.
+
+**What counts as one of OLD's items.** The onion skin learns each pixel's background as the two
+runs go: wherever OLD's and NEW's frames show the same color at a pixel, that color is the
+pixel's background. An OLD pixel that differs from its pixel's background is one of OLD's items,
+and it is blended over whatever NEW shows there. Until a pixel has matched once, OLD's pixel is
+drawn only where it differs from NEW, so a frame both runs share draws nothing. The blend costs
+about 1 ms a frame when the runs match, 3 ms with a few sprites, and 4 ms when every pixel
+differs, for an 800x480 window. NEW replays, compares and
 exits exactly as it would alone: only the shown copy is drawn on. The `glitchygames` command
 takes the same options (`glitchygames replay-trace NEW --compare-trace OLD`).
 

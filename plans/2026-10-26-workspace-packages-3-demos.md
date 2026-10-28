@@ -1131,7 +1131,12 @@ scripts, staging rows in the pre-commit hook, and the docs snippet text.
     --compare-trace that is able to be run to do the onion skinning"; placed as Task D11). An
     option of `replay-trace`: NEW replays watched and solid, OLD's same-numbered frame is drawn
     over it at `--compare-alpha` (default 50%). OLD is replayed by a headless child process in
-    lockstep, streaming its frames, so NEW's replay is untouched.
+    lockstep, streaming its frames, so NEW's replay is untouched. **Amended 2026-10-27 (Task
+    D13; the user: "Just draw the items from the other game at 50% on top of my game regardless
+    of what else is going on"):** only OLD's items are drawn, NEW stays fully opaque. A
+    per-pixel background is learned wherever OLD's and NEW's frames agree; an OLD pixel unlike
+    its background is an item, blended over NEW at the alpha; a pixel with no background yet is
+    an item only where OLD and NEW differ. Applies to live play (decision 19) too.
 19. **`--compare-trace OLD` also works with live play** (the user, 2026-10-27: "--compare-trace
     should work independently with a real live play."; Task D12). Without `--replay-trace`, the
     game is played live with real input and OLD's frame N (the same child and stream as decision
@@ -1588,6 +1593,18 @@ window opens, before the first frame); `--audit` and `--rebaseline` are already 
 - [ ] **Step 3: the user's look:** Mr. Muncher played live against its golden. Also put the pause
   choice to the user: (a) OLD runs through a game's pause (built), or (b) a compared-frame
   counter on both sides that holds OLD in a pause and keeps the replay pairing (a follow-up).
+
+### Task D13: the ghost draws only OLD's own items (the user, 2026-10-27)
+
+**Behavior** (decision 18 amended): rule 10 of `replay/tools/compare.py`; `GhostCompositor`,
+`decode_frame_pixels` (RGBX rows), `blend_over`. Per-frame cost at 800x480 (median, this Mac):
+about 0.75 ms identical frames, 3.1 ms a few sprites, 3.8 ms every pixel differing.
+
+- [x] **Step 1: failing tests:** `test_new_stays_opaque_where_only_new_has_an_item`,
+  `test_olds_item_is_drawn_at_the_alpha_over_new`, `test_identical_frames_draw_nothing`,
+  `test_a_pixel_without_a_background_yet_falls_back_to_differs`, plus
+  `test_few_and_many_items_blend_alike`.
+- [x] **Step 2:** implement; docs; lint; commit (2026-10-27).
 
 ### Task D10: Docs, then Stage D's verification
 

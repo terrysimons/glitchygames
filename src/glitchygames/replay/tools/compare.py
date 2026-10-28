@@ -4,9 +4,10 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
 
 1. **What is shown.** ``--replay-trace NEW --compare-trace OLD [--compare-alpha PERCENT]`` (on
    the game, or ``glitchygames replay-trace NEW --compare-trace OLD ...``) replays NEW watched,
-   as any watched replay, drawn solid. On each presented frame, OLD's frame of the same number is
-   drawn over it at ``PERCENT`` opacity (``DEFAULT_COMPARE_ALPHA_PERCENT`` when not given; 0 to
-   100, the parser refuses any other: ``argument_types.percent_from_zero_to_one_hundred``), then
+   as any watched replay, drawn solid. On each presented frame, OLD's items of the frame of the
+   same number are drawn over it at ``PERCENT`` opacity (``DEFAULT_COMPARE_ALPHA_PERCENT`` when
+   not given; 0 to 100, the parser refuses any other:
+   ``argument_types.percent_from_zero_to_one_hundred``; which pixels are items: rule 10), then
    the viewer's status bar over both (``ReplaySources.draw_overlay``; the debug overlay, drawn
    before the doors' overlay, is under OLD too). Only the presented copy is drawn on, so nothing
    in NEW's replay changes: its frames, comparisons, result and exit code are a plain watched
@@ -35,7 +36,8 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
    no descriptors, and a socket works the same on every platform.
 4. **Lockstep.** The parent reads frames only when it draws one: it reads (and drops) OLD's
    frames until it holds the one numbered as the frame presented, and keeps that one (memory
-   holds one frame, as sent: only a frame drawn is decoded into a picture, once; a header whose
+   holds one frame, as sent: only a frame drawn is decoded (``decode_frame_pixels``), once; a
+   header whose
    size is not NEW's presented frame's ends OLD there, before its pixels are read). Paused, it
    reads nothing, so the child blocks on the full socket within a few frames: the two runs move
    together, through pause and frame steps too.
@@ -81,6 +83,17 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
    ``--rebaseline`` need ``--replay-trace`` anyway), OLD's size checked against the live
    window once it opens, before the first frame. ``--record-trace NEW`` may go with it. Live
    play has no step back.
+10. **Only OLD's items** (decision 18 as amended, Task D13; the user: "Just draw the items from
+    the other game at 50% on top of my game regardless of what else is going on"). NEW stays
+    fully opaque; OLD's background never fades it (``GhostCompositor``). A per-pixel background
+    is learned as the runs go: wherever OLD's and NEW's presented frames agree on a pixel, that
+    color becomes the pixel's background (the latest agreement wins). A pixel is one of OLD's
+    items when OLD's color differs from the pixel's background; it is blended over NEW at
+    ``PERCENT`` (an alpha blit's arithmetic, ``blend_over``), whatever NEW has there. Every
+    other pixel is NEW's, unchanged. A pixel that has never agreed has no background yet: OLD's
+    pixel is then an item exactly where OLD and NEW differ (so a frame that matches draws
+    nothing). A held last frame (rule 5) is drawn by the same rule, and the labels are drawn as
+    before. Vectorized with numpy (``pygame.surfarray``) on the presented copy.
 """
 
 from __future__ import annotations
@@ -97,6 +110,7 @@ import tempfile
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Self, override
 
+import numpy as np
 import pygame
 
 from glitchygames.clock import measured_seconds
@@ -118,6 +132,8 @@ from glitchygames.tracing import TraceFormatError, TraceReader
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    import numpy.typing as npt
+
     from glitchygames.process import RunningProcess
 
 LOG = logging.getLogger('game.replay')
@@ -132,6 +148,11 @@ FRAME_STREAM_HOST = '127.0.0.1'
 FRAME_HEADER = struct.Struct('<III')
 FRAME_PIXEL_FORMAT = 'RGB'
 BYTES_PER_PIXEL = 3
+# The ghost's working layout (rule 10): RGB and one unused byte, so a pixel is one 32-bit number
+PADDED_PIXEL_FORMAT = 'RGBX'
+PADDED_BYTES_PER_PIXEL = 4
+# Above one item pixel in this many, the ghost blends the whole frame and keeps its items
+MANY_ITEMS_FRACTION_DENOMINATOR = 8
 # The opacity a blit's alpha gives at 100%
 FULLY_OPAQUE_ALPHA = 255
 ONE_HUNDRED_PERCENT = 100.0
@@ -484,15 +505,15 @@ class HeldFrame:
         frame_index: Its number.
         size: Its width and height.
         pixels: Its RGB rows, as sent.
-        picture: Its picture at the onion skin's alpha, once decoded (``OnionSkin`` decodes a
-            held frame only when it draws it), else None.
+        decoded: Its pixels as rows of RGBX, once decoded (``OnionSkin`` decodes a held frame
+            only when it draws it), else None.
 
     """
 
     frame_index: int
     size: tuple[int, int]
     pixels: bytes
-    picture: pygame.Surface | None = None
+    decoded: npt.NDArray[np.uint8] | None = None
 
 
 class StreamEndedError(Exception):
@@ -567,6 +588,8 @@ class OnionSkin:
         self._has_ended = False
         self._is_stopped = False
         self._font: pygame.font.Font | None = None
+        # Draws OLD's items over NEW, learning the background as it goes (rule 10)
+        self._compositor = GhostCompositor(alpha_percent=alpha_percent)
 
     @property
     def held_frame_index(self: Self) -> int | None:
@@ -608,7 +631,7 @@ class OnionSkin:
             return
         if held.frame_index > frame_index:
             return
-        surface.blit(self._picture(held=held), (0, 0))
+        self._compositor.draw(surface=surface, old=self._decoded(held=held))
         if held.frame_index < frame_index:
             self._draw_label(
                 surface=surface, text=OLD_ENDED_LABEL.format(frame_index=held.frame_index)
@@ -811,25 +834,23 @@ class OnionSkin:
         except StreamEndedError as ended:
             self._end(reason=f'{ended.reason} part way through a frame', stalled=ended.stalled)
             return
-        # Kept as sent: decoded only if it is drawn (_picture), so a frame read past is not
+        # Kept as sent: decoded only if it is drawn (_decoded), so a frame read past is not
         self._held = HeldFrame(frame_index=frame_index, size=(width, height), pixels=pixels)
         self.frames_received += 1
 
-    def _picture(self: Self, *, held: HeldFrame) -> pygame.Surface:
-        """Return the held frame's picture at the alpha, decoding it the first time.
+    def _decoded(self: Self, *, held: HeldFrame) -> npt.NDArray[np.uint8]:
+        """Return the held frame's pixels as rows of RGBX, decoding them the first time.
 
         Args:
             held: The held frame.
 
         Returns:
-            The picture.
+            Its pixels (height x width x 4).
 
         """
-        if held.picture is None:
-            picture = pygame.image.frombytes(held.pixels, held.size, FRAME_PIXEL_FORMAT)
-            picture.set_alpha(round(FULLY_OPAQUE_ALPHA * self.alpha_percent / ONE_HUNDRED_PERCENT))
-            held.picture = picture
-        return held.picture
+        if held.decoded is None:
+            held.decoded = decode_frame_pixels(pixels=held.pixels, size=held.size)
+        return held.decoded
 
     def _end(self: Self, *, reason: str, stalled: bool) -> None:
         """OLD has no more frames: wait for its child (stop a stalled one), and log how it ended.
@@ -891,6 +912,119 @@ class OnionSkin:
             text_surface=text_surface,
             position=((surface.get_width() - text_surface.get_width()) // 2, HUD_MARGIN),
         )
+
+
+def decode_frame_pixels(*, pixels: bytes, size: tuple[int, int]) -> npt.NDArray[np.uint8]:
+    """Return a streamed frame's pixels (rule 3's RGB rows) as rows of RGBX, X unused.
+
+    Four bytes a pixel, so the ghost compares a pixel as one 32-bit number (``GhostCompositor``).
+
+    Args:
+        pixels: Width x height x 3 bytes, rows top to bottom.
+        size: Its width and height.
+
+    Returns:
+        A height x width x 4 array.
+
+    """
+    width, height = size
+    rows = np.empty((height, width, PADDED_BYTES_PER_PIXEL), dtype=np.uint8)
+    rows[..., :BYTES_PER_PIXEL] = np.frombuffer(pixels, dtype=np.uint8).reshape(
+        height, width, BYTES_PER_PIXEL
+    )
+    rows[..., BYTES_PER_PIXEL] = FULLY_OPAQUE_ALPHA
+    return rows
+
+
+def blend_over(
+    *, new: npt.NDArray[np.uint8], old: npt.NDArray[np.uint8], alpha: int
+) -> npt.NDArray[np.uint8]:
+    """Return OLD's pixels blended over NEW's at ``alpha``, as an alpha blit mixes them.
+
+    SDL's blend: ``new + (((old - new) * alpha + old) >> 8)`` per channel, so a ghost drawn here
+    has the same colors as the whole-frame blit it replaces.
+
+    Args:
+        new: NEW's pixels (any shape, channels last).
+        old: OLD's pixels, the same shape.
+        alpha: OLD's opacity, from 0 to ``FULLY_OPAQUE_ALPHA``.
+
+    Returns:
+        The blended pixels.
+
+    """
+    new_values = new.astype(np.int32)
+    old_values = old.astype(np.int32)
+    return (new_values + (((old_values - new_values) * alpha + old_values) >> 8)).astype(np.uint8)
+
+
+class GhostCompositor:
+    """Draws OLD's items over NEW's presented frames, leaving NEW opaque (rule 10).
+
+    Pixels are compared as 32-bit numbers (RGBX rows viewed as ``uint32``), the X byte always
+    ``FULLY_OPAQUE_ALPHA`` on both sides.
+
+    Attributes:
+        alpha: OLD's items' opacity, from 0 to ``FULLY_OPAQUE_ALPHA``.
+
+    """
+
+    def __init__(self: Self, *, alpha_percent: float) -> None:
+        """Start with no background learned.
+
+        Args:
+            alpha_percent: How opaque OLD's items are drawn, from 0 to 100.
+
+        """
+        self.alpha = round(FULLY_OPAQUE_ALPHA * alpha_percent / ONE_HUNDRED_PERCENT)
+        # Each pixel's background (as 32-bit RGBX), and whether it is known yet (it agreed once)
+        self._background: npt.NDArray[np.uint32] | None = None
+        self._background_known: npt.NDArray[np.bool_] | None = None
+
+    def draw(self: Self, *, surface: pygame.Surface, old: npt.NDArray[np.uint8]) -> None:
+        """Learn the background from this frame, then blend OLD's items over ``surface``.
+
+        Args:
+            surface: NEW's presented frame, drawn on (only when OLD has an item on it).
+            old: OLD's frame of the same number (``decode_frame_pixels``), the same size.
+
+        """
+        size = surface.get_size()
+        width, height = size
+        # NEW's pixels as rows of RGBX (a copy: the surface is drawn on only at the end)
+        new = np.frombuffer(
+            bytearray(pygame.image.tobytes(surface, PADDED_PIXEL_FORMAT)), dtype=np.uint8
+        ).reshape(height, width, PADDED_BYTES_PER_PIXEL)
+        new[..., BYTES_PER_PIXEL] = FULLY_OPAQUE_ALPHA
+        new_colors = new.view(np.uint32)[..., 0]
+        old_colors = old.view(np.uint32)[..., 0]
+        background = self._background
+        background_known = self._background_known
+        if background is None or background_known is None or background.shape != new_colors.shape:
+            background = np.zeros_like(new_colors)
+            background_known = np.zeros(new_colors.shape, dtype=np.bool_)
+            self._background = background
+            self._background_known = background_known
+        agrees = old_colors == new_colors
+        background[agrees] = new_colors[agrees]
+        background_known |= agrees
+        # Known: OLD's item where it differs from the background; unknown: where it differs
+        # from NEW
+        is_item = old_colors != np.where(background_known, background, new_colors)
+        if not is_item.any():
+            return
+        if np.count_nonzero(is_item) * MANY_ITEMS_FRACTION_DENOMINATOR > is_item.size:
+            # Many items (OLD's background differs from NEW's): blending the whole frame and
+            # keeping the items is faster than gathering them one by one
+            np.copyto(
+                new,
+                blend_over(new=new, old=old, alpha=self.alpha),
+                where=is_item[..., np.newaxis],
+            )
+        else:
+            new[is_item] = blend_over(new=new[is_item], old=old[is_item], alpha=self.alpha)
+        # Opaque (no alpha set), so it replaces the presented copy's pixels outright
+        surface.blit(pygame.image.frombytes(new.tobytes(), size, PADDED_PIXEL_FORMAT), (0, 0))
 
 
 def receive_exactly(*, connection: socket.socket, count: int) -> bytes:
