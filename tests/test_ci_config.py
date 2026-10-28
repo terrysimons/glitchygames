@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 import tomllib
 from pathlib import Path
 
@@ -437,7 +438,8 @@ def test_the_linux_ci_session_copies_what_git_would_commit_from_a_worktree(tmp_p
     assert f'{repository}:{repository}:ro' in docker_run
     assert (tmp_path / 'files').read_bytes() == b'README.md\0'
     script = docker_run[-1]
-    assert f'git clone --quiet --no-checkout {repository} ' in script
+    # Quoted as the noxfile quotes it (a Windows path's backslashes need quotes)
+    assert f'git clone --quiet --no-checkout {shlex.quote(str(repository))} ' in script
     assert 'git update-ref refs/heads/feature/x abc123' in script
     assert 'git symbolic-ref HEAD refs/heads/feature/x' in script
     assert 'git remote set-url origin https://example.com/glitchygames.git' in script

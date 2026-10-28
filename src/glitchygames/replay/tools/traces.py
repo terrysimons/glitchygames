@@ -227,18 +227,19 @@ def find_recorded_game(
         game_module = recorded_game_module(path=recording)
     except FileNotFoundError:
         return RecordedGameRefusal(
-            exit_code=ExitCode.MISSING_INPUT, reason=f'{recording}: no such recording'
+            exit_code=ExitCode.MISSING_INPUT, reason=f'{recording.as_posix()}: no such recording'
         )
     # A TraceFormatError is a ValueError
     except OSError, ValueError:
         return RecordedGameRefusal(
-            exit_code=ExitCode.UNUSABLE_INPUT, reason=f'{recording}: not a readable recording'
+            exit_code=ExitCode.UNUSABLE_INPUT,
+            reason=f'{recording.as_posix()}: not a readable recording',
         )
     except KeyError as error:
         return game_not_found(reason=f'{error.args[0]}, so it names no game')
     if not module_is_importable(module=game_module, search_directory=project_root):
         return game_not_found(
-            reason=f"{recording}: its game's module {game_module!r} no longer imports"
+            reason=f"{recording.as_posix()}: its game's module {game_module!r} no longer imports"
         )
     try:
         console_script = console_script_for_game_module(
@@ -246,7 +247,7 @@ def find_recorded_game(
         )
     except KeyError as error:
         return game_not_found(
-            reason=f'{recording}: no one console script starts it ({error.args[0]})'
+            reason=f'{recording.as_posix()}: no one console script starts it ({error.args[0]})'
         )
     entry_point = game_entry_point(console_script=console_script)
     return console_script, GameLaunch(

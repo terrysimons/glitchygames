@@ -240,7 +240,7 @@ def verify_one(
     name = recording_name(path=path, project_root=project_root)
     if isinstance(game, RecordedGameRefusal):
         # The refusal's message, without the path it starts with: the line names the recording
-        reason = game.reason.removeprefix(f'{path}: ')
+        reason = game.reason.removeprefix(f'{path.as_posix()}: ')
         write_line(line=f'{FAILED} {name}: {game.exit_code.describe()}: {reason}')
         return game.exit_code
     try:

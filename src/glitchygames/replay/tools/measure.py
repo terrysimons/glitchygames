@@ -892,7 +892,7 @@ def unclaimed_goldens(
         except KeyError as error:
             # The refusal's message (not KeyError's quoted repr), without the path it starts
             # with: the failure line names the recording
-            reason = str(error.args[0]).removeprefix(f'{path}: ')
+            reason = str(error.args[0]).removeprefix(f'{path.as_posix()}: ')
             unclaimed.append(UnreplayableRecording(path=path, reason=reason))
             continue
         if console_script not in games:
@@ -1406,7 +1406,10 @@ def measure_named_recordings(
         for path in paths:
             found = find_recorded_game(recording=path, project_root=root)
             if isinstance(found, RecordedGameRefusal):
-                _failure(recording=path.as_posix(), message=found.reason.removeprefix(f'{path}: '))
+                _failure(
+                    recording=path.as_posix(),
+                    message=found.reason.removeprefix(f'{path.as_posix()}: '),
+                )
                 statuses.append(found.exit_code)
                 continue
             name, launch = found
