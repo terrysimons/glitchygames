@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import ast
 import configparser
+import importlib.metadata
 import json
 import re
+import sys
 import tomllib
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
@@ -14,7 +16,12 @@ import noxfile
 import pytest
 import yaml
 from scripts.gen_ref_pages import reference_page_path
-from scripts.workspace_packages import WorkspaceMember, workspace_members
+from scripts.workspace_packages import (
+    ENGINE_PACKAGE,
+    WorkspaceMember,
+    canonical_distribution_name,
+    workspace_members,
+)
 
 from glitchygames import logical_names
 from tests.ast_scanning import (
@@ -862,3 +869,127 @@ def test_a_noxfile_without_the_source_package_list_is_an_error(tmp_path):
 
     with pytest.raises(LookupError, match='_SOURCE_PACKAGE_DIRS'):
         load_noxfile_source_package_directories(project_root=tmp_path)
+
+
+# A member declares what it imports (decision 10; Task D15 item 2). Adapted from the draft
+# plans/2026-10-25-workspace-packages-2-games-demos-apps.md, Task 2 (its l.607-723), for the
+# src/ layout
+
+
+def imported_top_level_modules(*, package_directory: Path) -> set[str]:
+    """Return every top-level module a package's files import (absolute imports, at any depth).
+
+    Returns:
+        The module names.
+
+    """
+    modules: set[str] = set()
+    for path in package_directory.rglob('*.py'):
+        tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                modules.update(alias.name.partition('.')[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                modules.add(node.module.partition('.')[0])
+    return modules
+
+
+def distributions_by_module(*, members: Sequence[WorkspaceMember]) -> dict[str, set[str]]:
+    """Return each importable top-level module's distributions, canonical names.
+
+    The workspace's own packages are named from the workspace: their editable installs record a
+    .pth file, not their packages, so importlib.metadata cannot map them.
+
+    Returns:
+        Module -> the distributions that install it.
+
+    """
+    owners = {
+        module: {canonical_distribution_name(name=distribution) for distribution in distributions}
+        for module, distributions in importlib.metadata.packages_distributions().items()
+    }
+    owners[ENGINE_PACKAGE] = {ENGINE_PACKAGE}
+    for member in members:
+        for package in member.import_packages:
+            owners[package] = {member.distribution}
+    return owners
+
+
+def undeclared_imports(*, member: WorkspaceMember, owners: dict[str, set[str]]) -> list[str]:
+    """Return what a member imports from a distribution its pyproject.toml does not declare.
+
+    Returns:
+        One line per undeclared module.
+
+    """
+    problems: list[str] = []
+    for package_directory in member.package_directories:
+        for module in sorted(imported_top_level_modules(package_directory=package_directory)):
+            if module in sys.stdlib_module_names or module in member.import_packages:
+                continue
+            distributions = owners.get(module, set())
+            if not distributions & set(member.dependencies):
+                installed_by = ', '.join(sorted(distributions)) or 'no installed distribution'
+                problems.append(
+                    f'{member.distribution} imports {module} ({installed_by}) undeclared'
+                )
+    return problems
+
+
+@pytest.mark.parametrize('member', MEMBERS, ids=member_name)
+def test_every_member_declares_what_it_imports(member):
+    """A member installed alone has every package it imports (the workspace hides a gap)."""
+    assert undeclared_imports(member=member, owners=distributions_by_module(members=MEMBERS)) == []
+
+
+@pytest.mark.parametrize('member', MEMBERS, ids=member_name)
+def test_every_member_depends_on_the_engine_with_a_floor(member):
+    """``glitchygames>=1.0.0``: a member never resolves an older engine (BUGS.md #224 item 45)."""
+    pyproject = tomllib.loads((member.directory / 'pyproject.toml').read_text(encoding='utf-8'))
+
+    assert 'glitchygames>=1.0.0' in pyproject['project']['dependencies']
+
+
+def test_an_undeclared_import_is_found(tmp_path):
+    """A planted member importing pydantic while declaring only the engine and pygame is caught."""
+    package_directory = tmp_path / 'space_game'
+    (package_directory / 'levels').mkdir(parents=True)
+    (package_directory / 'game.py').write_text(
+        'import os\nimport pygame\nfrom space_game import levels\nfrom . import levels\n',
+        encoding='utf-8',
+    )
+    (package_directory / 'levels' / 'first.py').write_text(
+        'def load():\n    from pydantic import BaseModel\n    return BaseModel\n',
+        encoding='utf-8',
+    )
+    member = WorkspaceMember(
+        directory=tmp_path,
+        distribution='space-game',
+        import_packages=('space_game',),
+        console_scripts=(),
+        dependencies=('glitchygames', 'pygame-ce'),
+    )
+
+    problems = undeclared_imports(member=member, owners=distributions_by_module(members=MEMBERS))
+
+    assert problems == ['space-game imports pydantic (pydantic) undeclared']
+
+
+def test_an_import_no_distribution_installs_is_found(tmp_path):
+    """A module nothing installed provides is named as such."""
+    package_directory = tmp_path / 'space_game'
+    package_directory.mkdir()
+    (package_directory / 'game.py').write_text('import not_installed_anywhere\n', encoding='utf-8')
+    member = WorkspaceMember(
+        directory=tmp_path,
+        distribution='space-game',
+        import_packages=('space_game',),
+        console_scripts=(),
+        dependencies=('glitchygames',),
+    )
+
+    problems = undeclared_imports(member=member, owners=distributions_by_module(members=MEMBERS))
+
+    assert problems == [
+        'space-game imports not_installed_anywhere (no installed distribution) undeclared'
+    ]

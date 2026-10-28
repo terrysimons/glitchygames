@@ -10,7 +10,9 @@ from scripts.workspace_packages import (
     ENGINE_DIRECTORY,
     ENGINE_PACKAGE,
     WorkspaceMember,
+    canonical_distribution_name,
     members_in_layer,
+    requirement_distribution,
     source_package_directories,
     workspace_members,
 )
@@ -29,6 +31,7 @@ members = ["src/games/space-game"]
 MEMBER_PYPROJECT = """
 [project]
 name = "space-game"
+dependencies = ["glitchygames>=1.0.0", "Pydantic_Core [email] ; python_version >= '3.14'"]
 
 [project.scripts]
 space-game = "space_game:main"
@@ -57,6 +60,7 @@ def test_a_member_is_read_from_its_own_pyproject(tmp_path):
         distribution='space-game',
         import_packages=('space_game',),
         console_scripts=('space-game',),
+        dependencies=('glitchygames', 'pydantic-core'),
     )
     assert member.package_directories == (tmp_path / 'src' / 'games' / 'space-game' / 'space_game',)
     assert member.tests_directory == tmp_path / 'src' / 'games' / 'space-game' / 'tests'
@@ -371,3 +375,31 @@ def test_the_engine_tests_know_the_engines_source_directory_as_the_workspace_doe
     """tests/engine_source.py keeps its own copy, so engine tests need not import this script."""
     assert engine_source.ENGINE_PACKAGE == ENGINE_PACKAGE
     assert engine_source.ENGINE_DIRECTORY == ENGINE_DIRECTORY
+
+
+@pytest.mark.parametrize(
+    ('requirement', 'distribution'),
+    [
+        ('glitchygames', 'glitchygames'),
+        ('glitchygames>=1.0.0', 'glitchygames'),
+        ('pygame-ce', 'pygame-ce'),
+        ('Pydantic_Core [email] ; python_version >= "3.14"', 'pydantic-core'),
+        ('aisuite[anthropic,aws]>=0.1.14', 'aisuite'),
+        ('zope.interface ~= 6.0', 'zope-interface'),
+        ('name @ https://example.invalid/name.whl', 'name'),
+    ],
+)
+def test_a_requirement_names_its_distribution(requirement, distribution):
+    """Only the name counts, canonical (PEP 503): extras, versions and markers are dropped."""
+    assert requirement_distribution(requirement=requirement) == distribution
+
+
+def test_a_requirement_without_a_name_is_refused():
+    """A requirement that does not start with a name is a mistake in a pyproject.toml."""
+    with pytest.raises(ValueError, match='names no distribution'):
+        requirement_distribution(requirement='>=1.0')
+
+
+def test_canonical_distribution_names_fold_case_and_separators():
+    """PEP 503: lower case, and each run of -, _ and . is one -."""
+    assert canonical_distribution_name(name='Pydantic__Core.Extra') == 'pydantic-core-extra'

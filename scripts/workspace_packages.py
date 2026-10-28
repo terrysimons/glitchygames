@@ -8,6 +8,7 @@ listed explicitly in the root ``[tool.uv.workspace] members`` (no globs).
 
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 from typing import Any, Self, cast
@@ -20,6 +21,45 @@ ENGINE_PACKAGE = 'glitchygames'
 # Where the engine's source package is, relative to the repository: under src/, so nothing run
 # from the repository root imports the source tree by accident (the user, 2026-10-25)
 ENGINE_DIRECTORY = Path('src') / ENGINE_PACKAGE
+# A requirement's distribution name: what it starts with (PEP 508), and the separators PEP 503
+# folds into one '-'
+REQUIREMENT_NAME = re.compile(r'\s*([A-Za-z0-9][A-Za-z0-9._-]*)')
+NAME_SEPARATORS = re.compile(r'[-_.]+')
+
+
+def canonical_distribution_name(*, name: str) -> str:
+    """Return a distribution name in PEP 503's canonical form (lower case, runs of -_. as -).
+
+    Args:
+        name: The name.
+
+    Returns:
+        The canonical name.
+
+    """
+    return NAME_SEPARATORS.sub('-', name).lower()
+
+
+def requirement_distribution(*, requirement: str) -> str:
+    """Return the canonical distribution name a ``[project] dependencies`` requirement names.
+
+    Extras, version specifiers, URLs and markers are dropped (PEP 508: the name comes first).
+
+    Args:
+        requirement: The requirement (``aisuite[openai]>=0.1.14``).
+
+    Returns:
+        Its canonical distribution name (``aisuite``).
+
+    Raises:
+        ValueError: If it does not start with a name.
+
+    """
+    match = REQUIREMENT_NAME.match(requirement)
+    if match is None:
+        message = f'The requirement {requirement!r} names no distribution'
+        raise ValueError(message)
+    return canonical_distribution_name(name=match.group(1))
 
 
 class WorkspaceMember(BaseModel):
@@ -32,6 +72,8 @@ class WorkspaceMember(BaseModel):
         package_relative_paths: Where each import package is below the directory (mr_muncher, or
             src/mr_muncher in a src layout); defaults to the import packages' names.
         console_scripts: Its console scripts (mr-muncher).
+        dependencies: The distributions its ``[project] dependencies`` name, canonical
+            (``requirement_distribution``), in the order given.
 
     """
 
@@ -42,6 +84,7 @@ class WorkspaceMember(BaseModel):
     import_packages: tuple[str, ...]
     console_scripts: tuple[str, ...]
     package_relative_paths: tuple[Path, ...] = ()
+    dependencies: tuple[str, ...] = ()
 
     @model_validator(mode='before')
     @classmethod
@@ -160,6 +203,10 @@ def workspace_members(*, project_root: Path) -> list[WorkspaceMember]:
                 import_packages=tuple(Path(package).name for package in packages),
                 package_relative_paths=tuple(Path(package) for package in packages),
                 console_scripts=tuple(project.get('scripts', {})),
+                dependencies=tuple(
+                    requirement_distribution(requirement=requirement)
+                    for requirement in project.get('dependencies', [])
+                ),
             )
         )
     return members
