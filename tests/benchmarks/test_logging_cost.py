@@ -12,10 +12,12 @@ logging it did), the child's peak resident memory (None on Windows) and the reco
 then the loggers that emit the most at ``debug``, per recording. Both tables are printed and
 written to ``test-results/logging-cost.md``.
 
-Not in the main test run: it replays every recording twice (about a minute), so it runs only
-under ``--benchmark-only`` (``nox -s performance-test``, or the command in
-docs/quality/performance.md) and is skipped otherwise. pytest-benchmark's own switch is not
-enough: it turns benchmarks off only under xdist, and the Linux CI job runs serially.
+Not in the test run (``nox -s test``, every CI job's tests): it replays every recording twice
+(about a minute), so it runs only under ``--benchmark-only`` and is skipped otherwise.
+pytest-benchmark's own switch is not enough: it turns benchmarks off only under xdist, and the
+Linux CI job runs serially. CI does run it: the macOS job's ``nox -s performance-test`` passes
+``--benchmark-only`` (.circleci/config.yml), where a rebaseline that fails, or a quiet run that
+logs below warning, fails the job. Locally: the command in docs/quality/performance.md.
 """
 
 from __future__ import annotations

@@ -9,6 +9,11 @@ is replayed in a child through the engine's own replay command, its records coun
 level (tests/logged_records.py); a failure names every logger that emitted an INFO or DEBUG
 record, with its count. A game that wants another default level sets it through ``--log-level``
 (the engine's ``logging.basicConfig``), never with ``setLevel`` at import.
+
+What it does not cover: a member with no recording (the demos, Bitmappy), code a recording does
+not reach, and floods of warnings, which cost memory the same way. Importing every module is
+the import guard's (tests/test_logger_levels_at_import.py); level settings anywhere in the
+source, the source guard's (tests/test_logger_level_source_guard.py).
 """
 
 from __future__ import annotations
