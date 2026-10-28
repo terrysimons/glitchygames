@@ -14,6 +14,7 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import sys
 from pathlib import Path
 
 from glitchygames.process import OutputCapture, run_command
@@ -27,8 +28,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RECORDING_SUFFIX = '.jsonl.gz'
 # How long listing the tracked files may take
 GIT_TIMEOUT_SECONDS = 60.0
-# Where our ledger's row files are ([tool.glitchygames] ledger-directory)
-LEDGER_DIRECTORY = load_project_settings(project_root=PROJECT_ROOT).ledger_directory
 
 
 def tracked_files() -> list[str]:
@@ -72,23 +71,85 @@ def absolute_paths_in(*, value: object, where: str) -> list[str]:
     return []
 
 
+def is_ledger_row(*, value: object) -> bool:
+    """Tell whether a JSON value is shaped like a ledger row: a ``recording`` and a ``run``.
+
+    Rows live in the ledger directory, but pinned copies of them live elsewhere too (a test's
+    fixture, ``tests/fixtures/provenance/``), so rows are recognized by shape, not by place.
+
+    Args:
+        value: The value.
+
+    Returns:
+        True for a table with a string ``recording`` and a table ``run``.
+
+    """
+    return (
+        isinstance(value, dict)
+        and isinstance(value.get('recording'), str)
+        and isinstance(value.get('run'), dict)
+    )
+
+
+def tracked_json_values(*, name: str) -> list[object]:
+    """Return the JSON values a tracked ``.json`` or ``.jsonl`` file holds (none if not JSON).
+
+    Args:
+        name: The file, relative to the repository.
+
+    Returns:
+        The whole file's value for ``.json``, each line's for ``.jsonl``.
+
+    """
+    text = (PROJECT_ROOT / name).read_text(encoding='utf-8')
+    try:
+        if name.endswith('.jsonl'):
+            return [json.loads(line) for line in text.splitlines() if line.strip()]
+        return [json.loads(text)]
+    except json.JSONDecodeError:
+        return []
+
+
 def test_no_tracked_recording_header_or_ledger_row_stores_an_absolute_path():
-    """Every recording header and ledger row names paths relative to the project root."""
+    """Every recording header and ledger row, wherever tracked, names paths relatively."""
     found: list[str] = []
-    checked = 0
+    rows_checked = 0
+    recordings_checked = 0
     for name in tracked_files():
         if name.endswith(RECORDING_SUFFIX):
             with gzip.open(PROJECT_ROOT / name, 'rt', encoding='utf-8') as recording:
                 header = json.loads(recording.readline())
             found += absolute_paths_in(value=header, where=f'{name} header')
-            checked += 1
-        elif name.startswith(f'{LEDGER_DIRECTORY}/') and name.endswith('.json'):
-            row = json.loads((PROJECT_ROOT / name).read_text(encoding='utf-8'))
-            found += absolute_paths_in(value=row, where=name)
-            checked += 1
+            recordings_checked += 1
+        elif name.endswith(('.json', '.jsonl')):
+            for value in tracked_json_values(name=name):
+                if is_ledger_row(value=value):
+                    found += absolute_paths_in(value=value, where=name)
+                    rows_checked += 1
 
-    assert checked
+    assert recordings_checked
+    assert rows_checked
     assert found == []
+
+
+def test_rows_are_recognized_by_shape_wherever_they_are():
+    """A table with a recording and a run is a row; other JSON is not."""
+    assert is_ledger_row(value={'recording': 'a.jsonl.gz', 'run': {}})
+    assert not is_ledger_row(value={'recording': 'a.jsonl.gz'})
+    assert not is_ledger_row(value={'recording': 3, 'run': {}})
+    assert not is_ledger_row(value=['recording', 'run'])
+
+
+def test_tracked_json_is_read_whole_or_by_line(tmp_path, mocker):
+    """A .json file is one value, a .jsonl file one per line; a file that is no JSON, none."""
+    mocker.patch.object(sys.modules[__name__], 'PROJECT_ROOT', tmp_path)
+    (tmp_path / 'row.json').write_text('{"a": 1}', encoding='utf-8')
+    (tmp_path / 'rows.jsonl').write_text('{"a": 1}\n\n{"b": 2}\n', encoding='utf-8')
+    (tmp_path / 'broken.json').write_text('{not json', encoding='utf-8')
+
+    assert tracked_json_values(name='row.json') == [{'a': 1}]
+    assert tracked_json_values(name='rows.jsonl') == [{'a': 1}, {'b': 2}]
+    assert tracked_json_values(name='broken.json') == []
 
 
 def test_the_absolute_path_scan_finds_one_at_any_depth():
