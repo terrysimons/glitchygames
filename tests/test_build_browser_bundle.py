@@ -7,6 +7,7 @@ import errno
 import functools
 import importlib.metadata
 import json
+import re
 import socket
 import threading
 import tomllib
@@ -132,7 +133,8 @@ class TestPackageSelection:
         package.mkdir()
         (package / '__init__.py').write_text('', encoding='utf-8')
 
-        with pytest.raises(NotAGitCheckoutError, match=str(package)):
+        # Escaped: a Windows path's backslashes (C:\Users\...) are not a regular expression
+        with pytest.raises(NotAGitCheckoutError, match=re.escape(str(package))):
             bundled_package_files(package_directory=package)
 
     def test_a_missing_git_is_an_error(self, tmp_path, mocker):
