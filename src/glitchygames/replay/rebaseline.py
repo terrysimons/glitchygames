@@ -107,6 +107,7 @@ from glitchygames.replay.driver import (
     ReplaySources,
     installed_engine_version,
 )
+from glitchygames.replay.tools.settings import find_project_root, stored_path
 from glitchygames.sources import active_sources, install_sources
 from glitchygames.tracing import BOOKMARKED_COPY_OF_HEADER_FIELD
 
@@ -317,8 +318,10 @@ def rebaseline_header(
     # as glitchygames/recording_history.py describes
     for unreleased_field in UNRELEASED_HEADER_FIELDS:
         header.pop(unreleased_field, None)
+    # OLD relative to the project root, or its file name outside one (stored_path)
+    original = stored_path(path=original_path, project_root=find_project_root(start=Path.cwd()))
     header[MEASUREMENT_RUNS_HEADER_FIELD] = stacked_measurement_runs(
-        newest=measurement_run.model_copy(update={'rebaselined_from': str(original_path)}),
+        newest=measurement_run.model_copy(update={'rebaselined_from': original}),
         previous=original_header.get(MEASUREMENT_RUNS_HEADER_FIELD),
         previous_frame_count=(
             None if original_recording is None else original_recording.frame_count
@@ -326,7 +329,7 @@ def rebaseline_header(
         previous_frames=() if original_recording is None else original_recording.frames,
         budget_seconds=budget_seconds_for(header=original_header),
     )
-    header[REBASELINED_FROM_HEADER_FIELD] = str(original_path)
+    header[REBASELINED_FROM_HEADER_FIELD] = original
     if original_recording is not None and original_recording.is_truncated:
         header[SOURCE_TRUNCATED_HEADER_FIELD] = True
     return header

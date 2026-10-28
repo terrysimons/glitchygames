@@ -18,12 +18,22 @@ kebab-case, as pyproject.toml's are (stage D's settings table):
 - ``measured-paths`` and ``unmeasured-paths``: what a code tree holds, as git pathspecs
   (glitchygames/code_tree.py).
 - ``recording-renames``: recordings that moved, old repository path -> new, so a recording's
-  history follows it.
+  history follows it. Each path is relative, no new path is itself an old one (lookups are one
+  hop: an old path names the final one directly), and no two old paths are the same path
+  written two ways; refused when read otherwise. ``recording_renames_problems`` finds a new path
+  that does not exist (a check of the files, which reading settings never does).
 - ``game-timeout-seconds``: how long ``glitchygames verify`` and ``glitchygames measure`` wait
   for each game they start (``GAME --verify``, ``GAME --measure``) before stopping it and
   failing it (default: an hour, ``DEFAULT_GAME_TIMEOUT_SECONDS``). A game replays each of its
   recordings in a child of its own with a timeout of its own (``REPLAY_TIMEOUT_SECONDS``); this
   bounds what never ends at all, such as an editor or a server among ``[project.scripts]``.
+
+**Stored paths are relative to the project root.** Every path the tools write into a file (a
+recording header's path options, a run's ``rebaselined_from``, a ledger row's recording) is
+relative to the project root, the one these settings are read from (``find_project_root``: the
+nearest project; ``--project-root`` where a tool's subcommand takes it), POSIX-style; a path
+outside the project is stored as its file name only (``stored_path``), so no user name, home
+or scratch directory is ever written into a file meant to be committed.
 
 Settings only name paths, relative to the project root: nothing is created or checked on disk
 when they are read. A path that doesn't exist yet (no ledger directory before the first
@@ -39,9 +49,10 @@ and ``RECORDING_PATH_RENAMES``), whose values are now ours in the root pyproject
 
 from __future__ import annotations
 
+import posixpath
 import tomllib
 from collections.abc import Mapping
-from pathlib import PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import TYPE_CHECKING, Any, Self, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -49,7 +60,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from glitchygames.code_tree import CodeTreePaths
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    import os
 
 PYPROJECT_FILE_NAME = 'pyproject.toml'
 # The table the settings are in: [tool.glitchygames]
@@ -142,6 +153,46 @@ class ProjectSettings(BaseModel):
         if PurePosixPath(value).is_absolute() or PureWindowsPath(value).is_absolute():
             message = f'{value!r} must be relative to the project root (it is a git pathspec)'
             raise ValueError(message)
+        return value
+
+    @field_validator('recording_renames')
+    @classmethod
+    def _one_hop_renames(cls, value: RecordingRenames) -> RecordingRenames:
+        """Refuse a renames table a one-hop lookup would misread.
+
+        Returns:
+            The value.
+
+        Raises:
+            ValueError: If a path is absolute, an old path is the same as its new one or the
+                same path as another old one, or a new path is itself an old one (a chain).
+
+        """
+        normalized_sources: dict[str, str] = {}
+        for source, target in value.items():
+            for path in (source, target):
+                if is_absolute_path(text=path):
+                    message = f'{path!r} must be relative to the project root'
+                    raise ValueError(message)
+            normalized_source = posixpath.normpath(source)
+            if normalized_source == posixpath.normpath(target):
+                message = f'{source!r} is renamed to itself'
+                raise ValueError(message)
+            if normalized_source in normalized_sources:
+                message = (
+                    f'{source!r} and {normalized_sources[normalized_source]!r} are the same old '
+                    'path'
+                )
+                raise ValueError(message)
+            normalized_sources[normalized_source] = source
+        for source, target in value.items():
+            chained = normalized_sources.get(posixpath.normpath(target))
+            if chained is not None:
+                message = (
+                    f'{source!r} is renamed to {target!r}, which is itself renamed: lookups take '
+                    f'one hop, so name the final path ({value[chained]!r}) instead'
+                )
+                raise ValueError(message)
         return value
 
     @field_validator('published_ledger')
@@ -353,6 +404,68 @@ def find_project_root(*, start: Path) -> Path | None:
         if nearest is None:
             nearest = directory
     return nearest
+
+
+def is_absolute_path(*, text: str) -> bool:
+    """Tell whether a stored path is absolute on any platform, or starts at a home directory.
+
+    Args:
+        text: The path as stored.
+
+    Returns:
+        True for a POSIX root (``/...``), a home directory (``~...``), a Windows drive
+        (``X:`` then a slash or backslash) or a Windows share (two backslashes, a server).
+
+    """
+    return (
+        text.startswith('~')
+        or PurePosixPath(text).is_absolute()
+        or PureWindowsPath(text).is_absolute()
+    )
+
+
+def stored_path(*, path: str | os.PathLike[str], project_root: Path | None) -> str:
+    """Return a path as the tools store it in a file: relative to the project root.
+
+    A relative path is read from the current directory, as the tool read it. A path inside the
+    project is stored relative to its root, POSIX-style (``src/games/x/golden.jsonl.gz``); a
+    path outside it (a scratch directory, another project), or any path when there is no
+    project, is stored as its file name only, so no user name or home directory is written.
+
+    Args:
+        path: The path as given.
+        project_root: The project's root (``find_project_root``), or None.
+
+    Returns:
+        The stored path.
+
+    """
+    resolved = Path(path).expanduser().resolve()
+    if project_root is not None:
+        root = project_root.resolve()
+        if resolved.is_relative_to(root):
+            return resolved.relative_to(root).as_posix()
+    return resolved.name
+
+
+def recording_renames_problems(*, settings: ProjectSettings, project_root: Path) -> list[str]:
+    """Return each recording rename whose new path does not exist in the project.
+
+    The table's shape is checked as it is read (``ProjectSettings``); this checks the files.
+
+    Args:
+        settings: The project's settings.
+        project_root: The project's root.
+
+    Returns:
+        One line per missing new path (empty when every one exists).
+
+    """
+    return [
+        f'{source} is renamed to {target}, which does not exist'
+        for source, target in settings.recording_renames.items()
+        if not (project_root / target).is_file()
+    ]
 
 
 def ensure_local_directory(*, directory: Path) -> Path:

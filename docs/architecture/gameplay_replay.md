@@ -912,7 +912,7 @@ by the tool that writes it, or reported; it is never a traceback.
 | `landed-ref` | `"origin/main"` | `"origin/main"` |
 | `measured-paths` | `["src", "tests/fixtures/replays", "pyproject.toml"]` | the same, and `uv.lock` |
 | `unmeasured-paths` | `[]` | the members' `tests/`, but for their `tests/fixtures/replays/` |
-| `recording-renames` | `{}` | each moved recording, old path to new |
+| `recording-renames` | `{}` | each moved recording, old path to new (one hop: refused if a new path is itself an old one; each new path must exist, `tests/test_our_stored_paths.py`) |
 | `game-timeout-seconds` | `3600` (an hour) | the default |
 
 `game-timeout-seconds` bounds each game that `glitchygames verify` and `glitchygames measure`
@@ -925,6 +925,16 @@ command starts a game per child (`--game` names the games instead, or set `games
 
 The project's local directory, `.glitchygames/`, holds what the tools write and nobody commits;
 it gets a `.gitignore` of `*` when it is made.
+
+**Stored paths are relative to the project root.** The project root is the anchor of every
+path above and of every path the tools write into a file: a recording header's path options
+(`--record-trace`, `--rebaseline`, ...), a rebaselined recording's `rebaselined_from` (in its
+header and its newest run, which a ledger row copies) and a ledger row's recording. It is the
+nearest project above the current directory (`find_project_root`), or `--project-root` where a
+subcommand takes it; the tools start each game in it. A path inside the project is stored
+relative to it, POSIX-style. A path outside it, or any path with no project, is stored as its
+file name only (`stored_path`), so no user name, home or scratch directory is ever written.
+`tests/test_our_stored_paths.py` checks every committed recording header and ledger row.
 
 ### The golden-replay pytest plugin
 

@@ -5577,7 +5577,8 @@ class TestProcessingComparison:
         assert new_run.processing_paced is False
         assert new_run.pacing_timer == UNCALIBRATED_FAST_TIMER
         assert new_run.machine == machine_description()
-        assert new_run.rebaselined_from == str(recording_path)
+        # Outside the project (a pytest directory): its file name only (stored_path)
+        assert new_run.rebaselined_from == recording_path.name
         # OLD's run gets its summary now, from OLD's frames; NEW's own is computed when asked
         old_frames = read_trace_result(path=recording_path).trace['frames']
         new_trace = read_trace_result(path=new_path).trace
@@ -5616,7 +5617,8 @@ class TestRebaselinedHeader:
         )
         run = header[MEASUREMENT_RUNS_HEADER_FIELD][0]
         assert run['rebaselined_from'] == header['rebaselined_from']
-        assert header['rebaselined_from'] == str(tmp_path / 'old.jsonl.gz')
+        # Outside the project (a pytest directory): its file name only (stored_path)
+        assert header['rebaselined_from'] == 'old.jsonl.gz'
 
     def test_rebaselined_header_drops_the_unreleased_top_level_fields(self, tmp_path):
         """2026-10-20's unreleased format named the machine and pacing at the top level."""
@@ -5670,7 +5672,8 @@ class TestRebaselineHistory:
         second = self.rebaselined(mocker=mocker, tmp_path=tmp_path, source=first, name='b.jsonl.gz')
         trace = read_trace_result(path=second).trace
         runs = trace[MEASUREMENT_RUNS_HEADER_FIELD]
-        assert [run['rebaselined_from'] for run in runs] == [str(first), str(recording_path), None]
+        # Outside the project (a pytest directory): file names only (stored_path)
+        assert [run['rebaselined_from'] for run in runs] == [first.name, recording_path.name, None]
         for frame in trace['frames']:
             assert len(frame[CONTENT_HASH_FIELD]) == 3
             assert len(frame[PROCESSING_SECONDS_FIELD]) == 3
@@ -5712,9 +5715,8 @@ class TestRebaselineHistory:
         assert len(frame[PROCESSING_SECONDS_FIELD]) == 3
         assert len(frame[CONTENT_HASH_FIELD]) == 2
         # Index 0 is the newest run everywhere, and index 1 the run before: b's newest entries
-        assert trace[MEASUREMENT_RUNS_HEADER_FIELD][0]['rebaselined_from'] == str(
-            tmp_path / 'b.jsonl.gz'
-        )
+        # Outside the project (a pytest directory): its file name only (stored_path)
+        assert trace[MEASUREMENT_RUNS_HEADER_FIELD][0]['rebaselined_from'] == 'b.jsonl.gz'
         before = read_trace_result(path=tmp_path / 'b.jsonl.gz').trace['frames']
         for frame, frame_before in zip(trace['frames'], before, strict=True):
             assert frame[PROCESSING_SECONDS_FIELD][1] == frame_before[PROCESSING_SECONDS_FIELD][0]
@@ -5893,7 +5895,8 @@ class TestRebaseline:
             for frame in new_trace['frames']
         )
         assert SCENE_START_FIELD in new_trace['frames'][0]
-        assert new_trace['rebaselined_from'] == str(recording_path)
+        # Outside the project (a pytest directory): its file name only (stored_path)
+        assert new_trace['rebaselined_from'] == recording_path.name
         for field_name in ('random_seed', 'recorded_at', 'options', 'saves', 'devices'):
             assert new_trace[field_name] == old_trace[field_name]
 
@@ -5910,11 +5913,12 @@ class TestRebaseline:
         assert header[MEASUREMENT_RUNS_HEADER_FIELD] == [
             {
                 **rebaseline_measurement_run().to_json(),
-                'rebaselined_from': str(tmp_path / 'old.jsonl.gz'),
+                # Outside the project (a pytest directory): its file name only (stored_path)
+                'rebaselined_from': 'old.jsonl.gz',
             }
         ]
 
-        assert header['rebaselined_from'] == str(tmp_path / 'old.jsonl.gz')
+        assert header['rebaselined_from'] == 'old.jsonl.gz'
         assert header['engine_version'] == importlib.metadata.version('glitchygames')
         assert 'source_truncated' not in header
 

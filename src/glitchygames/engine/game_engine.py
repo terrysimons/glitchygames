@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, override
 
 import pygame
 
@@ -131,9 +131,11 @@ from glitchygames.replay.tools.identity import game_source_revision
 from glitchygames.replay.tools.registry import (
     add_game_flags,
     given_tools,
+    path_option_destinations,
     run_game_flag_tool,
     tool_flags,
 )
+from glitchygames.replay.tools.settings import find_project_root, stored_path
 from glitchygames.replay.viewer import run_watched_replay_async
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
@@ -158,7 +160,7 @@ from glitchygames.timing import (
 from glitchygames.tracing import TraceFormatError
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Generator, Mapping
+    from collections.abc import Awaitable, Callable, Generator, Mapping, Sequence
     from types import FrameType
 
     from glitchygames.input.state import InputSnapshot
@@ -477,6 +479,43 @@ class UnhandledEventRecord:
     count: int
     first_seen_seconds: float
     attribute_names: tuple[str, ...]
+
+
+# The options whose values are paths besides the tools' (the supervising replay's handoff file)
+ENGINE_PATH_OPTIONS = frozenset({'replay_restart_handoff'})
+
+
+def stored_options(*, options: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a run's options as a recording's header stores them: paths relative to the project.
+
+    Every path option (a tool's own value or a path option of one,
+    ``path_option_destinations``, and ``ENGINE_PATH_OPTIONS``) is stored relative to the project
+    root the current directory is in (``find_project_root``), or as its file name when outside
+    any project (``stored_path``); every other option is stored as given.
+
+    Args:
+        options: The parsed options.
+
+    Returns:
+        The options to store.
+
+    """
+    path_options = path_option_destinations() | ENGINE_PATH_OPTIONS
+    project_root = find_project_root(start=Path.cwd())
+    stored: dict[str, Any] = {}
+    for name, value in options.items():
+        if name in path_options and isinstance(value, str | os.PathLike):
+            stored[name] = stored_path(
+                path=cast('str | os.PathLike[str]', value), project_root=project_root
+            )
+        elif name in path_options and isinstance(value, list | tuple):
+            stored[name] = [
+                stored_path(path=path, project_root=project_root)
+                for path in cast('Sequence[str | os.PathLike[str]]', value)
+            ]
+        else:
+            stored[name] = value
+    return stored
 
 
 class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
@@ -985,7 +1024,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 destination=Path(rebaseline_path),
                 # A headless replay: its frames are not paced
                 measurement_run=self.measurement_run(
-                    game=game, processing_paced=False, rebaselined_from=options['replay_trace']
+                    game=game,
+                    processing_paced=False,
+                    rebaselined_from=stored_path(
+                        path=options['replay_trace'],
+                        project_root=find_project_root(start=Path.cwd()),
+                    ),
                 ),
                 game_class=type(game) if isinstance(game, Scene) else game,
             )
@@ -1701,8 +1745,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             'pygame_version': pygame.version.ver,
             'python_version': platform.python_version(),
             'screen_size': [self.screen_width, self.screen_height],
+            # Path options relative to the project root (stored_options)
             'options': {
-                str(name): json_safe_value(value) for name, value in GameEngine.OPTIONS.items()
+                str(name): json_safe_value(value)
+                for name, value in stored_options(options=GameEngine.OPTIONS).items()
             },
             # The origin of the run's wall clock from here on, recorded and replayed alike:
             # recorded_at plus the frame clock (RecordingSources.wall_clock_time; rule 9 of

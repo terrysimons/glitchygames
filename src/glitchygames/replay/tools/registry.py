@@ -574,6 +574,31 @@ def build_command_parser(*, tools: Sequence[Tool] | None = None) -> argparse.Arg
     return parser
 
 
+def path_option_destinations(*, tools: Sequence[Tool] | None = None) -> frozenset[str]:
+    """Return the parsed options whose values are paths: each tool's own and its path options.
+
+    A recording's header stores them relative to the project root
+    (``glitchygames.replay.tools.settings.stored_path``).
+
+    Args:
+        tools: The tools (``TOOLS`` unless given).
+
+    Returns:
+        Their destinations (``record_trace``, ``rebaseline``, ``verify``, ...).
+
+    """
+    tools = TOOLS if tools is None else tools
+    return frozenset({
+        *(tool.destination for tool in tools if tool.value_kind in {'path', 'paths'}),
+        *(
+            option.destination
+            for tool in tools
+            for option in (*tool.options, *tool.command_arguments)
+            if option.kind == 'path'
+        ),
+    })
+
+
 def tool_named(*, name: str, tools: Sequence[Tool] | None = None) -> Tool:
     """Return the tool of a name.
 
