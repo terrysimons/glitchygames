@@ -226,8 +226,9 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
       PYTEST_WORKERS: "0"
-      # Stop the run past 1600 MB resident, naming the test (tests/memory_guard.py), before the
-      # 2 GB executor's kernel kills it with signal 9 and no test named (BUGS.md #235)
+      # Stop the run past 1600 MiB of the container's memory (its page cache left out), naming the
+      # test (tests/memory_guard.py), before the 2 GB executor's kernel kills it with signal 9 and
+      # no test named (BUGS.md #235)
       GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
 
     steps:

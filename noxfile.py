@@ -1,9 +1,11 @@
 """Nox session definitions for linting, testing, security scanning, and benchmarks."""
 
 import contextlib
+import dataclasses
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import sys
@@ -839,8 +841,8 @@ def test_linux_x11(session: nox.Session) -> None:
 # CircleCI's Linux job, mirrored by `nox -s test-linux-ci`: its configuration (the job's image,
 # resource class and environment are read from it, so the two stay the same), the memory and
 # CPUs of its resource classes (https://circleci.com/docs/configuration-reference/#resourceclass),
-# where the container's checkout goes and where its test-results/ come back to (git-ignored), and
-# the uv cache kept between runs
+# where the container's checkout goes and where its test-results/ come back to (git-ignored), the
+# uv cache kept between runs, and where the list of files to copy is mounted
 _CIRCLECI_CONFIG = Path('.circleci/config.yml')
 _CIRCLECI_LINUX_JOB = 'build-and-test-linux'
 _CIRCLECI_DOCKER_RESOURCES = {'small': ('2g', '1'), 'medium': ('4g', '2'), 'large': ('8g', '4')}
@@ -849,17 +851,35 @@ _LINUX_CI_PLATFORM = 'linux/amd64'
 _LINUX_CI_UV_CACHE_VOLUME = 'glitchygames-linux-ci-uv-cache'
 _LINUX_CI_UV_CACHE = '/uv-cache'
 _LINUX_CI_PROJECT = '/home/circleci/project'
-# What is never copied into the container: the host's environments and outputs, and its local
-# tool settings (.claude/, ignored here only through a global excludes file the container lacks)
-_LINUX_CI_SKIPPED_DIRECTORIES = (
-    '.claude',
-    '.venv',
-    '.nox',
-    'test-results',
-    'htmlcov',
-    'dist',
-    'build',
-)
+_LINUX_CI_FILE_LIST = '/checkout/files'
+# A submodule's entry in `git ls-files --stage` (a gitlink)
+_GITLINK_MODE = '160000'
+# A line of the job's environment block, and a line it may hold that sets nothing
+_CIRCLECI_ENVIRONMENT_LINE = re.compile(r'^      (?P<name>[A-Z_][A-Z0-9_]*): "(?P<value>[^"]*)"$')
+_CIRCLECI_BLANK_OR_COMMENT = re.compile(r'^\s*(#.*)?$')
+
+
+@dataclasses.dataclass(frozen=True)
+class _HostCheckout:
+    """What the container needs of this checkout, read on the host.
+
+    Attributes:
+        common_directory: The repository's git directory (``git rev-parse --git-common-dir``):
+            a worktree's ``.git`` is a file naming a path in it, so it is mounted at its own
+            path and the container clones from it.
+        head: HEAD's commit.
+        branch: HEAD's branch, or None when detached.
+        origin_url: The ``origin`` remote's URL, or None without one.
+        files: What git would commit (tracked, and untracked files not ignored), existing, no
+            submodule (CircleCI's checkout leaves submodules empty), NUL-separated.
+
+    """
+
+    common_directory: Path
+    head: str
+    branch: str | None
+    origin_url: str | None
+    files: bytes
 
 
 def _circleci_parameter(*, configuration: str, name: str) -> str:
@@ -920,7 +940,9 @@ def _linux_ci_job_settings(*, configuration: str) -> tuple[str, str, dict[str, s
         job's environment variables.
 
     Raises:
-        ValueError: If the job has no Docker image or resource class.
+        ValueError: If the job has no Docker image or resource class, or its environment holds
+            a line this reading does not understand (anything but ``NAME: "value"``, a comment
+            or a blank line), which would otherwise be left out without a word.
 
     """
     job = _circleci_job(configuration=configuration, name=_CIRCLECI_LINUX_JOB)
@@ -937,67 +959,124 @@ def _linux_ci_job_settings(*, configuration: str) -> tuple[str, str, dict[str, s
     environment_block = re.search(
         r'^    environment:\n(?P<lines>(?:(?:      .*)?\n)+)', job, flags=re.MULTILINE
     )
-    environment = (
-        {}
-        if environment_block is None
-        else {
-            variable['name']: variable['value']
-            for variable in re.finditer(
-                r'^      (?P<name>[A-Z_][A-Z0-9_]*): "(?P<value>[^"]*)"$',
-                environment_block['lines'],
-                flags=re.MULTILINE,
+    environment: dict[str, str] = {}
+    for line in [] if environment_block is None else environment_block['lines'].splitlines():
+        variable = _CIRCLECI_ENVIRONMENT_LINE.match(line)
+        if variable is not None:
+            environment[variable['name']] = variable['value']
+        elif _CIRCLECI_BLANK_OR_COMMENT.match(line) is None:
+            message = (
+                f'{_CIRCLECI_LINUX_JOB}: an environment line test-linux-ci cannot read '
+                f'(write it as NAME: "value"): {line.strip()!r}'
             )
-        }
-    )
+            raise ValueError(message)
     return image_name, resource_class['name'], environment
 
 
-def _linux_ci_script(*, python_version: str, uv_version: str, nox_version: str) -> str:
+def _host_git(session: nox.Session, *arguments: str, success_codes: list[int] | None = None) -> str:
+    """Run git on the host, in this checkout, and return its output.
+
+    Returns:
+        Its standard output (an empty string when the session runs nothing, as in a test).
+
+    """
+    output = session.run(
+        'git', *arguments, external=True, silent=True, success_codes=success_codes or [0]
+    )
+    return output if isinstance(output, str) else ''
+
+
+def _host_checkout(session: nox.Session) -> _HostCheckout:
+    """Read this checkout's git directory, HEAD, origin and the files git would commit.
+
+    Returns:
+        The checkout's facts for the container.
+
+    """
+    common_directory = Path(_host_git(session, 'rev-parse', '--git-common-dir').strip())
+    branch = _host_git(
+        session, 'symbolic-ref', '--quiet', '--short', 'HEAD', success_codes=[0, 1]
+    ).strip()
+    origin_url = _host_git(session, 'remote', 'get-url', 'origin', success_codes=[0, 2]).strip()
+    submodules = {
+        line.split('\t', 1)[1]
+        for line in _host_git(session, 'ls-files', '--stage').splitlines()
+        if line.startswith(f'{_GITLINK_MODE} ')
+    }
+    listed = _host_git(session, 'ls-files', '-z', '--cached', '--others', '--exclude-standard')
+    files = [
+        name
+        for name in dict.fromkeys(listed.split('\0'))
+        if name and name not in submodules and Path(name).is_file()
+    ]
+    return _HostCheckout(
+        common_directory=common_directory.resolve(),
+        head=_host_git(session, 'rev-parse', 'HEAD').strip(),
+        branch=branch or None,
+        origin_url=origin_url or None,
+        files=b''.join(f'{name}\0'.encode() for name in files),
+    )
+
+
+def _linux_ci_script(
+    *, python_version: str, uv_version: str, nox_version: str, checkout: _HostCheckout
+) -> str:
     """Return the container's shell script: the Linux job's steps, then the results copied out.
 
     Args:
         python_version: ``PYTHON_LATEST_VERSION``.
         uv_version: ``UV_VERSION``.
         nox_version: ``NOX_VERSION``.
+        checkout: This checkout's facts (``_host_checkout``).
 
     Returns:
         The script (bash). It exits with the test session's status.
 
     """
-    # Every .git too, at any depth (a submodule's .git file names this machine's .git/modules/)
-    skipped = ' '.join([
-        '--exclude=.git',
-        *(f'--exclude=./{directory}' for directory in _LINUX_CI_SKIPPED_DIRECTORIES),
-    ])
+    project = _LINUX_CI_PROJECT
+    common = shlex.quote(str(checkout.common_directory))
+    head = shlex.quote(checkout.head)
+    if checkout.branch is None:
+        set_head = [f'git update-ref --no-deref HEAD {head}']
+    else:
+        branch_reference = shlex.quote(f'refs/heads/{checkout.branch}')
+        set_head = [
+            f'git update-ref {branch_reference} {head}',
+            f'git symbolic-ref HEAD {branch_reference}',
+        ]
+    origin = (
+        ['git remote remove origin']
+        if checkout.origin_url is None
+        else [f'git remote set-url origin {shlex.quote(checkout.origin_url)}']
+    )
     return '\n'.join([
         'set -euo pipefail',
         f'sudo chown "$(id -u):$(id -g)" {_LINUX_CI_UV_CACHE}',
-        # A copy of this checkout (the job's checkout step), never the mounted original: the
-        # session writes its outputs and a build stamp into the project
-        f'mkdir -p {_LINUX_CI_PROJECT}',
-        f'tar -C /source {skipped} -cf - . | tar -C {_LINUX_CI_PROJECT} -xf -',
-        # A fresh .git, cloned from this checkout's: the original's worktrees and submodules
-        # name paths on this machine that the container does not have
-        # (another user owns the mounted checkout: git refuses it unless it is a safe directory)
+        # The checkout step: what git would commit, never ignored files (the host's caches,
+        # Hypothesis's database, __pycache__) nor a submodule's contents, which CircleCI's
+        # checkout leaves empty. A copy: the session writes its outputs and a build stamp
+        f'mkdir -p {project}',
+        f'tar -C /source --null -T {_LINUX_CI_FILE_LIST} -cf - | tar -C {project} -xf -',
+        # A .git cloned from the repository's own git directory (mounted read-only at its own
+        # path: a worktree's .git names it), which another user owns: a safe directory
         "git config --global --add safe.directory '*'",
-        f'git clone --quiet --no-checkout /source {_LINUX_CI_PROJECT}.git-clone',
-        f'mv {_LINUX_CI_PROJECT}.git-clone/.git {_LINUX_CI_PROJECT}/.git',
-        # The clone has no index (--no-checkout): rebuilt from HEAD, so git compares the copied
-        # files with HEAD; and this checkout's own ignores (.git/info/exclude), so what it ignores
-        # is not untracked here
-        f'git -C {_LINUX_CI_PROJECT} reset --quiet',
-        f'cp /source/.git/info/exclude {_LINUX_CI_PROJECT}/.git/info/exclude || true',
-        # With this checkout's remote branches and tags, so origin/main is the one this checkout
-        # knows (the measurement tools compare commits with it), not its local main
+        f'git clone --quiet --no-checkout {common} {project}.git-clone',
+        f'mv {project}.git-clone/.git {project}/.git',
+        f'cd {project}',
+        # Remote branches as this checkout knows them (as fresh as its last fetch), never its
+        # local branches, which the clone named origin/*
+        "git for-each-ref --format='%(refname)' refs/remotes | xargs -r -n 1 git update-ref -d",
         (
-            f'git -C {_LINUX_CI_PROJECT} fetch --quiet --force /source '
-            "'+refs/remotes/*:refs/remotes/*' '+refs/tags/*:refs/tags/*'"
+            f"git fetch --quiet --force {common} '+refs/remotes/*:refs/remotes/*' "
+            "'+refs/tags/*:refs/tags/*'"
         ),
-        (
-            f'git -C {_LINUX_CI_PROJECT} remote set-url origin '
-            '"$(git -C /source remote get-url origin)"'
-        ),
-        f'cd {_LINUX_CI_PROJECT}',
+        *origin,
+        # HEAD is this checkout's commit, on its branch; the index (none: --no-checkout) is
+        # rebuilt from it, so git compares the copied files with HEAD
+        *set_head,
+        'git reset --quiet',
+        # The repository's own ignores, which git status reads
+        f'if [ -f {common}/info/exclude ]; then cp {common}/info/exclude .git/info/exclude; fi',
         # "Install Linux system dependencies"
         'sudo apt-get update -qq',
         'sudo apt-get install -y -qq fontconfig > /dev/null',
@@ -1006,14 +1085,18 @@ def _linux_ci_script(*, python_version: str, uv_version: str, nox_version: str) 
         'export PATH="$HOME/.local/bin:$PATH"',
         'uv --version',
         f'uv python install "{python_version}"',
-        # nox-test, then the job's store_test_results (to this checkout's test-results/linux-ci)
+        # nox-test, then the job's store_test_results (to this checkout's test-results/linux-ci),
+        # writable by the host's user whatever its id (a Linux host's is not the container's)
         'status=0',
         f'uvx --from "nox[uv]=={nox_version}" nox -s test || status=$?',
-        # Whatever the session got to (none if it failed before pytest ran)
-        'cp -a test-results/. /results/ || true',
+        (
+            'if [ -d test-results ]; then cp -r test-results/. /results/; '
+            'else echo "test-linux-ci: the session wrote no test-results/"; fi'
+        ),
+        'chmod -R a+rwX /results',
         # The container's peak memory (cgroup v2), all of it: uv's installs, the test run and the
         # page cache, which the kernel reclaims before it kills anything (so it can read 2 GB on
-        # a healthy run); the memory guard watches the test process alone
+        # a healthy run); the memory guard watches the container less its page cache
         'peak=$(cat /sys/fs/cgroup/memory.peak 2>/dev/null || echo unknown)',
         'echo "container peak memory (page cache included): $peak bytes"',
         'exit "$status"',
@@ -1028,29 +1111,43 @@ def test_linux_ci(session: nox.Session) -> None:
     (``cimg/python:<PYTHON_LATEST_VERSION>``), its resource class's memory and CPUs (``small``:
     2 GB and 1 CPU; the container gets no swap, as the job has none) and its environment
     (``PYTEST_WORKERS=0``: serial; ``GLITCHYGAMES_TEST_RSS_LIMIT_MB``: tests/memory_guard.py),
-    plus ``CI=true`` and ``CIRCLECI=true`` as CircleCI sets them. In the container it copies this
-    checkout (the working tree, uncommitted changes included, without .venv, .nox and the
-    outputs), installs fontconfig, uv and Python at the job's versions and runs
-    ``uvx nox -s test``, as the job does. The test results come back to test-results/linux-ci/
-    (junit.xml). The uv cache is kept in a Docker volume between runs. The image is amd64, as
-    CircleCI's machines are (the same wheels; emulated on Apple silicon, so slower than CI).
+    plus ``CI=true`` and ``CIRCLECI=true`` as CircleCI sets them.
+
+    The container gets what git would commit from this checkout (tracked files and untracked
+    ones not ignored, uncommitted changes included; never ignored files, and no submodule's
+    contents, as CircleCI's checkout has none) and a .git cloned from the repository's git
+    directory, mounted read-only at its own path, so it runs from a worktree too. Its HEAD is this
+    checkout's, on its branch, and its remote branches are this checkout's, as fresh as its last
+    fetch (CircleCI fetches its own). Then it installs fontconfig, uv and Python at the job's
+    versions and runs ``uvx nox -s test``, as the job does. The test results come back to
+    test-results/linux-ci/ (junit.xml). The uv cache is kept in a Docker volume between runs.
+    The image is amd64, as CircleCI's machines are (the same wheels; emulated on Apple silicon, so
+    slower than CI). Made on macOS; on a Linux host the results are made writable for any user.
     """
     configuration = _CIRCLECI_CONFIG.read_text(encoding='utf-8')
     image, resource_class, job_environment = _linux_ci_job_settings(configuration=configuration)
     if resource_class not in _CIRCLECI_DOCKER_RESOURCES:
         session.error(f'{_CIRCLECI_LINUX_JOB}: unknown resource class {resource_class!r}')
     memory, cpus = _CIRCLECI_DOCKER_RESOURCES[resource_class]
+    checkout = _host_checkout(session)
     script = _linux_ci_script(
         python_version=_circleci_parameter(
             configuration=configuration, name='PYTHON_LATEST_VERSION'
         ),
         uv_version=_circleci_parameter(configuration=configuration, name='UV_VERSION'),
         nox_version=_circleci_parameter(configuration=configuration, name='NOX_VERSION'),
+        checkout=checkout,
     )
     environment = {**job_environment, 'CI': 'true', 'CIRCLECI': 'true'}
     results = _LINUX_CI_RESULTS.resolve()
     shutil.rmtree(results, ignore_errors=True)
+    if results.exists():
+        session.error(f'{results} could not be emptied: remove it, then run again')
     results.mkdir(parents=True)
+    # The container's user is not this one: it must be able to write the results
+    results.chmod(0o777)
+    file_list = Path(session.create_tmp()).resolve() / 'files'
+    file_list.write_bytes(checkout.files)
     container_name = f'glitchygames-linux-ci-{os.getpid()}'
     session.log(f'{image}: {resource_class} ({memory} memory, {cpus} CPU), {job_environment}')
     try:
@@ -1077,6 +1174,10 @@ def test_linux_ci(session: nox.Session) -> None:
             f'UV_CACHE_DIR={_LINUX_CI_UV_CACHE}',
             '--volume',
             f'{Path.cwd()}:/source:ro',
+            '--volume',
+            f'{checkout.common_directory}:{checkout.common_directory}:ro',
+            '--volume',
+            f'{file_list}:{_LINUX_CI_FILE_LIST}:ro',
             '--volume',
             f'{results}:/results',
             '--volume',
