@@ -573,7 +573,8 @@ sprite are not compared. It is refused (`OPTIONS_REFUSED`, 64) with `--replay-fp
 
 The exit code alone says who refused the run and why. Every code is a member of
 `glitchygames.exit_codes.ExitCode` (also importable from `glitchygames.engine`); the engine logs
-the code it exits with as `Exiting with OPTIONS_REFUSED (64)`.
+the code it exits with as `Exiting with OPTIONS_REFUSED (64)`, at INFO (shown with
+`--log-level info`; a game's default is warning).
 
 | Code | `ExitCode` member | Meaning |
 |---|---|---|

@@ -263,6 +263,17 @@ Found while fixing that review (2026-10-27):
   through `stored_path`. `stored_options` lives in `src/glitchygames/engine/game_engine.py`,
   which imports `rebaseline.py`, so it must first move below the engine (beside `stored_path`,
   with `registry.path_option_destinations`, whose import would then have to stay light).
+- **The startup options block is CRITICAL "for now"** (Part 3 Stage D, Task D18, 2026-10-28;
+  the owner: "Log that at critical" ... "Do it for now").
+  - Every engine start logs the run's whole options dictionary at CRITICAL
+    (`GameEngine._log_the_startup_options`, `startup_options_block` in
+    `src/glitchygames/engine/game_engine.py`), so it shows at every level. It prints on every
+    launch, and in every engine the test suite starts: a serial `CI=true` run with the WARNING
+    live log (as CircleCI's Linux job runs, `PYTEST_WORKERS=0`) printed 408 blocks, 29406 of its
+    59466 lines (macOS, 2026-10-28). Under xdist (`nox -s test` locally, `-n 8`) the live log
+    shows none; a failing test's captured log still holds its block.
+  - Revisit: a direct startup line (stderr, not the log) that tests and the headless tools turn
+    off, or CRITICAL only beside a crash (the options logged with the exit-70 traceback).
 
 ## World space follow-ups (feature/engine-world-space final review)
 

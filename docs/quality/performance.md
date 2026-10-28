@@ -97,16 +97,18 @@ to `test-results/logging-cost.md`:
    change of `info` and of `debug` against `warning`, the medians, each run's peak resident
    memory, the records per frame at each level and how much output `info` and `debug` wrote.
    The processing times are the engine's own per-frame measurements (what the performance
-   graphs above plot), so the change is the time logging adds to each frame's work. Times compare only on one machine and between
-   runs of the same table. The peak memory is the replaying child's (`n/a` on Windows), and its
-   output goes to a file, so a large difference there means the game keeps records in memory.
+   graphs above plot), so the change is the time logging adds to each frame's work. Times
+   compare only on one machine and between runs of the same table. The peak memory is the
+   replaying child's (`n/a` on Windows), and its output goes to a file, so a large difference
+   there means the game keeps records in memory.
 
 On one Mac (2026-10-28) `info` cost every recording within 1% of `warning` (0.08 to 0.33 records
 a frame), while `debug` doubled PaddleSlap's processing time per frame (about 10 records a
 frame) and added 15% to Brave Adventurer's papyrus golden (about 33).
 
-At `warning` no recording should emit an INFO or DEBUG record: a logger that does has a level set
-behind the command line's back (BUGS.md #236), which `tests/replay/test_replays_log_quietly.py`
+At `warning` no recording should emit an INFO or DEBUG record (the startup options block is one
+CRITICAL record a run): a logger that does has a level set behind the command line's back
+(BUGS.md #236), which `tests/replay/test_replays_log_quietly.py`
 and `tests/test_logger_levels_at_import.py` fail on in the ordinary test run.
 
 Until a build generates them, this page has only this text.

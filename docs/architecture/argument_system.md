@@ -151,6 +151,35 @@ flowchart TD
     SELF_OPT --> Access
 ```
 
+### Logging level and the startup options block
+
+A game logs at WARNING unless `--log-level` says otherwise (the owner, 2026-10-28: games default
+to WARNING, as the replay tools do), so a plain run prints only warnings and worse: the seed a
+run rolled, the exit code it ended with and the end-of-run performance reports are INFO, shown
+with `--log-level info`. Nothing else sets a level (the logger guards: no level set at import).
+Each failure a player sees (a crash, exit 70; a failed teardown; a playback that failed) logs
+one more line after its traceback, `exit_codes.BUG_REPORT_HINT`: "To report this, run the game
+again with --log-level info and include the output." The `glitchygames` command has no
+`--log-level`, so its own tool crashes do not say it.
+
+Every engine start (`start()` or `start_async()`) logs the run's whole options dictionary once,
+at CRITICAL, so it shows at every level ("for now": plans/future-work.md):
+
+```text
+game.engine - CRITICAL - Options for Paddle Slap (secrets redacted):
+    allow_dirty             = False
+    ...
+    log_level               = 'warning'
+    ...
+    replay_trace            = 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
+```
+
+Names are sorted, one `name = value` per line, aligned, with values as Python writes them; a
+nested mapping is indented below its name. Path options (the tools' and the engine's, the set a
+recording's header stores) are shown relative to the project root when inside it and absolute
+otherwise. An option whose name holds key, token, secret, password or credential, in any case,
+shows `<redacted>`. The environment is never read. A replay's options are the recorded run's.
+
 ## Complete Flag Reference
 
 Every option, by the layer that adds it and grouped as `uv run bitmappy --help` prints it:
@@ -238,7 +267,7 @@ Added by `FontManager.args()` in `src/glitchygames/fonts/font_manager.py`.
 
 Added by `GameEventManager.args()` in `src/glitchygames/events/game.py`.
 
-- `-l, --log-level {debug,info,warning,error,critical}` (`choice`, default `info`): set the logging level
+- `-l, --log-level {debug,info,warning,error,critical}` (`choice`, default `warning`): set the logging level (default: warning; a bug report asks for info)
 - `--no-unhandled-events` (`store_true`, default `False`): fail on unhandled events
 - `-p, --profile` (`store_true`, default `False`): enable profiling
 

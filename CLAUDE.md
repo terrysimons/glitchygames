@@ -122,7 +122,7 @@ nox -s static-analysis-ty           # Run ty only
 nox -s test                # Run tests with coverage
 nox -s performance-test    # Run performance benchmarks (every testpath: the engine's and each member's)
 # tests/benchmarks/test_logging_cost.py (only under --benchmark-only): every golden and bundled demo at
-# --log-level warning and debug; the chattiest loggers and the cost per frame (docs/quality/performance.md)
+# --log-level warning, info and debug; the chattiest loggers and the cost per frame (docs/quality/performance.md)
 nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU share, sleep wakes (diagnostic)
 nox -s replay-metrics      # (the project's editable install) Rebaseline every golden replay + bundled demo headless; append run-ledger rows to test-results/replay-metrics/pending.jsonl (skips this commit+machine; `-- --force`, `-- --allow-dirty`, `-- --only TEXT`)
 nox -s test-linux-x11      # Tests on Linux in Docker: X11 windows on XQuartz, sound on the Mac's PulseAudio (starts it; `pulseaudio --kill` stops it; macOS)
@@ -235,6 +235,16 @@ games.
 - Handles pygame initialization, display management, event routing
 - Bootstraps command-line arguments for all games
 - Pre-computes `EVENT_HANDLERS` dict for O(1) event dispatch
+- Logging: a game logs at `--log-level warning` by default (the owner, 2026-10-28; the tools'
+  level), so the seed, the exit code and the end-of-run performance reports (INFO) show only
+  with `--log-level info`. Each failure a player sees (exit 70 from a run's or a game flag
+  tool's crash, a failed teardown, a failed playback) logs `exit_codes.BUG_REPORT_HINT` after
+  its traceback ("run the game again with --log-level info and include the output"; not the
+  `glitchygames` command's, which has no `--log-level`). Every engine start logs the whole
+  options dictionary once at CRITICAL (`startup_options_block`: sorted, aligned, nested values
+  indented, path options relative to the project root inside it and absolute outside, any
+  option named like a key/token/secret/password/credential `<redacted>`; "for now",
+  plans/future-work.md; docs/architecture/argument_system.md)
 
 **SceneManager** (`src/glitchygames/scenes/__init__.py`)
 - Singleton running the main game loop; each frame (`_run_scene_frame`), in order:
