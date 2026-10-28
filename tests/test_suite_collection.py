@@ -1133,11 +1133,13 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     'tests/test_build_browser_bundle.py': ('scripts/build_browser_bundle.py',),
     'tests/test_build_info.py': ('scripts/write_build_stamp.py',),
     'tests/test_build_sdl_x11.py': ('scripts/build_sdl_x11.py',),
+    'tests/test_check_licenses.py': ('scripts/check_licenses.py', 'scripts/workspace_packages.py'),
     'tests/test_compare_driver_frames.py': ('scripts/compare_driver_frames.py',),
     'tests/test_complexity_report.py': ('scripts/complexity_report.py',),
     'tests/test_driver_configurations.py': ('scripts/driver_configurations.py',),
     'tests/test_driver_frame_matrix.py': ('scripts/driver_frame_matrix.py',),
     'tests/test_gen_ref_pages.py': ('scripts/gen_ref_pages.py',),
+    'tests/test_generate_sbom.py': ('scripts/generate_sbom.py',),
     'tests/test_generate_complexity_graphs.py': (
         'scripts/generate_complexity_graphs.py',
         'scripts/mkdocs_hooks.py',
