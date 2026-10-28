@@ -17,8 +17,9 @@ from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputBox
 
+# Its level is the engine's (--log-level): set here, at import, it reached every game.* logger in
+# any process that imported the demo (the whole serial test suite logged at DEBUG; BUGS.md #235)
 LOG = logging.getLogger('game')
-LOG.setLevel(logging.DEBUG)
 
 
 class Game(Scene):

@@ -8,6 +8,8 @@ edits its text, Return submits it (logged), Tab or Escape (released) gives the k
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from typing import TYPE_CHECKING, cast
 
 import pygame
@@ -18,6 +20,7 @@ from glitchygames.display_mode import set_display_mode
 from glitchygames.events.base import HashableEvent
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
+from glitchygames.process import OutputCapture, run_command
 from tests.demo_runs import engine_run_environment, run_demo_main
 from tests.display_canvas import show_canvas_on_new_display
 
@@ -34,6 +37,8 @@ BOX_BORDER_RGB = (233, 248, 215)
 YELLOW_RGB = (255, 255, 0)
 BLACK_RGB = (0, 0, 0)
 WHITE_RGB = (255, 255, 255)
+# How long the import probe's interpreter may take (it starts in well under a second)
+CHILD_TIMEOUT_SECONDS = 60.0
 # The demo's starting text
 STARTING_TEXT = 'Test'
 # InputBox's text: the bundled font at 14 points, 4 pixels in from the box's corner
@@ -304,3 +309,26 @@ def test_main_runs_the_demo_and_types_into_the_box(mocker: MockerFixture) -> Non
     screen = pygame.display.get_surface()
     assert screen is not None
     assert _shows_box(screen, text=f'{STARTING_TEXT}x', text_rgb=WHITE_RGB)
+
+
+def test_importing_the_demo_leaves_the_game_loggers_level_alone() -> None:
+    """Importing the demo sets no log level (BUGS.md #235): the engine's --log-level does.
+
+    It once set the shared ``game`` logger to DEBUG at import, so every ``game.*`` logger in
+    a process that imported it, the serial test suite included, logged at DEBUG. Checked in a
+    fresh interpreter: this one imported the demo at collection.
+    """
+    probe = (
+        'import logging; import text_input_demo; '
+        "print(logging.getLevelName(logging.getLogger('game').level))"
+    )
+
+    completed = run_command(
+        command=[sys.executable, '-c', probe],
+        environment=os.environ,
+        timeout_seconds=CHILD_TIMEOUT_SECONDS,
+        capture_output=OutputCapture.APART,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.splitlines()[-1] == 'NOTSET'
