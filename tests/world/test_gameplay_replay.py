@@ -7,6 +7,7 @@ import asyncio
 import collections
 import gzip
 import importlib.metadata
+import itertools
 import json
 import logging
 import os
@@ -2650,6 +2651,29 @@ class TestReplayReport:
             read_trace_result(path=recording_path).trace['frames']
         )
         assert ReplaySources.from_path(path=recording_path).options == ReplayOptions()
+
+    def test_the_sources_hold_an_unchanged_sprite_record_once(self, mocker, tmp_path):
+        """A recording read for a replay shares its unchanged sprite records between frames.
+
+        Held as independent copies, a whole recording was most of a replay child's memory
+        (Mr. Muncher's golden: about 135 MiB). The frames are the same values either way.
+        """
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        frames = ReplaySources.from_path(path=recording_path).recording.frames
+        assert list(frames) == read_trace_result(path=recording_path).trace['frames']
+        # A sprite that did not change from one frame of a scene to the next is one record (the
+        # arrival scene's marker stands still for a while)
+        unchanged_pairs = [
+            (sprite, following_sprite)
+            for frame, following_frame in itertools.pairwise(frames)
+            if frame['scene'] == following_frame['scene']
+            for sprite, following_sprite in zip(
+                frame['sprites'], following_frame['sprites'], strict=False
+            )
+            if sprite == following_sprite
+        ]
+        assert unchanged_pairs
+        assert all(sprite is following_sprite for sprite, following_sprite in unchanged_pairs)
 
 
 class TestRealInput:

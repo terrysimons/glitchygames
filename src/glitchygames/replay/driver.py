@@ -637,7 +637,11 @@ class RecordedFrames:
 
     @property
     def frames(self: Self) -> Sequence[dict[str, Any]]:
-        """Every complete frame, decoded (a rebaseline summarises the earlier runs from them)."""
+        """Every complete frame, decoded (a rebaseline summarises the earlier runs from them).
+
+        Read-only: read from a file (``from_path``), the frames share their unchanged sprite
+        records (glitchygames/tracing.py, ``share_records``).
+        """
         return self._frames
 
     def frame(self: Self, *, frame_index: int) -> dict[str, Any] | None:
@@ -1514,7 +1518,9 @@ class ReplaySources:
             The sources.
 
         """
-        read_result = read_trace_result(path=path)
+        # The frames share their unchanged sprite records (a replay only reads them): a whole
+        # recording held as independent frames was most of a replay child's memory
+        read_result = read_trace_result(path=path, share_records=True)
         frames = read_result.trace[FRAMES_FIELD]
         is_truncated = is_cut_off(read_result=read_result)
         header = {name: value for name, value in read_result.trace.items() if name != FRAMES_FIELD}
