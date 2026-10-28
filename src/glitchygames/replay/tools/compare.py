@@ -606,7 +606,6 @@ class OnionSkin:
         self._listener: socket.socket | None = None
         self._connection: socket.socket | None = None
         self._output: IO[str] | None = None
-        self._output_path: Path | None = None
         self._held: HeldFrame | None = None
         # True once OLD has no more frames to send (its stream ended, or it never streamed)
         self._has_ended = False
@@ -665,12 +664,10 @@ class OnionSkin:
     def stop(self: Self) -> None:
         """Stop the child (if it still runs) and wait for it; close the stream. Idempotent.
 
-        Every step runs, even after one fails (removing the output file can, on Windows); a
-        failure is raised once the last step has run.
+        Every step runs, even after one fails; a failure is raised once the last step has run.
         """
         with contextlib.ExitStack() as cleanup:
             cleanup.callback(self._mark_stopped)
-            cleanup.callback(self._remove_output)
             cleanup.callback(self._close_output)
             if self.process is not None:
                 cleanup.callback(stop_command, process=self.process)
@@ -681,16 +678,10 @@ class OnionSkin:
         self._is_stopped = True
 
     def _close_output(self: Self) -> None:
-        """Close the child's output file (once)."""
+        """Close the child's output file (once); the system removes it (``_start_child``)."""
         if self._output is not None:
             output, self._output = self._output, None
             output.close()
-
-    def _remove_output(self: Self) -> None:
-        """Remove the child's output file (once)."""
-        if self._output_path is not None:
-            output_path, self._output_path = self._output_path, None
-            output_path.unlink(missing_ok=True)
 
     def _close_sockets(self: Self) -> None:
         """Close the connection to the child and the listener (each once)."""
@@ -705,15 +696,14 @@ class OnionSkin:
         """Listen on a loopback port and start OLD's child, its output kept for the log.
 
         A failure after the listener is made (the output file, or starting the child) closes
-        the listener and removes the output before it is raised, so a later ``begin`` starts
-        afresh and leaks neither.
+        the listener and the output before it is raised, so a later ``begin`` starts afresh and
+        leaks neither.
         """
         try:
             self._start_child()
         except BaseException:
             self._close_sockets()
             self._close_output()
-            self._remove_output()
             raise
 
     def _start_child(self: Self) -> None:
@@ -734,10 +724,15 @@ class OnionSkin:
         ]
         if self.pause_at_frame is not None:
             self.command += [PAUSE_AT_FRAME_OPTION, str(self.pause_at_frame)]
-        # The child's output, kept for the log for its whole run (closed and removed by stop())
-        descriptor, output_path = tempfile.mkstemp(prefix='compare-trace-', suffix='.log')
-        self._output_path = Path(output_path)
-        self._output = os.fdopen(descriptor, 'w+', encoding='utf-8')
+        # The child's output, kept for the log for its whole run (closed by stop()). A
+        # TemporaryFile is never unlinked by name: POSIX unlinks it at once, and Windows deletes
+        # it when its last handle closes. A named file (mkstemp) could not be unlinked on
+        # Windows CI after the child was reaped: WinError 32, "being used by another process"
+        # (most likely the interpreter a venv's python.exe launcher starts as a process of its
+        # own, still dying with the inherited handle after the launcher was terminated)
+        self._output = tempfile.TemporaryFile(  # ruff: ignore[open-file-with-context-handler] — kept open for the child's whole run; stop() closes it
+            mode='w+', encoding='utf-8', prefix='compare-trace-', suffix='.log'
+        )
         self.process = start_command(
             command=self.command, environment=os.environ, output=self._output
         )

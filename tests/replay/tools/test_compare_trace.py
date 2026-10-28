@@ -23,7 +23,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import IO, TYPE_CHECKING, Any
 
 import pygame
 import pytest
@@ -1530,6 +1530,37 @@ def test_a_connection_without_the_token_is_refused(color_game, caplog, stranger_
     assert compare.FRAME_STREAM_TOKEN_LENGTH == FRAME_STREAM_TOKEN_LENGTH_FOR_TESTS
 
 
+def test_stopping_a_running_child_removes_no_file_by_name(color_game, mocker):
+    """The child's output is never unlinked by name, which Windows refuses while it is held.
+
+    On Windows CI the named output file could not be removed after the child was stopped
+    (WinError 32: another process still held it). Here every removal by name fails the same
+    way once the child has started, and ``stop`` still stops it: the output is a TemporaryFile,
+    which the system removes when its last handle closes.
+    """
+    onion_skin = OnionSkin(
+        old_path=color_game.old,
+        alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        game_command=old_game_command(old_path=color_game.old),
+        pause_at_frame=None,
+    )
+    try:
+        onion_skin.begin()
+        # One frame read: the child is still streaming the rest when it is stopped
+        onion_skin.draw(surface=surface_of(color=NEW_RED), frame_index=0)
+        held_open = PermissionError(
+            32, 'The process cannot access the file because it is being used by another process'
+        )
+        mocker.patch.object(os, 'unlink', side_effect=held_open)
+        mocker.patch.object(os, 'remove', side_effect=held_open)
+    finally:
+        onion_skin.stop()
+
+    assert onion_skin.is_stopped
+    assert onion_skin.process is not None
+    assert onion_skin.process.returncode is not None
+
+
 def test_each_onion_skin_has_its_own_token(color_game):
     """Two runs never share a token."""
     tokens = []
@@ -1659,11 +1690,14 @@ def test_a_frame_stream_whose_token_cannot_be_sent_closes_its_socket(mocker):
 
 
 def test_an_onion_skin_that_fails_to_start_its_child_closes_its_listener(color_game, mocker):
-    """A child that cannot start leaves no listener or output file behind; begin() may retry."""
+    """A child that cannot start leaves no listener or output file open; begin() may retry.
+
+    The output is a TemporaryFile, removed by the system once closed (never unlinked by name).
+    """
     created: list[socket.socket] = []
     create_server = socket.create_server
-    output_paths: list[Path] = []
-    make_temporary_file = compare.tempfile.mkstemp
+    outputs: list[IO[str]] = []
+    make_temporary_file = compare.tempfile.TemporaryFile
     start_command = compare.start_command
 
     def noting_the_listener(*arguments: Any, **settings: Any) -> socket.socket:
@@ -1671,13 +1705,13 @@ def test_an_onion_skin_that_fails_to_start_its_child_closes_its_listener(color_g
         created.append(listener)
         return listener
 
-    def noting_the_output(*arguments: Any, **settings: Any) -> tuple[int, str]:
-        descriptor, path = make_temporary_file(*arguments, **settings)
-        output_paths.append(Path(path))
-        return descriptor, path
+    def noting_the_output(*arguments: Any, **settings: Any) -> IO[str]:
+        output = make_temporary_file(*arguments, **settings)
+        outputs.append(output)
+        return output
 
     mocker.patch.object(compare.socket, 'create_server', side_effect=noting_the_listener)
-    mocker.patch.object(compare.tempfile, 'mkstemp', side_effect=noting_the_output)
+    mocker.patch.object(compare.tempfile, 'TemporaryFile', side_effect=noting_the_output)
     starting = mocker.patch.object(compare, 'start_command', side_effect=FileNotFoundError)
     onion_skin = OnionSkin(
         old_path=color_game.old,
@@ -1689,7 +1723,7 @@ def test_an_onion_skin_that_fails_to_start_its_child_closes_its_listener(color_g
         with pytest.raises(FileNotFoundError):
             onion_skin.begin()
         assert created[0].fileno() == -1
-        assert not output_paths[0].exists()
+        assert outputs[0].closed
         assert onion_skin.process is None
         # A retry starts afresh, with a listener of its own
         starting.side_effect = start_command
