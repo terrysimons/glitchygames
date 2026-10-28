@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import os
 import signal
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - a stand-in child raises its TimeoutExpired; Popen names the type
 import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -323,6 +325,69 @@ CHILD_THAT_NEVER_ENDS_IGNORING_TERMINATE = (
 )
 # How long the children above get before their timeout
 SHORT_TIMEOUT_SECONDS = 1.0
+
+
+class ChildThatOutlivesTheGracePeriod:
+    """Stands in for a child that ignores the request to stop: only the kill ends it.
+
+    A real one cannot exist on Windows (``terminate`` is ``TerminateProcess`` there), so the
+    kill path is checked with this on every platform.
+    """
+
+    def __init__(self) -> None:
+        """Record nothing yet."""
+        self.calls: list[tuple[str, float | None]] = []
+
+    def terminate(self) -> None:
+        """Record the request to stop (and ignore it)."""
+        self.calls.append(('terminate', None))
+
+    def kill(self) -> None:
+        """Record the kill."""
+        self.calls.append(('kill', None))
+
+    def wait(self, timeout: float | None = None) -> int:
+        """Time out while given a timeout (still running); else end, killed.
+
+        Returns:
+            The killed child's status.
+
+        Raises:
+            subprocess.TimeoutExpired: While given a timeout.
+
+        """
+        self.calls.append(('wait', timeout))
+        if timeout is not None:
+            raise subprocess.TimeoutExpired(cmd='game', timeout=timeout)
+        return -signal.SIGTERM
+
+
+def test_a_child_still_running_after_the_grace_period_is_killed_then_reaped():
+    """Asked to stop, still running STOP_GRACE_SECONDS later: killed, then waited for."""
+    child = ChildThatOutlivesTheGracePeriod()
+
+    process.stop_and_reap(process=cast('subprocess.Popen[str]', child))
+
+    assert child.calls == [
+        ('terminate', None),
+        ('wait', process.STOP_GRACE_SECONDS),
+        ('kill', None),
+        ('wait', None),
+    ]
+
+
+def test_a_child_still_running_at_its_timeout_raises_once_stopped(tmp_path):
+    """On every platform (Windows too): the timeout raises TimeoutExpired after the stop.
+
+    Whether the child is gone is checked on POSIX only (``TestRunCommandStoppedAtTimeout``):
+    signal 0 to a process id is POSIX.
+    """
+    with pytest.raises(process.TimeoutExpired):
+        process.run_command_stopped_at_timeout(
+            command=[sys.executable, '-c', CHILD_THAT_NEVER_ENDS, str(tmp_path / 'child.pid')],
+            environment=os.environ,
+            timeout_seconds=SHORT_TIMEOUT_SECONDS,
+        )
 
 
 @pytest.mark.skipif(sys.platform == 'win32', reason='signal 0 to a process id is POSIX')

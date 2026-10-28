@@ -918,6 +918,34 @@ def test_the_game_flag_refuses_a_seed_before_looking_for_recordings(mocker, capl
     replayed.assert_not_called()
 
 
+def test_a_game_stopped_at_its_timeout_is_named_on_every_platform(tmp_path, capsys, mocker):
+    """The stop at ``game-timeout-seconds`` fails the run and names the game, Windows included.
+
+    The real never-ending game (the test below) checks the child is gone with signal 0, which
+    is POSIX; here the launch's timeout is injected, so every platform checks the outcome.
+    """
+    script = write_never_ending_game_project(directory=tmp_path / 'project')
+    mocker.patch.object(
+        traces,
+        'launch_game',
+        side_effect=TimeoutExpired(cmd=str(script), timeout=NEVER_ENDING_GAME_TIMEOUT_SECONDS),
+    )
+
+    status = command.main([
+        'verify',
+        '--game',
+        str(script),
+        '--project-root',
+        str(script.parent),
+    ])
+
+    assert status == ExitCode.INTERNAL_ERROR
+    assert (
+        f'glitchygames verify: {script} was stopped: still running after '
+        f'{NEVER_ENDING_GAME_TIMEOUT_SECONDS:g} seconds ([tool.glitchygames] game-timeout-seconds)'
+    ) in capsys.readouterr().err
+
+
 @pytest.mark.skipif(sys.platform == 'win32', reason='signal 0 to a process id is POSIX')
 def test_a_game_that_never_ends_is_stopped_at_the_projects_timeout_and_fails(tmp_path, capsys):
     """A game still running after ``game-timeout-seconds`` is stopped, reaped and fails, named.
