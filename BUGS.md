@@ -6,7 +6,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 234. A Bitmappy Controller-Manager Test Depends on the Tests Before It
 - **Description**: `MultiControllerManager` (`src/apps/bitmappy/src/bitmappy/controllers/manager.py`, around lines 69-105) is a process-wide singleton: `__new__` returns the class's `_instance`, and `__init__` returns early once `_initialized` is set. `TestMultiControllerManager.setup_method` in `src/apps/bitmappy/tests/test_bitmappy_multi_controller.py` (around line 29) builds the manager with `MultiControllerManager()` and never resets it, so `test_initialization` (around line 33, asserting `controllers == {}`, `assigned_controllers == {}` and `next_controller_id == 0`) gets whatever instance an earlier test on the same pytest-xdist worker left, controllers included. The `editor` fixture in `src/apps/bitmappy/tests/conftest.py` (around line 21) resets `_instance` with `mocker.patch.object`, but only for its own test: the patch puts the old instance back afterwards. Expected: every test that builds a manager starts from a fresh one.
-- **Status**: Active
+- **Status**: Resolved (2026-10-27: an autouse fixture in Bitmappy's `conftest.py`, `fresh_controller_manager`, gives every Bitmappy test its own manager; seen again in the owner's `uv run pytest`, reproduced by running `test_bitmappy_benchmarks.py` (which connects four controllers) before `test_initialization`)
 - **Priority**: Low (test isolation only; the app uses one manager per process)
 - **Reporter**: Found by a Stage D implementer (workspace packages Part 3), 2026-10-26
 - **Date Reported**: 2026-10-26
