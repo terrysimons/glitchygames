@@ -6,6 +6,10 @@ from typing import cast
 
 import pygame
 import pytest
+from src.apps.bitmappy.tests.film_strip_support import (
+    frame_color_for_index,
+    make_real_animated_sprite,
+)
 
 from bitmappy import film_strip, film_strip_events
 from bitmappy.film_strip import (
@@ -22,10 +26,6 @@ from glitchygames.events import HashableEvent
 from glitchygames.sprites.animated import (
     AnimatedSprite,
     SpriteFrame,
-)
-from test_bitmappy_film_strip_base import (
-    frame_color_for_index,
-    make_real_animated_sprite,
 )
 
 # Constants for test values - from test_tools_film_strip.py (smaller widget)

@@ -283,7 +283,7 @@ class TestDebugOutputCleanup:
     def test_debug_output_control(self, mocker):
         """Test that debug output can be controlled."""
         # Mock the module-level LOG object
-        mock_log = mocker.patch('test_bitmappy_multi_controller_troubleshooting.LOG')
+        mock_log = mocker.patch(f'{__name__}.LOG')
         # Simulate debug output
         mock_log.debug('DEBUG: Controller 0 activated')
         mock_log.debug('DEBUG: Controller 1 activated')

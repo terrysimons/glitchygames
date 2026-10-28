@@ -401,51 +401,98 @@ def test_every_member_packages_tests_are_collected(pytestconfig):
         )
 
 
-def duplicate_test_file_names(*, project_root: Path, roots: list[Path]) -> list[str]:
-    """Return every test file name used more than once below the roots, with each file using it.
+def test_tests_are_imported_by_their_paths(pytestconfig):
+    """No test module is imported under its bare file name, so no two can collide (D15 item 5).
 
-    A member's tests directory is not a package (rootless), so pytest imports each of its test
-    files under its bare file name: a second ``test_game.py`` anywhere, in another member or in
-    the root's tests/, would collide with it (BUGS.md #31). A member names its test files after
-    its package (``test_<package>_<area>.py``).
+    pytest's importlib import mode names each test module (and conftest.py) after its path,
+    every directory a namespace package; the repository root is on the path, so a member's
+    helper is imported by its qualified path (``src.apps.bitmappy.tests.film_strip_support``).
+    Two members may then hold test files or helpers of the same name (BUGS.md #224 item 31: the
+    user, 2026-10-27, "we can't really control what a game calls its files").
+    """
+    assert pytestconfig.option.importmode == 'importlib'
+    assert pytestconfig.getini('consider_namespace_packages') is True
+    assert [Path(path) for path in pytestconfig.getini('pythonpath')] == [PROJECT_ROOT]
+
+
+def bare_name_imports(*, members: Sequence[WorkspaceMember]) -> list[str]:
+    """Return each import in a member's tests of one of its test modules by a bare name.
+
+    Nothing puts a test directory on the path (importlib mode), so ``import film_support``
+    from a member's tests finds no module of its own, or, worse, an installed one of that name:
+    the one thing the import mode cannot make work. A test imports a helper by its qualified
+    path from the repository root instead. Test-data directories (``fixtures``) are not scanned.
 
     Args:
-        project_root: The repository (the files are named relative to it).
-        roots: The test roots (``collected_test_roots``).
+        members: The workspace's members.
 
     Returns:
-        ``<name>: <file>, <file>[, ...]`` for each name used more than once, sorted.
+        ``<distribution>: tests/<file>:<line> imports <name>`` for each, in the members' order.
 
     """
-    files_by_name: dict[str, list[str]] = {}
-    for root, test_file in _python_files(roots=roots):
-        if fnmatch.fnmatch(test_file.name, 'test_*.py'):
-            files_by_name.setdefault(test_file.name, []).append(
-                test_file.relative_to(project_root).as_posix()
-            )
-    return [
-        f'{name}: {", ".join(files)}'
-        for name, files in sorted(files_by_name.items())
-        if len(files) > 1
-    ]
+    found: list[str] = []
+    for member in members:
+        python_files = sorted(
+            python_file
+            for python_file in member.tests_directory.rglob('*.py')
+            if not TEST_DATA_DIRECTORY_NAMES
+            & set(python_file.relative_to(member.tests_directory).parts)
+        )
+        local_names = {python_file.stem for python_file in python_files} | {
+            directory.name
+            for directory in member.tests_directory.rglob('*')
+            if directory.is_dir() and directory.name not in TEST_DATA_DIRECTORY_NAMES
+        }
+        for python_file in python_files:
+            tree = ast.parse(python_file.read_text(encoding='utf-8'), filename=str(python_file))
+            relative = python_file.relative_to(member.tests_directory).as_posix()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                    names = [node.module]
+                else:
+                    continue
+                found.extend(
+                    f'{member.distribution}: tests/{relative}:{node.lineno} imports {name}'
+                    for name in names
+                    if name.partition('.')[0] in local_names
+                )
+    return found
 
 
-def test_test_file_names_are_unique_across_packages():
-    """Member tests are not packages, so pytest imports them by file name: names must differ."""
-    assert not duplicate_test_file_names(project_root=PROJECT_ROOT, roots=collected_test_roots())
+def test_no_member_test_imports_a_module_by_a_bare_name():
+    """A member's helpers are imported by their qualified paths (src.<layer>.<member>.tests)."""
+    assert bare_name_imports(members=MEMBERS) == []
 
 
-def test_a_test_file_name_used_twice_is_found_naming_both_files(tmp_path):
-    """A member's test file and the root's of the same name: both are reported."""
+def test_a_bare_name_import_of_a_members_test_module_is_found(tmp_path):
+    """Imports of a sibling module or package by bare name are found; qualified ones are not."""
     roots = write_member_test_root(project_root=tmp_path)
-    (tmp_path / 'tests' / 'test_space_game.py').write_text(
-        'def test_orbits():\n    assert True\n', encoding='utf-8'
+    assert roots
+    tests_directory = tmp_path / MEMBER_TESTS
+    (tests_directory / 'ship_support.py').write_text('SPEED = 3\n', encoding='utf-8')
+    (tests_directory / 'fleet').mkdir()
+    (tests_directory / 'fleet' / 'test_space_game_fleet.py').write_text(
+        'import os\n'
+        'import ship_support\n'
+        'from fleet import formations\n'
+        'from src.games.space_game.tests.ship_support import SPEED\n'
+        'from . import ship_support as relative_support\n',
+        encoding='utf-8',
+    )
+    (tests_directory / 'fixtures').mkdir()
+    (tests_directory / 'fixtures' / 'data.py').write_text('import ship_support\n', encoding='utf-8')
+    member = WorkspaceMember(
+        directory=tmp_path / 'src' / 'games' / 'space-game',
+        distribution='space-game',
+        import_packages=('space_game',),
+        console_scripts=(),
     )
 
-    member_file = (MEMBER_TESTS / 'test_space_game.py').as_posix()
-
-    assert duplicate_test_file_names(project_root=tmp_path, roots=roots) == [
-        f'test_space_game.py: {member_file}, tests/test_space_game.py'
+    assert bare_name_imports(members=[member]) == [
+        'space-game: tests/fleet/test_space_game_fleet.py:2 imports ship_support',
+        'space-game: tests/fleet/test_space_game_fleet.py:3 imports fleet',
     ]
 
 
@@ -1442,13 +1489,15 @@ TEST_DATA_DIRECTORY_NAMES = frozenset({'fixtures', '__pycache__'})
 
 
 def misnamed_member_test_modules(*, members: Sequence[WorkspaceMember]) -> list[str]:
-    """Return each module in a member's tests, at any depth, not named for its distribution.
+    """Return each test file in a member's tests, at any depth, not named for its distribution.
 
-    Rootless tests are imported by their bare file names, so every module is named
+    A convention, not a collision guard (each test module is imported by its path:
+    ``test_tests_are_imported_by_their_paths``): every test file (``test_*.py``) is named
     ``test_<distribution with - as _>.py`` or ``test_<distribution with - as _>_*.py``
     (``test_mr_muncher_*.py``; Brave Adventurer's four packages share
-    ``test_brave_adventurer_*.py``), so ``test_bitmappyx.py`` is misnamed. ``conftest.py`` is the
-    one exception; test-data directories (``fixtures``) are not scanned.
+    ``test_brave_adventurer_*.py``), so ``test_bitmappyx.py`` is misnamed. Helper modules
+    (``film_strip_support.py``) and ``conftest.py`` are named freely; test-data directories
+    (``fixtures``) are not scanned.
 
     Args:
         members: The workspace's members.
@@ -1468,7 +1517,8 @@ def misnamed_member_test_modules(*, members: Sequence[WorkspaceMember]) -> list[
                 for python_file in member.tests_directory.rglob('*.py')
                 if not TEST_DATA_DIRECTORY_NAMES
                 & set(python_file.relative_to(member.tests_directory).parts)
-                and python_file.name not in {'conftest.py', f'{prefix}.py'}
+                and fnmatch.fnmatch(python_file.name, 'test_*.py')
+                and python_file.name != f'{prefix}.py'
                 and not fnmatch.fnmatch(python_file.name, f'{prefix}_*.py')
             )
         )
@@ -1476,7 +1526,7 @@ def misnamed_member_test_modules(*, members: Sequence[WorkspaceMember]) -> list[
 
 
 def test_every_members_test_modules_are_named_for_it():
-    """Every module in every member's tests, subdirectories included, is named for the member."""
+    """Every test file in every member's tests, subdirectories included, is named for it."""
     assert misnamed_member_test_modules(members=MEMBERS) == []
     # Each member's move tests are split by subject, and every member has the logical-names one
     for member in MEMBERS:
@@ -1504,6 +1554,7 @@ def test_a_misnamed_member_test_module_in_a_subdirectory_is_found(tmp_path):
                 'canvas/test_bitmappy_canvas.py',
                 'canvas/test_canvas.py',
                 'canvas/fixtures/sprite_data.py',
+                'canvas/canvas_support.py',
             ),
         ),
         (

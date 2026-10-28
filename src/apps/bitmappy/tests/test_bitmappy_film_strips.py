@@ -6,12 +6,12 @@ and integration with the bitmap editor scene.
 
 import pygame
 import pytest
+from src.apps.bitmappy.tests.film_strip_support import make_real_animated_sprite
 
 from bitmappy.controllers.manager import MultiControllerManager
 from bitmappy.editor import BitmapEditorScene
 from bitmappy.film_strip import FilmStripDeleteTab, FilmStripTab, FilmStripWidget
 from glitchygames.ui.dialogs import DeleteAnimationDialogScene
-from test_bitmappy_film_strip_base import make_real_animated_sprite
 
 # Test constants to avoid magic values
 TEST_SIZE_10 = 10

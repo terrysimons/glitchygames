@@ -1277,14 +1277,18 @@ Features:
 - Tests import the installed packages (`uv sync` installs the engine and every member) and never
   edit `sys.path`: `tests/test_suite_collection.py` fails on any `sys.path.insert` or
   `sys.path.append` in a test file. A member's tests (`src/<layer>/<member>/tests/`, no
-  `__init__.py`) are rootless, so pytest imports each file under its bare name: name every file
-  `test_<distribution with - as _>*.py` (`test_mr_muncher_*.py`, `test_bitmappy_*.py`;
+  `__init__.py`) are rootless; pytest imports every test module and conftest by its path
+  (`--import-mode=importlib`, `consider_namespace_packages`, `pythonpath = ["."]`; D15 item 5),
+  so no two names collide, and a member's helper module is imported by its qualified path from
+  the repository root (`src.apps.bitmappy.tests.film_strip_support`), never by a bare name
+  (`test_no_member_test_imports_a_module_by_a_bare_name`). By convention every test file is
+  named `test_<distribution with - as _>*.py` (`test_mr_muncher_*.py`, `test_bitmappy_*.py`;
   subdirectories included; `misnamed_member_test_modules` checks every member). A member's move
   tests are one file per subject, six in all (`_logical_names`, `_install_location`, `_wheel`,
   `_package_data`, `_entry_points`, `_recording_history`); a move test outside them goes beside
   the member's other tests, named for its subject (`test_brave_adventurer_shared_core.py`). The
-  three guards (the naming, the unique file names, and the member-import guard) cover every member
-  and every root test
+  guards (the naming convention, the import mode and bare-name imports, and the member-import
+  guard) cover every member and every root test
 - The engine never imports a member, in its source or its tests: `tests/test_workspace_config.py`
   (`engine_files_importing_a_member`) and `tests/test_suite_collection.py`
   (`engine_test_imports_of_members`) fail on any import of one, at any level and by a literal

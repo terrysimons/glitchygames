@@ -153,15 +153,19 @@ any tool's configuration.
   namespace package there. `git mv` of a directory carries its untracked `__pycache__` along
   too: delete it in the member as well (its `.pyc` files name the old module).
 - Move its tests to `src/games/<game>/tests/` with no `__init__.py` (a tests directory must not be
-  a package named `tests`: `tests/test_suite_collection.py`). A member's tests directory is
-  rootless, so pytest imports each test file under its bare file name: name every test file
-  after the package, `test_<package>_<area>.py` (Drawing Fire's `test_drawing_fire_battle.py`, not
-  `test_battle.py`), so no two test directories share a name.
-  `tests/test_suite_collection.py::test_test_file_names_are_unique_across_packages` fails on a
-  name used twice, naming both files; a shared helper module name can collide too (BUGS.md #31).
+  a package named `tests`: `tests/test_suite_collection.py`). pytest imports every test module
+  by its path, never its bare file name (`--import-mode=importlib` with namespace packages and
+  the repository root on the path, in the root `pyproject.toml`), so two members may have test
+  files or helpers of the same name (BUGS.md #224 item 31). Name test files after the package by
+  convention, `test_<package>_<area>.py` (Drawing Fire's `test_drawing_fire_battle.py`). A
+  helper module beside the tests is imported by its qualified path from the repository root
+  (`from src.apps.bitmappy.tests.film_strip_support import ...`), never by its bare name:
+  `tests/test_suite_collection.py::test_no_member_test_imports_a_module_by_a_bare_name` fails on
+  one. (A member directory whose name holds a dash cannot be named in an `import` statement:
+  give such a member's shared helpers to its tests as `conftest.py` fixtures instead.)
 - A member may have a `tests/conftest.py` (Drawing Fire's drains the event queue). It is imported
-  under the bare name `conftest`, replacing the root conftest in `sys.modules`, so nothing may
-  `import conftest` by name: look a conftest up as pytest registered it, by its path
+  by its path too, so nothing may `import conftest` by name: look a conftest up as pytest
+  registered it, by its path
   (`pytestconfig.pluginmanager.get_plugin(str(pytestconfig.rootpath / 'conftest.py'))`).
 - Move its golden replay to `src/games/<game>/tests/fixtures/replays/golden.jsonl.gz`, its bytes
   unchanged. Data its tests read beside them (golden sounds, for instance) moves with them.

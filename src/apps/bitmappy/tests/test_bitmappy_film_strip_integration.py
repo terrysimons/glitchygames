@@ -2,14 +2,8 @@
 
 import pygame
 
-from bitmappy import editor as bitmappy
-from bitmappy import film_strip
-from bitmappy.film_strip_sprite import FilmStripSprite
-from glitchygames import events
-from glitchygames.sprites import AnimatedSprite
-
 # Import constants from base class
-from test_bitmappy_film_strip_base import (
+from src.apps.bitmappy.tests.film_strip_support import (
     FRAME_DURATION,
     FRAME_INDEX_2,
     MIN_FILM_STRIP_WIDTH,
@@ -23,6 +17,12 @@ from test_bitmappy_film_strip_base import (
     make_real_animated_sprite,
     make_real_frame,
 )
+
+from bitmappy import editor as bitmappy
+from bitmappy import film_strip
+from bitmappy.film_strip_sprite import FilmStripSprite
+from glitchygames import events
+from glitchygames.sprites import AnimatedSprite
 
 # A frame colour far from magenta: the film strip draws magenta pixels as transparent
 THUMBNAIL_BASE_COLOR = (200, 40, 10)

@@ -11,16 +11,16 @@ four-frame animations ('walk' and 'run'), each shown in its own film strip.
 
 import pygame
 import pytest
-
-from bitmappy.editor import BitmapEditorScene
-from bitmappy.film_strip import FilmTabWidget
-from glitchygames import events
-from test_bitmappy_film_strip_base import (
+from src.apps.bitmappy.tests.film_strip_support import (
     PIXEL_SIZE,
     PIXELS_ACROSS,
     PIXELS_TALL,
     make_real_animated_sprite,
 )
+
+from bitmappy.editor import BitmapEditorScene
+from bitmappy.film_strip import FilmTabWidget
+from glitchygames import events
 
 # Test constants to avoid magic values
 TEST_FRAME_COUNT_2 = 2

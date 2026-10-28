@@ -246,6 +246,14 @@ testpaths = [
   "src/apps/bitmappy/tests",
 ]
 python_files = ["test_*.py"]
+# Every test module is imported under a name made from its path (importlib mode, with each
+# directory a namespace package), never under its bare file name: two members may have test
+# files or helpers of the same name (the user, 2026-10-27: "we can't really control what a game
+# calls its files"). Nothing is put on sys.path for a test directory, so a member's helper is
+# imported by its qualified path from the repository root, which is on the path
+# (src.apps.bitmappy.tests.film_strip_support); tests/test_suite_collection.py guards both
+consider_namespace_packages = true
+pythonpath = ["."]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 # Directory *name* patterns pytest will not recurse into, matched at any depth. Do not
@@ -259,7 +267,7 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "-n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=dt_demo --cov=joystick_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "--import-mode=importlib -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=dt_demo --cov=joystick_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13

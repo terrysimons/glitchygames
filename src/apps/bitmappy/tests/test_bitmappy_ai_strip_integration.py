@@ -9,10 +9,10 @@ from pathlib import Path
 
 import pygame
 import pytest
+from src.apps.bitmappy.tests.film_strip_support import FRAME_SIZE, FilmStripTestBase
 
 from bitmappy.editor import BitmapEditorScene
 from glitchygames.sprites import AnimatedSprite, SpriteFrame
-from test_bitmappy_film_strip_base import FRAME_SIZE, FilmStripTestBase
 
 ANIMATION_NAME = 'walk'
 RED = (255, 0, 0)

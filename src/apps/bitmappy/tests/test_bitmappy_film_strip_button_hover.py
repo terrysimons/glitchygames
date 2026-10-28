@@ -11,6 +11,7 @@ All buttons should invert their colors on hover (black background, white border)
 
 import pygame
 import pytest
+from src.apps.bitmappy.tests.film_strip_support import make_real_animated_sprite
 
 from bitmappy.film_strip import (
     FilmStripDeleteTab,
@@ -18,7 +19,6 @@ from bitmappy.film_strip import (
     FilmStripWidget,
     FilmTabWidget,
 )
-from test_bitmappy_film_strip_base import make_real_animated_sprite
 
 # The button colours (film_strip.py, film_strip_rendering.py)
 TAB_COLOR = (200, 200, 200)
