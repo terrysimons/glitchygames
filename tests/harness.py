@@ -332,9 +332,17 @@ def restore_game_engine_class_state(mocker):
     there for every later test on the worker: a real GameEngine then fails in
     initialize_system_icons with "Argument to set_icon must be a Surface". GameEngine.__init__
     also sets `USE_FASTEVENTS` on a (mocked) old pygame, which would make every later engine on
-    the worker create fastevent live sources (BUGS.md #65).
+    the worker create fastevent live sources (BUGS.md #65). A test that has an engine find
+    pygame started without SDL_NO_SIGNAL_HANDLERS sets `PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS`,
+    which would make every later engine warn.
     """
-    for attribute_name in ('game', 'icon', 'OPTIONS', 'USE_FASTEVENTS'):
+    for attribute_name in (
+        'game',
+        'icon',
+        'OPTIONS',
+        'USE_FASTEVENTS',
+        'PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS',
+    ):
         # Patched with its own value: whatever the test assigns is undone at teardown
         mocker.patch.object(GameEngine, attribute_name, getattr(GameEngine, attribute_name))
 

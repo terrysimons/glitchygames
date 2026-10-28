@@ -1158,6 +1158,37 @@ class TestRecordingEdgeCases:
             pass
         assert 'SDL may own SIGINT and SIGTERM' not in caplog.text
 
+    def test_a_second_engine_still_warns_about_a_pygame_started_without_the_hint(
+        self, mocker, caplog, monkeypatch
+    ):
+        """The hint the first engine set does not make a host's earlier pygame safe.
+
+        A host called pygame.init() without the hint (SDL installed its handlers); the first
+        engine warns and sets the hint for later inits. pygame was not restarted, so a second
+        engine must warn too. Once pygame is stopped, an engine finds nothing to warn about.
+        """
+        monkeypatch.delenv('SDL_NO_SIGNAL_HANDLERS', raising=False)
+        pygame_running = mocker.patch.object(
+            game_engine_module.pygame, 'get_init', return_value=True
+        )
+        with constructed_engine():
+            pass
+        assert os.environ['SDL_NO_SIGNAL_HANDLERS'] == '1'
+        caplog.clear()
+
+        with constructed_engine():
+            pass
+        assert 'SDL may own SIGINT and SIGTERM' in caplog.text
+        caplog.clear()
+
+        pygame_running.return_value = False
+        with constructed_engine():
+            pass
+        pygame_running.return_value = True
+        with constructed_engine():
+            pass
+        assert 'SDL may own SIGINT and SIGTERM' not in caplog.text
+
     def test_controller_input_mode_runs_with_a_controller_manager(self, mocker):
         """--input-mode controller: SDL's Game Controller API, its events left unblocked."""
         controller_events_blocked: list[bool] = []

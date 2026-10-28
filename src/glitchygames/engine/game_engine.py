@@ -549,6 +549,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     MISSING_EVENTS: ClassVar[list[str]] = []
     UNIMPLEMENTED_EVENTS: ClassVar[list[int]] = []
     USE_FASTEVENTS: ClassVar[bool] = False
+    # pygame was found running without SDL_NO_SIGNAL_HANDLERS (SDL owns the signals): every
+    # engine warns until pygame is found stopped, even after the first engine set the hint
+    PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS: ClassVar[bool] = False
 
     # We add a layer of encapsulation here to simplify
     # the processing of events.  New event types added
@@ -968,6 +971,27 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         return options
 
+    def _warn_about_a_pygame_that_may_own_the_signals(self: Self) -> None:
+        """Warn when pygame runs already, started without SDL's signal handlers turned off.
+
+        pygame started with the hint already '1' (an earlier engine in this process, or a host
+        that set it, such as the test harness) has no SDL handlers: nothing to warn about. The
+        hint now is not the hint pygame started under: one found started without it stays
+        suspect (every engine warns) until pygame is found stopped.
+        """
+        if not pygame.get_init():
+            GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS = False  # type: ignore[reportConstantRedefinition]
+        elif (
+            GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS
+            or os.environ.get(SDL_NO_SIGNAL_HANDLERS_HINT) != '1'
+        ):
+            GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS = True  # type: ignore[reportConstantRedefinition]
+            self.log.warning(
+                'pygame was initialized before the engine, so SDL may own SIGINT and SIGTERM '
+                '(turning them into QUIT events); the engine still installs its own handlers '
+                "when it starts, which replace SDL's"
+            )
+
     def __init__(  # ruff: ignore[too-many-statements]
         self: Self,
         game: type[Scene] | Scene,
@@ -1085,14 +1109,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # SIG_DFL): SIGTERM would end the run as a normal quit, exit SUCCESS and be recorded as
         # an external QUIT. A value set beforehand wins. SDL_HINT_NO_SIGNAL_HANDLERS:
         # https://wiki.libsdl.org/SDL2/SDL_HINT_NO_SIGNAL_HANDLERS
-        # pygame started with the hint already '1' (an earlier engine in this process, or a
-        # host that set it, such as the test harness) has no SDL handlers: nothing to warn about
-        if pygame.get_init() and os.environ.get(SDL_NO_SIGNAL_HANDLERS_HINT) != '1':
-            self.log.warning(
-                'pygame was initialized before the engine, so SDL may own SIGINT and SIGTERM '
-                '(turning them into QUIT events); the engine still installs its own handlers '
-                "when it starts, which replace SDL's"
-            )
+        self._warn_about_a_pygame_that_may_own_the_signals()
         os.environ.setdefault(SDL_NO_SIGNAL_HANDLERS_HINT, '1')
 
         # Shorten the GIL switch interval before audio starts: the mixer's channel-finished
