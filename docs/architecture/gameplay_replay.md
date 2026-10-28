@@ -474,7 +474,10 @@ frame is background even when it is OLD's item (a large sprite, about 139x139 pi
 800x480, many pickups of one color, a full-screen overlay), so it vanishes from the ghost. The
 blend costs about 2.4 ms a frame when the runs match and 4.7 ms with a few sprites apart, for an
 800x480 window; a frame whose every pixel has a color of its own (noise) costs about 19 ms, and
-a textured backdrop falls in between. NEW replays, compares and
+a textured backdrop falls in between. OLD's items are drawn over NEW's whole finished frame, so
+an item OLD still has where NEW's character stands (an uneaten dot under NEW's Mr. Muncher) is
+drawn over that character; painting the two games layer by layer fixes it once OLD can run in the
+same process (decision 20 of the Part 3 plan). NEW replays, compares and
 exits exactly as it would alone: only the shown copy is drawn on. The `glitchygames` command
 takes the same options (`glitchygames replay-trace NEW --compare-trace OLD`).
 

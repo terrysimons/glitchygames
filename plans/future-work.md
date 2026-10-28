@@ -144,6 +144,14 @@ arc was lost. What follows is left.
 Stage D moved every recording, replay and measurement tool into the engine
 (`src/glitchygames/replay/tools/`, `plans/2026-10-26-workspace-packages-3-demos.md`). Left:
 
+- **Paint `--compare-trace`'s ghost layer by layer** (decision 20 of
+  `plans/2026-10-26-workspace-packages-3-demos.md`; the user, 2026-10-27, no half measures).
+  OLD's items are blended over NEW's finished frame, so OLD's uneaten dot under NEW's Mr. Muncher
+  draws over him. Interleave the games' draw layers in one frame (each layer: OLD's at the alpha,
+  then NEW's), which needs OLD in the same process: do it when the engine context work makes an
+  in-process OLD possible (`plans/2026-10-25-engine-context.md`, the Arcade spike's wrapper in
+  `.superpowers/arcade-spike/`), replacing the child process and the per-pixel item rule
+  (`replay/tools/compare.py` rule 10, `GhostCompositor`) rather than adding to them.
 - **Logical-name collisions with outside packages.** `MEMBER_LAYERS`
   (`src/glitchygames/logical_names.py`) still names our members' packages, so an outside game
   whose package happens to be called `paddleslap` is labelled `games.paddleslap...` in its

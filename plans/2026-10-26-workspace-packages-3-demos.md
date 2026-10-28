@@ -1151,6 +1151,17 @@ scripts, staging rows in the pre-commit hook, and the docs snippet text.
     under OLD's recorded seed unless `--random-seed N` is given. A game flag only: no `play`
     subcommand, and `glitchygames replay-trace --compare-trace` is unchanged. (Task D14: frames
     pair by game frames, not as `--record-trace` counts them: pausing freezes OLD.)
+20. **The ghost is painted layer by layer, not over the finished frame: deferred, no half
+    measures** (the user, 2026-10-27: "Let's do the proper fix from the start... I don't want to
+    do a half measure on this unless it strictly gets us closer to the proper implementation").
+    Today OLD's items are blended over NEW's whole presented frame (decision 18, rule 10), so an
+    item OLD still has under where NEW's character stands (an uneaten dot under NEW's Mr.
+    Muncher) is drawn over that character. The proper fix interleaves the two games' layers in
+    one frame: for each draw layer, OLD's at the alpha, then NEW's. That needs both games in one
+    process drawing into one frame (OLD is a child process sending finished frames today), so it
+    waits for the engine context work (`plans/2026-10-25-engine-context.md`; the in-process
+    wrapper the Arcade spike proved, `.superpowers/arcade-spike/`). No pixel heuristic in the
+    meantime (a "static items under, moving items over" rule was offered and declined).
 
 **Calls made while planning** (the controller's; the user may overturn any):
 - **Rebaseline and audit stay options of `replay-trace`** (the controller's recommendation; the
