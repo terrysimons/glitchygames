@@ -102,6 +102,49 @@ def test_measured_seconds_reads_monotonic_time(mocker):
     assert second - first == 0.5
 
 
+def test_raw_counters_read_the_performance_counter(mocker):
+    """raw_counter_ns() and raw_counter_seconds() read time.perf_counter_ns() / perf_counter().
+
+    Real time, never replayed: the frame clock moving does not move them.
+    """
+    # Patch the module-level `time` name glitchygames.clock uses, never the global time module
+    fake_time = types.SimpleNamespace(
+        perf_counter_ns=mocker.Mock(side_effect=[1_000, 1_750]),
+        perf_counter=mocker.Mock(side_effect=[2.0, 2.25]),
+    )
+    mocker.patch.object(clock, 'time', fake_time)
+    first_ns, first_seconds = clock.raw_counter_ns(), clock.raw_counter_seconds()
+    advance_frame_clock(seconds=3.0)
+    second_ns, second_seconds = clock.raw_counter_ns(), clock.raw_counter_seconds()
+    assert second_ns - first_ns == 750
+    assert second_seconds - first_seconds == 0.25
+
+
+def test_raw_sleep_is_time_sleep(mocker):
+    """raw_sleep(seconds) sleeps for real, through time.sleep."""
+    sleep = mocker.Mock()
+    mocker.patch.object(clock, 'time', types.SimpleNamespace(sleep=sleep))
+    clock.raw_sleep(0.25)
+    sleep.assert_called_once_with(0.25)
+
+
+def test_raw_wall_clock_time_is_real_now_even_in_a_replay():
+    """raw_wall_clock_time() is the machine's aware UTC now, whatever the active sources say."""
+    header = {
+        'game_class': 'SomeGame',
+        'random_seed': 1,
+        'recorded_at': '2001-01-01T00:00:00',
+        'options': {},
+    }
+    install_sources(sources=ReplaySources(header=header, frames=[], format_version=3))
+    before = datetime.now(tz=UTC)
+    reading = clock.raw_wall_clock_time()
+    after = datetime.now(tz=UTC)
+    assert reading.tzinfo is UTC
+    assert before <= reading <= after
+    assert clock.wall_clock_time() < before
+
+
 def test_frame_clock_milliseconds():
     """The frame clock in whole milliseconds, rounded half to even."""
     advance_frame_clock(seconds=1.25)
