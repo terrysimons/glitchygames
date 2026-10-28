@@ -10,6 +10,7 @@ import ast
 import fnmatch
 import importlib.metadata
 import importlib.util
+import itertools
 import json
 import re
 import tomllib
@@ -32,7 +33,7 @@ from tests.harness import CHECKOUT_ENGINE_DIRECTORY, imported_engine_directory
 from tests.workspace_sources import member_import_packages
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
 
 PROJECT_ROOT = Path(__file__).parent.parent
 TESTS_ROOT = PROJECT_ROOT / 'tests'
@@ -847,16 +848,22 @@ MEMBER_IMPORT_EXEMPT_NAMES: dict[str, dict[tuple[str, str], str]] = {
 }
 
 
-def _root_test_modules(*, project_root: Path) -> list[tuple[str, ast.Module]]:
-    """Return each Python file under the root tests/ (no __pycache__), keyed by its path, parsed."""
-    return [
-        (
-            python_file.relative_to(project_root).as_posix(),
-            ast.parse(python_file.read_text(encoding='utf-8'), filename=str(python_file)),
-        )
-        for python_file in sorted((project_root / 'tests').rglob('*.py'))
-        if '__pycache__' not in python_file.parts
-    ]
+def _root_test_modules(*, project_root: Path) -> Iterator[tuple[str, ast.Module]]:
+    """Yield each Python file under the root tests/ (no __pycache__), keyed by its path, parsed.
+
+    One at a time: every tree held at once was over 100 MiB of the serial run's memory, which
+    stayed with the process after the scan.
+
+    Yields:
+        ``(path from the repository, tree)``, sorted by path.
+
+    """
+    for python_file in sorted((project_root / 'tests').rglob('*.py')):
+        if '__pycache__' not in python_file.parts:
+            yield (
+                python_file.relative_to(project_root).as_posix(),
+                ast.parse(python_file.read_text(encoding='utf-8'), filename=str(python_file)),
+            )
 
 
 def engine_test_imports_of_members(
@@ -1257,15 +1264,22 @@ def root_test_import_graph(*, project_root: Path) -> dict[str, frozenset[str]]:
         Module name -> the module names it brings in.
 
     """
-    files = [(relative, tree) for relative, tree in _root_test_modules(project_root=project_root)]
     root_conftest = project_root / CONFTEST_FILE_NAME
-    if root_conftest.is_file():
-        files.append((
-            CONFTEST_FILE_NAME,
-            ast.parse(root_conftest.read_text(encoding='utf-8'), filename=str(root_conftest)),
-        ))
+    root_conftest_files = (
+        [
+            (
+                CONFTEST_FILE_NAME,
+                ast.parse(root_conftest.read_text(encoding='utf-8'), filename=str(root_conftest)),
+            )
+        ]
+        if root_conftest.is_file()
+        else []
+    )
     graph: dict[str, frozenset[str]] = {}
-    for relative, tree in files:
+    # One tree at a time (_root_test_modules)
+    for relative, tree in itertools.chain(
+        _root_test_modules(project_root=project_root), root_conftest_files
+    ):
         module = root_test_module_name(relative=relative)
         brought_in = imported_module_names(
             tree=tree,
