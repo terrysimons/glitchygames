@@ -226,12 +226,12 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
       PYTEST_WORKERS: "0"
-      # Stop the run past 1750 MiB of the container's memory (its page cache left out), naming the
+      # Stop the run past 1600 MiB of the container's memory (its page cache left out), naming the
       # test (tests/memory_guard.py), before the 2 GB executor's kernel kills it with signal 9 and
-      # no test named (BUGS.md #235). 1750 is the owner's choice (2026-10-28: "compromise, let's
-      # set it to 1750"); a healthy run reached 1621 MiB, and reducing that is in
-      # plans/future-work.md
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
+      # no test named (BUGS.md #235). 1600 is the owner's choice (2026-10-28: "Let's stay at 1600
+      # for a bit and see if we can reduce it further"); after BUGS.md #237's fixes a serial run
+      # peaked at 1409 MiB (amd64 emulated in Docker; CircleCI's summary line is the real figure)
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
 
     steps:
       - checkout
