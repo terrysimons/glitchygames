@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -160,6 +164,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
@@ -318,6 +331,31 @@ every component that needs it.</p>
     end
 
     SELF_OPT --&gt; Access</code></pre>
+<h3 id="logging-level-and-the-startup-options-block">Logging level and the startup options block<a class="headerlink" href="#logging-level-and-the-startup-options-block" title="Permanent link">#</a></h3>
+<p>A game logs at WARNING unless <code>--log-level</code> says otherwise (the owner, 2026-10-28: games default
+to WARNING, as the replay tools do), so a plain run prints only warnings and worse: the exit
+code it ended with, whether its seed was rolled or given, and the end-of-run performance reports
+are INFO, shown with <code>--log-level info</code>. Nothing else sets a level (the logger guards: no level set at import).
+Each failure a player sees (a crash, exit 70; a failed teardown; a playback that failed) logs
+one more line after its traceback, <code>exit_codes.BUG_REPORT_HINT</code>: "To report this, run the game
+again with --log-level info and include the output." The <code>glitchygames</code> command has no
+<code>--log-level</code>, so its own tool crashes do not say it.</p>
+<p>Every engine start (<code>start()</code> or <code>start_async()</code>) logs the run's whole options dictionary once,
+at CRITICAL, so it shows at every level ("for now": plans/future-work.md):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>game.engine - CRITICAL - Options for Paddle Slap (secrets redacted):
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    allow_dirty             = False
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    ...
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    log_level               = 'warning'
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    ...
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    replay_trace            = 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
+</code></pre></div>
+<p>Names are sorted, one <code>name = value</code> per line, aligned, with values as Python writes them; a
+nested mapping is indented below its name. Path options (the tools' and the engine's, the set a
+recording's header stores) are shown relative to the project root when inside it and absolute
+otherwise. An option whose name holds key, token, secret, password or credential, in any case,
+shows <code>&lt;redacted&gt;</code>. The environment is never read. A replay's options are the recorded run's.
+<code>random_seed</code> is the seed the run uses, rolled or given (the owner, 2026-10-28: "The seed should
+definitely be in the options"), never None, so <code>--random-seed</code> with it plays the run again.</p>
 <h2 id="complete-flag-reference">Complete Flag Reference<a class="headerlink" href="#complete-flag-reference" title="Permanent link">#</a></h2>
 <p>Every option, by the layer that adds it and grouped as <code>uv run bitmappy --help</code> prints it:
 each with its type and default, then its help text.</p>
@@ -414,7 +452,7 @@ from <code>--help</code>: the watched replay's restart internals.</p>
 <h4 id="game-options">Game Options<a class="headerlink" href="#game-options" title="Permanent link">#</a></h4>
 <p>Added by <code>GameEventManager.args()</code> in <code>src/glitchygames/events/game.py</code>.</p>
 <ul>
-<li><code>-l, --log-level {debug,info,warning,error,critical}</code> (<code>choice</code>, default <code>info</code>): set the logging level</li>
+<li><code>-l, --log-level {debug,info,warning,error,critical}</code> (<code>choice</code>, default <code>warning</code>): set the logging level (default: warning; a bug report asks for info)</li>
 <li><code>--no-unhandled-events</code> (<code>store_true</code>, default <code>False</code>): fail on unhandled events</li>
 <li><code>-p, --profile</code> (<code>store_true</code>, default <code>False</code>): enable profiling</li>
 </ul>
@@ -479,7 +517,7 @@ leaves them out.</p>
 </table>
 <h3 id="layer-3-the-game">Layer 3: the game<a class="headerlink" href="#layer-3-the-game" title="Permanent link">#</a></h3>
 <h4 id="bitmappy-v10-options">Bitmappy v1.0 Options<a class="headerlink" href="#bitmappy-v10-options" title="Permanent link">#</a></h4>
-<p>Added by <code>BitmapEditorScene.args()</code> in <code>src/apps/bitmappy/bitmappy/editor.py</code>; the heading is
+<p>Added by <code>BitmapEditorScene.args()</code> in <code>src/apps/bitmappy/src/bitmappy/editor.py</code>; the heading is
 <code>&lt;NAME&gt; v&lt;VERSION&gt; Options</code>.</p>
 <ul>
 <li><code>-v, --version</code> (<code>store_true</code>, default <code>False</code>): print the game version and exit</li>
@@ -498,17 +536,17 @@ leaves them out.</p>
 <tbody>
 <tr>
 <td>Paddle Slap</td>
-<td><code>src/games/paddleslap/paddleslap/__init__.py</code></td>
+<td><code>src/games/paddleslap/src/paddleslap/__init__.py</code></td>
 <td><code>-v, --version</code>, <code>-b, --balls</code> (int, default 1), <code>--ball-spawn-mode</code> (choice, default <code>paddle_only</code>)</td>
 </tr>
 <tr>
 <td>DT Demo</td>
-<td><code>src/glitchygames/examples/dt_demo.py</code></td>
+<td><code>src/demos/dt-demo/src/dt_demo/__init__.py</code></td>
 <td><code>-v, --version</code>, <code>-b, --balls</code> (int, default 1)</td>
 </tr>
 <tr>
 <td>Clockwork Keep</td>
-<td><code>src/games/clockwork-keep/clockwork_keep/game.py</code></td>
+<td><code>src/games/clockwork-keep/src/clockwork_keep/game.py</code></td>
 <td><code>--floor</code> (int, default 0)</td>
 </tr>
 <tr>
@@ -523,7 +561,7 @@ leaves them out.</p>
 </tr>
 <tr>
 <td>Joystick Demo</td>
-<td><code>src/glitchygames/examples/joystick_demo.py</code></td>
+<td><code>src/demos/joystick-demo/src/joystick_demo/__init__.py</code></td>
 <td>none (the engine's <code>--input-mode</code> chooses what it shows)</td>
 </tr>
 <tr>
@@ -547,59 +585,59 @@ Mixer and the other reserved groups). Every option it prints, with its help text
 <h2 id="how-to-add-arguments-to-a-new-event-manager">How to Add Arguments to a New Event Manager<a class="headerlink" href="#how-to-add-arguments-to-a-new-event-manager" title="Permanent link">#</a></h2>
 <p>If you are adding arguments to a currently-empty event manager group, follow the
 existing pattern:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># In src/glitchygames/events/mouse.py</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nd">@classmethod</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">args</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parser</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">:</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">group</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">add_argument_group</span><span class="p">(</span><span class="s1">'Mouse Options'</span><span class="p">)</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        <span class="s1">'--mouse-sensitivity'</span><span class="p">,</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>        <span class="n">help</span><span class="o">=</span><span class="s1">'Mouse sensitivity multiplier (default: 1.0)'</span><span class="p">,</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="p">)</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="k">return</span> <span class="n">parser</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># In src/glitchygames/events/mouse.py</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nd">@classmethod</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">args</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parser</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">:</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">group</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">add_argument_group</span><span class="p">(</span><span class="s1">'Mouse Options'</span><span class="p">)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        <span class="s1">'--mouse-sensitivity'</span><span class="p">,</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>        <span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>        <span class="n">help</span><span class="o">=</span><span class="s1">'Mouse sensitivity multiplier (default: 1.0)'</span><span class="p">,</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="p">)</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="k">return</span> <span class="n">parser</span>
 </code></pre></div>
 <p>The engine already calls your manager's <code>args()</code> method — you just need to
 add <code>add_argument()</code> calls to the existing group.</p>
 <h2 id="how-to-create-a-new-game-with-arguments">How to Create a New Game with Arguments<a class="headerlink" href="#how-to-create-a-new-game-with-arguments" title="Permanent link">#</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">GameEngine</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.scenes</span><span class="w"> </span><span class="kn">import</span> <span class="n">Scene</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyGame</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">NAME</span> <span class="o">=</span> <span class="s1">'My Game'</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">VERSION</span> <span class="o">=</span> <span class="s1">'1.0'</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="nd">@classmethod</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">args</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parser</span><span class="p">):</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">        </span><span class="sd">"""Add game-specific arguments.</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="sd">        Args:</span>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="sd">            parser: An argument group (not the root parser).</span>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="sd">        """</span>
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>            <span class="s1">'-v'</span><span class="p">,</span> <span class="s1">'--version'</span><span class="p">,</span>
-<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>            <span class="n">action</span><span class="o">=</span><span class="s1">'store_true'</span><span class="p">,</span>
-<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>            <span class="n">help</span><span class="o">=</span><span class="s1">'print the game version and exit'</span><span class="p">,</span>
-<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>        <span class="p">)</span>
-<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>            <span class="s1">'--difficulty'</span><span class="p">,</span>
-<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>            <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s1">'easy'</span><span class="p">,</span> <span class="s1">'medium'</span><span class="p">,</span> <span class="s1">'hard'</span><span class="p">],</span>
-<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>            <span class="n">default</span><span class="o">=</span><span class="s1">'medium'</span><span class="p">,</span>
-<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>            <span class="n">help</span><span class="o">=</span><span class="s1">'game difficulty level'</span><span class="p">,</span>
-<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a>        <span class="p">)</span>
-<a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a>
-<a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">options</span><span class="p">):</span>
-<a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
-<a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a>        <span class="c1"># Access your arguments via self.options</span>
-<a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">difficulty</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">'difficulty'</span><span class="p">]</span>
-<a id="__codelineno-3-32" name="__codelineno-3-32" href="#__codelineno-3-32"></a>
-<a id="__codelineno-3-33" name="__codelineno-3-33" href="#__codelineno-3-33"></a>
-<a id="__codelineno-3-34" name="__codelineno-3-34" href="#__codelineno-3-34"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-<a id="__codelineno-3-35" name="__codelineno-3-35" href="#__codelineno-3-35"></a>    <span class="n">GameEngine</span><span class="p">(</span><span class="n">game</span><span class="o">=</span><span class="n">MyGame</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">GameEngine</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.scenes</span><span class="w"> </span><span class="kn">import</span> <span class="n">Scene</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyGame</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">NAME</span> <span class="o">=</span> <span class="s1">'My Game'</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">VERSION</span> <span class="o">=</span> <span class="s1">'1.0'</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="nd">@classmethod</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">args</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">parser</span><span class="p">):</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">        </span><span class="sd">"""Add game-specific arguments.</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="sd">        Args:</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="sd">            parser: An argument group (not the root parser).</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="sd">        """</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>            <span class="s1">'-v'</span><span class="p">,</span> <span class="s1">'--version'</span><span class="p">,</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>            <span class="n">action</span><span class="o">=</span><span class="s1">'store_true'</span><span class="p">,</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>            <span class="n">help</span><span class="o">=</span><span class="s1">'print the game version and exit'</span><span class="p">,</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>        <span class="p">)</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>        <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a>            <span class="s1">'--difficulty'</span><span class="p">,</span>
+<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a>            <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s1">'easy'</span><span class="p">,</span> <span class="s1">'medium'</span><span class="p">,</span> <span class="s1">'hard'</span><span class="p">],</span>
+<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a>            <span class="n">default</span><span class="o">=</span><span class="s1">'medium'</span><span class="p">,</span>
+<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a>            <span class="n">help</span><span class="o">=</span><span class="s1">'game difficulty level'</span><span class="p">,</span>
+<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a>        <span class="p">)</span>
+<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>
+<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">options</span><span class="p">):</span>
+<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a>        <span class="c1"># Access your arguments via self.options</span>
+<a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">difficulty</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">'difficulty'</span><span class="p">]</span>
+<a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a>
+<a id="__codelineno-4-33" name="__codelineno-4-33" href="#__codelineno-4-33"></a>
+<a id="__codelineno-4-34" name="__codelineno-4-34" href="#__codelineno-4-34"></a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+<a id="__codelineno-4-35" name="__codelineno-4-35" href="#__codelineno-4-35"></a>    <span class="n">GameEngine</span><span class="p">(</span><span class="n">game</span><span class="o">=</span><span class="n">MyGame</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
 </code></pre></div>
 <p>Your arguments will automatically appear under <strong>"My Game v1.0 Options"</strong> in
 the <code>--help</code> output, separate from all engine-level flags.</p>

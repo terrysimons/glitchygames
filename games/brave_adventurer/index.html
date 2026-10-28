@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -160,6 +164,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
@@ -1106,7 +1119,7 @@ of its own, a recording replays it exactly:</p>
 </tr>
 </tbody>
 </table>
-<p>The golden script (<code>brave_adventurer_script()</code> in <code>scripts/record_golden_traces.py</code>) runs right
+<p>The golden script (<code>brave_adventurer_script()</code> in <code>scripts/golden_inputs.py</code>) runs right
 over screens 0 and 1 jumping for the higher scarabs, pauses and resumes, then places the
 player at x = 2400 (a 900-frame run cannot reach the first pit from the start) and jumps the
 two screen-3 walls and the screen-4 pit before walking back. Re-record either golden only
@@ -1145,8 +1158,12 @@ deliberately, after finding out why it changed (the scripts' docstrings give the
 <td>The launcher: <code>--game</code> runs that game's own <code>main()</code> without the flag, an unknown game is an error, a recording starts its own game without the title screen (the replay plugin replays both goldens through <code>brave-adventurer</code>, as <code>brave-adventurer/golden-classic</code> and <code>brave-adventurer/golden-papyrus</code>), another game's recording is refused; the title screen: its logical name, both cards, choosing with the keyboard (through the real engine) and a gamepad, Q, B and Back quitting, Esc doing nothing, <code>-v</code>, <code>-h</code>, and a recording made from it replaying through the launcher</td>
 </tr>
 <tr>
-<td><code>src/games/brave-adventurer/tests/test_brave_adventurer_after_the_move.py</code></td>
-<td>The move into one project: both scenes keep their logical names, the old example packages are gone, both goldens keep their history, the core imports neither game, each level manager builds its own gold scarab</td>
+<td><code>src/games/brave-adventurer/tests/test_brave_adventurer_logical_names.py</code>, <code>test_brave_adventurer_install_location.py</code>, <code>test_brave_adventurer_recording_history.py</code></td>
+<td>The move into one project: both scenes keep their logical names, the old example packages are gone, both goldens keep their history</td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/tests/core/test_brave_adventurer_shared_core.py</code></td>
+<td>The shared core: both scenes share one base and give only their hooks, the core imports neither game, each level manager builds its own gold scarab</td>
 </tr>
 <tr>
 <td><code>tests/world/test_golden_traces.py</code></td>
@@ -1162,7 +1179,7 @@ deliberately, after finding out why it changed (the scripts' docstrings give the
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus_sprite_files.py</code></td>
-<td>The Papyrus TOML sprites pass the engine's sprite-file checks (<code>tests/examples/test_examples_sprites.py</code>: equal rows; timings, hitboxes, pixels, metadata and <code>[[transition]]</code> sections survive a save round trip), and their state machines reload in order</td>
+<td>The Papyrus TOML sprites pass the engine's sprite-file checks (<code>glitchygames.testing.sprite_files</code>: equal rows; timings, hitboxes, pixels, metadata and <code>[[transition]]</code> sections survive a save round trip), and their state machines reload in order</td>
 </tr>
 </tbody>
 </table>
@@ -1515,8 +1532,8 @@ names; and its one browser page, the title screen, ships all four archives, the 
 <td>The golden traces</td>
 </tr>
 <tr>
-<td><code>scripts/record_scripted_session.py</code>, <code>scripts/record_golden_traces.py</code></td>
-<td>The scripts that record them, with the input scripts</td>
+<td><code>scripts/record_scripted_session.py</code>, <code>scripts/record_golden_traces.py</code>, <code>scripts/golden_inputs.py</code></td>
+<td>The scripts that record them (on the engine's scripted-session recorder and golden-trace harness, <code>src/glitchygames/replay/tools/</code>), and the input scripts</td>
 </tr>
 </tbody>
 </table>

@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -160,6 +164,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
@@ -214,7 +227,8 @@ Clockwork Keep's elevator ride (BUGS.md #189), neither visible on <code>dummy</c
 </ol>
 <p>Both runs record a fingerprint (size and SHA-256 of the RGB bytes, as the window shows them) of
 every frame each test presents (<code>src/glitchygames/testing/frame_fingerprints.py</code>). When both have
-finished, the frames are compared (<code>scripts/compare_driver_frames.py</code>). Any difference, or a
+finished, the frames are compared (<code>src/glitchygames/testing/frame_comparison.py</code>; its command line
+is <code>scripts/compare_driver_frames.py</code>). Any difference, or a
 failure in the native run, fails the run; the differing tests are re-run on both drivers to save
 the differing frames as PNG files with a difference image (the baseline dimmed to grey, differing
 pixels magenta) under <code>test-results/driver-comparison/pytest/</code>. The terminal summary names every
@@ -347,6 +361,27 @@ afterwards (<code>pulseaudio --kill</code> stops PulseAudio). The container play
 PulseAudio, or when it will not start, one line says so and the container uses dummy audio.
 <code>compare-drivers</code>' <code>x11-linux</code> runs use dummy audio (frames do not depend on sound); <code>--sound</code>
 plays theirs through PulseAudio too.</p>
+<h2 id="linux-as-ci-runs-it-nox-s-test-linux-ci">Linux as CI runs it: <code>nox -s test-linux-ci</code><a class="headerlink" href="#linux-as-ci-runs-it-nox-s-test-linux-ci" title="Permanent link">#</a></h2>
+<p><code>nox -s test-linux-x11</code> runs the suite on Linux for its drivers; <code>nox -s test-linux-ci</code> runs it
+the way CircleCI's Linux job does, to reproduce that job's failures here. It reads the job
+(<code>build-and-test-linux</code>) from <code>.circleci/config.yml</code>: its image (<code>cimg/python</code> at
+<code>PYTHON_LATEST_VERSION</code>), its resource class's memory and CPUs (<code>small</code>: 2 GB, no swap, and one
+CPU, given to <code>docker run</code> as <code>--memory</code>, <code>--memory-swap</code> and <code>--cpus</code>) and its environment
+(<code>PYTEST_WORKERS=0</code>: one serial process; <code>GLITCHYGAMES_TEST_RSS_LIMIT_MB=1750</code>:
+<code>tests/memory_guard.py</code> stops the run past it, naming the test), with <code>CI=true</code> and
+<code>CIRCLECI=true</code>. The container gets what git would commit from this checkout: tracked files and
+untracked ones that are not ignored, uncommitted changes included, never an ignored file (the
+host's caches, Hypothesis's database) and no submodule's contents (CircleCI's checkout has none).
+Its <code>.git</code> is cloned from the repository's git directory, mounted read-only at its own path, so
+the session runs from a worktree too; HEAD is this checkout's, on its branch, and the remote
+branches are this checkout's, as fresh as its last fetch. It installs fontconfig, uv and Python at
+the job's versions and runs <code>uvx nox -s test</code> as the job does. Its <code>test-results/</code> (junit.xml)
+come back to <code>test-results/linux-ci/</code>. The memory guard's summary line names the peak it saw (the
+container's memory less its page cache, what the kernel's 2 GB kill counts), and the last line
+the container's raw peak (the page cache included, so near 2 GB even on a healthy run). It takes
+as long as the job (a serial run) or longer: the image is amd64, as CircleCI's machines are (the
+same wheels: taplo has no arm64 Linux wheel, and building it ran out of the 2 GB), emulated on
+Apple silicon. Made on macOS; on a Linux host the results are made writable for any user.</p>
               
             </div>
           </div><footer>

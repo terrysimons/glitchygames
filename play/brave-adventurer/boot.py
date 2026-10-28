@@ -2,7 +2,9 @@
 
 The page (browser/index.html, rendered by `python -m scripts.build_browser_bundle`) loads
 Pyodide with GlitchyGames' own pygame-ce wheel (the fork's build: plans/2026-10-23-game-host-and-browser-runner.md)
-and unpacks the engine into the working directory. This bootstrap then:
+and unpacks the engine and the game's member packages (glitchygames.zip, then one archive per
+member package the game needs, as the bundle's pyscript.toml lists them) into the working
+directory. This bootstrap then:
 
 1. gives SDL the page's canvas;
 2. mounts IndexedDB-backed storage over ~/.local/share, where glitchygames.state keeps saves on

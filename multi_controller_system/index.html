@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -162,6 +166,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../bitmappy/">bitmappy</a>
@@ -211,11 +224,11 @@
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">#</a></h2>
 <h3 id="core-components">Core Components<a class="headerlink" href="#core-components" title="Permanent link">#</a></h3>
 <ol>
-<li><strong>MultiControllerManager</strong> (<code>src/apps/bitmappy/bitmappy/controllers/manager.py</code>) - Central singleton managing all controllers</li>
-<li><strong>ControllerSelection</strong> (<code>src/apps/bitmappy/bitmappy/controllers/selection.py</code>) - Individual controller state management</li>
-<li><strong>VisualCollisionManager</strong> (<code>src/apps/bitmappy/bitmappy/indicators/collision.py</code>) - Smart positioning and collision avoidance</li>
-<li><strong>ModeSwitcher</strong> (<code>src/apps/bitmappy/bitmappy/controllers/modes.py</code>) - Each controller's mode (film strip, canvas, R/G/B slider), switched with the L2/R2 triggers</li>
-<li><strong>Integration with Bitmappy</strong> - <code>ControllerEventHandler</code> (<code>src/apps/bitmappy/bitmappy/controllers/event_handler.py</code>) and the per-mode button strategies (<code>src/apps/bitmappy/bitmappy/controllers/strategies.py</code>)</li>
+<li><strong>MultiControllerManager</strong> (<code>src/apps/bitmappy/src/bitmappy/controllers/manager.py</code>) - Central singleton managing all controllers</li>
+<li><strong>ControllerSelection</strong> (<code>src/apps/bitmappy/src/bitmappy/controllers/selection.py</code>) - Individual controller state management</li>
+<li><strong>VisualCollisionManager</strong> (<code>src/apps/bitmappy/src/bitmappy/indicators/collision.py</code>) - Smart positioning and collision avoidance</li>
+<li><strong>ModeSwitcher</strong> (<code>src/apps/bitmappy/src/bitmappy/controllers/modes.py</code>) - Each controller's mode (film strip, canvas, R/G/B slider), switched with the L2/R2 triggers</li>
+<li><strong>Integration with Bitmappy</strong> - <code>ControllerEventHandler</code> (<code>src/apps/bitmappy/src/bitmappy/controllers/event_handler.py</code>) and the per-mode button strategies (<code>src/apps/bitmappy/src/bitmappy/controllers/strategies.py</code>)</li>
 </ol>
 <p>The button and trigger bindings are listed in <code>CONTROLLER_CONTROLS_README.md</code> at the repository root.</p>
 <h3 id="controller-color-scheme">Controller Color Scheme<a class="headerlink" href="#controller-color-scheme" title="Permanent link">#</a></h3>

@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -162,6 +166,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
@@ -201,8 +214,9 @@
 engine version and same recording give bit-identical sprite traces: every frame's sprite
 <code>rect</code> and <code>visible</code> match the recording. Audio is played during a replay but is not compared.</p>
 <p>This page covers recording, exact replay, watching a replay (with step back and bookmarks),
-headless runs, the determinism audit, golden replays and rebaselining them, in-game playback
-(demos, instant replay, ghosts), and the rules game code follows so its sessions replay. See
+headless runs, the determinism audit, golden replays and rebaselining them, the tools any game
+gets (as its own flags and as the <code>glitchygames</code> command), in-game playback (demos, instant
+replay, ghosts), and the rules game code follows so its sessions replay. See
 <code>plans/2026-10-19-gameplay-replay.md</code> for the design and <code>plans/future-work.md</code> for the
 follow-ups.</p>
 <h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">#</a></h2>
@@ -226,7 +240,20 @@ follow-ups.</p>
 <a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="c1"># Did the code get slower? Compare this machine's processing time per frame with the</span>
 <a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># recording's; with a limit, more than 10% slower exits 8</span>
 <a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--replay-trace<span class="w"> </span>session.jsonl.gz<span class="w"> </span>--headless<span class="w"> </span>--max-processing-slowdown<span class="w"> </span><span class="m">10</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="c1"># Onion skin: watch a replay with another recording's items drawn over it, half transparent</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--replay-trace<span class="w"> </span>new-session.jsonl.gz<span class="w"> </span>--compare-trace<span class="w"> </span>session.jsonl.gz
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="c1"># Play live against a recording: its items drawn over your game, half transparent</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>uv<span class="w"> </span>run<span class="w"> </span>paddleslap<span class="w"> </span>--compare-trace<span class="w"> </span>session.jsonl.gz
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="c1"># The same tools as the glitchygames command (the game comes from the recording), and a</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="c1"># recording's runs, speed changes and behavior changes</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>replay-trace<span class="w"> </span>session.jsonl.gz<span class="w"> </span>--headless
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>report<span class="w"> </span>session.jsonl.gz
 </code></pre></div>
+<p>Every flag above is one of the engine's tools, which every game has without declaring anything;
+<a href="#tools-for-any-game">Tools for any game</a> lists them all.</p>
 <h2 id="the-doors">The doors<a class="headerlink" href="#the-doors" title="Permanent link">#</a></h2>
 <p>The engine takes everything from the outside world through a small set of <strong>doors</strong>, and game
 code reaches them only through the engine. Live play plugs live providers into the doors;
@@ -672,6 +699,104 @@ bookmarks survive restarts. In the restarted replay:</p>
 <li>If the copy cannot be saved, the restart uses the recording it was replaying and logs a
   warning naming the bookmarks lost.</li>
 </ul>
+<h3 id="onion-skin-compare-trace-old">Onion skin (<code>--compare-trace OLD</code>)<a class="headerlink" href="#onion-skin-compare-trace-old" title="Permanent link">#</a></h3>
+<p><code>--replay-trace NEW --compare-trace OLD</code> watches NEW as usual, with OLD's items from the frame of
+the same number drawn over each frame shown, at <code>--compare-alpha PERCENT</code> opacity (default 50; 0
+to 100, anything else is refused by the parser). NEW itself stays fully opaque: OLD's background
+is never drawn. The status bar stays on top.</p>
+<p><strong>What counts as one of OLD's items.</strong> Each frame is judged on its own. OLD's background
+colors are the colors that cover at least 5% of OLD's frame: a floor, a wall. One of OLD's items
+is a pixel where OLD differs from NEW and OLD's color is none of those. It is blended over
+whatever NEW shows there; every other pixel is NEW's, exactly. So:</p>
+<table>
+<thead>
+<tr>
+<th>Your dot</th>
+<th>OLD's dot</th>
+<th>What you see there</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>there</td>
+<td>there</td>
+<td>your dot</td>
+</tr>
+<tr>
+<td>there</td>
+<td>eaten</td>
+<td>your dot, solid</td>
+</tr>
+<tr>
+<td>eaten</td>
+<td>there</td>
+<td>OLD's dot, half transparent, over your floor</td>
+</tr>
+<tr>
+<td>eaten</td>
+<td>eaten</td>
+<td>your floor</td>
+</tr>
+</tbody>
+</table>
+<p>A frame both runs share draws nothing. Three costs of the rule: a part of OLD's sprite drawn in
+a background color (the floor's) is not shown; a background made of many small colors (a
+texture, a gradient) may show some of them as items; and one color covering 5% or more of OLD's
+frame is background even when it is OLD's item (a large sprite, about 139x139 pixels at
+800x480, many pickups of one color, a full-screen overlay), so it vanishes from the ghost. The
+blend costs about 2.4 ms a frame when the runs match and 4.7 ms with a few sprites apart, for an
+800x480 window; a frame whose every pixel has a color of its own (noise) costs about 19 ms, and
+a textured backdrop falls in between. OLD's items are drawn over NEW's whole finished frame, so
+an item OLD still has where NEW's character stands (an uneaten dot under NEW's Mr. Muncher) is
+drawn over that character; painting the two games layer by layer fixes it once OLD can run in the
+same process (decision 20 of the Part 3 plan). NEW replays, compares and
+exits exactly as it would alone: only the shown copy is drawn on. The <code>glitchygames</code> command
+takes the same options (<code>glitchygames replay-trace NEW --compare-trace OLD</code>).</p>
+<p>OLD is replayed by a headless child process (OLD's own game, under OLD's own seed), which
+streams each frame's pixels to the viewer over a loopback socket, proving itself with a token
+drawn for that run. The viewer reads one frame per frame it shows, so pausing and stepping move
+both runs together, and only one OLD frame is held in memory. Stepping back (or Home, or D)
+restarts the child at the same frame as the restarted replay; the child rebuilds alongside the
+replay's own rebuild.</p>
+<ul>
+<li><strong>OLD shorter than NEW:</strong> OLD's last frame stays, labelled <code>OLD ended at frame N</code>. OLD that
+  diverges on the current code stops at its divergence, so it ends there (the log says why).</li>
+<li><strong>NEW shorter than OLD:</strong> the replay ends as usual, and the child is stopped.</li>
+<li><strong>OLD stalls</strong> (its child sends nothing for a minute): OLD ends there, labelled and logged as
+  above, the child is stopped, and NEW's replay goes on.</li>
+<li><strong>The same recording under another seed</strong> shows what the seed changes:
+  <code>--replay-trace OLD --random-seed 7 --compare-trace OLD</code> draws OLD's own run over its run under
+  seed 7 (a replay under another seed compares and writes nothing).</li>
+<li><strong>Refused before anything runs:</strong> with <code>--headless</code> (an onion skin is watched; headless, a
+  replay under another seed or a <code>--rebaseline</code> reports what changed), <code>--audit</code> or
+  <code>--rebaseline</code> (exit 64), and an OLD recorded at another screen size than NEW, or no readable
+  recording (65; a header without its seed counts, as OLD's child could not replay it), or
+  missing (66).</li>
+</ul>
+<p>The child always ends with the replay: when it ends, fails, is interrupted or restarts. The
+contract is the docstring of <code>src/glitchygames/replay/tools/compare.py</code>.</p>
+<h4 id="live-play-against-old-game-compare-trace-old">Live play against OLD (<code>&lt;game&gt; --compare-trace OLD</code>)<a class="headerlink" href="#live-play-against-old-game-compare-trace-old" title="Permanent link">#</a></h4>
+<p>Without <code>--replay-trace</code>, <code>--compare-trace OLD [--compare-alpha PERCENT]</code> lets you play the game
+live, with real input, while OLD's frame of the same number is drawn over each frame you see.
+OLD is replayed by the same headless child as above.</p>
+<ul>
+<li><strong>Pausing freezes the ghost.</strong> Frames are paired by game frames: the frames a game's own
+  logic ran in, not its pause screen's. While you are paused, OLD's frame stays where it was,
+  and it moves on when the game does. OLD's own pauses are skipped the same way, so your game
+  frame N meets OLD's game frame N. A replay pairs frames the same way, so
+  <code>--record-trace NEW --compare-trace OLD</code>, and later <code>--replay-trace NEW --compare-trace OLD</code>,
+  show the same pairs. Recordings themselves still count every frame.</li>
+<li><strong>The seed:</strong> the game plays under OLD's recorded seed, so the ghost starts in the same world,
+  unless <code>--random-seed N</code> is given. The log names the seed either way.</li>
+<li><strong>OLD shorter than your play:</strong> OLD's last frame stays, labelled <code>OLD ended at frame N</code>, and
+  play goes on. The child is stopped when the game quits, fails or is interrupted.</li>
+<li><strong>Refused before anything runs:</strong> with <code>--headless</code> (exit 64), an OLD that is missing (66) or
+  not a readable recording (65; a header without its seed counts), or one recorded at another
+  screen size than the game's window (65). <code>--record-trace NEW</code> may be given too, and records the
+  seed played. There is no step back in live play, and this is a game flag only.</li>
+<li><strong>Not in a browser:</strong> OLD's child is a separate process, which a browser page cannot start, so
+  <code>--compare-trace</code> (live or with a replay) is refused there before anything starts (exit 64).</li>
+</ul>
 <h3 id="-replay-fps-recordedreal"><code>--replay-fps {recorded,real}</code><a class="headerlink" href="#-replay-fps-recordedreal" title="Permanent link">#</a></h3>
 <p>With <code>recorded</code> (the default), FPS events, the performance statistics and the debug overlay's
 performance panel use the recorded frame times, and FPS events are compared exactly. With
@@ -708,7 +833,8 @@ sprite are not compared. It is refused (<code>OPTIONS_REFUSED</code>, 64) with <
 <h2 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">#</a></h2>
 <p>The exit code alone says who refused the run and why. Every code is a member of
 <code>glitchygames.exit_codes.ExitCode</code> (also importable from <code>glitchygames.engine</code>); the engine logs
-the code it exits with as <code>Exiting with OPTIONS_REFUSED (64)</code>.</p>
+the code it exits with as <code>Exiting with OPTIONS_REFUSED (64)</code>, at INFO (shown with
+<code>--log-level info</code>; a game's default is warning).</p>
 <table>
 <thead>
 <tr>
@@ -926,7 +1052,9 @@ baselines in the repository keep: behaviour (hashes) and speed (processing times
 <code>&lt;member&gt;/tests/fixtures/replays/golden.jsonl.gz</code> (PaddleSlap, Clockwork Keep, Mr. Muncher and
 Drawing Fire; both Brave Adventurer editions as <code>golden-classic.jsonl.gz</code> and
 <code>golden-papyrus.jsonl.gz</code>).
-<code>scripts/record_scripted_session.py</code> recorded them through the real engine loop, with a
+<code>scripts/record_scripted_session.py</code> recorded them through the real engine loop (on the
+engine's scripted-session recorder, the <code>record-session</code> tool below, with our games' input
+scripts and controls tails from <code>scripts/golden_inputs.py</code>), with a
 supervisor posting each game's golden input script, then the game's controls tail: input that
 presses the controls the script does not, pauses and resumes, and ends with the game's own quit
 control, so every golden replay ends on a QUIT the game posted and diverges when a control stops
@@ -934,13 +1062,17 @@ working. <code>tests/replay/test_golden_replays.py</code> enforces it: every con
 ActionMaps, plus the keys the engine's pause screen hard-codes) must be pressed in its golden
 replay, or be listed in <code>UNEXERCISED_CONTROLS</code> with the reason (gamepad controls: no scripted
 session has a gamepad). Each recording is a test item of its own:
-the pytest plugin <code>src/glitchygames/testing/replays.py</code> (loaded by the root <code>conftest.py</code>) collects
+the pytest plugin <code>src/glitchygames/testing/replays.py</code> (registered by the engine's <code>pytest11</code>
+entry point, <code>glitchygames.testing.replays</code>, in every pytest run with glitchygames installed) collects
 every <code>.../fixtures/replays/&lt;console-script&gt;/&lt;name&gt;.jsonl.gz</code> as <code>&lt;console-script&gt;/&lt;name&gt;</code>,
 replays it headless in a child process through the console script's entry point
 (<code>--replay-trace PATH --headless</code>) and fails, with the exit code and the child's output (the
 divergence report), unless it exits <code>ExitCode.SUCCESS</code>. A directory that is not a console script
-is a collection error. Another project's games can use the plugin the same way
-(<code>pytest_plugins = ['glitchygames.testing.replays']</code>). Re-record a fixture only deliberately,
+is a collection error. Another project's games get the plugin the same way, with nothing to
+configure; loading it by name as well (<code>pytest_plugins = ['glitchygames.testing.replays']</code> or
+<code>-p glitchygames.testing.replays</code>) still loads it once, and <code>-p no:glitchygames.testing.replays</code>
+turns it off. The plugin imports no pygame (and prints no banner) until it finds a recording, so
+a project that is no game gets no item and no output from it. Re-record a fixture only deliberately,
 after finding out why it stopped replaying; the commands are in the script's docstring. After
 an intentional change, rebaseline it instead (below), so it keeps its recorded inputs.</p>
 <h2 id="rebaselining-rebaseline-new">Rebaselining (<code>--rebaseline NEW</code>)<a class="headerlink" href="#rebaselining-rebaseline-new" title="Permanent link">#</a></h2>
@@ -999,6 +1131,302 @@ truncated OLD gives a truncated NEW, whose replay matches up to its cut-off and 
 <code>UNUSABLE_INPUT</code> (65) like any truncated recording. Replacing a golden fixture with it stays a
 deliberate, reviewed step: read the summary, check the change is the intended one, then move
 NEW over the fixture yourself.</p>
+<h2 id="tools-for-any-game">Tools for any game<a class="headerlink" href="#tools-for-any-game" title="Permanent link">#</a></h2>
+<p>Every recording, replay and measurement tool belongs to the engine
+(<code>src/glitchygames/replay/tools/</code>), so a game the engine has never seen can record, replay,
+verify, rebaseline, measure, report on and graph its recordings with only the <code>glitchygames</code>
+wheel installed. A game passes itself to the engine (<code>GameEngine(game=Game)</code>) and declares
+nothing else: its package, package directory, console script and git revision all come from that
+object (<code>identity.py</code>).</p>
+<p>Each tool is reachable two ways, with the same name and the same options:</p>
+<ul>
+<li><strong>As a flag on the game.</strong> <code>GameEngine.args</code> adds every tool to every game's command line
+  (<code>uv run paddleslap --report session.jsonl.gz</code>). A tool that does not run the game, or runs it
+  in a harness of its own, runs in place of the game, before the engine starts pygame: no window
+  opens and no scene is built.</li>
+<li><strong>As the <code>glitchygames</code> command</strong> (also <code>python -m glitchygames</code>), one subcommand per tool
+  (<code>uv run glitchygames report session.jsonl.gz</code>). A subcommand whose tool runs the game starts
+  the game as a child process with the tool's flag. Arguments after a bare <code>--</code> go to that game
+  unchanged (<code>glitchygames record-trace paddleslap run.jsonl.gz -- --resolution 640x480</code>).
+  <code>--project-root DIR</code> is, for the tools that read the project's settings (<code>verify</code>, <code>measure</code>,
+  <code>unmeasured</code>, <code>clear-published</code>, <code>performance-pages</code>), the project they work on (default: the
+  nearest directory at or above the current one whose <code>pyproject.toml</code> has
+  <code>[tool.glitchygames]</code>, else the nearest with a <code>pyproject.toml</code>, else the current directory);
+  for <code>record-trace</code>, <code>replay-trace</code>, <code>record-golden-trace</code> and <code>record-session</code>, the directory
+  the game runs in (default: the current directory); <code>report</code> reads only its recording.</li>
+</ul>
+<p>Both front ends are generated from one table, <code>TOOLS</code> in
+<code>src/glitchygames/replay/tools/registry.py</code>, which is the reference for every flag, option,
+default and help text (<code>glitchygames --help</code> lists each tool with its options;
+<code>glitchygames TOOL --help</code> describes them). <code>tests/replay/tools/test_registry.py</code> walks the table
+and fails if a tool or option differs between the front ends, and
+<code>tests/replay/tools/test_an_unseen_game.py</code> runs every tool, both ways, on a stand-in game in its
+own git repository.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Runs the game?</th>
+<th>On the game</th>
+<th>As the command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>record-trace</code></td>
+<td>yes</td>
+<td><code>--record-trace PATH [--random-seed N] [--headless]</code></td>
+<td><code>glitchygames record-trace GAME PATH</code> with the same options</td>
+</tr>
+<tr>
+<td><code>replay-trace</code></td>
+<td>yes</td>
+<td><code>--replay-trace PATH</code> with <code>--headless</code>, <code>--replay-fps</code>, <code>--replay-pause-at-frame N</code>, <code>--audit</code>, <code>--rebaseline NEW</code>, <code>--compare-processing</code>, <code>--max-processing-slowdown PERCENT</code>, <code>--replay-digest PATH</code>, <code>--random-seed N</code>, <code>--compare-trace OLD</code>, <code>--compare-alpha PERCENT</code></td>
+<td><code>glitchygames replay-trace PATH [the same options] [--game GAME]</code> (the game comes from the recording's header)</td>
+</tr>
+<tr>
+<td><code>record-golden-trace</code></td>
+<td>in its harness</td>
+<td><code>--record-golden-trace PATH --input-script MODULE:NAME --frame-count N [--random-seed N] [--headless]</code></td>
+<td><code>glitchygames record-golden-trace GAME PATH</code> with the same options</td>
+</tr>
+<tr>
+<td><code>record-session</code></td>
+<td>in its recorder</td>
+<td><code>--record-session PATH --input-script MODULE:NAME --frame-count N [--controls-tail MODULE:NAME] [--polled-input] [--input-only-placements] [--random-seed N] [--headless]</code></td>
+<td><code>glitchygames record-session GAME PATH</code> with the same options</td>
+</tr>
+<tr>
+<td><code>verify</code></td>
+<td>in children</td>
+<td><code>--verify [PATH ...] [--only TEXT]</code> (default: the game's own recordings)</td>
+<td><code>glitchygames verify [PATH ...] [--only TEXT] [--game GAME ...]</code> (default: <code>[tool.glitchygames] games</code>)</td>
+</tr>
+<tr>
+<td><code>measure</code></td>
+<td>in children</td>
+<td><code>--measure [PATH ...] [--force] [--allow-dirty \| --skip-dirty] [--only TEXT] [--code-tree TREE] [--rows-directory DIRECTORY] [--pending PATH]</code></td>
+<td><code>glitchygames measure [PATH ...]</code> with the same options <code>[--game GAME ...]</code></td>
+</tr>
+<tr>
+<td><code>unmeasured</code></td>
+<td>no</td>
+<td><code>--unmeasured [--code-tree TREE] [--rows-directory DIRECTORY] [--pending PATH]</code></td>
+<td><code>glitchygames unmeasured</code> with the same options <code>[--game GAME ...]</code></td>
+</tr>
+<tr>
+<td><code>clear-published</code></td>
+<td>no</td>
+<td><code>--clear-published [--pending PATH]</code></td>
+<td><code>glitchygames clear-published [--pending PATH]</code></td>
+</tr>
+<tr>
+<td><code>report</code></td>
+<td>no</td>
+<td><code>--report PATH [--threshold PERCENT] [--minimum-ms MS] [--spans N]</code></td>
+<td><code>glitchygames report PATH</code> with the same options</td>
+</tr>
+<tr>
+<td><code>performance-pages</code></td>
+<td>no</td>
+<td><code>--performance-pages DIRECTORY [--published]</code></td>
+<td><code>glitchygames performance-pages DIRECTORY [--published]</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>An option several tools list is one flag on the game: <code>--random-seed</code> (every tool that runs
+  the game) and <code>--headless</code> (the four that record or replay). <code>--random-seed</code> is never needed:
+  a recording rolls a seed (kept in it) and a replay uses the recording's. <code>verify</code> and
+  <code>measure</code> refuse one (exit 64): they always compare, and measure each recording under its own
+  seed.</li>
+<li><strong>Rebaseline and audit are options of <code>replay-trace</code></strong> (<code>--rebaseline NEW</code>, <code>--audit</code>), since
+  they take the same recording and find the game the same way; so is the onion skin
+  (<code>--compare-trace OLD</code>, above). <code>--replay-frame-stream PORT:TOKEN</code> is a hidden option the
+  onion skin gives OLD's child; it is in neither front end's help.</li>
+<li><strong>One tool at a time:</strong> a game given two tool flags is refused (exit 64), and so is a tool
+  missing a required option (<code>--input-script</code>, <code>--frame-count</code>).</li>
+<li><strong>Reserved names.</strong> Every tool's flag and option is added to every game's parser, so a game
+  must not define an argument of the same name (<code>--threshold</code>, <code>--spans</code>, <code>--only</code>, <code>--force</code>,
+  ...). A game that does is refused on every run, before anything starts (exit 64), with a
+  message naming the flag and saying the engine reserves it. Our games are checked by a test;
+  the full list is <code>glitchygames --help</code>.</li>
+</ul>
+<h3 id="game"><code>GAME</code><a class="headerlink" href="#game" title="Permanent link">#</a></h3>
+<p>The command's <code>GAME</code> (and <code>--game</code>) takes three forms, read in this order; the command says
+which one it used (<code>glitchygames replay-trace: running paddleslap (an installed console
+script)</code>):</p>
+<table>
+<thead>
+<tr>
+<th><code>GAME</code> looks like</th>
+<th>Meaning</th>
+<th>The child it runs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>contains <code>/</code> or ends in <code>.py</code></td>
+<td>a script path</td>
+<td><code>python &lt;path&gt; --&lt;tool&gt; ...</code></td>
+</tr>
+<tr>
+<td>contains <code>:</code></td>
+<td>an entry point <code>MODULE:CALLABLE</code></td>
+<td><code>python -c</code> calling it, with the flags in <code>sys.argv</code></td>
+</tr>
+<tr>
+<td>a plain name</td>
+<td>an installed console script, else an importable module</td>
+<td>the console script's entry point, else <code>python -m &lt;module&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<p>A plain name matching nothing is refused with all three forms named. Every form ends in the
+game's own <code>GameEngine(game=Game)</code>, which adds the flags, so the game never knows how it was
+started. <code>replay-trace</code> takes the game from the recording's header and asks for <code>--game</code> when
+that game's module no longer imports (a script that moved).</p>
+<h3 id="a-games-own-recordings">A game's own recordings<a class="headerlink" href="#a-games-own-recordings" title="Permanent link">#</a></h3>
+<p><code>--verify</code> and <code>--measure</code> with no paths take the game's own recordings: the goldens that match
+<code>[tool.glitchygames] golden-globs</code> and that the game's console script replays, plus its bundled
+demos (<code>&lt;package&gt;/demos/*.jsonl.gz</code>; <code>recordings.py</code>). A golden in
+<code>fixtures/replays/&lt;console-script&gt;/</code> is that script's; one directly in a project's
+<code>tests/fixtures/replays/</code> is the project's own distribution's (<code>[project] name</code> in its
+<code>pyproject.toml</code>, whatever its checkout's directory is called; a directory with no
+<code>pyproject.toml</code> is read as named after its distribution). The command with no paths runs
+<code>GAME --verify</code> (or <code>--measure</code>) for each <code>--game</code>, else for each of <code>[tool.glitchygames]
+games</code>; with paths, each recording is replayed by the game its header names (or by the one
+<code>--game</code>). With the games from the settings, a golden or demo that none of them replays fails
+both tools, on a line naming it and why (exit 70): none is skipped without a word.</p>
+<ul>
+<li><code>verify</code> replays each recording headless in a child process, prints <code>PASS &lt;name&gt;: &lt;result&gt;</code>
+  or <code>FAIL &lt;name&gt;: &lt;exit code&gt;: &lt;why&gt;</code> per recording and <code>verify: N of M recordings passed</code>, and
+  exits 0 only when every one matched (or none was found, which it says), 1 when the only
+  failures diverged, else the first other failure's code.</li>
+<li><code>measure</code> rebaselines each recording headless in a child into the run ledger (see
+  <a href="../../quality/performance/">Replay Performance</a>), skipping what this machine already measured
+  for the game's commit. A row's commit is the game's own (its package directory's checkout),
+  not the engine's. A game with uncommitted changes, or no known commit, is refused (exit 64)
+  unless <code>--allow-dirty</code> (a trial row, never published) or <code>--skip-dirty</code> (nothing measured,
+  exit 0). <code>unmeasured</code> lists what <code>measure</code> would measure, without running a game.</li>
+</ul>
+<h3 id="input-scripts">Input scripts<a class="headerlink" href="#input-scripts" title="Permanent link">#</a></h3>
+<p><code>record-golden-trace</code> and <code>record-session</code> drive the game with an input script:
+<code>--input-script MODULE:NAME</code> names a callable taking no arguments that returns an <code>InputScript</code>
+(<code>glitchygames.replay.tools.golden_traces</code>: <code>press</code>/<code>release</code> per frame, and placements), its
+module looked for in the current directory first. <code>--controls-tail MODULE:NAME</code> (record-session)
+names the keys played after the script's frames, ending with the game's own quit. A golden
+trace runs the game's scene in a headless harness at 1/60 second per frame and samples every
+sprite each frame; a session runs the game for real, at its own pace, with <code>--record-trace</code>.
+Our five games' scripts and controls tails are test data in <code>scripts/golden_inputs.py</code>
+(<code>--input-script scripts.golden_inputs:paddleslap_script</code>, run from the repository root);
+<code>scripts/record_golden_traces.py</code> and <code>scripts/record_scripted_session.py</code> keep only our
+games' tables and call the engine.</p>
+<h3 id="project-settings-toolglitchygames">Project settings (<code>[tool.glitchygames]</code>)<a class="headerlink" href="#project-settings-toolglitchygames" title="Permanent link">#</a></h3>
+<p>A project's settings for the tools live in <code>[tool.glitchygames]</code> in its <code>pyproject.toml</code>
+(<code>src/glitchygames/replay/tools/settings.py</code>). Every key has a default that fits a standard
+layout, so a project without the table (a player's own local runs) works as it is. Keys are
+kebab-case, an unknown key is refused by name, and every path is relative to the project root.
+A path that does not exist yet (no ledger directory before the first measurement) is created
+by the tool that writes it, or reported; it is never a traceback.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Default</th>
+<th>Ours (the root <code>pyproject.toml</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>games</code></td>
+<td>the project's <code>[project.scripts]</code></td>
+<td>the nine members' console scripts</td>
+</tr>
+<tr>
+<td><code>golden-globs</code></td>
+<td><code>["tests/fixtures/replays/**/*.jsonl.gz"]</code></td>
+<td><code>["src/*/*/tests/fixtures/replays/golden*.jsonl.gz"]</code></td>
+</tr>
+<tr>
+<td><code>ledger-directory</code></td>
+<td><code>"replay-ledger"</code></td>
+<td><code>"quality/replay-ledger"</code></td>
+</tr>
+<tr>
+<td><code>pending-ledger</code></td>
+<td><code>".glitchygames/pending-ledger.jsonl"</code></td>
+<td><code>"test-results/replay-metrics/pending.jsonl"</code></td>
+</tr>
+<tr>
+<td><code>published-ledger</code></td>
+<td>none (nothing published)</td>
+<td><code>"origin/gh-pages:quality/metrics/replay-ledger.jsonl"</code> (<code>REF:PATH</code>)</td>
+</tr>
+<tr>
+<td><code>landed-ref</code></td>
+<td><code>"origin/main"</code></td>
+<td><code>"origin/main"</code></td>
+</tr>
+<tr>
+<td><code>measured-paths</code></td>
+<td><code>["src", "tests/fixtures/replays", "pyproject.toml"]</code></td>
+<td>the same, and <code>uv.lock</code></td>
+</tr>
+<tr>
+<td><code>unmeasured-paths</code></td>
+<td><code>[]</code></td>
+<td>the members' <code>tests/</code>, but for their <code>tests/fixtures/replays/</code></td>
+</tr>
+<tr>
+<td><code>recording-renames</code></td>
+<td><code>{}</code></td>
+<td>each moved recording, old path to new (one hop: refused if a new path is itself an old one; each new path must exist, <code>tests/test_our_stored_paths.py</code>)</td>
+</tr>
+<tr>
+<td><code>game-timeout-seconds</code></td>
+<td><code>3600</code> (an hour)</td>
+<td>the default</td>
+</tr>
+</tbody>
+</table>
+<p><code>game-timeout-seconds</code> bounds each game that <code>glitchygames verify</code> and <code>glitchygames measure</code>
+start (<code>GAME --verify</code>, <code>GAME --measure</code>, one per game): a game still running after it is
+stopped (asked first, so it can stop its own replays, then killed), reaped, and failed with a
+line naming the game and the timeout (exit 70). Each recording's replay inside it has its own
+timeout too. It guards against a console script that is no game (an editor or a server among
+<code>[project.scripts]</code>, which <code>games</code> defaults to) hanging the run; it has no flag, since only the
+command starts a game per child (<code>--game</code> names the games instead, or set <code>games</code>).</p>
+<p>The project's local directory, <code>.glitchygames/</code>, holds what the tools write and nobody commits;
+it gets a <code>.gitignore</code> of <code>*</code> when it is made.</p>
+<p><strong>Stored paths are relative to the project root.</strong> The project root is the anchor of every
+path above and of every path the tools write into a file: a recording header's path options
+(<code>--record-trace</code>, <code>--rebaseline</code>, ...), a rebaselined recording's <code>rebaselined_from</code> (in its
+header and its newest run, which a ledger row copies) and a ledger row's recording. It is the
+nearest project above the current directory (<code>find_project_root</code>), or <code>--project-root</code> where a
+subcommand takes it; the tools start each game in it. A path inside the project is stored
+relative to it, POSIX-style. A path inside another checkout of the same project (a clone or a
+worktree: the nearest directory above the path whose <code>pyproject.toml</code> has the same
+<code>[project] name</code>) is stored relative to that checkout's root. Any other path (another project,
+no project) is stored as its file name only (<code>stored_path</code>), so no user name, home or scratch
+directory is ever written.
+<code>tests/test_our_stored_paths.py</code> checks every committed recording header and ledger row.</p>
+<h3 id="the-golden-replay-pytest-plugin">The golden-replay pytest plugin<a class="headerlink" href="#the-golden-replay-pytest-plugin" title="Permanent link">#</a></h3>
+<p>The pytest plugin <code>glitchygames.testing.replays</code> registers itself through the engine's <code>pytest11</code>
+entry point (named after its module), so every pytest run of a project with glitchygames
+installed collects that project's recordings (Golden replays, above) with no conftest line.</p>
+<ul>
+<li>A project that is no game gets no item and no output from it, unless it has a
+  <code>fixtures/replays/&lt;directory&gt;/*.jsonl.gz</code>: a directory there that is not a console script is a
+  collection error. <code>pytest -p no:glitchygames.testing.replays</code> turns the plugin off.</li>
+<li>Under a wheel install, pytest rewrites the asserts of the whole <code>glitchygames</code> package (it
+  rewrites every module of a distribution that has a <code>pytest11</code> entry point): harmless, but it
+  writes <code>*-pytest-*.pyc</code> files into <code>site-packages</code>.</li>
+<li>The engine wheel also ships <code>glitchygames.testing.frame_comparison</code> (comparing the frames
+  test runs presented on different SDL drivers, with <code>glitchygames.testing.frame_fingerprints</code>,
+  which records them); <code>scripts/compare_driver_frames.py</code> and <code>scripts/driver_frame_matrix.py</code>
+  are its command lines.</li>
+</ul>
 <h2 id="in-game-playback">In-game playback<a class="headerlink" href="#in-game-playback" title="Permanent link">#</a></h2>
 <p>A running game can play a recording to a rebuilt scene and then go on: attract-mode demos,
 instant replays and ghosts. Demos and instant replays run in a <strong>playback scope</strong>, not a new
@@ -1046,12 +1474,13 @@ game-over screen plays after 10 seconds without a press. The engine finds them, 
 installed game, with <code>glitchygames.bundled_demos.bundled_demos()</code>: each <code>BundledDemo</code> (a frozen
 record) holds the game's console script (None when no installed console script is in the
 package), the demo's installed path and its install name (<code>paddleslap/demos/rally.jsonl.gz</code>,
-the same under any install). It searches the installed packages <code>MEMBER_LAYERS</code> names
-(<code>importlib.util.find_spec</code>, importing no game), leaves out bookmarked copies and sorts them by
+the same under any install). It searches the installed packages its caller names (required,
+with no default: a game's own package for <code>--verify</code>, <code>MEMBER_LAYERS</code>' for our tests;
+<code>importlib.util.find_spec</code>, importing no game), leaves out bookmarked copies and sorts them by
 path. <code>tests/replay/test_bundled_demos.py</code> replays every one headless (through
 <code>glitchygames.testing.replays.bundled_demo_paths</code>, which refuses a demo nothing replays), so a
-change that makes a demo diverge fails in CI before it ships; scripts/replay_metrics.py measures
-the same demos (reporting a demo nothing replays as unreplayable).</p>
+change that makes a demo diverge fails in CI before it ships; <code>glitchygames measure</code> measures
+the same demos (each game's <code>--measure</code> takes its own package's, as <code>--verify</code> does).</p>
 <h3 id="instant-replay">Instant replay<a class="headerlink" href="#instant-replay" title="Permanent link">#</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Match</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">INSTANT_REPLAY_SECONDS</span> <span class="o">=</span> <span class="mf">5.0</span>                       <span class="c1"># opt in: show the last 5 seconds</span>

@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -160,6 +164,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
@@ -339,7 +352,7 @@ restarts its idle wait).</p>
 <tbody>
 <tr>
 <td><code>Game</code></td>
-<td><code>src/games/paddleslap/paddleslap/__init__.py</code></td>
+<td><code>src/games/paddleslap/src/paddleslap/__init__.py</code></td>
 <td>The court: paddles, balls, collisions, rally count, high scores</td>
 </tr>
 <tr>
@@ -349,7 +362,7 @@ restarts its idle wait).</p>
 </tr>
 <tr>
 <td><code>PaddleSlapGameOverScene</code></td>
-<td><code>src/games/paddleslap/paddleslap/__init__.py</code></td>
+<td><code>src/games/paddleslap/src/paddleslap/__init__.py</code></td>
 <td><code>GameOverScene</code> (score, top 5 high scores) plus the attract-mode demo, and a resume that always starts a new <code>Game</code></td>
 </tr>
 </tbody>
@@ -396,7 +409,7 @@ scope the demo runs in); the PaddleSlap box holds the game's own scenes.</p>
 <p>PaddleSlap has no title screen (a game starts serving at once), so its idle screen is the
 game-over screen. <code>PaddleSlapGameOverScene.dt_tick</code> compares its <code>game_time</code> with
 <code>idle_since_game_time</code>; after <code>GAME_OVER_IDLE_SECONDS</code> (10.0) it plays the bundled recording
-<code>PADDLESLAP_DEMO_PATH</code> (<code>src/games/paddleslap/paddleslap/demos/rally.jsonl.gz</code>, package data) with
+<code>PADDLESLAP_DEMO_PATH</code> (<code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code>, package data) with
 <code>SceneManager.play_recording(path=..., then=self)</code>. In the diagram, the PaddleSlap box is the
 game's own screen and the Engine box is what plays the demo; the player is outside both.</p>
 <pre class="mermaid"><code>sequenceDiagram
@@ -437,10 +450,10 @@ built, and how a game is moved into one, is in
 <p>PaddleSlap is one module, so <code>Game</code> is defined in the package itself (<code>paddleslap/__init__.py</code>):
 its recordings name it <code>games.paddleslap:Game</code>, which a <code>Game</code> defined in a submodule would
 change. Its golden replay is <code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code>, its bundled demo ships inside the package
-(<code>src/games/paddleslap/paddleslap/demos/rally.jsonl.gz</code>, package data), its golden trace stays with the engine's trace tests
+(<code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code>, package data), its golden trace stays with the engine's trace tests
 (<code>tests/world/golden/paddleslap.jsonl.gz</code>), and its browser bundle ships <code>paddleslap.zip</code>.</p>
 <h2 id="classes">Classes<a class="headerlink" href="#classes" title="Permanent link">#</a></h2>
-<p>PaddleSlap's own code is two classes in <code>src/games/paddleslap/paddleslap/__init__.py</code>: <code>Game</code> and
+<p>PaddleSlap's own code is two classes in <code>src/games/paddleslap/src/paddleslap/__init__.py</code>: <code>Game</code> and
 <code>PaddleSlapGameOverScene</code>. Everything else it uses comes from the engine: <code>Scene</code> and the
 built-in <code>PauseScene</code> and <code>GameOverScene</code> (<code>glitchygames.scenes</code>), <code>Sprite</code>
 (<code>glitchygames.sprites</code>), and the paddles and balls of the engine's game-object library
@@ -570,7 +583,7 @@ in <code>Game.dt_tick</code>. <code>HorizontalPaddle</code> is not used by Paddl
 <ul>
 <li><strong>The camera never moves.</strong> <code>Game</code> sets no follow target and no <code>camera_target()</code>, so the
   camera stays at the origin: world and screen coordinates are the same and the balls are drawn
-  exactly where their logic left them (<code>TestPaddleSlapInTheFrame</code> in
+  exactly where their logic left them (<code>TestWorldBallsInTheFrame</code> in
   <code>tests/world/test_frame_integration.py</code>). The balls are world sprites anyway, so the engine is
   the only writer of their <code>rect</code>: game logic reads <code>world_x</code>/<code>world_y</code>, <code>drawn_center()</code> or the
   collision rect, never <code>rect</code> (which holds where the ball was last drawn).</li>
@@ -1011,13 +1024,13 @@ the PaddleSlap box is what <code>Game</code>'s handlers and <code>dt_tick</code>
 <td>The replay plugin (<code>src/glitchygames/testing/replays.py</code>) replays it with <code>paddleslap --replay-trace ... --headless</code> and fails unless it exits <code>SUCCESS</code>; <code>tests/replay/test_golden_replays.py</code> checks the fixture set and the controls rule</td>
 </tr>
 <tr>
-<td><code>src/games/paddleslap/paddleslap/demos/rally.jsonl.gz</code></td>
+<td><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>Bundled demo: 450 frames of <code>Game</code>, recorded with <code>--frames 450 --script-only</code> (before the script's pause, no quit)</td>
 <td><code>tests/replay/test_bundled_demos.py</code> replays it headless and plays it through <code>play_recording</code> inside a running game</td>
 </tr>
 </tbody>
 </table>
-<p>The golden script (<code>paddleslap_script</code> in <code>scripts/record_golden_traces.py</code>) steers both paddles
+<p>The golden script (<code>paddleslap_script</code> in <code>scripts/golden_inputs.py</code>) steers both paddles
 with a <code>PaddleTracker</code>: each paddle holds its up or down key to follow the nearest ball moving
 toward it, with a 12 px dead zone. It pauses with <code>Space</code> at frame 450 and resumes at frame 510.
 The golden replay then adds the controls tail (<code>paddleslap_controls</code>): <code>Q</code> and <code>Esc</code> pressed and
@@ -1056,7 +1069,7 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
 <td>The built-in game-over and pause screens</td>
 </tr>
 <tr>
-<td><code>tests/world/test_frame_integration.py</code> (<code>TestPaddleSlapInTheFrame</code>), <code>tests/world/test_positioning.py</code></td>
+<td><code>tests/world/test_frame_integration.py</code> (<code>TestWorldBallsInTheFrame</code>), <code>tests/world/test_positioning.py</code></td>
 <td>The balls are drawn at their world positions in the frame they move or spawn</td>
 </tr>
 <tr>
@@ -1075,15 +1088,15 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
 </thead>
 <tbody>
 <tr>
-<td><code>src/games/paddleslap/paddleslap/__init__.py</code></td>
+<td><code>src/games/paddleslap/src/paddleslap/__init__.py</code></td>
 <td><code>Game</code>, <code>PaddleSlapGameOverScene</code>, <code>main()</code> (the <code>paddleslap</code> console script), the serve, speed-up and demo constants</td>
 </tr>
 <tr>
-<td><code>src/games/paddleslap/paddleslap/__main__.py</code></td>
+<td><code>src/games/paddleslap/src/paddleslap/__main__.py</code></td>
 <td><code>python -m paddleslap</code></td>
 </tr>
 <tr>
-<td><code>src/games/paddleslap/paddleslap/demos/rally.jsonl.gz</code></td>
+<td><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>The bundled attract-mode demo</td>
 </tr>
 <tr>
@@ -1111,12 +1124,12 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
 <td><code>ActionMap</code></td>
 </tr>
 <tr>
-<td><code>scripts/record_golden_traces.py</code></td>
-<td>The golden script (<code>paddleslap_script</code>, <code>PaddleTracker</code>) and the golden trace recorder</td>
+<td><code>scripts/golden_inputs.py</code>, <code>scripts/record_golden_traces.py</code></td>
+<td>The golden script (<code>paddleslap_script</code>, <code>PaddleTracker</code>) and the golden trace recorder (on the engine's harness, <code>src/glitchygames/replay/tools/golden_traces.py</code>)</td>
 </tr>
 <tr>
 <td><code>scripts/record_scripted_session.py</code></td>
-<td>The golden replay and demo recorder, and the controls tail</td>
+<td>The golden replay and demo recorder, on the engine's scripted-session recorder (<code>src/glitchygames/replay/tools/scripted_sessions.py</code>); the controls tail, <code>paddleslap_controls</code>, is in <code>scripts/golden_inputs.py</code></td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></td>
@@ -1127,7 +1140,7 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
 <td>The golden trace baseline</td>
 </tr>
 <tr>
-<td><code>src/games/paddleslap/tests/test_paddleslap.py</code>, <code>src/games/paddleslap/tests/test_paddleslap_after_the_move.py</code></td>
+<td><code>src/games/paddleslap/tests/test_paddleslap.py</code>, and the move's: <code>test_paddleslap_logical_names.py</code>, <code>_install_location.py</code>, <code>_entry_points.py</code>, <code>_package_data.py</code>, <code>_recording_history.py</code></td>
 <td>The game's tests</td>
 </tr>
 </tbody>

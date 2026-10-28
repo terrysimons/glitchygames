@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -162,6 +166,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
@@ -198,7 +211,7 @@
               
                 <h1 id="replay-performance">Replay Performance<a class="headerlink" href="#replay-performance" title="Permanent link">#</a></h1>
 <p>How long the engine takes to process each frame of the recorded sessions (the golden replays in
-<code>tests/fixtures/replays/</code> and the demos bundled with the games), commit by commit. Every
+each game's <code>tests/fixtures/replays/</code> and the demos bundled with the games), commit by commit. Every
 measurement replays a recording headless and unpaced on one machine (<code>--rebaseline</code>, which times
 each frame's work without the pacing sleep), so a line moves only when the code got faster or
 slower, or the machine changed. Times compare only on one machine: each machine (its CPU model)
@@ -215,10 +228,10 @@ and kind of run is its own line.</p>
 </li>
 <li>
 <p><strong>Slowest frame across the recording, by commit</strong>: a heatmap per machine. Each column is a
-  stretch of the recording (about 1% of it, start to end) and each row a commit; the colour is
+  stretch of the recording (about 1% of it, start to end) and each row a commit; the color is
   the slowest frame of that stretch. Hover a cell for its frames, its scene and the time. It
   shows time only: whether the work itself changed (frames whose content hash differs) is what
-  <code>scripts/recording_report.py</code> shows. Measurements from before per-frame profiles have no row.</p>
+  <code>glitchygames report</code> shows. Measurements from before per-frame profiles have no row.</p>
 </li>
 </ul>
 <p>Hover a point for the commit's date and when it was measured.</p>
@@ -246,16 +259,59 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    machines vary).</li>
 <li>The history measured before this (rows naming their commit) was moved into the repository
    too (<code>scripts/import_published_ledger.py</code>). <code>nox -s replay-metrics</code> still measures by hand
-   into the local pending file (<code>test-results/replay-metrics/pending.jsonl</code>), which a local build
-   shows.</li>
+   (<code>glitchygames measure</code>) into the local pending file
+   (<code>test-results/replay-metrics/pending.jsonl</code>), which a local build shows.</li>
 </ol>
-<p>A recording holds its own last ten runs too; <code>uv run python scripts/recording_report.py PATH</code>
-prints them, which frames got slower or faster between runs (only frames that did the same
-work, by their content hash), and where behaviour changed (the frames whose content hash
+<p>The measuring and the pages are the engine's tools, so any game can keep its own ledger the same
+way (<a href="../../architecture/gameplay_replay/#tools-for-any-game">Tools for any game</a>), with the
+paths in its <code>[tool.glitchygames]</code> (ours: <code>ledger-directory</code>, <code>pending-ledger</code>,
+<code>published-ledger</code>, <code>measured-paths</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>unmeasured<span class="w"> </span>--game<span class="w"> </span>&lt;game&gt;<span class="w">   </span><span class="c1"># what is not measured yet on this machine</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>measure<span class="w"> </span>--game<span class="w"> </span>&lt;game&gt;<span class="w">      </span><span class="c1"># measure it into the pending ledger</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>performance-pages<span class="w"> </span>&lt;directory&gt;<span class="w">   </span><span class="c1"># the ledger and one graph page per recording</span>
+</code></pre></div>
+<p>(<code>&lt;game&gt; --measure</code>, <code>--unmeasured</code> and <code>--performance-pages &lt;directory&gt;</code> are the same tools as
+the game's own flags.) Our docs build makes these pages through <code>scripts/mkdocs_hooks.py</code> and
+<code>scripts/generate_performance_graphs.py</code>, which only add our docs paths and the snippet below.</p>
+<p>A recording holds its own last ten runs too; <code>uv run glitchygames report PATH</code> (or
+<code>&lt;game&gt; --report PATH</code>) prints them, which frames got slower or faster between runs (only frames that did the same
+work, by their content hash), and where behavior changed (the frames whose content hash
 differs, with both runs' commits). Design:
 <code>plans/2026-10-23-recording-metrics.md</code> (Parts 1 and 2).</p>
+<h2 id="what-logging-costs">What logging costs<a class="headerlink" href="#what-logging-costs" title="Permanent link">#</a></h2>
+<p>A benchmark rebaselines every golden replay and bundled demo headless three times, through the
+same child command <code>glitchygames measure</code> runs: at <code>--log-level warning</code> (the replay tools' level
+and a game's default: logging off), at <code>--log-level info</code> (what a bug report asks a player to run
+with) and at <code>--log-level debug</code> (everything on). It is not part of the test run (<code>nox -s test</code>;
+it takes under a minute), but CI runs it with the other benchmarks in the macOS job's
+<code>nox -s performance-test</code>, where a failed rebaseline fails the job. Run it alone with</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/benchmarks/test_logging_cost.py<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="w"> </span>-p<span class="w"> </span>no:xdist<span class="w"> </span>--benchmark-only<span class="w"> </span>--dummy-only
+</code></pre></div>
+<p>or with every other benchmark in <code>nox -s performance-test</code>. It prints two tables and writes them
+to <code>test-results/logging-cost.md</code>:</p>
+<ol>
+<li><strong>Top loggers by volume at <code>debug</code>, per recording</strong>: each recording's five chattiest
+   loggers, with their records per frame, record count and share of all the records. A logger
+   far ahead of the others (tens of records a frame) is where logging needs cleaning up: a
+   <code>log.debug</code> inside a per-frame or per-sprite loop.</li>
+<li><strong>Logging cost</strong>: per recording, the mean processing time per frame at each level and the
+   change of <code>info</code> and of <code>debug</code> against <code>warning</code>, the medians, each run's peak resident
+   memory, the records per frame at each level and how much output <code>info</code> and <code>debug</code> wrote.
+   The processing times are the engine's own per-frame measurements (what the performance
+   graphs above plot), so the change is the time logging adds to each frame's work. Times
+   compare only on one machine and between runs of the same table. The peak memory is the
+   replaying child's (<code>n/a</code> on Windows), and its output goes to a file, so a large difference
+   there means the game keeps records in memory.</li>
+</ol>
+<p>On one Mac (2026-10-28) <code>info</code> cost every recording within 1% of <code>warning</code> (0.08 to 0.33 records
+a frame), while <code>debug</code> doubled PaddleSlap's processing time per frame (about 10 records a
+frame) and added 15% to Brave Adventurer's papyrus golden (about 33).</p>
+<p>At <code>warning</code> no recording should emit an INFO or DEBUG record (the startup options block is one
+CRITICAL record a run): a logger that does has a level set behind the command line's back
+(BUGS.md #236), which <code>tests/replay/test_replays_log_quietly.py</code>
+and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary test run.</p>
 <p>Until a build generates them, this page has only this text.</p>
-<p>Generated from 66 ledger rows (378 in the repository, 59 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
+<p>Generated from 73 ledger rows (854 in the repository, 66 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
 <h2 id="latest-measurements">Latest measurements<a class="headerlink" href="#latest-measurements" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -274,71 +330,71 @@ differs, with both runs' commits). Design:
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>73ed261</code></td>
+<td><code>3f1999a</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">1.687</td>
-<td style="text-align: right;">1.949</td>
-<td style="text-align: right;">3.838</td>
+<td style="text-align: right;">1.677</td>
+<td style="text-align: right;">1.878</td>
+<td style="text-align: right;">3.790</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>73ed261</code></td>
+<td><code>3f1999a</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">1.747</td>
-<td style="text-align: right;">2.278</td>
-<td style="text-align: right;">4.025</td>
+<td style="text-align: right;">1.716</td>
+<td style="text-align: right;">2.231</td>
+<td style="text-align: right;">3.910</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>73ed261</code></td>
+<td><code>3f1999a</code></td>
 <td style="text-align: right;">532</td>
-<td style="text-align: right;">0.419</td>
-<td style="text-align: right;">0.800</td>
-<td style="text-align: right;">2.936</td>
+<td style="text-align: right;">0.409</td>
+<td style="text-align: right;">0.673</td>
+<td style="text-align: right;">2.750</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>73ed261</code></td>
+<td><code>3f1999a</code></td>
 <td style="text-align: right;">1614</td>
-<td style="text-align: right;">0.395</td>
-<td style="text-align: right;">0.641</td>
-<td style="text-align: right;">4.726</td>
+<td style="text-align: right;">0.393</td>
+<td style="text-align: right;">0.575</td>
+<td style="text-align: right;">4.645</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>73ed261</code></td>
+<td><code>3f1999a</code></td>
 <td style="text-align: right;">2072</td>
-<td style="text-align: right;">0.635</td>
-<td style="text-align: right;">0.976</td>
-<td style="text-align: right;">3.357</td>
+<td style="text-align: right;">0.619</td>
+<td style="text-align: right;">0.791</td>
+<td style="text-align: right;">3.262</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
-<td><code>src/games/paddleslap/paddleslap/demos/rally.jsonl.gz</code></td>
+<td><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>73ed261</code></td>
+<td><code>3f1999a</code></td>
 <td style="text-align: right;">450</td>
 <td style="text-align: right;">0.080</td>
-<td style="text-align: right;">0.167</td>
-<td style="text-align: right;">0.360</td>
+<td style="text-align: right;">0.146</td>
+<td style="text-align: right;">0.342</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>73ed261</code></td>
+<td><code>3f1999a</code></td>
 <td style="text-align: right;">622</td>
-<td style="text-align: right;">0.083</td>
-<td style="text-align: right;">0.213</td>
-<td style="text-align: right;">2.810</td>
+<td style="text-align: right;">0.080</td>
+<td style="text-align: right;">0.144</td>
+<td style="text-align: right;">2.474</td>
 <td style="text-align: right;">0</td>
 </tr>
 </tbody>
@@ -358,7 +414,7 @@ differs, with both runs' commits). Design:
 <h2 id="srcgamesmr-munchertestsfixturesreplaysgoldenjsonlgz"><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code><a class="headerlink" href="#srcgamesmr-munchertestsfixturesreplaysgoldenjsonlgz" title="Permanent link">#</a></h2>
 <iframe src="../metrics/mr-muncher-golden.html" width="100%" height="1550" frameborder="0"></iframe>
 
-<h2 id="srcgamespaddleslappaddleslapdemosrallyjsonlgz"><code>src/games/paddleslap/paddleslap/demos/rally.jsonl.gz</code><a class="headerlink" href="#srcgamespaddleslappaddleslapdemosrallyjsonlgz" title="Permanent link">#</a></h2>
+<h2 id="srcgamespaddleslapsrcpaddleslapdemosrallyjsonlgz"><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code><a class="headerlink" href="#srcgamespaddleslapsrcpaddleslapdemosrallyjsonlgz" title="Permanent link">#</a></h2>
 <iframe src="../metrics/paddleslap-rally.html" width="100%" height="1550" frameborder="0"></iframe>
 
 <h2 id="srcgamespaddleslaptestsfixturesreplaysgoldenjsonlgz"><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code><a class="headerlink" href="#srcgamespaddleslaptestsfixturesreplaysgoldenjsonlgz" title="Permanent link">#</a></h2>

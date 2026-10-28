@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -162,6 +166,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
@@ -211,7 +224,7 @@ side, and a player who has had enough holds Back (Escape) to leave.</p>
 <strong>swatches</strong>: recolouring a sprite by palette swap, so one soldier sprite wears both armies'
 liveries (see <a href="#swatches-the-mechanic-this-game-proves">Swatches</a>).</p>
 <p>This page explains how the game is built, for a developer who wants to understand it or write a
-game like it. Everything here comes from <code>src/games/drawing-fire/drawing_fire/</code>, and the module
+game like it. Everything here comes from <code>src/games/drawing-fire/src/drawing_fire/</code>, and the module
 docstrings there are the detailed reference. The design, with the full vision and the MVP's
 decisions, is <code>plans/2026-10-25-drawing-fire-design.md</code>. What comes after the MVP is entry 54 in
 <code>plans/future-features.md</code>.</p>
@@ -324,47 +337,47 @@ anyone: players drop into and out of them, and the next one starts on its own.</
 </thead>
 <tbody>
 <tr>
-<td><code>src/games/drawing-fire/drawing_fire/__init__.py</code></td>
+<td><code>src/games/drawing-fire/src/drawing_fire/__init__.py</code></td>
 <td>Re-exports <code>main</code> (the <code>drawing-fire</code> console script's entry point)</td>
 </tr>
 <tr>
-<td><code>src/games/drawing-fire/drawing_fire/game.py</code></td>
+<td><code>src/games/drawing-fire/src/drawing_fire/game.py</code></td>
 <td><code>DrawingFireScene</code> (the frame: seats, drivers, the battle, the victory countdown; rendering; the debug seats view), <code>Phase</code>, <code>seats_panel_lines</code>, <code>main</code></td>
 </tr>
 <tr>
-<td><code>src/games/drawing-fire/drawing_fire/battle.py</code></td>
+<td><code>src/games/drawing-fire/src/drawing_fire/battle.py</code></td>
 <td>The rules: <code>Battle</code>, <code>Soldier</code>, <code>Sandbag</code>, <code>Bullet</code>, <code>Intent</code>, <code>Side</code>, <code>ARMY_NAMES</code>, the events <code>SoldierKilled</code> and <code>SandbagFlattened</code>, and the tuned numbers</td>
 </tr>
 <tr>
-<td><code>src/games/drawing-fire/drawing_fire/terrain.py</code></td>
+<td><code>src/games/drawing-fire/src/drawing_fire/terrain.py</code></td>
 <td><code>Terrain</code> (a ground y for every x) and <code>build_terrain</code> (flat paper with a few seeded hills)</td>
 </tr>
 <tr>
-<td><code>src/games/drawing-fire/drawing_fire/drivers.py</code></td>
+<td><code>src/games/drawing-fire/src/drawing_fire/drivers.py</code></td>
 <td>The computer driver: <code>muster_battle</code> (a battle and every soldier's memory and own random stream), <code>computer_intents</code>, <code>computer_intent</code>, <code>ComputerSoldier</code></td>
 </tr>
 <tr>
-<td><code>src/games/drawing-fire/drawing_fire/players.py</code></td>
+<td><code>src/games/drawing-fire/src/drawing_fire/players.py</code></td>
 <td>Player input: <code>Device</code>, <code>KEYBOARD</code>, <code>connected_devices</code>, <code>device_intent</code> (a device's input as an <code>Intent</code>), <code>Button</code>, <code>ButtonEdges</code> (presses, and holds in frames and seconds, per device)</td>
 </tr>
 <tr>
-<td><code>src/games/drawing-fire/drawing_fire/seats.py</code></td>
+<td><code>src/games/drawing-fire/src/drawing_fire/seats.py</code></td>
 <td><code>Seats</code>: joining, choosing a side and a soldier, the takeover on death, leaving, the seat log; <code>PlayerSeat</code>, <code>Stage</code>, <code>SideChoice</code>, <code>LEAVE_HOLD_SECONDS</code></td>
 </tr>
 <tr>
-<td><code>src/games/drawing-fire/drawing_fire/swatches.py</code></td>
+<td><code>src/games/drawing-fire/src/drawing_fire/swatches.py</code></td>
 <td>Swatches, the mechanic this game proves (written to move into the engine)</td>
 </tr>
 <tr>
-<td><code>src/games/drawing-fire/drawing_fire/drawing.py</code></td>
+<td><code>src/games/drawing-fire/src/drawing_fire/drawing.py</code></td>
 <td>The pencil look: <code>wobble</code>, the terrain, sandbags, soldiers in their liveries (<code>ARMY_LIVERIES</code>), bullets, the HUD and the victory banner</td>
 </tr>
 <tr>
-<td><code>src/games/drawing-fire/drawing_fire/seat_drawing.py</code></td>
+<td><code>src/games/drawing-fire/src/drawing_fire/seat_drawing.py</code></td>
 <td>The join note, the seat cards, the soldier highlight, and the debug seat tags and panel</td>
 </tr>
 <tr>
-<td><code>src/games/drawing-fire/drawing_fire/sprites/soldier.toml</code></td>
+<td><code>src/games/drawing-fire/src/drawing_fire/sprites/soldier.toml</code></td>
 <td>The soldier sprite (stand, walk and down), with its <code>[swatches.livery]</code> parts</td>
 </tr>
 <tr>
@@ -373,19 +386,19 @@ anyone: players drop into and out of them, and the next one starts on its own.</
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/</code></td>
-<td>The tests, one file per module, plus the simulation's and <code>test_drawing_fire_after_the_move.py</code></td>
+<td>The tests, one file per module, plus the simulation's and the move's (<code>test_drawing_fire_logical_names.py</code>, <code>_install_location.py</code>, <code>_recording_history.py</code>, <code>_wheel.py</code>)</td>
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>The golden replay (1,614 frames)</td>
 </tr>
 <tr>
-<td><code>scripts/record_golden_traces.py</code></td>
+<td><code>scripts/golden_inputs.py</code></td>
 <td><code>drawing_fire_script</code> and <code>DrawingFireMouse</code> (the golden replay's player)</td>
 </tr>
 <tr>
-<td><code>scripts/record_scripted_session.py</code></td>
-<td><code>drawing_fire_controls</code> (the controls tail: Q) and the command that records the fixture</td>
+<td><code>scripts/record_scripted_session.py</code>, <code>scripts/golden_inputs.py</code></td>
+<td>The command that records the fixture (on the engine's scripted-session recorder, <code>src/glitchygames/replay/tools/scripted_sessions.py</code>); <code>drawing_fire_controls</code> (the controls tail: Q)</td>
 </tr>
 </tbody>
 </table>
@@ -614,8 +627,9 @@ soldier killed (<code>SOLDIER_KILLED_SUBTYPE</code>: his id, side and driver) an
 holds them, and a replay in which the battle plays out differently misses one and diverges
 ("missing internal event"). <code>DrawingFireScene.setup()</code> registers its own subtypes
 (<code>DRAWING_FIRE_EVENT_SUBTYPES</code>) with the scene manager, with a callback (<code>_take_marker</code>) that
-does nothing: they are markers for recordings. <code>test_the_drawing_fire_golden_replay_holds_a_death_and_a_takeover</code> checks that
-the fixture holds the player's death and takeover.</p>
+does nothing: they are markers for recordings. The game's own
+<code>tests/test_drawing_fire_golden_replay.py</code> checks that the fixture holds the player's death and
+takeover.</p>
 <p><code>tests/replay/test_golden_replays.py</code> checks that every control the game reads is exercised: its
 keys by scancode, the mouse's motion and left button, and Q. The controller's controls are
 excused (<code>UNEXERCISED_CONTROLS</code>, <code>NO_GAMEPAD_IN_THE_SESSION</code>), because the scripted session runs

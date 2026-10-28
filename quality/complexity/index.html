@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -162,6 +166,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
@@ -210,7 +223,7 @@ the published site. To see them in a local build (<code>mkdocs serve</code>), ge
 <code>uv run python scripts/generate_complexity_graphs.py</code> (or <code>nox -s code-complexity -- --graphs</code>),
 which measures the committed history (HEAD) in a temporary worktree and writes them to
 <code>docs/quality/graphs/</code>; until then this page has only this text.</p>
-<p>Generated at commit <code>73ed261</code> (2026-10-26) from all 235 commits. The modules, highest total cyclomatic complexity first: <code>src/glitchygames/scenes/scene.py</code>, <code>src/glitchygames/sprites/animated.py</code>, <code>src/glitchygames/engine/game_engine.py</code>, <code>src/glitchygames/replay/driver.py</code>, <code>src/glitchygames/ui/text_widgets.py</code>, <code>src/glitchygames/recording.py</code>, <code>src/glitchygames/recording_metrics.py</code>, <code>src/glitchygames/input/devices.py</code>, <code>src/glitchygames/tracing.py</code>, <code>src/glitchygames/replay/playback.py</code>, <code>src/glitchygames/sprites/bitmappy_sprite.py</code>, <code>src/glitchygames/performance/adaptive_clamping.py</code>, <code>src/glitchygames/api/client.py</code>, <code>src/glitchygames/events/base.py</code>, <code>src/glitchygames/game_objects/ball.py</code>.</p>
+<p>Generated at commit <code>3f1999a</code> (2026-10-28) from all 236 commits. The modules, highest total cyclomatic complexity first: <code>src/glitchygames/scenes/scene.py</code>, <code>src/glitchygames/engine/game_engine.py</code>, <code>src/glitchygames/sprites/animated.py</code>, <code>src/glitchygames/replay/driver.py</code>, <code>src/glitchygames/ui/text_widgets.py</code>, <code>src/glitchygames/replay/tools/measure.py</code>, <code>src/glitchygames/recording.py</code>, <code>src/glitchygames/recording_metrics.py</code>, <code>src/glitchygames/input/devices.py</code>, <code>src/glitchygames/tracing.py</code>, <code>src/glitchygames/replay/playback.py</code>, <code>src/glitchygames/sprites/bitmappy_sprite.py</code>, <code>src/glitchygames/replay/tools/compare.py</code>, <code>src/glitchygames/performance/adaptive_clamping.py</code>, <code>src/glitchygames/api/client.py</code>.</p>
 <h2 id="maintainability-index">Maintainability Index<a class="headerlink" href="#maintainability-index" title="Permanent link">#</a></h2>
 <iframe src="../graphs/maintainability_mi.html" width="100%" height="600" frameborder="0"></iframe>
 

@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -160,6 +164,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
@@ -2222,7 +2235,7 @@ has it (a mapped pad, which arrives and leaves on both layers, once each way).</
 <code>joystick</code> every device on its joystick layer only (SDL blocks controller events), <code>controller</code>
 mapped pads only (other devices are hidden and their events dropped). <code>ActionMap</code> binds the
 same families: <code>auto</code> binds a <code>controller_button</code> to both. The joystick demo
-(<code>src/glitchygames/examples/joystick_demo.py</code>) lists every device with its event layer's live
+(<code>src/demos/joystick-demo/src/joystick_demo/__init__.py</code>) lists every device with its event layer's live
 inputs.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a><span class="k">for</span> <span class="n">device</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_devices</span><span class="p">:</span>
 <a id="__codelineno-81-2" name="__codelineno-81-2" href="#__codelineno-81-2"></a>    <span class="n">layer</span> <span class="o">=</span> <span class="n">device</span><span class="o">.</span><span class="n">controller</span> <span class="k">if</span> <span class="n">device</span><span class="o">.</span><span class="n">controller</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">device</span><span class="o">.</span><span class="n">joystick</span>

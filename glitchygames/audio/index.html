@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../fonts/">glitchygames.font</a>
                   </li>
@@ -160,6 +164,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
@@ -4571,7 +4584,7 @@ the voice has drained.</p>
 <a id="glitchygames.audio.MacOSTTS--source--__codelineno-0-107" name="glitchygames.audio.MacOSTTS--source--__codelineno-0-107"></a>                <span class="p">],</span>
 <a id="glitchygames.audio.MacOSTTS--source--__codelineno-0-108" name="glitchygames.audio.MacOSTTS--source--__codelineno-0-108"></a>                <span class="n">environment</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">,</span>
 <a id="glitchygames.audio.MacOSTTS--source--__codelineno-0-109" name="glitchygames.audio.MacOSTTS--source--__codelineno-0-109"></a>                <span class="n">timeout_seconds</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
-<a id="glitchygames.audio.MacOSTTS--source--__codelineno-0-110" name="glitchygames.audio.MacOSTTS--source--__codelineno-0-110"></a>                <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="glitchygames.audio.MacOSTTS--source--__codelineno-0-110" name="glitchygames.audio.MacOSTTS--source--__codelineno-0-110"></a>                <span class="n">capture_output</span><span class="o">=</span><span class="n">OutputCapture</span><span class="o">.</span><span class="n">TOGETHER</span><span class="p">,</span>
 <a id="glitchygames.audio.MacOSTTS--source--__codelineno-0-111" name="glitchygames.audio.MacOSTTS--source--__codelineno-0-111"></a>            <span class="p">)</span>
 <a id="glitchygames.audio.MacOSTTS--source--__codelineno-0-112" name="glitchygames.audio.MacOSTTS--source--__codelineno-0-112"></a>        <span class="k">except</span> <span class="n">TimeoutExpired</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">:</span>
 <a id="glitchygames.audio.MacOSTTS--source--__codelineno-0-113" name="glitchygames.audio.MacOSTTS--source--__codelineno-0-113"></a>            <span class="n">log</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s1">'TTS generation failed'</span><span class="p">)</span>
@@ -4866,7 +4879,7 @@ the voice has drained.</p>
 <a id="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-107" name="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-107"></a>            <span class="p">],</span>
 <a id="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-108" name="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-108"></a>            <span class="n">environment</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">,</span>
 <a id="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-109" name="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-109"></a>            <span class="n">timeout_seconds</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
-<a id="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-110" name="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-110"></a>            <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-110" name="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-110"></a>            <span class="n">capture_output</span><span class="o">=</span><span class="n">OutputCapture</span><span class="o">.</span><span class="n">TOGETHER</span><span class="p">,</span>
 <a id="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-111" name="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-111"></a>        <span class="p">)</span>
 <a id="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-112" name="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-112"></a>    <span class="k">except</span> <span class="n">TimeoutExpired</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">:</span>
 <a id="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-113" name="glitchygames.audio.MacOSTTS.speak_to_file--source--__codelineno-0-113"></a>        <span class="n">log</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s1">'TTS generation failed'</span><span class="p">)</span>
@@ -17519,7 +17532,7 @@ if tts:
 <a id="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-107" name="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-107"></a>                <span class="p">],</span>
 <a id="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-108" name="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-108"></a>                <span class="n">environment</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">,</span>
 <a id="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-109" name="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-109"></a>                <span class="n">timeout_seconds</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
-<a id="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-110" name="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-110"></a>                <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-110" name="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-110"></a>                <span class="n">capture_output</span><span class="o">=</span><span class="n">OutputCapture</span><span class="o">.</span><span class="n">TOGETHER</span><span class="p">,</span>
 <a id="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-111" name="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-111"></a>            <span class="p">)</span>
 <a id="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-112" name="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-112"></a>        <span class="k">except</span> <span class="n">TimeoutExpired</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">:</span>
 <a id="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-113" name="glitchygames.audio.tts.MacOSTTS--source--__codelineno-0-113"></a>            <span class="n">log</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s1">'TTS generation failed'</span><span class="p">)</span>
@@ -17814,7 +17827,7 @@ if tts:
 <a id="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-107" name="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-107"></a>            <span class="p">],</span>
 <a id="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-108" name="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-108"></a>            <span class="n">environment</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">,</span>
 <a id="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-109" name="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-109"></a>            <span class="n">timeout_seconds</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
-<a id="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-110" name="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-110"></a>            <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-110" name="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-110"></a>            <span class="n">capture_output</span><span class="o">=</span><span class="n">OutputCapture</span><span class="o">.</span><span class="n">TOGETHER</span><span class="p">,</span>
 <a id="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-111" name="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-111"></a>        <span class="p">)</span>
 <a id="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-112" name="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-112"></a>    <span class="k">except</span> <span class="n">TimeoutExpired</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">:</span>
 <a id="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-113" name="glitchygames.audio.tts.MacOSTTS.speak_to_file--source--__codelineno-0-113"></a>        <span class="n">log</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s1">'TTS generation failed'</span><span class="p">)</span>

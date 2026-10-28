@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/specs/2026-10-27-glitchy-games-website-design/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>glitchy.games Website on AWS - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "glitchy.games Website on AWS";
+        var mkdocs_page_input_path = "specs/2026-10-27-glitchy-games-website-design.md";
+        var mkdocs_page_url = "/glitchygames/specs/2026-10-27-glitchy-games-website-design/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="https://terrysimons.github.io/glitchygames/play/">Play in the Browser</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/game_packages/">Games as Their Own Packages</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/drawing_fire/">Drawing Fire Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/engine_context/">Engine Context</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/upstream_issues/">Upstream Issues</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Designs</a>
+    <ul class="current">
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/effects/">glitchygames.effects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/input/">glitchygames.input</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/state/">glitchygames.state</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/transitions/">glitchygames.transitions</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Games API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Apps API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+          <li class="breadcrumb-item">Designs</li>
+      <li class="breadcrumb-item active">glitchy.games Website on AWS</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/specs/2026-10-27-glitchy-games-website-design.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../../galimore/" class="btn btn-neutral float-left" title="Galimore Survey"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../glitchygames/" class="btn btn-neutral float-right" title="glitchygames API Reference">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="glitchygames-website-on-aws-design">glitchy.games website on AWS — Design<a class="headerlink" href="#glitchygames-website-on-aws-design" title="Permanent link">#</a></h1>
+<ul>
+<li><strong>Date:</strong> 2026-10-27</li>
+<li><strong>Status:</strong> DRAFT, awaiting the owner's review. Nothing is built yet.</li>
+<li><strong>Repo:</strong> <code>glitchygames</code> (this repo). The site and its AWS setup live here; no separate repo.</li>
+</ul>
+<h2 id="intent">Intent<a class="headerlink" href="#intent" title="Permanent link">#</a></h2>
+<p>Put the GlitchyGames Arcade on the public web. A visitor opens <code>play.glitchy.games</code> and gets the
+arcade (the gallery in the owner's mockup: a featured demo with sound on top, a grid of live
+silent demo tiles below, arrows / d-pad to browse, Enter / A to play). Every game runs in the
+visitor's own browser (Pyodide/WebAssembly; <code>plans/2026-10-23-game-host-and-browser-runner.md</code>,
+<code>scripts/build_browser_bundle.py</code>), so the server only serves files.</p>
+<p>Later, a GPU instance on AWS will run AI work (e.g. Bitmappy's AI sprite generation, AI players
+driven through the outer <code>GameHost</code> layer). It is out of scope to build now, but it is scoped into
+the cost estimate.</p>
+<h2 id="goals">Goals<a class="headerlink" href="#goals" title="Permanent link">#</a></h2>
+<ol>
+<li><code>https://play.glitchy.games</code> serves the browser build, over HTTPS, fast worldwide.</li>
+<li>Every push to <code>main</code> on GitHub publishes the site automatically.</li>
+<li>The AWS setup is code in this repo, reproducible from scratch.</li>
+<li>Launch cost stays around $1.50–2.50 / month.</li>
+<li>The owner hears about it (email) before an AWS bill surprises them.</li>
+</ol>
+<h2 id="non-goals-for-now">Non-goals (for now)<a class="headerlink" href="#non-goals-for-now" title="Permanent link">#</a></h2>
+<ul>
+<li>No servers at launch: no EC2, Lightsail, containers or databases.</li>
+<li>No GPU instance yet (later phase, below).</li>
+<li>No home page at <code>glitchy.games</code> yet — it redirects to <code>play.glitchy.games</code>.</li>
+<li>No docs site yet (<code>docs.glitchy.games</code> is reserved for the MkDocs site, later).</li>
+<li>The 24 other domains the owner holds at Namecheap (<code>glitchygames.*</code>, <code>twitchplaysglitchy*</code>)
+  stay untouched.</li>
+<li>Not transferring any domain registration away from Namecheap.</li>
+</ul>
+<h2 id="anti-goals">Anti-goals<a class="headerlink" href="#anti-goals" title="Permanent link">#</a></h2>
+<ul>
+<li>Long-lived AWS access keys stored in GitHub.</li>
+<li>A setup that only works because of hand-clicked console changes nobody can reproduce.</li>
+<li>A bill that can grow silently (runaway GPU instance, traffic spike) without an alert.</li>
+</ul>
+<h2 id="constraints-and-facts">Constraints and facts<a class="headerlink" href="#constraints-and-facts" title="Permanent link">#</a></h2>
+<ul>
+<li><strong>AWS account:</strong> the owner's existing, long-standing account. It is past the old 12-month free
+  tier and was created before the July 15, 2025 credit-based free plan, so only the "Always Free"
+  allowances apply (CloudFront: 1 TB transfer and 10M requests / month; Lambda; DynamoDB).</li>
+<li><strong>Domains:</strong> registered at Namecheap (namecheap.com). Two are in scope:
+  <code>glitchy.games</code> and <code>glitchygames.ai</code>.</li>
+<li><strong>Region:</strong> us-east-1 (CloudFront certificates must live there; cheapest GPU pricing later).</li>
+<li><strong>Browser build:</strong> <code>scripts/build_browser_bundle.py</code> (on <code>main</code>) writes
+  <code>build/browser/&lt;game&gt;</code>: the page, the engine and our pygame-ce WebAssembly wheel. The wheel is
+  built from the <code>third_party/pygame-ce</code> submodule and takes several minutes the first time.</li>
+<li><strong>The games already build as a site:</strong> <code>python -m scripts.build_browser_bundle all</code> writes
+  <code>build/browser/site</code> (a directory per game plus an <code>index.html</code> linking them). <code>nox -s
+  docs-deploy</code> runs it and publishes it with the docs as <code>play/</code> on GitHub Pages
+  (<a href="https://terrysimons.github.io/glitchygames/play/">https://terrysimons.github.io/glitchygames/play/</a>; <code>scripts/mkdocs_hooks.py</code>).</li>
+<li><strong>PyScript comes from a CDN:</strong> <code>browser/index.html</code> loads <code>core.js</code> / <code>core.css</code> from
+  <code>pyscript.net</code>.</li>
+<li><strong>The Arcade app</strong> (<code>plans/2026-10-23-arcade-showcase.md</code>, feature #43) is a spec, not built.
+  <code>src/apps/</code> holds only Bitmappy today.</li>
+<li><strong>CI is CircleCI</strong> (<code>.circleci/config.yml</code>); there is no <code>.github/</code>. Its <code>deploy-docs</code> job
+  runs after <code>build-and-test-macos</code> passes on <code>main</code> (macOS <code>m4pro.medium</code>, one at a time via
+  <code>serial-group</code>), already caches the Pyodide toolchain (~2 GB) and the pygame-ce WebAssembly
+  wheel keyed on the submodule commit, and runs <code>nox -s docs-deploy -- --no-measure</code>.</li>
+<li><strong>House style:</strong> uv, nox sessions, Python 3.14, explicit long names.</li>
+</ul>
+<h2 id="decided-by-the-owner">Decided by the owner<a class="headerlink" href="#decided-by-the-owner" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Choice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hosting provider</td>
+<td>Amazon (AWS)</td>
+</tr>
+<tr>
+<td>Where the code lives</td>
+<td>this <code>glitchygames</code> repo</td>
+</tr>
+<tr>
+<td>Main address</td>
+<td><code>play.glitchy.games</code> serves the Arcade</td>
+</tr>
+<tr>
+<td><code>glitchy.games</code> (bare)</td>
+<td>redirects to <code>play.glitchy.games</code> for now; a home page may replace it later</td>
+</tr>
+<tr>
+<td><code>glitchygames.ai</code></td>
+<td>in scope (redirects; see below)</td>
+</tr>
+<tr>
+<td>Other 24 domains</td>
+<td>not now</td>
+</tr>
+<tr>
+<td>Publishing</td>
+<td>automatically on every push to <code>main</code> on GitHub (through the existing CircleCI pipeline)</td>
+</tr>
+<tr>
+<td>Spec location</td>
+<td><code>docs/specs/</code></td>
+</tr>
+<tr>
+<td>Placeholder</td>
+<td>until the Arcade exists, the owner's mockup image is the placeholder</td>
+</tr>
+<tr>
+<td>GPU</td>
+<td>later, for AI work; include it in the cost picture only</td>
+</tr>
+</tbody>
+</table>
+<h2 id="address-map">Address map<a class="headerlink" href="#address-map" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Address</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>play.glitchy.games</code></td>
+<td>the site (S3 via CloudFront)</td>
+</tr>
+<tr>
+<td><code>glitchy.games</code>, <code>www.glitchy.games</code></td>
+<td>301 to <code>https://play.glitchy.games</code> (path kept)</td>
+</tr>
+<tr>
+<td><code>glitchygames.ai</code>, <code>www.glitchygames.ai</code></td>
+<td>301 to <code>https://play.glitchy.games</code> (path kept)</td>
+</tr>
+<tr>
+<td><code>http://</code> anything</td>
+<td>upgraded to <code>https://</code></td>
+</tr>
+<tr>
+<td><code>docs.glitchy.games</code>, <code>ai.glitchy.games</code></td>
+<td>reserved, later phases</td>
+</tr>
+</tbody>
+</table>
+<p>Redirect choices (301, path kept, <code>www</code> folded) are Claude's call. Keeping one canonical address
+matters beyond SEO: browser storage (the Arcade's saves, <code>browser/browser_storage.py</code>) is
+per-origin, so serving the site on two origins would split players' saves.</p>
+<h2 id="architecture-claudes-call-unless-noted">Architecture (Claude's call unless noted)<a class="headerlink" href="#architecture-claudes-call-unless-noted" title="Permanent link">#</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                 Namecheap (registrar only)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                   | nameservers -&gt; Route 53
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                   v
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a> Route 53 zone: glitchy.games          Route 53 zone: glitchygames.ai
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>   play  -&gt; ALIAS site distribution      @, www -&gt; ALIAS redirect distribution
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>   @,www -&gt; ALIAS redirect distribution
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                   |                                   |
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                   v                                   v
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a> CloudFront "site" distribution        CloudFront "redirect" distribution
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>   - origin: private S3 bucket (OAC)     - no real origin; a CloudFront Function
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>   - HTTPS cert (ACM, us-east-1)           answers every request with a 301 to
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>   - compression on                        https://play.glitchy.games&lt;path&gt;
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>   - response headers policy             - HTTPS cert (ACM) for the four names
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>                   |
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>                   v
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a> S3 bucket (private, versioned) holding build/browser/...
+</code></pre></div>
+<ul>
+<li><strong>DNS:</strong> move the nameservers of both domains to Route 53 at Namecheap (one manual step per
+  domain, done once). Route 53 then holds every record as code. $0.50 / zone / month.</li>
+<li><strong>Certificates:</strong> ACM in us-east-1, DNS-validated in Route 53 (automatic once the zones exist).
+  Six names total, under ACM's default 10-name limit. Free.</li>
+<li><strong>S3:</strong> private bucket, CloudFront Origin Access Control, Block Public Access on. Versioning on
+  so a bad deploy can be rolled back; a lifecycle rule expires old versions after 30 days.</li>
+<li><strong>CloudFront (site):</strong></li>
+<li>Serve <code>.wasm</code> as <code>application/wasm</code> (set at upload) and enable compression (gzip/brotli) for
+    the large Pyodide / wheel / Python files.</li>
+<li>Cache: <code>index.html</code> short (e.g. 60 s) so deploys show quickly; other assets long.</li>
+<li>Response headers: HSTS and standard security headers. <strong>No COOP/COEP</strong> (cross-origin
+    isolation): the build loads PyScript from <code>pyscript.net</code>, which COEP would block, and the
+    runner uses JS Promise Integration rather than threads, so it doesn't need
+    SharedArrayBuffer. If that ever changes, the bundle must self-host PyScript first. No strict
+    Content-Security-Policy for the same reason (or one that allows <code>pyscript.net</code> and
+    Pyodide's CDN — builder's call).</li>
+<li>PriceClass_100 (North America + Europe edges) to keep costs down — Claude's call; widen
+    later if needed.</li>
+<li><strong>CloudFront (redirect):</strong> separate distribution with a CloudFront Function (viewer request)
+  returning the 301. Could instead be one distribution with a host-header check; two keeps the
+  site's config simple. Builder may merge if it's cleaner.</li>
+<li><strong>Budget alarm:</strong> AWS Budgets, monthly, email the owner at $10 actual and at forecast &gt; $10.</li>
+</ul>
+<h2 id="infrastructure-as-code-claudes-call">Infrastructure as code (Claude's call)<a class="headerlink" href="#infrastructure-as-code-claudes-call" title="Permanent link">#</a></h2>
+<ul>
+<li><strong>AWS CDK in Python</strong>, in <code>infra/</code> as its own small uv project (own <code>pyproject.toml</code>), so the
+  engine's dependencies don't change.</li>
+<li>nox sessions in the existing style: <code>nox -s infra-deploy</code>, <code>nox -s infra-diff</code>,
+  <code>nox -s site-publish</code> (build + sync + invalidate, also usable locally).</li>
+<li>Stacks: <code>DnsAndCertificates</code>, <code>Site</code>, <code>Redirects</code>, <code>GitHubDeployRole</code>, <code>Budget</code>. Names are
+  the builder's to settle.</li>
+<li>First deploy (<code>cdk bootstrap</code> + deploy) runs from the owner's Mac with admin credentials.</li>
+</ul>
+<h2 id="publishing-owner-on-every-push-to-main">Publishing (owner: on every push to <code>main</code>)<a class="headerlink" href="#publishing-owner-on-every-push-to-main" title="Permanent link">#</a></h2>
+<p>The repo's CI is CircleCI, which already builds the browser games on every merge to <code>main</code>, so
+publishing to AWS joins that pipeline (Claude's call: no GitHub Actions, one CI system).</p>
+<ul>
+<li>A new <code>nox -s site-publish</code> session: syncs a built site directory to the bucket
+  (<code>aws s3 sync --delete</code>, <code>.wasm</code> as <code>application/wasm</code>, short cache on <code>index.html</code> files,
+  long on the rest) and invalidates the CloudFront distribution. Also runnable from the
+  owner's Mac.</li>
+<li>CircleCI: after <code>docs-deploy</code> has built <code>build/browser/site</code>, run <code>nox -s site-publish</code> on
+  that same directory — either as a final step of the <code>deploy-docs</code> job (no second ~2 GB
+  toolchain restore) or a separate job that receives the directory through a workspace. The
+  builder picks; Claude's lean is a step in <code>deploy-docs</code>, since it already holds the build. A
+  failed AWS publish must not undo or block the GitHub Pages docs deploy that already pushed.</li>
+<li><strong>Credentials: CircleCI OIDC</strong> (no stored AWS keys). The AWS role trusts CircleCI's OIDC
+  provider for this organization and project only, and may only write to the site bucket and
+  create invalidations on the site distribution. The organization ID and project ID are values
+  the owner reads from CircleCI's settings.</li>
+<li><code>serial-group</code> already keeps two merges from deploying at once.</li>
+<li>Infra changes (<code>infra/**</code>): Claude's call is to keep these manual (<code>nox -s infra-deploy</code>) at
+  first. Automating them is a later option.</li>
+<li>GitHub Pages <code>play/</code> keeps publishing as today; once <code>play.glitchy.games</code> is live, the docs'
+  "Play in the Browser" link (<code>mkdocs.yml</code>) points to it. Whether to stop publishing <code>play/</code> on
+  GitHub Pages is a later cleanup.</li>
+</ul>
+<h2 id="what-gets-published-at-launch">What gets published at launch<a class="headerlink" href="#what-gets-published-at-launch" title="Permanent link">#</a></h2>
+<p>The Arcade does not exist yet. Until it does, <code>play.glitchy.games</code> serves a placeholder built
+around the owner's mockup image (the gallery screenshot), stored in the repo. When the Arcade
+app lands, the arcade bundle replaces it.</p>
+<p><strong>OPEN (owner):</strong> the games already build as a playable site (<code>build/browser/site</code>). The
+placeholder could link to them (each game at <code>play.glitchy.games/&lt;game&gt;/</code>), or the mockup could
+stand alone until the Arcade is ready.</p>
+<h2 id="costs">Costs<a class="headerlink" href="#costs" title="Permanent link">#</a></h2>
+<h3 id="launch-monthly-us-east-1">Launch (monthly, us-east-1)<a class="headerlink" href="#launch-monthly-us-east-1" title="Permanent link">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Route 53 hosted zones (2)</td>
+<td>$1.00</td>
+</tr>
+<tr>
+<td>Route 53 queries</td>
+<td>~$0</td>
+</tr>
+<tr>
+<td>S3 storage (~100 MB incl. versions) + requests</td>
+<td>~$0.05</td>
+</tr>
+<tr>
+<td>CloudFront (within Always Free 1 TB / 10M req)</td>
+<td>$0</td>
+</tr>
+<tr>
+<td>ACM certificates</td>
+<td>$0</td>
+</tr>
+<tr>
+<td>CloudFront Functions (2M free invocations / month)</td>
+<td>$0</td>
+</tr>
+<tr>
+<td>AWS Budgets (first 2 budgets free)</td>
+<td>$0</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>~$1.50–2.50</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Plus existing Namecheap renewals (unchanged). Pyodide-based pages are ~10–30 MB per first visit,
+so 1 TB covers roughly 35–100k first-time visitors / month before CloudFront charges (~$0.085/GB
+in NA/EU).</p>
+<h3 id="later-gpu-for-ai-work-not-built-now">Later: GPU for AI work (not built now)<a class="headerlink" href="#later-gpu-for-ai-work-not-built-now" title="Permanent link">#</a></h3>
+<p>Prices from third-party trackers (verify on AWS before buying):</p>
+<table>
+<thead>
+<tr>
+<th>Instance</th>
+<th>GPU</th>
+<th>On-demand</th>
+<th>24/7</th>
+<th>Start/stop on demand</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>g4dn.xlarge</td>
+<td>NVIDIA T4, 16 GB</td>
+<td>~$0.53/hr</td>
+<td>~$384/mo</td>
+<td>~$20–60/mo</td>
+</tr>
+<tr>
+<td>g6.xlarge</td>
+<td>NVIDIA L4, 24 GB</td>
+<td>~$0.80/hr</td>
+<td>~$588/mo</td>
+<td>~$30–90/mo</td>
+</tr>
+</tbody>
+</table>
+<p>Plus EBS storage (~$8/mo per 100 GB gp3) and ~$3.60/mo for a public IPv4 while running. Spot
+pricing is often 60–70% lower. New accounts usually have a GPU (G-family) vCPU quota of 0 — check
+and request an increase well before it's needed. "Dedicated Instances" (AWS's single-tenant
+option) cost extra and aren't needed; a normal on-demand instance is the owner's own machine.</p>
+<h2 id="manual-steps-for-the-owner">Manual steps for the owner<a class="headerlink" href="#manual-steps-for-the-owner" title="Permanent link">#</a></h2>
+<ol>
+<li>Run the first <code>nox -s infra-deploy</code> with admin AWS credentials.</li>
+<li>At Namecheap, set custom nameservers for <code>glitchy.games</code> and <code>glitchygames.ai</code> to the four
+   Route 53 nameservers each zone reports.</li>
+<li>Confirm the AWS Budgets email subscription.</li>
+</ol>
+<h2 id="todays-dns-checked-2026-10-27-with-dig">Today's DNS (checked 2026-10-27 with <code>dig</code>)<a class="headerlink" href="#todays-dns-checked-2026-10-27-with-dig" title="Permanent link">#</a></h2>
+<p>Both domains are identical: Namecheap BasicDNS (<code>dns1/dns2.registrar-servers.com</code>), a Namecheap
+parking page on <code>@</code> and <code>www</code>, <strong>Namecheap email forwarding</strong> (MX <code>eforward1-5.registrar-servers.com</code>
+and TXT <code>v=spf1 include:spf.efwd.registrar-servers.com ~all</code>), no <code>play</code> record, and <strong>no DS
+record (DNSSEC off)</strong>, so a nameserver move needs no DNSSEC step. Nothing but the parking page
+is served, so propagation time costs nothing.</p>
+<h2 id="risks">Risks<a class="headerlink" href="#risks" title="Permanent link">#</a></h2>
+<ul>
+<li><strong>DNS cutover and email forwarding:</strong> see "Today's DNS". Namecheap's email forwarding is
+  configured in Namecheap's panel and expects Namecheap DNS; whether it keeps working with the MX
+  and SPF records copied into Route 53 must be verified (or the owner confirms the forwarding is
+  unused).</li>
+<li><strong>.games / .ai nameserver changes</strong> can take up to 48 h to propagate; certificate validation
+  waits on it.</li>
+<li><strong>CI build time:</strong> already handled; <code>deploy-docs</code> caches the toolchain and wheel.</li>
+<li><strong>Third-party CDN:</strong> the site depends on <code>pyscript.net</code> (and Pyodide's CDN) being up. Self-
+  hosting them is a later option.</li>
+</ul>
+<h2 id="left-to-the-builder">Left to the builder<a class="headerlink" href="#left-to-the-builder" title="Permanent link">#</a></h2>
+<ul>
+<li>Exact stack/construct names, bucket names, cache TTLs, CloudFront Function code.</li>
+<li>Whether redirects share the site distribution or have their own.</li>
+<li>Placeholder page markup.</li>
+<li>Step in <code>deploy-docs</code> versus separate CircleCI job.</li>
+</ul>
+<h2 id="calls-claude-made-after-the-builder-check">Calls Claude made after the builder check<a class="headerlink" href="#calls-claude-made-after-the-builder-check" title="Permanent link">#</a></h2>
+<ul>
+<li><strong>Mockup image:</strong> the owner supplied it in conversation (not yet in the repo). It goes in
+  the repo at <code>site/placeholder/arcade-mockup.png</code> beside a minimal <code>index.html</code>; the owner
+  offered it as the placeholder, so publishing it is intended.</li>
+<li><strong>A failed AWS publish turns the CircleCI build red</strong> (so the owner hears about it), and runs
+  after the GitHub Pages push, so it can never undo the docs. A docs build failure also skips
+  the AWS publish; the site may fall behind until the next green merge, which is acceptable.</li>
+<li><strong>CDK bootstrap:</strong> the builder checks for an existing <code>CDKToolkit</code> stack, Route 53 zones, ACM
+  certificates and a CircleCI OIDC provider in the account before creating any (read-only
+  <code>aws</code> calls), and reuses what's there.</li>
+</ul>
+<h2 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">#</a></h2>
+<ul>
+<li>AWS free tier changes: <a href="https://tech-insider.org/what-changed-in-the-aws-free-tier-for-2026/">https://tech-insider.org/what-changed-in-the-aws-free-tier-for-2026/</a> ,
+  <a href="https://spot.rackspace.com/blog/aws-free-tier">https://spot.rackspace.com/blog/aws-free-tier</a></li>
+<li>GPU pricing: <a href="https://calculator.holori.com/aws/ec2/g4dn.xlarge/us-east-1">https://calculator.holori.com/aws/ec2/g4dn.xlarge/us-east-1</a> ,
+  <a href="https://calculator.holori.com/aws/ec2/g6.xlarge/us-east-1">https://calculator.holori.com/aws/ec2/g6.xlarge/us-east-1</a></li>
+<li>Lightsail pricing (considered, not chosen): <a href="https://cloudburn.io/blog/amazon-lightsail-pricing">https://cloudburn.io/blog/amazon-lightsail-pricing</a></li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../../galimore/" class="btn btn-neutral float-left" title="Galimore Survey"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../glitchygames/" class="btn btn-neutral float-right" title="glitchygames API Reference">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../../galimore/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../glitchygames/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

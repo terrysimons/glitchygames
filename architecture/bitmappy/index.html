@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -162,6 +166,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
@@ -208,14 +221,14 @@ lived in the engine (<code>glitchygames.bitmappy.editor:BitmapEditorScene</code>
 replay, which names the remedy; <code>--replay-trace OLD --rebaseline NEW --headless</code> converts it
 (<a href="../gameplay_replay/">gameplay replay</a>).</p>
 <ul>
-<li><strong>Its code</strong> is <code>src/apps/bitmappy/bitmappy/</code>. The engine never imports it, and Bitmappy uses
+<li><strong>Its code</strong> is <code>src/apps/bitmappy/src/bitmappy/</code>. The engine never imports it, and Bitmappy uses
   the engine's public API (sprite file-format detection, for one, is the engine's
   <code>src/glitchygames/sprites/file_format.py</code>).</li>
-<li><strong>Its sprite library</strong> is 71 sprites in <code>src/apps/bitmappy/bitmappy/resources/sprites/</code>,
+<li><strong>Its sprite library</strong> is 71 sprites in <code>src/apps/bitmappy/src/bitmappy/resources/sprites/</code>,
   shipped as package data and found through <code>bitmappy.SPRITE_CONFIG_DIR</code>. They are also the AI's
   training data (<code>load_ai_training_data()</code> below), so they stay in the package.</li>
 <li><strong>Its other resources</strong> (the window icon and <code>bitmappy.cfg</code>) are beside them, in
-  <code>src/apps/bitmappy/bitmappy/resources/</code>.</li>
+  <code>src/apps/bitmappy/src/bitmappy/resources/</code>.</li>
 <li><strong>Its tests</strong> are in <code>src/apps/bitmappy/tests/</code>, rootless, every file named
   <code>test_bitmappy_*.py</code>.</li>
 <li><strong>The Load and Save dialogs</strong> (the engine's <code>glitchygames.ui</code> dialog scenes) treat every file the
@@ -255,7 +268,7 @@ replay, which names the remedy; <code>--replay-trace OLD --rebaseline NEW --head
 <h2 id="bootstrap-main-loop">Bootstrap &amp; Main Loop<a class="headerlink" href="#bootstrap-main-loop" title="Permanent link">#</a></h2>
 <p>How Bitmappy starts up: entry point through <code>main()</code>, GameEngine initialization,
 scene setup, and the main loop (one frame per pass, ended by <code>_finish_frame</code>). The Bitmappy box
-is the editor's own code (<code>src/apps/bitmappy/bitmappy/</code>); the Engine box is what every game gets.</p>
+is the editor's own code (<code>src/apps/bitmappy/src/bitmappy/</code>); the Engine box is what every game gets.</p>
 <pre class="mermaid"><code>sequenceDiagram
     participant User
     box rgb(255,243,224) Bitmappy

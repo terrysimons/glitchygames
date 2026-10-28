@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -162,6 +166,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
@@ -206,28 +219,43 @@ order of the moves are in the plan, <code>plans/2026-10-24-workspace-packages.md
 <h2 id="the-layout">The layout<a class="headerlink" href="#the-layout" title="Permanent link">#</a></h2>
 <p>Four layers, all under <code>src/</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>src/
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  glitchygames/        the engine (distribution glitchygames); examples/ now holds only the
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                       three demos, which have not moved yet (Part 3)
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  games/&lt;game&gt;/        one member per game: every game (mr-muncher, clockwork-keep,
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                       brave-adventurer, paddleslap, drawing-fire)
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  demos/&lt;demo&gt;/        one member per demo
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  apps/&lt;app&gt;/          one member per application (Bitmappy)
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>tests/                 the engine's own tests
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>scripts/               tools
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  glitchygames/        the engine (distribution glitchygames); it has no examples package:
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                       every game and demo is a member, and its resources/ holds only what the
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                       engine itself ships
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  games/&lt;game&gt;/        one member per game: every game (mr-muncher, clockwork-keep,
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                       brave-adventurer, paddleslap, drawing-fire)
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  demos/&lt;demo&gt;/        one member per demo (dt-demo, joystick-demo, text-input-demo): a small
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                       program that shows one engine feature (console scripts `dt-demo`,
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                       `joystick-demo`, `text-input-demo`; no browser build)
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>  apps/&lt;app&gt;/          one member per application (Bitmappy)
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>tests/                 the engine's own tests
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>scripts/               tools
 </code></pre></div>
 <p>Nothing at the repository root is importable as one of our packages. Tests and tools run from
 the root import the installed engine and members (<code>uv sync</code> installs them editable, nox
 non-editable), and <code>tests/test_suite_collection.py</code> checks that <code>import glitchygames</code> resolves to
 the installed package. Coverage maps the installed copies back to <code>src/</code>
 (<code>[tool.coverage.paths]</code>), so its report names the files in the repository.</p>
+<h3 id="two-meanings-of-demo">Two meanings of "demo"<a class="headerlink" href="#two-meanings-of-demo" title="Permanent link">#</a></h3>
+<ul>
+<li>A <strong>demo</strong> (a demos-layer member): a program under <code>src/demos/&lt;demo&gt;/</code>, run with its console
+  script or <code>python -m &lt;package&gt;</code>. It is code.</li>
+<li>A game's <strong>bundled demo recording</strong>: <code>&lt;package&gt;/demos/&lt;name&gt;.jsonl.gz</code>, package data inside a
+  game (PaddleSlap's <code>rally.jsonl.gz</code>), replayed by that game's console script. It is data, and
+  <code>glitchygames.bundled_demos</code> finds it (see "Bundled demos" below).</li>
+</ul>
+<p>A <code>demos</code> directory inside a package is therefore never a demos-layer member, and a demos-layer
+member's recordings (it has none today) would still be that member's own package data.</p>
 <h2 id="what-a-member-is">What a member is<a class="headerlink" href="#what-a-member-is" title="Permanent link">#</a></h2>
 <p>A member is a directory under its layer, named after its distribution (with hyphens), holding:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>src/games/&lt;game&gt;/
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  pyproject.toml       its metadata (below)
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  README.md            one paragraph: what it is, how to play and test it
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  &lt;package&gt;/           its import package (underscores: a hyphen cannot be imported)
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>  tests/               its tests (no __init__.py), with its golden replay in
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>                       tests/fixtures/replays/golden.jsonl.gz
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  src/&lt;package&gt;/       its import package (underscores: a hyphen cannot be imported), never at
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>                       the member's root, so nothing in the member directory can be imported by
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>                       accident in place of the installed package
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  tests/               its tests (no __init__.py), with its golden replay in
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>                       tests/fixtures/replays/golden.jsonl.gz
 </code></pre></div>
 <p>Its <code>pyproject.toml</code> follows Mr. Muncher's (<code>src/games/mr-muncher/pyproject.toml</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">[project]</span>
@@ -245,7 +273,7 @@ the installed package. Coverage maps the installed copies back to <code>src/</co
 <a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="n">build-backend</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"hatchling.build"</span>
 <a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>
 <a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="k">[tool.hatch.build.targets.wheel]</span>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="n">packages</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"&lt;package&gt;"</span><span class="p">]</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="n">packages</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"src/&lt;package&gt;"</span><span class="p">]</span>
 <a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>
 <a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="k">[tool.uv.sources]</span>
 <a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="n">glitchygames</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">workspace</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}</span>
@@ -282,8 +310,8 @@ extra; <code>tests/test_workspace_config.py</code> keeps each extra equal to its
   (<code>games.mr_muncher.game:MrMuncherScene</code>). A recording therefore does not depend on where the
   code lives, and moving a game changes no recording. The layers are data in the engine,
   <code>src/glitchygames/logical_names.py</code>: <code>MEMBER_LAYERS</code> for members (kept equal to the workspace by
-  <code>tests/test_workspace_config.py</code>) and <code>EXAMPLES_LAYERS</code> for the demos still in
-  <code>src/glitchygames/examples/</code> (every game and Bitmappy have moved; Part 3 moves the demos).</li>
+  <code>tests/test_workspace_config.py</code>). Every game, demo and Bitmappy is a member; the engine has no
+  examples package.</li>
 <li><strong>Golden replays</strong> live with the member's tests; the golden plugin collects them from every
   member, so the engine's <code>uv run pytest</code> replays each one.</li>
 <li><strong>The browser build</strong> ships a member's package as its own archive (<code>&lt;package&gt;.zip</code>) beside the
@@ -295,26 +323,37 @@ extra; <code>tests/test_workspace_config.py</code> keeps each extra equal to its
   (<code>uv build --all-packages</code>).</li>
 </ul>
 <h2 id="moving-a-game-out-of-the-engine">Moving a game out of the engine<a class="headerlink" href="#moving-a-game-out-of-the-engine" title="Permanent link">#</a></h2>
+<p>Historical: every game and demo has moved out and <code>src/glitchygames/examples/</code> is gone (Part 3,
+2026-10-26). A new game or demo starts as a fresh member. These steps record how the moves were
+done.</p>
 <p>The recipe Mr. Muncher's move followed (<code>plans/2026-10-24-workspace-packages-1-foundation.md</code>,
 Task 9). Do one game per commit series, and verify each before the next. Every step names the
 check that fails if it is skipped: <code>tests/test_workspace_config.py</code> catches a member left out of
 any tool's configuration.</p>
 <h3 id="1-move-the-code-and-tests">1. Move the code and tests<a class="headerlink" href="#1-move-the-code-and-tests" title="Permanent link">#</a></h3>
 <ul>
-<li><code>git mv src/glitchygames/examples/&lt;package&gt; src/games/&lt;game&gt;/&lt;package&gt;</code>, then delete what is
+<li><code>git mv src/glitchygames/examples/&lt;package&gt; src/games/&lt;game&gt;/src/&lt;package&gt;</code>, then delete what is
   left of the old directory: its git-ignored <code>__pycache__</code> would otherwise keep an importable
   namespace package there. <code>git mv</code> of a directory carries its untracked <code>__pycache__</code> along
   too: delete it in the member as well (its <code>.pyc</code> files name the old module).</li>
 <li>Move its tests to <code>src/games/&lt;game&gt;/tests/</code> with no <code>__init__.py</code> (a tests directory must not be
-  a package named <code>tests</code>: <code>tests/test_suite_collection.py</code>). A member's tests directory is
-  rootless, so pytest imports each test file under its bare file name: name every test file
-  after the package, <code>test_&lt;package&gt;_&lt;area&gt;.py</code> (Drawing Fire's <code>test_drawing_fire_battle.py</code>, not
-  <code>test_battle.py</code>), so no two test directories share a name.
-  <code>tests/test_suite_collection.py::test_test_file_names_are_unique_across_packages</code> fails on a
-  name used twice, naming both files; a shared helper module name can collide too (BUGS.md #31).</li>
+  a package named <code>tests</code>: <code>tests/test_suite_collection.py</code>). pytest imports every test module
+  under its path from the repository root, never its bare file name
+  (<code>src.games.mr-muncher.tests.test_mr_muncher_maze_and_actors</code>, the same under
+  <code>uv run pytest</code> and nox: <code>--import-mode=importlib</code> without namespace packages, the root on the
+  path, in the root <code>pyproject.toml</code>), so two members may have test files or helpers of the same
+  name (BUGS.md #224 item 31). To patch a test module's own names, use <code>__name__</code>
+  (<code>mocker.patch(f'{__name__}.LOG')</code>). Name test files after the package by convention,
+  <code>test_&lt;package&gt;_&lt;area&gt;.py</code> (Drawing Fire's <code>test_drawing_fire_battle.py</code>). A helper module
+  beside the tests is imported by that same path (<code>from src.apps.bitmappy.tests.film_strip_support
+  import ...</code>), never by its bare name:
+  <code>tests/test_suite_collection.py::test_no_member_test_imports_a_module_by_a_bare_name</code> fails on
+  one. A member directory whose name holds a dash cannot be named in an <code>import</code> statement: give
+  such a member's shared helpers to its tests as <code>conftest.py</code> fixtures (the simplest), or load
+  one with <code>importlib.import_module('src.games.mr-muncher.tests.maze_support')</code>.</li>
 <li>A member may have a <code>tests/conftest.py</code> (Drawing Fire's drains the event queue). It is imported
-  under the bare name <code>conftest</code>, replacing the root conftest in <code>sys.modules</code>, so nothing may
-  <code>import conftest</code> by name: look a conftest up as pytest registered it, by its path
+  by its path too, so nothing may <code>import conftest</code> by name: look a conftest up as pytest
+  registered it, by its path
   (<code>pytestconfig.pluginmanager.get_plugin(str(pytestconfig.rootpath / 'conftest.py'))</code>).</li>
 <li>Move its golden replay to <code>src/games/&lt;game&gt;/tests/fixtures/replays/golden.jsonl.gz</code>, its bytes
   unchanged. Data its tests read beside them (golden sounds, for instance) moves with them.
@@ -328,12 +367,28 @@ any tool's configuration.</p>
 <ul>
 <li><code>src/games/&lt;game&gt;/pyproject.toml</code> (above) and <code>README.md</code>. The package's <code>__init__.py</code>
   re-exports <code>main</code>.</li>
-<li>A <code>tests/test_&lt;package&gt;_after_the_move.py</code> (Mr. Muncher's is <code>test_logical_names_after_the_move.py</code>,
-  the first; every later member names its own, since <code>tests/test_suite_collection.py</code> refuses a
-  test file name used twice): the game's classes keep the logical names its recordings hold, its
-  golden's old path maps to its new one in <code>RECORDING_PATH_RENAMES</code> (its history follows it), and
-  <code>importlib.util.find_spec('glitchygames.examples.&lt;package&gt;')</code> is None.</li>
+<li>The move's tests, one file per subject, each named <code>test_&lt;distribution with - as _&gt;_&lt;subject&gt;.py</code>
+  (<code>tests/test_suite_collection.py</code> refuses a test file named for anything else, or a name used
+  twice). A member has only the subjects it has tests for:</li>
+<li><code>_logical_names.py</code>: the game's classes keep the logical names its recordings hold (every
+    member has this one);</li>
+<li><code>_install_location.py</code>: the package imports from <code>&lt;member&gt;/src/</code> (or <code>site-packages</code> in a
+    wheel install), and (for a member that was once an example)
+    <code>importlib.util.find_spec('glitchygames.examples')</code> is None, so a leftover ignored directory
+    fails a test. A brand-new member, never an example, has no "old example module is gone"
+    test;</li>
+<li><code>_wheel.py</code>: the member's wheel holds only its package, plus its data (sprites, demos,
+    resources);</li>
+<li><code>_package_data.py</code>: the member's shipped data (a sprite library, a bundled demo) is inside the
+    package, checked without building a wheel (<code>_wheel.py</code> is for the tests that build one);</li>
+<li><code>_entry_points.py</code>: the console script and <code>python -m &lt;package&gt;</code> resolve to <code>main</code>;</li>
+<li><code>_recording_history.py</code>: the golden's old path maps to its new one in the root
+    <code>pyproject.toml</code>'s <code>[tool.glitchygames]</code> <code>recording-renames</code> (its history follows it), and so
+    does every other moved recording.</li>
 </ul>
+<p>That is six subjects: logical_names, install_location, wheel, package_data, entry_points,
+  recording_history. A move test outside them goes beside the member's other tests, named for its
+  subject (Brave Adventurer's <code>tests/core/test_brave_adventurer_shared_core.py</code>, for example).</p>
 <h3 id="3-register-it-in-the-root-configuration">3. Register it in the root configuration<a class="headerlink" href="#3-register-it-in-the-root-configuration" title="Permanent link">#</a></h3>
 <table>
 <thead>
@@ -349,7 +404,7 @@ any tool's configuration.</p>
 </tr>
 <tr>
 <td><code>pyrightconfig.json</code></td>
-<td>Add it to <code>include</code>, a tests environment (before the member's own) and the member's environment, each with the <code>extraPaths</code> Mr. Muncher's have. Those assume a flat layout (the package beside <code>pyproject.toml</code>); a src-layout member uses its <code>src/</code> instead (<code>WorkspaceMember.import_roots</code> in <code>scripts/workspace_packages.py</code>), as Brave Adventurer does</td>
+<td>Add it to <code>include</code>, a tests environment (before the member's own) and the member's environment, each with the <code>extraPaths</code> Mr. Muncher's have. Every member is a src layout, so the environments name the member's <code>src/</code> (<code>WorkspaceMember.import_roots</code> in <code>scripts/workspace_packages.py</code>), as Brave Adventurer's do: that is the one form. <code>tests/test_workspace_config.py::test_every_member_keeps_its_packages_under_src</code> enforces the layout, and no configuration entry may name a member path the workspace does not derive</td>
 </tr>
 <tr>
 <td><code>noxfile.py</code></td>
@@ -371,28 +426,66 @@ any tool's configuration.</p>
 </table>
 <h3 id="4-update-the-engines-tables">4. Update the engine's tables<a class="headerlink" href="#4-update-the-engines-tables" title="Permanent link">#</a></h3>
 <ul>
-<li><code>src/glitchygames/logical_names.py</code>: move its package from <code>EXAMPLES_LAYERS</code> to <code>MEMBER_LAYERS</code>.
+<li><code>src/glitchygames/logical_names.py</code>: add its package to <code>MEMBER_LAYERS</code>.
   Its recordings need nothing else (their logical names do not change); <code>tests/test_logical_names.py</code>
   pins both tables.</li>
-<li><code>src/glitchygames/recording_metrics.py</code> <code>RECORDING_PATH_RENAMES</code>: one line per moved recording, old
-  path to new, so its run-ledger history stays connected. Each lookup is one step: a recording
-  that has already moved once needs a line from each of its old paths.</li>
+<li>The root <code>pyproject.toml</code>'s <code>[tool.glitchygames.recording-renames]</code>: one line per moved
+  recording, old path to new, so its run-ledger history stays connected. Each lookup is one
+  step: a recording that has already moved once needs a line from each of its old paths.</li>
 </ul>
 <h3 id="5-update-the-scripts-and-tests-that-name-it">5. Update the scripts and tests that name it<a class="headerlink" href="#5-update-the-scripts-and-tests-that-name-it" title="Permanent link">#</a></h3>
 <ul>
-<li><code>scripts/record_golden_traces.py</code>: its imports, <code>GAME_SCENES</code>, and <code>GAME_MODULES</code> (whose value
-  is the bare package name). <code>scripts/record_scripted_session.py</code> derives its fixture
-  directories from <code>GAME_MODULES</code> and the workspace (<code>REPLAY_FIXTURE_DIRECTORIES</code>), and refuses
-  a game no member holds: only its docstring examples need editing.</li>
+<li>The recording tools are the engine's, and the game has them without declaring anything
+  (<code>--record-golden-trace</code>, <code>--record-session</code>, <code>--verify</code>, <code>--measure</code>, ..., or
+  <code>glitchygames &lt;tool&gt;</code>: <a href="../gameplay_replay/#tools-for-any-game">Tools for any game</a>). What this
+  repository adds is test data and its own tables:</li>
+<li><code>scripts/golden_inputs.py</code>: the game's golden input script (<code>&lt;package&gt;_script</code>) and controls
+    tail (<code>&lt;package&gt;_controls</code>), each a callable taking no arguments that returns an
+    <code>InputScript</code>, importing what it reads of its game inside the function. Any tool reaches
+    them as <code>MODULE:NAME</code> from the repository root
+    (<code>--input-script scripts.golden_inputs:&lt;package&gt;_script</code>,
+    <code>--controls-tail scripts.golden_inputs:&lt;package&gt;_controls</code>).</li>
+<li><code>scripts/record_golden_traces.py</code>: add a <code>'&lt;module&gt;:&lt;class&gt;'</code> reference to <code>GAME_SCENES</code>
+    (never a module-level import of a member: the subprocess import test fails on one),
+    <code>GAME_MODULES</code> (whose value is the bare package name) and its input script's builder to
+    <code>SCRIPT_BUILDERS</code>. It records on the engine's golden-trace harness
+    (<code>glitchygames.replay.tools.golden_traces</code>).</li>
+<li><code>scripts/record_scripted_session.py</code> records the golden replay on the engine's
+    scripted-session recorder (<code>glitchygames.replay.tools.scripted_sessions</code>, the
+    <code>record-session</code> tool). Add the game's controls tail to <code>CONTROLS_TAIL_BUILDERS</code>, and the
+    game to <code>INPUT_ONLY_PLACEMENT_GAMES</code> or <code>POLLED_INPUT_GAMES</code> when its script needs it. It
+    derives its fixture directories from <code>GAME_MODULES</code> and the workspace
+    (<code>REPLAY_FIXTURE_DIRECTORIES</code>), and refuses a game no member holds; edit its docstring's
+    commands too.</li>
+<li>The root <code>pyproject.toml</code>'s <code>[tool.glitchygames] games</code>: add the member's console script, so
+    <code>glitchygames verify</code> and <code>glitchygames measure</code> with no <code>--game</code> take its recordings.</li>
 <li><code>tests/replay/test_golden_replays.py</code>: its imports, <code>GAMEPLAY_ACTION_MAPS</code>,
   <code>ENGINE_SCENE_CONTROLS</code>, <code>UNEXERCISED_CONTROLS</code> and any table naming the game.</li>
-<li>The engine tests that borrow a game, by import or by path. Clockwork Keep's move touched
-  <code>tests/animation/test_animation.py</code>, <code>tests/world/test_golden_traces.py</code> (its trace stays; only
-  imports change), <code>tests/world/test_transition_input.py</code>, <code>tests/test_browser_touch_controls.py</code>
-  and <code>scripts/audio_glitch_probe.py</code>. Add the moved game to
-  <code>tests/replay/test_record_scripted_session.py::test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures</code>.
-  <code>tests/engine/test_engine_lifecycle.py</code> <code>GAME_CONSOLE_SCRIPTS</code> lists every game's console script
-  (unchanged by a move, which keeps the script's name).</li>
+<li>Engine tests no longer borrow a game, by import or by path: <code>tests/test_suite_collection.py</code>
+  (<code>engine_test_imports_of_members</code>) fails on any root test that imports a member. Each kind of
+  test lives in one place:</li>
+<li><strong>The game's own tests</strong> are in the member (<code>src/games/&lt;game&gt;/tests/</code>): its rules, sprites,
+    touch controls, replays and the move's tests above. A test that only the game's code can
+    answer goes there, not in <code>tests/</code>.</li>
+<li><strong>Engine tests use stand-ins</strong>: <code>tests/stand_in_harness_games.py</code> (games for the replay and
+    harness tests) and <code>tests/stand_in_games.py</code> (games and distributions for the discovery,
+    replay-plugin and playback tests). A test that needs a game, a root-layout example or several
+    console scripts writes or imports a stand-in; it never imports a member.</li>
+<li><strong>Cross-member tests discover through the workspace</strong> (<code>scripts/workspace_packages.py</code>) and
+    assert hand-written expectations in <code>tests/workspace_expectations.py</code>
+    (<code>EXPECTED_GOLDENS</code>, <code>EXPECTED_GAME_CONSOLE_SCRIPTS</code>, <code>EXPECTED_ALL_CONSOLE_SCRIPTS</code>,
+    <code>EXPECTED_BUNDLED_DEMOS</code>). They are
+    written out on purpose, because an expectation derived from the thing it checks checks
+    nothing. <strong>Edit them when a game, golden, bundled demo or console script is added or
+    removed.</strong> Also add the game to the control tables in
+    <code>tests/replay/golden_replay_controls.py</code>, and to
+    <code>tests/replay/test_record_scripted_session.py::test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures</code>.</li>
+<li><strong>The exemptions</strong> (<code>MEMBER_IMPORT_EXEMPT_MODULES</code> and <code>MEMBER_IMPORT_EXEMPT_NAMES</code> in
+    <code>tests/test_suite_collection.py</code>, each with its reason; a stale one fails): the module
+    <code>tests/replay/golden_replay_controls.py</code>, whose per-game control tables are cross-member
+    infrastructure moved there unchanged, and the eleven named imports in
+    <code>tests/world/test_golden_traces.py</code>, whose per-game world rules measure the games' own
+    drawings and players. Nothing else in <code>tests/</code> may import a member.</li>
 <li>Every game is a member now (Drawing Fire, the last in the engine's examples, moved), so no
   game is a root-layout example any more. The root's <code>fixtures/replays/&lt;console-script&gt;/</code> layout
   stays only as the replay plugin's layout for other projects; the tests of it
@@ -412,8 +505,9 @@ any tool's configuration.</p>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span>--<span class="w"> </span><span class="s1">':!plans'</span><span class="w"> </span><span class="s1">':!quality'</span><span class="w"> </span><span class="s1">':!BUGS.md'</span>
 </code></pre></div>
 <p>(grep's <code>.</code> matches any character, so the dotted pattern finds the slashed path too) prints
-  only the <code>RECORDING_PATH_RENAMES</code> line (the old path is its point) and the member's
-  after-the-move test (its history check on that line, its old-package check and docstring).
+  only the <code>recording-renames</code> line (the old path is its point) and the member's move tests
+  (the history check on that line in <code>_recording_history.py</code>, the old-package check and docstring
+  in <code>_install_location.py</code>).
   <code>plans/</code>, <code>quality/</code> (ledger rows) and <code>BUGS.md</code> are history and keep the old paths.</p>
 <h3 id="6-the-browser-build">6. The browser build<a class="headerlink" href="#6-the-browser-build" title="Permanent link">#</a></h3>
 <p>In <code>scripts/build_browser_bundle.py</code>, its <code>GAMES</code> entry's <code>module</code> becomes <code>&lt;package&gt;.game</code> and
@@ -422,7 +516,7 @@ unchanged. <code>tests/test_build_browser_bundle.py</code> pins which games ship
 on another member lists both, the one depended on first: each ships as its own archive.</p>
 <h3 id="7-the-docs">7. The docs<a class="headerlink" href="#7-the-docs" title="Permanent link">#</a></h3>
 <ul>
-<li><code>docs/games/&lt;game&gt;.md</code>: its file table and every path (<code>src/games/&lt;game&gt;/&lt;package&gt;/...</code>), and an
+<li><code>docs/games/&lt;game&gt;.md</code>: its file table and every path (<code>src/games/&lt;game&gt;/src/&lt;package&gt;/...</code>), and an
   "Its package" line linking here.</li>
 <li><code>docs/glitchygames/examples/index.md</code>: remove its <code>:::</code> block, if it has one (its API page is now
   generated from the member).</li>
@@ -444,13 +538,15 @@ on another member lists both, the one depended on first: each ships as its own a
 <a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">    </span>tests/test_workspace_config.py<span class="w"> </span>tests/test_workspace_packages.py<span class="w"> </span>tests/test_logical_names.py<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">    </span>tests/test_browser_touch_controls.py<span class="w"> </span>tests/test_build_browser_bundle.py<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">    </span>tests/engine/test_engine_lifecycle.py<span class="w"> </span>tests/test_recording_metrics.py<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="w">    </span>tests/test_replay_metrics.py<span class="w"> </span>tests/test_measure_staged_replays.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="w">    </span>tests/test_our_measured_recordings.py<span class="w"> </span>tests/test_measure_staged_replays.py<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="w">    </span>tests/test_generate_performance_graphs.py<span class="w"> </span>tests/replay<span class="w"> </span>tests/world<span class="w"> </span>&lt;borrowing<span class="w"> </span>tests&gt;
 <a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w">                               </span><span class="c1"># the whole suite, both drivers, 100% coverage</span>
-<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>uv<span class="w"> </span>build<span class="w"> </span>--package<span class="w"> </span>&lt;distribution&gt;<span class="w">           </span><span class="c1"># the member builds on its own</span>
-<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scripts.build_browser_bundle<span class="w"> </span>&lt;console-script&gt;<span class="w"> </span>--output<span class="w"> </span>&lt;scratch<span class="w"> </span>directory&gt;
-<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>uv<span class="w"> </span>run<span class="w"> </span>nox<span class="w"> </span>-s<span class="w"> </span>browser<span class="w"> </span>--<span class="w"> </span>&lt;console-script&gt;<span class="w">   </span><span class="c1"># its browser bundle, served and opened</span>
-<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>uv<span class="w"> </span>run<span class="w"> </span>nox<span class="w"> </span>-s<span class="w"> </span>lint-docs<span class="w">                     </span><span class="c1"># the docs build strictly</span>
+<a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>uv<span class="w"> </span>run<span class="w"> </span>&lt;console-script&gt;<span class="w"> </span>--verify<span class="w">            </span><span class="c1"># its golden replay and bundled demos, replayed headless</span>
+<a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>unmeasured<span class="w"> </span>--game<span class="w"> </span>&lt;console-script&gt;<span class="w">   </span><span class="c1"># what --measure would measure of it</span>
+<a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>uv<span class="w"> </span>build<span class="w"> </span>--package<span class="w"> </span>&lt;distribution&gt;<span class="w">           </span><span class="c1"># the member builds on its own</span>
+<a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scripts.build_browser_bundle<span class="w"> </span>&lt;console-script&gt;<span class="w"> </span>--output<span class="w"> </span>&lt;scratch<span class="w"> </span>directory&gt;
+<a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>uv<span class="w"> </span>run<span class="w"> </span>nox<span class="w"> </span>-s<span class="w"> </span>browser<span class="w"> </span>--<span class="w"> </span>&lt;console-script&gt;<span class="w">   </span><span class="c1"># its browser bundle, served and opened</span>
+<a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>uv<span class="w"> </span>run<span class="w"> </span>nox<span class="w"> </span>-s<span class="w"> </span>lint-docs<span class="w">                     </span><span class="c1"># the docs build strictly</span>
 </code></pre></div>
 <p>The bundle built without serving must list <code>&lt;package&gt;.zip</code> in its <code>pyscript.toml</code>, and the
 member's wheel hold only its package. Before the whole suite, a coverage run of the member's
@@ -458,10 +554,11 @@ tests and its borrowing tests (<code>--cov=&lt;package&gt; --cov-fail-under=0</c
 100% from where it now is.</p>
 <p>The golden replay is not re-recorded: its bytes are unchanged, and it replays strictly from its
 new place. Its first frame records the scene's module, so its content hash changes:
-<code>scripts/recording_report.py</code> shows that this is the only difference.</p>
+<code>glitchygames report</code> shows that this is the only difference.</p>
 <h3 id="9-commit">9. Commit<a class="headerlink" href="#9-commit" title="Permanent link">#</a></h3>
-<p>The <code>replay-metrics</code> pre-commit hook measures every recording on the new code and stages the
-rows (about 12 s). It refuses a commit with untracked files under <code>src/</code> or a partial commit, so
+<p>The <code>replay-metrics</code> pre-commit hook (<code>scripts/measure_staged_replays.py</code>, which runs
+<code>glitchygames unmeasured</code>, then <code>glitchygames measure --code-tree TREE --rows-directory DIR</code>)
+measures every recording on the new code and stages the rows (about 12 s). It refuses a commit with untracked files under <code>src/</code> or a partial commit, so
 stage the whole move (<code>git add -A src tests scripts docs</code>) before committing.</p>
 <h2 id="special-cases">Special cases<a class="headerlink" href="#special-cases" title="Permanent link">#</a></h2>
 <ul>
@@ -486,7 +583,7 @@ stage the whole move (<code>git add -A src tests scripts docs</code>) before com
   plugin's one console script per member replays every game's golden; the goldens are named
   apart (<code>golden-&lt;game&gt;.jsonl.gz</code>). A member that keeps several console scripts instead has each
   recording replayed through the one whose entry point's module holds the game its header names
-  (<code>src/glitchygames/testing/replays.py</code>, <code>recorded_games_console_script</code>).
+  (<code>src/glitchygames/replay/tools/children.py</code>, <code>recorded_games_console_script</code>).
   <code>scripts/record_scripted_session.py</code> names each such game's golden (<code>GOLDEN_FIXTURE_NAMES</code>)
   and keys its console scripts by game (<code>GAME_CONSOLE_SCRIPTS</code>), as
   tests/replay/test_golden_replays.py keys each golden's controls: one script can replay
@@ -495,24 +592,26 @@ stage the whole move (<code>git add -A src tests scripts docs</code>) before com
   nothing may be created in a different order. Its browser bundle lists every archive a game
   needs, the shared ones first.</li>
 <li><strong>A game that is one module</strong> (PaddleSlap's <code>paddleslap.py</code>): its recordings name
-  <code>games.paddleslap:Game</code>, so <code>Game</code> must stay defined in the package itself (<code>paddleslap/__init__.py</code>),
+  <code>games.paddleslap:Game</code>, so <code>Game</code> must stay defined in the package itself (<code>src/paddleslap/__init__.py</code>),
   not in a <code>paddleslap/game.py</code> it re-exports: a re-export does not change <code>Game.__module__</code>, and
   the logical name would become <code>games.paddleslap.game:Game</code>. Ruff's <code>non-empty-init-module</code>
   (RUF067) is ignored for that file in <code>pyproject.toml</code>. A package's <code>__init__</code> never runs as
-  <code>__main__</code>, so the module's <code>if __name__ == '__main__'</code> moves to <code>&lt;package&gt;/__main__.py</code>
-  (<code>python -m paddleslap</code>, as <code>python -m glitchygames.examples.paddleslap</code> was).</li>
+  <code>__main__</code>, so the module's <code>if __name__ == '__main__'</code> moves to <code>src/&lt;package&gt;/__main__.py</code>
+  (<code>python -m paddleslap</code>, as it was when the game lived in the engine's examples package).</li>
 <li><strong>Bundled demos</strong> ship inside the package as package data, <code>&lt;package&gt;/demos/&lt;name&gt;.jsonl.gz</code>
   (PaddleSlap's <code>paddleslap/demos/rally.jsonl.gz</code>, read through <code>Path(__file__).parent</code>). The
   engine finds them in the installed packages: <code>glitchygames.bundled_demos.bundled_demos()</code>
-  (<code>find_spec</code> over <code>MEMBER_LAYERS</code>; bookmarked copies left out) returns <code>BundledDemo</code> records
+  (<code>find_spec</code> over the packages its caller names, with no default; bookmarked copies left out)
+  returns <code>BundledDemo</code> records
   (console script, installed path, install name). It is the one lookup: the replay plugin's
   <code>bundled_demo_paths</code> (which raises for a demo no console script replays) and
-  <code>scripts/replay_metrics.py</code> (which reports it unreplayable) both call it. Development installs
+  <code>glitchygames.replay.tools.recordings.game_recordings</code> (a game's own demos, which <code>--verify</code>
+  and <code>--measure</code> take) both call it. Development installs
   are editable (<code>uv sync</code>, and the <code>replay-metrics</code> nox session's <code>uv run --all-packages</code>), so
   the demos are found in the repository and the ledger names them by repository path; under a
   built install (<code>site-packages</code>, as nox's test sessions install on purpose) a recording outside
-  the repository is named by its install name (<code>scripts/replay_metrics.py</code>
-  <code>recording_ledger_name</code>). A demo moved twice needs a <code>RECORDING_PATH_RENAMES</code> line from each
+  the repository is named by its install name
+  (<code>glitchygames.replay.tools.measure.recording_ledger_name</code>). A demo moved twice needs a <code>recording-renames</code> line from each
   old path.</li>
 <li><strong>Engine-private names</strong>: a member uses only the engine's public API. Where a game reaches
   into the engine, give the engine a public read-only API first, then move the game. PaddleSlap
@@ -534,6 +633,11 @@ stage the whole move (<code>git add -A src tests scripts docs</code>) before com
   root. Delete leftovers after moving. The same trap applies to Bitmappy's old directory:
   a leftover <code>src/glitchygames/bitmappy/</code> (ignored <code>__pycache__</code>) resolves as a namespace
   package and fails <code>test_the_old_engine_package_is_gone</code>; <code>rm -rf src/glitchygames/bitmappy</code>.</li>
+<li>The same applies to <code>src/glitchygames/examples</code> and <code>tests/examples</code>: ignored leftovers of the
+  move (<code>__pycache__</code>) make <code>glitchygames.examples</code> resolve as a namespace package in an
+  editable install, and <code>test_the_old_example_module_is_gone</code> (in each moved member) and
+  <code>test_the_engines_examples_directory_is_gone</code> fail. Their messages name the leftover
+  locations; the remedy is <code>rm -rf src/glitchygames/examples tests/examples</code>.</li>
 <li>A member's console script resolves through its installed distribution: the golden plugin
   cannot find it unless <code>--all-packages</code> installed the member.</li>
 </ul>

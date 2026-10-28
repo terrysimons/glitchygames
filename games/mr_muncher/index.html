@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -162,6 +166,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
@@ -205,7 +218,7 @@ hunt you. A <strong>snack</strong> (a wrapped candy) gives you a sugar rush: for
 turn dull blue and run away, and you can eat them. Each life is a <strong>take</strong>, a cleared maze is a
 <strong>CUT!</strong>, and the last life ends with <strong>THE END</strong>.</p>
 <p>This page explains how the game is built, for a developer who wants to understand it or write a
-game like it. Everything here comes from <code>src/games/mr-muncher/mr_muncher/</code>. The module
+game like it. Everything here comes from <code>src/games/mr-muncher/src/mr_muncher/</code>. The module
 docstrings there are the detailed reference.</p>
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w">                      </span><span class="c1"># the console script (pyproject.toml [project.scripts])</span>
@@ -338,39 +351,39 @@ package is laid out, installed, tested and built, and how a game is moved into o
 </thead>
 <tbody>
 <tr>
-<td><code>src/games/mr-muncher/mr_muncher/__init__.py</code></td>
+<td><code>src/games/mr-muncher/src/mr_muncher/__init__.py</code></td>
 <td>Re-exports <code>main</code> (the <code>mr-muncher</code> console script's entry point)</td>
 </tr>
 <tr>
-<td><code>src/games/mr-muncher/mr_muncher/maze.py</code></td>
+<td><code>src/games/mr-muncher/src/mr_muncher/maze.py</code></td>
 <td><code>MAZE_LAYOUT</code> (the maze as text), tile characters, <code>Direction</code>, <code>DIRECTION_PREFERENCE</code>, <code>Maze</code> (a frozen pydantic model: tile questions, wrapping, distances)</td>
 </tr>
 <tr>
-<td><code>src/games/mr-muncher/mr_muncher/levels.py</code></td>
+<td><code>src/games/mr-muncher/src/mr_muncher/levels.py</code></td>
 <td><code>LevelSettings</code> and <code>settings_for_level</code> (the difficulty ramp), the scatter/chase schedule helpers, the frightened flash</td>
 </tr>
 <tr>
-<td><code>src/games/mr-muncher/mr_muncher/actors.py</code></td>
+<td><code>src/games/mr-muncher/src/mr_muncher/actors.py</code></td>
 <td><code>MazeGeometry</code> (tiles to pixels), <code>MazeActor</code> (tile-to-tile movement), <code>Player</code>, <code>Muncher</code>, <code>MuncherProfile</code>, <code>Personality</code>, <code>MuncherState</code>, <code>ChaseSituation</code>, <code>chase_target</code></td>
 </tr>
 <tr>
-<td><code>src/games/mr-muncher/mr_muncher/game.py</code></td>
+<td><code>src/games/mr-muncher/src/mr_muncher/game.py</code></td>
 <td><code>MrMuncherScene</code> (one reel: phases, scoring, input, saves, sound, drawing), <code>Phase</code>, <code>GameProgress</code>, <code>MrMuncherGameOverScene</code>, <code>main</code></td>
 </tr>
 <tr>
-<td><code>src/games/mr-muncher/mr_muncher/drawing.py</code></td>
+<td><code>src/games/mr-muncher/src/mr_muncher/drawing.py</code></td>
 <td>Every picture, drawn with pygame primitives and cached with <code>functools.cache</code>: maze, bucket, munchers, eyes, sprockets, snacks, bonus reel, film-strip panels</td>
 </tr>
 <tr>
-<td><code>src/games/mr-muncher/mr_muncher/scenery.py</code></td>
+<td><code>src/games/mr-muncher/src/mr_muncher/scenery.py</code></td>
 <td>The sprites that never move (<code>Sprocket</code>, <code>Picture</code>, <code>SidePanel</code>) and the text helpers (<code>bundled_font</code>, <code>fitted_font</code>, <code>render_text</code>)</td>
 </tr>
 <tr>
-<td><code>src/games/mr-muncher/mr_muncher/sounds.py</code></td>
+<td><code>src/games/mr-muncher/src/mr_muncher/sounds.py</code></td>
 <td>The sound effects and jingles as synth <code>SoundRecipe</code>s</td>
 </tr>
 <tr>
-<td><code>src/games/mr-muncher/mr_muncher/autopilot.py</code></td>
+<td><code>src/games/mr-muncher/src/mr_muncher/autopilot.py</code></td>
 <td><code>Autopilot</code>, a bot that plays the game. The golden replay's script and the tests use it</td>
 </tr>
 <tr>
@@ -386,12 +399,12 @@ package is laid out, installed, tested and built, and how a game is moved into o
 <td>The golden replay (2,072 frames)</td>
 </tr>
 <tr>
-<td><code>scripts/record_golden_traces.py</code></td>
+<td><code>scripts/golden_inputs.py</code></td>
 <td><code>mr_muncher_script</code> and <code>MuncherSteering</code> (the autopilot pressing arrow keys)</td>
 </tr>
 <tr>
-<td><code>scripts/record_scripted_session.py</code></td>
-<td><code>mr_muncher_controls</code> (the golden replay's controls tail) and the command that records the fixture</td>
+<td><code>scripts/record_scripted_session.py</code>, <code>scripts/golden_inputs.py</code></td>
+<td>The command that records the fixture (on the engine's scripted-session recorder, <code>src/glitchygames/replay/tools/scripted_sessions.py</code>); <code>mr_muncher_controls</code> (the golden replay's controls tail)</td>
 </tr>
 </tbody>
 </table>
@@ -437,7 +450,7 @@ holds the game's own scenes (<code>MrMuncherGameOverScene</code> extends the eng
   while the phase is still <code>READY</code>.</li>
 </ul>
 <h3 id="scene-classes">Scene classes<a class="headerlink" href="#scene-classes" title="Permanent link">#</a></h3>
-<p>Mr. Muncher's scenes are two classes in <code>src/games/mr-muncher/mr_muncher/game.py</code>:
+<p>Mr. Muncher's scenes are two classes in <code>src/games/mr-muncher/src/mr_muncher/game.py</code>:
 <code>MrMuncherScene</code> and <code>MrMuncherGameOverScene</code>. <code>Scene</code> and the built-in <code>PauseScene</code> and
 <code>GameOverScene</code> come from the engine (<code>glitchygames.scenes</code>). In the diagram, the Engine box is
 what every game gets; the Mr. Muncher box is what this game adds. Solid arrows are inheritance,
@@ -1185,7 +1198,7 @@ live voice or no audio is available, the game logs a warning and plays without i
 the screen, and never changes it. <code>Autopilot.choose_direction(scene=...)</code> returns the direction
 to ask for in each frame. It has two uses:</p>
 <ul>
-<li><strong>Steering the golden replay.</strong> <code>scripts/record_golden_traces.py: mr_muncher_script</code> wraps it
+<li><strong>Steering the golden replay.</strong> <code>scripts/golden_inputs.py: mr_muncher_script</code> wraps it
   in <code>MuncherSteering</code>, which holds the arrow key for the direction the autopilot wants
   (pressing it again if the player still wants another way after 4 frames). With
   <code>seek_capture_after_seconds=22.0</code> it walks into a muncher once, so the recording includes a

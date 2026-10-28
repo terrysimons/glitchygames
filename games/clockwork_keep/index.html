@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -162,6 +166,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
                   </li>
               </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
@@ -205,7 +218,7 @@ The last floor has no elevator: standing on its top platform, under the victory 
 game.</p>
 <p>Everything is drawn from pygame primitives (no image files), every sound is synthesized, and the
 game is small enough to read in one sitting (about 2,700 lines in
-<code>src/games/clockwork-keep/clockwork_keep/</code>). It is also one of the engine's reference games: its
+<code>src/games/clockwork-keep/src/clockwork_keep/</code>). It is also one of the engine's reference games: its
 golden trace and golden replay pin world space, transitions, pausing and replay, so the page
 below shows both how the game works and which engine features it leans on.</p>
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
@@ -434,7 +447,7 @@ engine's trace tests (<code>tests/world/golden/clockwork_keep.jsonl.gz</code>), 
 <code>clockwork_keep.zip</code>.</p>
 <h2 id="classes">Classes<a class="headerlink" href="#classes" title="Permanent link">#</a></h2>
 <p>Clockwork Keep's own code is the scene, five sprite classes and the floor data, all in
-<code>src/games/clockwork-keep/clockwork_keep/</code>. The rest comes from the engine: <code>Scene</code> and the built-in
+<code>src/games/clockwork-keep/src/clockwork_keep/</code>. The rest comes from the engine: <code>Scene</code> and the built-in
 <code>PauseScene</code> and <code>GameOverScene</code> (<code>glitchygames.scenes</code>), <code>Sprite</code> (<code>glitchygames.sprites</code>) and
 <code>PhysicsBody</code> (<code>glitchygames.physics</code>). In the diagram, the Engine box is what every game gets; the
 Clockwork Keep box is what this game adds. Solid arrows are inheritance, pointing at the base
@@ -1078,7 +1091,7 @@ real high scores.</p>
 <ul>
 <li><strong>Golden trace</strong> (<code>tests/world/golden/clockwork_keep.jsonl.gz</code>, checked by
   <code>tests/world/test_golden_traces.py</code>): a 900-frame scripted run (<code>clockwork_keep_script</code> in
-  <code>scripts/record_golden_traces.py</code>, fixed dt 1/60) recorded before the world-space change. It
+  <code>scripts/golden_inputs.py</code>, fixed dt 1/60) recorded before the world-space change. It
   jumps for a cog, walks both ways, is placed on the first elevator at frame 330 (reaching it
   takes more platforming than the script holds), presses W at frame 350, rides frames 352-592,
   then walks and pauses (frames 740-790) on Gear Works. Each sprite's rect and visibility must
@@ -1111,8 +1124,8 @@ otherwise auto-pause the game. Never re-record either baseline to make a change 
 <td>The game itself: elevator activation by interact only (not jump, BUGS.md #24), every recipe renders and each sound plays once at its moment, the elevator ride's motor, rumble, shakes and silent fallbacks, the clock's hand angles and animated layer, <code>MAX_FRAME_SECONDS</code>, <code>replay_arguments</code>, <code>--floor</code>, hitbox-based support, walls and pickups, collision layers, world space (no sprite positions itself, the engine follows the player, follow stops at game over), the pose rule at walls, scancode bindings, the moving gear and the Clock Face route, no fall-through after a slow frame (the swept ground check), victory on the Clock Face's top platform, death, high scores, pause/quit/focus input, joystick and controller buttons, the HUD, <code>main()</code></td>
 </tr>
 <tr>
-<td><code>src/games/clockwork-keep/tests/test_clockwork_keep_after_the_move.py</code></td>
-<td>The move out of the engine: every scene the golden replay starts keeps its logical name, and nothing is left of <code>glitchygames.examples.clockwork_keep</code></td>
+<td><code>src/games/clockwork-keep/tests/test_clockwork_keep_logical_names.py</code>, <code>test_clockwork_keep_install_location.py</code>, <code>test_clockwork_keep_recording_history.py</code></td>
+<td>The move out of the engine: every scene the golden replay starts keeps its logical name, nothing is left of <code>glitchygames.examples.clockwork_keep</code>, and the golden keeps its history</td>
 </tr>
 <tr>
 <td><code>tests/world/test_golden_traces.py</code></td>
@@ -1152,35 +1165,35 @@ the native-driver comparison while iterating).</p>
 </thead>
 <tbody>
 <tr>
-<td><code>src/games/clockwork-keep/clockwork_keep/__init__.py</code></td>
+<td><code>src/games/clockwork-keep/src/clockwork_keep/__init__.py</code></td>
 <td><code>main</code> (the <code>clockwork-keep</code> console script in the member's <code>pyproject.toml</code>)</td>
 </tr>
 <tr>
-<td><code>src/games/clockwork-keep/clockwork_keep/game.py</code></td>
+<td><code>src/games/clockwork-keep/src/clockwork_keep/game.py</code></td>
 <td><code>ClockworkKeepScene</code> (floors, input, collision, elevator, death, saves, HUD), <code>CogCollectible</code>, the arrival shakes, <code>main()</code></td>
 </tr>
 <tr>
-<td><code>src/games/clockwork-keep/clockwork_keep/player.py</code></td>
+<td><code>src/games/clockwork-keep/src/clockwork_keep/player.py</code></td>
 <td><code>Tinker</code>: physics body, state machine, the pose rule, wall fitting</td>
 </tr>
 <tr>
-<td><code>src/games/clockwork-keep/clockwork_keep/terrain.py</code></td>
+<td><code>src/games/clockwork-keep/src/clockwork_keep/terrain.py</code></td>
 <td><code>Platform</code>, <code>Elevator</code>, <code>MovingGear</code></td>
 </tr>
 <tr>
-<td><code>src/games/clockwork-keep/clockwork_keep/levels.py</code></td>
+<td><code>src/games/clockwork-keep/src/clockwork_keep/levels.py</code></td>
 <td><code>FloorData</code>, <code>MovingGearData</code>, the three floors, <code>ALL_FLOORS</code></td>
 </tr>
 <tr>
-<td><code>src/games/clockwork-keep/clockwork_keep/drawing.py</code></td>
+<td><code>src/games/clockwork-keep/src/clockwork_keep/drawing.py</code></td>
 <td>Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, <code>clock_hand_angles</code></td>
 </tr>
 <tr>
-<td><code>src/games/clockwork-keep/clockwork_keep/sounds.py</code></td>
+<td><code>src/games/clockwork-keep/src/clockwork_keep/sounds.py</code></td>
 <td>The six <code>SoundRecipe</code>s, <code>ALL_RECIPES</code></td>
 </tr>
 <tr>
-<td><code>src/games/clockwork-keep/clockwork_keep/constants.py</code></td>
+<td><code>src/games/clockwork-keep/src/clockwork_keep/constants.py</code></td>
 <td>Screen, physics, layers, gameplay, colours, elevator ride feel, the clock</td>
 </tr>
 <tr>
@@ -1192,12 +1205,12 @@ the native-driver comparison while iterating).</p>
 <td>The pause and game-over screens</td>
 </tr>
 <tr>
-<td><code>scripts/record_golden_traces.py</code></td>
-<td>The golden input script (<code>clockwork_keep_script</code>) and the golden trace harness</td>
+<td><code>scripts/golden_inputs.py</code>, <code>scripts/record_golden_traces.py</code></td>
+<td>The golden input script (<code>clockwork_keep_script</code>) and the golden trace recorder (on the engine's harness, <code>src/glitchygames/replay/tools/golden_traces.py</code>)</td>
 </tr>
 <tr>
 <td><code>scripts/record_scripted_session.py</code></td>
-<td>Records the golden replay (<code>clockwork_keep_controls</code> is its tail)</td>
+<td>Records the golden replay (<code>clockwork_keep_controls</code>, in <code>scripts/golden_inputs.py</code>, is its tail)</td>
 </tr>
 <tr>
 <td><code>tests/world/golden/clockwork_keep.jsonl.gz</code></td>

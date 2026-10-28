@@ -2,206 +2,218 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://terrysimons.github.io/glitchygames/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/galimore/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/multi_controller_system/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/architecture/argument_system/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/architecture/bitmappy/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/architecture/engine_context/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/architecture/event_system/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/architecture/game_packages/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/architecture/gameplay_replay/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/bitmappy/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/brave_adventurer/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/brave_adventurer_core/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/brave_adventurer_modes/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/brave_adventurer_papyrus/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/clockwork_keep/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/drawing_fire/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
+    </url>
+    <url>
+         <loc>https://terrysimons.github.io/glitchygames/dt_demo/</loc>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/games/brave_adventurer/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/games/clockwork_keep/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/games/drawing_fire/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/games/mr_muncher/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/games/paddleslap/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/api/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/audio/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/collision/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/color/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/effects/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/engine/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/events/</loc>
-         <lastmod>2026-10-26</lastmod>
-    </url>
-    <url>
-         <loc>https://terrysimons.github.io/glitchygames/glitchygames/examples/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/fonts/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/game_objects/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/input/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/interfaces/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/movement/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/physics/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/pixels/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/replay/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/scenes/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/sprites/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/state/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/templates/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/tools/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/transitions/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/glitchygames/ui/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
+    </url>
+    <url>
+         <loc>https://terrysimons.github.io/glitchygames/joystick_demo/</loc>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/mr_muncher/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/paddleslap/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/quality/complexity/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/quality/driver_comparison/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/quality/performance/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
     </url>
     <url>
          <loc>https://terrysimons.github.io/glitchygames/quality/upstream_issues/</loc>
-         <lastmod>2026-10-26</lastmod>
+         <lastmod>2026-10-28</lastmod>
+    </url>
+    <url>
+         <loc>https://terrysimons.github.io/glitchygames/specs/2026-10-27-glitchy-games-website-design/</loc>
+         <lastmod>2026-10-28</lastmod>
+    </url>
+    <url>
+         <loc>https://terrysimons.github.io/glitchygames/text_input_demo/</loc>
+         <lastmod>2026-10-28</lastmod>
     </url>
 </urlset>

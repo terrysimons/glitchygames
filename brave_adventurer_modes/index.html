@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../glitchygames/engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../glitchygames/events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../glitchygames/examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../glitchygames/fonts/">glitchygames.font</a>
                   </li>
@@ -160,6 +164,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../paddleslap/">paddleslap</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../text_input_demo/">text_input_demo</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
@@ -255,11 +268,11 @@ sprite-sheet art. <code>main()</code> starts one of them, in this order:</p>
    rebaselines, watched replays and their restarts start one): its header names the game it was
    made in by logical name (glitchygames/logical_names.py), and that game's own <code>main()</code> runs,
    without the title screen (<code>game_for_recording</code>). So a member with one console script
-   replays both games' goldens (glitchygames/testing/replays.py <code>recording_console_script</code>). A
-   recording made from the title screen names the title screen: it is replayed from there. A
-   recording of any other game is refused (<code>ExitCode.UNUSABLE_INPUT</code>, naming the games this
-   command replays); one whose header cannot be read goes to the engine, which refuses it as it
-   refuses any unusable or missing recording.</li>
+   replays both games' goldens (glitchygames/replay/tools/children.py
+   <code>recording_console_script</code>). A recording made from the title screen names the title screen:
+   it is replayed from there. A recording of any other game is refused
+   (<code>ExitCode.UNUSABLE_INPUT</code>, naming the games this command replays); one whose header cannot
+   be read goes to the engine, which refuses it as it refuses any unusable or missing recording.</li>
 <li>Otherwise the title screen (brave_adventurer_modes/title.py) offers both games and starts the
    chosen one's scene in the same engine.</li>
 </ol>

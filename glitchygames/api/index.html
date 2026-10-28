@@ -89,6 +89,12 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
               </ul>
                 <ul><li>
                     <a href="../" style="padding: 0; font-size: inherit; line-height: inherit">
@@ -109,8 +115,6 @@
                   <li class="toctree-l1"><a class="reference internal" href="../engine/">glitchygames.engine</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../events/">glitchygames.events</a>
-                  </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../examples/">glitchygames.examples</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../fonts/">glitchygames.font</a>
                   </li>
@@ -160,6 +164,15 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">Apps API Reference</span></p>
@@ -292,16 +305,7 @@ using AI providers via aisuite.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/api/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-64"> 64</a></span>
-<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-65"> 65</a></span>
-<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-66"> 66</a></span>
-<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-67"> 67</a></span>
-<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-68"> 68</a></span>
-<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-69"> 69</a></span>
-<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-70"> 70</a></span>
-<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-71"> 71</a></span>
-<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-72"> 72</a></span>
-<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-73"> 73</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-73"> 73</a></span>
 <span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-74"> 74</a></span>
 <span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-75"> 75</a></span>
 <span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-76"> 76</a></span>
@@ -334,49 +338,58 @@ using AI providers via aisuite.</p>
 <span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-103">103</a></span>
 <span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-104">104</a></span>
 <span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-105">105</a></span>
-<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-106">106</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.api.create_app--source--__codelineno-0-64" name="glitchygames.api.create_app--source--__codelineno-0-64"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">FastAPI</span><span class="p">:</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-65" name="glitchygames.api.create_app--source--__codelineno-0-65"></a><span class="w">    </span><span class="sd">"""Create and configure the FastAPI application.</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-66" name="glitchygames.api.create_app--source--__codelineno-0-66"></a>
-<a id="glitchygames.api.create_app--source--__codelineno-0-67" name="glitchygames.api.create_app--source--__codelineno-0-67"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-68" name="glitchygames.api.create_app--source--__codelineno-0-68"></a><span class="sd">        Configured FastAPI application</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-69" name="glitchygames.api.create_app--source--__codelineno-0-69"></a>
-<a id="glitchygames.api.create_app--source--__codelineno-0-70" name="glitchygames.api.create_app--source--__codelineno-0-70"></a><span class="sd">    """</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-71" name="glitchygames.api.create_app--source--__codelineno-0-71"></a>    <span class="n">application</span><span class="p">:</span> <span class="n">FastAPI</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-72" name="glitchygames.api.create_app--source--__codelineno-0-72"></a>        <span class="n">title</span><span class="o">=</span><span class="s1">'GlitchyGames Sprite Generation API'</span><span class="p">,</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-73" name="glitchygames.api.create_app--source--__codelineno-0-73"></a>        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-74" name="glitchygames.api.create_app--source--__codelineno-0-74"></a>            <span class="s1">'Generate pixel art sprites using AI. Supports static and animated sprites '</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-75" name="glitchygames.api.create_app--source--__codelineno-0-75"></a>            <span class="s1">'with TOML and PNG output formats.'</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-76" name="glitchygames.api.create_app--source--__codelineno-0-76"></a>        <span class="p">),</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-77" name="glitchygames.api.create_app--source--__codelineno-0-77"></a>        <span class="n">version</span><span class="o">=</span><span class="s1">'1.0.0'</span><span class="p">,</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-78" name="glitchygames.api.create_app--source--__codelineno-0-78"></a>        <span class="n">docs_url</span><span class="o">=</span><span class="s1">'/docs'</span><span class="p">,</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-79" name="glitchygames.api.create_app--source--__codelineno-0-79"></a>        <span class="n">redoc_url</span><span class="o">=</span><span class="s1">'/redoc'</span><span class="p">,</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-80" name="glitchygames.api.create_app--source--__codelineno-0-80"></a>        <span class="n">lifespan</span><span class="o">=</span><span class="n">lifespan</span><span class="p">,</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-81" name="glitchygames.api.create_app--source--__codelineno-0-81"></a>        <span class="n">openapi_tags</span><span class="o">=</span><span class="p">[</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-82" name="glitchygames.api.create_app--source--__codelineno-0-82"></a>            <span class="p">{</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-83" name="glitchygames.api.create_app--source--__codelineno-0-83"></a>                <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'health'</span><span class="p">,</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-84" name="glitchygames.api.create_app--source--__codelineno-0-84"></a>                <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Health check and status endpoints'</span><span class="p">,</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-85" name="glitchygames.api.create_app--source--__codelineno-0-85"></a>            <span class="p">},</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-86" name="glitchygames.api.create_app--source--__codelineno-0-86"></a>            <span class="p">{</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-87" name="glitchygames.api.create_app--source--__codelineno-0-87"></a>                <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'sprites'</span><span class="p">,</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-88" name="glitchygames.api.create_app--source--__codelineno-0-88"></a>                <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Sprite generation and refinement endpoints'</span><span class="p">,</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-89" name="glitchygames.api.create_app--source--__codelineno-0-89"></a>            <span class="p">},</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-90" name="glitchygames.api.create_app--source--__codelineno-0-90"></a>        <span class="p">],</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-91" name="glitchygames.api.create_app--source--__codelineno-0-91"></a>    <span class="p">)</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-92" name="glitchygames.api.create_app--source--__codelineno-0-92"></a>
-<a id="glitchygames.api.create_app--source--__codelineno-0-93" name="glitchygames.api.create_app--source--__codelineno-0-93"></a>    <span class="c1"># Add CORS middleware</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-94" name="glitchygames.api.create_app--source--__codelineno-0-94"></a>    <span class="n">application</span><span class="o">.</span><span class="n">add_middleware</span><span class="p">(</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-95" name="glitchygames.api.create_app--source--__codelineno-0-95"></a>        <span class="n">CORSMiddleware</span><span class="p">,</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-96" name="glitchygames.api.create_app--source--__codelineno-0-96"></a>        <span class="n">allow_origins</span><span class="o">=</span><span class="p">[</span><span class="s1">'*'</span><span class="p">],</span>  <span class="c1"># Configure appropriately for production</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-97" name="glitchygames.api.create_app--source--__codelineno-0-97"></a>        <span class="n">allow_credentials</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-98" name="glitchygames.api.create_app--source--__codelineno-0-98"></a>        <span class="n">allow_methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'*'</span><span class="p">],</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-99" name="glitchygames.api.create_app--source--__codelineno-0-99"></a>        <span class="n">allow_headers</span><span class="o">=</span><span class="p">[</span><span class="s1">'*'</span><span class="p">],</span>
+<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-106">106</a></span>
+<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-107">107</a></span>
+<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-108">108</a></span>
+<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-109">109</a></span>
+<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-110">110</a></span>
+<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-111">111</a></span>
+<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-112">112</a></span>
+<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-113">113</a></span>
+<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-114">114</a></span>
+<span class="normal"><a href="#glitchygames.api.create_app--source--__codelineno-0-115">115</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.api.create_app--source--__codelineno-0-73" name="glitchygames.api.create_app--source--__codelineno-0-73"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">FastAPI</span><span class="p">:</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-74" name="glitchygames.api.create_app--source--__codelineno-0-74"></a><span class="w">    </span><span class="sd">"""Create and configure the FastAPI application.</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-75" name="glitchygames.api.create_app--source--__codelineno-0-75"></a>
+<a id="glitchygames.api.create_app--source--__codelineno-0-76" name="glitchygames.api.create_app--source--__codelineno-0-76"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-77" name="glitchygames.api.create_app--source--__codelineno-0-77"></a><span class="sd">        Configured FastAPI application</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-78" name="glitchygames.api.create_app--source--__codelineno-0-78"></a>
+<a id="glitchygames.api.create_app--source--__codelineno-0-79" name="glitchygames.api.create_app--source--__codelineno-0-79"></a><span class="sd">    """</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-80" name="glitchygames.api.create_app--source--__codelineno-0-80"></a>    <span class="n">application</span><span class="p">:</span> <span class="n">FastAPI</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-81" name="glitchygames.api.create_app--source--__codelineno-0-81"></a>        <span class="n">title</span><span class="o">=</span><span class="s1">'GlitchyGames Sprite Generation API'</span><span class="p">,</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-82" name="glitchygames.api.create_app--source--__codelineno-0-82"></a>        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-83" name="glitchygames.api.create_app--source--__codelineno-0-83"></a>            <span class="s1">'Generate pixel art sprites using AI. Supports static and animated sprites '</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-84" name="glitchygames.api.create_app--source--__codelineno-0-84"></a>            <span class="s1">'with TOML and PNG output formats.'</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-85" name="glitchygames.api.create_app--source--__codelineno-0-85"></a>        <span class="p">),</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-86" name="glitchygames.api.create_app--source--__codelineno-0-86"></a>        <span class="n">version</span><span class="o">=</span><span class="s1">'1.0.0'</span><span class="p">,</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-87" name="glitchygames.api.create_app--source--__codelineno-0-87"></a>        <span class="n">docs_url</span><span class="o">=</span><span class="s1">'/docs'</span><span class="p">,</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-88" name="glitchygames.api.create_app--source--__codelineno-0-88"></a>        <span class="n">redoc_url</span><span class="o">=</span><span class="s1">'/redoc'</span><span class="p">,</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-89" name="glitchygames.api.create_app--source--__codelineno-0-89"></a>        <span class="n">lifespan</span><span class="o">=</span><span class="n">lifespan</span><span class="p">,</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-90" name="glitchygames.api.create_app--source--__codelineno-0-90"></a>        <span class="n">openapi_tags</span><span class="o">=</span><span class="p">[</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-91" name="glitchygames.api.create_app--source--__codelineno-0-91"></a>            <span class="p">{</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-92" name="glitchygames.api.create_app--source--__codelineno-0-92"></a>                <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'health'</span><span class="p">,</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-93" name="glitchygames.api.create_app--source--__codelineno-0-93"></a>                <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Health check and status endpoints'</span><span class="p">,</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-94" name="glitchygames.api.create_app--source--__codelineno-0-94"></a>            <span class="p">},</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-95" name="glitchygames.api.create_app--source--__codelineno-0-95"></a>            <span class="p">{</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-96" name="glitchygames.api.create_app--source--__codelineno-0-96"></a>                <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'sprites'</span><span class="p">,</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-97" name="glitchygames.api.create_app--source--__codelineno-0-97"></a>                <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Sprite generation and refinement endpoints'</span><span class="p">,</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-98" name="glitchygames.api.create_app--source--__codelineno-0-98"></a>            <span class="p">},</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-99" name="glitchygames.api.create_app--source--__codelineno-0-99"></a>        <span class="p">],</span>
 <a id="glitchygames.api.create_app--source--__codelineno-0-100" name="glitchygames.api.create_app--source--__codelineno-0-100"></a>    <span class="p">)</span>
 <a id="glitchygames.api.create_app--source--__codelineno-0-101" name="glitchygames.api.create_app--source--__codelineno-0-101"></a>
-<a id="glitchygames.api.create_app--source--__codelineno-0-102" name="glitchygames.api.create_app--source--__codelineno-0-102"></a>    <span class="c1"># Include routers</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-103" name="glitchygames.api.create_app--source--__codelineno-0-103"></a>    <span class="n">application</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">health_router</span><span class="p">)</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-104" name="glitchygames.api.create_app--source--__codelineno-0-104"></a>    <span class="n">application</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">sprites_router</span><span class="p">)</span>
-<a id="glitchygames.api.create_app--source--__codelineno-0-105" name="glitchygames.api.create_app--source--__codelineno-0-105"></a>
-<a id="glitchygames.api.create_app--source--__codelineno-0-106" name="glitchygames.api.create_app--source--__codelineno-0-106"></a>    <span class="k">return</span> <span class="n">application</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-102" name="glitchygames.api.create_app--source--__codelineno-0-102"></a>    <span class="c1"># Add CORS middleware</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-103" name="glitchygames.api.create_app--source--__codelineno-0-103"></a>    <span class="n">application</span><span class="o">.</span><span class="n">add_middleware</span><span class="p">(</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-104" name="glitchygames.api.create_app--source--__codelineno-0-104"></a>        <span class="n">CORSMiddleware</span><span class="p">,</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-105" name="glitchygames.api.create_app--source--__codelineno-0-105"></a>        <span class="n">allow_origins</span><span class="o">=</span><span class="p">[</span><span class="s1">'*'</span><span class="p">],</span>  <span class="c1"># Configure appropriately for production</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-106" name="glitchygames.api.create_app--source--__codelineno-0-106"></a>        <span class="n">allow_credentials</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-107" name="glitchygames.api.create_app--source--__codelineno-0-107"></a>        <span class="n">allow_methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'*'</span><span class="p">],</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-108" name="glitchygames.api.create_app--source--__codelineno-0-108"></a>        <span class="n">allow_headers</span><span class="o">=</span><span class="p">[</span><span class="s1">'*'</span><span class="p">],</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-109" name="glitchygames.api.create_app--source--__codelineno-0-109"></a>    <span class="p">)</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-110" name="glitchygames.api.create_app--source--__codelineno-0-110"></a>
+<a id="glitchygames.api.create_app--source--__codelineno-0-111" name="glitchygames.api.create_app--source--__codelineno-0-111"></a>    <span class="c1"># Include routers</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-112" name="glitchygames.api.create_app--source--__codelineno-0-112"></a>    <span class="n">application</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">health_router</span><span class="p">)</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-113" name="glitchygames.api.create_app--source--__codelineno-0-113"></a>    <span class="n">application</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">sprites_router</span><span class="p">)</span>
+<a id="glitchygames.api.create_app--source--__codelineno-0-114" name="glitchygames.api.create_app--source--__codelineno-0-114"></a>
+<a id="glitchygames.api.create_app--source--__codelineno-0-115" name="glitchygames.api.create_app--source--__codelineno-0-115"></a>    <span class="k">return</span> <span class="n">application</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -400,16 +413,7 @@ using AI providers via aisuite.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/api/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-113">113</a></span>
-<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-114">114</a></span>
-<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-115">115</a></span>
-<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-116">116</a></span>
-<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-117">117</a></span>
-<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-118">118</a></span>
-<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-119">119</a></span>
-<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-120">120</a></span>
-<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-121">121</a></span>
-<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-122">122</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-122">122</a></span>
 <span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-123">123</a></span>
 <span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-124">124</a></span>
 <span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-125">125</a></span>
@@ -417,24 +421,37 @@ using AI providers via aisuite.</p>
 <span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-127">127</a></span>
 <span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-128">128</a></span>
 <span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-129">129</a></span>
-<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-130">130</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.api.run--source--__codelineno-0-113" name="glitchygames.api.run--source--__codelineno-0-113"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.api.run--source--__codelineno-0-114" name="glitchygames.api.run--source--__codelineno-0-114"></a><span class="w">    </span><span class="sd">"""Entry point for the glitchygames-server command.</span>
-<a id="glitchygames.api.run--source--__codelineno-0-115" name="glitchygames.api.run--source--__codelineno-0-115"></a>
-<a id="glitchygames.api.run--source--__codelineno-0-116" name="glitchygames.api.run--source--__codelineno-0-116"></a><span class="sd">    This function is called when running `glitchygames-server` from the command line.</span>
-<a id="glitchygames.api.run--source--__codelineno-0-117" name="glitchygames.api.run--source--__codelineno-0-117"></a><span class="sd">    """</span>
-<a id="glitchygames.api.run--source--__codelineno-0-118" name="glitchygames.api.run--source--__codelineno-0-118"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">uvicorn</span>
-<a id="glitchygames.api.run--source--__codelineno-0-119" name="glitchygames.api.run--source--__codelineno-0-119"></a>
-<a id="glitchygames.api.run--source--__codelineno-0-120" name="glitchygames.api.run--source--__codelineno-0-120"></a>    <span class="n">host</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GLITCHYGAMES_HOST'</span><span class="p">,</span> <span class="s1">'127.0.0.1'</span><span class="p">)</span>
-<a id="glitchygames.api.run--source--__codelineno-0-121" name="glitchygames.api.run--source--__codelineno-0-121"></a>    <span class="n">port</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GLITCHYGAMES_PORT'</span><span class="p">,</span> <span class="s1">'8000'</span><span class="p">))</span>
-<a id="glitchygames.api.run--source--__codelineno-0-122" name="glitchygames.api.run--source--__codelineno-0-122"></a>    <span class="n">reload</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GLITCHYGAMES_RELOAD'</span><span class="p">,</span> <span class="s1">'false'</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">'true'</span>
-<a id="glitchygames.api.run--source--__codelineno-0-123" name="glitchygames.api.run--source--__codelineno-0-123"></a>
-<a id="glitchygames.api.run--source--__codelineno-0-124" name="glitchygames.api.run--source--__codelineno-0-124"></a>    <span class="n">LOG</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Starting server on </span><span class="si">%s</span><span class="s1">:</span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
-<a id="glitchygames.api.run--source--__codelineno-0-125" name="glitchygames.api.run--source--__codelineno-0-125"></a>    <span class="n">uvicorn</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
-<a id="glitchygames.api.run--source--__codelineno-0-126" name="glitchygames.api.run--source--__codelineno-0-126"></a>        <span class="s1">'glitchygames.api.main:app'</span><span class="p">,</span>
-<a id="glitchygames.api.run--source--__codelineno-0-127" name="glitchygames.api.run--source--__codelineno-0-127"></a>        <span class="n">host</span><span class="o">=</span><span class="n">host</span><span class="p">,</span>
-<a id="glitchygames.api.run--source--__codelineno-0-128" name="glitchygames.api.run--source--__codelineno-0-128"></a>        <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">,</span>
-<a id="glitchygames.api.run--source--__codelineno-0-129" name="glitchygames.api.run--source--__codelineno-0-129"></a>        <span class="n">reload</span><span class="o">=</span><span class="n">reload</span><span class="p">,</span>
-<a id="glitchygames.api.run--source--__codelineno-0-130" name="glitchygames.api.run--source--__codelineno-0-130"></a>    <span class="p">)</span>
+<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-130">130</a></span>
+<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-131">131</a></span>
+<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-132">132</a></span>
+<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-133">133</a></span>
+<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-134">134</a></span>
+<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-135">135</a></span>
+<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-136">136</a></span>
+<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-137">137</a></span>
+<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-138">138</a></span>
+<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-139">139</a></span>
+<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-140">140</a></span>
+<span class="normal"><a href="#glitchygames.api.run--source--__codelineno-0-141">141</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.api.run--source--__codelineno-0-122" name="glitchygames.api.run--source--__codelineno-0-122"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="glitchygames.api.run--source--__codelineno-0-123" name="glitchygames.api.run--source--__codelineno-0-123"></a><span class="w">    </span><span class="sd">"""Entry point for the glitchygames-server command.</span>
+<a id="glitchygames.api.run--source--__codelineno-0-124" name="glitchygames.api.run--source--__codelineno-0-124"></a>
+<a id="glitchygames.api.run--source--__codelineno-0-125" name="glitchygames.api.run--source--__codelineno-0-125"></a><span class="sd">    This function is called when running `glitchygames-server` from the command line.</span>
+<a id="glitchygames.api.run--source--__codelineno-0-126" name="glitchygames.api.run--source--__codelineno-0-126"></a><span class="sd">    """</span>
+<a id="glitchygames.api.run--source--__codelineno-0-127" name="glitchygames.api.run--source--__codelineno-0-127"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">uvicorn</span>
+<a id="glitchygames.api.run--source--__codelineno-0-128" name="glitchygames.api.run--source--__codelineno-0-128"></a>
+<a id="glitchygames.api.run--source--__codelineno-0-129" name="glitchygames.api.run--source--__codelineno-0-129"></a>    <span class="n">host</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GLITCHYGAMES_HOST'</span><span class="p">,</span> <span class="s1">'127.0.0.1'</span><span class="p">)</span>
+<a id="glitchygames.api.run--source--__codelineno-0-130" name="glitchygames.api.run--source--__codelineno-0-130"></a>    <span class="n">port</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GLITCHYGAMES_PORT'</span><span class="p">,</span> <span class="s1">'8000'</span><span class="p">))</span>
+<a id="glitchygames.api.run--source--__codelineno-0-131" name="glitchygames.api.run--source--__codelineno-0-131"></a>    <span class="n">reload</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GLITCHYGAMES_RELOAD'</span><span class="p">,</span> <span class="s1">'false'</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">'true'</span>
+<a id="glitchygames.api.run--source--__codelineno-0-132" name="glitchygames.api.run--source--__codelineno-0-132"></a>
+<a id="glitchygames.api.run--source--__codelineno-0-133" name="glitchygames.api.run--source--__codelineno-0-133"></a>    <span class="n">configure_server_logging</span><span class="p">()</span>
+<a id="glitchygames.api.run--source--__codelineno-0-134" name="glitchygames.api.run--source--__codelineno-0-134"></a>
+<a id="glitchygames.api.run--source--__codelineno-0-135" name="glitchygames.api.run--source--__codelineno-0-135"></a>    <span class="n">LOG</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Starting server on </span><span class="si">%s</span><span class="s1">:</span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+<a id="glitchygames.api.run--source--__codelineno-0-136" name="glitchygames.api.run--source--__codelineno-0-136"></a>    <span class="n">uvicorn</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+<a id="glitchygames.api.run--source--__codelineno-0-137" name="glitchygames.api.run--source--__codelineno-0-137"></a>        <span class="s1">'glitchygames.api.main:app'</span><span class="p">,</span>
+<a id="glitchygames.api.run--source--__codelineno-0-138" name="glitchygames.api.run--source--__codelineno-0-138"></a>        <span class="n">host</span><span class="o">=</span><span class="n">host</span><span class="p">,</span>
+<a id="glitchygames.api.run--source--__codelineno-0-139" name="glitchygames.api.run--source--__codelineno-0-139"></a>        <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">,</span>
+<a id="glitchygames.api.run--source--__codelineno-0-140" name="glitchygames.api.run--source--__codelineno-0-140"></a>        <span class="n">reload</span><span class="o">=</span><span class="n">reload</span><span class="p">,</span>
+<a id="glitchygames.api.run--source--__codelineno-0-141" name="glitchygames.api.run--source--__codelineno-0-141"></a>    <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2488,6 +2505,55 @@ SPRITE_PNG_SCALE: Default PNG scale (default: 1)</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="glitchygames.api.main.configure_server_logging" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">configure_server_logging</span><span class="p">()</span></code>
+
+<a href="#glitchygames.api.main.configure_server_logging" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Log INFO and above to standard error, as the server starts (never at import).</p>
+<p>Called by <code>run()</code> and by the app's lifespan (<code>uvicorn glitchygames.api.main:app</code> starts
+no <code>run()</code>, and a <code>--reload</code> worker imports the module afresh). It was a
+<code>logging.basicConfig</code> at import: any process importing the API, the test suite included,
+logged every logger's INFO records from then on, whatever its own level was (BUGS.md #236).
+<code>basicConfig</code> does nothing once the root logger has a handler, so a process that
+configured its logging first keeps its own.</p>
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/glitchygames/api/main.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.api.main.configure_server_logging--source--__codelineno-0-41">41</a></span>
+<span class="normal"><a href="#glitchygames.api.main.configure_server_logging--source--__codelineno-0-42">42</a></span>
+<span class="normal"><a href="#glitchygames.api.main.configure_server_logging--source--__codelineno-0-43">43</a></span>
+<span class="normal"><a href="#glitchygames.api.main.configure_server_logging--source--__codelineno-0-44">44</a></span>
+<span class="normal"><a href="#glitchygames.api.main.configure_server_logging--source--__codelineno-0-45">45</a></span>
+<span class="normal"><a href="#glitchygames.api.main.configure_server_logging--source--__codelineno-0-46">46</a></span>
+<span class="normal"><a href="#glitchygames.api.main.configure_server_logging--source--__codelineno-0-47">47</a></span>
+<span class="normal"><a href="#glitchygames.api.main.configure_server_logging--source--__codelineno-0-48">48</a></span>
+<span class="normal"><a href="#glitchygames.api.main.configure_server_logging--source--__codelineno-0-49">49</a></span>
+<span class="normal"><a href="#glitchygames.api.main.configure_server_logging--source--__codelineno-0-50">50</a></span>
+<span class="normal"><a href="#glitchygames.api.main.configure_server_logging--source--__codelineno-0-51">51</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.api.main.configure_server_logging--source--__codelineno-0-41" name="glitchygames.api.main.configure_server_logging--source--__codelineno-0-41"></a><span class="k">def</span><span class="w"> </span><span class="nf">configure_server_logging</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="glitchygames.api.main.configure_server_logging--source--__codelineno-0-42" name="glitchygames.api.main.configure_server_logging--source--__codelineno-0-42"></a><span class="w">    </span><span class="sd">"""Log INFO and above to standard error, as the server starts (never at import).</span>
+<a id="glitchygames.api.main.configure_server_logging--source--__codelineno-0-43" name="glitchygames.api.main.configure_server_logging--source--__codelineno-0-43"></a>
+<a id="glitchygames.api.main.configure_server_logging--source--__codelineno-0-44" name="glitchygames.api.main.configure_server_logging--source--__codelineno-0-44"></a><span class="sd">    Called by ``run()`` and by the app's lifespan (``uvicorn glitchygames.api.main:app`` starts</span>
+<a id="glitchygames.api.main.configure_server_logging--source--__codelineno-0-45" name="glitchygames.api.main.configure_server_logging--source--__codelineno-0-45"></a><span class="sd">    no ``run()``, and a ``--reload`` worker imports the module afresh). It was a</span>
+<a id="glitchygames.api.main.configure_server_logging--source--__codelineno-0-46" name="glitchygames.api.main.configure_server_logging--source--__codelineno-0-46"></a><span class="sd">    ``logging.basicConfig`` at import: any process importing the API, the test suite included,</span>
+<a id="glitchygames.api.main.configure_server_logging--source--__codelineno-0-47" name="glitchygames.api.main.configure_server_logging--source--__codelineno-0-47"></a><span class="sd">    logged every logger's INFO records from then on, whatever its own level was (BUGS.md #236).</span>
+<a id="glitchygames.api.main.configure_server_logging--source--__codelineno-0-48" name="glitchygames.api.main.configure_server_logging--source--__codelineno-0-48"></a><span class="sd">    ``basicConfig`` does nothing once the root logger has a handler, so a process that</span>
+<a id="glitchygames.api.main.configure_server_logging--source--__codelineno-0-49" name="glitchygames.api.main.configure_server_logging--source--__codelineno-0-49"></a><span class="sd">    configured its logging first keeps its own.</span>
+<a id="glitchygames.api.main.configure_server_logging--source--__codelineno-0-50" name="glitchygames.api.main.configure_server_logging--source--__codelineno-0-50"></a><span class="sd">    """</span>
+<a id="glitchygames.api.main.configure_server_logging--source--__codelineno-0-51" name="glitchygames.api.main.configure_server_logging--source--__codelineno-0-51"></a>    <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="n">SERVER_LOG_FORMAT</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="glitchygames.api.main.create_app" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">create_app</span><span class="p">()</span></code>
 
@@ -2524,16 +2590,7 @@ SPRITE_PNG_SCALE: Default PNG scale (default: 1)</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/api/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-64"> 64</a></span>
-<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-65"> 65</a></span>
-<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-66"> 66</a></span>
-<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-67"> 67</a></span>
-<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-68"> 68</a></span>
-<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-69"> 69</a></span>
-<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-70"> 70</a></span>
-<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-71"> 71</a></span>
-<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-72"> 72</a></span>
-<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-73"> 73</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-73"> 73</a></span>
 <span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-74"> 74</a></span>
 <span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-75"> 75</a></span>
 <span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-76"> 76</a></span>
@@ -2566,49 +2623,58 @@ SPRITE_PNG_SCALE: Default PNG scale (default: 1)</p>
 <span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-103">103</a></span>
 <span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-104">104</a></span>
 <span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-105">105</a></span>
-<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-106">106</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.api.main.create_app--source--__codelineno-0-64" name="glitchygames.api.main.create_app--source--__codelineno-0-64"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">FastAPI</span><span class="p">:</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-65" name="glitchygames.api.main.create_app--source--__codelineno-0-65"></a><span class="w">    </span><span class="sd">"""Create and configure the FastAPI application.</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-66" name="glitchygames.api.main.create_app--source--__codelineno-0-66"></a>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-67" name="glitchygames.api.main.create_app--source--__codelineno-0-67"></a><span class="sd">    Returns:</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-68" name="glitchygames.api.main.create_app--source--__codelineno-0-68"></a><span class="sd">        Configured FastAPI application</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-69" name="glitchygames.api.main.create_app--source--__codelineno-0-69"></a>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-70" name="glitchygames.api.main.create_app--source--__codelineno-0-70"></a><span class="sd">    """</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-71" name="glitchygames.api.main.create_app--source--__codelineno-0-71"></a>    <span class="n">application</span><span class="p">:</span> <span class="n">FastAPI</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-72" name="glitchygames.api.main.create_app--source--__codelineno-0-72"></a>        <span class="n">title</span><span class="o">=</span><span class="s1">'GlitchyGames Sprite Generation API'</span><span class="p">,</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-73" name="glitchygames.api.main.create_app--source--__codelineno-0-73"></a>        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-74" name="glitchygames.api.main.create_app--source--__codelineno-0-74"></a>            <span class="s1">'Generate pixel art sprites using AI. Supports static and animated sprites '</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-75" name="glitchygames.api.main.create_app--source--__codelineno-0-75"></a>            <span class="s1">'with TOML and PNG output formats.'</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-76" name="glitchygames.api.main.create_app--source--__codelineno-0-76"></a>        <span class="p">),</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-77" name="glitchygames.api.main.create_app--source--__codelineno-0-77"></a>        <span class="n">version</span><span class="o">=</span><span class="s1">'1.0.0'</span><span class="p">,</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-78" name="glitchygames.api.main.create_app--source--__codelineno-0-78"></a>        <span class="n">docs_url</span><span class="o">=</span><span class="s1">'/docs'</span><span class="p">,</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-79" name="glitchygames.api.main.create_app--source--__codelineno-0-79"></a>        <span class="n">redoc_url</span><span class="o">=</span><span class="s1">'/redoc'</span><span class="p">,</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-80" name="glitchygames.api.main.create_app--source--__codelineno-0-80"></a>        <span class="n">lifespan</span><span class="o">=</span><span class="n">lifespan</span><span class="p">,</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-81" name="glitchygames.api.main.create_app--source--__codelineno-0-81"></a>        <span class="n">openapi_tags</span><span class="o">=</span><span class="p">[</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-82" name="glitchygames.api.main.create_app--source--__codelineno-0-82"></a>            <span class="p">{</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-83" name="glitchygames.api.main.create_app--source--__codelineno-0-83"></a>                <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'health'</span><span class="p">,</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-84" name="glitchygames.api.main.create_app--source--__codelineno-0-84"></a>                <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Health check and status endpoints'</span><span class="p">,</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-85" name="glitchygames.api.main.create_app--source--__codelineno-0-85"></a>            <span class="p">},</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-86" name="glitchygames.api.main.create_app--source--__codelineno-0-86"></a>            <span class="p">{</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-87" name="glitchygames.api.main.create_app--source--__codelineno-0-87"></a>                <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'sprites'</span><span class="p">,</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-88" name="glitchygames.api.main.create_app--source--__codelineno-0-88"></a>                <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Sprite generation and refinement endpoints'</span><span class="p">,</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-89" name="glitchygames.api.main.create_app--source--__codelineno-0-89"></a>            <span class="p">},</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-90" name="glitchygames.api.main.create_app--source--__codelineno-0-90"></a>        <span class="p">],</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-91" name="glitchygames.api.main.create_app--source--__codelineno-0-91"></a>    <span class="p">)</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-92" name="glitchygames.api.main.create_app--source--__codelineno-0-92"></a>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-93" name="glitchygames.api.main.create_app--source--__codelineno-0-93"></a>    <span class="c1"># Add CORS middleware</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-94" name="glitchygames.api.main.create_app--source--__codelineno-0-94"></a>    <span class="n">application</span><span class="o">.</span><span class="n">add_middleware</span><span class="p">(</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-95" name="glitchygames.api.main.create_app--source--__codelineno-0-95"></a>        <span class="n">CORSMiddleware</span><span class="p">,</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-96" name="glitchygames.api.main.create_app--source--__codelineno-0-96"></a>        <span class="n">allow_origins</span><span class="o">=</span><span class="p">[</span><span class="s1">'*'</span><span class="p">],</span>  <span class="c1"># Configure appropriately for production</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-97" name="glitchygames.api.main.create_app--source--__codelineno-0-97"></a>        <span class="n">allow_credentials</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-98" name="glitchygames.api.main.create_app--source--__codelineno-0-98"></a>        <span class="n">allow_methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'*'</span><span class="p">],</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-99" name="glitchygames.api.main.create_app--source--__codelineno-0-99"></a>        <span class="n">allow_headers</span><span class="o">=</span><span class="p">[</span><span class="s1">'*'</span><span class="p">],</span>
+<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-106">106</a></span>
+<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-107">107</a></span>
+<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-108">108</a></span>
+<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-109">109</a></span>
+<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-110">110</a></span>
+<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-111">111</a></span>
+<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-112">112</a></span>
+<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-113">113</a></span>
+<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-114">114</a></span>
+<span class="normal"><a href="#glitchygames.api.main.create_app--source--__codelineno-0-115">115</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.api.main.create_app--source--__codelineno-0-73" name="glitchygames.api.main.create_app--source--__codelineno-0-73"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">FastAPI</span><span class="p">:</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-74" name="glitchygames.api.main.create_app--source--__codelineno-0-74"></a><span class="w">    </span><span class="sd">"""Create and configure the FastAPI application.</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-75" name="glitchygames.api.main.create_app--source--__codelineno-0-75"></a>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-76" name="glitchygames.api.main.create_app--source--__codelineno-0-76"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-77" name="glitchygames.api.main.create_app--source--__codelineno-0-77"></a><span class="sd">        Configured FastAPI application</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-78" name="glitchygames.api.main.create_app--source--__codelineno-0-78"></a>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-79" name="glitchygames.api.main.create_app--source--__codelineno-0-79"></a><span class="sd">    """</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-80" name="glitchygames.api.main.create_app--source--__codelineno-0-80"></a>    <span class="n">application</span><span class="p">:</span> <span class="n">FastAPI</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-81" name="glitchygames.api.main.create_app--source--__codelineno-0-81"></a>        <span class="n">title</span><span class="o">=</span><span class="s1">'GlitchyGames Sprite Generation API'</span><span class="p">,</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-82" name="glitchygames.api.main.create_app--source--__codelineno-0-82"></a>        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-83" name="glitchygames.api.main.create_app--source--__codelineno-0-83"></a>            <span class="s1">'Generate pixel art sprites using AI. Supports static and animated sprites '</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-84" name="glitchygames.api.main.create_app--source--__codelineno-0-84"></a>            <span class="s1">'with TOML and PNG output formats.'</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-85" name="glitchygames.api.main.create_app--source--__codelineno-0-85"></a>        <span class="p">),</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-86" name="glitchygames.api.main.create_app--source--__codelineno-0-86"></a>        <span class="n">version</span><span class="o">=</span><span class="s1">'1.0.0'</span><span class="p">,</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-87" name="glitchygames.api.main.create_app--source--__codelineno-0-87"></a>        <span class="n">docs_url</span><span class="o">=</span><span class="s1">'/docs'</span><span class="p">,</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-88" name="glitchygames.api.main.create_app--source--__codelineno-0-88"></a>        <span class="n">redoc_url</span><span class="o">=</span><span class="s1">'/redoc'</span><span class="p">,</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-89" name="glitchygames.api.main.create_app--source--__codelineno-0-89"></a>        <span class="n">lifespan</span><span class="o">=</span><span class="n">lifespan</span><span class="p">,</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-90" name="glitchygames.api.main.create_app--source--__codelineno-0-90"></a>        <span class="n">openapi_tags</span><span class="o">=</span><span class="p">[</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-91" name="glitchygames.api.main.create_app--source--__codelineno-0-91"></a>            <span class="p">{</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-92" name="glitchygames.api.main.create_app--source--__codelineno-0-92"></a>                <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'health'</span><span class="p">,</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-93" name="glitchygames.api.main.create_app--source--__codelineno-0-93"></a>                <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Health check and status endpoints'</span><span class="p">,</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-94" name="glitchygames.api.main.create_app--source--__codelineno-0-94"></a>            <span class="p">},</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-95" name="glitchygames.api.main.create_app--source--__codelineno-0-95"></a>            <span class="p">{</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-96" name="glitchygames.api.main.create_app--source--__codelineno-0-96"></a>                <span class="s1">'name'</span><span class="p">:</span> <span class="s1">'sprites'</span><span class="p">,</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-97" name="glitchygames.api.main.create_app--source--__codelineno-0-97"></a>                <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Sprite generation and refinement endpoints'</span><span class="p">,</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-98" name="glitchygames.api.main.create_app--source--__codelineno-0-98"></a>            <span class="p">},</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-99" name="glitchygames.api.main.create_app--source--__codelineno-0-99"></a>        <span class="p">],</span>
 <a id="glitchygames.api.main.create_app--source--__codelineno-0-100" name="glitchygames.api.main.create_app--source--__codelineno-0-100"></a>    <span class="p">)</span>
 <a id="glitchygames.api.main.create_app--source--__codelineno-0-101" name="glitchygames.api.main.create_app--source--__codelineno-0-101"></a>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-102" name="glitchygames.api.main.create_app--source--__codelineno-0-102"></a>    <span class="c1"># Include routers</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-103" name="glitchygames.api.main.create_app--source--__codelineno-0-103"></a>    <span class="n">application</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">health_router</span><span class="p">)</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-104" name="glitchygames.api.main.create_app--source--__codelineno-0-104"></a>    <span class="n">application</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">sprites_router</span><span class="p">)</span>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-105" name="glitchygames.api.main.create_app--source--__codelineno-0-105"></a>
-<a id="glitchygames.api.main.create_app--source--__codelineno-0-106" name="glitchygames.api.main.create_app--source--__codelineno-0-106"></a>    <span class="k">return</span> <span class="n">application</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-102" name="glitchygames.api.main.create_app--source--__codelineno-0-102"></a>    <span class="c1"># Add CORS middleware</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-103" name="glitchygames.api.main.create_app--source--__codelineno-0-103"></a>    <span class="n">application</span><span class="o">.</span><span class="n">add_middleware</span><span class="p">(</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-104" name="glitchygames.api.main.create_app--source--__codelineno-0-104"></a>        <span class="n">CORSMiddleware</span><span class="p">,</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-105" name="glitchygames.api.main.create_app--source--__codelineno-0-105"></a>        <span class="n">allow_origins</span><span class="o">=</span><span class="p">[</span><span class="s1">'*'</span><span class="p">],</span>  <span class="c1"># Configure appropriately for production</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-106" name="glitchygames.api.main.create_app--source--__codelineno-0-106"></a>        <span class="n">allow_credentials</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-107" name="glitchygames.api.main.create_app--source--__codelineno-0-107"></a>        <span class="n">allow_methods</span><span class="o">=</span><span class="p">[</span><span class="s1">'*'</span><span class="p">],</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-108" name="glitchygames.api.main.create_app--source--__codelineno-0-108"></a>        <span class="n">allow_headers</span><span class="o">=</span><span class="p">[</span><span class="s1">'*'</span><span class="p">],</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-109" name="glitchygames.api.main.create_app--source--__codelineno-0-109"></a>    <span class="p">)</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-110" name="glitchygames.api.main.create_app--source--__codelineno-0-110"></a>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-111" name="glitchygames.api.main.create_app--source--__codelineno-0-111"></a>    <span class="c1"># Include routers</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-112" name="glitchygames.api.main.create_app--source--__codelineno-0-112"></a>    <span class="n">application</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">health_router</span><span class="p">)</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-113" name="glitchygames.api.main.create_app--source--__codelineno-0-113"></a>    <span class="n">application</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">sprites_router</span><span class="p">)</span>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-114" name="glitchygames.api.main.create_app--source--__codelineno-0-114"></a>
+<a id="glitchygames.api.main.create_app--source--__codelineno-0-115" name="glitchygames.api.main.create_app--source--__codelineno-0-115"></a>    <span class="k">return</span> <span class="n">application</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2635,37 +2701,39 @@ SPRITE_PNG_SCALE: Default PNG scale (default: 1)</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/api/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-46">46</a></span>
-<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-47">47</a></span>
-<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-48">48</a></span>
-<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-49">49</a></span>
-<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-50">50</a></span>
-<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-51">51</a></span>
-<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-52">52</a></span>
-<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-53">53</a></span>
-<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-54">54</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-54">54</a></span>
 <span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-55">55</a></span>
 <span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-56">56</a></span>
 <span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-57">57</a></span>
 <span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-58">58</a></span>
 <span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-59">59</a></span>
 <span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-60">60</a></span>
-<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-61">61</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.api.main.lifespan--source--__codelineno-0-46" name="glitchygames.api.main.lifespan--source--__codelineno-0-46"></a><span class="nd">@asynccontextmanager</span>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-47" name="glitchygames.api.main.lifespan--source--__codelineno-0-47"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">lifespan</span><span class="p">(</span><span class="n">application</span><span class="p">:</span> <span class="n">FastAPI</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="kc">None</span><span class="p">]:</span>  <span class="c1"># ruff: ignore[unused-function-argument]</span>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-48" name="glitchygames.api.main.lifespan--source--__codelineno-0-48"></a><span class="w">    </span><span class="sd">"""Manage application startup and shutdown lifecycle."""</span>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-49" name="glitchygames.api.main.lifespan--source--__codelineno-0-49"></a>    <span class="n">LOG</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Starting GlitchyGames Sprite Generation API'</span><span class="p">)</span>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-50" name="glitchygames.api.main.lifespan--source--__codelineno-0-50"></a>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-51" name="glitchygames.api.main.lifespan--source--__codelineno-0-51"></a>    <span class="c1"># Pre-initialize renderer service to set up pygame in headless mode</span>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-52" name="glitchygames.api.main.lifespan--source--__codelineno-0-52"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.services</span><span class="w"> </span><span class="kn">import</span> <span class="n">RendererService</span>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-53" name="glitchygames.api.main.lifespan--source--__codelineno-0-53"></a>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-54" name="glitchygames.api.main.lifespan--source--__codelineno-0-54"></a>    <span class="n">RendererService</span><span class="p">()</span>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-55" name="glitchygames.api.main.lifespan--source--__codelineno-0-55"></a>    <span class="n">LOG</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Renderer service initialized'</span><span class="p">)</span>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-56" name="glitchygames.api.main.lifespan--source--__codelineno-0-56"></a>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-57" name="glitchygames.api.main.lifespan--source--__codelineno-0-57"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-58" name="glitchygames.api.main.lifespan--source--__codelineno-0-58"></a>        <span class="k">yield</span>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-59" name="glitchygames.api.main.lifespan--source--__codelineno-0-59"></a>    <span class="k">finally</span><span class="p">:</span>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-60" name="glitchygames.api.main.lifespan--source--__codelineno-0-60"></a>        <span class="c1"># Runs even if the app stops because of an error</span>
-<a id="glitchygames.api.main.lifespan--source--__codelineno-0-61" name="glitchygames.api.main.lifespan--source--__codelineno-0-61"></a>        <span class="n">LOG</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Shutting down GlitchyGames Sprite Generation API'</span><span class="p">)</span>
+<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-61">61</a></span>
+<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-62">62</a></span>
+<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-63">63</a></span>
+<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-64">64</a></span>
+<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-66">66</a></span>
+<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-67">67</a></span>
+<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-68">68</a></span>
+<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-69">69</a></span>
+<span class="normal"><a href="#glitchygames.api.main.lifespan--source--__codelineno-0-70">70</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.api.main.lifespan--source--__codelineno-0-54" name="glitchygames.api.main.lifespan--source--__codelineno-0-54"></a><span class="nd">@asynccontextmanager</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-55" name="glitchygames.api.main.lifespan--source--__codelineno-0-55"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">lifespan</span><span class="p">(</span><span class="n">application</span><span class="p">:</span> <span class="n">FastAPI</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="kc">None</span><span class="p">]:</span>  <span class="c1"># ruff: ignore[unused-function-argument]</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-56" name="glitchygames.api.main.lifespan--source--__codelineno-0-56"></a><span class="w">    </span><span class="sd">"""Manage application startup and shutdown lifecycle."""</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-57" name="glitchygames.api.main.lifespan--source--__codelineno-0-57"></a>    <span class="n">configure_server_logging</span><span class="p">()</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-58" name="glitchygames.api.main.lifespan--source--__codelineno-0-58"></a>    <span class="n">LOG</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Starting GlitchyGames Sprite Generation API'</span><span class="p">)</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-59" name="glitchygames.api.main.lifespan--source--__codelineno-0-59"></a>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-60" name="glitchygames.api.main.lifespan--source--__codelineno-0-60"></a>    <span class="c1"># Pre-initialize renderer service to set up pygame in headless mode</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-61" name="glitchygames.api.main.lifespan--source--__codelineno-0-61"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.services</span><span class="w"> </span><span class="kn">import</span> <span class="n">RendererService</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-62" name="glitchygames.api.main.lifespan--source--__codelineno-0-62"></a>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-63" name="glitchygames.api.main.lifespan--source--__codelineno-0-63"></a>    <span class="n">RendererService</span><span class="p">()</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-64" name="glitchygames.api.main.lifespan--source--__codelineno-0-64"></a>    <span class="n">LOG</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Renderer service initialized'</span><span class="p">)</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-65" name="glitchygames.api.main.lifespan--source--__codelineno-0-65"></a>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-66" name="glitchygames.api.main.lifespan--source--__codelineno-0-66"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-67" name="glitchygames.api.main.lifespan--source--__codelineno-0-67"></a>        <span class="k">yield</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-68" name="glitchygames.api.main.lifespan--source--__codelineno-0-68"></a>    <span class="k">finally</span><span class="p">:</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-69" name="glitchygames.api.main.lifespan--source--__codelineno-0-69"></a>        <span class="c1"># Runs even if the app stops because of an error</span>
+<a id="glitchygames.api.main.lifespan--source--__codelineno-0-70" name="glitchygames.api.main.lifespan--source--__codelineno-0-70"></a>        <span class="n">LOG</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Shutting down GlitchyGames Sprite Generation API'</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2689,16 +2757,7 @@ SPRITE_PNG_SCALE: Default PNG scale (default: 1)</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/glitchygames/api/main.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-113">113</a></span>
-<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-114">114</a></span>
-<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-115">115</a></span>
-<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-116">116</a></span>
-<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-117">117</a></span>
-<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-118">118</a></span>
-<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-119">119</a></span>
-<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-120">120</a></span>
-<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-121">121</a></span>
-<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-122">122</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-122">122</a></span>
 <span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-123">123</a></span>
 <span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-124">124</a></span>
 <span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-125">125</a></span>
@@ -2706,24 +2765,37 @@ SPRITE_PNG_SCALE: Default PNG scale (default: 1)</p>
 <span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-127">127</a></span>
 <span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-128">128</a></span>
 <span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-129">129</a></span>
-<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-130">130</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.api.main.run--source--__codelineno-0-113" name="glitchygames.api.main.run--source--__codelineno-0-113"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-114" name="glitchygames.api.main.run--source--__codelineno-0-114"></a><span class="w">    </span><span class="sd">"""Entry point for the glitchygames-server command.</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-115" name="glitchygames.api.main.run--source--__codelineno-0-115"></a>
-<a id="glitchygames.api.main.run--source--__codelineno-0-116" name="glitchygames.api.main.run--source--__codelineno-0-116"></a><span class="sd">    This function is called when running `glitchygames-server` from the command line.</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-117" name="glitchygames.api.main.run--source--__codelineno-0-117"></a><span class="sd">    """</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-118" name="glitchygames.api.main.run--source--__codelineno-0-118"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">uvicorn</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-119" name="glitchygames.api.main.run--source--__codelineno-0-119"></a>
-<a id="glitchygames.api.main.run--source--__codelineno-0-120" name="glitchygames.api.main.run--source--__codelineno-0-120"></a>    <span class="n">host</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GLITCHYGAMES_HOST'</span><span class="p">,</span> <span class="s1">'127.0.0.1'</span><span class="p">)</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-121" name="glitchygames.api.main.run--source--__codelineno-0-121"></a>    <span class="n">port</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GLITCHYGAMES_PORT'</span><span class="p">,</span> <span class="s1">'8000'</span><span class="p">))</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-122" name="glitchygames.api.main.run--source--__codelineno-0-122"></a>    <span class="n">reload</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GLITCHYGAMES_RELOAD'</span><span class="p">,</span> <span class="s1">'false'</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">'true'</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-123" name="glitchygames.api.main.run--source--__codelineno-0-123"></a>
-<a id="glitchygames.api.main.run--source--__codelineno-0-124" name="glitchygames.api.main.run--source--__codelineno-0-124"></a>    <span class="n">LOG</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Starting server on </span><span class="si">%s</span><span class="s1">:</span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-125" name="glitchygames.api.main.run--source--__codelineno-0-125"></a>    <span class="n">uvicorn</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-126" name="glitchygames.api.main.run--source--__codelineno-0-126"></a>        <span class="s1">'glitchygames.api.main:app'</span><span class="p">,</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-127" name="glitchygames.api.main.run--source--__codelineno-0-127"></a>        <span class="n">host</span><span class="o">=</span><span class="n">host</span><span class="p">,</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-128" name="glitchygames.api.main.run--source--__codelineno-0-128"></a>        <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">,</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-129" name="glitchygames.api.main.run--source--__codelineno-0-129"></a>        <span class="n">reload</span><span class="o">=</span><span class="n">reload</span><span class="p">,</span>
-<a id="glitchygames.api.main.run--source--__codelineno-0-130" name="glitchygames.api.main.run--source--__codelineno-0-130"></a>    <span class="p">)</span>
+<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-130">130</a></span>
+<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-131">131</a></span>
+<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-132">132</a></span>
+<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-133">133</a></span>
+<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-134">134</a></span>
+<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-135">135</a></span>
+<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-136">136</a></span>
+<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-137">137</a></span>
+<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-138">138</a></span>
+<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-139">139</a></span>
+<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-140">140</a></span>
+<span class="normal"><a href="#glitchygames.api.main.run--source--__codelineno-0-141">141</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.api.main.run--source--__codelineno-0-122" name="glitchygames.api.main.run--source--__codelineno-0-122"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-123" name="glitchygames.api.main.run--source--__codelineno-0-123"></a><span class="w">    </span><span class="sd">"""Entry point for the glitchygames-server command.</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-124" name="glitchygames.api.main.run--source--__codelineno-0-124"></a>
+<a id="glitchygames.api.main.run--source--__codelineno-0-125" name="glitchygames.api.main.run--source--__codelineno-0-125"></a><span class="sd">    This function is called when running `glitchygames-server` from the command line.</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-126" name="glitchygames.api.main.run--source--__codelineno-0-126"></a><span class="sd">    """</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-127" name="glitchygames.api.main.run--source--__codelineno-0-127"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">uvicorn</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-128" name="glitchygames.api.main.run--source--__codelineno-0-128"></a>
+<a id="glitchygames.api.main.run--source--__codelineno-0-129" name="glitchygames.api.main.run--source--__codelineno-0-129"></a>    <span class="n">host</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GLITCHYGAMES_HOST'</span><span class="p">,</span> <span class="s1">'127.0.0.1'</span><span class="p">)</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-130" name="glitchygames.api.main.run--source--__codelineno-0-130"></a>    <span class="n">port</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GLITCHYGAMES_PORT'</span><span class="p">,</span> <span class="s1">'8000'</span><span class="p">))</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-131" name="glitchygames.api.main.run--source--__codelineno-0-131"></a>    <span class="n">reload</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GLITCHYGAMES_RELOAD'</span><span class="p">,</span> <span class="s1">'false'</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">'true'</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-132" name="glitchygames.api.main.run--source--__codelineno-0-132"></a>
+<a id="glitchygames.api.main.run--source--__codelineno-0-133" name="glitchygames.api.main.run--source--__codelineno-0-133"></a>    <span class="n">configure_server_logging</span><span class="p">()</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-134" name="glitchygames.api.main.run--source--__codelineno-0-134"></a>
+<a id="glitchygames.api.main.run--source--__codelineno-0-135" name="glitchygames.api.main.run--source--__codelineno-0-135"></a>    <span class="n">LOG</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">'Starting server on </span><span class="si">%s</span><span class="s1">:</span><span class="si">%s</span><span class="s1">'</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-136" name="glitchygames.api.main.run--source--__codelineno-0-136"></a>    <span class="n">uvicorn</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-137" name="glitchygames.api.main.run--source--__codelineno-0-137"></a>        <span class="s1">'glitchygames.api.main:app'</span><span class="p">,</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-138" name="glitchygames.api.main.run--source--__codelineno-0-138"></a>        <span class="n">host</span><span class="o">=</span><span class="n">host</span><span class="p">,</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-139" name="glitchygames.api.main.run--source--__codelineno-0-139"></a>        <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">,</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-140" name="glitchygames.api.main.run--source--__codelineno-0-140"></a>        <span class="n">reload</span><span class="o">=</span><span class="n">reload</span><span class="p">,</span>
+<a id="glitchygames.api.main.run--source--__codelineno-0-141" name="glitchygames.api.main.run--source--__codelineno-0-141"></a>    <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
