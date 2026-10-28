@@ -1,23 +1,25 @@
-"""What logging costs a replay: every golden and bundled demo at ``warning`` and at ``debug``.
+"""What logging costs a replay: every golden and bundled demo at ``warning``, ``info``, ``debug``.
 
 The owner, 2026-10-28: "add a benchmark that measures the delta between the game running with
 logs disabled and enabled? That could also help determine if logging needs to be cleaned up
-somewhere." Each recording is rebaselined headless twice through the engine's own child command
-(``children.replay_command`` plus ``--rebaseline NEW``, what ``glitchygames measure`` runs), at
-``--log-level warning`` (the tools' level) and at ``--log-level debug``, with
-tests/logged_records.py counting every record the child creates by logger and level and sending
-its output to a file. Per recording and level it reports the processing time per frame (the
-rebaselined run's ``RunSummary``: the time the engine measured for each frame's work, with the
-logging it did), the child's peak resident memory (None on Windows) and the records per frame,
-then the loggers that emit the most at ``debug``, per recording. Both tables are printed and
-written to ``test-results/logging-cost.md``.
+somewhere." Each recording is rebaselined headless three times through the engine's own child
+command (``children.replay_command`` plus ``--rebaseline NEW``, what ``glitchygames measure``
+runs): at ``--log-level warning`` (the tools' level, and a game's default), at ``--log-level
+info`` (what a bug report is asked to run with; the owner, 2026-10-28) and at ``--log-level
+debug``, with tests/logged_records.py counting every record the child creates by logger and
+level and sending its output to a file. Per recording and level it reports the processing time
+per frame (the rebaselined run's ``RunSummary``: the time the engine measured for each frame's
+work, with the logging it did), the child's peak resident memory (None on Windows) and the
+records per frame, then the loggers that emit the most at ``debug``, per recording. Both tables
+are printed and written to ``test-results/logging-cost.md``.
 
-Not in the test run (``nox -s test``, every CI job's tests): it replays every recording twice
-(about a minute), so it runs only under ``--benchmark-only`` and is skipped otherwise.
-pytest-benchmark's own switch is not enough: it turns benchmarks off only under xdist, and the
-Linux CI job runs serially. CI does run it: the macOS job's ``nox -s performance-test`` passes
-``--benchmark-only`` (.circleci/config.yml), where a rebaseline that fails, or a quiet run that
-logs below warning, fails the job. Locally: the command in docs/quality/performance.md.
+Not in the test run (``nox -s test``, every CI job's tests): it replays every recording three
+times (about a minute and a half), so it runs only under ``--benchmark-only`` and is skipped
+otherwise. pytest-benchmark's own switch is not enough: it turns benchmarks off only under
+xdist, and the Linux CI job runs serially. CI does run it: the macOS job's ``nox -s
+performance-test`` passes ``--benchmark-only`` (.circleci/config.yml), where a rebaseline that
+fails, or a quiet run that logs below warning, fails the job. Locally: the command in
+docs/quality/performance.md.
 """
 
 from __future__ import annotations
@@ -40,11 +42,15 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REPORT_PATH = PROJECT_ROOT / 'test-results' / 'logging-cost.md'
-# Logs disabled (the tools' level) and enabled (everything)
+# Logs disabled (the tools' level and a game's default), what a bug report runs with, and
+# everything
 QUIET_LEVEL = 'warning'
+INFO_LEVEL = 'info'
 LOUD_LEVEL = 'debug'
 # The loggers listed per recording in the first table
 TOP_LOGGER_COUNT = 5
+# The second table's columns after the recording's name
+DELTAS_NUMERIC_COLUMNS = 17
 BYTES_PER_MEGABYTE = 1024 * 1024
 MILLISECONDS_PER_SECOND = 1000.0
 PERCENT = 100.0
@@ -79,17 +85,19 @@ class LevelRun:
 
 @dataclasses.dataclass(frozen=True)
 class RecordingCost:
-    """One recording at both levels.
+    """One recording at every level.
 
     Attributes:
         name: ``<console script>/<file name>``.
         quiet: The run at ``warning``.
+        informational: The run at ``info``.
         loud: The run at ``debug``.
 
     """
 
     name: str
     quiet: LevelRun
+    informational: LevelRun
     loud: LevelRun
 
 
@@ -177,29 +185,39 @@ def top_loggers_table(*, costs: list[RecordingCost]) -> list[str]:
 
 
 def deltas_table(*, costs: list[RecordingCost]) -> list[str]:
-    """Return the second table: what ``debug`` costs against ``warning``, per recording.
+    """Return the second table: what ``info`` and ``debug`` cost against ``warning``, per recording.
 
     Args:
         costs: Every recording's runs.
 
     Returns:
-        Markdown lines: frames, mean and median processing ms per frame at each level and the
-        change, peak resident MB at each level, records per frame and output MB at ``debug``.
+        Markdown lines: frames, mean processing ms per frame at each level and the change of
+        ``info`` and of ``debug`` against ``warning``, the medians, peak resident MB at each
+        level, records per frame at each level and output MB at ``info`` and ``debug``.
 
     """
     lines = [
-        f'Logging cost: --log-level {QUIET_LEVEL} against {LOUD_LEVEL}',
+        f'Logging cost: --log-level {INFO_LEVEL} and {LOUD_LEVEL} against {QUIET_LEVEL}',
         '',
         (
-            '| Recording | Frames | ms/frame warning | ms/frame debug | Change | Median ms warning '
-            '| Median ms debug | Peak MB warning | Peak MB debug | Records/frame warning '
-            '| Records/frame debug | Output MB debug |'
+            '| Recording | Frames | ms/frame warning | ms/frame info | Change info '
+            '| ms/frame debug | Change debug | Median ms warning | Median ms info '
+            '| Median ms debug | Peak MB warning | Peak MB info | Peak MB debug '
+            '| Records/frame warning | Records/frame info | Records/frame debug '
+            '| Output MB info | Output MB debug |'
         ),
-        '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
+        '|---|' + '---:|' * DELTAS_NUMERIC_COLUMNS,
     ]
     lines.extend(
         f'| {cost.name} | {cost.loud.frames} '
         f'| {_milliseconds(cost.quiet.processing_seconds_per_frame)} '
+        f'| {_milliseconds(cost.informational.processing_seconds_per_frame)} '
+        f'| {
+            _change(
+                before=cost.quiet.processing_seconds_per_frame,
+                after=cost.informational.processing_seconds_per_frame,
+            )
+        } '
         f'| {_milliseconds(cost.loud.processing_seconds_per_frame)} '
         f'| {
             _change(
@@ -208,10 +226,15 @@ def deltas_table(*, costs: list[RecordingCost]) -> list[str]:
             )
         } '
         f'| {_milliseconds(cost.quiet.median_processing_seconds)} '
+        f'| {_milliseconds(cost.informational.median_processing_seconds)} '
         f'| {_milliseconds(cost.loud.median_processing_seconds)} '
         f'| {_megabytes(cost.quiet.logged.peak_resident_bytes)} '
+        f'| {_megabytes(cost.informational.logged.peak_resident_bytes)} '
         f'| {_megabytes(cost.loud.logged.peak_resident_bytes)} '
-        f'| {cost.quiet.records_per_frame():.2f} | {cost.loud.records_per_frame():.2f} '
+        f'| {cost.quiet.records_per_frame():.2f} '
+        f'| {cost.informational.records_per_frame():.2f} '
+        f'| {cost.loud.records_per_frame():.2f} '
+        f'| {cost.informational.logged.output_bytes / BYTES_PER_MEGABYTE:.1f} '
         f'| {cost.loud.logged.output_bytes / BYTES_PER_MEGABYTE:.1f} |'
         for cost in costs
     )
@@ -219,7 +242,7 @@ def deltas_table(*, costs: list[RecordingCost]) -> list[str]:
 
 
 def measure_every_recording(*, work_directory: Path) -> list[RecordingCost]:
-    """Rebaseline every golden and bundled demo at both levels.
+    """Rebaseline every golden and bundled demo at every level.
 
     Args:
         work_directory: An empty directory (one subdirectory per run).
@@ -233,7 +256,7 @@ def measure_every_recording(*, work_directory: Path) -> list[RecordingCost]:
         every_golden_and_bundled_demo(project_root=PROJECT_ROOT)
     ):
         runs: dict[str, LevelRun] = {}
-        for level in (QUIET_LEVEL, LOUD_LEVEL):
+        for level in (QUIET_LEVEL, INFO_LEVEL, LOUD_LEVEL):
             run_directory = work_directory / f'{index}-{level}'
             run_directory.mkdir()
             runs[level] = rebaseline_at_level(
@@ -246,6 +269,7 @@ def measure_every_recording(*, work_directory: Path) -> list[RecordingCost]:
             RecordingCost(
                 name=f'{console_script}/{recording.name}',
                 quiet=runs[QUIET_LEVEL],
+                informational=runs[INFO_LEVEL],
                 loud=runs[LOUD_LEVEL],
             )
         )
@@ -253,14 +277,14 @@ def measure_every_recording(*, work_directory: Path) -> list[RecordingCost]:
 
 
 def test_logging_cost_of_every_golden_and_bundled_demo(benchmark, request, tmp_path, capsys):
-    """Report what ``--log-level debug`` costs each recording against ``warning``.
+    """Report what ``--log-level info`` and ``debug`` cost each recording against ``warning``.
 
     It asserts only what makes the numbers mean something: every rebaseline succeeded, and the
     quiet run emitted no INFO or DEBUG record (the quiet-run guard's rule; its own test is
     tests/replay/test_replays_log_quietly.py).
     """
     if not request.config.getoption('benchmark_only'):
-        pytest.skip('replays every recording twice: run with --benchmark-only')
+        pytest.skip('replays every recording three times: run with --benchmark-only')
 
     costs: list[RecordingCost] = benchmark.pedantic(
         measure_every_recording, kwargs={'work_directory': tmp_path}, rounds=1, iterations=1

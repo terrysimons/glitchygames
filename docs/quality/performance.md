@@ -75,11 +75,12 @@ differs, with both runs' commits). Design:
 
 ## What logging costs
 
-A benchmark rebaselines every golden replay and bundled demo headless twice, through the same
-child command `glitchygames measure` runs: once at `--log-level warning` (the replay tools' level:
-logging off) and once at `--log-level debug` (everything on). It is not part of the test run
-(`nox -s test`; it takes about half a minute), but CI runs it with the other benchmarks in the
-macOS job's `nox -s performance-test`, where a failed rebaseline fails the job. Run it alone with
+A benchmark rebaselines every golden replay and bundled demo headless three times, through the
+same child command `glitchygames measure` runs: at `--log-level warning` (the replay tools' level
+and a game's default: logging off), at `--log-level info` (what a bug report asks a player to run
+with) and at `--log-level debug` (everything on). It is not part of the test run (`nox -s test`;
+it takes under a minute), but CI runs it with the other benchmarks in the macOS job's
+`nox -s performance-test`, where a failed rebaseline fails the job. Run it alone with
 
 ```bash
 uv run pytest tests/benchmarks/test_logging_cost.py -o addopts= -p no:xdist --benchmark-only --dummy-only
@@ -92,13 +93,17 @@ to `test-results/logging-cost.md`:
    loggers, with their records per frame, record count and share of all the records. A logger
    far ahead of the others (tens of records a frame) is where logging needs cleaning up: a
    `log.debug` inside a per-frame or per-sprite loop.
-2. **Logging cost**: per recording, the mean processing time per frame at each level and its
-   change (`debug` against `warning`), the medians, each run's peak resident memory, the records
-   per frame at each level and how much output `debug` wrote. The processing times are the
-   engine's own per-frame measurements (what the performance graphs above plot), so the change
-   is the time logging adds to each frame's work. Times compare only on one machine and between
+2. **Logging cost**: per recording, the mean processing time per frame at each level and the
+   change of `info` and of `debug` against `warning`, the medians, each run's peak resident
+   memory, the records per frame at each level and how much output `info` and `debug` wrote.
+   The processing times are the engine's own per-frame measurements (what the performance
+   graphs above plot), so the change is the time logging adds to each frame's work. Times compare only on one machine and between
    runs of the same table. The peak memory is the replaying child's (`n/a` on Windows), and its
    output goes to a file, so a large difference there means the game keeps records in memory.
+
+On one Mac (2026-10-28) `info` cost every recording within 1% of `warning` (0.08 to 0.33 records
+a frame), while `debug` doubled PaddleSlap's processing time per frame (about 10 records a
+frame) and added 15% to Brave Adventurer's papyrus golden (about 33).
 
 At `warning` no recording should emit an INFO or DEBUG record: a logger that does has a level set
 behind the command line's back (BUGS.md #236), which `tests/replay/test_replays_log_quietly.py`
