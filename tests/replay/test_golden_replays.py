@@ -137,15 +137,17 @@ def golden_recording(game: str) -> dict[str, Any]:
 
     Not cached: the six decoded recordings are about 200 MB, which a cache kept for the rest
     of the test run (the Linux CI job has 2 GB); reading them all again takes about 0.5 s.
+    Read with shared sprite records (glitchygames/tracing.py), which these tests only read:
+    as independent frames, Mr. Muncher's alone was about 135 MiB.
 
     Args:
         game: The game's key (scripts/record_golden_traces.py), which names its golden.
 
     Returns:
-        The decoded trace: header fields and ``frames``.
+        The decoded trace: header fields and ``frames``, whose sprite records must not change.
 
     """
-    return read_trace_result(path=fixture_path(game_key=game)).trace
+    return read_trace_result(path=fixture_path(game_key=game), share_records=True).trace
 
 
 def received_events(*, recording: dict[str, Any]) -> list[tuple[int, str, dict[str, Any]]]:
