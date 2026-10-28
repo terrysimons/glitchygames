@@ -25,7 +25,7 @@ parameters:
   # trusts a compromised CA (GHSA-hq85-5cpj-mr62)
   UV_VERSION:
     type: string
-    default: "0.13.5"
+    default: "0.13.6"
   # The fingerprint of the deploy key that may push gh-pages (a GitHub deploy key with write
   # access to this repository, its private half in this CircleCI project's SSH keys): the
   # deploy-docs job loads it with add_ssh_keys
