@@ -327,6 +327,10 @@ CHILD_THAT_NEVER_ENDS_IGNORING_TERMINATE = (
 SHORT_TIMEOUT_SECONDS = 1.0
 
 
+# A killed child's status on POSIX (-SIGKILL), written out: Windows' signal module has no SIGKILL
+KILLED_STATUS = -9
+
+
 class ChildThatOutlivesTheGracePeriod:
     """Stands in for a child that ignores the request to stop: only the kill ends it.
 
@@ -359,7 +363,7 @@ class ChildThatOutlivesTheGracePeriod:
         self.calls.append(('wait', timeout))
         if timeout is not None:
             raise subprocess.TimeoutExpired(cmd='game', timeout=timeout)
-        return -signal.SIGTERM
+        return KILLED_STATUS
 
 
 def test_a_child_still_running_after_the_grace_period_is_killed_then_reaped():

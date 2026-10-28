@@ -57,6 +57,8 @@ if TYPE_CHECKING:
 TAMPERED_FRAME = 10
 # A child that only imports the tools ends in a second or two
 CHILD_TIMEOUT_SECONDS = 120.0
+# A stand-in distribution installed with no console script (a real one's could gain one)
+SCRIPTLESS_DISTRIBUTION = 'scriptless-library'
 
 
 @pytest.fixture
@@ -246,11 +248,29 @@ def test_a_member_recording_that_cannot_be_read_is_refused(tmp_path):
         recording_console_script(path=recording)
 
 
-def test_a_member_distribution_without_console_scripts_is_refused(tmp_path):
-    """An installed distribution with no console script names no game (pytest-mock has none)."""
-    recording = member_recording_path(tmp_path=tmp_path, distribution='pytest-mock')
+def install_distribution_without_console_scripts(*, tmp_path: Path, monkeypatch) -> str:
+    """Install a stand-in distribution with no console script (not a real one's metadata).
 
-    with pytest.raises(KeyError, match=r"'pytest-mock' has no console scripts"):
+    Returns:
+        Its name.
+
+    """
+    installed = tmp_path / 'site-packages'
+    write_stand_in_distribution(
+        directory=installed, distribution=SCRIPTLESS_DISTRIBUTION, console_scripts={}
+    )
+    monkeypatch.syspath_prepend(installed)
+    return SCRIPTLESS_DISTRIBUTION
+
+
+def test_a_member_distribution_without_console_scripts_is_refused(tmp_path, monkeypatch):
+    """An installed distribution with no console script names no game."""
+    distribution = install_distribution_without_console_scripts(
+        tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+    recording = member_recording_path(tmp_path=tmp_path, distribution=distribution)
+
+    with pytest.raises(KeyError, match=f"'{distribution}' has no console scripts"):
         recording_console_script(path=recording)
 
 
@@ -577,9 +597,14 @@ def test_a_windows_recording_of_an_uninstalled_project_is_named_with_slashes(moc
     assert_named_with_slashes(message, name=WINDOWS_MEMBER_RECORDING_NAME)
 
 
-def test_a_windows_recording_of_a_project_without_console_scripts_is_named_with_slashes(mocker):
-    """An installed distribution with no console script (pytest-mock): named with /."""
-    mocker.patch(f'{CHILDREN_MODULE}.project_name', return_value='pytest-mock')
+def test_a_windows_recording_of_a_project_without_console_scripts_is_named_with_slashes(
+    mocker, tmp_path, monkeypatch
+):
+    """An installed distribution with no console script (a stand-in's): named with /."""
+    distribution = install_distribution_without_console_scripts(
+        tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+    mocker.patch(f'{CHILDREN_MODULE}.project_name', return_value=distribution)
 
     message = refusal_of(
         lambda: recording_console_script(path=WINDOWS_MEMBER_RECORDING)  # type: ignore[arg-type]

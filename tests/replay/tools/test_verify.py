@@ -925,7 +925,7 @@ def test_a_game_stopped_at_its_timeout_is_named_on_every_platform(tmp_path, caps
     is POSIX; here the launch's timeout is injected, so every platform checks the outcome.
     """
     script = write_never_ending_game_project(directory=tmp_path / 'project')
-    mocker.patch.object(
+    launched = mocker.patch.object(
         traces,
         'launch_game',
         side_effect=TimeoutExpired(cmd=str(script), timeout=NEVER_ENDING_GAME_TIMEOUT_SECONDS),
@@ -944,6 +944,8 @@ def test_a_game_stopped_at_its_timeout_is_named_on_every_platform(tmp_path, caps
         f'glitchygames verify: {script} was stopped: still running after '
         f'{NEVER_ENDING_GAME_TIMEOUT_SECONDS:g} seconds ([tool.glitchygames] game-timeout-seconds)'
     ) in capsys.readouterr().err
+    # The project's game-timeout-seconds reached the launch (not only the injected message)
+    assert launched.call_args.kwargs['launch'].timeout_seconds == NEVER_ENDING_GAME_TIMEOUT_SECONDS
 
 
 @pytest.mark.skipif(sys.platform == 'win32', reason='signal 0 to a process id is POSIX')
