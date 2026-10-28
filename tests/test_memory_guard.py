@@ -492,3 +492,19 @@ def test_an_xdist_worker_makes_no_guard(pytester, monkeypatch, tmp_path):
     result = pytester.runpytest_inprocess('-p', 'tests.memory_guard', '--assert=plain')
 
     result.assert_outcomes(passed=1)
+
+
+def test_the_run_summary_names_the_peak_the_guard_saw(pytester, monkeypatch, tmp_path):
+    """A healthy run (under the limit) ends with the highest reading and its source."""
+    statm = tmp_path / 'statm'
+    statm.write_text('5000 300 40 1 0 200 0\n', encoding='ascii')
+    monkeypatch.setattr('tests.memory_guard.STATM_PATH', statm)
+    monkeypatch.setattr('tests.memory_guard.CGROUP_DIRECTORY', tmp_path / 'no-cgroup')
+    monkeypatch.setattr('tests.memory_guard.system_page_bytes', lambda: BYTES_PER_MEBIBYTE)
+    monkeypatch.setenv(LIMIT_VARIABLE, '1600')
+    pytester.makepyfile(test_inner_run=PLUGIN_RUN_TESTS)
+
+    result = pytester.runpytest_inprocess('-p', 'tests.memory_guard', '--assert=plain')
+
+    result.assert_outcomes(passed=2)
+    result.stdout.fnmatch_lines([f'memory guard: peak 300 MiB of {STATM_SOURCE}, limit 1600 MiB'])

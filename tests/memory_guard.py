@@ -109,6 +109,8 @@ class ResidentMemoryGuard:
         # Each finished test's growth (resident at its end less at its start), by node ID
         self._increases: dict[str, int] = {}
         self._stopped = False
+        # The highest reading so far (the run's summary names it)
+        self._peak_bytes = 0
         self._finished = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -148,6 +150,8 @@ class ResidentMemoryGuard:
         return self._check_resident(resident=self._read_resident_bytes())
 
     def _check_resident(self: Self, *, resident: int) -> bool:
+        with self._lock:
+            self._peak_bytes = max(self._peak_bytes, resident)
         if resident <= self._limit_bytes:
             return False
         with self._lock:
@@ -185,6 +189,20 @@ class ResidentMemoryGuard:
                 for nodeid, increase in largest[:LARGEST_INCREASES_SHOWN]
             )
         return '\n'.join(lines)
+
+    def describe_peak(self: Self) -> str:
+        """Describe the highest reading so far, for the run's summary.
+
+        Returns:
+            ``memory guard: peak N MiB of <source>, limit M MiB``.
+
+        """
+        with self._lock:
+            peak = self._peak_bytes
+        return (
+            f'memory guard: peak {_mebibytes(peak)} of {self._source}, limit '
+            f'{_mebibytes(self._limit_bytes)}'
+        )
 
     def start(self: Self) -> None:
         """Start sampling on a daemon thread (until ``finish`` or the limit is passed)."""
@@ -412,6 +430,15 @@ def pytest_configure(config: pytest.Config) -> None:
     error_descriptors.append(original_standard_error(config=config))
     config.stash[GUARD_KEY] = guard
     guard.start()
+
+
+def pytest_terminal_summary(
+    terminalreporter: pytest.TerminalReporter, config: pytest.Config
+) -> None:
+    """Name the highest memory the guard saw, so a healthy run shows its headroom."""
+    guard = config.stash.get(GUARD_KEY, None)
+    if guard is not None:
+        terminalreporter.write_line(guard.describe_peak())
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
