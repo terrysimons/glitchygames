@@ -255,15 +255,13 @@ def recorded_threads(mocker):
 
 @pytest.fixture
 def no_sleep(mocker):
-    """Replace controller_audio's time module so playback never sleeps.
+    """Replace controller_audio's raw sleep (glitchygames/clock.py's) so playback never sleeps.
 
     Returns:
-        The mock standing in for time.sleep.
+        The mock standing in for the sleep.
 
     """
-    sleep = mocker.Mock()
-    mocker.patch.object(controller_audio, 'time', types.SimpleNamespace(sleep=sleep))
-    return sleep
+    return mocker.patch.object(controller_audio, 'raw_sleep')
 
 
 @pytest.fixture

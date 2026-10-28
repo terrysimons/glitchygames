@@ -50,12 +50,11 @@ presented).
 from __future__ import annotations
 
 import collections
-import time
 from typing import TYPE_CHECKING, Self
 
 import pygame
 
-from glitchygames.clock import measured_seconds
+from glitchygames.clock import measured_seconds, raw_sleep
 from glitchygames.replay.controls import CONTROL_TICK_SECONDS, ControlCadence, ReplayControls
 from glitchygames.timing import FastTimer
 
@@ -85,15 +84,16 @@ NANOSECONDS_PER_SECOND = 1_000_000_000
 _SLEEP_TIMER = FastTimer()
 
 
-def sleep_coarsely(*, seconds: float) -> None:
-    """Sleep ``seconds`` without spinning (``time.sleep``): the wait while nothing runs.
+def sleep_coarsely(*, seconds: float, sleep: Callable[[float], None] = raw_sleep) -> None:
+    """Sleep ``seconds`` without spinning (one plain sleep): the wait while nothing runs.
 
     Args:
         seconds: How long (nothing happens when not positive).
+        sleep: The sleep (glitchygames/clock.py's raw sleep; tests pass a fake).
 
     """
     if seconds > 0:
-        time.sleep(seconds)
+        sleep(seconds)
 
 
 def sleep_for(*, seconds: float) -> None:

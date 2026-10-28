@@ -107,8 +107,9 @@ def test_every_game_powers_on_through_its_own_main(mocker, console_script, backg
     real_player = game_engine_module.play_power_on
 
     def play_then_stop(**arguments: Any) -> PowerOnOutcome:
-        # Its frames do not wait (the patch on time.sleep this replaced never reached them:
-        # play_power_on's sleep default is bound to the real time.sleep when it is defined)
+        # Its frames do not wait: it is given a sleep that returns at once (its default,
+        # glitchygames/clock.py's raw_sleep, is bound when play_power_on is defined, so a patch
+        # could not reach it)
         outcome = real_player(**arguments, sleep=lambda _seconds: None)
         settled = pygame.Surface(arguments['screen'].get_size())
         paint_default_background(surface=settled)

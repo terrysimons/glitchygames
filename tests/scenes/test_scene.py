@@ -1860,8 +1860,7 @@ class TestFinishFrameMeasurement:
         self._patch_frame_bookkeeping(mocker)
         frame_seconds = 1.0 / 60.0
         mocker.patch(
-            'glitchygames.scenes.scene.time',
-            mocker.Mock(perf_counter=mocker.Mock(return_value=10.0 + frame_seconds)),
+            'glitchygames.scenes.scene.raw_counter_seconds', return_value=10.0 + frame_seconds
         )
 
         mock_timer = mocker.Mock()
@@ -1886,8 +1885,7 @@ class TestFinishFrameMeasurement:
         mock_performance_manager = self._patch_frame_bookkeeping(mocker)
         frame_seconds = 1.0 / 60.0
         whole_millisecond_wakes = [17_000_000, 34_000_000, 50_000_000]
-        mock_perf_counter = mocker.Mock()
-        mocker.patch('glitchygames.scenes.scene.time', mocker.Mock(perf_counter=mock_perf_counter))
+        mock_perf_counter = mocker.patch('glitchygames.scenes.scene.raw_counter_seconds')
         mock_timer = mocker.Mock()
         mock_timer.compute_deadline.return_value = 0
 
@@ -1914,10 +1912,7 @@ class TestFinishFrameMeasurement:
         """A paced frame lasting exactly 1/60.5 s records 60.5 FPS."""
         manager = SceneManager()
         self._patch_frame_bookkeeping(mocker)
-        mocker.patch(
-            'glitchygames.scenes.scene.time',
-            mocker.Mock(perf_counter=mocker.Mock(return_value=5.0 + 1.0 / 60.5)),
-        )
+        mocker.patch('glitchygames.scenes.scene.raw_counter_seconds', return_value=5.0 + 1.0 / 60.5)
         mock_timer = mocker.Mock()
         mock_timer.compute_deadline.return_value = 0
         mock_timer.sleep_until_next.return_value = 17_000_000

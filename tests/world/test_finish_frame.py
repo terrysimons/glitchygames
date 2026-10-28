@@ -1,7 +1,8 @@
 """SceneManager._finish_frame(): one start-to-start frame time per frame (engine audit #15).
 
 Every frame ends in ``_finish_frame``: it paces with the timer backend (or the pygame clock),
-then reads ``time.perf_counter()`` once. That reading ends this frame and starts the next, and
+then reads the raw performance counter (glitchygames/clock.py ``raw_counter_seconds``) once.
+That reading ends this frame and starts the next, and
 ``self.dt`` is set once, to the full start-to-start period. Logic in the next frame, the FPS
 statistics and the debug overlay all see that one value.
 
@@ -252,9 +253,7 @@ class FrameDriver:
         """
         self.clock = FakeClock()
         self.timer = timer_class(clock=self.clock)
-        mocker.patch(
-            'glitchygames.scenes.scene.time', SimpleNamespace(perf_counter=self.clock.perf_counter)
-        )
+        mocker.patch('glitchygames.scenes.scene.raw_counter_seconds', new=self.clock.perf_counter)
         mocker.patch.object(
             SceneManager,
             'OPTIONS',

@@ -28,13 +28,12 @@ from __future__ import annotations
 
 import enum
 import logging
-import time
 from typing import TYPE_CHECKING, Any, Protocol
 
 import pygame
 
 from glitchygames.backgrounds import active_default_background_pattern, background_pattern_surface
-from glitchygames.clock import measured_seconds
+from glitchygames.clock import measured_seconds, raw_sleep
 from glitchygames.opacity import make_opaque
 
 if TYPE_CHECKING:
@@ -341,7 +340,7 @@ class _PowerOnFrames:
 
 
 def play_power_on(
-    *, screen: pygame.Surface, sources: EventPump, sleep: Callable[[float], None] = time.sleep
+    *, screen: pygame.Surface, sources: EventPump, sleep: Callable[[float], None] = raw_sleep
 ) -> PowerOnOutcome:
     """Play the sequence on the game's canvas, blocking (``GameEngine.start``).
 

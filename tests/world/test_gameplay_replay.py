@@ -503,9 +503,7 @@ def clocks_paced_by_frames(mocker) -> None:
     exactly (elapsed seconds are the frame clock live too, so they need no pacing).
     """
     mocker.patch.object(
-        game_engine_module,
-        'datetime',
-        mocker.Mock(now=mocker.Mock(return_value=PACED_RECORDING_START)),
+        game_engine_module, 'raw_wall_clock_time', return_value=PACED_RECORDING_START
     )
 
     def paced_wall_clock_time(_sources: LiveSources) -> datetime:
@@ -1020,7 +1018,7 @@ class TestRoundTrip:
         )
         mocker.stopall()
         # The replay must not read real time: the live wall clock is a mock from here on
-        mocker.patch('glitchygames.live_sources.datetime')
+        mocker.patch('glitchygames.live_sources.raw_wall_clock_time')
         engine = replay_session(
             recording_path=recording_path,
             mocker=mocker,

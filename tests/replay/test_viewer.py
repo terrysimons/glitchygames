@@ -22,7 +22,6 @@ from glitchygames.replay.viewer import (
     MAX_INNER_FRAMES_PER_TICK,
     ReplayViewer,
 )
-from tests.stand_in_time import patch_module_time
 
 # A recording made at the engine's default target, 60.01 FPS: a hair off the 60 Hz viewer tick
 RECORDED_FRAME_SECONDS = 1 / 60.01
@@ -252,13 +251,12 @@ def test_effective_speed_is_zero_before_any_time_passed():
 
 
 def test_sleep_coarsely_sleeps_only_for_a_positive_time(mocker):
-    """The coarse sleep is one time.sleep of the time asked for; none for zero or less."""
+    """The coarse sleep is one sleep of the time asked for; none for zero or less."""
     sleep = mocker.Mock()
-    patch_module_time(mocker=mocker, module=viewer_module, sleep=sleep)
-    viewer_module.sleep_coarsely(seconds=0.0)
-    viewer_module.sleep_coarsely(seconds=-0.5)
+    viewer_module.sleep_coarsely(seconds=0.0, sleep=sleep)
+    viewer_module.sleep_coarsely(seconds=-0.5, sleep=sleep)
     sleep.assert_not_called()
-    viewer_module.sleep_coarsely(seconds=0.002)
+    viewer_module.sleep_coarsely(seconds=0.002, sleep=sleep)
     sleep.assert_called_once_with(0.002)
 
 

@@ -77,7 +77,6 @@ import os
 import re
 import sys
 import tempfile
-import time
 from itertools import groupby
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -87,6 +86,7 @@ from pydantic import BaseModel, ConfigDict
 from glitchygames.__main__ import PYGAME_BANNER_VARIABLE
 from glitchygames.build_info import SourceRevision, package_source_revision, source_revision
 from glitchygames.bundled_demos import BUNDLED_DEMO_DIRECTORY_NAME, DEMO_SUFFIX, bundled_demos
+from glitchygames.clock import raw_counter_seconds
 from glitchygames.code_tree import commit_has_landed, landed_ref_exists
 from glitchygames.exit_codes import ExitCode
 from glitchygames.machine_state import current_machine_state
@@ -795,7 +795,7 @@ def measure(
                 sys.stdout.write(f'{recording}: already measured at {measured_code} on {machine}\n')
                 skipped.append(recording)
                 continue
-            started = time.perf_counter()
+            started = raw_counter_seconds()
             rows = measure_recording(
                 settings=settings,
                 console_script=console_script,
@@ -822,7 +822,7 @@ def measure(
             measured.append(recording)
             sys.stdout.write(
                 describe_measurement(
-                    row=rows[0], seconds=time.perf_counter() - started, pending_rows=len(new_rows)
+                    row=rows[0], seconds=raw_counter_seconds() - started, pending_rows=len(new_rows)
                 )
                 + '\n'
             )

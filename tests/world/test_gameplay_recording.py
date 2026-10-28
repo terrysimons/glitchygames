@@ -20,7 +20,6 @@ import platform
 import signal
 import sys
 import threading
-import types
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
@@ -392,7 +391,7 @@ def engine_run_environment(mocker) -> Generator[FakePerfCounter]:
     """
     Script.reset()
     fake_perf_counter = FakePerfCounter()
-    mocker.patch.object(scene_module, 'time', types.SimpleNamespace(perf_counter=fake_perf_counter))
+    mocker.patch.object(scene_module, 'raw_counter_seconds', new=fake_perf_counter)
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch.object(pygame, 'quit')
     real_display_quit = pygame.display.quit

@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+from glitchygames.clock import raw_sleep
 from glitchygames.events import ResourceManager
 from glitchygames.events.voice_backends import get_microphone_backend
 
@@ -80,14 +80,19 @@ class VoiceEventManager(ResourceManager):
             """Delegate register_command to the voice event manager."""
             self.game.register_command(phrase, callback)
 
-    def __init__(self, logger: logging.Logger | None = None) -> None:
+    def __init__(
+        self, logger: logging.Logger | None = None, *, sleep: Callable[[float], None] = raw_sleep
+    ) -> None:
         """Initialize the voice recognition manager.
 
         Args:
             logger: Optional logger instance. If None, creates a default logger.
+            sleep: The listening loop's wait before trying again after an error
+                (glitchygames/clock.py's raw sleep; tests pass one that does not wait).
 
         """
         super().__init__(game=self)
+        self._sleep = sleep
         self.log = logger or logging.getLogger(__name__)  # type: ignore[misc] # ty: ignore[invalid-attribute-access]  # instance override of ClassVar is intentional
         self.is_listening = False
         self.listen_thread = None
@@ -231,7 +236,7 @@ class VoiceEventManager(ResourceManager):
                     continue
                 except OSError:
                     self.log.error('Error in voice recognition loop')  # ruff: ignore[error-instead-of-exception]
-                    time.sleep(1)
+                    self._sleep(1)
 
     def _listen_and_process_once(self, *, source: object) -> None:
         """Listen for one phrase, recognize it and run its command.
@@ -255,7 +260,7 @@ class VoiceEventManager(ResourceManager):
         except sr.RequestError:
             self.log.error('Speech recognition service error')  # ruff: ignore[error-instead-of-exception]
             # Wait a bit before trying again
-            time.sleep(2)
+            self._sleep(2)
             return
         self.log.info("Recognized speech: '%s'", text)
         self._process_command(text)

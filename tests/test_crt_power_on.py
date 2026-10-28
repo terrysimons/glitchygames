@@ -77,7 +77,7 @@ def configured_background(request) -> BackgroundPattern:
 
 
 def never_wait(_seconds: float) -> None:
-    """Stand in for time.sleep: the frames run back to back."""
+    """Stand in for the raw sleep (glitchygames/clock.py): the frames run back to back."""
 
 
 def settled_picture(*, size: tuple[int, int] = SIZE) -> pygame.Surface:

@@ -26,14 +26,13 @@ tests list stand-in devices (tests/input/stand_in_devices.py).
 from __future__ import annotations
 
 import operator
-import time
 from typing import TYPE_CHECKING, Literal
 
 import pygame
 import pygame._sdl2.controller
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.clock import measured_seconds
+from glitchygames.clock import measured_seconds, raw_sleep
 from glitchygames.input.devices import CONTROLLER_KIND
 
 if TYPE_CHECKING:
@@ -269,7 +268,7 @@ def listen(
     sources: EngineSources,
     started_at: float,
     listen_seconds: float | None,
-    sleep: Callable[[float], None] = time.sleep,
+    sleep: Callable[[float], None] = raw_sleep,
 ) -> Listening:
     """Pump SDL's queue, keeping its device events, for a time or until a device is added.
 
@@ -317,7 +316,7 @@ def list_input_devices(
     input_mode: str,
     listen_seconds: float = LISTEN_SECONDS,
     prompt: Callable[[str], None] | None = None,
-    sleep: Callable[[float], None] = time.sleep,
+    sleep: Callable[[float], None] = raw_sleep,
 ) -> list[str]:
     """Start the joystick subsystems, listen, open every device and list it (see the docstring).
 
