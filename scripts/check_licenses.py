@@ -90,8 +90,14 @@ EXCEPTIONS: dict[str, str] = {
     # Only the owner adds entries: a package the policy would reject, reviewed and cleared by
     # name (for example a GPL tool run only in development and never bundled into a wheel or
     # the Bitmappy binary). Each names its reviewer and date, so an auditor can trace it
+    'pygame-ce': (
+        'LGPL-2.1, bundled into the Bitmappy binary. Acceptable because the project ships its '
+        'whole source tree publicly on GitHub, so anyone can rebuild the binary against another '
+        'pygame-ce (the owner: "we\'re good because we also ship the source tree on github '
+        'publicly"; Terry Simons, 2026-10-28)'
+    ),
 }
-"""Per-package exceptions to the allowlist and denylist, each reviewed (none yet)."""
+"""Per-package exceptions to the allowlist and denylist, each reviewed."""
 
 PACKAGE_LICENSE_OVERRIDES: dict[str, tuple[str, str]] = {
     # Format: 'package-name': ('SPDX id', 'where the license was read')

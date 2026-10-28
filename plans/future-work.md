@@ -636,9 +636,10 @@ only replays; Part 2 Task 1).
   entry (license, why, reviewer, date), an allowlist change, or removing the dependency.
   - Denied (GPL): `yamllint` (GPL-3.0-or-later, a lint tool) and `pyinstaller-hooks-contrib`
     (its hooks GPL-2.0-or-later and run at build time; its runtime hooks, bundled, Apache-2.0).
-  - Unreviewed: `pygame-ce` (LGPL-2.1, bundled into the Bitmappy binary), `psycopg`
-    (LGPL-3.0-only, aisuite's postgres extra), `pyinstaller` (GPL-2.0-or-later with its
-    bootloader exception), `certifi`, `pathspec`, `hypothesis` (MPL-2.0), `tqdm` (MPL-2.0 AND
+  - Decided (the owner, 2026-10-28): `pygame-ce` (LGPL-2.1) is an exception, the source tree
+    being public on GitHub; `psycopg` (LGPL-3.0-only) is gone with aisuite's `postgres` extra,
+    which nothing used.
+  - Unreviewed: `pyinstaller` (GPL-2.0-or-later with its bootloader exception), `certifi`, `pathspec`, `hypothesis` (MPL-2.0), `tqdm` (MPL-2.0 AND
     MIT), `text-unidecode` (Artistic License or GPL).
   - The SBOM is the whole nox venv (dev and docs tools included), not what the binary bundles;
     a runtime-only SBOM for the policy is the other option (`nox -s security-scan`).
