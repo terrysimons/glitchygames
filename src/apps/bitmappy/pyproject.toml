@@ -7,7 +7,7 @@ requires-python = ">=3.14,<4.0"
 # whose comment says why `google` is left out), numpy (pygame.surfarray), pydantic (its AI
 # request and response models), pygame-ce, and tenacity (the AI worker's retries)
 dependencies = [
-  "glitchygames",
+  "glitchygames>=1.0.0",
   "aisuite[anthropic,aws,cerebras,cohere,deepgram,deepseek,gemini,groq,lmstudio,mcp,mistral,ollama,openai,postgres,watsonx]>=0.1.14",
   "numpy",
   "pydantic",

@@ -384,10 +384,14 @@ version = "1.0.0"
 source = { editable = "src/games/brave-adventurer" }
 dependencies = [
     { name = "glitchygames" },
+    { name = "pygame-ce" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "glitchygames", editable = "." }]
+requires-dist = [
+    { name = "glitchygames", editable = "." },
+    { name = "pygame-ce" },
+]
 
 [[package]]
 name = "cachecontrol"
@@ -619,10 +623,16 @@ version = "1.0.0"
 source = { editable = "src/games/clockwork-keep" }
 dependencies = [
     { name = "glitchygames" },
+    { name = "pydantic" },
+    { name = "pygame-ce" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "glitchygames", editable = "." }]
+requires-dist = [
+    { name = "glitchygames", editable = "." },
+    { name = "pydantic" },
+    { name = "pygame-ce" },
+]
 
 [[package]]
 name = "cloudpickle"
@@ -952,10 +962,14 @@ version = "1.0.0"
 source = { editable = "src/games/drawing-fire" }
 dependencies = [
     { name = "glitchygames" },
+    { name = "pygame-ce" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "glitchygames", editable = "." }]
+requires-dist = [
+    { name = "glitchygames", editable = "." },
+    { name = "pygame-ce" },
+]
 
 [[package]]
 name = "dt-demo"
@@ -2325,10 +2339,16 @@ version = "1.0.0"
 source = { editable = "src/games/mr-muncher" }
 dependencies = [
     { name = "glitchygames" },
+    { name = "pydantic" },
+    { name = "pygame-ce" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "glitchygames", editable = "." }]
+requires-dist = [
+    { name = "glitchygames", editable = "." },
+    { name = "pydantic" },
+    { name = "pygame-ce" },
+]
 
 [[package]]
 name = "msgpack"
@@ -2642,10 +2662,14 @@ version = "1.0.0"
 source = { editable = "src/games/paddleslap" }
 dependencies = [
     { name = "glitchygames" },
+    { name = "pygame-ce" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "glitchygames", editable = "." }]
+requires-dist = [
+    { name = "glitchygames", editable = "." },
+    { name = "pygame-ce" },
+]
 
 [[package]]
 name = "paginate"

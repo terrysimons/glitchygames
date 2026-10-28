@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "Joystick Demo: every connected joystick and game controller, live"
 requires-python = ">=3.14,<4.0"
 # What the demo imports: the engine and pygame-ce (decision 10: a member declares its imports)
-dependencies = ["glitchygames", "pygame-ce"]
+dependencies = ["glitchygames>=1.0.0", "pygame-ce"]
 
 [project.scripts]
 joystick-demo = "joystick_demo:main"
