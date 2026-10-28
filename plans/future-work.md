@@ -614,6 +614,16 @@ only replays; Part 2 Task 1).
 - Optional: lazy-import `speech_recognition` so the audio import chain doesn't load `aifc` (its
   deprecation warning is already filtered in `pyproject.toml`).
 - ty reports 50 pre-existing `unused-ignore-comment` warnings (identical on main).
+- **Run nox without the `uvx` wrapper in CI** (found 2026-10-28 by the test-memory-reduction
+  work, `feature/test-memory-reduction`; the owner asked to look at it later).
+  - Every CircleCI step runs `uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox
+    -s ...` (`.circleci/config.yml`). The `uvx` process stays alive as nox's parent, holding about
+    47 MiB of anonymous memory, which the Linux job's memory guard (`tests/memory_guard.py`,
+    `GLITCHYGAMES_TEST_RSS_LIMIT_MB`) counts.
+  - Option: install nox once per job (`uv tool install "nox[uv]==<pinned version>"`) and run
+    `nox -s ...` directly, so no wrapper process waits on it.
+  - It changes the test step of both the Linux and macOS jobs (and the shared commands), so check
+    the Windows job and the cache keys too; measure the guard's peak before and after.
 - **Stamp each game's build with its own revision** (found 2026-10-26, Part 3 Stage D, Task D3
   review).
   - Since D3, every recorded run names its game's source revision
