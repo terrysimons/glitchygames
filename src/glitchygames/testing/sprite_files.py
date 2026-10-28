@@ -2,8 +2,9 @@
 
 Every pixel row is the same width, and a save round trip keeps a sprite's timings, hitboxes,
 pixels, metadata and transitions. The engine runs these checks on its own sprites
-(tests/sprites/test_engine_sprite_files.py), and a package with sprites of its own runs them on
-them from its own tests (Papyrus's, and Bitmappy's sprite library)::
+(tests/sprites/test_engine_sprite_files.py), the repository runs them on every workspace member's
+sprites, discovered (tests/test_workspace_sprite_files.py), and a package with sprites of its own
+may run them from its own tests too (Papyrus's, and Bitmappy's sprite library)::
 
     from glitchygames.testing import sprite_files
 
