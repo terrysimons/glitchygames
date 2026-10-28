@@ -790,9 +790,13 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - `<game> --compare-trace OLD [--compare-alpha PERCENT]` without `--replay-trace` (Task D12,
   decision 19; rule 9 of `replay/tools/compare.py`): live play against OLD. The same `OnionSkin`
   is the live host's overlay (`HostSources.overlay`, drawn over each presented frame before
-  inner doors' overlay); a live frame's number is `HostSources.frames_ended`, the number
-  `--record-trace` gives it, so a recording of the run replayed with `--compare-trace OLD` pairs
-  the same frames. Live play runs under OLD's recorded seed unless `--random-seed N` is given
+  inner doors' overlay). Frames pair by game frame (Task D14, rule 11;
+  `src/glitchygames/game_frames.py`: `GameFrameClock`, a context slot restarted by
+  `SceneManager.begin_run`; `begin_frame` in `_run_frame_steps` with the scene whose logic the
+  frame runs, a pause screen's being one whose `debug_subject` is another scene): live, replay
+  and OLD's child's stream (game frames only) read it, so pausing freezes OLD and a recording
+  of the run replayed with `--compare-trace OLD` pairs the same frames; a step back carries the
+  game frame shown in `ViewerState.compare_first_game_frame` (`ReplayResult.shown_game_frames`). Live play runs under OLD's recorded seed unless `--random-seed N` is given
   (`_live_random_seed`, logged by `_log_the_runs_seed`). Refused before anything runs:
   `--headless` (64), OLD missing (66) or unreadable (65; its seed or size missing or malformed
   included), another size than the opened window (65,

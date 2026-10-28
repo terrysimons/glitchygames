@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Self
 import pygame
 import pytest
 
+from glitchygames.game_frames import restart_game_frame_clock
 from glitchygames.host import TICKS_BEFORE_LOGGING_RATE, GameHost, HostSources, TickPacer
 from glitchygames.input.state import IDLE_INPUT
 from glitchygames.live_sources import LiveSources
@@ -602,13 +603,14 @@ class RecordingOverlay:
 
 
 class TestHostOverlay:
-    """An overlay (live play against OLD) is drawn over each frame, numbered as recorded."""
+    """An overlay (live play against OLD) is drawn over each frame, by the game frame it shows."""
 
-    def test_the_overlay_draws_over_each_frame_by_the_frames_ended(self, mocker):
-        """OLD's frame N over frame N, then the inner doors' overlay; a frame counts once ended.
+    def test_the_overlay_draws_over_each_frame_by_the_game_frame_shown(self, mocker):
+        """OLD's game frame over each frame, then the inner doors' overlay; paused, it stays.
 
-        The inner doors end the frame before it is counted: inside their ``end_frame`` the
-        count is still the frame's own number.
+        A pause screen's frame (its scene presents the paused one) shows the game frame before
+        it; before any game frame, nothing is drawn. ``frames_ended`` still counts every frame
+        once the inner doors ended it, as a recording does.
         """
         calls: list[tuple[str, int]] = []
         live = LiveSources(random_seed=1, captures_scene_starts=False)
@@ -623,25 +625,44 @@ class TestHostOverlay:
             'end_frame',
             side_effect=lambda **_: calls.append(('inner end_frame', host.frames_ended)),
         )
+        game_scene = mocker.Mock()
+        game_scene.debug_subject = game_scene
+        pause_screen = mocker.Mock()
+        pause_screen.debug_subject = game_scene
+        clock = restart_game_frame_clock()
         surface = pygame.Surface((2, 2))
 
         assert host.frames_ended == 0
-        host.draw_overlay(surface=surface)
-        host.end_frame(frame_number=0, dt=0.1, scene=None, control_events=[])
-        host.draw_overlay(surface=surface)
-        host.draw_overlay(surface=surface)
-        host.end_frame(frame_number=1, dt=0.1, scene=None, control_events=[])
+        for frame_number, logic_scene in enumerate([
+            pause_screen,
+            game_scene,
+            None,
+            pause_screen,
+            game_scene,
+        ]):
+            clock.begin_frame(logic_scene=logic_scene)
+            host.draw_overlay(surface=surface)
+            host.end_frame(frame_number=frame_number, dt=0.1, scene=None, control_events=[])
 
-        assert host.frames_ended == 2
+        assert host.frames_ended == 5
         assert calls == [
-            ('overlay', 0),
+            # A pause screen before any game frame: no game frame to show
             ('inner overlay', 0),
             ('inner end_frame', 0),
-            ('overlay', 1),
-            ('inner overlay', 1),
-            ('overlay', 1),
+            ('overlay', 0),
             ('inner overlay', 1),
             ('inner end_frame', 1),
+            # A frame without scene logic (a transition's) is a game frame
+            ('overlay', 1),
+            ('inner overlay', 2),
+            ('inner end_frame', 2),
+            # Paused: the game frame before stays
+            ('overlay', 1),
+            ('inner overlay', 3),
+            ('inner end_frame', 3),
+            ('overlay', 2),
+            ('inner overlay', 4),
+            ('inner end_frame', 4),
         ]
 
     def test_an_overlay_makes_the_doors_draw_one(self):

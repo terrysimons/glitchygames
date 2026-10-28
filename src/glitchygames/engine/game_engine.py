@@ -2291,9 +2291,30 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             old_path=old_path,
             alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT if compare_alpha is None else compare_alpha,
             game_command=old_game_command(old_path=old_path),
-            pause_at_frame=options.get('replay_pause_at_frame'),
+            pause_at_frame=self._olds_pause_at_frame(options=options),
         )
         sources.onion_skin = self.onion_skin
+
+    @staticmethod
+    def _olds_pause_at_frame(*, options: dict[str, Any]) -> int | None:
+        """Return the ``--replay-pause-at-frame`` OLD's child gets: a game frame, not a frame.
+
+        A restart (a step back) names the game frame it shows paused in its viewer state
+        (``ViewerState.compare_first_game_frame``); the child's stream then writes from that
+        game frame on (``first_streamed_frame`` of one past it). Without it (no restart, or a
+        pause frame given by hand), the child streams from OLD's first frame.
+
+        Args:
+            options: The parsed options.
+
+        Returns:
+            The child's pause frame, or None.
+
+        """
+        viewer_state: ViewerState | None = options.get('replay_viewer_state')
+        if viewer_state is None or viewer_state.compare_first_game_frame is None:
+            return None
+        return viewer_state.compare_first_game_frame + 1
 
     def _connect_the_frame_stream(
         self: Self, *, sources: ReplaySources, options: dict[str, Any]
@@ -2327,6 +2348,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             refusal = error
         else:
             sources.frame_sink = self.frame_stream
+            # The sink takes each frame as presented, in draw_overlay (rule 20 of
+            # glitchygames/replay/driver.py)
+            sources.draws_overlay = True
             return
         # Logged without a traceback: the message says what is wrong
         self.log.error('Cannot stream frames to port %s: %s', address.port, refusal)
@@ -3212,6 +3236,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 speed=controls.speed,
                 debug_panel=debug_overlay.panel,
                 divergence_frame=controls.divergence_frame,
+                # The game frame the restart shows paused, for OLD's child (rule 8 of
+                # glitchygames/replay/tools/compare.py)
+                compare_first_game_frame=(
+                    None
+                    if self.onion_skin is None
+                    else replay_sources.result.shown_game_frames.get(
+                        first_streamed_frame(pause_at_frame=restart_frame)
+                    )
+                ),
             ),
         )
         # _shutdown put the default handling back: while supervising, SIGTERM and SIGHUP end the

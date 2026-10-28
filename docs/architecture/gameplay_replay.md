@@ -495,10 +495,12 @@ Without `--replay-trace`, `--compare-trace OLD [--compare-alpha PERCENT]` lets y
 live, with real input, while OLD's frame of the same number is drawn over each frame you see.
 OLD is replayed by the same headless child as above.
 
-- **Frame numbers** are the ones `--record-trace` would give the live frames. So
+- **Pausing freezes the ghost.** Frames are paired by game frames: the frames a game's own
+  logic ran in, not its pause screen's. While you are paused, OLD's frame stays where it was,
+  and it moves on when the game does. OLD's own pauses are skipped the same way, so your game
+  frame N meets OLD's game frame N. A replay pairs frames the same way, so
   `--record-trace NEW --compare-trace OLD`, and later `--replay-trace NEW --compare-trace OLD`,
-  pair the same frames. A game's own pause screen still runs frames, and a recording counts
-  them, so OLD runs on while the game is paused.
+  show the same pairs. Recordings themselves still count every frame.
 - **The seed:** the game plays under OLD's recorded seed, so the ghost starts in the same world,
   unless `--random-seed N` is given. The log names the seed either way.
 - **OLD shorter than your play:** OLD's last frame stays, labelled `OLD ended at frame N`, and

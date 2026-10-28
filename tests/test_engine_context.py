@@ -35,6 +35,7 @@ from glitchygames.engine_context import (
     declared_context_slots,
     default_context,
 )
+from glitchygames.game_frames import game_frame_clock
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, EnumerationAnswer
 from glitchygames.input.state import IDLE_INPUT, current_input, set_current_input
 from glitchygames.live_sources import LiveSources
@@ -619,6 +620,22 @@ def check_default_background(*, first: EngineContext, second: EngineContext) -> 
     assert active_default_background_pattern() is default_pattern
 
 
+def check_game_frame_clock(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context counts its own game frames, and the default context its own."""
+    default_clock = game_frame_clock()
+    with first.active():
+        game_frame_clock().begin_frame(logic_scene=None)
+        game_frame_clock().begin_frame(logic_scene=None)
+    with second.active():
+        assert game_frame_clock().shown_game_frame is None
+        game_frame_clock().begin_frame(logic_scene=None)
+    with first.active():
+        assert game_frame_clock().shown_game_frame == 1
+    with second.active():
+        assert game_frame_clock().shown_game_frame == 0
+    assert game_frame_clock() is default_clock
+
+
 def check_current_input(*, first: EngineContext, second: EngineContext) -> None:
     """Each context keeps its own polled input, and the default context its own."""
     default_snapshot = current_input()
@@ -834,6 +851,7 @@ def check_scene_managers(*, first: EngineContext, second: EngineContext) -> None
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.pixel_snap.default_mode': check_default_snap_mode,
     'glitchygames.backgrounds.default_pattern': check_default_background,
+    'glitchygames.game_frames.clock': check_game_frame_clock,
     'glitchygames.input.state.current_input': check_current_input,
     'glitchygames.randomness.streams': check_random_streams,
     'glitchygames.sources.registry': check_sources_registry,

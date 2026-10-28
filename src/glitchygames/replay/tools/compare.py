@@ -63,22 +63,25 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
    compares and writes nothing), so OLD's run under its own seed is shown over the new seed's.
 8. **Step back.** The viewer's step back (and Home, D) restarts NEW's process with
    ``--replay-pause-at-frame N`` (glitchygames/replay/rebuild.py), keeping every other option,
-   ``--compare-trace`` included. The restarted process starts its own child with the same
-   ``--replay-pause-at-frame N``: a headless replay does not pause, but its stream then writes
-   nothing before the frame the restart shows paused (``first_streamed_frame``: N - 1, the
-   rebuild's own pause rule), so the child runs on through the frames NEW rebuilds unshown. The
+   ``--compare-trace`` included, and names in its viewer state the game frame (rule 11) the
+   restart shows paused (``ViewerState.compare_first_game_frame``, from the game frame each
+   frame showed, ``ReplayResult.shown_game_frames``). The restarted process gives its own child
+   ``--replay-pause-at-frame G + 1`` for that game frame G (``GameEngine._olds_pause_at_frame``):
+   a headless replay does not pause, but its stream then writes no game frame before G
+   (``first_streamed_frame``, read in game frames by the stream), so the child runs on through
+   the frames NEW rebuilds unshown. Without that viewer state (a pause frame given by hand) the
+   child streams from OLD's first frame. The
    restarted replay starts the child as its rebuild begins (``ReplaySources.hold_frame``), so the
    two rebuilds run at once instead of one after the other.
 9. **Live play** (decision 19, Task D12). ``<game> --compare-trace OLD [--compare-alpha
    PERCENT]`` without ``--replay-trace`` plays the game live, with real input, and draws OLD
    over each live presented frame as rules 1 to 5 draw it over NEW (the same child, stream,
    token, size cap and timeouts), through the live host's doors (``HostSources.overlay``,
-   glitchygames/host.py). A live frame's number is the one ``--record-trace`` records it as:
-   how many frames the host's doors ended before it (every frame the loop runs, a game's own
-   pause screen included, since a recording counts those too), so ``--record-trace NEW
-   --compare-trace OLD`` and a later ``--replay-trace NEW --compare-trace OLD`` pair the same
-   frames. The game plays under OLD's recorded seed (``OldRecording.random_seed``), so OLD's
-   ghost starts in the same world, unless ``--random-seed N`` is given; logged either way.
+   glitchygames/host.py). A live frame is paired by the game frame it shows (rule 11), as a
+   replay's is, so ``--record-trace NEW --compare-trace OLD`` and a later ``--replay-trace NEW
+   --compare-trace OLD`` pair the same frames. The game plays under OLD's recorded seed
+   (``OldRecording.random_seed``), so OLD's ghost starts in the same world, unless
+   ``--random-seed N`` is given; logged either way.
    Refused before anything runs as rule 6 says (``--headless``; ``--audit`` and
    ``--rebaseline`` need ``--replay-trace`` anyway), OLD's size checked against the live
    window once it opens, before the first frame. ``--record-trace NEW`` may go with it. Live
@@ -93,7 +96,16 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
     other pixel is NEW's, unchanged. A pixel that has never agreed has no background yet: OLD's
     pixel is then an item exactly where OLD and NEW differ (so a frame that matches draws
     nothing). A held last frame (rule 5) is drawn by the same rule, and the labels are drawn as
-    before. Vectorized with numpy (``pygame.surfarray``) on the presented copy.
+    before. Vectorized with numpy on the presented copy.
+11. **Pausing freezes the ghost** (decisions 18 and 19 as amended, Task D14; the user: "Yes,
+    the games should pause."). Frames are paired by the game-frame clock
+    (glitchygames/game_frames.py), not by the frame number a recording counts: a frame whose
+    logic ran on a pause screen shows the game frame before it, so OLD's frame stays drawn
+    (no label) until the game runs again. Every side reads the same clock: live play
+    (``HostSources.draw_overlay``), a watched replay (``ReplaySources.draw_overlay``) and OLD's
+    child, whose stream sends only game frames, numbered by it (``ReplaySources``'s frame sink),
+    so OLD's own pauses are skipped too and NEW's game frame N pairs with OLD's game frame N.
+    Recordings are unchanged: they count every frame.
 """
 
 from __future__ import annotations

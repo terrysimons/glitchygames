@@ -30,11 +30,12 @@ import pytest
 
 from glitchygames.argument_types import percent_from_zero_to_one_hundred
 from glitchygames.engine import GameEngine
+from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import OutputCapture, run_command
 from glitchygames.replay import viewer as viewer_module
 from glitchygames.replay.driver import ReplaySources
-from glitchygames.replay.rebuild import restart_command
+from glitchygames.replay.rebuild import ViewerState, restart_command
 from glitchygames.replay.tools import compare
 from glitchygames.replay.tools.children import running_game_command
 from glitchygames.replay.tools.compare import (
@@ -95,6 +96,14 @@ NEW_RED = (NEW_SEED, 0, 0)
 # Each frame's green is its own (frame k is FRAME_GREEN_STEP x (k + 1)): a frame's pixels sent
 # under another frame's number show
 FRAME_GREEN_STEP = 10
+# Under PAUSING_SEED the color game pauses itself after its PAUSE_AFTER_FRAMES-th game frame,
+# for PAUSE_FRAMES frames of the pause screen (D14)
+PAUSING_SEED = 150
+PAUSE_AFTER_FRAMES = 2
+PAUSE_FRAMES = 3
+# The game frame each frame of a pausing run shows (its logic's frames, the pause's left out):
+# frames 0 and 1 are game frames 0 and 1, the pause screen's three show game frame 1 still
+GAME_FRAME_OF_A_PAUSING_RUN = (0, 1, 1, 1, 1, 2, 3, 4, 5)
 # A pixel away from the status bar (bottom) and the OLD-ended label (top)
 SAMPLE_POINT = (8, 100)
 # The stand-in games' window size (tests/stand_in_games.py records at 320x240)
@@ -112,9 +121,28 @@ import pygame
 from glitchygames.engine import GameEngine
 from glitchygames.randomness import engine_random_seed
 from glitchygames.scenes import Scene
+from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 
 FRAMES_BEFORE_QUIT = {COLOR_GAME_FRAMES}
 FRAME_GREEN_STEP = {FRAME_GREEN_STEP}
+# Under this seed the game pauses itself once (the pause screen for PAUSE_FRAMES frames)
+PAUSING_SEED = {PAUSING_SEED}
+PAUSE_AFTER_FRAMES = {PAUSE_AFTER_FRAMES}
+PAUSE_FRAMES = {PAUSE_FRAMES}
+
+
+class AutoResumingPause(PauseScene):
+    """The engine's pause screen, resuming by itself on its PAUSE_FRAMES-th frame."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.pause_frames = 0
+
+    def dt_tick(self, dt):
+        super().dt_tick(dt)
+        self.pause_frames += 1
+        if self.pause_frames == PAUSE_FRAMES:
+            self.resume()
 
 
 class Backdrop(pygame.sprite.DirtySprite):
@@ -149,6 +177,9 @@ class {SCENE_NAME}(Scene):
         self.backdrop.image.fill((self.red, FRAME_GREEN_STEP * self.frames % 256, 0))
         if self.frames == FRAMES_BEFORE_QUIT:
             GameEngine.quit_game()
+        elif engine_random_seed() == PAUSING_SEED and self.frames == PAUSE_AFTER_FRAMES:
+            # As Scene.pause() does: the pause screen comes after this frame renders
+            self.next_scene = AutoResumingPause(options=self.options)
 
 
 def main():
@@ -955,6 +986,8 @@ def test_a_step_back_restarts_the_child_at_the_same_frame(color_game, mocker):
         start(onion_skin)
 
     mocker.patch.object(OnionSkin, '_start', start_noting_the_rebuild)
+    # The restart names the game frame it shows paused (frame 3: this game never pauses, so
+    # its frames and game frames are one), as _restart_replay does
     run = watched_replay(
         mocker=mocker,
         scene_class=color_game.scene_class,
@@ -966,6 +999,8 @@ def test_a_step_back_restarts_the_child_at_the_same_frame(color_game, mocker):
             str(color_game.old),
             '--replay-pause-at-frame',
             '4',
+            '--replay-viewer-state',
+            ViewerState(compare_first_game_frame=3).model_dump_json(),
         ),
     )
 
@@ -2255,3 +2290,220 @@ def test_few_and_many_items_blend_alike(item_count):
             assert rgb_of(surface=new, position=(x, y)) == (
                 expected if (x, y) in positions else BACKGROUND
             ), (x, y)
+
+
+# Pausing freezes the ghost (Task D14): OLD is paired by game frames, a pause screen's left out
+
+
+def assert_old_follows_the_game_frames(*, pairs: dict[int, int | None]) -> None:
+    """Assert each frame of a pausing run was paired with OLD's frame of its game frame.
+
+    Args:
+        pairs: The OLD frame held on each frame shown, by the frame's number.
+
+    """
+    assert pairs
+    for frame_index, old_frame_index in pairs.items():
+        assert old_frame_index == GAME_FRAME_OF_A_PAUSING_RUN[frame_index], frame_index
+
+
+def test_pausing_freezes_old_in_live_play(color_game, mocker):
+    """While the game is paused, OLD's frame stays; it moves on with the game's next frame."""
+    run = live_play(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        arguments=('--random-seed', str(PAUSING_SEED), '--compare-trace', str(color_game.old)),
+    )
+
+    assert live_run_succeeded(run=run), run.exit_status
+    assert run.engine.host is not None
+    assert run.engine.host.sources.frames_ended == len(GAME_FRAME_OF_A_PAUSING_RUN)
+    pairs = {frame.frame_index: frame.old_frame_index for frame in run.presented}
+    assert set(pairs) == set(range(len(GAME_FRAME_OF_A_PAUSING_RUN)))
+    assert_old_follows_the_game_frames(pairs=pairs)
+    for frame in run.presented:
+        # No label while paused: OLD has not ended, it waits
+        assert frame.label is None, frame
+
+
+def record_a_pausing_run(*, color_game: ColorGame, path: Path) -> Path:
+    """Record the color game under ``PAUSING_SEED`` (it pauses itself once).
+
+    Returns:
+        The recording.
+
+    """
+    recording = record_stand_in_game(
+        game=color_game.game,
+        path=path,
+        extra_arguments=('--random-seed', str(PAUSING_SEED)),
+    )
+    assert recorded_frame_count(path=recording) == len(GAME_FRAME_OF_A_PAUSING_RUN)
+    return recording
+
+
+def test_pausing_freezes_old_in_a_watched_replay(color_game, mocker, tmp_path):
+    """A recorded pause holds OLD's frame in the replay as it did live."""
+    new = record_a_pausing_run(color_game=color_game, path=tmp_path / 'new.jsonl.gz')
+
+    run = watched_replay(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        recording=new,
+        arguments=('--compare-trace', str(color_game.old)),
+    )
+
+    assert run.exit_status == ExitCode.SUCCESS
+    pairs = {
+        frame.frame_index: frame.old_frame_index
+        for frame in run.presented
+        if frame.frame_index is not None
+    }
+    # The replay ends in its last frame, unpresented
+    assert set(pairs) == set(range(1, len(GAME_FRAME_OF_A_PAUSING_RUN) - 1))
+    assert_old_follows_the_game_frames(pairs=pairs)
+
+
+def test_a_run_recorded_with_a_pause_pairs_the_same_on_replay(color_game, mocker, tmp_path):
+    """Recorded live with a pause against OLD, then replayed against OLD: the same pairs."""
+    new = tmp_path / 'new.jsonl.gz'
+    live = live_play(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        arguments=(
+            '--random-seed',
+            str(PAUSING_SEED),
+            '--record-trace',
+            str(new),
+            '--compare-trace',
+            str(color_game.old),
+        ),
+    )
+    assert live_run_succeeded(run=live), live.exit_status
+
+    replayed = watched_replay(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        recording=new,
+        arguments=('--compare-trace', str(color_game.old)),
+    )
+
+    assert replayed.exit_status == ExitCode.SUCCESS
+    live_pairs = {frame.frame_index: frame.old_frame_index for frame in live.presented}
+    replayed_pairs = {
+        frame.frame_index: frame.old_frame_index
+        for frame in replayed.presented
+        if frame.frame_index is not None
+    }
+    assert replayed_pairs
+    for frame_index, old_frame_index in replayed_pairs.items():
+        assert live_pairs[frame_index] == old_frame_index, frame_index
+    assert_old_follows_the_game_frames(pairs=live_pairs)
+
+
+def test_a_step_back_across_a_pause_keeps_old_in_step(color_game, mocker, tmp_path):
+    """A step back after the pause restarts OLD's child at the game frame shown, not the frame.
+
+    The first replay is paused near its end (rebuilt there) and steps back once; its restart
+    command (captured) is then run as the restarted replay: rebuilt and paused at the frame
+    before, then on to the end.
+    """
+    new = record_a_pausing_run(color_game=color_game, path=tmp_path / 'new.jsonl.gz')
+    relaunch = mocker.patch.object(game_engine_module, 'relaunch_replay', return_value=0)
+
+    first = watched_replay(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        recording=new,
+        arguments=(
+            '--compare-trace',
+            str(color_game.old),
+            '--replay-pause-at-frame',
+            str(len(GAME_FRAME_OF_A_PAUSING_RUN) - 1),
+        ),
+        keys=(pygame.K_COMMA,),
+    )
+
+    assert first.exit_status == ExitCode.SUCCESS
+    command = relaunch.call_args.kwargs['command']
+    pause_at_frame = int(command[command.index('--replay-pause-at-frame') + 1])
+    viewer_state = command[command.index('--replay-viewer-state') + 1]
+    shown_after_the_restart = pause_at_frame - 1
+    # After the pause: a frame number and its game frame differ there
+    assert shown_after_the_restart > len(GAME_FRAME_OF_A_PAUSING_RUN) - COLOR_GAME_FRAMES
+    first_game_frame = GAME_FRAME_OF_A_PAUSING_RUN[shown_after_the_restart]
+    assert first_game_frame != shown_after_the_restart
+
+    restarted = watched_replay(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        recording=new,
+        arguments=(
+            '--compare-trace',
+            str(color_game.old),
+            '--replay-pause-at-frame',
+            str(pause_at_frame),
+            '--replay-viewer-state',
+            viewer_state,
+        ),
+    )
+
+    assert restarted.exit_status == ExitCode.SUCCESS
+    child_command = restarted.onion_skin.command
+    # The child is told the game frame (as a pause frame: one past it, rule 8)
+    assert child_command[child_command.index('--replay-pause-at-frame') + 1] == str(
+        first_game_frame + 1
+    )
+    pairs = {
+        frame.frame_index: frame.old_frame_index
+        for frame in restarted.presented
+        if frame.frame_index is not None
+    }
+    assert min(pairs) == shown_after_the_restart
+    assert_old_follows_the_game_frames(pairs=pairs)
+    # The child sent only the game frames shown from there on
+    assert restarted.onion_skin.frames_received == len(set(pairs.values()))
+
+
+def test_olds_own_pauses_are_skipped(color_game, mocker, tmp_path):
+    """OLD paused where the live game did not: its pause screen's frames are never sent."""
+    pausing_old = record_a_pausing_run(color_game=color_game, path=tmp_path / 'old.jsonl.gz')
+
+    run = live_play(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        arguments=('--random-seed', str(NEW_SEED), '--compare-trace', str(pausing_old)),
+    )
+
+    assert live_run_succeeded(run=run), run.exit_status
+    assert run.presented
+    for frame in run.presented:
+        # This game never pauses: its frame N is its game frame N, paired with OLD's
+        assert frame.old_frame_index == frame.frame_index, frame
+        assert frame.sample == blended(
+            new=frame_color(seed=NEW_SEED, frame_index=frame.frame_index),
+            old=frame_color(seed=PAUSING_SEED, frame_index=frame.frame_index),
+            percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        ), frame
+    # OLD's six game frames came, none of its pause screen's three
+    assert run.onion_skin.frames_received == COLOR_GAME_FRAMES
+
+
+def test_the_child_streams_only_game_frames(color_game, mocker, tmp_path):
+    """A headless replay of a pausing run streams its game frames, numbered 0 to N - 1, only."""
+    pausing = record_a_pausing_run(color_game=color_game, path=tmp_path / 'pausing.jsonl.gz')
+    listener = FrameStreamListener()
+
+    replay = replay_through_engine(
+        mocker=mocker,
+        scene_class=color_game.scene_class,
+        path=pausing,
+        extra_arguments=('--replay-frame-stream', listener.address),
+    )
+    frames = listener.finish()
+
+    assert replay.exit_status == ExitCode.SUCCESS
+    assert [frame.frame_index for frame in frames] == list(range(COLOR_GAME_FRAMES))
+    for frame in frames:
+        # Each game frame's own picture, as presented (never a pause screen's)
+        assert frame.sample == frame_color(seed=PAUSING_SEED, frame_index=frame.frame_index)

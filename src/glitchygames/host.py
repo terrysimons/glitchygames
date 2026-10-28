@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 import pygame
 
+from glitchygames.game_frames import game_frame_clock
 from glitchygames.live_sources import LiveSources
 from glitchygames.sources import active_sources
 
@@ -134,12 +135,14 @@ class HostSources:  # ruff: ignore[too-many-public-methods] - every EngineSource
     The host's layer of the doors: installed around a live run's doors, beneath the recorder.
     Every member forwards unchanged, but event batches lose what a window recreation queued
     (``without_window_recreation_bursts``), and an ``overlay`` is drawn over each presented
-    frame (``--compare-trace OLD`` in live play: rule 9 of glitchygames/replay/tools/compare.py).
+    frame (``--compare-trace OLD`` in live play: rule 9 of glitchygames/replay/tools/compare.py),
+    numbered by the game-frame clock (glitchygames/game_frames.py).
 
     Attributes:
         inner: The doors read through (the run's live doors).
         random_seed: The run's master seed (``inner``'s).
-        overlay: Drawn over each presented frame, numbered as ``frames_ended``, or None.
+        overlay: Drawn over each presented frame, numbered by the game frame it shows
+            (``game_frame_clock().shown_game_frame``), or None.
 
     """
 
@@ -256,9 +259,12 @@ class HostSources:  # ruff: ignore[too-many-public-methods] - every EngineSource
         return self.overlay is not None or self.inner.draws_overlay
 
     def draw_overlay(self: Self, *, surface: pygame.Surface) -> None:
-        """Draw the ``overlay`` over the frame running now, then let ``inner`` draw its own."""
-        if self.overlay is not None:
-            self.overlay.draw(surface=surface, frame_index=self._frames_ended)
+        """Draw the ``overlay`` over the game frame shown now, then let ``inner`` draw its own."""
+        # Paired by game frames (glitchygames/game_frames.py): a pause screen's frame shows the
+        # game frame before it, so OLD's stays; nothing before the first game frame
+        shown_game_frame = game_frame_clock().shown_game_frame
+        if self.overlay is not None and shown_game_frame is not None:
+            self.overlay.draw(surface=surface, frame_index=shown_game_frame)
         # Asked even when ``inner`` draws none (live doors' draw_overlay draws nothing)
         self.inner.draw_overlay(surface=surface)
 

@@ -228,9 +228,12 @@ session again, and every frame's sprites are compared with the recorded frame. T
     is the contract): a watched replay's ``onion_skin`` draws OLD's frame of the same number
     over the presented copy of the frame shown (``draw_overlay``, before the status bar; not
     while rebuilding, though ``hold_frame`` begins it as a rebuild starts, so OLD's child
-    rebuilds alongside), and a headless child's ``frame_sink`` takes each replayed frame from the
-    display surface as ``end_frame`` ends it (``False`` back stops the replay: nobody reads).
-    Neither changes what is replayed or compared.
+    rebuilds alongside), and a headless child's ``frame_sink`` takes each replayed game frame
+    (glitchygames/game_frames.py) as it is presented: the engine makes such a replay draw its
+    overlay (``draws_overlay``), and its ``draw_overlay`` hands the presented frame over instead
+    of drawing (a scene switched to after the frame was presented never shows in it); ``False``
+    back stops the replay at the frame's end (``frame_sink_closed``: nobody reads). Neither
+    changes what is replayed or compared.
 """
 
 from __future__ import annotations
@@ -253,6 +256,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from glitchygames.clock import measured_seconds
 from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
+from glitchygames.game_frames import game_frame_clock
 from glitchygames.input.devices import (
     DeviceDescriptor,
     EnumerationAnswer,
@@ -893,6 +897,9 @@ class ReplayResult:
             compared.
         max_processing_slowdown_percent: The slowdown a matched replay may show
             (``--max-processing-slowdown``), or None for no check.
+        shown_game_frames: The game frame each frame run showed (glitchygames/game_frames.py),
+            by frame index (None: no game frame yet); a step back's restart starts OLD's child
+            at one (rule 8 of glitchygames/replay/tools/compare.py).
 
     """
 
@@ -900,6 +907,7 @@ class ReplayResult:
     divergence: Divergence | None = None
     end_reason: str = RUNNING_END_REASON
     restart_frame: int | None = None
+    shown_game_frames: dict[int, int | None] = dataclasses.field(default_factory=dict, repr=False)
     recorded_history: collections.deque[tuple[int, list[dict[str, Any]]]] = dataclasses.field(
         default_factory=_new_frame_history, repr=False
     )
@@ -1320,6 +1328,8 @@ class ReplaySources:
             12; the engine then exits ``ExitCode.CANNOT_WRITE_OUTPUT``).
         frame_sink: Takes each replayed frame as presented (rule 20: a headless child's frame
             stream), or None.
+        frame_sink_closed: True once the frame sink took no more (the replay stops at the
+            frame's end).
         onion_skin: Draws over each presented frame of a watched replay (rule 20:
             ``--compare-trace``), or None.
 
@@ -1332,6 +1342,7 @@ class ReplaySources:
     digest_write_failed: bool = False
     # Set by the engine for --replay-frame-stream and --compare-trace (rule 20)
     frame_sink: FrameSink | None = None
+    frame_sink_closed: bool = False
     onion_skin: FrameOverlay | None = None
 
     def __init__(
@@ -1705,18 +1716,26 @@ class ReplaySources:
         presented frame.
 
         With ``--compare-trace`` (rule 20) OLD's frame is drawn first, over the frame the replay
-        shows (the last one run), but never over a rebuild's progress screen.
+        shows (the last one run), but never over a rebuild's progress screen. OLD's frame is
+        the one of the game frame shown (glitchygames/game_frames.py): through a pause screen's
+        frames, the game frame before them.
 
         Args:
             surface: The presented frame (never a screenshot or a traced frame).
 
         """
+        if self.options.headless:
+            # Only a frame sink makes a headless replay draw an overlay: it takes the frame
+            self._hand_frame_to_sink(surface=surface)
+            return
+        shown_game_frame = game_frame_clock().shown_game_frame
         if (
             self.onion_skin is not None
             and self._rebuild is None
             and self._frame_index > self.options.start_frame
+            and shown_game_frame is not None
         ):
-            self.onion_skin.draw(surface=surface, frame_index=self._frame_index - 1)
+            self.onion_skin.draw(surface=surface, frame_index=shown_game_frame)
         self.controls.draw(surface=surface)
 
     def input_snapshot(self: Self) -> InputSnapshot:
@@ -1849,8 +1868,9 @@ class ReplaySources:
                     if self.recording.is_truncated
                     else END_OF_RECORDING_BANNER,
                 )
-        self._hand_frame_to_sink()
-        if self._window_was_closed or self.controls.quit_requested:
+        self.result.shown_game_frames[self._frame_index] = game_frame_clock().shown_game_frame
+        # A frame sink nobody reads any more ends the replay as a quit does (rule 20)
+        if self.frame_sink_closed or self._window_was_closed or self.controls.quit_requested:
             self._stop(end_reason=QUIT_END_REASON)
         self._frame_index += 1
         self._pump_index = 0
@@ -1866,19 +1886,27 @@ class ReplaySources:
                 self._finish_rebuild(rebuild=self._rebuild)
         self._begin_frame()
 
-    def _hand_frame_to_sink(self: Self) -> None:
-        """Give the frame that just ended, as presented, to the frame sink, if any (rule 20).
+    def _hand_frame_to_sink(self: Self, *, surface: pygame.Surface) -> None:
+        """Give the frame being presented to the frame sink, if a game frame (rule 20).
 
-        A sink that takes no more (nobody reads its frames) stops the replay rather than letting
-        it run on unseen.
+        Only game frames, numbered by the game-frame clock (glitchygames/game_frames.py): a
+        pause screen's frame is never sent as one of OLD's. A sink that takes no more (nobody
+        reads its frames) stops the replay at the frame's end (``frame_sink_closed``) rather
+        than letting it run on unseen.
+
+        Args:
+            surface: The frame as presented (the display surface).
+
         """
-        if self.frame_sink is None:
+        # Only a frame sink makes a headless replay draw (the engine's _connect_the_frame_stream)
+        assert self.frame_sink is not None
+        clock = game_frame_clock()
+        if not clock.is_game_frame:
             return
-        # A replay with a frame sink has its display (a headless child's dummy one)
-        display_surface = pygame.display.get_surface()
-        assert display_surface is not None
-        if not self.frame_sink.write_frame(frame_index=self._frame_index, surface=display_surface):
-            self._stop(end_reason=QUIT_END_REASON)
+        # A game frame always shows itself
+        assert clock.shown_game_frame is not None
+        if not self.frame_sink.write_frame(frame_index=clock.shown_game_frame, surface=surface):
+            self.frame_sink_closed = True
 
     def finish_run(self: Self) -> None:
         """Settle the result when the run ends (``GameEngine._shutdown``).

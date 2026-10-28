@@ -1136,13 +1136,16 @@ scripts, staging rows in the pre-commit hook, and the docs snippet text.
     of what else is going on"):** only OLD's items are drawn, NEW stays fully opaque. A
     per-pixel background is learned wherever OLD's and NEW's frames agree; an OLD pixel unlike
     its background is an item, blended over NEW at the alpha; a pixel with no background yet is
-    an item only where OLD and NEW differ. Applies to live play (decision 19) too.
+    an item only where OLD and NEW differ. Applies to live play (decision 19) too. **Amended
+    again 2026-10-27 (Task D14; the user: "Yes, the games should pause."):** frames pair by game
+    frames (a pause screen's frames left out) on every side, so pausing freezes OLD.
 19. **`--compare-trace OLD` also works with live play** (the user, 2026-10-27: "--compare-trace
     should work independently with a real live play."; Task D12). Without `--replay-trace`, the
     game is played live with real input and OLD's frame N (the same child and stream as decision
     18) is drawn over live frame N, numbered as `--record-trace` counts frames. Live play runs
     under OLD's recorded seed unless `--random-seed N` is given. A game flag only: no `play`
-    subcommand, and `glitchygames replay-trace --compare-trace` is unchanged.
+    subcommand, and `glitchygames replay-trace --compare-trace` is unchanged. (Task D14: frames
+    pair by game frames, not as `--record-trace` counts them: pausing freezes OLD.)
 
 **Calls made while planning** (the controller's; the user may overturn any):
 - **Rebaseline and audit stay options of `replay-trace`** (the controller's recommendation; the
@@ -1605,6 +1608,20 @@ about 0.75 ms identical frames, 3.1 ms a few sprites, 3.8 ms every pixel differi
   `test_a_pixel_without_a_background_yet_falls_back_to_differs`, plus
   `test_few_and_many_items_blend_alike`.
 - [x] **Step 2:** implement; docs; lint; commit (2026-10-27).
+
+### Task D14: pausing freezes the ghost (the user, 2026-10-27: "Yes, the games should pause.")
+
+**Behavior:** rule 11 of `replay/tools/compare.py`; `glitchygames/game_frames.py`. A game frame
+is one whose logic ran on a scene that presents itself (`debug_subject is scene`; the scene
+active as the logic begins, since pausing switches after the frame renders and resuming during
+its events). Live, watched replay and OLD's child's stream pair by it; a step back carries the
+game frame it shows (`ViewerState.compare_first_game_frame`) to the child. Recordings unchanged.
+
+- [x] **Step 1: failing tests:** `test_pausing_freezes_old_in_live_play`,
+  `test_pausing_freezes_old_in_a_watched_replay`,
+  `test_a_run_recorded_with_a_pause_pairs_the_same_on_replay`,
+  `test_a_step_back_across_a_pause_keeps_old_in_step`.
+- [x] **Step 2:** implement; docs; lint; `CI=true nox -s test`; commit (2026-10-27).
 
 ### Task D10: Docs, then Stage D's verification
 
