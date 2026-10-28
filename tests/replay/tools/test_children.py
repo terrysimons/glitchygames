@@ -11,6 +11,7 @@ import os
 import shutil
 import sys
 from importlib.metadata import EntryPoint
+from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING
 
 import pytest
@@ -29,10 +30,13 @@ from glitchygames.replay.tools.children import (
     launch_game,
     module_is_importable,
     rebaseline_recording_headless,
+    recorded_game_module,
+    recorded_games_console_script,
     recording_console_script,
     replay_recording_headless,
     resolve_game,
 )
+from glitchygames.replay.tools.settings import ProjectSettingsError
 from glitchygames.tracing import REPLAY_FIXTURES_PATH_PARTS
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 from tests.stand_in_games import (
@@ -509,3 +513,133 @@ def test_launch_game_runs_its_command_with_the_arguments_in_the_project_root(tmp
 
     assert finished.returncode == ExitCode.SUCCESS
     assert finished.stdout.strip() == f"['--replay-trace', 'run.jsonl.gz'] {tmp_path.resolve()}"
+
+
+# A member's recording as Windows names it (a WindowsPath's str() has backslashes). The
+# messages name a recording with / on every platform (as_posix), as the report and resolve_game
+# do. Typed as a Path for the functions; a PureWindowsPath cannot be read here, so what reads
+# the file (the project's pyproject.toml, the recording's header) is patched where needed
+WINDOWS_MEMBER_RECORDING = PureWindowsPath(
+    'C:\\games\\space-games\\tests\\fixtures\\replays\\golden.jsonl.gz'
+)
+WINDOWS_MEMBER_RECORDING_NAME = 'C:/games/space-games/tests/fixtures/replays/golden.jsonl.gz'
+CHILDREN_MODULE = 'glitchygames.replay.tools.children'
+
+
+def refusal_of(call) -> str:
+    """Return the KeyError message a call raises.
+
+    Returns:
+        The message.
+
+    """
+    with pytest.raises(KeyError) as refused:
+        call()
+    return refused.value.args[0]
+
+
+def assert_named_with_slashes(message: str, *, name: str) -> None:
+    """Check a message starts with the recording's /-separated name and holds no backslash."""
+    assert message.startswith(f'{name}: '), message
+    assert '\\' not in message, message
+
+
+def test_a_windows_recording_not_under_tests_is_named_with_slashes():
+    """The refusal of a fixtures/replays/ outside <project>/tests/ names the path with /."""
+    recording = PureWindowsPath('C:\\games\\x\\integration\\fixtures\\replays\\g.jsonl.gz')
+
+    message = refusal_of(lambda: recording_console_script(path=recording))  # type: ignore[arg-type]
+
+    assert_named_with_slashes(message, name='C:/games/x/integration/fixtures/replays/g.jsonl.gz')
+
+
+def test_a_windows_recording_whose_pyproject_cannot_be_read_is_named_with_slashes(mocker):
+    """A project whose pyproject.toml is not TOML: the refusal names the recording with /."""
+    mocker.patch(
+        f'{CHILDREN_MODULE}.project_name', side_effect=ProjectSettingsError('not valid TOML')
+    )
+
+    message = refusal_of(
+        lambda: recording_console_script(path=WINDOWS_MEMBER_RECORDING)  # type: ignore[arg-type]
+    )
+
+    assert_named_with_slashes(message, name=WINDOWS_MEMBER_RECORDING_NAME)
+
+
+def test_a_windows_recording_of_an_uninstalled_project_is_named_with_slashes(mocker):
+    """The project names a distribution that is not installed: the recording is named with /."""
+    mocker.patch(f'{CHILDREN_MODULE}.project_name', return_value='never-installed-game')
+
+    message = refusal_of(
+        lambda: recording_console_script(path=WINDOWS_MEMBER_RECORDING)  # type: ignore[arg-type]
+    )
+
+    assert_named_with_slashes(message, name=WINDOWS_MEMBER_RECORDING_NAME)
+
+
+def test_a_windows_recording_of_a_project_without_console_scripts_is_named_with_slashes(mocker):
+    """An installed distribution with no console script (pytest-mock): named with /."""
+    mocker.patch(f'{CHILDREN_MODULE}.project_name', return_value='pytest-mock')
+
+    message = refusal_of(
+        lambda: recording_console_script(path=WINDOWS_MEMBER_RECORDING)  # type: ignore[arg-type]
+    )
+
+    assert_named_with_slashes(message, name=WINDOWS_MEMBER_RECORDING_NAME)
+
+
+def test_a_windows_recording_in_a_folder_that_is_no_console_script_is_named_with_slashes():
+    """fixtures/replays/<folder>/: a folder naming no console script, the recording named with /."""
+    recording = PureWindowsPath('C:\\games\\fixtures\\replays\\no-such-game\\golden.jsonl.gz')
+
+    message = refusal_of(lambda: recording_console_script(path=recording))  # type: ignore[arg-type]
+
+    assert_named_with_slashes(
+        message, name='C:/games/fixtures/replays/no-such-game/golden.jsonl.gz'
+    )
+
+
+def test_a_windows_recording_without_a_game_in_its_header_is_named_with_slashes(mocker):
+    """A header naming no game: the recording is named with /."""
+    reader = mocker.patch(f'{CHILDREN_MODULE}.TraceReader')
+    reader.return_value.__enter__.return_value.header = {}
+
+    message = refusal_of(
+        lambda: recorded_game_module(path=WINDOWS_MEMBER_RECORDING)  # type: ignore[arg-type]
+    )
+
+    assert_named_with_slashes(message, name=WINDOWS_MEMBER_RECORDING_NAME)
+
+
+def test_a_windows_recording_whose_header_cannot_be_read_is_named_with_slashes(mocker):
+    """A header that cannot be read to choose among several scripts: named with /."""
+    mocker.patch(f'{CHILDREN_MODULE}.recorded_game_module', side_effect=OSError('unreadable'))
+
+    message = refusal_of(
+        lambda: recorded_games_console_script(
+            path=WINDOWS_MEMBER_RECORDING,  # type: ignore[arg-type]
+            distribution_name='space-games',
+            entry_points=[],
+        )
+    )
+
+    assert_named_with_slashes(message, name=WINDOWS_MEMBER_RECORDING_NAME)
+
+
+def test_a_windows_recording_whose_game_no_console_script_starts_is_named_with_slashes(mocker):
+    """None of the member's scripts starts the recorded game: named with /."""
+    mocker.patch(f'{CHILDREN_MODULE}.recorded_game_module', return_value='other_game.game')
+    entry_points = [
+        EntryPoint(name='classic', value='space_game:main', group=CONSOLE_SCRIPTS_GROUP),
+        EntryPoint(name='papyrus', value='space_game_papyrus:main', group=CONSOLE_SCRIPTS_GROUP),
+    ]
+
+    message = refusal_of(
+        lambda: recorded_games_console_script(
+            path=WINDOWS_MEMBER_RECORDING,  # type: ignore[arg-type]
+            distribution_name='space-games',
+            entry_points=entry_points,
+        )
+    )
+
+    assert_named_with_slashes(message, name=WINDOWS_MEMBER_RECORDING_NAME)

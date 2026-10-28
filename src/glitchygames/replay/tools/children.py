@@ -173,6 +173,9 @@ def recording_console_script(*, path: Path) -> str:
     Returns:
         The console script's name.
 
+    Every refusal names the recording with ``/`` (``as_posix``), as typed and as ``measure`` and
+    ``verify`` name recordings, on Windows too.
+
     Raises:
         KeyError: If a recording directly in ``fixtures/replays/`` is not in a project's
             ``tests/`` (the directory above ``fixtures/`` is not ``tests``: another layout,
@@ -187,8 +190,9 @@ def recording_console_script(*, path: Path) -> str:
         tests_directory = path.parent.parent.parent
         if tests_directory.name != MEMBER_TESTS_DIRECTORY_NAME:
             message = (
-                f'{path}: a recording directly in {"/".join(REPLAY_FIXTURES_PATH_PARTS)}/ is a '
-                f"project's, in <project>/{MEMBER_TESTS_DIRECTORY_NAME}/, but the "
+                f'{path.as_posix()}: a recording directly in '
+                f"{'/'.join(REPLAY_FIXTURES_PATH_PARTS)}/ is a project's, in "
+                f'<project>/{MEMBER_TESTS_DIRECTORY_NAME}/, but the '
                 f'directory above fixtures/ is {tests_directory.name!r}, not '
                 f'{MEMBER_TESTS_DIRECTORY_NAME!r}'
             )
@@ -197,7 +201,7 @@ def recording_console_script(*, path: Path) -> str:
         try:
             named = project_name(project_root=project_directory)
         except ProjectSettingsError as error:
-            message = f'{path}: its project names no distribution ({error})'
+            message = f'{path.as_posix()}: its project names no distribution ({error})'
             raise KeyError(message) from None
         distribution_name, named_by = (
             (project_directory.name, f'the directory its {MEMBER_TESTS_DIRECTORY_NAME}/ is in')
@@ -209,8 +213,9 @@ def recording_console_script(*, path: Path) -> str:
         except importlib.metadata.PackageNotFoundError:
             # The installer is the project's business, so none is named
             message = (
-                f'{path}: looked for a console script of {distribution_name!r} ({named_by} '
-                'names the distribution), but no distribution of that name is installed'
+                f'{path.as_posix()}: looked for a console script of {distribution_name!r} '
+                f'({named_by} names the distribution), but no distribution of that name is '
+                'installed'
             )
             raise KeyError(message) from None
         console_scripts = [
@@ -219,7 +224,7 @@ def recording_console_script(*, path: Path) -> str:
             if entry_point.group == CONSOLE_SCRIPTS_GROUP
         ]
         if not console_scripts:
-            message = f'{path}: {distribution_name!r} has no console scripts'
+            message = f'{path.as_posix()}: {distribution_name!r} has no console scripts'
             raise KeyError(message)
         if len(console_scripts) == 1:
             return console_scripts[0].name
@@ -229,7 +234,7 @@ def recording_console_script(*, path: Path) -> str:
     try:
         game_entry_point(console_script=path.parent.name)
     except KeyError:
-        message = f'{path}: the directory {path.parent.name!r} is not a console script'
+        message = f'{path.as_posix()}: the directory {path.parent.name!r} is not a console script'
         raise KeyError(message) from None
     return path.parent.name
 
@@ -292,8 +297,8 @@ def recorded_game_module(*, path: Path) -> str:
     recorded_game = header.get(GAME_HEADER_FIELD)
     if not isinstance(recorded_game, str):
         message = (
-            f'{path}: no {GAME_HEADER_FIELD!r} in its header (a recording made before logical '
-            'names)'
+            f'{path.as_posix()}: no {GAME_HEADER_FIELD!r} in its header (a recording made before '
+            'logical names)'
         )
         raise KeyError(message)
     return module_for_logical_module(logical_module=recorded_game.partition(':')[0])
@@ -327,7 +332,7 @@ def recorded_games_console_script(
     # A TraceFormatError is a ValueError
     except OSError, ValueError:
         message = (
-            f"{path}: its header cannot be read to choose among {distribution_name!r}'s "
+            f"{path.as_posix()}: its header cannot be read to choose among {distribution_name!r}'s "
             f'{len(entry_points)} console scripts'
         )
         raise KeyError(message) from None
@@ -337,7 +342,7 @@ def recorded_games_console_script(
     try:
         return console_script_for_game_module(entry_points=entry_points, game_module=game_module)
     except KeyError as error:
-        message = f'{path}: {distribution_name!r}: {error.args[0]}'
+        message = f'{path.as_posix()}: {distribution_name!r}: {error.args[0]}'
         raise KeyError(message) from None
 
 
