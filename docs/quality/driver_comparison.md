@@ -150,7 +150,7 @@ the way CircleCI's Linux job does, to reproduce that job's failures here. It rea
 (`build-and-test-linux`) from `.circleci/config.yml`: its image (`cimg/python` at
 `PYTHON_LATEST_VERSION`), its resource class's memory and CPUs (`small`: 2 GB, no swap, and one
 CPU, given to `docker run` as `--memory`, `--memory-swap` and `--cpus`) and its environment
-(`PYTEST_WORKERS=0`: one serial process; `GLITCHYGAMES_TEST_RSS_LIMIT_MB=1600`:
+(`PYTEST_WORKERS=0`: one serial process; `GLITCHYGAMES_TEST_RSS_LIMIT_MB=1900`:
 `tests/memory_guard.py` stops the run past it, naming the test), with `CI=true` and
 `CIRCLECI=true`. The container gets what git would commit from this checkout: tracked files and
 untracked ones that are not ignored, uncommitted changes included, never an ignored file (the
