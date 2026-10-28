@@ -1158,15 +1158,13 @@ class TestAiWorkerShutdown:
         engine_class.return_value.start.side_effect = deliver_signal_while_running
         shut_down_workers = mocker.patch.object(bitmappy, 'shut_down_running_ai_workers')
 
-        # main() sets the editor's logger to INFO for the process; later tests need it back
+        # main() sets no logger level: --log-level is the level (BUGS.md #236)
         editor_logger = logging.getLogger('game.tools.bitmappy')
         level_before_main = editor_logger.level
-        try:
-            with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
-                bitmappy.main()
-        finally:
-            editor_logger.setLevel(level_before_main)
+        with caplog.at_level(logging.INFO), pytest.raises(SystemExit) as exit_info:
+            bitmappy.main()
 
+        assert editor_logger.level == level_before_main
         assert exit_info.value.code == ExitCode.TERMINATED
         assert f'Received signal {signal.SIGTERM}' in caplog.text
         # The engine's handler (glitchygames/engine/game_engine.py), whose re-entry guard

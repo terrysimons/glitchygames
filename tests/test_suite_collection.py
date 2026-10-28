@@ -1189,6 +1189,7 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
         'checks the engine wheel holds no member (read from the workspace)'
     ),
     'tests/test_our_measured_recordings.py': "checks our games' recordings are all measured",
+    'tests/test_logger_level_source_guard.py': SOURCE_GUARD_REASON,
     'tests/test_pump_seam_guard.py': SOURCE_GUARD_REASON,
     'tests/test_suite_collection.py': (
         "the suite's own collection and import guards, over every test root"

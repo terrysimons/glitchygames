@@ -50,15 +50,13 @@ class ErrorInfo:
 class MultiControllerErrorHandler:
     """Enhanced error handling for multi-controller system."""
 
-    def __init__(self, log_level: int = logging.INFO) -> None:
+    def __init__(self) -> None:
         """Initialize error handler.
 
-        Args:
-            log_level: Logging level
-
+        Its logger's level is the command line's (--log-level): it took a level and set it on
+        the shared ``multi_controller`` logger, outliving --log-level (BUGS.md #236).
         """
         self.logger = logging.getLogger('multi_controller')
-        self.logger.setLevel(log_level)
 
         # Error tracking
         self.error_history: list[ErrorInfo] = []

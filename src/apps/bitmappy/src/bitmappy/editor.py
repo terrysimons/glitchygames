@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import contextlib
-import logging
 import multiprocessing
 import signal
 from pathlib import Path
@@ -1540,7 +1539,8 @@ def main() -> None:
         SystemExit: When the engine's run ends with one (a signal's ``ExitCode`` included).
 
     """
-    LOG.setLevel(logging.INFO)
+    # No logger level here: --log-level (default info) is the level, which shows the signal
+    # lines below (BUGS.md #236)
 
     # SIGINT and SIGTERM end the editor through SystemExit with the signal's exit code
     # (INTERRUPTED, TERMINATED), the engine's own handler: it ignores a repeated signal while the
