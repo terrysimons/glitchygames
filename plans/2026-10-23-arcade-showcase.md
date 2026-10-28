@@ -232,6 +232,15 @@ sprite being drawn; the joystick demo's shows its readout answering a recorded p
   launching and the idle time-out.
 - **Launch and return, every game:** launch, play briefly, quit, and the Arcade is back with the
   highlight on that game.
+- **The debug overlay survives a tile's game looping** (the owner, 2026-10-27, after the spikes
+  lost it on restart): turn F3 on for every tile, F4 to a panel on one, Shift+F3 off on another;
+  let every tile's demo loop at least once; each restarted game has exactly its tile's overlay
+  state back (on, its panel, or off), F3 again turns all on, and the overlay changes no tile's
+  replay digests. The spike's `loop-overlay-all` check (`.superpowers/arcade-spike/`) is the model.
+- **Tiles are opaque on a real display's format:** a tile's render target in the native driver's
+  pixel format (alpha channel without SRCALPHA), stepped through a scene with a per-pixel-alpha
+  sprite, has no alpha-0 byte when composed (the spike's vanished-sprites bug; BUGS.md #142's
+  rule for frames that are never presented).
 - **The chime:** its waveform has the four notes, the level and the fades; a rendered file to
   listen to.
 - **Browser:** the Arcade bundle builds and `nox -s browser -- arcade` runs it.
