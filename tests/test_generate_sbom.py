@@ -261,9 +261,10 @@ def test_main_scans_the_virtualenv_and_writes_the_stripped_sbom(
         '--override-default-catalogers',
         'python',
     ]
-    assert json.loads(output.read_text(encoding='utf-8')) == generate_sbom.strip_volatile_fields(
-        copy.deepcopy(document)
+    expected = generate_sbom.name_scanned_directory(
+        sbom=generate_sbom.strip_volatile_fields(copy.deepcopy(document)), name='venv'
     )
+    assert json.loads(output.read_text(encoding='utf-8')) == expected
 
 
 def test_main_fails_without_syft(mocker: MockerFixture, tmp_path: Path, capsys):
@@ -306,3 +307,28 @@ def test_main_fails_when_syft_writes_no_object(mocker: MockerFixture, tmp_path: 
 
     assert generate_sbom.main(['--venv', str(tmp_path)]) == 1
     assert 'syft output was not a JSON object' in capsys.readouterr().err
+
+
+def test_the_scanned_directory_is_named_without_its_path(mocker: MockerFixture, tmp_path: Path):
+    """Two checkouts' scans of the same packages write the same SBOM."""
+    outputs = []
+    for checkout in ('one', 'two'):
+        virtualenv = tmp_path / checkout / '.nox' / 'security-scan-3-14'
+        virtualenv.mkdir(parents=True)
+        document = syft_document(serial='urn:uuid:1', timestamp='t', package_id='aa')
+        document['metadata']['component']['name'] = str(virtualenv)
+        syft_stand_in(mocker=mocker, returncode=0, stdout=json.dumps(document))
+        output = tmp_path / f'{checkout}.json'
+        assert generate_sbom.main(['--venv', str(virtualenv), '--output', str(output)]) == 0
+        outputs.append(output.read_bytes())
+
+    assert outputs[0] == outputs[1]
+    assert json.loads(outputs[0])['metadata']['component']['name'] == 'security-scan-3-14'
+
+
+def test_naming_a_document_without_a_scanned_directory_changes_nothing():
+    """No metadata, or metadata without a component: left as it is."""
+    assert generate_sbom.name_scanned_directory(sbom={}, name='venv') == {}
+    assert generate_sbom.name_scanned_directory(sbom={'metadata': {}}, name='venv') == {
+        'metadata': {}
+    }

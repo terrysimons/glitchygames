@@ -8,9 +8,10 @@ none), no Markdown rendering beside the JSON, and the virtualenv is named on the
 
 ``syft`` inventories every installed Python distribution, direct and transitive; the fields
 CycloneDX tools regenerate on every run (``metadata.timestamp``, ``serialNumber``, the random
-``bom-ref`` values and syft's ``?package-id=`` purl suffix) are stripped, so the written file is
-a function of the dependency set alone: two runs on unchanged dependencies write the same
-bytes, and a ``git diff`` of the file means the dependencies changed. ``nox -s security-scan``
+``bom-ref`` values and syft's ``?package-id=`` purl suffix) are stripped, and the scanned
+directory keeps its name but not its path, so the written file is a function of the dependency
+set alone: two runs on unchanged dependencies, in any checkout, write the same bytes, and a
+``git diff`` of the file means the dependencies changed. ``nox -s security-scan``
 fails when the regenerated file differs from the committed one (its drift check), so commit
 the regenerated SBOM with the uv.lock change that caused it.
 
@@ -233,6 +234,28 @@ def strip_volatile_fields(sbom: dict[str, Any]) -> dict[str, Any]:
     return sbom
 
 
+def name_scanned_directory(*, sbom: dict[str, Any], name: str) -> dict[str, Any]:
+    """Name the scanned directory (``metadata.component``) without the path it was given as.
+
+    syft names it with the path on the command line, which differs from checkout to checkout
+    (``/Users/<user>/<checkout>/.nox/security-scan-3-14`` here, CircleCI's project directory
+    there), so the committed SBOM would differ between machines with the same packages.
+
+    Args:
+        sbom: A CycloneDX document; changed in place.
+        name: The name to give it (the virtualenv directory's own name).
+
+    Returns:
+        The same document.
+
+    """
+    metadata = json_object(sbom.get('metadata'))
+    scanned_component = json_object(metadata.get('component')) if metadata is not None else None
+    if scanned_component is not None:
+        scanned_component['name'] = name
+    return sbom
+
+
 def scan_virtualenv(*, virtualenv: Path) -> dict[str, Any]:
     """Run syft over a virtualenv's Python distributions and return its CycloneDX document.
 
@@ -322,7 +345,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
         sys.stderr.write(f'No virtualenv at {virtualenv}\n')
         return 1
     try:
-        sbom = strip_volatile_fields(scan_virtualenv(virtualenv=virtualenv))
+        sbom = name_scanned_directory(
+            sbom=strip_volatile_fields(scan_virtualenv(virtualenv=virtualenv)),
+            name=virtualenv.resolve().name,
+        )
     except SyftError as error:
         sys.stderr.write(f'{error}\n')
         return 1
