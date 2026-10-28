@@ -455,13 +455,22 @@ the same number drawn over each frame shown, at `--compare-alpha PERCENT` opacit
 to 100, anything else is refused by the parser). NEW itself stays fully opaque: OLD's background
 is never drawn. The status bar stays on top.
 
-**What counts as one of OLD's items.** The onion skin learns each pixel's background as the two
-runs go: wherever OLD's and NEW's frames show the same color at a pixel, that color is the
-pixel's background. An OLD pixel that differs from its pixel's background is one of OLD's items,
-and it is blended over whatever NEW shows there. Until a pixel has matched once, OLD's pixel is
-drawn only where it differs from NEW, so a frame both runs share draws nothing. The blend costs
-about 1 ms a frame when the runs match, 3 ms with a few sprites, and 4 ms when every pixel
-differs, for an 800x480 window. NEW replays, compares and
+**What counts as one of OLD's items.** Each frame is judged on its own. OLD's background
+colors are the colors that cover at least 5% of OLD's frame: a floor, a wall. One of OLD's items
+is a pixel where OLD differs from NEW and OLD's color is none of those. It is blended over
+whatever NEW shows there; every other pixel is NEW's, exactly. So:
+
+| Your dot | OLD's dot | What you see there |
+|---|---|---|
+| there | there | your dot |
+| there | eaten | your dot, solid |
+| eaten | there | OLD's dot, half transparent, over your floor |
+| eaten | eaten | your floor |
+
+A frame both runs share draws nothing. Two costs of the rule: a part of OLD's sprite drawn in
+a background color (the floor's) is not shown, and a background made of many small colors (a
+texture, a gradient) may show some of them as items. The blend costs about 2.4 ms a frame when
+the runs match and 4.7 ms with a few sprites apart, for an 800x480 window. NEW replays, compares and
 exits exactly as it would alone: only the shown copy is drawn on. The `glitchygames` command
 takes the same options (`glitchygames replay-trace NEW --compare-trace OLD`).
 

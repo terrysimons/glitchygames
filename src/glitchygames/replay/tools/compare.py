@@ -86,17 +86,21 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
    ``--rebaseline`` need ``--replay-trace`` anyway), OLD's size checked against the live
    window once it opens, before the first frame. ``--record-trace NEW`` may go with it. Live
    play has no step back.
-10. **Only OLD's items** (decision 18 as amended, Task D13; the user: "Just draw the items from
-    the other game at 50% on top of my game regardless of what else is going on"). NEW stays
-    fully opaque; OLD's background never fades it (``GhostCompositor``). A per-pixel background
-    is learned as the runs go: wherever OLD's and NEW's presented frames agree on a pixel, that
-    color becomes the pixel's background (the latest agreement wins). A pixel is one of OLD's
-    items when OLD's color differs from the pixel's background; it is blended over NEW at
-    ``PERCENT`` (an alpha blit's arithmetic, ``blend_over``), whatever NEW has there. Every
-    other pixel is NEW's, unchanged. A pixel that has never agreed has no background yet: OLD's
-    pixel is then an item exactly where OLD and NEW differ (so a frame that matches draws
-    nothing). A held last frame (rule 5) is drawn by the same rule, and the labels are drawn as
-    before. Vectorized with numpy on the presented copy.
+10. **Only OLD's items** (decision 18 as amended, Tasks D13 and D16; the user: "Just draw the
+    items from the other game at 50% on top of my game regardless of what else is going on").
+    NEW stays fully opaque; OLD's background never fades it (``GhostCompositor``). Each frame
+    is told apart on its own, with no memory between frames: OLD's background colors are the
+    exact colors covering at least ``BACKGROUND_COLOR_SHARE`` (5%) of OLD's frame (a floor, a
+    wall); OLD's items are the pixels where OLD differs from NEW in a color that is none of
+    them. They are blended over NEW at ``PERCENT`` (an alpha blit's arithmetic, ``blend_over``),
+    whatever NEW has there; every other pixel is NEW's, unchanged. So a dot OLD ate (OLD shows
+    floor) leaves NEW's dot exact, and a dot NEW ate shows OLD's over NEW's floor (the user's
+    report on D13's rule, which learned a background where the runs agreed and so took both
+    runs' dots for background). Known costs: OLD's sprite pixels in a background color are not
+    shown (a sprite drawn in the floor's color), and a background of many small colors (a
+    texture or a gradient, each color under 5%) may show some of them as items. A held last
+    frame (rule 5) is drawn by the same rule, and the labels are drawn as before. Vectorized
+    with numpy on the presented copy.
 11. **Pausing freezes the ghost** (decisions 18 and 19 as amended, Task D14; the user: "Yes,
     the games should pause."). Frames are paired by the game-frame clock
     (glitchygames/game_frames.py), not by the frame number a recording counts: a frame whose
@@ -165,6 +169,9 @@ PADDED_PIXEL_FORMAT = 'RGBX'
 PADDED_BYTES_PER_PIXEL = 4
 # Above one item pixel in this many, the ghost blends the whole frame and keeps its items
 MANY_ITEMS_FRACTION_DENOMINATOR = 8
+# A color covering at least this share of OLD's frame is one of OLD's background colors, never
+# an item of OLD's (rule 10; the user approved it, 2026-10-27)
+BACKGROUND_COLOR_SHARE = 0.05
 # The opacity a blit's alpha gives at 100%
 FULLY_OPAQUE_ALPHA = 255
 ONE_HUNDRED_PERCENT = 100.0
@@ -973,8 +980,11 @@ def blend_over(
 class GhostCompositor:
     """Draws OLD's items over NEW's presented frames, leaving NEW opaque (rule 10).
 
-    Pixels are compared as 32-bit numbers (RGBX rows viewed as ``uint32``), the X byte always
-    ``FULLY_OPAQUE_ALPHA`` on both sides.
+    Each frame on its own, no memory between frames: OLD's background colors are the exact
+    colors covering at least ``BACKGROUND_COLOR_SHARE`` of OLD's frame, and OLD's items are the
+    pixels where OLD differs from NEW in a color that is none of them. Pixels are compared as
+    32-bit numbers (RGBX rows viewed as ``uint32``), the X byte always ``FULLY_OPAQUE_ALPHA`` on
+    both sides.
 
     Attributes:
         alpha: OLD's items' opacity, from 0 to ``FULLY_OPAQUE_ALPHA``.
@@ -982,19 +992,20 @@ class GhostCompositor:
     """
 
     def __init__(self: Self, *, alpha_percent: float) -> None:
-        """Start with no background learned.
+        """Draw at ``alpha_percent``.
 
         Args:
             alpha_percent: How opaque OLD's items are drawn, from 0 to 100.
 
         """
         self.alpha = round(FULLY_OPAQUE_ALPHA * alpha_percent / ONE_HUNDRED_PERCENT)
-        # Each pixel's background (as 32-bit RGBX), and whether it is known yet (it agreed once)
-        self._background: npt.NDArray[np.uint32] | None = None
-        self._background_known: npt.NDArray[np.bool_] | None = None
+        # The last OLD frame's pixels told apart (True: a background color's), kept while the
+        # same frame is drawn again (paused, or OLD's last frame held): it depends on OLD alone
+        self._last_old: npt.NDArray[np.uint8] | None = None
+        self._last_old_is_background: npt.NDArray[np.bool_] | None = None
 
     def draw(self: Self, *, surface: pygame.Surface, old: npt.NDArray[np.uint8]) -> None:
-        """Learn the background from this frame, then blend OLD's items over ``surface``.
+        """Blend OLD's items over ``surface``; every other pixel stays NEW's.
 
         Args:
             surface: NEW's presented frame, drawn on (only when OLD has an item on it).
@@ -1010,24 +1021,12 @@ class GhostCompositor:
         new[..., BYTES_PER_PIXEL] = FULLY_OPAQUE_ALPHA
         new_colors = new.view(np.uint32)[..., 0]
         old_colors = old.view(np.uint32)[..., 0]
-        background = self._background
-        background_known = self._background_known
-        if background is None or background_known is None or background.shape != new_colors.shape:
-            background = np.zeros_like(new_colors)
-            background_known = np.zeros(new_colors.shape, dtype=np.bool_)
-            self._background = background
-            self._background_known = background_known
-        agrees = old_colors == new_colors
-        background[agrees] = new_colors[agrees]
-        background_known |= agrees
-        # Known: OLD's item where it differs from the background; unknown: where it differs
-        # from NEW
-        is_item = old_colors != np.where(background_known, background, new_colors)
+        is_item = (old_colors != new_colors) & ~self._background_of(old=old, old_colors=old_colors)
         if not is_item.any():
             return
         if np.count_nonzero(is_item) * MANY_ITEMS_FRACTION_DENOMINATOR > is_item.size:
-            # Many items (OLD's background differs from NEW's): blending the whole frame and
-            # keeping the items is faster than gathering them one by one
+            # Many items: blending the whole frame and keeping the items is faster than
+            # gathering them one by one
             np.copyto(
                 new,
                 blend_over(new=new, old=old, alpha=self.alpha),
@@ -1037,6 +1036,32 @@ class GhostCompositor:
             new[is_item] = blend_over(new=new[is_item], old=old[is_item], alpha=self.alpha)
         # Opaque (no alpha set), so it replaces the presented copy's pixels outright
         surface.blit(pygame.image.frombytes(new.tobytes(), size, PADDED_PIXEL_FORMAT), (0, 0))
+
+    def _background_of(
+        self: Self, *, old: npt.NDArray[np.uint8], old_colors: npt.NDArray[np.uint32]
+    ) -> npt.NDArray[np.bool_]:
+        """Return which of OLD's pixels are in one of its background colors.
+
+        A background color covers at least ``BACKGROUND_COLOR_SHARE`` of OLD's frame, exactly
+        (a count over the frame's size, compared as a fraction, so 5 of 100 is 5%). Worked out
+        once per OLD frame: the same frame drawn again reuses it.
+
+        Args:
+            old: OLD's frame (its identity tells a frame drawn again).
+            old_colors: Its pixels as 32-bit numbers.
+
+        Returns:
+            True where OLD shows a background color.
+
+        """
+        if old is self._last_old and self._last_old_is_background is not None:
+            return self._last_old_is_background
+        colors, counts = np.unique(old_colors, return_counts=True)
+        background_colors = colors[counts / old_colors.size >= BACKGROUND_COLOR_SHARE]
+        is_background = np.isin(old_colors, background_colors)
+        self._last_old = old
+        self._last_old_is_background = is_background
+        return is_background
 
 
 def receive_exactly(*, connection: socket.socket, count: int) -> bytes:

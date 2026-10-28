@@ -104,6 +104,10 @@ PAUSE_FRAMES = 3
 # The game frame each frame of a pausing run shows (its logic's frames, the pause's left out):
 # frames 0 and 1 are game frames 0 and 1, the pause screen's three show game frame 1 still
 GAME_FRAME_OF_A_PAUSING_RUN = (0, 1, 1, 1, 1, 2, 3, 4, 5)
+# The color game's floor, and its marker: a square drawn in the run's colors around the sample
+# point (a few hundred pixels: never one of a frame's background colors, D16)
+FLOOR_COLOR = (0, 0, 60)
+MARKER_RECT = (0, 92, 16, 16)
 # A pixel away from the status bar (bottom) and the OLD-ended label (top)
 SAMPLE_POINT = (8, 100)
 # The stand-in games' window size (tests/stand_in_games.py records at 320x240)
@@ -114,7 +118,7 @@ FRAME_STREAM_TOKEN_LENGTH_FOR_TESTS = 32
 CHILD_TIMEOUT_SECONDS = 120.0
 
 COLOR_GAME_SOURCE = f'''\
-"""A stand-in game whose whole window is one color: the seed's red, the frame's own green."""
+"""A stand-in game: a plain floor with one marker on it, the seed's red and the frame's green."""
 
 import pygame
 
@@ -125,6 +129,10 @@ from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 
 FRAMES_BEFORE_QUIT = {COLOR_GAME_FRAMES}
 FRAME_GREEN_STEP = {FRAME_GREEN_STEP}
+# The floor (most of the window: a background color of OLD's, D16) and the marker's square,
+# small, around the tests' sample point
+FLOOR_COLOR = {FLOOR_COLOR}
+MARKER_RECT = {MARKER_RECT}
 # Under this seed the game pauses itself once (the pause screen for PAUSE_FRAMES frames)
 PAUSING_SEED = {PAUSING_SEED}
 PAUSE_AFTER_FRAMES = {PAUSE_AFTER_FRAMES}
@@ -146,7 +154,7 @@ class AutoResumingPause(PauseScene):
 
 
 class Backdrop(pygame.sprite.DirtySprite):
-    """The whole window, in one color, drawn on every frame."""
+    """The whole window: a floor, and the marker's square, drawn on every frame."""
 
     def __init__(self, *, size):
         super().__init__()
@@ -174,7 +182,10 @@ class {SCENE_NAME}(Scene):
     def dt_tick(self, dt):
         self.frames += 1
         # Frame k (counted from 0) is painted with green FRAME_GREEN_STEP x (k + 1)
-        self.backdrop.image.fill((self.red, FRAME_GREEN_STEP * self.frames % 256, 0))
+        self.backdrop.image.fill(FLOOR_COLOR)
+        self.backdrop.image.fill(
+            (self.red, FRAME_GREEN_STEP * self.frames % 256, 0), MARKER_RECT
+        )
         if self.frames == FRAMES_BEFORE_QUIT:
             GameEngine.quit_game()
         elif engine_random_seed() == PAUSING_SEED and self.frames == PAUSE_AFTER_FRAMES:
@@ -2135,28 +2146,36 @@ def test_compare_trace_is_refused_in_a_browser(color_game, mocker, caplog, run_k
     assert engine.onion_skin.process is None
 
 
-# The ghost draws only OLD's own items (decision 18 amended; Task D13)
+# The ghost draws only OLD's own items (decision 18 amended; Task D13), told by OLD's background
+# colors (Task D16): a color covering at least BACKGROUND_COLOR_SHARE of OLD's frame
 
-# A small frame: a background, and items at known pixels
-GHOST_FRAME_SIZE = (4, 3)
-BACKGROUND = (10, 20, 30)
+# A small maze: a floor (most of it), a wall (two columns: 10%), and dots and sprites of a pixel
+# or a few (each well under 5%)
+GHOST_FRAME_SIZE = (20, 10)
+FLOOR = (10, 20, 30)
+WALL = (90, 90, 90)
+WALL_COLUMNS = (0, 19)
+DOT = (250, 250, 200)
 NEW_ITEM = (200, 40, 40)
 OLD_ITEM = (40, 200, 40)
-# Where NEW alone, OLD alone, and both have an item
-NEW_ITEM_AT = (0, 0)
-OLD_ITEM_AT = (1, 1)
-BOTH_ITEMS_AT = (2, 2)
+# Where the dot is, and where NEW alone, OLD alone, and both have a sprite
+DOT_AT = (5, 5)
+NEW_ITEM_AT = (8, 2)
+OLD_ITEM_AT = (11, 2)
+BOTH_ITEMS_AT = (14, 2)
 
 
 def ghost_frame(*, items: dict[tuple[int, int], tuple[int, int, int]]) -> pygame.Surface:
-    """Return a small frame of the background with ``items`` (pixel to color) on it.
+    """Return the maze (floor and wall) with ``items`` (pixel to color) on it.
 
     Returns:
         The frame.
 
     """
     surface = pygame.Surface(GHOST_FRAME_SIZE)
-    surface.fill(BACKGROUND)
+    surface.fill(FLOOR)
+    for column in WALL_COLUMNS:
+        surface.fill(WALL, (column, 0, 1, GHOST_FRAME_SIZE[1]))
     for position, color in items.items():
         surface.set_at(position, color)
     return surface
@@ -2185,111 +2204,189 @@ def rgb_of(*, surface: pygame.Surface, position: tuple[int, int]) -> tuple[int, 
     return (color.r, color.g, color.b)
 
 
-def learned_compositor(*, percent: float) -> GhostCompositor:
-    """Return a compositor whose background was learned from one agreeing frame.
+def frame_bytes(*, surface: pygame.Surface) -> bytes:
+    """Return a frame's pixels, to compare whole frames.
+
+    Returns:
+        Its RGB bytes.
+
+    """
+    return pygame.image.tobytes(surface, FRAME_PIXEL_FORMAT)
+
+
+def started_together(*, percent: float) -> GhostCompositor:
+    """Return a compositor that drew one frame both runs showed alike (the dot still there).
+
+    Both runs of a game start alike, so a rule that learned from agreement (D13's) would have
+    learned the dot as background by now; D16's keeps nothing between frames.
 
     Returns:
         The compositor.
 
     """
     compositor = GhostCompositor(alpha_percent=percent)
-    first = ghost_frame(items={})
-    compositor.draw(surface=first, old=old_pixels(surface=ghost_frame(items={})))
+    start = ghost_frame(items={DOT_AT: DOT})
+    compositor.draw(surface=start, old=old_pixels(surface=ghost_frame(items={DOT_AT: DOT})))
     return compositor
 
 
-def test_new_stays_opaque_where_only_new_has_an_item():
-    """NEW's item where OLD shows the background is exactly NEW's color: nothing over it."""
-    compositor = learned_compositor(percent=DEFAULT_COMPARE_ALPHA_PERCENT)
-    new = ghost_frame(items={NEW_ITEM_AT: NEW_ITEM})
+@dataclasses.dataclass(frozen=True)
+class DotCase:
+    """One row of the dot table: whether each run's dot is there, and what is drawn there.
 
-    compositor.draw(surface=new, old=old_pixels(surface=ghost_frame(items={})))
+    Attributes:
+        case: The test id.
+        new_has_the_dot: NEW's dot is there (else eaten: the floor shows).
+        old_has_the_dot: OLD's dot is there.
+        olds_dot_is_drawn: OLD's dot is drawn over NEW there (else NEW's pixel stays exact).
 
-    assert rgb_of(surface=new, position=NEW_ITEM_AT) == NEW_ITEM
-    assert rgb_of(surface=new, position=OLD_ITEM_AT) == BACKGROUND
+    """
+
+    case: str
+    new_has_the_dot: bool
+    old_has_the_dot: bool
+    olds_dot_is_drawn: bool
+
+
+DOT_CASES = (
+    DotCase(
+        case='both-present', new_has_the_dot=True, old_has_the_dot=True, olds_dot_is_drawn=False
+    ),
+    DotCase(
+        case='old-ate-it', new_has_the_dot=True, old_has_the_dot=False, olds_dot_is_drawn=False
+    ),
+    DotCase(case='new-ate-it', new_has_the_dot=False, old_has_the_dot=True, olds_dot_is_drawn=True),
+    DotCase(
+        case='both-ate-it', new_has_the_dot=False, old_has_the_dot=False, olds_dot_is_drawn=False
+    ),
+)
 
 
 @pytest.mark.parametrize('percent', [DEFAULT_COMPARE_ALPHA_PERCENT, 25.0], ids=['50', '25'])
-def test_olds_item_is_drawn_at_the_alpha_over_new(percent):
-    """OLD's item is blended at the alpha over whatever NEW has: background, or NEW's own item."""
-    compositor = learned_compositor(percent=percent)
+@pytest.mark.parametrize('dot_case', DOT_CASES, ids=[dot_case.case for dot_case in DOT_CASES])
+def test_the_dot_table(dot_case, percent):
+    """Each run's dot, there or eaten: only OLD's dot over NEW's floor is drawn, at the alpha.
+
+    The user's report (live Mr. Muncher): an OLD that ate its dot made NEW's dot transparent,
+    and NEW's eaten dot hid OLD's. Every other pixel of the frame is NEW's, exactly.
+    """
+    compositor = started_together(percent=percent)
+    new = ghost_frame(items={DOT_AT: DOT} if dot_case.new_has_the_dot else {})
+    old = ghost_frame(items={DOT_AT: DOT} if dot_case.old_has_the_dot else {})
+    expected = ghost_frame(items={DOT_AT: DOT} if dot_case.new_has_the_dot else {})
+    if dot_case.olds_dot_is_drawn:
+        expected.set_at(DOT_AT, blended(new=FLOOR, old=DOT, percent=percent))
+
+    compositor.draw(surface=new, old=old_pixels(surface=old))
+
+    assert rgb_of(surface=new, position=DOT_AT) == rgb_of(surface=expected, position=DOT_AT)
+    assert frame_bytes(surface=new) == frame_bytes(surface=expected)
+    if dot_case.olds_dot_is_drawn:
+        # Exact: (250, 250, 200) over (10, 20, 30)
+        assert rgb_of(surface=new, position=DOT_AT) == (
+            (130, 135, 115) if percent == DEFAULT_COMPARE_ALPHA_PERCENT else (70, 78, 73)
+        )
+
+
+@pytest.mark.parametrize('percent', [DEFAULT_COMPARE_ALPHA_PERCENT, 25.0], ids=['50', '25'])
+def test_olds_sprite_is_drawn_at_the_alpha_over_new(percent):
+    """OLD's sprite is blended over whatever NEW shows: the floor, or NEW's own sprite."""
+    compositor = started_together(percent=percent)
     new = ghost_frame(items={NEW_ITEM_AT: NEW_ITEM, BOTH_ITEMS_AT: NEW_ITEM})
     old = ghost_frame(items={OLD_ITEM_AT: OLD_ITEM, BOTH_ITEMS_AT: OLD_ITEM})
 
     compositor.draw(surface=new, old=old_pixels(surface=old))
 
     assert rgb_of(surface=new, position=OLD_ITEM_AT) == blended(
-        new=BACKGROUND, old=OLD_ITEM, percent=percent
+        new=FLOOR, old=OLD_ITEM, percent=percent
     )
     assert rgb_of(surface=new, position=BOTH_ITEMS_AT) == blended(
         new=NEW_ITEM, old=OLD_ITEM, percent=percent
     )
-    # NEW's own item, with OLD's background there, stays solid
+    # NEW's own sprite, with OLD's floor there, stays solid
     assert rgb_of(surface=new, position=NEW_ITEM_AT) == NEW_ITEM
     expected_at_25 = (17, 65, 32)
     if percent == 25.0:
         assert rgb_of(surface=new, position=OLD_ITEM_AT) == expected_at_25
 
 
+def test_new_is_never_altered_where_old_shows_a_background_color():
+    """NEW's sprite over OLD's floor or wall stays exactly NEW's, whatever came before."""
+    compositor = started_together(percent=DEFAULT_COMPARE_ALPHA_PERCENT)
+    wall_at = (WALL_COLUMNS[0], 4)
+    new = ghost_frame(items={NEW_ITEM_AT: NEW_ITEM, wall_at: NEW_ITEM})
+    expected = ghost_frame(items={NEW_ITEM_AT: NEW_ITEM, wall_at: NEW_ITEM})
+
+    compositor.draw(surface=new, old=old_pixels(surface=ghost_frame(items={})))
+
+    assert frame_bytes(surface=new) == frame_bytes(surface=expected)
+
+
 def test_identical_frames_draw_nothing():
-    """A frame OLD and NEW share draws nothing, before a background is known and after."""
+    """A frame OLD and NEW share draws nothing, the first one and any after it."""
     compositor = GhostCompositor(alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT)
     for _ in range(2):
-        new = ghost_frame(items={NEW_ITEM_AT: NEW_ITEM})
+        new = ghost_frame(items={NEW_ITEM_AT: NEW_ITEM, DOT_AT: DOT})
         compositor.draw(
-            surface=new, old=old_pixels(surface=ghost_frame(items={NEW_ITEM_AT: NEW_ITEM}))
+            surface=new,
+            old=old_pixels(surface=ghost_frame(items={NEW_ITEM_AT: NEW_ITEM, DOT_AT: DOT})),
         )
-        assert pygame.image.tobytes(new, FRAME_PIXEL_FORMAT) == pygame.image.tobytes(
-            ghost_frame(items={NEW_ITEM_AT: NEW_ITEM}), FRAME_PIXEL_FORMAT
+        assert frame_bytes(surface=new) == frame_bytes(
+            surface=ghost_frame(items={NEW_ITEM_AT: NEW_ITEM, DOT_AT: DOT})
         )
 
 
-def test_a_pixel_without_a_background_yet_falls_back_to_differs():
-    """With no background yet, OLD is drawn exactly where it differs from NEW."""
+@pytest.mark.parametrize(
+    ('pixels', 'is_background'),
+    [(10, True), (9, False)],
+    ids=['exactly-5-percent', 'under-5-percent'],
+)
+def test_a_color_at_exactly_the_share_is_a_background_color(pixels, is_background):
+    """10 pixels of 200 (5%, BACKGROUND_COLOR_SHARE) is background; 9 (4.5%) is an item."""
+    assert compare.BACKGROUND_COLOR_SHARE == 0.05
+    old = ghost_frame(items={})
+    # The color fills the wall's first column (10 pixels), or all but one of them
+    old.fill(OLD_ITEM, (WALL_COLUMNS[0], 0, 1, pixels))
+    new = ghost_frame(items={})
     compositor = GhostCompositor(alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT)
-    new = ghost_frame(items={NEW_ITEM_AT: NEW_ITEM})
-    old = ghost_frame(items={OLD_ITEM_AT: OLD_ITEM})
 
     compositor.draw(surface=new, old=old_pixels(surface=old))
 
-    # Unknown background: both differing pixels are drawn over, the agreeing ones are not
-    assert rgb_of(surface=new, position=NEW_ITEM_AT) == blended(
-        new=NEW_ITEM, old=BACKGROUND, percent=DEFAULT_COMPARE_ALPHA_PERCENT
-    )
-    assert rgb_of(surface=new, position=OLD_ITEM_AT) == blended(
-        new=BACKGROUND, old=OLD_ITEM, percent=DEFAULT_COMPARE_ALPHA_PERCENT
-    )
-    assert rgb_of(surface=new, position=BOTH_ITEMS_AT) == BACKGROUND
-    # The agreeing pixels became background: next frame, NEW's item there stays solid
-    later = ghost_frame(items={BOTH_ITEMS_AT: NEW_ITEM})
-    compositor.draw(surface=later, old=old_pixels(surface=ghost_frame(items={})))
-    assert rgb_of(surface=later, position=BOTH_ITEMS_AT) == NEW_ITEM
+    drawn = rgb_of(surface=new, position=(WALL_COLUMNS[0], 0))
+    assert drawn == (WALL if is_background else blended(new=WALL, old=OLD_ITEM, percent=50.0))
+
+
+def test_olds_sprite_pixels_in_a_background_color_are_not_shown():
+    """The rule's known cost: OLD's sprite drawn in the floor's own color shows no ghost there."""
+    compositor = GhostCompositor(alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT)
+    new = ghost_frame(items={OLD_ITEM_AT: NEW_ITEM})
+    old = ghost_frame(items={OLD_ITEM_AT: WALL})
+
+    compositor.draw(surface=new, old=old_pixels(surface=old))
+
+    assert rgb_of(surface=new, position=OLD_ITEM_AT) == NEW_ITEM
 
 
 @pytest.mark.parametrize('item_count', [1, 30], ids=['few-items', 'many-items'])
 def test_few_and_many_items_blend_alike(item_count):
-    """Gathered one by one (few) or blended whole and kept (many), OLD's items look the same."""
-    size = (8, 8)
+    """Gathered one by one (few) or blended whole and kept (many), OLD's items look the same.
+
+    Each item has a color of its own, so none is a background color (each covers 1 pixel).
+    """
+    item_colors = [(40 + index * 6, 200, 40) for index in range(item_count)]
+    positions = [(1 + index % 18, index // 18) for index in range(item_count)]
+    old = ghost_frame(items=dict(zip(positions, item_colors, strict=True)))
+    new = ghost_frame(items={})
     compositor = GhostCompositor(alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT)
-    plain = pygame.Surface(size)
-    plain.fill(BACKGROUND)
-    compositor.draw(surface=plain, old=old_pixels(surface=plain))
-    positions = [(index % 8, index // 8) for index in range(item_count)]
-    old = pygame.Surface(size)
-    old.fill(BACKGROUND)
-    for position in positions:
-        old.set_at(position, OLD_ITEM)
-    new = pygame.Surface(size)
-    new.fill(BACKGROUND)
 
     compositor.draw(surface=new, old=old_pixels(surface=old))
 
-    expected = blended(new=BACKGROUND, old=OLD_ITEM, percent=DEFAULT_COMPARE_ALPHA_PERCENT)
-    for x in range(8):
-        for y in range(8):
-            assert rgb_of(surface=new, position=(x, y)) == (
-                expected if (x, y) in positions else BACKGROUND
-            ), (x, y)
+    expected = ghost_frame(items={})
+    for position, color in zip(positions, item_colors, strict=True):
+        expected.set_at(
+            position, blended(new=FLOOR, old=color, percent=DEFAULT_COMPARE_ALPHA_PERCENT)
+        )
+    assert frame_bytes(surface=new) == frame_bytes(surface=expected)
 
 
 # Pausing freezes the ghost (Task D14): OLD is paired by game frames, a pause screen's left out

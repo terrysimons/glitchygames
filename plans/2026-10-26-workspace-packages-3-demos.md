@@ -1138,7 +1138,12 @@ scripts, staging rows in the pre-commit hook, and the docs snippet text.
     its background is an item, blended over NEW at the alpha; a pixel with no background yet is
     an item only where OLD and NEW differ. Applies to live play (decision 19) too. **Amended
     again 2026-10-27 (Task D14; the user: "Yes, the games should pause."):** frames pair by game
-    frames (a pause screen's frames left out) on every side, so pausing freezes OLD.
+    frames (a pause screen's frames left out) on every side, so pausing freezes OLD. **Amended
+    again 2026-10-27 (Task D16; the user approved the rule):** D13's learned background took
+    both runs' dots for background (an OLD that ate its dot made NEW's dot transparent; NEW's
+    eaten dot hid OLD's). Now each frame on its own: OLD's background colors are the exact
+    colors covering at least 5% of OLD's frame, and OLD's items are the pixels where OLD
+    differs from NEW in none of those colors.
 19. **`--compare-trace OLD` also works with live play** (the user, 2026-10-27: "--compare-trace
     should work independently with a real live play."; Task D12). Without `--replay-trace`, the
     game is played live with real input and OLD's frame N (the same child and stream as decision
@@ -1621,6 +1626,18 @@ game frame it shows (`ViewerState.compare_first_game_frame`) to the child. Recor
   `test_pausing_freezes_old_in_a_watched_replay`,
   `test_a_run_recorded_with_a_pause_pairs_the_same_on_replay`,
   `test_a_step_back_across_a_pause_keeps_old_in_step`.
+- [x] **Step 2:** implement; docs; lint; `CI=true nox -s test`; commit (2026-10-27).
+
+### Task D16: the ghost's items by background colors (the user, 2026-10-27)
+
+**Behavior:** rule 10 of `replay/tools/compare.py` (`GhostCompositor`, `BACKGROUND_COLOR_SHARE`):
+no memory between frames; OLD's colors covering at least 5% of its frame are background; an OLD
+pixel differing from NEW's in another color is an item. The dot table, both directions.
+
+- [x] **Step 1: failing tests:** `test_the_dot_table` (4 cases at 50% and 25%),
+  `test_olds_sprite_is_drawn_at_the_alpha_over_new`,
+  `test_new_is_never_altered_where_old_shows_a_background_color`,
+  `test_identical_frames_draw_nothing`, `test_a_color_at_exactly_the_share_is_a_background_color`.
 - [x] **Step 2:** implement; docs; lint; `CI=true nox -s test`; commit (2026-10-27).
 
 ### Task D10: Docs, then Stage D's verification

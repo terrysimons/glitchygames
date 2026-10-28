@@ -763,10 +763,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `replay/driver.py`): the onion skin. NEW replays watched as always; `ReplaySources.onion_skin`
   (`OnionSkin`) draws OLD's items from the frame of the same number over the presented copy
   (`draw_overlay`, before the status bar; not while rebuilding) at PERCENT, NEW staying opaque
-  (Task D13, rule 10: `GhostCompositor` learns a per-pixel background where the two frames
-  agree; an OLD pixel unlike its background, or unlike NEW's while no background is known, is
-  an item, blended with SDL's alpha arithmetic, `blend_over`; numpy on RGBX as `uint32`) (default 50; `argument_types.
-  percent_from_zero_to_one_hundred`, kind `bounded-percent`). OLD is replayed by a headless
+  (Tasks D13 and D16, rule 10: `GhostCompositor`, each frame on its own: OLD's background
+  colors are the exact colors covering at least `BACKGROUND_COLOR_SHARE`, 5%, of OLD's frame;
+  an OLD pixel that differs from NEW's in none of those colors is an item, blended with SDL's
+  alpha arithmetic, `blend_over`; numpy on RGBX as `uint32`) (default 50;
+  `argument_types.percent_from_zero_to_one_hundred`, kind `bounded-percent`). OLD is replayed by a headless
   child (OLD's game from its header, `traces.find_recorded_game`, else
   `children.running_game_command`; started inside the run by `OnionSkin.begin`, on the first
   presented frame or as a restart's rebuild begins, with `process.start_command`, its output in
