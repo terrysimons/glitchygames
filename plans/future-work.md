@@ -165,6 +165,30 @@ arc was lost. What follows is left.
   `importlib.util.find_spec`; the member-test naming check already required a separator
   (`test_bitmappyx.py` is refused).
 
+## Engine context (2026-10-28, sub-plan 2)
+
+- **Dig into the scene manager's `options` versus `engine_options`** (the owner, 2026-10-28:
+  "dig into options vs engine_options on the manager later on"). Sub-plan 2
+  (`plans/2026-10-27-engine-context-2-engine-state.md`, C7) names the scene manager's copy of the
+  engine's options `engine_options`, not `options`, because the event managers are built with the
+  scene manager as their `game` and `unhandled_event` reads `getattr(game, 'options', None)`
+  (`src/glitchygames/events/base.py:229`): an `options` attribute there would switch on
+  unhandled-event checks that are off today. Decide whether that `getattr` duck-typing is the
+  right contract (what should `game` be for an event manager, and where should it find the
+  run's options?), and whether the two names should become one.
+- **C16 (`MultiControllerManager`'s process-wide singleton) belongs to the player roster** (the
+  owner, 2026-10-28: "makes sense for bitmappy"). Sub-plan 2
+  (`plans/2026-10-27-engine-context-2-engine-state.md`) leaves audit row C16 of
+  `plans/2026-10-25-engine-context.md` to the player-roster work: design
+  `plans/2026-10-28-player-roster-design.md` on branch `feature/player-roster`, which moves the
+  generic multi-controller code into the engine as a per-context roster and deletes the
+  singleton (`src/apps/bitmappy/src/bitmappy/controllers/manager.py:69`). Until it lands,
+  `tests/test_process_state_guard.py` lists the singleton under C16. Bitmappy's two other pieces
+  of process state that guard lists, `onion_skinning_manager`
+  (`src/apps/bitmappy/src/bitmappy/onion_skinning.py:162`) and `ai_training_state`
+  (`src/apps/bitmappy/src/bitmappy/constants.py:100`), are not the roster's and have no owning
+  plan yet: each needs one before a Bitmappy runs in more than one engine context.
+
 ## Engine tools after Stage D (2026-10-27, workspace packages part 3)
 
 Stage D moved every recording, replay and measurement tool into the engine
