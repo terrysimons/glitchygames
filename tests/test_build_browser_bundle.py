@@ -302,6 +302,43 @@ class TestGeneratedFiles:
             'brave_adventurer_papyrus.zip',
         ]
 
+    def test_the_bundle_report_counts_every_archives_files(self, tmp_path, mocker, capsys):
+        """The engine's files and each member package's are counted, each archive named."""
+        file_counts = {
+            'glitchygames.zip': 100,
+            'brave_adventurer_core.zip': 7,
+            'brave_adventurer_papyrus.zip': 5,
+        }
+
+        def counted_archive(*, archive_path: Path, **_ignored: object) -> int:
+            return file_counts[archive_path.name]
+
+        game = dataclasses.replace(
+            GAMES['mr-muncher'],
+            member_packages=('brave_adventurer_core', 'brave_adventurer_papyrus'),
+        )
+        mocker.patch.dict(GAMES, {'two-archive-game': game})
+        mocker.patch.object(build_browser_bundle, 'write_engine_archive', counted_archive)
+        mocker.patch.object(
+            build_browser_bundle,
+            'member_package_directory',
+            side_effect=lambda *, import_package: tmp_path / import_package,
+        )
+        wheel_path = tmp_path / WHEEL_NAME
+        wheel_path.write_bytes(b'')
+
+        build_browser_bundle.write_bundle(
+            game='two-archive-game',
+            output_directory=tmp_path / 'site',
+            wheel_path=wheel_path,
+            arguments=[],
+        )
+
+        assert capsys.readouterr().out == (
+            f'{tmp_path / "site"}: Mr. Muncher, 112 files (glitchygames 100, '
+            f'brave_adventurer_core 7, brave_adventurer_papyrus 5), {WHEEL_NAME}\n'
+        )
+
     def test_boot_config_names_the_game_and_its_arguments(self):
         assert boot_config(game='mr-muncher', arguments=['--target-fps', '30']) == {
             'game': 'mr-muncher',
