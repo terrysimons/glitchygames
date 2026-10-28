@@ -170,3 +170,29 @@ class TestServerLogging:
 
         assert completed.returncode == 0, completed.stderr
         assert completed.stdout.splitlines()[-2:] == ['WARNING 0', 'INFO 1']
+
+    def test_run_configures_logging_before_it_serves(self, mocker):
+        """run() configures the server's logging, then starts uvicorn (BUGS.md #236)."""
+        from glitchygames.api import main
+
+        order: list[str] = []
+        mocker.patch.object(
+            main, 'configure_server_logging', side_effect=lambda: order.append('logging')
+        )
+        mocker.patch('uvicorn.run', side_effect=lambda *_args, **_kwargs: order.append('serve'))
+
+        main.run()
+
+        assert order == ['logging', 'serve']
+
+    def test_the_lifespan_configures_logging_as_the_app_starts(self, mocker):
+        """``uvicorn glitchygames.api.main:app`` starts no run(): the lifespan configures it."""
+        from fastapi.testclient import TestClient
+
+        from glitchygames.api import main
+
+        mocker.patch('glitchygames.services.RendererService')
+        configured = mocker.patch.object(main, 'configure_server_logging')
+
+        with TestClient(main.app):
+            configured.assert_called_once_with()
