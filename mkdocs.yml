@@ -27,6 +27,8 @@ nav:
     - Driver Comparison: "quality/driver_comparison.md"
     - Upstream Issues: "quality/upstream_issues.md"
     - Galimore Survey: "galimore.md"
+    - Designs:
+      - glitchy.games Website on AWS: "specs/2026-10-27-glitchy-games-website-design.md"
   - glitchygames API Reference:
     - "glitchygames/index.md"
     - glitchygames.api: "glitchygames/api/index.md"
