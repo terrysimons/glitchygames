@@ -142,3 +142,20 @@ afterwards (`pulseaudio --kill` stops PulseAudio). The container plays through i
 PulseAudio, or when it will not start, one line says so and the container uses dummy audio.
 `compare-drivers`' `x11-linux` runs use dummy audio (frames do not depend on sound); `--sound`
 plays theirs through PulseAudio too.
+
+## Linux as CI runs it: `nox -s test-linux-ci`
+
+`nox -s test-linux-x11` runs the suite on Linux for its drivers; `nox -s test-linux-ci` runs it
+the way CircleCI's Linux job does, to reproduce that job's failures here. It reads the job
+(`build-and-test-linux`) from `.circleci/config.yml`: its image (`cimg/python` at
+`PYTHON_LATEST_VERSION`), its resource class's memory and CPUs (`small`: 2 GB, no swap, and one
+CPU, given to `docker run` as `--memory`, `--memory-swap` and `--cpus`) and its environment
+(`PYTEST_WORKERS=0`: one serial process; `GLITCHYGAMES_TEST_RSS_LIMIT_MB=1600`:
+`tests/memory_guard.py` stops the run past it, naming the test), with `CI=true` and
+`CIRCLECI=true`. The container copies the working tree (uncommitted changes included; not
+`.venv`, `.nox` or the outputs), installs fontconfig, uv and Python at the job's versions and
+runs `uvx nox -s test` as the job does. Its `test-results/` (junit.xml) come back to
+`test-results/linux-ci/`, and the last line names the container's peak memory. It takes as long
+as the job (a serial run, 15 minutes or more). The image is this machine's architecture (arm64 on
+Apple silicon; CircleCI's is amd64), so memory is close to CI's, not equal.
+

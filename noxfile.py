@@ -3,6 +3,7 @@
 import contextlib
 import json
 import os
+import re
 import shutil
 import socket
 import sys
@@ -833,6 +834,231 @@ def test_linux_x11(session: nox.Session) -> None:
     ]
     audio_driver = 'pulseaudio' if _start_pulseaudio(session) else 'dummy'
     _run_in_linux_x11_container(session, command=command, audio_driver=audio_driver)
+
+
+# CircleCI's Linux job, mirrored by `nox -s test-linux-ci`: its configuration (the job's image,
+# resource class and environment are read from it, so the two stay the same), the memory and
+# CPUs of its resource classes (https://circleci.com/docs/configuration-reference/#resourceclass),
+# where the container's checkout goes and where its test-results/ come back to (git-ignored), and
+# the uv cache kept between runs
+_CIRCLECI_CONFIG = Path('.circleci/config.yml')
+_CIRCLECI_LINUX_JOB = 'build-and-test-linux'
+_CIRCLECI_DOCKER_RESOURCES = {'small': ('2g', '1'), 'medium': ('4g', '2'), 'large': ('8g', '4')}
+_LINUX_CI_RESULTS = Path('test-results/linux-ci')
+_LINUX_CI_UV_CACHE_VOLUME = 'glitchygames-linux-ci-uv-cache'
+_LINUX_CI_UV_CACHE = '/uv-cache'
+_LINUX_CI_PROJECT = '/home/circleci/project'
+# What is never copied into the container: the host's environments and outputs
+_LINUX_CI_SKIPPED_DIRECTORIES = ('.venv', '.nox', 'test-results', 'htmlcov', 'dist', 'build')
+
+
+def _circleci_parameter(*, configuration: str, name: str) -> str:
+    """Return a CircleCI pipeline parameter's default.
+
+    Args:
+        configuration: The CircleCI configuration's text.
+        name: The parameter, e.g. ``PYTHON_LATEST_VERSION``.
+
+    Returns:
+        Its ``default``, without quotes.
+
+    Raises:
+        ValueError: If the configuration has no such string parameter.
+
+    """
+    match = re.search(
+        rf'^  {name}:\n    type: string\n    default: "(?P<default>[^"]+)"$',
+        configuration,
+        flags=re.MULTILINE,
+    )
+    if match is None:
+        message = f'{_CIRCLECI_CONFIG} has no string parameter {name}'
+        raise ValueError(message)
+    return match['default']
+
+
+def _circleci_job(*, configuration: str, name: str) -> str:
+    """Return a job's definition under ``jobs:`` (its lines, as text).
+
+    Args:
+        configuration: The CircleCI configuration's text.
+        name: The job.
+
+    Returns:
+        From the line after ``  <name>:`` to the next job's (or the end of ``jobs:``).
+
+    Raises:
+        ValueError: If the configuration has no such job.
+
+    """
+    jobs = configuration[configuration.index('\njobs:\n') :]
+    match = re.search(rf'^  {name}:\n(?P<body>(?:(?:    .*)?\n)+)', jobs, flags=re.MULTILINE)
+    if match is None:
+        message = f'{_CIRCLECI_CONFIG} has no job {name}'
+        raise ValueError(message)
+    return match['body']
+
+
+def _linux_ci_job_settings(*, configuration: str) -> tuple[str, str, dict[str, str]]:
+    """Return the Linux job's image, resource class and environment.
+
+    Args:
+        configuration: The CircleCI configuration's text.
+
+    Returns:
+        The Docker image (its pipeline parameters filled in), the resource class and the
+        job's environment variables.
+
+    Raises:
+        ValueError: If the job has no Docker image or resource class.
+
+    """
+    job = _circleci_job(configuration=configuration, name=_CIRCLECI_LINUX_JOB)
+    image = re.search(r'^      - image: (?P<image>\S+.*)$', job, flags=re.MULTILINE)
+    resource_class = re.search(r'^    resource_class: (?P<name>\S+)$', job, flags=re.MULTILINE)
+    if image is None or resource_class is None:
+        message = f'{_CIRCLECI_LINUX_JOB} names no Docker image or resource class'
+        raise ValueError(message)
+    image_name = re.sub(
+        r'<< pipeline\.parameters\.(\w+) >>',
+        lambda parameter: _circleci_parameter(configuration=configuration, name=parameter[1]),
+        image['image'].strip(),
+    )
+    environment_block = re.search(
+        r'^    environment:\n(?P<lines>(?:(?:      .*)?\n)+)', job, flags=re.MULTILINE
+    )
+    environment = (
+        {}
+        if environment_block is None
+        else {
+            variable['name']: variable['value']
+            for variable in re.finditer(
+                r'^      (?P<name>[A-Z_][A-Z0-9_]*): "(?P<value>[^"]*)"$',
+                environment_block['lines'],
+                flags=re.MULTILINE,
+            )
+        }
+    )
+    return image_name, resource_class['name'], environment
+
+
+def _linux_ci_script(*, python_version: str, uv_version: str, nox_version: str) -> str:
+    """Return the container's shell script: the Linux job's steps, then the results copied out.
+
+    Args:
+        python_version: ``PYTHON_LATEST_VERSION``.
+        uv_version: ``UV_VERSION``.
+        nox_version: ``NOX_VERSION``.
+
+    Returns:
+        The script (bash). It exits with the test session's status.
+
+    """
+    skipped = ' '.join(f'--exclude=./{directory}' for directory in _LINUX_CI_SKIPPED_DIRECTORIES)
+    return '\n'.join([
+        'set -euo pipefail',
+        f'sudo chown "$(id -u):$(id -g)" {_LINUX_CI_UV_CACHE}',
+        # A copy of this checkout (the job's checkout step), never the mounted original: the
+        # session writes its outputs and a build stamp into the project
+        f'mkdir -p {_LINUX_CI_PROJECT}',
+        f'tar -C /source {skipped} -cf - . | tar -C {_LINUX_CI_PROJECT} -xf -',
+        f'cd {_LINUX_CI_PROJECT}',
+        # "Install Linux system dependencies"
+        'sudo apt-get update -qq',
+        'sudo apt-get install -y -qq fontconfig > /dev/null',
+        # install-deps-posix
+        f'curl -LsSf https://astral.sh/uv/{uv_version}/install.sh | sh',
+        'export PATH="$HOME/.local/bin:$PATH"',
+        'uv --version',
+        f'uv python install "{python_version}"',
+        # nox-test, then the job's store_test_results (to this checkout's test-results/linux-ci)
+        'status=0',
+        f'uvx --from "nox[uv]=={nox_version}" nox -s test || status=$?',
+        # Whatever the session got to (none if it failed before pytest ran)
+        'cp -a test-results/. /results/ || true',
+        # The container's peak memory (cgroup v2), all of it: uv's installs and the test run
+        'peak=$(cat /sys/fs/cgroup/memory.peak 2>/dev/null || echo unknown)',
+        'echo "container peak memory: $peak bytes"',
+        'exit "$status"',
+    ])
+
+
+@nox.session(venv_backend='none', name='test-linux-ci', default=False)
+def test_linux_ci(session: nox.Session) -> None:
+    """Run the tests as CircleCI's Linux job does, in Docker, with its memory and CPUs.
+
+    Reads the job (``build-and-test-linux``) from .circleci/config.yml: its image
+    (``cimg/python:<PYTHON_LATEST_VERSION>``), its resource class's memory and CPUs (``small``:
+    2 GB and 1 CPU; the container gets no swap, as the job has none) and its environment
+    (``PYTEST_WORKERS=0``: serial; ``GLITCHYGAMES_TEST_RSS_LIMIT_MB``: tests/memory_guard.py),
+    plus ``CI=true`` and ``CIRCLECI=true`` as CircleCI sets them. In the container it copies this
+    checkout (the working tree, uncommitted changes included, without .venv, .nox and the
+    outputs), installs fontconfig, uv and Python at the job's versions and runs
+    ``uvx nox -s test``, as the job does. The test results come back to test-results/linux-ci/
+    (junit.xml). The uv cache is kept in a Docker volume between runs. Docker runs the image
+    for this machine's architecture (arm64 on Apple silicon; CircleCI's is amd64), so resident
+    sizes are close to CI's, not equal.
+    """
+    configuration = _CIRCLECI_CONFIG.read_text(encoding='utf-8')
+    image, resource_class, job_environment = _linux_ci_job_settings(configuration=configuration)
+    if resource_class not in _CIRCLECI_DOCKER_RESOURCES:
+        session.error(f'{_CIRCLECI_LINUX_JOB}: unknown resource class {resource_class!r}')
+    memory, cpus = _CIRCLECI_DOCKER_RESOURCES[resource_class]
+    script = _linux_ci_script(
+        python_version=_circleci_parameter(
+            configuration=configuration, name='PYTHON_LATEST_VERSION'
+        ),
+        uv_version=_circleci_parameter(configuration=configuration, name='UV_VERSION'),
+        nox_version=_circleci_parameter(configuration=configuration, name='NOX_VERSION'),
+    )
+    environment = {**job_environment, 'CI': 'true', 'CIRCLECI': 'true'}
+    results = _LINUX_CI_RESULTS.resolve()
+    shutil.rmtree(results, ignore_errors=True)
+    results.mkdir(parents=True)
+    container_name = f'glitchygames-linux-ci-{os.getpid()}'
+    session.log(f'{image}: {resource_class} ({memory} memory, {cpus} CPU), {job_environment}')
+    try:
+        session.run(
+            'docker',
+            'run',
+            '--rm',
+            '--init',
+            '--name',
+            container_name,
+            f'--memory={memory}',
+            # The same as --memory: no swap on top of it
+            f'--memory-swap={memory}',
+            f'--cpus={cpus}',
+            *(
+                argument
+                for name, value in environment.items()
+                for argument in ('--env', f'{name}={value}')
+            ),
+            '--env',
+            f'UV_CACHE_DIR={_LINUX_CI_UV_CACHE}',
+            '--volume',
+            f'{Path.cwd()}:/source:ro',
+            '--volume',
+            f'{results}:/results',
+            '--volume',
+            f'{_LINUX_CI_UV_CACHE_VOLUME}:{_LINUX_CI_UV_CACHE}',
+            image,
+            'bash',
+            '-c',
+            script,
+            external=True,
+        )
+    finally:
+        # Gone already after a normal end (--rm): "No such container" (exit 1) is expected
+        session.run(
+            'docker',
+            'rm',
+            '--force',
+            container_name,
+            external=True,
+            silent=True,
+            success_codes=[0, 1],
+        )
 
 
 @nox.session(venv_backend='none', name='build-sdl-x11', default=False)

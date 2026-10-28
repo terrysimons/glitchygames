@@ -323,3 +323,53 @@ def test_only_the_linux_job_sets_the_memory_limit():
     assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in linux_job
     assert '    resource_class: small\n' in linux_job
     assert '      PYTEST_WORKERS: "0"\n' in linux_job
+
+
+class LoggingRecordingSession(RecordingSession):
+    """A recording session that also takes the session's log lines and refusals."""
+
+    def log(self, message: str) -> None:
+        """Ignore a log line."""
+
+    def error(self, message: str) -> None:
+        """Fail as nox would.
+
+        Raises:
+            AssertionError: Always, with the message.
+
+        """
+        raise AssertionError(message)
+
+
+def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monkeypatch):
+    """``nox -s test-linux-ci``: the job's image, 2 GB without swap, 1 CPU, its environment.
+
+    Read from .circleci/config.yml, so a change to the job changes the session too.
+    """
+    import noxfile
+
+    monkeypatch.setattr(noxfile, '_LINUX_CI_RESULTS', tmp_path / 'linux-ci')
+    session = LoggingRecordingSession(posargs=[])
+
+    noxfile.test_linux_ci(session)
+
+    docker_run = next(command for command in session.commands if command[:2] == ('docker', 'run'))
+    python_version = pipeline_parameter_default(name='PYTHON_LATEST_VERSION')
+    assert f'cimg/python:{python_version}' in docker_run
+    assert {'--memory=2g', '--memory-swap=2g', '--cpus=1'} <= set(docker_run)
+    environment = {
+        docker_run[index + 1] for index, argument in enumerate(docker_run) if argument == '--env'
+    }
+    assert {
+        'PYTEST_WORKERS=0',
+        'GLITCHYGAMES_TEST_RSS_LIMIT_MB=1600',
+        'CI=true',
+        'CIRCLECI=true',
+    } <= environment
+    script = docker_run[-1]
+    uv_version = pipeline_parameter_default(name='UV_VERSION')
+    nox_version = pipeline_parameter_default(name='NOX_VERSION')
+    assert f'https://astral.sh/uv/{uv_version}/install.sh' in script
+    assert f'uv python install "{python_version}"' in script
+    assert f'uvx --from "nox[uv]=={nox_version}" nox -s test || status=$?' in script
+    assert (tmp_path / 'linux-ci').is_dir()
