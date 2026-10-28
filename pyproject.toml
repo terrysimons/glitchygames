@@ -80,7 +80,10 @@ docs = [
 ]
 dev = [
   "nox[uv]",
-  "pytest",
+  # Capped at 9.1.1 (the owner, 2026-10-28): pytest 9.2.0 removed the private Node._nodeid,
+  # which pytest-benchmark 5.3.0 (the newest) still reads, so every benchmark test errors at
+  # setup. Lift the cap once a pytest-benchmark release works with 9.2
+  "pytest<=9.1.1",
   "pytest-cov",
   "pytest-xdist",
   "pytest-benchmark",

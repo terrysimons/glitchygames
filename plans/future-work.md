@@ -625,6 +625,11 @@ only replays; Part 2 Task 1).
 - Optional: lazy-import `speech_recognition` so the audio import chain doesn't load `aifc` (its
   deprecation warning is already filtered in `pyproject.toml`).
 - ty reports 50 pre-existing `unused-ignore-comment` warnings (identical on main).
+- **Lift the `pytest<=9.1.1` cap** (the owner, 2026-10-28; `pyproject.toml`'s `dev` group). pytest
+  9.2.0 removed the private `Node._nodeid`, which pytest-benchmark 5.3.0 (the newest) still reads
+  (`pytest_benchmark/fixture.py:88`), so every `benchmark` test errored at setup. Lift it once a
+  pytest-benchmark release works with 9.2, then re-run the benchmarks and the memory guard's
+  check that pytest still keeps each test's class instance (`tests/garbage_collection.py`).
 - **Run nox without the `uvx` wrapper in CI** (found 2026-10-28 by the test-memory-reduction
   work, `feature/test-memory-reduction`; the owner asked to look at it later).
   - Every CircleCI step runs `uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox
