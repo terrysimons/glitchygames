@@ -57,10 +57,27 @@ def default_crt_power_on_off() -> None:
     os.environ.setdefault(CRT_POWER_ON_VARIABLE, 'off')
 
 
+# SDL's hint that turns its own SIGINT/SIGTERM handlers off (SDL_HINT_NO_SIGNAL_HANDLERS)
+SDL_SIGNAL_HANDLERS_VARIABLE = 'SDL_NO_SIGNAL_HANDLERS'
+
+
+def default_sdl_signal_handlers_off() -> None:
+    """Default SDL's signal handlers to off for the run, keeping a value already set.
+
+    The harness starts pygame for the whole run, before any engine. Without the hint SDL installs
+    its own SIGINT/SIGTERM handlers then, and every engine a test builds warned that pygame was
+    initialized before it (about half of CI's live log). An engine sets the same hint before it
+    starts pygame itself (``GameEngine.__init__``), so the run's pygame now starts as an engine's
+    does. The native-driver child run inherits it with the environment.
+    """
+    os.environ.setdefault(SDL_SIGNAL_HANDLERS_VARIABLE, '1')
+
+
 # Runs at import, so importing this module before pygame is enough to set the defaults
 SDL_VARIABLES_DEFAULTED_AT_STARTUP = default_sdl_drivers_to_dummy()
 default_joystick_drivers_off()
 default_crt_power_on_off()
+default_sdl_signal_handlers_off()
 
 # The run's SDL driver variables, by name, as decided at startup: the test harness puts back any
 # a test changed (tests/sdl_driver_isolation.py), e.g. one that ran an engine with --headless

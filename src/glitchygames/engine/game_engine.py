@@ -197,6 +197,8 @@ DEFAULT_LIVE_VOICE_POOL = 4
 HEADLESS_SDL_DRIVER = 'dummy'
 # The environment variables that choose SDL's video and audio drivers (--headless sets both)
 SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
+# SDL's hint that turns its own SIGINT/SIGTERM handlers off (the engine owns the signals)
+SDL_NO_SIGNAL_HANDLERS_HINT = 'SDL_NO_SIGNAL_HANDLERS'
 # --video-driver's choices: SDL 2's video drivers by platform.system() name (SDL's own list,
 # src/video/SDL_video.c bootstrap[]; checked on macOS: cocoa, offscreen and dummy start, metal and
 # x11 are not drivers of pygame-ce's SDL there), then the ones SDL builds on every platform
@@ -1083,13 +1085,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # SIG_DFL): SIGTERM would end the run as a normal quit, exit SUCCESS and be recorded as
         # an external QUIT. A value set beforehand wins. SDL_HINT_NO_SIGNAL_HANDLERS:
         # https://wiki.libsdl.org/SDL2/SDL_HINT_NO_SIGNAL_HANDLERS
-        if pygame.get_init():
+        # pygame started with the hint already '1' (an earlier engine in this process, or a
+        # host that set it, such as the test harness) has no SDL handlers: nothing to warn about
+        if pygame.get_init() and os.environ.get(SDL_NO_SIGNAL_HANDLERS_HINT) != '1':
             self.log.warning(
                 'pygame was initialized before the engine, so SDL may own SIGINT and SIGTERM '
                 '(turning them into QUIT events); the engine still installs its own handlers '
                 "when it starts, which replace SDL's"
             )
-        os.environ.setdefault('SDL_NO_SIGNAL_HANDLERS', '1')
+        os.environ.setdefault(SDL_NO_SIGNAL_HANDLERS_HINT, '1')
 
         # Shorten the GIL switch interval before audio starts: the mixer's channel-finished
         # callback needs the GIL to queue the next live-voice chunk (BUGS.md #27).

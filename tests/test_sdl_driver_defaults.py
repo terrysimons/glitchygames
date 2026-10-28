@@ -21,8 +21,10 @@ from tests.sdl_defaults import (
     SDL_DRIVER_ENVIRONMENT_FOR_RUN,
     SDL_DRIVER_VARIABLES,
     SDL_JOYSTICK_DRIVER_VARIABLES,
+    SDL_SIGNAL_HANDLERS_VARIABLE,
     default_joystick_drivers_off,
     default_sdl_drivers_to_dummy,
+    default_sdl_signal_handlers_off,
 )
 from tests.sdl_driver_isolation import (
     MixerState,
@@ -51,6 +53,28 @@ def test_real_input_devices_are_hidden_from_the_tests():
     pygame.event.pump()
 
     assert pygame.joystick.get_count() == 0
+
+
+def test_defaulting_turns_sdls_signal_handlers_off(monkeypatch):
+    """Unset, SDL_NO_SIGNAL_HANDLERS becomes '1': the run's pygame starts as an engine's would.
+
+    The harness starts pygame for the whole run before any engine; without the hint SDL would
+    install its own SIGINT/SIGTERM handlers, and every engine would warn that it found them.
+    """
+    monkeypatch.delenv(SDL_SIGNAL_HANDLERS_VARIABLE, raising=False)
+
+    default_sdl_signal_handlers_off()
+
+    assert os.environ[SDL_SIGNAL_HANDLERS_VARIABLE] == '1'
+
+
+def test_defaulting_keeps_a_signal_handler_hint_the_invoker_set(monkeypatch):
+    """A value the invoker set is left alone."""
+    monkeypatch.setenv(SDL_SIGNAL_HANDLERS_VARIABLE, '0')
+
+    default_sdl_signal_handlers_off()
+
+    assert os.environ[SDL_SIGNAL_HANDLERS_VARIABLE] == '0'
 
 
 def test_defaulting_turns_unset_joystick_drivers_off(monkeypatch):
