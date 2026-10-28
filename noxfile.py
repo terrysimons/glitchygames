@@ -180,21 +180,13 @@ def _lint_dead_code(session: nox.Session) -> None:
 
 # Known vulnerabilities pip-audit ignores: only ones with no fix we can take yet, each with why.
 # Re-check every entry when dependencies are upgraded and remove it once upstream allows the fix
-# (pip-audit says nothing about an ignore that no longer matches). Checked 2026-10-23.
+# (pip-audit says nothing about an ignore that no longer matches). Checked 2026-10-28.
 _IGNORED_VULNERABILITIES: dict[str, str] = {
     # google-cloud-aiplatform 1.71.1 (also PYSEC-2026-2500, GHSA-wh2j-26j7-9728): predictable
     # bucket names in Vertex AI Experiments, fixed in 1.133.0. vertexai 1.71.1, the newest, pins
     # google-cloud-aiplatform==1.71.1, and aisuite 0.2.0, the newest, needs vertexai (its Google
     # backend). The engine never uses Vertex AI Experiments
     'CVE-2026-2473': 'google-cloud-aiplatform 1.71.1, pinned by vertexai (aisuite)',
-    # filelock 3.32.7, fixed in 4.2.1: the SQLite-backed ReadWriteLock/AsyncReadWriteLock (all
-    # platforms) and, on Windows, the soft locks and the read-write lock's database path. safety
-    # 3.8.1, the newest (nox -s safety-scan), requires filelock<4.0; forcing filelock 4 moves the
-    # lock back to safety 3.2.3. Only tools use filelock (safety, virtualenv, huggingface-hub);
-    # the engine never imports it
-    'CVE-2026-112907': 'filelock 3.32.7, capped below 4 by safety 3.8.1',
-    'CVE-2026-112913': 'filelock 3.32.7, capped below 4 by safety 3.8.1',
-    'CVE-2026-112940': 'filelock 3.32.7, capped below 4 by safety 3.8.1',
 }
 
 
