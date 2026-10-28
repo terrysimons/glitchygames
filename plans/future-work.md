@@ -630,6 +630,18 @@ only replays; Part 2 Task 1).
   (`pytest_benchmark/fixture.py:88`), so every `benchmark` test errored at setup. Lift it once a
   pytest-benchmark release works with 9.2, then re-run the benchmarks and the memory guard's
   check that pytest still keeps each test's class instance (`tests/garbage_collection.py`).
+- **Decide the license-policy findings** (found 2026-10-28 when syft and grype replaced safety
+  and pip-audit, `feature/test-memory-reduction`). `nox -s security-scan` fails on
+  `scripts/check_licenses.py` until the owner decides each package it lists: an `EXCEPTIONS`
+  entry (license, why, reviewer, date), an allowlist change, or removing the dependency.
+  - Denied (GPL): `yamllint` (GPL-3.0-or-later, a lint tool) and `pyinstaller-hooks-contrib`
+    (its hooks GPL-2.0-or-later and run at build time; its runtime hooks, bundled, Apache-2.0).
+  - Unreviewed: `pygame-ce` (LGPL-2.1, bundled into the Bitmappy binary), `psycopg`
+    (LGPL-3.0-only, aisuite's postgres extra), `pyinstaller` (GPL-2.0-or-later with its
+    bootloader exception), `certifi`, `pathspec`, `hypothesis` (MPL-2.0), `tqdm` (MPL-2.0 AND
+    MIT), `text-unidecode` (Artistic License or GPL).
+  - The SBOM is the whole nox venv (dev and docs tools included), not what the binary bundles;
+    a runtime-only SBOM for the policy is the other option (`nox -s security-scan`).
 - **Run nox without the `uvx` wrapper in CI** (found 2026-10-28 by the test-memory-reduction
   work, `feature/test-memory-reduction`; the owner asked to look at it later).
   - Every CircleCI step runs `uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox

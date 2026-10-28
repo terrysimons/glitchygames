@@ -380,7 +380,7 @@ nox -s test
 # Type checkers (basedpyright + ty)
 nox -s static-analysis
 
-# Security scanning (bandit)
+# Security scanning (bandit, the syft SBOM, grype CVEs, the license check)
 nox -s security-scan
 
 # Performance benchmarks
