@@ -13,10 +13,13 @@ suite needs are declared here; the shared test harness (tests/harness.py) is one
 # reads its variables: its hook is tryfirst)
 # tests.memory_guard stops a run past GLITCHYGAMES_TEST_RSS_LIMIT_MB (the Linux CI job's), naming
 # the test, instead of the kernel's signal 9 (BUGS.md #235); unset, it does nothing
+# tests.collection_logger_levels stops a run whose collected imports set a project logger's level
+# or disabled logging (BUGS.md #235, #236)
 pytest_plugins = [
     'tests.harness',
     'pytester',
     'tests.driver_comparison',
     'glitchygames.testing.frame_fingerprints',
     'tests.memory_guard',
+    'tests.collection_logger_levels',
 ]
