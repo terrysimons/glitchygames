@@ -17,7 +17,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, Protocol
 
 from glitchygames.ai import get_sprite_size_hint
-from glitchygames.clock import measured_seconds
+from glitchygames.clock import measured_seconds, raw_sleep
 
 from .constants import (
     AI_BASE_DELAY,
@@ -471,6 +471,8 @@ def _is_non_retryable_ai_error(error: BaseException) -> bool:
 
 def _create_ai_retry_decorator(
     log: logging.Logger,
+    *,
+    sleep: Callable[[float], None] = raw_sleep,
 ) -> Callable[[Callable[..., object]], Callable[..., object]]:
     """Create a retry decorator for AI requests with exponential backoff.
 
@@ -483,6 +485,9 @@ def _create_ai_retry_decorator(
 
     Args:
         log: The worker's logger, for each retry and the final give-up.
+        sleep: The wait between attempts (tenacity's ``sleep``): the engine's raw sleep
+            (glitchygames/clock.py), so tenacity never sleeps through its own ``time.sleep``;
+            tests pass one that does not wait.
 
     Returns:
         The decorator.
@@ -523,6 +528,7 @@ def _create_ai_retry_decorator(
         retry=tenacity.retry_if_exception(should_retry),
         before_sleep=log_retry,
         retry_error_callback=give_up,
+        sleep=sleep,
     )
 
 
