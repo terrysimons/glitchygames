@@ -280,10 +280,12 @@ class GameEventManager(ResourceManager, GameEvents):
         group.add_argument(
             '-l',
             '--log-level',
-            help='set the logging level',
+            help='set the logging level (default: warning; a bug report asks for info)',
             choices=['debug', 'info', 'warning', 'error', 'critical'],
             type=str.lower,
-            default='info',
+            # The owner, 2026-10-28: games default to WARNING, as the tools do; a report of a
+            # failure asks for --log-level info (exit_codes.BUG_REPORT_HINT)
+            default='warning',
         )
         group.add_argument(
             '--no-unhandled-events',

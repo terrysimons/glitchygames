@@ -251,7 +251,7 @@ class TestGameEngineInitializeArguments:
         assert result['resolution'] == '640x480'
         assert result['update_type'] == 'flip'
         assert result['target_fps'] == 30.0
-        assert result['log_level'] == 'info'
+        assert result['log_level'] == 'warning'
         assert EngineTestGame.options is result
 
     def test_initialize_arguments_adds_the_game_options(self, mocker):
