@@ -636,19 +636,16 @@ only replays; Part 2 Task 1).
   (`pytest_benchmark/fixture.py:88`), so every `benchmark` test errored at setup. Lift it once a
   pytest-benchmark release works with 9.2, then re-run the benchmarks and the memory guard's
   check that pytest still keeps each test's class instance (`tests/garbage_collection.py`).
-- **Decide the license-policy findings** (found 2026-10-28 when syft and grype replaced safety
-  and pip-audit, `feature/test-memory-reduction`). `nox -s security-scan` fails on
-  `scripts/check_licenses.py` until the owner decides each package it lists: an `EXCEPTIONS`
-  entry (license, why, reviewer, date), an allowlist change, or removing the dependency.
-  - Denied (GPL): `yamllint` (GPL-3.0-or-later, a lint tool).
-  - Decided (the owner, 2026-10-28): `pygame-ce` (LGPL-2.1) is an exception, the source tree
-    being public on GitHub; `psycopg` (LGPL-3.0-only) is gone with aisuite's `postgres` extra,
-    which nothing used; `pyinstaller-hooks-contrib` is an exception, only its Apache-2.0 runtime
-    hooks being bundled; MPL-2.0 is allowed (`certifi`, `tqdm`, `pathspec`, `hypothesis`);
-    `text-unidecode` is an exception electing the Artistic License.
-  - Unreviewed: `pyinstaller` (GPL-2.0-or-later with its bootloader exception).
-  - The SBOM is the whole nox venv (dev and docs tools included), not what the binary bundles;
-    a runtime-only SBOM for the policy is the other option (`nox -s security-scan`).
+- **The SBOM's scope and platform** (found 2026-10-28 when syft and grype replaced safety and
+  pip-audit). The license decisions are in `scripts/check_licenses.py`'s `EXCEPTIONS`.
+  - The SBOM (`docs/sbom.cyclonedx.json`) is the whole nox venv, development and docs tools
+    included, so dev-only tools (yamllint, pyinstaller) need exceptions under a policy written
+    for what ships. A runtime-only SBOM for the policy is the other option.
+  - The committed SBOM is macOS arm64 / Python 3.14's. `nox -s security-scan` on Linux or
+    Windows (syft and grype installed) reports drift and fails, so a pre-push from those
+    machines fails; CI scans only on macOS. Scanning `uv.lock` instead of the installed venv
+    would give one SBOM on every platform, at the cost of more `PACKAGE_LICENSE_OVERRIDES`
+    (the lock records no licenses).
 - **Run nox without the `uvx` wrapper in CI** (found 2026-10-28 by the test-memory-reduction
   work, `feature/test-memory-reduction`; the owner asked to look at it later).
   - Every CircleCI step runs `uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox

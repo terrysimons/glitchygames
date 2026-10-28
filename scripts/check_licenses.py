@@ -114,6 +114,17 @@ EXCEPTIONS: dict[str, str] = {
         'elected: bundled unmodified, it asks only that its notice be kept, and the GPL arm never '
         'applies (the owner: "Artistic"; Terry Simons, 2026-10-28)'
     ),
+    'yamllint': (
+        "GPL-3.0-or-later, a development tool: nox -s lint runs it on the repository's YAML; it "
+        'is never imported by the engine, a game or an app, and never bundled into a wheel or the '
+        'Bitmappy binary (the owner: "permit yamllint - dev tool"; Terry Simons, 2026-10-28)'
+    ),
+    'pyinstaller': (
+        'GPL-2.0-or-later with its bootloader exception, the build tool behind nox -s '
+        'build-binary. The exception allows distributing programs it freezes, the bootloader '
+        'included, under their own terms; PyInstaller itself is never distributed. The owner: '
+        '"Pyinstaller, yes exception" (Terry Simons, 2026-10-28)'
+    ),
 }
 """Per-package exceptions to the allowlist and denylist, each reviewed."""
 

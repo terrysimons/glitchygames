@@ -308,14 +308,14 @@ def test_main_passes_a_permissive_sbom(tmp_path: Path, capsys):
 
 
 def test_main_fails_on_a_violation(tmp_path: Path, capsys):
-    """Exit 1 with the report on stderr."""
+    """Exit 1 with the report on stderr (a made-up name: a real one may be in EXCEPTIONS)."""
     sbom = write_sbom(
-        path=tmp_path / 'sbom.json', components=[library('yamllint', spdx('GPL-3.0-or-later'))]
+        path=tmp_path / 'sbom.json', components=[library('gpl-tool', spdx('GPL-3.0-or-later'))]
     )
 
     assert check_licenses.main(['--sbom', str(sbom)]) == 1
     error = capsys.readouterr().err
-    assert 'yamllint 1.0' in error
+    assert 'gpl-tool 1.0' in error
     assert error.endswith('1 package(s) fail the license policy\n')
 
 
