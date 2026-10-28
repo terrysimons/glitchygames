@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import gc
 import sys
+import weakref
 
 import pytest
 
@@ -10,6 +12,7 @@ from tests.garbage_collection import (
     PeakMemoryCollector,
     malloc_bytes_in_use_reader,
     process_peak_memory_collector,
+    release_test_instance,
 )
 
 STEP_BYTES = 16
@@ -202,3 +205,84 @@ def test_every_run_gets_a_collector_reading_its_real_peak():
 def test_windows_gets_no_collector():
     """Windows cannot read the peak, so there is no collector."""
     assert process_peak_memory_collector() is None
+
+
+RELEASE_TESTS = """
+import unittest
+
+
+class TestInAClass:
+    def setup_method(self):
+        self.editor = object()
+
+    def test_it(self):
+        pass
+
+
+def test_outside_a_class():
+    pass
+
+
+class TestCaseStyle(unittest.TestCase):
+    def test_it(self):
+        pass
+"""
+
+
+class Held:
+    """Something a test class's instance holds (weak-referenceable, unlike object())."""
+
+
+class NotAFunction(pytest.Item):
+    """An item that is not a test function (as a non-Python test file's items are)."""
+
+    def runtest(self) -> None:
+        """Nothing to run."""
+
+
+def test_a_finished_test_class_instance_is_emptied(pytester):
+    """What a test put on its class instance is let go: pytest keeps the instance itself."""
+    class_test = next(
+        item for item in pytester.getitems(RELEASE_TESTS) if item.parent.name == 'TestInAClass'
+    )
+    held = Held()
+    class_test.instance.editor = held
+    held_reference = weakref.ref(held)
+    del held
+
+    release_test_instance(item=class_test)
+    gc.collect()
+
+    assert vars(class_test.instance) == {}
+    assert held_reference() is None
+
+
+def test_a_test_outside_a_class_has_nothing_to_release(pytester):
+    """A module-level test function has no instance: releasing it does nothing."""
+    item = next(
+        item for item in pytester.getitems(RELEASE_TESTS) if item.name == 'test_outside_a_class'
+    )
+    assert item.instance is None
+
+    release_test_instance(item=item)
+
+
+def test_a_unittest_test_case_is_left_to_pytest(pytester):
+    """A TestCase is left to pytest's unittest support, which releases it itself."""
+    item = next(
+        item for item in pytester.getitems(RELEASE_TESTS) if item.parent.name == 'TestCaseStyle'
+    )
+    test_case = item.instance
+    test_case.kept = True
+
+    release_test_instance(item=item)
+
+    assert test_case.kept is True
+
+
+def test_an_item_that_is_not_a_test_function_is_left_alone(pytester):
+    """Only pytest's Function items have class instances."""
+    module = pytester.getmodulecol(RELEASE_TESTS)
+    item = NotAFunction.from_parent(module, name='not_a_function')
+
+    release_test_instance(item=item)

@@ -18,9 +18,17 @@ since the last collection, it collects too. Brave Adventurer's both-editions tes
 150 tests): 483 MiB resident at the end with the peak trigger only, 353 MiB with both (33
 collections, about 1 s), 303 MiB collecting after every test.
 
-``tests/harness.py``'s ``pytest_runtest_logfinish`` calls ``after_test`` once per test: by
-then pytest has dropped the test's fixture values, so its scene is garbage. Never
-``gc.freeze()`` here: Hypothesis warns about a ``register_random`` object frozen out of view.
+pytest keeps every test function's class instance for the whole run (``Function.instance``,
+pytest 9.1: each test gets a fresh one, and the item holds it), so whatever a test class's
+``setup_method`` put on ``self`` stayed alive to the end, whatever the collector did: after
+Bitmappy's tests, 79 ``BitmapEditorScene``s and 230 MiB of their surfaces (macOS), the Linux
+job's serial run climbing to its peak in its last tests. ``release_test_instance`` empties the
+instance once the test's reports are made; then 3 MiB of surfaces were left.
+
+``tests/harness.py``'s ``pytest_runtest_protocol`` wrapper calls ``release_test_instance``, then
+``after_test``, once per test: by then pytest has dropped the test's fixture values, so its
+scene is garbage. Never ``gc.freeze()`` here: Hypothesis warns about a ``register_random``
+object frozen out of view.
 """
 
 from __future__ import annotations
@@ -28,7 +36,10 @@ from __future__ import annotations
 import ctypes
 import gc
 import sys
+import unittest
 from typing import TYPE_CHECKING, Self
+
+import pytest
 
 try:
     import resource
@@ -175,6 +186,25 @@ def malloc_bytes_in_use_reader(*, platform: str = sys.platform) -> Callable[[], 
     except OSError, AttributeError:
         # No such library (musl), or no such call (glibc before 2.33)
         return None
+
+
+def release_test_instance(*, item: pytest.Item) -> None:
+    """Empty a finished test's class instance, which pytest keeps for the rest of the run.
+
+    Call it once the test's reports are made (its teardown, ``teardown_method`` included, has
+    run). A test function outside a class has no instance, and a ``unittest.TestCase`` is left
+    to pytest's unittest support, which releases it itself.
+
+    Args:
+        item: The finished test.
+
+    """
+    if not isinstance(item, pytest.Function):
+        return
+    instance: object = item.instance
+    if instance is None or isinstance(instance, unittest.TestCase):
+        return
+    vars(instance).clear()
 
 
 def process_peak_memory_collector() -> PeakMemoryCollector | None:
