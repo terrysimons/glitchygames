@@ -117,7 +117,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: the world-space tests (`test_world_sprite_is_positioned_before_render`), the scene's mouse focus event routing
 
 ### 224. Smaller Findings From the Workspace Packages Part 1 Reviews
-- **Description**: The task reviews and the final whole-branch review of workspace packages Part 1 (plans/2026-10-24-workspace-packages-1-foundation.md, 2026-10-25) recorded these minor findings; the final reviewer triaged them and none blocks the merge. The critical and important findings were fixed on the branch. Before Part 2 adds more members, item 31 (members' test helper modules colliding by basename) should be settled
+- **Description**: The task reviews and the final whole-branch review of workspace packages Part 1 (plans/2026-10-24-workspace-packages-1-foundation.md, 2026-10-25) recorded these minor findings; the final reviewer triaged them and none blocks the merge. The critical and important findings were fixed on the branch. Before Part 2 adds more members, item 31 (members' test helper modules colliding by basename) should be settled (it was, 2026-10-27: item 31)
 - **Status**: Active
 - **Priority**: Low
 - **Reporter**: The task reviews and the final review of workspace packages Part 1
@@ -153,21 +153,21 @@ This document tracks bugs reported during development. Bugs are listed in order 
   28. Task 8: nox _install_from_lockfile and .envrc --all-packages have no check here (Task 9's test_ci_config covers the reinstall)
   29. Task 8: parse_jsonc annotated -> dict[str, Any] though json.loads may return any JSON type
   30. Task 9: ruff namespace-packages for src/games/mr-muncher/tests also covers its subdirectories (fits the design; judged acceptable)
-  31. Task 9: member test roots import by basename, so two members' non-test helper modules (helpers.py) would collide unnoticed; the uniqueness check covers only test_*.py; consider per-member test package names or --import-mode=importlib
-  32. Task 9: noxfile._SOURCE_PACKAGE_DIRS check is a subset check (a stale extra entry passes); the noxfile could read members with tomllib instead of static lists
+  31. Closed 2026-10-27 (9bf801ed, D15 item 5): pytest imports every test module by its path (`--import-mode=importlib`, namespace packages, the repository root on `pythonpath`), so no two names collide; a member's helper is imported by its qualified path, and `test_no_member_test_imports_a_module_by_a_bare_name` fails on a bare one. Was: member test roots import by basename, so two members' non-test helper modules (helpers.py) would collide unnoticed; the uniqueness check covers only test_*.py
+  32. Closed 2026-10-27 (done before D15; the Part 2 draft audit): a stale entry fails `tests/test_workspace_config.py` `test_no_configuration_entry_names_a_member_path_the_workspace_does_not_derive`. Was: noxfile._SOURCE_PACKAGE_DIRS check is a subset check (a stale extra entry passes)
   33. Task 9: member goldens enumerated in three places (REPLAY_FIXTURES, golden_replay_globs, REPLAY_FIXTURE_DIRECTORIES)
   34. Task 9: ReplayItem.runtest recomputes the console script collect already has
   35. Task 9: nothing checks mr_muncher is imported from its installed distribution (defensive only)
-  36. Task 9: the unique-names check matches only test_*.py, not *_test.py (python_files allows both)
+  36. Closed 2026-10-27 (moot): `python_files` is `["test_*.py"]` only, and the unique-names check is gone (item 31). Was: the unique-names check matches only test_*.py, not *_test.py
   37. Task 10: member_package_directory's LookupError path untested
-  38. Task 10: test_the_engine_archive_no_longer_holds_the_moved_game checks only examples/mr_muncher
-  39. Task 10: write_bundle's report line counts only engine files
+  38. Closed 2026-10-27 (moot): `examples/` is gone, and nothing names it (`test_nothing_names_the_deleted_examples_package`). Was: test_the_engine_archive_no_longer_holds_the_moved_game checks only examples/mr_muncher
+  39. Closed 2026-10-27 (6d225c13, D15 item 6): the report gives the total and each archive's count. Was: write_bundle's report line counts only engine files
   40. Task 11: CLAUDE.md:164-165 wrote the games' directory without the leading src/ where README wrote it with it (package-relative convention); resolved by the src-layout docs scrub, which writes every repository path in full
   41. Task 11: browser/index.html:3 and browser/touch_controls.js:3 comments start with a bare command
   42. Task 11: CLAUDE.md:920 phrasing of TOUCH_LAYOUTS
-  43. Task 11: browser/boot.py:3-4 says the page unpacks the engine only
+  43. Closed 2026-10-27 (6d225c13, D15 item 6): the docstring names the member archives too. Was: browser/boot.py:3-4 says the page unpacks the engine only
   44. Task 11: docs/games/mr_muncher.md:763 "Both test files" without noting they are in the member
-  45. Final: src/games/mr-muncher/pyproject.toml depends on glitchygames with no version floor
+  45. Closed 2026-10-27 (daecf457, D15 item 1): every member depends on `glitchygames>=1.0.0`, checked by `test_every_member_depends_on_the_engine_with_a_floor` (8c7b549e). Was: src/games/mr-muncher/pyproject.toml depends on glitchygames with no version floor
   46. Final: find_scene_class's "no scene class named X is loaded" warning misleads when the class is loaded but its module or logical name differs
   47. Final: nox test session writes src/glitchygames/_build_info.json for its duration (race with concurrent build sessions)
   48. Browser test (the owner): every page requests /favicon.ico and gets a 404 (no tab icon in the bundle)
