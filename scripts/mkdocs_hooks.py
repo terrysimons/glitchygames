@@ -7,9 +7,11 @@ Every ``mkdocs build``, ``mkdocs serve`` and ``mkdocs gh-deploy`` (so ``nox -s d
    missing or were made from another commit (``generate_if_stale``: about a minute; a rebuild
    with the same HEAD, such as each ``mkdocs serve`` reload, costs only a ``git rev-parse``). A
    failed generation stops the build with the failed tool's output;
-2. generates docs/quality/metrics/ with scripts/generate_performance_graphs.py: the run ledger
-   published on gh-pages merged with the pending rows ``nox -s replay-metrics`` measured, and
-   its graphs (a ``git show`` and a few small files; rewritten only when they changed). Rows
+2. generates docs/quality/metrics/ with scripts/generate_performance_graphs.py, which calls the
+   engine's ``performance-pages`` tool (glitchygames/replay/tools/performance_pages.py) and adds
+   our page's snippet: the run ledger (our row files and the ledger published on gh-pages,
+   merged with the pending rows ``nox -s replay-metrics`` measured) and its graphs (a ``git
+   show`` and a few small files; rewritten only when they changed). Rows
    measured on uncommitted changes are left out of a build that is published (``mkdocs
    gh-deploy``) and shown, labelled, in a local one (``build``, ``serve``): ``on_startup``
    learns which. Without a startup event (unknown), they are left out.
@@ -39,6 +41,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol
 
 from mkdocs.exceptions import PluginError
+
+from glitchygames.replay.tools.performance_pages import UnreadableLedgerError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -134,18 +138,21 @@ def generate_performance_graphs() -> None:
     """Generate the performance graphs into the script's ``METRICS_DIR``.
 
     Raises:
-        PluginError: A file could not be read or written; the build stops.
+        PluginError: A file could not be read or written (a pending ledger that can't be read
+            too: ``UnreadableLedgerError``); the build stops.
 
     """
     performance_script = load_performance_script()
     try:
         performance_script.generate_performance_page(
             project_root=performance_script.PROJECT_ROOT,
+            # Our settings, given: the script reads them once, from this repository
+            settings=performance_script.PROJECT_SETTINGS,
             metrics_directory=performance_script.METRICS_DIR,
             pending_path=performance_script.PENDING_LEDGER_PATH,
             include_uncommitted_changes=BUILD_STATE.command in LOCAL_BUILD_COMMANDS,
         )
-    except OSError as error:
+    except (OSError, UnreadableLedgerError) as error:
         message = f'Could not generate the performance graphs: {error}'
         raise PluginError(message) from error
 

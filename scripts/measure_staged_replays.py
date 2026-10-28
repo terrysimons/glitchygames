@@ -5,16 +5,19 @@ Run by the pre-commit framework before each commit (``.pre-commit-config.yaml``,
 ``replay-metrics``), which stashes unstaged changes to tracked files first, so the tracked files
 are exactly what is being committed. When this machine has no rows yet for the staged code tree
 (glitchygames/code_tree.py: only the paths that can change how the replays run), it measures
-every golden replay and bundled demo on that code (``replay_metrics.py measure``, named by its
-code tree) and stages the row files under ``quality/replay-ledger/``, so the commit carries its
-own measurements. The docs build publishes the rows whose code landed on main
-(plans/2026-10-25-measured-rows-in-the-repository.md).
+every golden replay and bundled demo on that code (``glitchygames measure``, named by its code
+tree) and stages the row files under ``quality/replay-ledger/``, so the commit carries its own
+measurements. The docs build publishes the rows whose code landed on main
+(plans/2026-10-25-measured-rows-in-the-repository.md). This script keeps only git staging and
+its refusals; what is unmeasured and the measuring itself are the engine's
+(``glitchygames unmeasured`` and ``glitchygames measure``, glitchygames/replay/tools/measure.py),
+run in this process through the command's ``main``.
 
 The rules (a code review's findings, 2026-10-25):
 
 1. Measured once per code tree per machine (every golden replay and bundled demo has its row for
-   the tree here; a retry measures only the recordings still lacking one): a docs commit after
-   a measured one is instant, while
+   the tree here: ``glitchygames unmeasured`` lists none; a retry measures only the recordings
+   still lacking one): a docs commit after a measured one is instant, while
    code that arrived without the hook (a branch updated from main: no merge, rebase or GitHub
    "Update branch" runs the pre-commit stage) is measured by the next commit, whatever it
    changes. After updating a branch, run this script by hand and commit what it stages.
@@ -22,7 +25,7 @@ The rules (a code review's findings, 2026-10-25):
    measurement failed (the commit was refused) are staged on the retry. So is every row file the
    measurement wrote (found by comparing the rows directory before and after), the history
    rows among them: a recording's earlier runs that landed on origin/main, written as
-   ``history-...`` files (``replay_metrics.rows_to_write``: never a run of code that did not
+   ``history-...`` files (``measure.rows_to_write``: never a run of code that did not
    land, never a run a row already holds under the recording's old path). Other untracked
    files in the directory are left alone.
 3. Refused when measuring is needed and the result could not be committed as measured:
@@ -33,6 +36,9 @@ The rules (a code review's findings, 2026-10-25):
 4. A failed measurement refuses the commit, naming the recording. The row files it wrote
    before failing are staged anyway (valid measurements); the retry measures the rest.
 
+The repository's settings (``[tool.glitchygames]``: what a code tree holds) are read from the
+repository given, never from a module-level read of this one's (the controller's note to Task D6).
+
 ``SKIP=replay-metrics git commit ...`` commits without measuring.
 
 Usage (the framework runs it; by hand after updating a branch, then commit):
@@ -41,25 +47,34 @@ Usage (the framework runs it; by hand after updating a branch, then commit):
 
 from __future__ import annotations
 
+import contextlib
+import io
 import os
 import sys
 from pathlib import Path
 
-from glitchygames.code_tree import (
-    LEDGER_DIRECTORY,
-    MEASURED_PATHS,
-    is_measured_path,
-    run_git,
-    staged_code_tree,
-)
+from glitchygames.code_tree import run_git, staged_code_tree, untracked_measured_files
 from glitchygames.exit_codes import ExitCode
-from glitchygames.recording_metrics import ROW_FILE_SUFFIX, ROW_FILE_TREE_CHARACTERS, read_row_files
-from scripts import replay_metrics
+from glitchygames.recording_metrics import ROW_FILE_SUFFIX, ROW_FILE_TREE_CHARACTERS
+from glitchygames.replay.tools import command
+from glitchygames.replay.tools.settings import load_project_settings
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-ROWS_DIRECTORY = PROJECT_ROOT / LEDGER_DIRECTORY
 # The temporary index git commits through for ``git commit <path>`` (a partial commit)
 PARTIAL_COMMIT_INDEX_PREFIX = 'next-index'
+
+
+def glitchygames(*, arguments: list[str]) -> int:
+    """Run a ``glitchygames`` subcommand in this process (glitchygames/replay/tools/command.py).
+
+    Args:
+        arguments: The command line after ``glitchygames``.
+
+    Returns:
+        Its exit status.
+
+    """
+    return command.main(arguments)
 
 
 def _tree_row_files(*, rows_directory: Path, code_tree: str) -> list[Path]:
@@ -87,44 +102,76 @@ def _row_file_names(*, rows_directory: Path) -> set[str]:
     return {path.name for path in rows_directory.glob(f'*{ROW_FILE_SUFFIX}')}
 
 
-def _fully_measured_here(
-    *, repository: Path, rows_directory: Path, code_tree: str, machine: str
-) -> bool:
-    """Return whether every golden replay and bundled demo has a row for the tree here.
+def unmeasured_arguments(*, repository: Path, rows_directory: Path, code_tree: str) -> list[str]:
+    """Return the hook's ``glitchygames unmeasured`` command line (after ``glitchygames``).
+
+    Args:
+        repository: The repository (the project).
+        rows_directory: Where the row files are.
+        code_tree: The staged code tree.
 
     Returns:
-        True when no recording is left to measure for the code tree on this machine.
+        The arguments.
 
     """
-    measured = {
-        row.recording
-        for row in read_row_files(directory=rows_directory)
-        if row.code_tree == code_tree and row.machine == machine
-    }
-    recordings = replay_metrics.metric_recordings(project_root=repository)
-    # An unreplayable recording is never measured: the measurement runs and reports it
-    paths = [
-        *(path for _, path in recordings.replayable),
-        *(recording.path for recording in recordings.unreplayable),
+    return [
+        'unmeasured',
+        '--code-tree',
+        code_tree,
+        '--rows-directory',
+        str(rows_directory),
+        '--project-root',
+        str(repository),
     ]
-    return all(
-        replay_metrics.recording_ledger_name(path=path, project_root=repository) in measured
-        for path in paths
-    )
 
 
-def _untracked_measured_files(*, repository: Path) -> list[str]:
-    """Return untracked (not ignored) files under the measured paths.
+def measure_arguments(*, repository: Path, rows_directory: Path, code_tree: str) -> list[str]:
+    """Return the hook's ``glitchygames measure`` command line (after ``glitchygames``).
+
+    ``--allow-dirty``: the staged code is measured before it is committed.
+
+    Args:
+        repository: The repository (the project).
+        rows_directory: Where the row files go.
+        code_tree: The staged code tree the rows name.
 
     Returns:
-        Their repository-relative paths (``is_measured_path``: not a member's tests).
+        The arguments.
 
     """
-    output = run_git(
-        repository=repository,
-        arguments=['ls-files', '--others', '--exclude-standard', '--', *MEASURED_PATHS],
-    )
-    return [line for line in output.splitlines() if line and is_measured_path(path=line)]
+    return [
+        'measure',
+        '--allow-dirty',
+        '--code-tree',
+        code_tree,
+        '--rows-directory',
+        str(rows_directory),
+        '--project-root',
+        str(repository),
+    ]
+
+
+def _unmeasured(*, repository: Path, rows_directory: Path, code_tree: str) -> list[str] | None:
+    """Return the recordings with no row for the code tree on this machine.
+
+    ``glitchygames unmeasured --code-tree TREE --rows-directory DIR``, its standard output (one
+    ledger name per line) read here.
+
+    Returns:
+        The recordings (none when every one is measured), or None when the command failed (a
+        game that isn't installed, settings that can't be read): measuring then says why.
+
+    """
+    listing = io.StringIO()
+    with contextlib.redirect_stdout(listing):
+        exit_code = glitchygames(
+            arguments=unmeasured_arguments(
+                repository=repository, rows_directory=rows_directory, code_tree=code_tree
+            )
+        )
+    if exit_code != ExitCode.SUCCESS:
+        return None
+    return [line for line in listing.getvalue().splitlines() if line]
 
 
 def _is_partial_commit() -> bool:
@@ -144,26 +191,27 @@ def _stage(*, repository: Path, paths: list[Path]) -> None:
         run_git(repository=repository, arguments=['add', '--', *(str(path) for path in paths)])
 
 
-def measure_staged(*, repository: Path, rows_directory: Path, machine: str) -> int:
+def measure_staged(*, repository: Path, rows_directory: Path) -> int:
     """Measure the staged code tree unless measured on this machine, and stage its rows.
 
+    This machine is the one the engine names (``measure.this_machine``), as ``glitchygames
+    unmeasured`` and ``measure`` judge by it.
+
     Args:
-        repository: The repository.
+        repository: The repository (its ``[tool.glitchygames]`` says what a code tree holds).
         rows_directory: Where the row files are (quality/replay-ledger/).
-        machine: This machine's label (``replay_metrics.this_machine``).
 
     Returns:
         ``SUCCESS``; ``OPTIONS_REFUSED`` for a commit whose measurement could not be committed
         (untracked measured files, a partial commit); or the measurement's failure code.
 
     """
-    code_tree = staged_code_tree(repository=repository)
-    if _fully_measured_here(
-        repository=repository,
-        rows_directory=rows_directory,
-        code_tree=code_tree,
-        machine=machine,
-    ):
+    paths = load_project_settings(project_root=repository).code_tree_paths
+    code_tree = staged_code_tree(repository=repository, paths=paths)
+    unmeasured = _unmeasured(
+        repository=repository, rows_directory=rows_directory, code_tree=code_tree
+    )
+    if unmeasured == []:
         # Rows written before a refused commit are staged now (rule 2)
         _stage(
             repository=repository,
@@ -178,7 +226,8 @@ def measure_staged(*, repository: Path, rows_directory: Path, machine: str) -> i
             'SKIP=replay-metrics git commit ...\n'
         )
         return ExitCode.OPTIONS_REFUSED
-    untracked = _untracked_measured_files(repository=repository)
+    # Untracked files under the measured paths, less the unmeasured ones (a member's tests)
+    untracked = untracked_measured_files(repository=repository, paths=paths)
     if untracked:
         sys.stderr.write(
             'replay-metrics: untracked files would be measured though not committed; add them '
@@ -186,15 +235,10 @@ def measure_staged(*, repository: Path, rows_directory: Path, machine: str) -> i
         )
         return ExitCode.OPTIONS_REFUSED
     files_before = _row_file_names(rows_directory=rows_directory)
-    exit_code = replay_metrics.run(
-        arguments=[
-            'measure',
-            '--allow-dirty',
-            '--code-tree',
-            code_tree,
-            '--rows-directory',
-            str(rows_directory),
-        ]
+    exit_code = glitchygames(
+        arguments=measure_arguments(
+            repository=repository, rows_directory=rows_directory, code_tree=code_tree
+        )
     )
     # The files this measurement wrote are valid measurements even when it failed partway
     # (history rows among them: their names lead with "history", not the tree), plus every row
@@ -218,16 +262,15 @@ def measure_staged(*, repository: Path, rows_directory: Path, machine: str) -> i
 
 
 def main() -> int:
-    """Run the hook on this repository, labelled with this machine.
+    """Run the hook on this repository, its rows in its ledger directory.
 
     Returns:
         ``measure_staged``'s exit code.
 
     """
+    settings = load_project_settings(project_root=PROJECT_ROOT)
     return measure_staged(
-        repository=PROJECT_ROOT,
-        rows_directory=ROWS_DIRECTORY,
-        machine=replay_metrics.this_machine(),
+        repository=PROJECT_ROOT, rows_directory=PROJECT_ROOT / settings.ledger_directory
     )
 
 

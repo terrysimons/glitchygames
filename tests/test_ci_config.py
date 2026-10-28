@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 import tomllib
 from pathlib import Path
 
@@ -99,6 +100,11 @@ class RecordingSession:
         self.environments[command] = options.get('env')
 
 
+# How the measurement sessions run the engine's ``glitchygames`` command: in the project's
+# environment, every member installed editable (noxfile._glitchygames)
+GLITCHYGAMES_IN_THE_PROJECT = ('uv', 'run', '--frozen', '--all-packages', 'glitchygames')
+
+
 def docs_deploy_commands(*, posargs: list[str]) -> list[tuple[str, ...]]:
     """Return the commands ``nox -s docs-deploy`` runs with these arguments.
 
@@ -114,11 +120,17 @@ def docs_deploy_commands(*, posargs: list[str]) -> list[tuple[str, ...]]:
 
 
 def test_docs_deploy_measures_the_replays_by_default():
-    """A deploy from a person's machine measures this commit's replays first."""
+    """A deploy from a person's machine measures this commit's replays first, then clears.
+
+    Both through the engine's command: ``glitchygames measure --skip-dirty`` before the build,
+    ``glitchygames clear-published`` after the push.
+    """
     commands = docs_deploy_commands(posargs=[])
 
-    assert any('measure' in command for command in commands)
-    assert ('mkdocs', 'gh-deploy', '--strict') in commands
+    measuring = commands.index((*GLITCHYGAMES_IN_THE_PROJECT, 'measure', '--skip-dirty'))
+    deploying = commands.index(('mkdocs', 'gh-deploy', '--strict'))
+    clearing = commands.index((*GLITCHYGAMES_IN_THE_PROJECT, 'clear-published'))
+    assert measuring < deploying < clearing
 
 
 def test_replay_metrics_runs_on_the_editable_install_of_every_package():
@@ -129,8 +141,8 @@ def test_replay_metrics_runs_on_the_editable_install_of_every_package():
     noxfile.replay_metrics(session)
 
     (command,) = session.commands
-    assert command[:4] == ('uv', 'run', '--frozen', '--all-packages')
-    assert command[-3:] == ('measure', '--only', 'rally')
+    # The engine's command (glitchygames/replay/tools/measure.py), not the deleted script
+    assert command == (*GLITCHYGAMES_IN_THE_PROJECT, 'measure', '--only', 'rally')
     assert '--no-editable' not in command
     assert session.environments[command] == {'VIRTUAL_ENV': None, 'UV_NO_EDITABLE': None}
 
@@ -241,7 +253,8 @@ def test_the_test_session_installs_a_stamped_engine():
     """The nox test session builds its engine with the build stamp: the installed copy names HEAD.
 
     The installed copy is not editable and has no git checkout; without the stamp it records an
-    unknown commit, which replay_metrics refuses (tests/test_replay_metrics.py).
+    unknown commit, which measuring refuses (glitchygames/replay/tools/measure.py,
+    tests/replay/tools/test_measure.py).
     """
     import noxfile
 
@@ -292,3 +305,154 @@ def test_the_wheel_build_builds_every_workspace_package(mocker):
     session.run.assert_called_once_with(
         'uv', 'build', '--all-packages', '--wheel', '--out-dir', 'dist', external=True
     )
+
+
+def test_only_the_linux_job_sets_the_memory_limit():
+    """The Linux job (2 GB, serial) stops a run past 1750 MiB, naming the test (memory_guard.py).
+
+    Only there: the macOS and Windows jobs have the memory, and the plugin needs Linux's
+    ``/proc/self/statm`` anyway. The resource class and the worker count stay as they were.
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    linux_job = configuration[
+        configuration.index('\n  build-and-test-linux:\n') : configuration.index(
+            '\n  build-and-test-macos:\n'
+        )
+    ]
+
+    assert configuration.count('GLITCHYGAMES_TEST_RSS_LIMIT_MB') == 1
+    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"\n' in linux_job
+    assert '    resource_class: small\n' in linux_job
+    assert '      PYTEST_WORKERS: "0"\n' in linux_job
+
+
+class LoggingRecordingSession(RecordingSession):
+    """A recording session that also takes the session's log lines and refusals."""
+
+    def log(self, message: str) -> None:
+        """Ignore a log line."""
+
+    def error(self, message: str) -> None:
+        """Fail as nox would.
+
+        Raises:
+            AssertionError: Always, with the message.
+
+        """
+        raise AssertionError(message)
+
+
+class LinuxCiSession(LoggingRecordingSession):
+    """A recording session whose git commands answer as a worktree on branch feature/x would."""
+
+    def __init__(self, *, tmp_path: Path) -> None:
+        """Answer from ``tmp_path``: its temporary directory, and the repository's git directory."""
+        super().__init__(posargs=[])
+        self.tmp_path = tmp_path
+        self.answers = {
+            ('rev-parse', '--git-common-dir'): f'{tmp_path / "repository.git"}\n',
+            ('symbolic-ref', '--quiet', '--short', 'HEAD'): 'feature/x\n',
+            ('remote', 'get-url', 'origin'): 'https://example.com/glitchygames.git\n',
+            ('ls-files', '--stage'): (
+                '100644 1111 0\tREADME.md\n160000 2222 0\tthird_party/pygame-ce\n'
+            ),
+            ('ls-files', '-z', '--cached', '--others', '--exclude-standard'): (
+                'README.md\0third_party/pygame-ce\0deleted.py\0README.md\0'
+            ),
+            ('rev-parse', 'HEAD'): 'abc123\n',
+        }
+
+    def run(self, *command: str, **options: object) -> str | None:  # type: ignore[override]
+        """Record the command; answer a git command as the worktree would.
+
+        Returns:
+            The git command's output, else None.
+
+        """
+        super().run(*command, **options)
+        if command[0] == 'git':
+            return self.answers[command[1:]]
+        return None
+
+    def create_tmp(self) -> str:
+        """Return the session's temporary directory.
+
+        Returns:
+            Its path.
+
+        """
+        return str(self.tmp_path)
+
+
+def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monkeypatch):
+    """``nox -s test-linux-ci``: the job's amd64 image, 2 GB without swap, 1 CPU, its environment.
+
+    Read from .circleci/config.yml, so a change to the job changes the session too.
+    """
+    import noxfile
+
+    monkeypatch.setattr(noxfile, '_LINUX_CI_RESULTS', tmp_path / 'linux-ci')
+    session = LinuxCiSession(tmp_path=tmp_path)
+
+    noxfile.test_linux_ci(session)
+
+    docker_run = next(command for command in session.commands if command[:2] == ('docker', 'run'))
+    python_version = pipeline_parameter_default(name='PYTHON_LATEST_VERSION')
+    assert f'cimg/python:{python_version}' in docker_run
+    assert {'--memory=2g', '--memory-swap=2g', '--cpus=1', '--platform=linux/amd64'} <= set(
+        docker_run
+    )
+    environment = {
+        docker_run[index + 1] for index, argument in enumerate(docker_run) if argument == '--env'
+    }
+    assert {
+        'PYTEST_WORKERS=0',
+        'GLITCHYGAMES_TEST_RSS_LIMIT_MB=1750',
+        'CI=true',
+        'CIRCLECI=true',
+    } <= environment
+    script = docker_run[-1]
+    uv_version = pipeline_parameter_default(name='UV_VERSION')
+    nox_version = pipeline_parameter_default(name='NOX_VERSION')
+    assert f'https://astral.sh/uv/{uv_version}/install.sh' in script
+    assert f'uv python install "{python_version}"' in script
+    assert f'uvx --from "nox[uv]=={nox_version}" nox -s test || status=$?' in script
+    assert (tmp_path / 'linux-ci').is_dir()
+
+
+def test_the_linux_ci_session_copies_what_git_would_commit_from_a_worktree(tmp_path, monkeypatch):
+    """Tracked and untracked-not-ignored files only, no submodule; .git from the git directory.
+
+    A worktree's .git names the repository's git directory on this machine, so that directory is
+    mounted at its own path and the clone is made from it; HEAD is the worktree's, on its branch.
+    """
+    import noxfile
+
+    monkeypatch.setattr(noxfile, '_LINUX_CI_RESULTS', tmp_path / 'linux-ci')
+    session = LinuxCiSession(tmp_path=tmp_path)
+
+    noxfile.test_linux_ci(session)
+
+    docker_run = next(command for command in session.commands if command[:2] == ('docker', 'run'))
+    repository = tmp_path / 'repository.git'
+    assert f'{repository}:{repository}:ro' in docker_run
+    assert (tmp_path / 'files').read_bytes() == b'README.md\0'
+    script = docker_run[-1]
+    # Quoted as the noxfile quotes it (a Windows path's backslashes need quotes)
+    assert f'git clone --quiet --no-checkout {shlex.quote(str(repository))} ' in script
+    assert 'git update-ref refs/heads/feature/x abc123' in script
+    assert 'git symbolic-ref HEAD refs/heads/feature/x' in script
+    assert 'git remote set-url origin https://example.com/glitchygames.git' in script
+    assert '--exclude' not in script
+
+
+def test_an_environment_line_the_session_cannot_read_is_refused():
+    """An unquoted value would be left out of the container without a word: refused instead."""
+    import noxfile
+
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8').replace(
+        '      PYTEST_WORKERS: "0"\n', '      PYTEST_WORKERS: 0\n'
+    )
+
+    with pytest.raises(ValueError, match=r"cannot read .*'PYTEST_WORKERS: 0'"):
+        noxfile._linux_ci_job_settings(configuration=configuration)

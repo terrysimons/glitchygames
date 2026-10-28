@@ -74,6 +74,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | Papyrus sprites keep their unscaled native rect size | BUGS.md #59 | Latent; fixing it needs its own golden expected-difference class. |
 | Brave Adventurer's ground and walls stay drawn only because the parallax layers dirty the whole screen | BUGS.md #60 | Fragile; make the terrain `dirty = 2` or document the dependency. |
 | Brave Adventurer's and Papyrus's enemies (Cobra, Scarab, Scorpion) still draw in `update()` | `src/games/brave-adventurer/src/brave_adventurer/enemies.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | Harmless while their hitboxes do not depend on the pose (the scarab's bounds are the same at every roll angle); move drawing into `dt_tick` (the pose rule) if they ever do. |
+| The serial Linux test run comes close to the memory guard's limit: the container's memory (page cache left out, what `tests/memory_guard.py` reads) reached 1621 MiB at about 63% of a serial run, pytest plus a replay child (`mr-muncher/golden`, +181 MiB since it started). The limit is 1750 MiB by the owner's choice (2026-10-28); reducing the peak is deferred | `.circleci/config.yml` (`GLITCHYGAMES_TEST_RSS_LIMIT_MB`), `tests/memory_guard.py`, `src/glitchygames/replay/driver.py`, `src/glitchygames/tracing.py` | Found 2026-10-28 by `nox -s test-linux-ci`. Lead, measured on macOS and not yet confirmed in the container: a headless replay holds its whole decoded recording, about 135 MiB of Python objects for Mr. Muncher's 73 KB golden (tracemalloc: `game_engine.py:1040` and `:2055`, through `driver.py:3177` and `:1517` and `tracing.py:927`), so its child peaks at about 320 MiB against about 150 MiB for the other goldens. Measure in the container first (pytest's baseline, the children, overlap), then fix at the source; never relax the limit or weaken a test. |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
@@ -100,6 +101,179 @@ local branches are deleted. The decisions made on the way, for the record:
   differently for the same file name, though only TOML is supported. Unify them (and their
   callers: `SpriteFactory.load_sprite` and `src/glitchygames/sprites/bitmappy_sprite.py`) in one
   slice.
+
+## Engine tests after Part 3 (2026-10-26, workspace packages part 3)
+
+Part 3 stopped the engine's tests borrowing members (decision 7) and measured the engine's
+coverage from the root `tests/` alone before and after each of C2, C3 and C4 (decision 11): no
+arc was lost. What follows is left.
+
+- **Engine arcs reached only by root tests that run members.** The engine has no test of its own
+  for these; the golden-trace test, the golden-script round trip and the power-on test reach them
+  by running the games. They are not gaps (a full run covers them), but each deserves an engine
+  stand-in test that reaches it directly. Line numbers are as of 273fa323 and re-checked
+  2026-10-26 (none of these files changed since):
+  - `game_objects/ball.py`: `dt_tick` (744), `_finish_wall_bounce` (820-821)
+  - `animation/state_machine.py`: `evaluate` (291-292), `_switch_to` (342, 346)
+  - `physics/body.py`: `get_animation_context` (133)
+  - `input/action_map.py`: `handle_event` (401)
+  - `audio/recipes.py`: `render` (116-117)
+  - `audio/synth.py`: `concatenate` (437)
+  - `camera.py`: `update_scroll` (144)
+  - `transitions/elevator.py`: `_draw_shaft_walls` (208-209); the `ElevatorTransition` stand-in in
+    `tests/world/test_transition_input.py` may reach it now: check before writing a test
+  - `sprites/animated.py`: `SpriteAnimation.__init__` (575), `update_nested_sprites` (2663)
+  - `engine/game_engine.py`: `_crash_boundary` (2577), `_run_game` (2596); only the power-on
+    test reaches them
+- **Root-only engine gaps that were there before Part 3.** The root `tests/` alone misses the
+  same 5 lines and 7 branches before and after C2 (so they are not from the moves; a full run
+  covers them through members' tests or not at all): `collision/layers.py` 72;
+  `scenes/scene.py` 1270->1276; `sprites/animated.py` 1096, 1098, 2039-2040 and their branches.
+  Give the engine its own tests for them.
+- **Member tests import helpers from root test modules** (`tests.collision.test_ball_paddle_collision`,
+  `tests.world.test_frame_integration`). Move the shared helpers into non-test helper modules
+  both can import.
+- **The import guard's blind spots.** `engine_test_imports_of_members` finds literal
+  `importlib.import_module`/`__import__` strings but not `importlib.__import__`,
+  `builtins.__import__`, `pytest.importorskip` or `importlib.util.find_spec`. The member-test
+  naming check (`test_<distribution>*`) matches a prefix with no separator, so
+  `test_bitmappyx.py` passes (the unique-name guard still catches clashes).
+
+## Engine tools after Stage D (2026-10-27, workspace packages part 3)
+
+Stage D moved every recording, replay and measurement tool into the engine
+(`src/glitchygames/replay/tools/`, `plans/2026-10-26-workspace-packages-3-demos.md`). Left:
+
+- **Paint `--compare-trace`'s ghost layer by layer** (decision 20 of
+  `plans/2026-10-26-workspace-packages-3-demos.md`; the user, 2026-10-27, no half measures).
+  OLD's items are blended over NEW's finished frame, so OLD's uneaten dot under NEW's Mr. Muncher
+  draws over him. Interleave the games' draw layers in one frame (each layer: OLD's at the alpha,
+  then NEW's), which needs OLD in the same process: do it when the engine context work makes an
+  in-process OLD possible (`plans/2026-10-25-engine-context.md`, the Arcade spike's wrapper in
+  `.superpowers/arcade-spike/`), replacing the child process and the per-pixel item rule
+  (`replay/tools/compare.py` rule 10, `GhostCompositor`) rather than adding to them.
+- **Logical-name collisions with outside packages.** `MEMBER_LAYERS`
+  (`src/glitchygames/logical_names.py`) still names our members' packages, so an outside game
+  whose package happens to be called `paddleslap` is labelled `games.paddleslap...` in its
+  recordings. Kept because a frozen binary or a wheel install has no `pyproject.toml` to read
+  the layers from; only `bundled_demos`' default stopped using it (Task D5). Fix: label a package
+  by its layer only when it is the installed workspace member (its distribution's name).
+- **`--profile` is ignored with a tool that runs in place of the game.** Since D4b, a game-flag
+  tool with a game handler (`--record-golden-trace`, `--record-session`, `--measure`,
+  `--report`, ...) runs from `GameEngine.__init__` (`registry.run_game_flag_tool`), before
+  `GameEngine.start` starts the profiler, so `--profile` prints nothing; before D4b a profile
+  was printed. Profile the handler too, or refuse `--profile` with such a tool.
+- **Restarting a game through its console script on Windows is untested.** `--verify`,
+  `--measure` and the onion skin start the running game again
+  (`children.running_game_command`), which on Windows sees a launcher `.exe` in `sys.orig_argv`.
+  Verify on Windows.
+- **A launcher package's identity.** `console_script_identity`
+  (`src/glitchygames/replay/tools/identity.py`, around lines 182-189) takes a console script's
+  entry-point package as the game's. For a launcher (one package's script starting another
+  package's game), `unmeasured` and the pre-commit hook then judge a different package's demos
+  and revision than that game's own `--measure` does. Our nine console scripts are pinned by a
+  test; resolve the launched game's package instead.
+- **Tool option names are reserved in every game.** Every tool's flag and option is added to every
+  game's parser (`registry.add_game_flags`), including generic names such as `report`'s
+  `--threshold`, `--minimum-ms` and `--spans`, so a game defining one of them is refused at
+  startup, on every run. Since the final Stage D review's fixes the refusal is clear
+  (`GameEngine.initialize_arguments`, `reserved_flag_refusal`: exit 64, naming the flag and
+  saying the engine reserves it, not an argparse traceback). Ours are pinned by
+  `test_no_tool_option_clashes_with_any_of_our_games_arguments`, and the reserved names are
+  documented (docs/architecture/gameplay_replay.md, "Tools for any game"). Still deferred: the
+  rename to tool-prefixed names (`--report-threshold`) before outside games depend on these.
+- **`tests/replay/tools/test_an_unseen_game.py` is slow:** about 94 s serial (20 s under
+  `-n auto`), against a 60 s target. Share the built project and installed console script
+  between cases, or run fewer `GAME` forms per tool.
+- **The debug overlay draws under OLD in `--compare-trace`.** `ReplaySources.draw_overlay` draws
+  the onion skin, and `SceneManager` draws the debug overlay before the doors' overlay, so OLD
+  covers it. A correct fix is a new doors hook called before the debug overlay, say
+  `EngineSources.draw_under_overlays(*, surface)`, implemented by the five `EngineSources`
+  (`LiveSources` as a no-op; `HostSources`, `RecordingSources` and `PlaybackSources` forwarding;
+  `ReplaySources` drawing the onion skin), with the onion skin moved from `draw_overlay` to it.
+- **`--compare-trace` in the browser.** It is not refused up front under Pyodide, where there are
+  no child processes; today a browser path has no options to give it. If one ever does, add
+  `sys.platform == 'emscripten'` to `compare.compare_trace_refusal`.
+
+From the final Stage D review (`.superpowers/sdd/2026-10-26-workspace-packages-3-demos/
+final-review-stage-d.md`, Minors the controller deferred, 2026-10-27; I1-I4, M1, M3, M4, M6 and
+the reserved-flag refusal were fixed):
+
+- **M2: children find the project again for themselves.** `glitchygames verify|measure
+  --project-root DIR` starts `GAME --verify|--measure` with `DIR` as its working directory
+  (`traces.run_game_with_tool`), and the child runs `verify.verify_project_root` (through
+  `settings.find_project_root`) again from there. If `DIR` has no `[tool.glitchygames]` and an
+  ancestor has one, the parent reads `DIR`'s settings but the child works on the ancestor's
+  (other goldens, another pending ledger). Fix: pass the resolved root to the child, through an
+  environment variable `verify_project_root` honors (say `GLITCHYGAMES_PROJECT_ROOT`) or a
+  hidden option (as `--replay-frame-stream` is hidden: `ToolOption(hidden=True)`).
+- **M5: half of decision 17's seed rows run only through the game flag.** The command runs rows
+  2, 4 and 6 and the audit refusal (`tests/replay/tools/test_an_unseen_game.py`, `SEED_ROWS`);
+  rows 1, 3, 5 and 7 run only as flags, there and in `tests/replay/tools/test_random_seed.py`.
+  The command forwards the seed verbatim (`Tool.child_arguments`), so the risk is low, but the
+  "every tool, both front ends" constraint is not literally met for the seed table. Fix:
+  parametrize `SEED_ROWS` over both front ends (mind the file's run time, above), or record
+  there why one front end is enough.
+- **M7: "no installed console script" misleads a pipx user.** `children.resolve_game` searches
+  only this interpreter's distributions (`game_entry_point`), so a game installed with pipx (its
+  console script on `PATH`, in another environment) is refused with "no installed console script
+  or importable module has that name". Fix: say "in this Python environment" with
+  `sys.executable`, and suggest the script-path or `MODULE:CALLABLE` form
+  (`children.unknown_game_message`).
+- **M8: game arguments without `--` get no hint.** `glitchygames record-trace mygame
+  run.jsonl.gz --resolution 640x480` (no `--`) fails with argparse's "unrecognized arguments".
+  Fix: in `command.main`, parse with `parse_known_args` and, for unknown arguments on a tool that
+  runs the game, refuse with "(arguments for the game go after a bare --)" (exit 2, argparse's,
+  or 64 to match the other usage refusals: decide with the user).
+- **M9: `report` on a directory says "no such recording"** (exit 66, `MISSING_INPUT`), which is
+  wrong about why (`src/glitchygames/replay/tools/report.py`). A path that exists but is not a
+  file is unusable input (65; src/glitchygames/exit_codes.py says so), or say "is a directory".
+- **M10a: `compare._accept`'s post-deadline race** (from the D10 review;
+  `src/glitchygames/replay/tools/compare.py`, `_accept`, around lines 662-670). When a stranger's
+  connection is refused after the connect deadline, the wait ends at once
+  (`_never_connected`), though OLD's real child may already be in the listener's backlog. Fix:
+  before giving up, accept once more without blocking and check that connection's token.
+- **M10b: "behaviour" in `report`'s help** (`registry.TOOLS`, the `report` tool's `help`, from
+  scripts/recording_report.py; accepted earlier). The project's prose is American: "behavior".
+  Its help text is pinned by the tests that compare it with the script's old parser.
+
+Found while fixing that review (2026-10-27):
+
+- **The command's SIGTERM kills a recording child outright.** `glitchygames record-trace`,
+  `record-session` and `replay-trace` wait on their game through `process.run_command`
+  (`children.launch_game` with no timeout), so when the command is stopped by a signal,
+  `subprocess.run` SIGKILLs the game: its recording is left unclosed (it still reads up to its
+  last full frame). `verify` and `measure`'s games are stopped gently
+  (`process.run_command_stopped_at_timeout`: SIGTERM, then the kill after the grace period),
+  which lets the game's engine close what it writes. Consider the gentle stop for every launch.
+- **`unmeasured`'s child has no timeout.** `measure.child_unmeasured` starts a game named
+  otherwise than by its console script with `--unmeasured` and `timeout_seconds=None`; a script
+  that is no game would hang it as `verify` and `measure` did before `game-timeout-seconds`
+  (games from the settings are console scripts, read without starting them, so only `--game`
+  names reach it). Give it the same timeout.
+- **A rebaseline carries OLD's old absolute paths into NEW** (review m5 of D15, 2026-10-27).
+  Every path the tools write into a file is stored relative to the project root
+  (`src/glitchygames/replay/tools/settings.py` `stored_path`), but `rebaseline_header`
+  (`src/glitchygames/replay/rebaseline.py`, near `header = dict(original_header)`) keeps OLD's
+  header as it is: OLD's `options` (its `record_trace` and other path options) and its earlier
+  `measurement_runs[*].rebaselined_from`. Rebaselining a recording made before D15 item 4, or
+  one recorded elsewhere, so carries absolute paths into NEW; only
+  `tests/test_our_stored_paths.py` catches them, and only in tracked files. Fix: pass the
+  inherited `options` through `stored_options` and each earlier run's `rebaselined_from`
+  through `stored_path`. `stored_options` lives in `src/glitchygames/engine/game_engine.py`,
+  which imports `rebaseline.py`, so it must first move below the engine (beside `stored_path`,
+  with `registry.path_option_destinations`, whose import would then have to stay light).
+- **The startup options block is CRITICAL "for now"** (Part 3 Stage D, Task D18, 2026-10-28;
+  the owner: "Log that at critical" ... "Do it for now").
+  - Every engine start logs the run's whole options dictionary at CRITICAL
+    (`GameEngine._log_the_startup_options`, `startup_options_block` in
+    `src/glitchygames/engine/game_engine.py`), so it shows at every level. It prints on every
+    launch, and in every engine the test suite starts: a serial `CI=true` run with the WARNING
+    live log (as CircleCI's Linux job runs, `PYTEST_WORKERS=0`) printed 408 blocks, 29406 of its
+    59466 lines (macOS, 2026-10-28). Under xdist (`nox -s test` locally, `-n 8`) the live log
+    shows none; a failing test's captured log still holds its block.
+  - Revisit: a direct startup line (stderr, not the log) that tests and the headless tools turn
+    off, or CRITICAL only beside a crash (the options logged with the exit-70 traceback).
 
 ## World space follow-ups (feature/engine-world-space final review)
 
@@ -451,6 +625,39 @@ only replays; Part 2 Task 1).
 - Optional: lazy-import `speech_recognition` so the audio import chain doesn't load `aifc` (its
   deprecation warning is already filtered in `pyproject.toml`).
 - ty reports 50 pre-existing `unused-ignore-comment` warnings (identical on main).
+- **Run nox without the `uvx` wrapper in CI** (found 2026-10-28 by the test-memory-reduction
+  work, `feature/test-memory-reduction`; the owner asked to look at it later).
+  - Every CircleCI step runs `uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox
+    -s ...` (`.circleci/config.yml`). The `uvx` process stays alive as nox's parent, holding about
+    47 MiB of anonymous memory, which the Linux job's memory guard (`tests/memory_guard.py`,
+    `GLITCHYGAMES_TEST_RSS_LIMIT_MB`) counts.
+  - Option: install nox once per job (`uv tool install "nox[uv]==<pinned version>"`) and run
+    `nox -s ...` directly, so no wrapper process waits on it.
+  - It changes the test step of both the Linux and macOS jobs (and the shared commands), so check
+    the Windows job and the cache keys too; measure the guard's peak before and after.
+- **Stamp each game's build with its own revision** (found 2026-10-26, Part 3 Stage D, Task D3
+  review).
+  - Since D3, every recorded run names its game's source revision
+    (`MeasurementRun.game_source_revision`). It is looked up in the game's package directory
+    (`glitchygames.replay.tools.identity.game_source_revision` →
+    `build_info.package_source_revision`), in this order: a git checkout that tracks it, then
+    `_git_archival.txt`, then `_build_info.json`, else unknown. A ledger row's commit is that
+    revision's, the engine's only when no game revision was recorded.
+  - The builds stamp only the engine: `noxfile.py` `_build_stamp` (around line 1408) runs
+    `scripts/write_build_stamp.py`, which writes `src/glitchygames/_build_info.json` alone.
+  - So an installed member wheel (`nox -s build-wheel`, or nox's own non-editable test install)
+    and the frozen Bitmappy binary (`build-binary`) have a game package with no checkout, archive
+    or stamp. Their recordings now name an unknown game commit; before D3 they showed the engine
+    stamp's commit.
+  - No ledger row is affected today: every path that writes rows runs editable members from the
+    checkout (`uv run`).
+  - Fix: write a stamp into each game package as well, with `build_info.write_build_stamp` per
+    package directory. Either `write_build_stamp.py` takes the members' package directories, or
+    `_build_stamp` loops over them. Remove the stamps afterwards, as for the engine's, and ship
+    `_build_info.json` in each member's wheel (hatch `artifacts`, as the engine's
+    `pyproject.toml` does).
+  - Then test that a built member wheel's recording names its game commit with source
+    `build-stamp`.
 
 ## Upstream issues to file
 

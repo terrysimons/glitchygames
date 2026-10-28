@@ -23,7 +23,8 @@ class LocalScene(Scene):
         ('mr_muncher.game', 'games.mr_muncher.game'),
         ('paddleslap', 'games.paddleslap'),
         ('drawing_fire.game', 'games.drawing_fire.game'),
-        ('glitchygames.examples.joystick_demo', 'demos.joystick_demo'),
+        ('joystick_demo', 'demos.joystick_demo'),
+        ('text_input_demo', 'demos.text_input_demo'),
         ('glitchygames.scenes.builtin_scenes.pause', 'glitchygames.scenes.builtin_scenes.pause'),
         ('tests.test_logical_names', 'tests.test_logical_names'),
         ('__main__', '__main__'),
@@ -39,39 +40,32 @@ def test_a_class_is_its_logical_module_and_qualified_name():
     assert logical_name(scene_class=LocalScene) == 'tests.test_logical_names:LocalScene'
 
 
-def test_a_class_that_moved_into_a_member_keeps_its_logical_name(mocker):
-    """The same game reported in its member package names the same logical name."""
+def test_a_member_class_keeps_its_logical_name_wherever_it_is_installed(mocker):
+    """A member's logical name names its layer and package, not where the package lives."""
     mocker.patch.dict(logical_names.MEMBER_LAYERS, {'space_game': 'games'})
-    mocker.patch.dict(logical_names.EXAMPLES_LAYERS, {'space_game': 'games'})
 
-    before = logical_module_name(module='glitchygames.examples.space_game.game')
-    after = logical_module_name(module='space_game.game')
-
-    assert before == after == 'games.space_game.game'
+    assert logical_module_name(module='space_game.game') == 'games.space_game.game'
+    assert (
+        module_for_logical_module(logical_module=logical_module_name(module='space_game.game'))
+        == 'space_game.game'
+    )
 
 
 def test_a_logical_module_maps_back_to_the_module_that_holds_it(mocker):
-    """A member's package, else glitchygames/examples, else the name itself."""
+    """A member's package, else the name itself."""
     mocker.patch.dict(logical_names.MEMBER_LAYERS, {'space_game': 'games'})
 
     assert module_for_logical_module(logical_module='games.paddleslap') == 'paddleslap'
     assert module_for_logical_module(logical_module='games.drawing_fire.game') == (
         'drawing_fire.game'
     )
-    assert module_for_logical_module(logical_module='demos.joystick_demo') == (
-        'glitchygames.examples.joystick_demo'
-    )
+    assert module_for_logical_module(logical_module='demos.joystick_demo') == 'joystick_demo'
     assert module_for_logical_module(logical_module='games.space_game.game') == 'space_game.game'
     assert module_for_logical_module(logical_module='glitchygames.scenes') == 'glitchygames.scenes'
 
 
-def test_every_example_demo_and_member_has_a_layer():
-    """The owner's tables (2026-10-25): every game is a member; Part 3 moves the demos out."""
-    assert logical_names.EXAMPLES_LAYERS == {
-        'dt_demo': 'demos',
-        'joystick_demo': 'demos',
-        'text_input_demo': 'demos',
-    }
+def test_every_member_has_a_layer():
+    """The owner's table (2026-10-25): every game, demo and app is a member of its layer."""
     assert logical_names.MEMBER_LAYERS == {
         'mr_muncher': 'games',
         'brave_adventurer_core': 'games',
@@ -82,6 +76,9 @@ def test_every_example_demo_and_member_has_a_layer():
         'paddleslap': 'games',
         'drawing_fire': 'games',
         'bitmappy': 'apps',
+        'dt_demo': 'demos',
+        'joystick_demo': 'demos',
+        'text_input_demo': 'demos',
     }
 
 

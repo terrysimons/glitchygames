@@ -21,14 +21,6 @@ from typing import TYPE_CHECKING, Any, ClassVar, override
 import pygame
 import pytest
 from pydantic import ValidationError
-from scripts.record_golden_traces import (
-    GAME_SCENES,
-    GoldenTraceEngine,
-    GoldenTraceSceneManager,
-    record_trace,
-    replay_golden_recording,
-)
-from scripts.record_scripted_session import fixture_path, record_scripted_session
 
 from glitchygames import logical_names, recording_history
 from glitchygames.build_info import RevisionSource, engine_source_revision
@@ -42,7 +34,7 @@ from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_module_name, logical_name
 from glitchygames.machine_state import current_machine_state
 from glitchygames.opacity import OPAQUE
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.recording import (
     EXTERNAL_ORIGIN,
     INTERNAL_ORIGIN,
@@ -112,6 +104,12 @@ from glitchygames.replay.driver import (
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.replay.processing import machine_description
 from glitchygames.replay.rebuild import REBUILD_PROGRESS_INTERVAL_SECONDS, Rebuild, ViewerState
+from glitchygames.replay.tools.golden_traces import (
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    InputScript,
+)
+from glitchygames.replay.tools.scripted_sessions import record_scripted_session
 from glitchygames.replay.viewer import MAX_INNER_FRAMES_PER_TICK
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
@@ -123,7 +121,12 @@ from glitchygames.sources import (
 from glitchygames.state import DiskSaveManager
 from glitchygames.state.sandbox import open_saves
 from glitchygames.timing import DEFAULT_SLEEP_GRANULARITY_NS, FastTimer, PacingTimer, SleepModel
-from glitchygames.tracing import GZIP_WINDOW_BITS, read_trace, read_trace_result, write_trace
+from glitchygames.tracing import (
+    GZIP_WINDOW_BITS,
+    read_trace,
+    read_trace_result,
+    write_trace,
+)
 from tests.display_canvas import display_looks_entirely_black, real_display_surface
 from tests.harness import imported_engine_is_the_checkouts
 from tests.replay.replay_helpers import (
@@ -133,6 +136,7 @@ from tests.replay.replay_helpers import (
 )
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import live_sdl_driver_state, restore_run_sdl_drivers
+from tests.stand_in_games import record_stand_in_game, use_stand_in_game, write_stand_in_game
 from tests.world import test_gameplay_recording as recording_test_module
 from tests.world.test_gameplay_recording import (
     FAKE_CLOCK_STEP_SECONDS,
@@ -155,10 +159,6 @@ if TYPE_CHECKING:
 # Part 1's replay: stops at the first divergence or the last frame (a watched replay pauses)
 HEADLESS_REPLAY_OPTIONS = ReplayOptions(headless=True)
 
-GOLDEN_SCRIPT_FRAMES = 300
-# A golden recording of this many frames, replayed by a harness stopped after the frame limit
-EARLY_STOP_RECORDED_FRAMES = 30
-EARLY_STOP_FRAME_LIMIT = 10
 # The departure scene's marker is placed from the clocks in this frame; the scene is still
 # active at the frame's end (its transition starts in frame 3), so the placement is compared
 CLOCK_ACTION_FRAME = 2
@@ -1001,31 +1001,6 @@ class TestRoundTrip:
         assert result.end_reason == 'end_of_recording'
         assert result.frames_replayed == len(read_trace_result(path=recording_path).trace['frames'])
 
-    @pytest.mark.parametrize('game_key', sorted(GAME_SCENES))
-    def test_golden_script_recording_replays_without_divergence(self, game_key, tmp_path):
-        recording_path = tmp_path / f'{game_key}.jsonl.gz'
-        record_trace(game_key, frame_count=GOLDEN_SCRIPT_FRAMES, recording_path=recording_path)
-        result = replay_golden_recording(game_key=game_key, path=recording_path)
-        assert result.divergence is None
-        assert result.frames_replayed == GOLDEN_SCRIPT_FRAMES
-
-    def test_golden_harness_stopped_early_reports_a_length_divergence(self, tmp_path):
-        recording_path = tmp_path / 'paddleslap.jsonl.gz'
-        record_trace(
-            'paddleslap', frame_count=EARLY_STOP_RECORDED_FRAMES, recording_path=recording_path
-        )
-        result = replay_golden_recording(
-            game_key='paddleslap', path=recording_path, frame_limit=EARLY_STOP_FRAME_LIMIT
-        )
-        assert result.end_reason == 'diverged'
-        divergence = result.divergence
-        assert divergence is not None
-        assert (divergence.kind, divergence.expected, divergence.actual) == (
-            LENGTH_DIVERGENCE,
-            EARLY_STOP_RECORDED_FRAMES,
-            EARLY_STOP_FRAME_LIMIT,
-        )
-
     def test_clock_reads_replay_exactly(self, mocker, tmp_path):
         from glitchygames.clock import elapsed_seconds, wall_clock_epoch_seconds
 
@@ -1080,6 +1055,10 @@ class TestDivergence:
         self, mocker, tmp_path, caplog, capsys
     ):
         """A replay without --headless logs its report (stdout stays clean) and still exits."""
+        # INFO records: the level is the run's (--log-cli-level, WARNING in CI), never a module's
+        # (BUGS.md #236: it passed in CI only while a script imported at collection set game
+        # to INFO)
+        caplog.set_level(logging.INFO)
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
         shutdown_spy = mocker.spy(GoldenTraceEngine, '_shutdown')
@@ -1785,7 +1764,8 @@ UNUSED_AUDIO_DRIVER = 'unused-audio-driver'
 # 800x480, and one no recording here has
 WINDOW_MANAGER_SIZE = (800, 600)
 UNRECORDED_WINDOW_SIZE = (640, 400)
-# Enough PaddleSlap frames to compare the paddles' places (set from the screen height in frame 0)
+# Enough frames to compare the display-height stand-in's sprite place (set from the screen height
+# when it is built), as PaddleSlap's paddles were compared
 DISPLAY_SIZE_FRAME_COUNT = 10
 
 
@@ -1809,18 +1789,37 @@ def window_manager_choosing_size(*, mocker, size: tuple[int, int]):
     return mocker.patch('pygame.display.set_mode', side_effect=set_mode_at_the_chosen_size)
 
 
-def record_paddleslap_on_a_window_of_another_size(*, mocker, path: Path) -> None:
-    """Record PaddleSlap asking for 800x480 on a window the window manager makes 800x600."""
+class DisplayHeightScene(Scene):
+    """A stand-in game that places its sprite from the display's height, as PaddleSlap does.
+
+    PaddleSlap centers its paddles vertically from ``screen_height`` when it is built
+    (src/games/paddleslap/src/paddleslap/__init__.py:142-151), so a replay on a display of
+    another height would place them elsewhere.
+    """
+
+    NAME = 'Display Height'
+    VERSION = '1.0'
+
+    def __init__(self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Center the marker vertically on the display."""
+        super().__init__(options=options, groups=groups)
+        self.marker = Marker(x=20)
+        self.marker.rect.y = self.screen_height // 2
+        self.all_sprites.add(self.marker)
+
+
+def record_on_a_window_of_another_size(*, mocker, path: Path) -> None:
+    """Record a game asking for 800x480 on a window the window manager makes 800x600."""
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch('pygame.quit')
     mocker.patch('pygame.display.quit')
     window_manager = window_manager_choosing_size(mocker=mocker, size=WINDOW_MANAGER_SIZE)
     try:
         record_scripted_session(
-            game_key='paddleslap',
+            scene_class=DisplayHeightScene,
+            script=InputScript(),
             frame_count=DISPLAY_SIZE_FRAME_COUNT,
             path=path,
-            exercise_controls=False,
         )
     finally:
         mocker.stop(window_manager)
@@ -1833,14 +1832,16 @@ class TestRecordedDisplaySize:
         reason='the session runs the real frame loop: each frame moves by its measured frame time'
     )
     def test_a_recording_on_a_window_of_another_size_replays_at_that_size(self, mocker, tmp_path):
-        """PaddleSlap places its paddles from the display height, so the size must be the same."""
-        recording_path = tmp_path / 'rally.jsonl.gz'
-        record_paddleslap_on_a_window_of_another_size(mocker=mocker, path=recording_path)
+        """The game places its sprite from the display height, so the size must be the same."""
+        recording_path = tmp_path / 'display-height.jsonl.gz'
+        record_on_a_window_of_another_size(mocker=mocker, path=recording_path)
         header = read_trace_result(path=recording_path).trace
         assert header['options']['resolution'] == '800x480'
         assert header['screen_size'] == list(WINDOW_MANAGER_SIZE)
 
-        replay = replay_through_engine(mocker=mocker, game_key='paddleslap', path=recording_path)
+        replay = replay_through_engine(
+            mocker=mocker, scene_class=DisplayHeightScene, path=recording_path
+        )
 
         assert replay.exit_status == ExitCode.SUCCESS, replay.result.divergence
         assert replay.result.frames_replayed == DISPLAY_SIZE_FRAME_COUNT
@@ -2311,11 +2312,14 @@ class TestHeadless:
             'log_timer_jitter',
             'fps_histogram',
             'perf_trim_percent',
+            # Listed by record-trace in the tools' table (glitchygames/replay/tools/registry.py),
+            # whose flags are all in this group
+            'random_seed',
         }
         assert {option: groups_by_option[option] for option in diagnostic_options} == dict.fromkeys(
             diagnostic_options, 'Diagnostics Options'
         )
-        for option in ('target_fps', 'random_seed', 'timer_backend', 'live_voice_pool'):
+        for option in ('target_fps', 'timer_backend', 'live_voice_pool'):
             assert groups_by_option[option] == 'Graphics Options'
 
     def test_a_late_end_after_the_replay_finished_reports_its_result_first(
@@ -4751,7 +4755,7 @@ def run_child(*, command: list[str], timeout_seconds: float):
         command=command,
         environment=os.environ,
         timeout_seconds=timeout_seconds,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
 
 
@@ -5244,14 +5248,21 @@ class TestAuditOption:
         assert 'started with -E or -I' in caplog.text
         audit_spy.assert_not_called()
 
-    def test_a_golden_recording_passes_the_real_audit(self):
-        """End to end: a deterministic game's recording passes --audit (two child replays)."""
-        recording_path = fixture_path(game_key='paddleslap')
+    def test_a_golden_recording_passes_the_real_audit(self, tmp_path, monkeypatch):
+        """End to end: a deterministic game's recording passes --audit (two child replays).
+
+        The stand-in game (tests/stand_in_games.py) is seeded and deterministic: its mover steps
+        by amounts drawn from the engine's seeded random stream, so both audit replays match.
+        """
+        install_directory = tmp_path / 'site-packages'
+        game = write_stand_in_game(directory=install_directory)
+        use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
+        recording_path = record_stand_in_game(game=game, path=tmp_path / 'golden.jsonl.gz')
         audit_run = run_child(
             command=[
                 sys.executable,
-                '-m',
-                'paddleslap',
+                '-c',
+                f'import {game.package}; {game.package}.main()',
                 '--log-level',
                 'error',
                 '--replay-trace',
@@ -5411,6 +5422,11 @@ class TestProcessingComparison:
             if imported_engine_is_the_checkouts()
             else RevisionSource.BUILD_STAMP
         )
+        # The game's revision beside it (glitchygames/replay/tools/identity.py): the harness's
+        # game is in this checkout's tests package, so it names the engine's commit
+        assert run.game_source_revision is not None
+        assert run.game_source_revision.source is RevisionSource.GIT_CHECKOUT
+        assert run.game_source_revision.commit == run.source_revision.commit
         # The machine's state as the run started (glitchygames/machine_state.py)
         assert run.machine_state is not None
         assert run.machine_state == current_machine_state()
@@ -5565,7 +5581,8 @@ class TestProcessingComparison:
         assert new_run.processing_paced is False
         assert new_run.pacing_timer == UNCALIBRATED_FAST_TIMER
         assert new_run.machine == machine_description()
-        assert new_run.rebaselined_from == str(recording_path)
+        # Outside the project (a pytest directory): its file name only (stored_path)
+        assert new_run.rebaselined_from == recording_path.name
         # OLD's run gets its summary now, from OLD's frames; NEW's own is computed when asked
         old_frames = read_trace_result(path=recording_path).trace['frames']
         new_trace = read_trace_result(path=new_path).trace
@@ -5604,7 +5621,8 @@ class TestRebaselinedHeader:
         )
         run = header[MEASUREMENT_RUNS_HEADER_FIELD][0]
         assert run['rebaselined_from'] == header['rebaselined_from']
-        assert header['rebaselined_from'] == str(tmp_path / 'old.jsonl.gz')
+        # Outside the project (a pytest directory): its file name only (stored_path)
+        assert header['rebaselined_from'] == 'old.jsonl.gz'
 
     def test_rebaselined_header_drops_the_unreleased_top_level_fields(self, tmp_path):
         """2026-10-20's unreleased format named the machine and pacing at the top level."""
@@ -5658,7 +5676,8 @@ class TestRebaselineHistory:
         second = self.rebaselined(mocker=mocker, tmp_path=tmp_path, source=first, name='b.jsonl.gz')
         trace = read_trace_result(path=second).trace
         runs = trace[MEASUREMENT_RUNS_HEADER_FIELD]
-        assert [run['rebaselined_from'] for run in runs] == [str(first), str(recording_path), None]
+        # Outside the project (a pytest directory): file names only (stored_path)
+        assert [run['rebaselined_from'] for run in runs] == [first.name, recording_path.name, None]
         for frame in trace['frames']:
             assert len(frame[CONTENT_HASH_FIELD]) == 3
             assert len(frame[PROCESSING_SECONDS_FIELD]) == 3
@@ -5700,9 +5719,8 @@ class TestRebaselineHistory:
         assert len(frame[PROCESSING_SECONDS_FIELD]) == 3
         assert len(frame[CONTENT_HASH_FIELD]) == 2
         # Index 0 is the newest run everywhere, and index 1 the run before: b's newest entries
-        assert trace[MEASUREMENT_RUNS_HEADER_FIELD][0]['rebaselined_from'] == str(
-            tmp_path / 'b.jsonl.gz'
-        )
+        # Outside the project (a pytest directory): its file name only (stored_path)
+        assert trace[MEASUREMENT_RUNS_HEADER_FIELD][0]['rebaselined_from'] == 'b.jsonl.gz'
         before = read_trace_result(path=tmp_path / 'b.jsonl.gz').trace['frames']
         for frame, frame_before in zip(trace['frames'], before, strict=True):
             assert frame[PROCESSING_SECONDS_FIELD][1] == frame_before[PROCESSING_SECONDS_FIELD][0]
@@ -5881,7 +5899,8 @@ class TestRebaseline:
             for frame in new_trace['frames']
         )
         assert SCENE_START_FIELD in new_trace['frames'][0]
-        assert new_trace['rebaselined_from'] == str(recording_path)
+        # Outside the project (a pytest directory): its file name only (stored_path)
+        assert new_trace['rebaselined_from'] == recording_path.name
         for field_name in ('random_seed', 'recorded_at', 'options', 'saves', 'devices'):
             assert new_trace[field_name] == old_trace[field_name]
 
@@ -5898,11 +5917,12 @@ class TestRebaseline:
         assert header[MEASUREMENT_RUNS_HEADER_FIELD] == [
             {
                 **rebaseline_measurement_run().to_json(),
-                'rebaselined_from': str(tmp_path / 'old.jsonl.gz'),
+                # Outside the project (a pytest directory): its file name only (stored_path)
+                'rebaselined_from': 'old.jsonl.gz',
             }
         ]
 
-        assert header['rebaselined_from'] == str(tmp_path / 'old.jsonl.gz')
+        assert header['rebaselined_from'] == 'old.jsonl.gz'
         assert header['engine_version'] == importlib.metadata.version('glitchygames')
         assert 'source_truncated' not in header
 

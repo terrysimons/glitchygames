@@ -19,7 +19,8 @@ Outside CI, `uv run pytest` (and `nox -s test`) runs the suite twice at once:
 
 Both runs record a fingerprint (size and SHA-256 of the RGB bytes, as the window shows them) of
 every frame each test presents (`src/glitchygames/testing/frame_fingerprints.py`). When both have
-finished, the frames are compared (`scripts/compare_driver_frames.py`). Any difference, or a
+finished, the frames are compared (`src/glitchygames/testing/frame_comparison.py`; its command line
+is `scripts/compare_driver_frames.py`). Any difference, or a
 failure in the native run, fails the run; the differing tests are re-run on both drivers to save
 the differing frames as PNG files with a difference image (the baseline dimmed to grey, differing
 pixels magenta) under `test-results/driver-comparison/pytest/`. The terminal summary names every
@@ -141,3 +142,27 @@ afterwards (`pulseaudio --kill` stops PulseAudio). The container plays through i
 PulseAudio, or when it will not start, one line says so and the container uses dummy audio.
 `compare-drivers`' `x11-linux` runs use dummy audio (frames do not depend on sound); `--sound`
 plays theirs through PulseAudio too.
+
+## Linux as CI runs it: `nox -s test-linux-ci`
+
+`nox -s test-linux-x11` runs the suite on Linux for its drivers; `nox -s test-linux-ci` runs it
+the way CircleCI's Linux job does, to reproduce that job's failures here. It reads the job
+(`build-and-test-linux`) from `.circleci/config.yml`: its image (`cimg/python` at
+`PYTHON_LATEST_VERSION`), its resource class's memory and CPUs (`small`: 2 GB, no swap, and one
+CPU, given to `docker run` as `--memory`, `--memory-swap` and `--cpus`) and its environment
+(`PYTEST_WORKERS=0`: one serial process; `GLITCHYGAMES_TEST_RSS_LIMIT_MB=1750`:
+`tests/memory_guard.py` stops the run past it, naming the test), with `CI=true` and
+`CIRCLECI=true`. The container gets what git would commit from this checkout: tracked files and
+untracked ones that are not ignored, uncommitted changes included, never an ignored file (the
+host's caches, Hypothesis's database) and no submodule's contents (CircleCI's checkout has none).
+Its `.git` is cloned from the repository's git directory, mounted read-only at its own path, so
+the session runs from a worktree too; HEAD is this checkout's, on its branch, and the remote
+branches are this checkout's, as fresh as its last fetch. It installs fontconfig, uv and Python at
+the job's versions and runs `uvx nox -s test` as the job does. Its `test-results/` (junit.xml)
+come back to `test-results/linux-ci/`. The memory guard's summary line names the peak it saw (the
+container's memory less its page cache, what the kernel's 2 GB kill counts), and the last line
+the container's raw peak (the page cache included, so near 2 GB even on a healthy run). It takes
+as long as the job (a serial run) or longer: the image is amd64, as CircleCI's machines are (the
+same wheels: taplo has no arm64 Linux wheel, and building it ran out of the 2 GB), emulated on
+Apple silicon. Made on macOS; on a Linux host the results are made writable for any user.
+

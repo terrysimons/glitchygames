@@ -6,7 +6,7 @@ import signal
 import pytest
 
 from glitchygames import engine
-from glitchygames.exit_codes import SIGNAL_EXIT_STATUS_BASE, ExitCode
+from glitchygames.exit_codes import SIGNAL_EXIT_STATUS_BASE, ExitCode, shell_exit_status
 
 # Each member whose value is a sysexits.h code, and the name Python gives that code in os
 SYSEXITS_COUNTERPARTS = {
@@ -120,3 +120,13 @@ def test_a_signal_the_engine_does_not_handle_has_no_exit_code(signal_number):
     """for_signal refuses an unwired signal rather than returning a nameless number."""
     with pytest.raises(ValueError, match=f'signal {signal_number} has no exit code'):
         ExitCode.for_signal(signal_number)
+
+
+@pytest.mark.parametrize(
+    ('returncode', 'status'),
+    [(-9, 137), (-11, 139), (ExitCode.SUCCESS, 0), (ExitCode.UNUSABLE_INPUT, 65), (2, 2)],
+    ids=['killed by SIGKILL', 'killed by SIGSEGV', 'success', 'a member', 'any other'],
+)
+def test_a_child_killed_by_a_signal_has_the_shells_status(returncode, status):
+    """A child killed by signal N (subprocess's -N) is 128 + N; any other status is itself."""
+    assert shell_exit_status(returncode=returncode) == status

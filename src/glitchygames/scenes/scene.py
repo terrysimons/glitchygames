@@ -24,6 +24,8 @@ from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.events.mouse import MousePointer
+from glitchygames.exit_codes import BUG_REPORT_HINT
+from glitchygames.game_frames import game_frame_clock, restart_game_frame_clock
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
 from glitchygames.input.input_devices import InputDevices
 from glitchygames.input.rumble import ConnectedRumbleDevices, RumbleController
@@ -1128,9 +1130,11 @@ class SceneManager(SceneInterface, events.EventManager):
         ``reset_sources()`` restarted the frame clock), supervision is reset
         (``reset_supervision``), and the quit request, the pacing deadline, the SCREEN shake,
         the stale-display flag, a requested or finished playback scope's state and the
-        instant-replay journal are cleared.
+        instant-replay journal are cleared, and the game-frame clock starts afresh
+        (glitchygames/game_frames.py).
         """
         self.frame_number = 0
+        restart_game_frame_clock()
         self.reset_supervision()
         self.quit_requested = False
         self._timer_prev_deadline_ns = None
@@ -1921,6 +1925,11 @@ class SceneManager(SceneInterface, events.EventManager):
         self._begin_journal_frame()
         frame_dt = self.dt
         installed_frame_dt = self._installed_doors_frame_seconds(frame_dt=frame_dt)
+        # The onion skin's pairing clock (glitchygames/game_frames.py, rule 1): the scene whose
+        # logic this frame runs, None for a transition's frame
+        game_frame_clock().begin_frame(
+            logic_scene=None if self._active_transition is not None else self.active_scene
+        )
         self._run_in_playback_scope(step=self._run_frame_contents)
         processing_seconds = measured_seconds() - work_started_seconds - self._frame_present_seconds
         session = self._playback_session
@@ -2022,6 +2031,8 @@ class SceneManager(SceneInterface, events.EventManager):
             self._enter_playback(request=request)
         except Exception:
             LOG.exception('The %s playback could not start; the live game goes on', request.kind)
+            # Its own line after the traceback (logged above), where a player reads last
+            LOG.error(BUG_REPORT_HINT)  # ruff: ignore[error-instead-of-exception]
             self._exit_playback(reason='error')
 
     def _end_frame_at_doors(self: Self, *, frame_dt: float, processing_seconds: float) -> None:
@@ -2058,6 +2069,8 @@ class SceneManager(SceneInterface, events.EventManager):
             step()
         except Exception:
             LOG.exception('Playback failed; returning to the live game')
+            # Its own line after the traceback (logged above), where a player reads last
+            LOG.error(BUG_REPORT_HINT)  # ruff: ignore[error-instead-of-exception]
             self._exit_playback(reason='error')
 
     def _run_frame_contents(self: Self) -> None:

@@ -44,6 +44,7 @@ a screenshot or a trace.
 from __future__ import annotations
 
 import bisect
+import dataclasses
 import sys
 from typing import TYPE_CHECKING, ClassVar, Self, override
 
@@ -220,6 +221,23 @@ class ControlCadence:
         return now if self._next_tick_seconds is None else self._next_tick_seconds
 
 
+@dataclasses.dataclass(frozen=True)
+class Reseeding:
+    """A replay running under another seed than its recording's: it is not compared.
+
+    Rule 19 of glitchygames/replay/driver.py: it compares nothing, so it never reports a
+    divergence.
+
+    Attributes:
+        random_seed: The seed it runs under.
+        recorded_seed: The recording's seed.
+
+    """
+
+    random_seed: int
+    recorded_seed: int
+
+
 class ReplayControls:
     """The watched replay's control state, key handling and status bar (module docstring).
 
@@ -247,6 +265,9 @@ class ReplayControls:
         bookmarks: The frames B marked, sorted, each once (in ``current_frame``'s numbering:
             a bookmark N pauses a replay of the saved copy with frame N next).
         save_requested: True when S asked for a saved copy (``take_save_request``).
+        reseeding: The seeds of a replay under another seed than recorded (``Reseeding``; the
+            driver gives it), or None. Its status line says it is not compared, never that it
+            diverged, and D has no divergence to restart at.
 
     """
 
@@ -254,12 +275,19 @@ class ReplayControls:
     MAX_SPEED: ClassVar[float] = 8.0
     MESSAGE_CONTROL_TICKS: ClassVar[int] = 120
 
-    def __init__(self: Self, *, total_frames: int, awaiting_start: bool = False) -> None:
+    def __init__(
+        self: Self,
+        *,
+        total_frames: int,
+        awaiting_start: bool = False,
+        reseeding: Reseeding | None = None,
+    ) -> None:
         """Start unpaused at speed 1.
 
         Args:
             total_frames: How many frames the recording holds (for the status line).
             awaiting_start: True to show the start screen until Space is pressed.
+            reseeding: The seeds of a replay under another seed than recorded, or None.
 
         """
         self.total_frames = total_frames
@@ -276,6 +304,7 @@ class ReplayControls:
         self.rebuild_target_frame: int | None = None
         self.bookmarks: list[int] = []
         self.save_requested = False
+        self.reseeding = reseeding
         self._message: str | None = None
         self._message_ticks_left = 0
         # Each key held down -> when it repeats next (step keys) or None (acts once per press)
@@ -439,7 +468,8 @@ class ReplayControls:
                 self._step_back()
         elif key == pygame.K_HOME:
             self._request_restart(frame_index=0)
-        elif self.divergence_frame is not None:
+        elif self.divergence_frame is not None and self.reseeding is None:
+            # A reseeded replay compares nothing: its differences are no divergence to go to
             self._request_restart(frame_index=self.divergence_frame)
 
     def _step_back(self: Self) -> None:
@@ -527,7 +557,8 @@ class ReplayControls:
         Returns:
             For example ``frame 6120 / 9800 · 1:42.0 · x1 · paused · diverged at 6120`` (the x
             is ``SPEED_PREFIX``, a multiplication sign; ``paused`` and ``diverged at`` only
-            when they apply).
+            when they apply). A reseeded replay (``reseeding``) says ``replaying under random
+            seed N (recorded under R), not compared`` in place of ``diverged at``.
 
         """
         parts = [
@@ -539,7 +570,13 @@ class ReplayControls:
             parts.append(f"can't keep up: {SPEED_PREFIX}{effective_speed:.2g}")
         if self.paused:
             parts.append('paused')
-        if divergence_frame is not None:
+        if self.reseeding is not None:
+            # Rule 19: not compared, so never "diverged at"
+            parts.append(
+                f'replaying under random seed {self.reseeding.random_seed} (recorded under '
+                f'{self.reseeding.recorded_seed}), not compared'
+            )
+        elif divergence_frame is not None:
             parts.append(f'diverged at {divergence_frame}')
         return STATUS_SEPARATOR.join(parts)
 

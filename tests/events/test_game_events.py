@@ -317,9 +317,19 @@ class TestGameEventManagerArgs:
         GameEventManager.args(parser)
 
         args = parser.parse_args([])
-        assert args.log_level == 'info'
+        assert args.log_level == 'warning'
         assert args.no_unhandled_events is False
         assert args.profile is False
+
+    def test_a_game_logs_at_warning_by_default(self):
+        """--log-level defaults to warning, the tools' level (the owner, 2026-10-28).
+
+        A bug report asks for ``--log-level info`` instead (``exit_codes.BUG_REPORT_HINT``).
+        """
+        parser = argparse.ArgumentParser()
+        GameEventManager.args(parser)
+
+        assert parser.get_default('log_level') == 'warning'
 
 
 class TestGameManager:

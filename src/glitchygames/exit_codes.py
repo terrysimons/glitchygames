@@ -55,7 +55,10 @@ convention); a process they stop exits as the system decides.
 An exception raised before ``GameEngine.start()`` (in ``GameEngine.__init__``, or a game's own
 code around it) is not mapped: each game has its own entry point (``GameEngine(game=...)
 .start()`` in its ``main``), so there is no single place to wrap, and Python exits with its
-default 1 and a traceback.
+default 1 and a traceback. The engine's tools are mapped as a run is, on both front ends: a tool
+given as a game flag and a ``glitchygames`` subcommand each run inside
+``game_engine.run_inside_tool_crash_boundary``. The command reports a child game killed by
+signal N as 128 + N (``shell_exit_status``), as a shell does, not as Python's 256 - N.
 
 Every code has exactly one name. The engine's own failed checks (1, 3-6) avoid 2
 (argparse's), 64-78 (``sysexits.h``) and 126 and up (the shell's and signal exits).
@@ -68,6 +71,9 @@ because the ``os.EX_*`` names exist only on Unix, and the engine runs on Windows
 A file that exists but cannot be read (no permission, a directory, not gzip) is unusable input
 (65), not missing input (66): only a file that does not exist is 66.
 
+``BUG_REPORT_HINT`` is the line logged after each failure a player sees, so a report carries the
+run's INFO output.
+
 This module is a leaf: it imports nothing from the engine, so anything may import it.
 """
 
@@ -77,6 +83,12 @@ import enum
 
 # Stopped by signal N: the process exits with this plus N (the shell convention)
 SIGNAL_EXIT_STATUS_BASE = 128
+
+# The line logged after each failure a player sees (a run's or a game flag tool's crash, exit
+# 70; a failed teardown; a playback that failed). A game logs at WARNING by default, so the
+# startup facts a report needs are logged only at INFO (the owner, 2026-10-28: "run with
+# --log-level info", no banner, no log file)
+BUG_REPORT_HINT = 'To report this, run the game again with --log-level info and include the output.'
 
 
 class ExitCode(enum.IntEnum):
@@ -211,3 +223,22 @@ class ExitCode(enum.IntEnum):
         if status > SIGNAL_EXIT_STATUS_BASE:
             return f'signal {status - SIGNAL_EXIT_STATUS_BASE} ({status})'
         return str(status)
+
+
+def shell_exit_status(*, returncode: int) -> int:
+    """Return a child's exit status as a shell reports it, for this process to exit with.
+
+    ``subprocess`` reports a child killed by signal N as ``-N``; exiting with that
+    (``sys.exit(-9)``) would end this process with 256 - N (247), a code nobody documents. A
+    shell reports it as 128 + N (137), which this returns, as for the game run alone.
+
+    Args:
+        returncode: The child's ``returncode``.
+
+    Returns:
+        ``SIGNAL_EXIT_STATUS_BASE`` + N for a child killed by signal N; otherwise ``returncode``.
+
+    """
+    if returncode < 0:
+        return SIGNAL_EXIT_STATUS_BASE - returncode
+    return returncode

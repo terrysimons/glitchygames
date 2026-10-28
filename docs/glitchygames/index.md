@@ -195,7 +195,7 @@ Font Options:
 
 Game Options:
   -l, --log-level {debug,info,warning,error,critical}
-                        set the logging level
+                        set the logging level (default: warning; a bug report asks for info)
   --no-unhandled-events
                         fail on unhandled events
   -p, --profile         enable profiling
@@ -294,14 +294,6 @@ Also in the reference: [glitchygames.audio](./audio/index.md) (synthesis, recipe
 ## glitchygames.events
 
 ::: glitchygames.events
-    options:
-      heading_level: 2
-      inherited_members: true
-      show_submodules: true
-
-## glitchygames.examples
-
-::: glitchygames.examples
     options:
       heading_level: 2
       inherited_members: true

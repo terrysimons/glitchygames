@@ -4,13 +4,16 @@ from typing import TYPE_CHECKING
 
 import pygame
 import pytest
+from src.apps.bitmappy.tests.film_strip_support import (
+    frame_color_for_index,
+    make_real_animated_sprite,
+)
 
 from bitmappy import film_strip
 from bitmappy.film_strip_sprite import FilmStripSprite
 from glitchygames import events
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
-from test_bitmappy_film_strip_base import frame_color_for_index, make_real_animated_sprite
 
 if TYPE_CHECKING:
     from pathlib import Path

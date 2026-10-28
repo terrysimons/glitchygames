@@ -6,12 +6,6 @@ from typing import Any
 
 import pytest
 
-from brave_adventurer_core.constants import (
-    FALLING_VELOCITY_THRESHOLD as BRAVE_ADVENTURER_FALLING_VELOCITY_THRESHOLD,
-)
-from clockwork_keep.constants import (
-    FALLING_VELOCITY_THRESHOLD as CLOCKWORK_KEEP_FALLING_VELOCITY_THRESHOLD,
-)
 from glitchygames.animation.expressions import (
     MAXIMUM_NESTING_DEPTH,
     AndExpr,
@@ -27,6 +21,11 @@ from glitchygames.animation.expressions import (
 from glitchygames.animation.scheduler import BehaviorScheduler
 from glitchygames.animation.state_machine import AnimationStateMachine
 
+# The two falling thresholds the games use, copied as plain values so the engine's tests import
+# no game: Brave Adventurer's (src/games/brave-adventurer/src/brave_adventurer_core/constants.py:26)
+# and Clockwork Keep's (src/games/clockwork-keep/src/clockwork_keep/constants.py:28)
+BRAVE_ADVENTURER_FALLING_VELOCITY_THRESHOLD = 10.0
+CLOCKWORK_KEEP_FALLING_VELOCITY_THRESHOLD = 50.0
 # --- Test helpers ---
 
 

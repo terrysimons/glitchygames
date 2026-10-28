@@ -746,7 +746,7 @@ class TestCanvasPanCommand:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# src/apps/bitmappy/bitmappy/panning.py
+# src/apps/bitmappy/src/bitmappy/panning.py
 # ──────────────────────────────────────────────────────────────────────────────
 
 

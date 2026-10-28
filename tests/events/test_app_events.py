@@ -10,7 +10,6 @@ scene through the real AppEventManager (and, in TestAppEventFlow, through the re
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GoldenTraceEngine, GoldenTraceSceneManager, command_line
 
 from glitchygames.events import (
     AppEvents,
@@ -20,6 +19,11 @@ from glitchygames.events import (
 )
 from glitchygames.events.app import AppEventManager
 from glitchygames.live_sources import LiveSources
+from glitchygames.replay.tools.golden_traces import (
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    command_line,
+)
 from glitchygames.scenes import Scene
 from glitchygames.sources import install_sources
 

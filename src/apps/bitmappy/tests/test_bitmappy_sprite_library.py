@@ -2,12 +2,12 @@
 
 The sprite library (AI training data, and the sprites the editor's dialogs open) is package
 data, read through ``bitmappy.SPRITE_CONFIG_DIR``. Moved with Bitmappy from the engine's
-tests/examples/test_examples_sprites.py, which keeps the engine's checks of a bundled sprite file;
+glitchygames.testing.sprite_files (the engine runs them on its own sprites in
+tests/sprites/test_engine_sprite_files.py);
 those checks run here on every sprite in the library too, as Papyrus's do on its sprites.
 """
 
 import logging
-import time
 
 import numpy as np
 import pygame
@@ -16,15 +16,13 @@ import pytest
 from bitmappy import SPRITE_CONFIG_DIR
 from glitchygames.display_mode import set_display_mode
 from glitchygames.sprites import SpriteFactory
-from tests.examples import test_examples_sprites as engine_sprite_checks
+from glitchygames.testing import sprite_files
 
 # Constants for test thresholds
 PIXEL_INTEGRITY_THRESHOLD = 100.0  # every pixel draws exactly as expected
 MAX_REASONABLE_DIMENSION = 1000
 MAX_ASPECT_RATIO = 10.0
 MIN_ASPECT_RATIO = 0.1
-MAX_LOAD_TIME = 1.0
-MAX_RENDER_TIME = 0.1
 # The library's size when it moved with Bitmappy (2026-10-26)
 SPRITE_LIBRARY_FILE_COUNT = 71
 
@@ -198,23 +196,15 @@ class TestBitmappySpriteLibrary:
             sprite_file = self.sprites_dir / sprite_name
             assert sprite_file.exists(), f'The named sample {sprite_name} is not in the library'
 
-            # Time the loading
-            start_time = time.time()
+            # Load and render; the timing lives in test_bitmappy_benchmarks.py
             sprite = _load_example_sprite(sprite_file)
-            load_time = time.time() - start_time
-
-            # Time the rendering
             assert sprite.image is not None
-            start_time = time.time()
+            width, height = sprite.image.get_size()
+            assert width > 0, f'{sprite_name} loaded with no width'
+            assert height > 0, f'{sprite_name} loaded with no height'
             test_surface = pygame.Surface(sprite.image.get_size(), depth=32)
             test_surface.blit(sprite.image, (0, 0))
-            render_time = time.time() - start_time
-
-            # Verify performance is reasonable
-            assert load_time < MAX_LOAD_TIME, f'{sprite_name} loading too slow: {load_time:.3f}s'
-            assert render_time < MAX_RENDER_TIME, (
-                f'{sprite_name} rendering too slow: {render_time:.3f}s'
-            )
+            assert test_surface.get_size() == (width, height)
 
     @staticmethod
     def _expected_drawn_pixels(*, surface, background_color):
@@ -277,15 +267,15 @@ def test_every_library_sprite_loads(sprite_file):
 @pytest.mark.parametrize('sprite_file', SPRITE_LIBRARY_FILES, ids=sprite_file_id)
 def test_rows_have_equal_lengths(sprite_file):
     """Every pixel row of a library sprite is the same width."""
-    engine_sprite_checks.test_bundled_sprite_rows_have_equal_lengths(sprite_file)
+    sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)
 
 
 @pytest.mark.usefixtures('display')
 @pytest.mark.parametrize('sprite_file', ANIMATED_SPRITE_LIBRARY_FILES, ids=sprite_file_id)
 def test_animation_timings_survive_a_save_round_trip(sprite_file, tmp_path):
     """Save writes each animation's timing back."""
-    engine_sprite_checks.test_bundled_animation_timings_survive_a_save_round_trip(
-        sprite_file, tmp_path
+    sprite_files.check_animation_timings_survive_a_save_round_trip(
+        sprite_file=sprite_file, directory=tmp_path
     )
 
 
@@ -293,8 +283,8 @@ def test_animation_timings_survive_a_save_round_trip(sprite_file, tmp_path):
 @pytest.mark.parametrize('sprite_file', SPRITE_LIBRARY_FILES, ids=sprite_file_id)
 def test_hitboxes_survive_a_save_round_trip_unchanged(sprite_file, tmp_path):
     """Save writes exactly the hitboxes the file defined."""
-    engine_sprite_checks.test_bundled_hitboxes_survive_a_save_round_trip_unchanged(
-        sprite_file, tmp_path
+    sprite_files.check_hitboxes_survive_a_save_round_trip_unchanged(
+        sprite_file=sprite_file, directory=tmp_path
     )
 
 
@@ -302,15 +292,15 @@ def test_hitboxes_survive_a_save_round_trip_unchanged(sprite_file, tmp_path):
 @pytest.mark.parametrize('sprite_file', SPRITE_LIBRARY_FILES, ids=sprite_file_id)
 def test_pixels_survive_a_save_round_trip(sprite_file, tmp_path):
     """Load, save and reload give every frame the same pixels."""
-    engine_sprite_checks.test_bundled_sprite_pixels_survive_a_save_round_trip(sprite_file, tmp_path)
+    sprite_files.check_pixels_survive_a_save_round_trip(sprite_file=sprite_file, directory=tmp_path)
 
 
 @pytest.mark.usefixtures('display')
 @pytest.mark.parametrize('sprite_file', SPRITE_LIBRARY_FILES, ids=sprite_file_id)
 def test_metadata_survives_a_save_round_trip(sprite_file, tmp_path):
     """Name, description, frame_anchor and hitbox survive a save."""
-    engine_sprite_checks.test_bundled_sprite_metadata_survives_a_save_round_trip(
-        sprite_file, tmp_path
+    sprite_files.check_metadata_survives_a_save_round_trip(
+        sprite_file=sprite_file, directory=tmp_path
     )
 
 
@@ -318,4 +308,6 @@ def test_metadata_survives_a_save_round_trip(sprite_file, tmp_path):
 @pytest.mark.parametrize('sprite_file', SPRITE_LIBRARY_FILES, ids=sprite_file_id)
 def test_transitions_survive_a_save_round_trip(sprite_file, tmp_path):
     """Every [[transition]] is written back in order."""
-    engine_sprite_checks.test_bundled_transitions_survive_a_save_round_trip(sprite_file, tmp_path)
+    sprite_files.check_transitions_survive_a_save_round_trip(
+        sprite_file=sprite_file, directory=tmp_path
+    )

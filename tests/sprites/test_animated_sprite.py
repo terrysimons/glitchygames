@@ -38,10 +38,6 @@ from glitchygames.sprites.pixel_utils import (
     needs_alpha_channel,
     normalize_pixel_for_color_map,
 )
-from tests.harness import imported_engine_directory
-
-# The imported engine's directory (installed: never the source tree by accident)
-ENGINE_PACKAGE_DIRECTORY = imported_engine_directory()
 
 # The engine's own sprite test data (Bitmappy keeps its sprite library)
 SPRITE_FIXTURES_DIRECTORY = Path(__file__).resolve().parents[1] / 'fixtures' / 'sprites'
@@ -2802,7 +2798,7 @@ blue = 30
 
     def test_bundled_foo2_example_keeps_its_alpha(self):
         """The example from BUGS.md #133: foo2.toml's translucent body stays translucent."""
-        foo2_path = ENGINE_PACKAGE_DIRECTORY / 'examples' / 'foo2.toml'
+        foo2_path = SPRITE_FIXTURES_DIRECTORY / 'foo2.toml'
         sprite = AnimatedSprite(filename=str(foo2_path))
         frame = sprite.get_current_frame()
         assert frame is not None

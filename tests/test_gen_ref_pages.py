@@ -25,7 +25,7 @@ def test_mr_munchers_package_has_a_page_rendering_it_and_each_of_its_modules():
     pages = member_reference_pages(project_root=PROJECT_ROOT)
 
     page = pages[reference_page_path(import_package='mr_muncher')]
-    package_directory = PROJECT_ROOT / 'src' / 'games' / 'mr-muncher' / 'mr_muncher'
+    package_directory = PROJECT_ROOT / 'src' / 'games' / 'mr-muncher' / 'src' / 'mr_muncher'
     modules = sorted(
         f'mr_muncher.{path.stem}'
         for path in package_directory.glob('*.py')

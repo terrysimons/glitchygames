@@ -1,0 +1,1097 @@
+"""``--compare-trace OLD``: the onion skin, OLD's frames drawn over a watched replay or live play.
+
+The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Task D11):
+
+1. **What is shown.** ``--replay-trace NEW --compare-trace OLD [--compare-alpha PERCENT]`` (on
+   the game, or ``glitchygames replay-trace NEW --compare-trace OLD ...``) replays NEW watched,
+   as any watched replay, drawn solid. On each presented frame, OLD's items of the frame of the
+   same number are drawn over it at ``PERCENT`` opacity (``DEFAULT_COMPARE_ALPHA_PERCENT`` when
+   not given; 0 to 100, the parser refuses any other:
+   ``argument_types.percent_from_zero_to_one_hundred``; which pixels are items: rule 10), then
+   the viewer's status bar over both (``ReplaySources.draw_overlay``; the debug overlay, drawn
+   before the doors' overlay, is under OLD too). Only the presented copy is drawn on, so nothing
+   in NEW's replay changes: its frames, comparisons, result and exit code are a plain watched
+   replay's. While a restarted replay rebuilds, nothing is drawn over its progress screen.
+2. **OLD's child.** OLD is replayed headless by a child process (``OnionSkin``): OLD's own game,
+   the console script that starts the module its header names (``traces.find_recorded_game``),
+   or, when none does (a game started as a script), this game started again
+   (``children.running_game_command``), with ``--replay-trace OLD --headless`` and the hidden
+   ``--replay-frame-stream PORT:TOKEN``. It replays under OLD's own seed, so it compares as a
+   plain headless replay does and stops at its first divergence (it then ends there, and its exit
+   and output are logged). The child is started inside the run (``OnionSkin.begin``): on the
+   first presented frame, or as a restarted replay's rebuild begins (rule 8), never before, so
+   every refusal comes before it, and the run's teardown (``GameEngine._shutdown``) always stops
+   it and waits for it (``OnionSkin.stop``): when the replay ends, fails, is interrupted or
+   restarts.
+3. **The frame stream.** The parent listens on a port of ``FRAME_STREAM_HOST`` (loopback only),
+   and the child connects to it (``FrameStream``) before its first frame and sends the run's
+   token first (``FRAME_STREAM_TOKEN_LENGTH`` hex characters, drawn per child from ``secrets``):
+   a connection without it (another local process) is closed and logged, and the parent goes on
+   waiting for its child. After each replayed
+   frame, ``ReplaySources.end_frame`` hands the display surface (the frame as presented, overlays
+   never on it) to the stream, which writes ``FRAME_HEADER`` (the frame's number, width and
+   height: three little-endian unsigned 32-bit integers), then its pixels: width x height x 3
+   bytes of RGB, rows top to bottom (``pygame.image.tobytes``, ``FRAME_PIXEL_FORMAT``). A socket,
+   not an inherited pipe: the one child launcher (``glitchygames.process.start_command``) passes
+   no descriptors, and a socket works the same on every platform.
+4. **Lockstep.** The parent reads frames only when it draws one: it reads (and drops) OLD's
+   frames until it holds the one numbered as the frame presented, and keeps that one (memory
+   holds one frame, as sent: only a frame drawn is decoded (``decode_frame_pixels``), once; a
+   header whose
+   size is not NEW's presented frame's ends OLD there, before its pixels are read). Paused, it
+   reads nothing, so the child blocks on the full socket within a few frames: the two runs move
+   together, through pause and frame steps too.
+5. **OLD shorter than NEW.** When OLD's stream ends, its last frame stays, labelled
+   ``OLD_ENDED_LABEL`` ("OLD ended at frame N"). NEW shorter: NEW's replay ends as usual and the
+   teardown stops the child. A child that streams nothing (it exits or never connects within
+   ``CHILD_CONNECT_TIMEOUT_SECONDS``) draws nothing over NEW, labelled ``OLD_NOT_REPLAYED_LABEL``,
+   with its output logged. A child that stalls (alive, but nothing arrives within
+   ``CHILD_READ_TIMEOUT_SECONDS``) ends OLD there, labelled and logged as any end, and is stopped
+   at once: NEW's replay goes on (its viewer is held only while a read waits).
+6. **Refused before anything runs** (``compare_trace_refusal``, ``old_recording_refusal``):
+   with ``--headless`` (an onion skin is watched; a headless replay under another seed, or
+   ``--rebaseline``, is the headless way to see what changed), ``--audit`` or ``--rebaseline``
+   (``ExitCode.OPTIONS_REFUSED``); an OLD recorded on a display of another size than NEW's, or
+   that is not a readable recording, a header whose seed or size is missing or malformed
+   included (``ExitCode.UNUSABLE_INPUT``: its child could not replay it); a missing OLD
+   (``ExitCode.MISSING_INPUT``). A header without a screen size (not the engine's recorder's)
+   lets the sizes go uncompared, with a warning. A frame stream without ``--headless``, or whose
+   value is not ``PORT:TOKEN``, is refused too (``frame_stream_refusal``): it is a headless
+   child's.
+7. **Every seed row.** NEW may be OLD itself under another seed
+   (``--replay-trace OLD --random-seed N --compare-trace OLD``: the seed rule's row 5, which
+   compares and writes nothing), so OLD's run under its own seed is shown over the new seed's.
+8. **Step back.** The viewer's step back (and Home, D) restarts NEW's process with
+   ``--replay-pause-at-frame N`` (glitchygames/replay/rebuild.py), keeping every other option,
+   ``--compare-trace`` included, and names in its viewer state the game frame (rule 11) the
+   restart shows paused (``ViewerState.compare_first_game_frame``, from the game frame each
+   frame showed, ``ReplayResult.shown_game_frames``). The restarted process gives its own child
+   ``--replay-pause-at-frame G + 1`` for that game frame G (``GameEngine._olds_pause_at_frame``):
+   a headless replay does not pause, but its stream then writes no game frame before G
+   (``first_streamed_frame``, read in game frames by the stream), so the child runs on through
+   the frames NEW rebuilds unshown. Without that viewer state (a pause frame given by hand) the
+   child streams from OLD's first frame. The
+   restarted replay starts the child as its rebuild begins (``ReplaySources.hold_frame``), so the
+   two rebuilds run at once instead of one after the other.
+9. **Live play** (decision 19, Task D12). ``<game> --compare-trace OLD [--compare-alpha
+   PERCENT]`` without ``--replay-trace`` plays the game live, with real input, and draws OLD
+   over each live presented frame as rules 1 to 5 draw it over NEW (the same child, stream,
+   token, size cap and timeouts), through the live host's doors (``HostSources.overlay``,
+   glitchygames/host.py). A live frame is paired by the game frame it shows (rule 11), as a
+   replay's is, so ``--record-trace NEW --compare-trace OLD`` and a later ``--replay-trace NEW
+   --compare-trace OLD`` pair the same frames. The game plays under OLD's recorded seed
+   (``OldRecording.random_seed``), so OLD's ghost starts in the same world, unless
+   ``--random-seed N`` is given; logged either way.
+   Refused before anything runs as rule 6 says (``--headless``; ``--audit`` and
+   ``--rebaseline`` need ``--replay-trace`` anyway), OLD's size checked against the live
+   window once it opens, before the first frame. ``--record-trace NEW`` may go with it. Live
+   play has no step back.
+10. **Only OLD's items** (decision 18 as amended, Tasks D13 and D16; the user: "Just draw the
+    items from the other game at 50% on top of my game regardless of what else is going on").
+    NEW stays fully opaque; OLD's background never fades it (``GhostCompositor``). Each frame
+    is told apart on its own, with no memory between frames: OLD's background colors are the
+    exact colors covering at least ``BACKGROUND_COLOR_SHARE`` (5%) of OLD's frame (a floor, a
+    wall); OLD's items are the pixels where OLD differs from NEW in a color that is none of
+    them. They are blended over NEW at ``PERCENT`` (an alpha blit's arithmetic, ``blend_over``),
+    whatever NEW has there; every other pixel is NEW's, unchanged. So a dot OLD ate (OLD shows
+    floor) leaves NEW's dot exact, and a dot NEW ate shows OLD's over NEW's floor (the user's
+    report on D13's rule, which learned a background where the runs agreed and so took both
+    runs' dots for background). Known costs: OLD's sprite pixels in a background color are not
+    shown (a sprite drawn in the floor's color); a background of many small colors (a texture
+    or a gradient, each color under 5%) may show some of them as items; and a single color
+    covering 5% or more of OLD's frame is background even when it is OLD's item (a large
+    sprite, about 139x139 at 800x480, many pickups of one color, a full-screen overlay), so it
+    vanishes from the ghost. Telling the colors apart sorts OLD's frame once per new OLD frame:
+    about 2 ms for a game's frame, up to about 19 ms for one whose every pixel has a color of
+    its own (noise; a textured backdrop falls in between). A held last
+    frame (rule 5) is drawn by the same rule, and the labels are drawn as before. Vectorized
+    with numpy on the presented copy.
+11. **Pausing freezes the ghost** (decisions 18 and 19 as amended, Task D14; the user: "Yes,
+    the games should pause."). Frames are paired by the game-frame clock
+    (glitchygames/game_frames.py), not by the frame number a recording counts: a frame whose
+    logic ran on a pause screen shows the game frame before it, so OLD's frame stays drawn
+    (no label) until the game runs again. Every side reads the same clock: live play
+    (``HostSources.draw_overlay``), a watched replay (``ReplaySources.draw_overlay``) and OLD's
+    child, whose stream sends only game frames, numbered by it (``ReplaySources``'s frame sink),
+    so OLD's own pauses are skipped too and NEW's game frame N pairs with OLD's game frame N.
+    Recordings are unchanged: they count every frame.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import dataclasses
+import hmac
+import logging
+import os
+import secrets
+import socket
+import struct
+import tempfile
+from pathlib import Path
+from typing import IO, TYPE_CHECKING, Any, Self, override
+
+import numpy as np
+import pygame
+
+from glitchygames.clock import measured_seconds
+from glitchygames.debug.overlay import load_debug_font
+from glitchygames.debug.panels import HUD_MARGIN, HUD_TEXT_COLOR, blit_text
+from glitchygames.exit_codes import ExitCode
+from glitchygames.process import (
+    STOP_GRACE_SECONDS,
+    TimeoutExpired,
+    start_command,
+    stop_command,
+)
+from glitchygames.replay.controls import FIRST_PAUSED_FRAME
+from glitchygames.replay.driver import recorded_random_seed, recorded_screen_size
+from glitchygames.replay.tools.children import running_game_command
+from glitchygames.replay.tools.traces import RecordedGameRefusal, find_recorded_game
+from glitchygames.tracing import TraceFormatError, TraceReader
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
+    import numpy.typing as npt
+
+    from glitchygames.process import RunningProcess
+
+LOG = logging.getLogger('game.replay')
+LOG.addHandler(logging.NullHandler())
+
+# OLD's opacity over NEW when --compare-alpha is not given
+DEFAULT_COMPARE_ALPHA_PERCENT = 50.0
+# The frame stream's host: loopback only, so nothing outside this machine can connect
+FRAME_STREAM_HOST = '127.0.0.1'
+# Each streamed frame: its number, width and height (little-endian unsigned 32-bit integers),
+# then width x height x 3 bytes of RGB, rows top to bottom
+FRAME_HEADER = struct.Struct('<III')
+FRAME_PIXEL_FORMAT = 'RGB'
+BYTES_PER_PIXEL = 3
+# The ghost's working layout (rule 10): RGB and one unused byte, so a pixel is one 32-bit number
+PADDED_PIXEL_FORMAT = 'RGBX'
+PADDED_BYTES_PER_PIXEL = 4
+# Above one item pixel in this many, the ghost blends the whole frame and keeps its items
+MANY_ITEMS_FRACTION_DENOMINATOR = 8
+# A color covering at least this share of OLD's frame is one of OLD's background colors, never
+# an item of OLD's (rule 10; the user approved it, 2026-10-27)
+BACKGROUND_COLOR_SHARE = 0.05
+# The opacity a blit's alpha gives at 100%
+FULLY_OPAQUE_ALPHA = 255
+ONE_HUNDRED_PERCENT = 100.0
+# How long the parent waits for OLD's child to connect (it imports the game and reads OLD
+# first), and how often it looks whether the child ended instead
+CHILD_CONNECT_TIMEOUT_SECONDS = 60.0
+ACCEPT_POLL_SECONDS = 0.1
+# How long a read waits for OLD's child before OLD counts as stalled (rule 5): generous, as a
+# frame can take long to replay, but bounded, as the viewer is held while it waits
+CHILD_READ_TIMEOUT_SECONDS = 60.0
+# How long a new connection has to send the token
+TOKEN_TIMEOUT_SECONDS = 5.0
+# The run's token (rule 3): random bytes, written as twice as many hex characters
+FRAME_STREAM_TOKEN_BYTES = 16
+FRAME_STREAM_TOKEN_LENGTH = 2 * FRAME_STREAM_TOKEN_BYTES
+HEX_DIGITS = frozenset('0123456789abcdef')
+LARGEST_PORT = 65535
+# --replay-frame-stream PORT:TOKEN
+FRAME_STREAM_ADDRESS_SEPARATOR = ':'
+# Options of OLD's child besides --replay-trace OLD --headless (rules 2, 3 and 8)
+FRAME_STREAM_OPTION = '--replay-frame-stream'
+PAUSE_AT_FRAME_OPTION = '--replay-pause-at-frame'
+# The labels drawn at the top of the presented frame
+OLD_ENDED_LABEL = 'OLD ended at frame {frame_index}'
+OLD_NOT_REPLAYED_LABEL = 'OLD could not be replayed (see the log)'
+
+
+@dataclasses.dataclass(frozen=True)
+class CompareRefusal:
+    """Why ``--compare-trace OLD`` cannot run, and the exit code it is refused with.
+
+    Attributes:
+        exit_code: How the run ends.
+        reason: Why, in a line (logged as ``Cannot compare with OLD: <reason>``).
+
+    """
+
+    exit_code: ExitCode
+    reason: str
+
+
+def compare_trace_refusal(*, options: Mapping[str, Any]) -> str | None:
+    """Return why ``--compare-trace`` cannot go with the run's other options (rule 6), if it can't.
+
+    Args:
+        options: The run's parsed options.
+
+    Returns:
+        The reason, or None (also when ``--compare-trace`` is not given).
+
+    """
+    if options.get('compare_trace') is None:
+        return None
+    if options.get('headless'):
+        return (
+            'an onion skin is watched, so not with --headless (headless, a replay under '
+            '--random-seed N, or --rebaseline NEW, reports what changed)'
+        )
+    if options.get('audit'):
+        return 'not with --audit'
+    if options.get('rebaseline') is not None:
+        return 'not with --rebaseline'
+    return None
+
+
+@dataclasses.dataclass(frozen=True)
+class FrameStreamAddress:
+    """Where a child streams its frames, and the token it sends first (rule 3).
+
+    Attributes:
+        port: The parent's port on ``FRAME_STREAM_HOST``.
+        token: The run's token.
+
+    """
+
+    port: int
+    token: str
+
+    @classmethod
+    def parse(cls, *, text: str) -> FrameStreamAddress | None:
+        """Read ``--replay-frame-stream PORT:TOKEN``.
+
+        Args:
+            text: The option's value.
+
+        Returns:
+            The address, or None unless it is a port from 1 to ``LARGEST_PORT`` and a token of
+            ``FRAME_STREAM_TOKEN_LENGTH`` lowercase hex characters.
+
+        """
+        port_text, separator, token = text.partition(FRAME_STREAM_ADDRESS_SEPARATOR)
+        if (
+            not separator
+            or not port_text.isdecimal()
+            or not 0 < int(port_text) <= LARGEST_PORT
+            or len(token) != FRAME_STREAM_TOKEN_LENGTH
+            or not set(token) <= HEX_DIGITS
+        ):
+            return None
+        return cls(port=int(port_text), token=token)
+
+    @override
+    def __str__(self: Self) -> str:
+        """Return the option's value, ``PORT:TOKEN``."""
+        return f'{self.port}{FRAME_STREAM_ADDRESS_SEPARATOR}{self.token}'
+
+
+def frame_stream_refusal(*, options: Mapping[str, Any]) -> str | None:
+    """Return why ``--replay-frame-stream`` cannot run (rule 6), if it can't.
+
+    Args:
+        options: The run's parsed options.
+
+    Returns:
+        The reason, or None (also when no frame stream is given).
+
+    """
+    address = options.get('replay_frame_stream')
+    if address is None:
+        return None
+    if FrameStreamAddress.parse(text=address) is None:
+        return (
+            f'--replay-frame-stream takes PORT:TOKEN (a port, then {FRAME_STREAM_TOKEN_LENGTH} '
+            f'lowercase hex characters), not {address!r}'
+        )
+    if not options.get('headless'):
+        return '--replay-frame-stream needs --headless: it streams a headless replay of OLD'
+    return None
+
+
+@dataclasses.dataclass(frozen=True)
+class OldRecording:
+    """What the onion skin needs from OLD's header, read once before anything runs.
+
+    Attributes:
+        path: OLD.
+        screen_size: The width and height it was recorded at, or None when its header holds
+            none (not the engine's recorder's).
+        random_seed: The seed it was recorded under (live play starts under it: rule 9).
+
+    """
+
+    path: Path
+    screen_size: tuple[int, int] | None
+    random_seed: int
+
+
+def read_old_recording(*, old_path: Path) -> OldRecording | CompareRefusal:
+    """Read OLD's header, or say why OLD cannot be compared with (rule 6).
+
+    Args:
+        old_path: OLD.
+
+    Returns:
+        OLD's size and seed, or the refusal: a missing OLD (``ExitCode.MISSING_INPUT``), or
+        one that is not a readable recording, its size or seed malformed or missing included
+        (``ExitCode.UNUSABLE_INPUT``; its child could not replay it).
+
+    """
+    try:
+        with TraceReader(path=old_path) as reader:
+            return OldRecording(
+                path=old_path,
+                screen_size=recorded_screen_size(header=reader.header),
+                random_seed=recorded_random_seed(header=reader.header),
+            )
+    except FileNotFoundError:
+        return CompareRefusal(exit_code=ExitCode.MISSING_INPUT, reason='no such recording')
+    # An unreadable file (gzip.BadGzipFile, no permission, a directory) is an OSError
+    except OSError:
+        return CompareRefusal(exit_code=ExitCode.UNUSABLE_INPUT, reason='not a readable recording')
+    # A TraceFormatError (a ValueError) says what is wrong: a malformed line, size or seed
+    except TraceFormatError as error:
+        return CompareRefusal(
+            exit_code=ExitCode.UNUSABLE_INPUT, reason=f'not a readable recording ({error})'
+        )
+
+
+def old_recording_refusal(
+    *, old_path: Path, new_header: Mapping[str, Any]
+) -> CompareRefusal | None:
+    """Return why OLD cannot be drawn over NEW (rule 6), if it can't.
+
+    Args:
+        old_path: OLD.
+        new_header: NEW's header (its ``screen_size`` already read by the replay).
+
+    Returns:
+        The refusal, or None.
+
+    """
+    old = read_old_recording(old_path=old_path)
+    if isinstance(old, CompareRefusal):
+        return old
+    return screen_size_refusal(old=old, new_size=recorded_screen_size(header=new_header))
+
+
+def screen_size_refusal(
+    *, old: OldRecording, new_size: tuple[int, int] | None
+) -> CompareRefusal | None:
+    """Return why OLD cannot be drawn over NEW's frames of ``new_size`` (rule 6), if it can't.
+
+    Args:
+        old: OLD, as read.
+        new_size: NEW's width and height (a replay's recorded size, or live play's display),
+            or None when NEW's header holds none.
+
+    Returns:
+        The refusal (``ExitCode.UNUSABLE_INPUT``), or None: the same size, or a size missing
+        on either side (warned about).
+
+    """
+    old_size = old.screen_size
+    if old_size is None or new_size is None:
+        LOG.warning(
+            'Comparing with %s: could not compare the screen sizes (%s has none in its header); '
+            'OLD is drawn over NEW from the top left',
+            old.path,
+            'OLD' if old_size is None else 'NEW',
+        )
+        return None
+    if old_size == new_size:
+        return None
+    return CompareRefusal(
+        exit_code=ExitCode.UNUSABLE_INPUT,
+        reason=(
+            f'OLD was recorded on a {old_size[0]}x{old_size[1]} display and NEW on a '
+            f'{new_size[0]}x{new_size[1]} one: an onion skin needs the same size'
+        ),
+    )
+
+
+def first_streamed_frame(*, pause_at_frame: int | None) -> int:
+    """Return the first frame a stream writes: the one a restart at ``pause_at_frame`` shows.
+
+    A restarted watched replay pauses with frame ``max(N, FIRST_PAUSED_FRAME)`` next, showing the
+    frame before it (glitchygames/replay/rebuild.py); the frames before that are rebuilt unshown.
+
+    Args:
+        pause_at_frame: The restart's ``--replay-pause-at-frame``, or None (no restart).
+
+    Returns:
+        The frame's number (0 without a restart).
+
+    """
+    if pause_at_frame is None:
+        return 0
+    return max(pause_at_frame, FIRST_PAUSED_FRAME) - 1
+
+
+def old_game_command(*, old_path: Path) -> list[str]:
+    """Return the command that starts OLD's game, without its arguments (rule 2).
+
+    Args:
+        old_path: OLD.
+
+    Returns:
+        The console script that starts the game OLD's header names, else this process's game
+        started again (``running_game_command``: a game started as a script names its module
+        ``__main__``, which no console script starts).
+
+    """
+    found = find_recorded_game(recording=old_path, project_root=Path.cwd())
+    if isinstance(found, RecordedGameRefusal):
+        return running_game_command()
+    _, launch = found
+    return launch.command
+
+
+class FrameStream:
+    """The child's end of the frame stream: each replayed frame, as presented (rule 3).
+
+    Attributes:
+        first_frame: The first frame written (``first_streamed_frame``); earlier ones are not.
+
+    """
+
+    def __init__(self: Self, *, connection: socket.socket, first_frame: int) -> None:
+        """Stream into a connected socket.
+
+        Args:
+            connection: The connection to the parent.
+            first_frame: The first frame to write.
+
+        """
+        self._connection: socket.socket | None = connection
+        self.first_frame = first_frame
+
+    @classmethod
+    def connect(cls, *, address: FrameStreamAddress, first_frame: int) -> FrameStream:
+        """Connect to the parent listening at ``address`` and send its token.
+
+        Args:
+            address: The parent's port and the run's token (``--replay-frame-stream``).
+            first_frame: The first frame to write.
+
+        Returns:
+            The stream.
+
+        Raises:
+            OSError: If nothing listens there (``socket.create_connection``'s), or the token
+                could not be sent (``sendall``'s, after the connection is closed).
+
+        """
+        connection = socket.create_connection((FRAME_STREAM_HOST, address.port))
+        try:
+            connection.sendall(address.token.encode('ascii'))
+        except OSError:
+            connection.close()
+            raise
+        return cls(connection=connection, first_frame=first_frame)
+
+    def write_frame(self: Self, *, frame_index: int, surface: pygame.Surface) -> bool:
+        """Write a replayed frame, unless it comes before the first one.
+
+        Args:
+            frame_index: The frame's number.
+            surface: The display surface, holding the frame as presented.
+
+        Returns:
+            True while the parent reads; False once it is gone (or the stream was closed), so
+            the replay stops instead of running on unseen.
+
+        """
+        if self._connection is None:
+            return False
+        if frame_index < self.first_frame:
+            return True
+        width, height = surface.get_size()
+        try:
+            self._connection.sendall(FRAME_HEADER.pack(frame_index, width, height))
+            self._connection.sendall(pygame.image.tobytes(surface, FRAME_PIXEL_FORMAT))
+        except OSError:
+            self.close()
+            return False
+        return True
+
+    def close(self: Self) -> None:
+        """Close the stream (the parent then reads its end); once only."""
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
+
+
+@dataclasses.dataclass
+class HeldFrame:
+    """The one OLD frame the onion skin keeps, as sent (rule 4).
+
+    Attributes:
+        frame_index: Its number.
+        size: Its width and height.
+        pixels: Its RGB rows, as sent.
+        decoded: Its pixels as rows of RGBX, once decoded (``OnionSkin`` decodes a held frame
+            only when it draws it), else None.
+
+    """
+
+    frame_index: int
+    size: tuple[int, int]
+    pixels: bytes
+    decoded: npt.NDArray[np.uint8] | None = None
+
+
+class StreamEndedError(Exception):
+    """OLD's stream has no more to read (``OnionSkin._receive``).
+
+    Attributes:
+        reason: Why, in words (logged).
+        stalled: True when the child is alive but sent nothing in time (it is stopped at once).
+
+    """
+
+    def __init__(self: Self, *, reason: str, stalled: bool) -> None:
+        """Say why the stream ended.
+
+        Args:
+            reason: Why.
+            stalled: Whether the child stalled.
+
+        """
+        super().__init__(reason)
+        self.reason = reason
+        self.stalled = stalled
+
+
+class OnionSkin:
+    """The parent's end: OLD's child, and OLD's frames drawn over NEW's (rules 2 to 5).
+
+    Attributes:
+        old_path: OLD.
+        alpha_percent: How opaque OLD is drawn, from 0 to 100.
+        game_command: How OLD's game is started, without its arguments (``old_game_command``).
+        pause_at_frame: NEW's restart pause frame, passed on to the child (rule 8), or None.
+        command: The child's whole command, once started (else empty).
+        process: The child, once started (else None).
+        frames_received: How many frames the child has sent.
+        label: The label drawn over the frame (OLD ended, or never replayed), or None.
+
+    """
+
+    def __init__(
+        self: Self,
+        *,
+        old_path: Path,
+        alpha_percent: float,
+        game_command: Sequence[str],
+        pause_at_frame: int | None,
+    ) -> None:
+        """Prepare the onion skin; the child starts on ``begin`` (or the first ``draw``).
+
+        Args:
+            old_path: OLD.
+            alpha_percent: How opaque OLD is drawn, from 0 to 100.
+            game_command: How OLD's game is started, without its arguments.
+            pause_at_frame: NEW's restart pause frame, or None.
+
+        """
+        self.old_path = old_path
+        self.alpha_percent = alpha_percent
+        self.game_command = list(game_command)
+        self.pause_at_frame = pause_at_frame
+        self.command: list[str] = []
+        self.process: RunningProcess[str] | None = None
+        self.frames_received = 0
+        self.label: str | None = None
+        self._token = ''
+        self._listener: socket.socket | None = None
+        self._connection: socket.socket | None = None
+        self._output: IO[str] | None = None
+        self._held: HeldFrame | None = None
+        # True once OLD has no more frames to send (its stream ended, or it never streamed)
+        self._has_ended = False
+        self._is_stopped = False
+        self._font: pygame.font.Font | None = None
+        # Draws OLD's items over NEW, told apart by OLD's background colors, frame by frame
+        # (rule 10)
+        self._compositor = GhostCompositor(alpha_percent=alpha_percent)
+
+    @property
+    def held_frame_index(self: Self) -> int | None:
+        """The number of the OLD frame held, or None before one arrived."""
+        return None if self._held is None else self._held.frame_index
+
+    @property
+    def is_stopped(self: Self) -> bool:
+        """True once ``stop`` ran: the child ended and was waited for."""
+        return self._is_stopped
+
+    def begin(self: Self) -> None:
+        """Start OLD's child, unless it was started already; draws nothing (rules 2 and 8).
+
+        A restarted replay calls it as its rebuild begins, so OLD's child rebuilds alongside.
+        """
+        if self.process is None and not self._has_ended:
+            self._start()
+
+    def draw(self: Self, *, surface: pygame.Surface, frame_index: int) -> None:
+        """Draw OLD's frame ``frame_index`` over NEW's presented frame (rules 1, 4 and 5).
+
+        Starts the child on the first call (``begin``). Reads OLD's frames up to
+        ``frame_index``; draws the one held at the alpha when it is that frame, or OLD's last
+        one (labelled) once OLD has ended before it. A frame OLD did not stream (before its
+        first) draws nothing.
+
+        Args:
+            surface: NEW's presented frame (a copy: the display's clean frame comes back after).
+            frame_index: The NEW frame it shows.
+
+        """
+        self.begin()
+        self._read_up_to(frame_index=frame_index, size=surface.get_size())
+        held = self._held
+        if held is None:
+            # _read_up_to returns without a frame only when OLD ended before sending one
+            self._draw_label(surface=surface, text=OLD_NOT_REPLAYED_LABEL)
+            return
+        if held.frame_index > frame_index:
+            return
+        self._compositor.draw(surface=surface, old=self._decoded(held=held))
+        if held.frame_index < frame_index:
+            self._draw_label(
+                surface=surface, text=OLD_ENDED_LABEL.format(frame_index=held.frame_index)
+            )
+
+    def stop(self: Self) -> None:
+        """Stop the child (if it still runs) and wait for it; close the stream. Idempotent.
+
+        Every step runs, even after one fails; a failure is raised once the last step has run.
+        """
+        with contextlib.ExitStack() as cleanup:
+            cleanup.callback(self._mark_stopped)
+            cleanup.callback(self._close_output)
+            if self.process is not None:
+                cleanup.callback(stop_command, process=self.process)
+            cleanup.callback(self._close_sockets)
+
+    def _mark_stopped(self: Self) -> None:
+        """Note that ``stop`` ran."""
+        self._is_stopped = True
+
+    def _close_output(self: Self) -> None:
+        """Close the child's output file (once); the system removes it (``_start_child``)."""
+        if self._output is not None:
+            output, self._output = self._output, None
+            output.close()
+
+    def _close_sockets(self: Self) -> None:
+        """Close the connection to the child and the listener (each once)."""
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
+        if self._listener is not None:
+            self._listener.close()
+            self._listener = None
+
+    def _start(self: Self) -> None:
+        """Listen on a loopback port and start OLD's child, its output kept for the log.
+
+        A failure after the listener is made (the output file, or starting the child) closes
+        the listener and the output before it is raised, so a later ``begin`` starts afresh and
+        leaks neither.
+        """
+        try:
+            self._start_child()
+        except BaseException:
+            self._close_sockets()
+            self._close_output()
+            raise
+
+    def _start_child(self: Self) -> None:
+        """Listen on a loopback port and start OLD's child (``_start``, which cleans up)."""
+        self._listener = socket.create_server((FRAME_STREAM_HOST, 0))
+        self._listener.settimeout(ACCEPT_POLL_SECONDS)
+        self._token = secrets.token_hex(FRAME_STREAM_TOKEN_BYTES)
+        address = FrameStreamAddress(port=self._listener.getsockname()[1], token=self._token)
+        self.command = [
+            *self.game_command,
+            '--replay-trace',
+            str(self.old_path),
+            '--headless',
+            '--log-level',
+            'warning',
+            FRAME_STREAM_OPTION,
+            str(address),
+        ]
+        if self.pause_at_frame is not None:
+            self.command += [PAUSE_AT_FRAME_OPTION, str(self.pause_at_frame)]
+        # The child's output, kept for the log for its whole run (closed by stop()). A
+        # TemporaryFile is never unlinked by name: POSIX unlinks it at once, and Windows deletes
+        # it when its last handle closes. A named file (mkstemp) could not be unlinked on
+        # Windows CI after the child was reaped: WinError 32, "being used by another process"
+        # (most likely the interpreter a venv's python.exe launcher starts as a process of its
+        # own, still dying with the inherited handle after the launcher was terminated)
+        self._output = tempfile.TemporaryFile(  # ruff: ignore[open-file-with-context-handler] — kept open for the child's whole run; stop() closes it
+            mode='w+', encoding='utf-8', prefix='compare-trace-', suffix='.log'
+        )
+        self.process = start_command(
+            command=self.command, environment=os.environ, output=self._output
+        )
+        LOG.info('Comparing with %s, replayed by a child process', self.old_path)
+
+    def _read_up_to(self: Self, *, frame_index: int, size: tuple[int, int]) -> None:
+        """Read OLD's frames until the one held is ``frame_index`` (or later), or OLD ended.
+
+        Args:
+            frame_index: The frame wanted.
+            size: NEW's presented frame's width and height: every OLD frame must have them.
+
+        """
+        while not self._has_ended and (self._held is None or self._held.frame_index < frame_index):
+            if self._connection is None and not self._accept():
+                return
+            self._read_one_frame(size=size)
+
+    def _accept(self: Self) -> bool:
+        """Wait for the child to connect with the token, unless it ends or takes too long (rule 5).
+
+        A connection without the token (another local process) is closed and logged, and the
+        wait goes on. The connect deadline holds through a connection's token wait: that wait
+        never runs past it, and once a connection is refused after the deadline, the wait ends.
+        (Whether the child still runs is asked only when no connection is waiting: a child that
+        connected during another connection's token wait may have streamed everything and
+        ended, its connection still waiting to be accepted.)
+
+        Returns:
+            True once connected; False when OLD ended without connecting.
+
+        """
+        assert self._listener is not None
+        assert self.process is not None
+        deadline = measured_seconds() + CHILD_CONNECT_TIMEOUT_SECONDS
+        while True:
+            try:
+                connection, _ = self._listener.accept()
+            except TimeoutError:
+                if self.process.poll() is None and measured_seconds() < deadline:
+                    continue
+                return self._never_connected()
+            token_wait_seconds = max(
+                min(TOKEN_TIMEOUT_SECONDS, deadline - measured_seconds()), ACCEPT_POLL_SECONDS
+            )
+            if not self._sends_the_token(connection=connection, timeout_seconds=token_wait_seconds):
+                connection.close()
+                LOG.warning(
+                    'Comparing with %s: refused a frame stream connection without the token',
+                    self.old_path,
+                )
+                if measured_seconds() < deadline:
+                    continue
+                return self._never_connected()
+            connection.settimeout(CHILD_READ_TIMEOUT_SECONDS)
+            self._connection = connection
+            return True
+
+    def _never_connected(self: Self) -> bool:
+        """End OLD: its child ended, or took too long, without connecting (rule 5).
+
+        Returns:
+            False (``_accept``'s answer: not connected).
+
+        """
+        assert self.process is not None
+        # Ended, or too slow: stopped either way (stop_command reaps an ended one)
+        stop_command(process=self.process)
+        self._end(reason='it never connected to stream its frames', stalled=False)
+        return False
+
+    def _sends_the_token(self: Self, *, connection: socket.socket, timeout_seconds: float) -> bool:
+        """Tell whether a new connection sends the run's token first (rule 3).
+
+        Args:
+            connection: The connection.
+            timeout_seconds: How long it has to send it (``TOKEN_TIMEOUT_SECONDS``, or less when
+                the connect deadline is nearer).
+
+        Returns:
+            True when its first ``FRAME_STREAM_TOKEN_LENGTH`` bytes are the token, in time.
+
+        """
+        connection.settimeout(timeout_seconds)
+        try:
+            received = receive_exactly(connection=connection, count=FRAME_STREAM_TOKEN_LENGTH)
+        except StreamEndedError:
+            return False
+        return hmac.compare_digest(received, self._token.encode('ascii'))
+
+    def _read_one_frame(self: Self, *, size: tuple[int, int]) -> None:
+        """Read the next frame, as sent, into the one held; or note that OLD's stream ended.
+
+        A header whose size is not NEW's ends OLD there (the child is stopped at once), before
+        its pixels are read or anything is allocated for them: a frame is never larger than
+        NEW's own.
+
+        Args:
+            size: NEW's presented frame's width and height.
+
+        """
+        assert self._connection is not None
+        try:
+            header = receive_exactly(connection=self._connection, count=FRAME_HEADER.size)
+        except StreamEndedError as ended:
+            self._end(reason=ended.reason, stalled=ended.stalled)
+            return
+        frame_index, width, height = FRAME_HEADER.unpack(header)
+        if (width, height) != size:
+            self._end(
+                reason=f"it sent a {width}x{height} frame, not NEW's {size[0]}x{size[1]}",
+                stalled=True,
+            )
+            return
+        try:
+            pixels = receive_exactly(
+                connection=self._connection, count=width * height * BYTES_PER_PIXEL
+            )
+        except StreamEndedError as ended:
+            self._end(reason=f'{ended.reason} part way through a frame', stalled=ended.stalled)
+            return
+        # Kept as sent: decoded only if it is drawn (_decoded), so a frame read past is not
+        self._held = HeldFrame(frame_index=frame_index, size=(width, height), pixels=pixels)
+        self.frames_received += 1
+
+    def _decoded(self: Self, *, held: HeldFrame) -> npt.NDArray[np.uint8]:
+        """Return the held frame's pixels as rows of RGBX, decoding them the first time.
+
+        Args:
+            held: The held frame.
+
+        Returns:
+            Its pixels (height x width x 4).
+
+        """
+        if held.decoded is None:
+            held.decoded = decode_frame_pixels(pixels=held.pixels, size=held.size)
+        return held.decoded
+
+    def _end(self: Self, *, reason: str, stalled: bool) -> None:
+        """OLD has no more frames: wait for its child (stop a stalled one), and log how it ended.
+
+        A child that streamed is logged at info level when it ended ``SUCCESS``; otherwise (it
+        diverged, failed, stalled, or never streamed) its exit and its output are a warning.
+
+        Args:
+            reason: Why it has no more frames.
+            stalled: True when the child is alive but sent nothing in time: it is stopped at
+                once, not given time to end on its own.
+
+        """
+        self._has_ended = True
+        # Closed first: a child still streaming then fails its next write and stops itself
+        self._close_sockets()
+        assert self.process is not None
+        if not stalled:
+            with contextlib.suppress(TimeoutExpired):
+                # A child whose stream ended is ending itself: its exit status says how
+                self.process.wait(timeout=STOP_GRACE_SECONDS)
+        stop_command(process=self.process)
+        status = self.process.returncode
+        if self._held is not None and status == ExitCode.SUCCESS:
+            LOG.info('%s ended at frame %d (%s)', self.old_path, self._held.frame_index, reason)
+            return
+        # Started (_start) before anything ends
+        assert self._output is not None
+        self._output.seek(0)
+        output = self._output.read()
+        what = (
+            'OLD could not be replayed'
+            if self._held is None
+            else f'OLD ended at frame {self._held.frame_index}'
+        )
+        LOG.warning(
+            '%s: %s: %s (exit %s); its output:\n%s',
+            what,
+            self.old_path,
+            reason,
+            ExitCode.describe_status(status),
+            output.rstrip(),
+        )
+
+    def _draw_label(self: Self, *, surface: pygame.Surface, text: str) -> None:
+        """Draw a label at the top center, on the debug overlay's backing, in its font.
+
+        Args:
+            surface: The presented frame.
+            text: The label.
+
+        """
+        self.label = text
+        if self._font is None:
+            self._font = load_debug_font()
+        text_surface = self._font.render(text, antialias=True, color=HUD_TEXT_COLOR)
+        blit_text(
+            surface=surface,
+            text_surface=text_surface,
+            position=((surface.get_width() - text_surface.get_width()) // 2, HUD_MARGIN),
+        )
+
+
+def decode_frame_pixels(*, pixels: bytes, size: tuple[int, int]) -> npt.NDArray[np.uint8]:
+    """Return a streamed frame's pixels (rule 3's RGB rows) as rows of RGBX, X unused.
+
+    Four bytes a pixel, so the ghost compares a pixel as one 32-bit number (``GhostCompositor``).
+
+    Args:
+        pixels: Width x height x 3 bytes, rows top to bottom.
+        size: Its width and height.
+
+    Returns:
+        A height x width x 4 array.
+
+    """
+    width, height = size
+    rows = np.empty((height, width, PADDED_BYTES_PER_PIXEL), dtype=np.uint8)
+    rows[..., :BYTES_PER_PIXEL] = np.frombuffer(pixels, dtype=np.uint8).reshape(
+        height, width, BYTES_PER_PIXEL
+    )
+    rows[..., BYTES_PER_PIXEL] = FULLY_OPAQUE_ALPHA
+    return rows
+
+
+def blend_over(
+    *, new: npt.NDArray[np.uint8], old: npt.NDArray[np.uint8], alpha: int
+) -> npt.NDArray[np.uint8]:
+    """Return OLD's pixels blended over NEW's at ``alpha``, as an alpha blit mixes them.
+
+    SDL's blend: ``new + (((old - new) * alpha + old) >> 8)`` per channel, so a ghost drawn here
+    has the same colors as the whole-frame blit it replaces.
+
+    Args:
+        new: NEW's pixels (any shape, channels last).
+        old: OLD's pixels, the same shape.
+        alpha: OLD's opacity, from 0 to ``FULLY_OPAQUE_ALPHA``.
+
+    Returns:
+        The blended pixels.
+
+    """
+    new_values = new.astype(np.int32)
+    old_values = old.astype(np.int32)
+    return (new_values + (((old_values - new_values) * alpha + old_values) >> 8)).astype(np.uint8)
+
+
+class GhostCompositor:
+    """Draws OLD's items over NEW's presented frames, leaving NEW opaque (rule 10).
+
+    Each frame on its own, no memory between frames: OLD's background colors are the exact
+    colors covering at least ``BACKGROUND_COLOR_SHARE`` of OLD's frame, and OLD's items are the
+    pixels where OLD differs from NEW in a color that is none of them. An item in a color that
+    covers that share (a large sprite, a full-screen overlay) is taken for background and not
+    drawn (rule 10's costs). Pixels are compared as
+    32-bit numbers (RGBX rows viewed as ``uint32``), the X byte always ``FULLY_OPAQUE_ALPHA`` on
+    both sides.
+
+    Attributes:
+        alpha: OLD's items' opacity, from 0 to ``FULLY_OPAQUE_ALPHA``.
+
+    """
+
+    def __init__(self: Self, *, alpha_percent: float) -> None:
+        """Draw at ``alpha_percent``.
+
+        Args:
+            alpha_percent: How opaque OLD's items are drawn, from 0 to 100.
+
+        """
+        self.alpha = round(FULLY_OPAQUE_ALPHA * alpha_percent / ONE_HUNDRED_PERCENT)
+        # The last OLD frame's pixels told apart (True: a background color's), kept while the
+        # same frame is drawn again (paused, or OLD's last frame held): it depends on OLD alone
+        self._last_old: npt.NDArray[np.uint8] | None = None
+        self._last_old_is_background: npt.NDArray[np.bool_] | None = None
+
+    def draw(self: Self, *, surface: pygame.Surface, old: npt.NDArray[np.uint8]) -> None:
+        """Blend OLD's items over ``surface``; every other pixel stays NEW's.
+
+        Args:
+            surface: NEW's presented frame, drawn on (only when OLD has an item on it).
+            old: OLD's frame of the same number (``decode_frame_pixels``), the same size.
+
+        """
+        size = surface.get_size()
+        width, height = size
+        # NEW's pixels as rows of RGBX (a copy: the surface is drawn on only at the end)
+        new = np.frombuffer(
+            bytearray(pygame.image.tobytes(surface, PADDED_PIXEL_FORMAT)), dtype=np.uint8
+        ).reshape(height, width, PADDED_BYTES_PER_PIXEL)
+        new[..., BYTES_PER_PIXEL] = FULLY_OPAQUE_ALPHA
+        new_colors = new.view(np.uint32)[..., 0]
+        old_colors = old.view(np.uint32)[..., 0]
+        is_item = (old_colors != new_colors) & ~self._background_of(old=old, old_colors=old_colors)
+        if not is_item.any():
+            return
+        if np.count_nonzero(is_item) * MANY_ITEMS_FRACTION_DENOMINATOR > is_item.size:
+            # Many items: blending the whole frame and keeping the items is faster than
+            # gathering them one by one
+            np.copyto(
+                new,
+                blend_over(new=new, old=old, alpha=self.alpha),
+                where=is_item[..., np.newaxis],
+            )
+        else:
+            new[is_item] = blend_over(new=new[is_item], old=old[is_item], alpha=self.alpha)
+        # Opaque (no alpha set), so it replaces the presented copy's pixels outright
+        surface.blit(pygame.image.frombytes(new.tobytes(), size, PADDED_PIXEL_FORMAT), (0, 0))
+
+    def _background_of(
+        self: Self, *, old: npt.NDArray[np.uint8], old_colors: npt.NDArray[np.uint32]
+    ) -> npt.NDArray[np.bool_]:
+        """Return which of OLD's pixels are in one of its background colors.
+
+        A background color covers at least ``BACKGROUND_COLOR_SHARE`` of OLD's frame, exactly
+        (a count over the frame's size, compared as a fraction, so 5 of 100 is 5%). Worked out
+        once per OLD frame: the same frame drawn again reuses it.
+
+        Args:
+            old: OLD's frame (its identity tells a frame drawn again).
+            old_colors: Its pixels as 32-bit numbers.
+
+        Returns:
+            True where OLD shows a background color.
+
+        """
+        if old is self._last_old and self._last_old_is_background is not None:
+            return self._last_old_is_background
+        colors, counts = np.unique(old_colors, return_counts=True)
+        background_colors = colors[counts / old_colors.size >= BACKGROUND_COLOR_SHARE]
+        is_background = np.isin(old_colors, background_colors)
+        self._last_old = old
+        self._last_old_is_background = is_background
+        return is_background
+
+
+def receive_exactly(*, connection: socket.socket, count: int) -> bytes:
+    """Read exactly ``count`` bytes from a connection.
+
+    Args:
+        connection: The connection (its timeout applies to each read).
+        count: How many bytes.
+
+    Returns:
+        The bytes.
+
+    Raises:
+        StreamEndedError: If the stream ended or failed first, or nothing came in time
+            (``stalled``).
+
+    """
+    received = bytearray()
+    while len(received) < count:
+        try:
+            chunk = connection.recv(count - len(received))
+        except TimeoutError:
+            reason = f'it stopped streaming (nothing for {connection.gettimeout():g} s)'
+            raise StreamEndedError(reason=reason, stalled=True) from None
+        except OSError:
+            raise StreamEndedError(reason='its stream ended', stalled=False) from None
+        if not chunk:
+            raise StreamEndedError(reason='its stream ended', stalled=False)
+        received.extend(chunk)
+    return bytes(received)

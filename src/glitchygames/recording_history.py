@@ -442,6 +442,10 @@ class MeasurementRun(BaseModel):
         source_revision: The engine's source revision (glitchygames/build_info.py: the commit,
             whether the checkout had uncommitted changes, and how that is known); None only for
             a run from before this field.
+        game_source_revision: The game's source revision, looked up the same way in the
+            directory of the game's package (``glitchygames.replay.tools.identity``); None for a
+            run from before this field, or of a game whose package was not found. A ledger row
+            names its commit (``game_or_engine_revision``).
         machine_state: The machine's state as the run started (glitchygames/machine_state.py:
             CPU, memory, mains or battery, thermal report, continuous integration); None only
             for a run from before this field.
@@ -465,8 +469,22 @@ class MeasurementRun(BaseModel):
     frame_count: int | None = None
     pacing_timer: PacingTimer | None = None
     source_revision: SourceRevision | None = None
+    game_source_revision: SourceRevision | None = None
     machine_state: MachineState | None = None
     summary: RunSummary | None = None
+
+    @property
+    def game_or_engine_revision(self: Self) -> SourceRevision | None:
+        """The revision of the code the run measured: the game's, else the engine's.
+
+        The game's (``game_source_revision``) whenever it is recorded, even unknown: a game
+        outside this repository never takes the engine's commit. The engine's for a run from
+        before the field, or of a game whose package was not found. In this repository the two
+        are one checkout, so they name the same commit.
+        """
+        return (
+            self.source_revision if self.game_source_revision is None else self.game_source_revision
+        )
 
     def to_json(self: Self) -> dict[str, Any]:
         """Return the run as the header stores it.

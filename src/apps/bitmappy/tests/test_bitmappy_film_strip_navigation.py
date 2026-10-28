@@ -2,9 +2,9 @@
 
 import pygame
 import pytest
+from src.apps.bitmappy.tests.film_strip_support import FilmStripTestBase, make_real_animated_sprite
 
 from glitchygames import events
-from test_bitmappy_film_strip_base import FilmStripTestBase, make_real_animated_sprite
 
 # Additional test constants
 FRAME_INDEX_2 = 2

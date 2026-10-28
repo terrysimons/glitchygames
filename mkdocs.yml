@@ -27,6 +27,8 @@ nav:
     - Driver Comparison: "quality/driver_comparison.md"
     - Upstream Issues: "quality/upstream_issues.md"
     - Galimore Survey: "galimore.md"
+    - Designs:
+      - glitchy.games Website on AWS: "specs/2026-10-27-glitchy-games-website-design.md"
   - glitchygames API Reference:
     - "glitchygames/index.md"
     - glitchygames.api: "glitchygames/api/index.md"
@@ -36,7 +38,6 @@ nav:
     - glitchygames.effects: "glitchygames/effects/index.md"
     - glitchygames.engine: "glitchygames/engine/index.md"
     - glitchygames.events: "glitchygames/events/index.md"
-    - glitchygames.examples: "glitchygames/examples/index.md"
     - glitchygames.font: "glitchygames/fonts/index.md"
     - glitchygames.game_objects: "glitchygames/game_objects/index.md"
     - glitchygames.input: "glitchygames/input/index.md"
@@ -62,6 +63,10 @@ nav:
     - clockwork_keep: "clockwork_keep/index.md"
     - paddleslap: "paddleslap/index.md"
     - drawing_fire: "drawing_fire/index.md"
+  - Demos API Reference:
+    - dt_demo: "dt_demo/index.md"
+    - joystick_demo: "joystick_demo/index.md"
+    - text_input_demo: "text_input_demo/index.md"
   - Apps API Reference:
     - bitmappy: "bitmappy/index.md"
 
@@ -158,7 +163,17 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          paths: [src, src/games/mr-muncher, src/games/brave-adventurer/src, src/games/clockwork-keep, src/games/paddleslap, src/games/drawing-fire, src/apps/bitmappy]
+          paths:
+            - src
+            - src/games/mr-muncher/src
+            - src/games/brave-adventurer/src
+            - src/games/clockwork-keep/src
+            - src/games/paddleslap/src
+            - src/games/drawing-fire/src
+            - src/demos/dt-demo/src
+            - src/demos/joystick-demo/src
+            - src/demos/text-input-demo/src
+            - src/apps/bitmappy/src
           options:
             show_source: true
             # allow_inspection: no

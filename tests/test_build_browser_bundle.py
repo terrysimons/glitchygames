@@ -7,6 +7,7 @@ import errno
 import functools
 import importlib.metadata
 import json
+import re
 import socket
 import threading
 import tomllib
@@ -37,14 +38,25 @@ from scripts.build_browser_bundle import (
     touch_controls_config,
     write_engine_archive,
 )
-from scripts.workspace_packages import declared_console_scripts, workspace_members
+from scripts.git_checkout import NotAGitCheckoutError, run_git
+from scripts.workspace_packages import (
+    declared_console_scripts,
+    members_in_layer,
+    workspace_members,
+)
 
 COMMIT = 'a' * 40
 WHEEL_NAME = 'pygame_ce-2.5.8.post1-cp314-cp314-pyemscripten_2026_0_wasm32.whl'
 
 
+def git(*, arguments: list[str], directory: Path) -> None:
+    """Run git in a directory and require it to succeed."""
+    returncode, output = run_git(arguments=arguments, directory=directory)
+    assert returncode == 0, output
+
+
 def make_package(root: Path) -> Path:
-    """Make a small package tree with files that are bundled and files that are not.
+    """Make a small package tree, tracked in a git repository, with files bundled and not.
 
     Returns:
         The package directory.
@@ -59,12 +71,15 @@ def make_package(root: Path) -> Path:
         'assets/glitch.png': 'png',
         'assets/eraser.toml': 'toml',
         'api/main.py': 'API = 1\n',
-        'examples/paddleslap.py': 'GAME = 1\n',
+        'services/renderer_service.py': 'SERVICE = 1\n',
     }.items():
         path = package / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         # Bytes, not text: write_text would write Windows line endings there
         path.write_bytes(content.encode('utf-8'))
+    # Bundles hold tracked files only, so the tree is a repository with every file added
+    git(arguments=['init', '--quiet'], directory=root)
+    git(arguments=['add', '.'], directory=root)
     return package
 
 
@@ -77,7 +92,6 @@ class TestPackageSelection:
             ('engine/game_engine.py', True),
             ('fonts/bitstream_vera/Vera.ttf', True),
             ('assets/eraser.toml', True),
-            ('examples/paddleslap.py', True),
             ('engine/__pycache__/game_engine.cpython-314.pyc', False),
             ('assets/glitch.png', False),
             ('api/main.py', False),
@@ -96,9 +110,38 @@ class TestPackageSelection:
             Path('__init__.py'),
             Path('assets/eraser.toml'),
             Path('engine/game_engine.py'),
-            Path('examples/paddleslap.py'),
             Path('fonts/bitstream_vera/Vera.ttf'),
         ]
+
+    def test_an_ignored_file_is_not_bundled(self, tmp_path):
+        """An ignored .DS_Store stays out of the bundle; a new file not yet added is in it."""
+        package = make_package(tmp_path)
+        (tmp_path / '.gitignore').write_text('.DS_Store\n', encoding='utf-8')
+        (package / '.DS_Store').write_bytes(b'finder')
+        (package / 'engine' / '.DS_Store').write_bytes(b'finder')
+        (package / 'engine' / 'untracked.py').write_text('UNTRACKED = 1\n', encoding='utf-8')
+
+        files = bundled_package_files(package_directory=package)
+
+        assert Path('.DS_Store') not in files
+        assert Path('engine/.DS_Store') not in files
+        assert Path('engine/untracked.py') in files
+        assert Path('engine/game_engine.py') in files
+
+    def test_outside_a_checkout_is_an_error(self, tmp_path):
+        package = tmp_path / 'glitchygames'
+        package.mkdir()
+        (package / '__init__.py').write_text('', encoding='utf-8')
+
+        # Escaped: a Windows path's backslashes (C:\Users\...) are not a regular expression
+        with pytest.raises(NotAGitCheckoutError, match=re.escape(str(package))):
+            bundled_package_files(package_directory=package)
+
+    def test_a_missing_git_is_an_error(self, tmp_path, mocker):
+        mocker.patch('scripts.git_checkout.shutil.which', return_value=None)
+
+        with pytest.raises(FileNotFoundError, match='git is not on PATH'):
+            bundled_package_files(package_directory=tmp_path)
 
 
 class TestEngineArchive:
@@ -113,7 +156,7 @@ class TestEngineArchive:
         with zipfile.ZipFile(archive_path) as archive:
             names = archive.namelist()
             assert archive.read('glitchygames/engine/game_engine.py') == b'ENGINE = 1\n'
-        assert count == 5
+        assert count == 4
         assert names[0] == 'glitchygames/__init__.py'
         assert 'glitchygames/api/main.py' not in names
 
@@ -176,30 +219,11 @@ class TestGeneratedFiles:
             './mr_muncher.zip' not in tomllib.loads(pyscript_config(wheel_name=WHEEL_NAME))['files']
         )
 
-    @pytest.mark.parametrize(
-        'moved_package',
-        [
-            'mr_muncher',
-            'brave_adventurer',
-            'brave_adventurer_papyrus',
-            'clockwork_keep',
-            'drawing_fire',
-        ],
-    )
-    def test_the_engine_archive_no_longer_holds_the_moved_game(self, moved_package):
-        """The moved games' code is not under src/glitchygames/ any more."""
+    def test_the_engine_archive_holds_no_examples(self):
+        """The engine's examples package is gone: no game, demo or sound is under examples/."""
         files = bundled_package_files(package_directory=PACKAGE_DIRECTORY)
 
-        assert not any(path.parts[:2] == ('examples', moved_package) for path in files)
-
-    def test_the_engine_archive_no_longer_holds_paddleslap_or_its_demo(self):
-        """PaddleSlap was one module (examples/paddleslap.py) with its demo folder beside it."""
-        files = {
-            path.as_posix() for path in bundled_package_files(package_directory=PACKAGE_DIRECTORY)
-        }
-
-        assert 'examples/paddleslap.py' not in files
-        assert not any(name.startswith('examples/paddleslap_demos/') for name in files)
+        assert not any(path.parts[0] == 'examples' for path in files)
 
     def test_only_member_games_name_member_packages(self):
         assert GAMES['mr-muncher'].member_packages == ('mr_muncher',)
@@ -280,6 +304,43 @@ class TestGeneratedFiles:
             'brave_adventurer_papyrus.zip',
         ]
 
+    def test_the_bundle_report_counts_every_archives_files(self, tmp_path, mocker, capsys):
+        """The engine's files and each member package's are counted, each archive named."""
+        file_counts = {
+            'glitchygames.zip': 100,
+            'brave_adventurer_core.zip': 7,
+            'brave_adventurer_papyrus.zip': 5,
+        }
+
+        def counted_archive(*, archive_path: Path, **_ignored: object) -> int:
+            return file_counts[archive_path.name]
+
+        game = dataclasses.replace(
+            GAMES['mr-muncher'],
+            member_packages=('brave_adventurer_core', 'brave_adventurer_papyrus'),
+        )
+        mocker.patch.dict(GAMES, {'two-archive-game': game})
+        mocker.patch.object(build_browser_bundle, 'write_engine_archive', counted_archive)
+        mocker.patch.object(
+            build_browser_bundle,
+            'member_package_directory',
+            side_effect=lambda *, import_package: tmp_path / import_package,
+        )
+        wheel_path = tmp_path / WHEEL_NAME
+        wheel_path.write_bytes(b'')
+
+        build_browser_bundle.write_bundle(
+            game='two-archive-game',
+            output_directory=tmp_path / 'site',
+            wheel_path=wheel_path,
+            arguments=[],
+        )
+
+        assert capsys.readouterr().out == (
+            f'{tmp_path / "site"}: Mr. Muncher, 112 files (glitchygames 100, '
+            f'brave_adventurer_core 7, brave_adventurer_papyrus 5), {WHEEL_NAME}\n'
+        )
+
     def test_boot_config_names_the_game_and_its_arguments(self):
         assert boot_config(game='mr-muncher', arguments=['--target-fps', '30']) == {
             'game': 'mr-muncher',
@@ -296,7 +357,22 @@ class TestGeneratedFiles:
         assert page == f'<title>Paddle Slap</title> {PYSCRIPT_RELEASE}'
 
     def test_every_game_module_has_its_scene_class(self):
-        """The table names real modules and classes (what boot.py imports in the browser)."""
+        """The table names real modules and classes (what boot.py imports in the browser).
+
+        Its games are the workspace's, by distribution: every games-layer member and Bitmappy
+        (the demos layer has no browser build: decision 6,
+        plans/2026-10-26-workspace-packages-3-demos.md), and every games-layer member but
+        Drawing Fire has a touch layout (tests/test_browser_touch_controls.py
+        ``GAMES_WITHOUT_TOUCH_CONTROLS``).
+        """
+        games = {
+            member.distribution
+            for member in members_in_layer(project_root=REPOSITORY_DIRECTORY, layer='games')
+        }
+
+        assert games
+        assert set(GAMES) == games | {'bitmappy'}
+        assert set(TOUCH_LAYOUTS) == games - {'drawing-fire'}
         for specification in GAMES.values():
             module = __import__(specification.module, fromlist=[specification.scene_class])
             assert hasattr(module, specification.scene_class)
@@ -615,16 +691,25 @@ class TestServerPort:
         assert f'Cannot serve the bundle: port {taken} is in use' in capsys.readouterr().out
 
 
-# Console scripts that are not games (the API server and client): no browser build
-NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-client'})
+# Console scripts that are not games: the API server and client, and the engine's tools'
+# command (glitchygames, which starts games but is none)
+NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-client', 'glitchygames'})
 
 
 def test_every_game_has_a_browser_build():
     """Each game's console script is a page under play/ (Papyrus was once left out).
 
     Brave Adventurer's two games are one console script and one page: the launcher's title
-    screen offers both.
+    screen offers both. The demos get no browser build (the user, 2026-10-26): a console script
+    of a member in the demos layer, as the workspace says, is left out.
     """
     scripts = declared_console_scripts(project_root=REPOSITORY_DIRECTORY)
+    demo_console_scripts = {
+        console_script
+        for member in workspace_members(project_root=REPOSITORY_DIRECTORY)
+        if member.layer == 'demos'
+        for console_script in member.console_scripts
+    }
 
-    assert set(GAMES) == set(scripts) - NOT_GAME_CONSOLE_SCRIPTS
+    assert 'dt-demo' in demo_console_scripts
+    assert set(GAMES) == set(scripts) - NOT_GAME_CONSOLE_SCRIPTS - demo_console_scripts

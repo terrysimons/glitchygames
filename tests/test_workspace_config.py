@@ -4,26 +4,43 @@ from __future__ import annotations
 
 import ast
 import configparser
+import importlib.metadata
 import json
 import re
+import sys
 import tomllib
-from pathlib import Path
-from typing import Any
+from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING, Any
 
 import noxfile
 import pytest
 import yaml
 from scripts.gen_ref_pages import reference_page_path
-from scripts.workspace_packages import WorkspaceMember, workspace_members
+from scripts.workspace_packages import (
+    ENGINE_PACKAGE,
+    WorkspaceMember,
+    canonical_distribution_name,
+    workspace_members,
+)
 
 from glitchygames import logical_names
-from tests.ast_scanning import import_bindings, scanned_source_files
+from tests.ast_scanning import (
+    import_bindings,
+    imported_module_names,
+    member_imports,
+    module_name_of,
+    path_to_package,
+)
+from tests.engine_source import ENGINE_DIRECTORY
+from tests.workspace_sources import member_import_packages, scanned_source_files
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Bitmappy's package when it was in the engine (it is the member src/apps/bitmappy now)
 BITMAPPY_PACKAGE = 'glitchygames.bitmappy'
-# Bitmappy's package since it became a workspace member (src/apps/bitmappy)
-BITMAPPY_MEMBER_PACKAGE = 'bitmappy'
-# The sprite library's path inside the engine, which Bitmappy owns
+# The sprite library's path when it was in the engine, which Bitmappy owns
 BITMAPPY_SPRITE_PATH_SEGMENTS = "'examples', 'resources', 'sprites'"
 MEMBERS = workspace_members(project_root=PROJECT_ROOT)
 # Each pattern matches a whole string literal first, so a // or ,] inside a string is data
@@ -31,9 +48,9 @@ JSONC_COMMENTS = re.compile(r'(?P<string>"(?:\\.|[^"\\])*")|//[^\n]*|/\*.*?\*/',
 JSONC_TRAILING_COMMAS = re.compile(r'(?P<string>"(?:\\.|[^"\\])*")|,(?=\s*[}\]])')
 
 
-def root_pyproject() -> dict[str, Any]:
+def root_pyproject(*, project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
     """The root pyproject.toml."""
-    with (PROJECT_ROOT / 'pyproject.toml').open('rb') as pyproject_file:
+    with (project_root / 'pyproject.toml').open('rb') as pyproject_file:
         return tomllib.load(pyproject_file)
 
 
@@ -55,9 +72,9 @@ def parse_jsonc(*, text: str) -> dict[str, Any]:
     return json.loads(plain_json)
 
 
-def pyright_configuration() -> dict[str, Any]:
+def pyright_configuration(*, project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
     """pyrightconfig.json, which is JSON with comments and trailing commas (JSONC)."""
-    return parse_jsonc(text=(PROJECT_ROOT / 'pyrightconfig.json').read_text(encoding='utf-8'))
+    return parse_jsonc(text=(project_root / 'pyrightconfig.json').read_text(encoding='utf-8'))
 
 
 def repository_path(path: Path) -> str:
@@ -186,9 +203,9 @@ MkdocsConfigurationLoader.add_multi_constructor(
 )
 
 
-def mkdocs_configuration() -> dict[str, Any]:
+def mkdocs_configuration(*, project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
     """mkdocs.yml."""
-    loader = MkdocsConfigurationLoader((PROJECT_ROOT / 'mkdocs.yml').read_text(encoding='utf-8'))
+    loader = MkdocsConfigurationLoader((project_root / 'mkdocs.yml').read_text(encoding='utf-8'))
     try:
         return loader.get_single_data()
     finally:
@@ -319,30 +336,195 @@ def test_the_real_pyright_configuration_parses():
     ]
 
 
-def absolute_imported_module_names(*, tree: ast.Module) -> list[str]:
-    """List the modules a module imports absolutely, in walk order (relative imports left out).
+def engine_files_importing_a_member(
+    *, project_root: Path, members: Sequence[WorkspaceMember]
+) -> list[str]:
+    """List every import of a workspace member by the engine's source (decision 10).
+
+    The engine is installed without its games, demos and apps, so it never imports one: a member
+    depends on the engine, never the reverse. Every import counts, at any level, and so does a
+    string load with a literal name (``importlib.import_module('paddleslap')``).
 
     Args:
-        tree: The parsed module.
+        project_root: The repository.
+        members: The workspace's members.
 
     Returns:
-        Each ``import`` alias's module and each absolute ``from ... import``'s module.
+        ``<file>:<line>: <import>`` for each, in scan order (files relative to the engine).
 
     """
-    module_names: list[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            module_names.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module is not None:
-            module_names.append(node.module)
-    return module_names
+    member_packages = member_import_packages(members=members)
+    offences: list[str] = []
+    for key, source_path in scanned_source_files(project_root=project_root):
+        # Keys under src/ are workspace members; the engine's are relative to its package
+        if key.startswith('src/'):
+            continue
+        tree = ast.parse(source_path.read_text(encoding='utf-8'))
+        offences.extend(
+            f'{key}:{found.line}: {found.describe()}'
+            for found in member_imports(tree=tree, member_packages=member_packages)
+        )
+    return offences
 
 
-def engine_files_pointing_into_bitmappy(*, project_root: Path) -> list[str]:
-    """List the engine files (outside bitmappy/) that import Bitmappy or name its sprite path.
+def test_the_engine_imports_no_member():
+    """No engine file imports a game, demo or app."""
+    assert engine_files_importing_a_member(project_root=PROJECT_ROOT, members=MEMBERS) == []
 
-    Bitmappy is imported as ``glitchygames.bitmappy`` (where it was) or as the member's own
-    top-level ``bitmappy`` (where it is): both are offences.
+
+# The engine's import package (followed through its own modules) and the package it never reaches
+ENGINE_IMPORT_PACKAGE = 'glitchygames'
+SCRIPTS_PACKAGE = 'scripts'
+
+
+def engine_modules_reaching_scripts(*, project_root: Path) -> list[str]:
+    """Return each engine module that imports ``scripts.*``, directly or through engine modules.
+
+    The engine is installed without this repository's scripts/ (Part 3, Stage D's constraint:
+    "No engine module imports ``scripts.*``"), so none may. Every import counts, at any level,
+    relative or by a literal string, and so does a package's ``__init__`` above a module.
+
+    Args:
+        project_root: The repository (its ``src/glitchygames/`` is scanned).
+
+    Returns:
+        ``<file>: <module> -> ... -> scripts.<name>`` for each, sorted by file.
+
+    """
+    source_root = project_root / ENGINE_DIRECTORY.parent
+    modules: dict[str, Path] = {
+        module_name_of(relative=path.relative_to(source_root)): path
+        for path in sorted((project_root / ENGINE_DIRECTORY).rglob('*.py'))
+        if '__pycache__' not in path.parts
+    }
+    graph = {
+        module: frozenset(
+            imported_module_names(
+                tree=ast.parse(path.read_text(encoding='utf-8'), filename=str(path)),
+                module=module,
+                is_package=path.name == '__init__.py',
+                followed=ENGINE_IMPORT_PACKAGE,
+                target=SCRIPTS_PACKAGE,
+            )
+        )
+        for module, path in modules.items()
+    }
+    findings: list[str] = []
+    for path, module in sorted((path, module) for module, path in modules.items()):
+        chain = path_to_package(graph=graph, module=module, target=SCRIPTS_PACKAGE)
+        if chain is not None:
+            findings.append(f'{path.relative_to(project_root).as_posix()}: {" -> ".join(chain)}')
+    return findings
+
+
+def test_no_engine_module_reaches_scripts():
+    """No engine module imports scripts/, directly or through another engine module."""
+    assert engine_modules_reaching_scripts(project_root=PROJECT_ROOT) == []
+
+
+def test_an_engine_module_reaching_scripts_in_any_way_is_found_with_its_chain(tmp_path):
+    """Directly, by a bare import, relatively, through another module or its own package."""
+    for relative, source in {
+        'scripts/tool.py': 'THING = 1\n',
+        'src/glitchygames/__init__.py': '',
+        'src/glitchygames/clean.py': 'import os\n',
+        'src/glitchygames/helper.py': 'from scripts.tool import THING\n',
+        'src/glitchygames/uses_helper.py': 'from glitchygames.helper import THING\n',
+        'src/glitchygames/relative.py': 'from .helper import THING\n',
+        'src/glitchygames/sub/__init__.py': 'import scripts\n',
+        'src/glitchygames/sub/leaf.py': 'VALUE = 1\n',
+    }.items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding='utf-8')
+
+    assert engine_modules_reaching_scripts(project_root=tmp_path) == [
+        'src/glitchygames/helper.py: glitchygames.helper -> scripts.tool',
+        (
+            'src/glitchygames/relative.py: glitchygames.relative -> glitchygames.helper -> '
+            'scripts.tool'
+        ),
+        'src/glitchygames/sub/__init__.py: glitchygames.sub -> scripts',
+        'src/glitchygames/sub/leaf.py: glitchygames.sub.leaf -> glitchygames.sub -> scripts',
+        (
+            'src/glitchygames/uses_helper.py: glitchygames.uses_helper -> glitchygames.helper -> '
+            'scripts.tool'
+        ),
+    ]
+
+
+def write_engine_module(*, project_root: Path, source: str) -> list[WorkspaceMember]:
+    """Write a repository whose engine holds one module and whose one member is space-game.
+
+    Args:
+        project_root: The repository.
+        source: The engine module's source (``src/glitchygames/outside.py``).
+
+    Returns:
+        Bitmappy (as it is) and the synthetic second member, src/games/space-game.
+
+    """
+    engine_directory = project_root / 'src' / 'glitchygames'
+    engine_directory.mkdir(parents=True)
+    (engine_directory / 'outside.py').write_text(source, encoding='utf-8')
+    member_directory = project_root / 'src' / 'games' / 'space-game'
+    (member_directory / 'src' / 'space_game').mkdir(parents=True)
+    (member_directory / 'src' / 'space_game' / 'ships.py').write_text(
+        'import bitmappy\n', encoding='utf-8'
+    )
+    (member_directory / 'pyproject.toml').write_text(
+        '[project]\nname = "space-game"\n\n'
+        '[tool.hatch.build.targets.wheel]\npackages = ["src/space_game"]\n',
+        encoding='utf-8',
+    )
+    (project_root / 'pyproject.toml').write_text(
+        '[tool.uv.workspace]\nmembers = ["src/games/space-game"]\n', encoding='utf-8'
+    )
+    bitmappy = next(member for member in MEMBERS if member.distribution == 'bitmappy')
+    return [bitmappy, *workspace_members(project_root=project_root)]
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected_offences'),
+    [
+        ('import bitmappy\n', ['outside.py:1: import bitmappy']),
+        ('import bitmappy.utils\n', ['outside.py:1: import bitmappy.utils']),
+        ('from bitmappy import main\n', ['outside.py:1: from bitmappy import main']),
+        (
+            'from bitmappy.editor import BitmapEditorScene as Editor\n',
+            ['outside.py:1: from bitmappy.editor import BitmapEditorScene'],
+        ),
+        ('import space_game\n', ['outside.py:1: import space_game']),
+        (
+            'def load():\n    from space_game.ships import Ship\n    return Ship\n',
+            ['outside.py:2: from space_game.ships import Ship'],
+        ),
+        (
+            "import importlib\n\nGAME = importlib.import_module('space_game.ships')\n",
+            ['outside.py:3: import space_game.ships'],
+        ),
+        ("SHIPS = __import__('space_game')\n", ['outside.py:1: import space_game']),
+        ('from . import space_game\nimport glitchygames.sprites\n', []),
+    ],
+)
+def test_the_guard_finds_each_way_the_engine_imports_a_member(tmp_path, source, expected_offences):
+    """Each spelling of an import of either member is reported; the members' own are not.
+
+    The synthetic member's own module imports Bitmappy, which is the member's business.
+    """
+    members = write_engine_module(project_root=tmp_path, source=source)
+
+    assert (
+        engine_files_importing_a_member(project_root=tmp_path, members=members) == expected_offences
+    )
+
+
+def engine_files_pointing_at_bitmappys_old_places(*, project_root: Path) -> list[str]:
+    """List the engine files that name where Bitmappy was in the engine.
+
+    Bitmappy was the engine's ``glitchygames.bitmappy``, and its sprite library was the engine's
+    ``examples/resources/sprites``. Both are its member's now (src/apps/bitmappy); importing the
+    old package, or naming the old path, points the engine back into it.
 
     Args:
         project_root: The repository.
@@ -355,7 +537,7 @@ def engine_files_pointing_into_bitmappy(*, project_root: Path) -> list[str]:
     offences: list[str] = []
     for key, source_path in scanned_source_files(project_root=project_root):
         # Keys under src/ are workspace members; the engine's are relative to its package
-        if key.startswith(('src/', 'bitmappy/')):
+        if key.startswith('src/'):
             continue
         source = source_path.read_text(encoding='utf-8')
         tree = ast.parse(source)
@@ -373,20 +555,14 @@ def engine_files_pointing_into_bitmappy(*, project_root: Path) -> list[str]:
             for alias in node.names
             if alias.name.startswith(BITMAPPY_PACKAGE)
         )
-        # The member's package, in any spelling (`from bitmappy.editor import ...` too)
-        offences.extend(
-            f'{key}: imports {module_name}'
-            for module_name in absolute_imported_module_names(tree=tree)
-            if module_name.split('.')[0] == BITMAPPY_MEMBER_PACKAGE
-        )
         if BITMAPPY_SPRITE_PATH_SEGMENTS in source:
             offences.append(f'{key}: names the sprite path {BITMAPPY_SPRITE_PATH_SEGMENTS}')
     return offences
 
 
-def test_the_engine_outside_bitmappy_points_nowhere_into_it():
-    """No engine file outside bitmappy/ imports Bitmappy or names its sprite library's path."""
-    assert engine_files_pointing_into_bitmappy(project_root=PROJECT_ROOT) == []
+def test_the_engine_points_nowhere_bitmappy_was():
+    """No engine file imports glitchygames.bitmappy or names Bitmappy's old sprite path."""
+    assert engine_files_pointing_at_bitmappys_old_places(project_root=PROJECT_ROOT) == []
 
 
 @pytest.mark.parametrize(
@@ -398,31 +574,459 @@ def test_the_engine_outside_bitmappy_points_nowhere_into_it():
         ),
         ('from glitchygames import bitmappy\n', 'imports glitchygames.bitmappy'),
         ('import glitchygames.bitmappy.utils\n', 'imports glitchygames.bitmappy.utils'),
-        ('import bitmappy\n', 'imports bitmappy'),
-        ('import bitmappy.utils\n', 'imports bitmappy.utils'),
-        ('from bitmappy import main\n', 'imports bitmappy'),
-        ('from bitmappy.editor import BitmapEditorScene\n', 'imports bitmappy.editor'),
         (
             "PATH = ('examples', 'resources', 'sprites')\n",
             "names the sprite path 'examples', 'resources', 'sprites'",
         ),
     ],
 )
-def test_the_guard_finds_each_way_to_point_into_bitmappy(tmp_path, source, expected_offence):
-    """The guard reports an import (each spelling, either package) and the sprite path.
+def test_the_guard_finds_each_way_to_point_where_bitmappy_was(tmp_path, source, expected_offence):
+    """The guard reports an import of the old package (each spelling) and the old sprite path."""
+    write_engine_module(project_root=tmp_path, source=source)
 
-    It spares bitmappy/ (where the package was, inside the engine).
-    """
-    engine_directory = tmp_path / 'src' / 'glitchygames'
-    (engine_directory / 'bitmappy').mkdir(parents=True)
-    (engine_directory / 'bitmappy' / 'inside.py').write_text(source, encoding='utf-8')
-    (engine_directory / 'outside.py').write_text(source, encoding='utf-8')
-    (tmp_path / 'pyproject.toml').write_text(
-        '[tool.uv.workspace]\nmembers = []\n', encoding='utf-8'
-    )
-
-    offences = engine_files_pointing_into_bitmappy(project_root=tmp_path)
+    offences = engine_files_pointing_at_bitmappys_old_places(project_root=tmp_path)
 
     assert len(offences) == 1
     assert offences[0].startswith('outside.py: ')
     assert expected_offence in offences[0]
+
+
+def test_every_member_keeps_its_packages_under_src():
+    """Every member's import packages are under <member>/src/ (Brave Adventurer's precedent)."""
+    assert members_with_packages_outside_src(members=MEMBERS) == []
+
+
+def members_with_packages_outside_src(*, members: Sequence[WorkspaceMember]) -> list[str]:
+    """List each member package directory that is not under its member's ``src/``.
+
+    Args:
+        members: The workspace's members.
+
+    Returns:
+        ``<distribution>: <package directory below the member>`` for each offence, in member order.
+
+    """
+    return [
+        f'{member.distribution}: {package_directory.relative_to(member.directory).as_posix()}'
+        for member in members
+        for package_directory in member.package_directories
+        if not package_directory.is_relative_to(member.directory / 'src')
+    ]
+
+
+def test_the_src_layout_guard_names_each_package_outside_src(tmp_path):
+    """A flat package is reported with its distribution; src and mixed members are judged apart."""
+    flat_member = WorkspaceMember(
+        directory=tmp_path / 'src' / 'games' / 'flat-game',
+        distribution='flat-game',
+        import_packages=('flat_game',),
+        console_scripts=(),
+    )
+    src_member = WorkspaceMember(
+        directory=tmp_path / 'src' / 'games' / 'src-game',
+        distribution='src-game',
+        import_packages=('src_game',),
+        package_relative_paths=(Path('src') / 'src_game',),
+        console_scripts=(),
+    )
+    mixed_member = WorkspaceMember(
+        directory=tmp_path / 'src' / 'games' / 'mixed-game',
+        distribution='mixed-game',
+        import_packages=('mixed_game', 'mixed_game_extra'),
+        package_relative_paths=(Path('mixed_game'), Path('src') / 'mixed_game_extra'),
+        console_scripts=(),
+    )
+
+    offences = members_with_packages_outside_src(members=[flat_member, src_member, mixed_member])
+
+    assert offences == ['flat-game: flat_game', 'mixed-game: mixed_game']
+
+
+def load_noxfile_source_package_directories(*, project_root: Path) -> list[str]:
+    """Read ``_SOURCE_PACKAGE_DIRS`` from the project's noxfile.py without executing it.
+
+    Importing a second copy of a noxfile registers its sessions again (a FutureWarning, an error
+    here), and the synthetic project in a test has no importable noxfile, so the list literal is
+    read from the syntax tree.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        The noxfile's list.
+
+    Raises:
+        LookupError: If the noxfile assigns no ``_SOURCE_PACKAGE_DIRS``.
+
+    """
+    tree = ast.parse((project_root / 'noxfile.py').read_text(encoding='utf-8'))
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == '_SOURCE_PACKAGE_DIRS'
+        ):
+            return list(ast.literal_eval(node.value))
+    message = 'noxfile.py assigns no _SOURCE_PACKAGE_DIRS'
+    raise LookupError(message)
+
+
+def configuration_lists_naming_member_paths(
+    *, project_root: Path
+) -> list[tuple[str, bool, list[str]]]:
+    """Read the root configuration lists that name member paths.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        ``(where, takes_member_directory, entries)`` for each list: ``where`` names the file and
+        key; ``takes_member_directory`` is whether the member directory itself is a valid entry.
+
+    """
+    pyproject = root_pyproject(project_root=project_root)
+    coverage_paths: list[str] = [
+        entry for entries in pyproject['tool']['coverage']['paths'].values() for entry in entries
+    ]
+    configuration_lists: list[tuple[str, bool, list[str]]] = [
+        ('pyproject.toml [tool.ruff] src', False, pyproject['tool']['ruff']['src']),
+        (
+            'pyproject.toml [tool.ty.environment] root',
+            False,
+            pyproject['tool']['ty']['environment']['root'],
+        ),
+        ('pyproject.toml [tool.coverage.paths]', False, coverage_paths),
+        (
+            'noxfile.py _SOURCE_PACKAGE_DIRS',
+            False,
+            load_noxfile_source_package_directories(project_root=project_root),
+        ),
+    ]
+    environments = pyright_configuration(project_root=project_root)['executionEnvironments']
+    configuration_lists.append((
+        'pyrightconfig.json executionEnvironments root',
+        True,
+        [environment['root'] for environment in environments],
+    ))
+    configuration_lists.extend(
+        (
+            f'pyrightconfig.json executionEnvironments[{environment["root"]}] extraPaths',
+            False,
+            environment.get('extraPaths', []),
+        )
+        for environment in environments
+    )
+    mkdocs = mkdocs_configuration(project_root=project_root)
+    configuration_lists.extend(
+        (
+            'mkdocs.yml plugins mkdocstrings handlers python paths',
+            False,
+            plugin['mkdocstrings']['handlers']['python']['paths'],
+        )
+        for plugin in mkdocs['plugins']
+        if isinstance(plugin, dict) and 'mkdocstrings' in plugin
+    )
+    return configuration_lists
+
+
+def stale_member_paths_in_configuration(
+    *, project_root: Path, members: Sequence[WorkspaceMember]
+) -> list[str]:
+    """List the configuration entries inside a member that the workspace does not derive.
+
+    An entry inside a member's directory is derived when it is one of that member's import roots,
+    package directories or tests directory, or (in a list that takes it) the member directory.
+
+    Args:
+        project_root: The repository, whose configuration files are read.
+        members: The workspace's members, with directories under ``project_root``.
+
+    Returns:
+        ``<file and key>: <entry>`` for each stale entry, in list order.
+
+    """
+    stale_entries: list[str] = []
+    for where, takes_member_directory, entries in configuration_lists_naming_member_paths(
+        project_root=project_root
+    ):
+        for entry in entries:
+            entry_path = PurePosixPath(entry)
+            for member in members:
+                member_path = PurePosixPath(member.directory.relative_to(project_root).as_posix())
+                if entry_path != member_path and member_path not in entry_path.parents:
+                    continue
+                derived = {
+                    *(
+                        path.relative_to(project_root).as_posix()
+                        for path in (
+                            *member.import_roots,
+                            *member.package_directories,
+                            member.tests_directory,
+                        )
+                    ),
+                    *([member_path.as_posix()] if takes_member_directory else []),
+                }
+                if entry not in derived:
+                    stale_entries.append(f'{where}: {entry}')
+    return stale_entries
+
+
+def test_no_configuration_entry_names_a_member_path_the_workspace_does_not_derive():
+    """Every ruff/ty/pyright/nox/mkdocs/coverage entry inside a member is one it derives.
+
+    A flat path left beside the new src one (src/games/clockwork-keep next to
+    src/games/clockwork-keep/src) would otherwise slip through every guard above, which only
+    check that the right entries are present.
+    """
+    assert stale_member_paths_in_configuration(project_root=PROJECT_ROOT, members=MEMBERS) == []
+
+
+def write_synthetic_workspace(*, project_root: Path, stale: bool) -> list[WorkspaceMember]:
+    """Write a one-member src-layout project's configuration, optionally with stale entries.
+
+    Args:
+        project_root: Where to write it.
+        stale: Whether to plant the old flat path (the member directory) in each list.
+
+    Returns:
+        The project's members.
+
+    """
+    member = WorkspaceMember(
+        directory=project_root / 'src' / 'games' / 'fake-game',
+        distribution='fake-game',
+        import_packages=('fake_game',),
+        package_relative_paths=(Path('src') / 'fake_game',),
+        console_scripts=(),
+    )
+    member_path = 'src/games/fake-game'
+    derived = f'{member_path}/src'
+    old = member_path if stale else f'{member_path}/src'
+    (project_root / 'pyproject.toml').write_text(
+        '[tool.ruff]\n'
+        f'src = ["src", "{derived}", "{old}"]\n'
+        '[tool.ty.environment]\n'
+        f'root = ["src", "{derived}", "{old}"]\n'
+        '[tool.coverage.paths]\n'
+        f'fake_game = ["{derived}/fake_game", "*/site-packages/fake_game", "{old}/fake_game"]\n',
+        encoding='utf-8',
+    )
+    (project_root / 'pyrightconfig.json').write_text(
+        json.dumps({
+            'executionEnvironments': [
+                {'root': f'{member_path}/tests', 'extraPaths': ['src', derived, old]},
+                {'root': member_path, 'extraPaths': ['src', derived]},
+            ]
+        }),
+        encoding='utf-8',
+    )
+    (project_root / 'noxfile.py').write_text(
+        f'_SOURCE_PACKAGE_DIRS = ["src/glitchygames", "{derived}/fake_game", "{old}/fake_game"]\n',
+        encoding='utf-8',
+    )
+    (project_root / 'mkdocs.yml').write_text(
+        'plugins:\n'
+        '  - search\n'
+        '  - mkdocstrings:\n'
+        '      handlers:\n'
+        '        python:\n'
+        f'          paths: [src, {derived}, {old}]\n',
+        encoding='utf-8',
+    )
+    return [member]
+
+
+def test_the_stale_path_guard_passes_a_configuration_that_names_only_derived_paths(tmp_path):
+    """Import roots, package directories, the tests directory and the pyright member root pass."""
+    members = write_synthetic_workspace(project_root=tmp_path, stale=False)
+
+    assert stale_member_paths_in_configuration(project_root=tmp_path, members=members) == []
+
+
+def test_the_stale_path_guard_names_the_file_and_key_of_each_planted_flat_path(tmp_path):
+    """The old flat member directory (and a path under it) is reported in every list it is in."""
+    members = write_synthetic_workspace(project_root=tmp_path, stale=True)
+
+    stale_entries = stale_member_paths_in_configuration(project_root=tmp_path, members=members)
+
+    tests_extra_paths = (
+        'pyrightconfig.json executionEnvironments[src/games/fake-game/tests] extraPaths'
+    )
+    assert stale_entries == [
+        'pyproject.toml [tool.ruff] src: src/games/fake-game',
+        'pyproject.toml [tool.ty.environment] root: src/games/fake-game',
+        'pyproject.toml [tool.coverage.paths]: src/games/fake-game/fake_game',
+        'noxfile.py _SOURCE_PACKAGE_DIRS: src/games/fake-game/fake_game',
+        f'{tests_extra_paths}: src/games/fake-game',
+        'mkdocs.yml plugins mkdocstrings handlers python paths: src/games/fake-game',
+    ]
+
+
+def test_a_noxfile_without_the_source_package_list_is_an_error(tmp_path):
+    """The guard refuses to pass on a list it cannot find."""
+    (tmp_path / 'noxfile.py').write_text('_CODE_DIRS = []\n', encoding='utf-8')
+
+    with pytest.raises(LookupError, match='_SOURCE_PACKAGE_DIRS'):
+        load_noxfile_source_package_directories(project_root=tmp_path)
+
+
+# A member declares what it imports (decision 10; Task D15 item 2). Adapted from the draft
+# plans/2026-10-25-workspace-packages-2-games-demos-apps.md, Task 2 (its l.607-723), for the
+# src/ layout
+
+
+def imported_top_level_modules(*, package_directory: Path) -> set[str]:
+    """Return every top-level module a package's files import (absolute imports, at any depth).
+
+    Returns:
+        The module names.
+
+    """
+    modules: set[str] = set()
+    for path in package_directory.rglob('*.py'):
+        tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                modules.update(alias.name.partition('.')[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                modules.add(node.module.partition('.')[0])
+    return modules
+
+
+def distributions_by_module(*, members: Sequence[WorkspaceMember]) -> dict[str, set[str]]:
+    """Return each importable top-level module's distributions, canonical names.
+
+    The workspace's own packages are named from the workspace: their editable installs record a
+    .pth file, not their packages, so importlib.metadata cannot map them.
+
+    Returns:
+        Module -> the distributions that install it.
+
+    """
+    owners = {
+        module: {canonical_distribution_name(name=distribution) for distribution in distributions}
+        for module, distributions in importlib.metadata.packages_distributions().items()
+    }
+    owners[ENGINE_PACKAGE] = {ENGINE_PACKAGE}
+    for member in members:
+        for package in member.import_packages:
+            owners[package] = {member.distribution}
+    return owners
+
+
+def undeclared_imports(*, member: WorkspaceMember, owners: dict[str, set[str]]) -> list[str]:
+    """Return what a member imports from a distribution its pyproject.toml does not declare.
+
+    Every import counts: an optional one (in ``try``) or a type-only one (under
+    ``if TYPE_CHECKING:``) too, since the member installed alone may still reach it (a type
+    checker of the member, a feature turned on); declare it, or leave it out of the package.
+
+    Returns:
+        One line per undeclared module.
+
+    """
+    problems: list[str] = []
+    for package_directory in member.package_directories:
+        for module in sorted(imported_top_level_modules(package_directory=package_directory)):
+            if module in sys.stdlib_module_names or module in member.import_packages:
+                continue
+            distributions = owners.get(module, set())
+            if not distributions & set(member.dependencies):
+                installed_by = ', '.join(sorted(distributions)) or 'no installed distribution'
+                problems.append(
+                    f'{member.distribution} imports {module} ({installed_by}) undeclared'
+                )
+    return problems
+
+
+@pytest.mark.parametrize('member', MEMBERS, ids=member_name)
+def test_every_member_declares_what_it_imports(member):
+    """A member installed alone has every package it imports (the workspace hides a gap)."""
+    assert undeclared_imports(member=member, owners=distributions_by_module(members=MEMBERS)) == []
+
+
+@pytest.mark.parametrize('member', MEMBERS, ids=member_name)
+def test_every_member_depends_on_the_engine_with_a_floor(member):
+    """``glitchygames>=<the engine's version>``: no member resolves an older engine (#224 item 45).
+
+    The floor is the engine's own version, read from the root pyproject.toml, so a version bump
+    fails here until every member's floor follows it.
+    """
+    pyproject = tomllib.loads((member.directory / 'pyproject.toml').read_text(encoding='utf-8'))
+    engine_version = root_pyproject()['project']['version']
+
+    assert f'glitchygames>={engine_version}' in pyproject['project']['dependencies']
+
+
+def test_an_undeclared_import_is_found(tmp_path):
+    """A planted member importing pydantic while declaring only the engine and pygame is caught."""
+    package_directory = tmp_path / 'space_game'
+    (package_directory / 'levels').mkdir(parents=True)
+    (package_directory / 'game.py').write_text(
+        'import os\nimport pygame\nfrom space_game import levels\nfrom . import levels\n',
+        encoding='utf-8',
+    )
+    (package_directory / 'levels' / 'first.py').write_text(
+        'def load():\n    from pydantic import BaseModel\n    return BaseModel\n',
+        encoding='utf-8',
+    )
+    member = WorkspaceMember(
+        directory=tmp_path,
+        distribution='space-game',
+        import_packages=('space_game',),
+        console_scripts=(),
+        dependencies=('glitchygames', 'pygame-ce'),
+    )
+
+    problems = undeclared_imports(member=member, owners=distributions_by_module(members=MEMBERS))
+
+    assert problems == ['space-game imports pydantic (pydantic) undeclared']
+
+
+def test_an_import_no_distribution_installs_is_found(tmp_path):
+    """A module nothing installed provides is named as such."""
+    package_directory = tmp_path / 'space_game'
+    package_directory.mkdir()
+    (package_directory / 'game.py').write_text('import not_installed_anywhere\n', encoding='utf-8')
+    member = WorkspaceMember(
+        directory=tmp_path,
+        distribution='space-game',
+        import_packages=('space_game',),
+        console_scripts=(),
+        dependencies=('glitchygames',),
+    )
+
+    problems = undeclared_imports(member=member, owners=distributions_by_module(members=MEMBERS))
+
+    assert problems == [
+        'space-game imports not_installed_anywhere (no installed distribution) undeclared'
+    ]
+
+
+def test_an_optional_or_type_only_import_must_be_declared_too(tmp_path):
+    """Every import counts, a guarded or a TYPE_CHECKING one too: installed alone, it may run."""
+    package_directory = tmp_path / 'space_game'
+    package_directory.mkdir()
+    (package_directory / 'game.py').write_text(
+        'from typing import TYPE_CHECKING\n'
+        'if TYPE_CHECKING:\n'
+        '    from pydantic import BaseModel\n'
+        'try:\n'
+        '    import numpy\n'
+        'except ImportError:\n'
+        '    numpy = None\n',
+        encoding='utf-8',
+    )
+    member = WorkspaceMember(
+        directory=tmp_path,
+        distribution='space-game',
+        import_packages=('space_game',),
+        console_scripts=(),
+        dependencies=('glitchygames',),
+    )
+
+    assert undeclared_imports(member=member, owners=distributions_by_module(members=MEMBERS)) == [
+        'space-game imports numpy (numpy) undeclared',
+        'space-game imports pydantic (pydantic) undeclared',
+    ]

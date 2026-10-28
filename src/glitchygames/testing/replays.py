@@ -21,7 +21,9 @@ with ``run_command``, glitchygames/process.py: the engine's one child-process la
         --replay-trace <recording> --headless --log-level warning
 
 where the entry point is the console script's (``game_entry_point``), loaded the way its
-installed console script loads it.
+installed console script loads it. The console script lookups and the child replay live in
+glitchygames/replay/tools/children.py (``recording_console_script``, ``replay_recording_headless``),
+which the ``glitchygames`` command shares and which never imports pytest.
 ``--headless`` puts the child on SDL's dummy drivers and runs it unpaced, so the environment is
 passed on unchanged. The item passes when the child exits ``ExitCode.SUCCESS`` (the replay matched
 every frame); any other exit fails it with the exit code's name and the child's output (standard
@@ -41,12 +43,32 @@ workspace member's package (``<package>/demos/<name>.jsonl.gz``, found by
 ``glitchygames.bundled_demos``, listed by ``bundled_demo_paths``) are outside the suite's
 directories, so tests/replay/test_bundled_demos.py replays each one through it.
 ``rebaseline_recording_headless`` runs the same child with ``--rebaseline NEW``
-(scripts/replay_metrics.py measures every recording through it).
+(``glitchygames.replay.tools.measure`` measures every recording through it).
 
-Loading the plugin: ``pytest_plugins = ['glitchygames.testing.replays']`` in the root conftest
-(this project's ``conftest.py``), or ``pytest -p glitchygames.testing.replays``. Recordings are
-made by ``--record-trace``; this project's fixtures (each member's
-``<member>/tests/fixtures/replays/``) are recorded by scripts/record_scripted_session.py.
+Loading the plugin: it registers itself, through the engine's ``pytest11`` entry point
+(``pyproject.toml``), in every pytest run of any project with glitchygames installed: no conftest
+line is needed. Its entry point is named after this module, ``glitchygames.testing.replays``, so
+a project that still loads it by name (``pytest -p glitchygames.testing.replays``, or
+``pytest_plugins = ['glitchygames.testing.replays']`` in a conftest) loads the same plugin once:
+pytest skips a plugin already registered under the name it is asked for, but refuses one module
+registered under two names. ``pytest -p no:glitchygames.testing.replays`` turns it off.
+
+Because every pytest run loads it, a project that is no game must get nothing from it: no item
+(only a ``.jsonl.gz`` under ``fixtures/replays/`` is collected) and no output. pygame prints a
+banner when it is first imported, so this module imports neither the engine's replay tools nor
+pygame when it loads: only pygame-free leaves (``glitchygames.bundled_demos``,
+``glitchygames.exit_codes``, ``glitchygames.tracing``). The child-process helpers
+(glitchygames/replay/tools/children.py, which import pygame through ``glitchygames.replay``) are
+imported inside ``ReplayFile.collect`` and ``ReplayItem.runtest``, once a recording has been
+found, when pytest is capturing output. (Deferring the import was chosen over setting
+``PYGAME_HIDE_SUPPORT_PROMPT`` at load: that would change every project's environment, and would
+still import pygame at start-up in projects that have no recording, ahead of their own
+configuration, such as this suite's tests/harness.py SDL defaults.)
+
+Recordings are made by ``--record-trace``, or by the scripted-session recorder
+(``--record-session``, glitchygames/replay/tools/scripted_sessions.py); this project's fixtures
+(each member's ``<member>/tests/fixtures/replays/``) are recorded by
+scripts/record_scripted_session.py, on that recorder.
 
 The collector follows pytest's "Working with non-python tests" example
 (https://docs.pytest.org/en/stable/example/nonpython.html).
@@ -54,31 +76,23 @@ The collector follows pytest's "Working with non-python tests" example
 
 from __future__ import annotations
 
-import importlib.metadata
-import os
-import sys
 from typing import TYPE_CHECKING, Protocol, Self, cast, override
 
 import pytest
 
-from glitchygames.bundled_demos import CONSOLE_SCRIPTS_GROUP, bundled_demos
+from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
-from glitchygames.logical_names import MEMBER_LAYERS, module_for_logical_module
-from glitchygames.process import run_command, with_options_appended
-from glitchygames.tracing import TraceReader, is_bookmarked_copy
+from glitchygames.tracing import REPLAY_FIXTURES_PATH_PARTS, is_bookmarked_copy
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Iterator
     from pathlib import Path
-
-    from glitchygames.process import CompletedProcess
 
 RECORDING_SUFFIX = '.jsonl.gz'
 # A recording is collected from .../fixtures/replays/<console-script>/<name>.jsonl.gz, or from a
-# workspace member's <member>/tests/fixtures/replays/<name>.jsonl.gz
-REPLAY_FIXTURES_PATH_PARTS = ('fixtures', 'replays')
-# The directory a workspace member's fixtures/ is in: <member>/tests/
-MEMBER_TESTS_DIRECTORY_NAME = 'tests'
+# workspace member's <member>/tests/fixtures/replays/<name>.jsonl.gz (REPLAY_FIXTURES_PATH_PARTS,
+# glitchygames/tracing.py; the console script lookup that reads them is
+# glitchygames/replay/tools/children.py's)
 REPLAY_FIXTURES_LAYOUT = (
     f'{"/".join(REPLAY_FIXTURES_PATH_PARTS)}/<console-script>/<name>{RECORDING_SUFFIX} '
     f"(a workspace member's: <member>/tests/{'/'.join(REPLAY_FIXTURES_PATH_PARTS)}/"
@@ -86,195 +100,6 @@ REPLAY_FIXTURES_LAYOUT = (
 )
 # The exit codes of a replay that refused its recording
 UNUSABLE_RECORDING_EXIT_CODES = frozenset({ExitCode.UNUSABLE_INPUT, ExitCode.MISSING_INPUT})
-# The recording header field naming its game by logical name (glitchygames/logical_names.py),
-# which chooses among a workspace member's several console scripts: replay/driver.py's
-# GAME_HEADER_FIELD, not imported from there (it imports pygame, which this plugin never does);
-# tests/replay/test_replay_plugin.py keeps the two equal
-GAME_HEADER_FIELD = 'game'
-# Kill a replay child that runs longer than this (a headless replay of a few hundred frames
-# takes a second or two)
-REPLAY_TIMEOUT_SECONDS = 300.0
-
-
-def game_entry_point(*, console_script: str) -> importlib.metadata.EntryPoint:
-    """Return a console script's entry point from the installed package metadata.
-
-    Every distribution on ``sys.path`` is searched, in order. ``importlib.metadata.entry_points``
-    is not used: it keeps only the first distribution of each name, so stale metadata of the same
-    package earlier on ``sys.path`` (an old ``<package>.egg-info`` in a source checkout's root,
-    which pytest puts first) would hide the installed package's console scripts.
-
-    Args:
-        console_script: The console script's name (``[project.scripts]``), for example
-            ``paddleslap``.
-
-    Returns:
-        The entry point (``value`` is ``'module:function'``).
-
-    Raises:
-        KeyError: If no installed package has a console script of that name.
-
-    """
-    for distribution in importlib.metadata.distributions():
-        for entry_point in distribution.entry_points.select(
-            group=CONSOLE_SCRIPTS_GROUP, name=console_script
-        ):
-            return entry_point
-    raise KeyError(console_script)
-
-
-def recording_console_script(*, path: Path) -> str:
-    """Return the console script that replays a recording under a ``fixtures/replays/`` directory.
-
-    Two layouts: a workspace member's recordings lie directly in
-    ``<member>/tests/fixtures/replays/`` and are replayed by the member distribution's console
-    script (the member's directory is named after its distribution: ``src/games/mr-muncher``):
-    its one (``src/games/brave-adventurer``'s launcher starts whichever of its games the
-    recording's header names), or, for a member with a console script per game, the one that
-    starts the game the recording's header names (``recorded_games_console_script``); another
-    project's (this one's games are all members) lie in
-    ``fixtures/replays/<console-script>/``, whose folder names the script.
-
-    Args:
-        path: The recording.
-
-    Returns:
-        The console script's name.
-
-    Raises:
-        KeyError: If a recording directly in ``fixtures/replays/`` is not in a member's
-            ``tests/`` (the directory above ``fixtures/`` is not ``tests``: another project's
-            layout, whose directory four levels up names no member), the member's distribution
-            is not installed or has no console script, its several console scripts do not
-            include exactly one starting the recorded game (``recorded_games_console_script``),
-            or the folder names no installed console script.
-
-    """
-    if path.parent.parts[-len(REPLAY_FIXTURES_PATH_PARTS) :] == REPLAY_FIXTURES_PATH_PARTS:
-        tests_directory = path.parent.parent.parent
-        if tests_directory.name != MEMBER_TESTS_DIRECTORY_NAME:
-            message = (
-                f'{path}: a recording directly in {"/".join(REPLAY_FIXTURES_PATH_PARTS)}/ is a '
-                f"workspace member's, in <member>/{MEMBER_TESTS_DIRECTORY_NAME}/, but the "
-                f'directory above fixtures/ is {tests_directory.name!r}, not '
-                f'{MEMBER_TESTS_DIRECTORY_NAME!r}'
-            )
-            raise KeyError(message)
-        distribution_name = tests_directory.parent.name
-        try:
-            distribution = importlib.metadata.distribution(distribution_name)
-        except importlib.metadata.PackageNotFoundError:
-            message = (
-                f'{path}: {distribution_name!r} is not an installed workspace member (a plain '
-                '`uv sync` uninstalls members the root does not depend on); install every '
-                'member with `uv sync --all-packages`'
-            )
-            raise KeyError(message) from None
-        console_scripts = [
-            entry_point
-            for entry_point in distribution.entry_points
-            if entry_point.group == CONSOLE_SCRIPTS_GROUP
-        ]
-        if not console_scripts:
-            message = f'{path}: {distribution_name!r} has no console scripts'
-            raise KeyError(message)
-        if len(console_scripts) == 1:
-            return console_scripts[0].name
-        return recorded_games_console_script(
-            path=path, distribution_name=distribution_name, entry_points=console_scripts
-        )
-    try:
-        game_entry_point(console_script=path.parent.name)
-    except KeyError:
-        message = f'{path}: the directory {path.parent.name!r} is not a console script'
-        raise KeyError(message) from None
-    return path.parent.name
-
-
-def console_script_for_game_module(
-    *, entry_points: Iterable[importlib.metadata.EntryPoint], game_module: str
-) -> str:
-    """Return the console script among several whose entry point starts a game module.
-
-    A console script starts the game whose module is its entry point's module or inside it:
-    ``brave_adventurer:main`` (Brave Adventurer's Classic, before its launcher) starts
-    ``brave_adventurer.game``, not ``brave_adventurer_papyrus.game``.
-
-    Args:
-        entry_points: The console scripts' entry points (``value`` is ``'module:function'``).
-        game_module: The game's module (``brave_adventurer.game``).
-
-    Returns:
-        The console script's name.
-
-    Raises:
-        KeyError: If none of them, or more than one, starts the game module.
-
-    """
-    entry_points = list(entry_points)
-    starting = [
-        entry_point.name
-        for entry_point in entry_points
-        if game_module == (module := entry_point.value.partition(':')[0])
-        or game_module.startswith(f'{module}.')
-    ]
-    if len(starting) == 1:
-        return starting[0]
-    if not starting:
-        names = sorted(entry_point.name for entry_point in entry_points)
-        message = f'none of {names} starts {game_module}'
-        raise KeyError(message)
-    message = f'{sorted(starting)} all start {game_module}'
-    raise KeyError(message)
-
-
-def recorded_games_console_script(
-    *, path: Path, distribution_name: str, entry_points: list[importlib.metadata.EntryPoint]
-) -> str:
-    """Return which of a member's several console scripts replays a recording.
-
-    The recording's header names its game by logical name (``game``:
-    ``games.brave_adventurer.game:BraveAdventurerScene``, glitchygames/logical_names.py); the
-    module holding that logical module today (``brave_adventurer.game``) chooses the script
-    (``console_script_for_game_module``).
-
-    Args:
-        path: The recording.
-        distribution_name: The member's distribution (for the messages).
-        entry_points: The distribution's console scripts' entry points (more than one).
-
-    Returns:
-        The console script's name.
-
-    Raises:
-        KeyError: If the recording's header cannot be read or names no game, or not exactly
-            one of the scripts starts the recorded game.
-
-    """
-    try:
-        with TraceReader(path=path) as reader:
-            header = reader.header
-    # A TraceFormatError is a ValueError
-    except OSError, ValueError:
-        message = (
-            f"{path}: its header cannot be read to choose among {distribution_name!r}'s "
-            f'{len(entry_points)} console scripts'
-        )
-        raise KeyError(message) from None
-    recorded_game = header.get(GAME_HEADER_FIELD)
-    if not isinstance(recorded_game, str):
-        message = (
-            f'{path}: no {GAME_HEADER_FIELD!r} in its header (a recording made before logical '
-            f"names) to choose among {distribution_name!r}'s console scripts by"
-        )
-        raise KeyError(message)
-    logical_module = recorded_game.partition(':')[0]
-    game_module = module_for_logical_module(logical_module=logical_module)
-    try:
-        return console_script_for_game_module(entry_points=entry_points, game_module=game_module)
-    except KeyError as error:
-        message = f'{path}: {distribution_name!r}: {error.args[0]}'
-        raise KeyError(message) from None
 
 
 class ReplayFileFactory(Protocol):
@@ -315,108 +140,16 @@ def is_under_replay_fixtures(*, directory: Path) -> bool:
     )
 
 
-def replay_command(*, entry_point: importlib.metadata.EntryPoint, recording: Path) -> list[str]:
-    """Build the child command that replays a recording headless through a game's entry point.
-
-    The child loads the entry point with ``EntryPoint.load()``, as its installed console script
-    does, and calls it. Python places the arguments after ``-c``'s code in the child's
-    ``sys.argv[1:]``, where the engine's option parser reads them.
-
-    Args:
-        entry_point: The game's console script entry point.
-        recording: The recording to replay.
-
-    Returns:
-        The command, as an argument list.
-
-    """
-    load_and_call = (
-        'from importlib.metadata import EntryPoint; '
-        f'EntryPoint(name={entry_point.name!r}, value={entry_point.value!r}, '
-        f'group={entry_point.group!r}).load()()'
-    )
-    return [
-        sys.executable,
-        '-c',
-        load_and_call,
-        '--replay-trace',
-        str(recording),
-        '--headless',
-        '--log-level',
-        'warning',
-    ]
-
-
-def replay_recording_headless(*, console_script: str, path: Path) -> CompletedProcess[str]:
-    """Replay a recording headless through a game's console script, in a child process.
-
-    The child is ``replay_command``'s, started with ``run_command`` with this process's
-    environment (``--headless`` puts it on SDL's dummy drivers). A child still running after
-    REPLAY_TIMEOUT_SECONDS is killed, and run_command's ``subprocess.TimeoutExpired`` is raised.
-
-    Args:
-        console_script: The game's console script (``[project.scripts]``), for example
-            ``paddleslap``.
-        path: The recording.
-
-    Returns:
-        The finished child: ``returncode`` is the replay's ``ExitCode`` (``SUCCESS`` when every
-        frame matched) and ``stdout`` its standard output and error together (the divergence
-        report, or why the recording was refused).
-
-    """
-    entry_point = game_entry_point(console_script=console_script)
-    return run_command(
-        command=replay_command(entry_point=entry_point, recording=path),
-        environment=os.environ,
-        timeout_seconds=REPLAY_TIMEOUT_SECONDS,
-        capture_output=True,
-    )
-
-
-def rebaseline_recording_headless(
-    *, console_script: str, path: Path, new_path: Path
-) -> CompletedProcess[str]:
-    """Rebaseline a recording headless through a game's console script, in a child process.
-
-    The child is ``replay_command``'s plus ``--rebaseline NEW`` (glitchygames/replay/rebaseline.py):
-    it replays ``path`` on the current code, measuring each frame's processing time, and writes
-    the run into ``new_path``. Started and timed out as ``replay_recording_headless`` is.
-
-    Args:
-        console_script: The game's console script (``[project.scripts]``).
-        path: The recording.
-        new_path: Where the rebaselined recording goes (never ``path``: refused).
-
-    Returns:
-        The finished child: ``returncode`` is the rebaseline's ``ExitCode`` and ``stdout`` its
-        standard output and error together (the rebaseline's summary line).
-
-    """
-    entry_point = game_entry_point(console_script=console_script)
-    return run_command(
-        command=with_options_appended(
-            arguments=replay_command(entry_point=entry_point, recording=path),
-            appended=['--rebaseline', str(new_path)],
-        ),
-        environment=os.environ,
-        timeout_seconds=REPLAY_TIMEOUT_SECONDS,
-        capture_output=True,
-    )
-
-
-def bundled_demo_paths(
-    *, packages: tuple[str, ...] = tuple(MEMBER_LAYERS)
-) -> list[tuple[str, Path]]:
+def bundled_demo_paths(*, packages: tuple[str, ...]) -> list[tuple[str, Path]]:
     """Return every demo bundled in an installed package, with the console script that replays it.
 
     The demos are ``glitchygames.bundled_demos.bundled_demos``'s (the one lookup, which
-    scripts/replay_metrics.py uses too); this caller's reaction to a demo no console script
-    replays is to refuse it.
+    ``glitchygames.replay.tools.recordings`` uses too); this caller's reaction to a demo no
+    console script replays is to refuse it.
 
     Args:
-        packages: The top-level import packages to search: every workspace member's
-            (``glitchygames.logical_names.MEMBER_LAYERS``) unless given.
+        packages: The top-level import packages to search (there is no default, as
+            ``bundled_demos`` has none).
 
     Returns:
         ``(console script, demo path)`` pairs, sorted by path.
@@ -458,6 +191,10 @@ class ReplayFile(pytest.File):
         }:
             message = f'{self.path}: recordings go in {REPLAY_FIXTURES_LAYOUT}'
             raise pytest.Collector.CollectError(message)
+        # Imported here, once a recording is found: it imports the engine and pygame (see the
+        # module docstring, "Loading the plugin")
+        from glitchygames.replay.tools.children import recording_console_script
+
         try:
             console_script = recording_console_script(path=self.path)
         except KeyError as error:
@@ -480,6 +217,12 @@ class ReplayItem(pytest.Item):
         fails with run_command's ``subprocess.TimeoutExpired``.
 
         """
+        # Imported here, as in ReplayFile.collect (which has imported it already)
+        from glitchygames.replay.tools.children import (
+            recording_console_script,
+            replay_recording_headless,
+        )
+
         # ReplayFile.collect has checked the recording has a console script
         finished = replay_recording_headless(
             console_script=recording_console_script(path=self.path), path=self.path

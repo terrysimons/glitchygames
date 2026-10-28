@@ -7,19 +7,19 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import gc
 import logging
 import random
 from typing import TYPE_CHECKING, Any, Protocol, Self, override
 
 import pygame
 import pytest
-from scripts.record_golden_traces import FRAME_SECONDS, press, release
 
-import paddleslap
+from glitchygames import logical_names
 from glitchygames.audio.live import VoiceState
 from glitchygames.audio.synth import Waveform
 from glitchygames.events import FPSEVENT, GAMEEVENT
-from glitchygames.examples import joystick_demo
+from glitchygames.exit_codes import BUG_REPORT_HINT
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, ReplayDeviceRegistry
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.live_sources import LiveSources
@@ -42,8 +42,9 @@ from glitchygames.replay.playback import (
     start_playback,
     start_playback_from_recording,
 )
+from glitchygames.replay.tools.golden_traces import FRAME_SECONDS, press, release
 from glitchygames.scene_start import SceneStart
-from glitchygames.scenes import SceneManager
+from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sources import (
     active_sources,
@@ -90,7 +91,7 @@ from tests.world.test_gameplay_replay import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
     from pathlib import Path
 
     from pytest_mock import MockerFixture
@@ -104,6 +105,10 @@ FAR_FROM_ZERO_FRAMES = 40
 TAMPERED_FRAME = 3
 # The live scene's slot, which a playback must never change
 LIVE_SAVE_VALUE = 1
+# The stand-in packages for a game and a demo whose scenes share the name Game (PaddleSlap's and
+# the joystick demo's, games.paddleslap:Game and demos.joystick_demo:Game)
+STAND_IN_GAME_PACKAGE = 'stand_in_paddle_game'
+STAND_IN_DEMO_PACKAGE = 'stand_in_joystick_demo'
 # The frame a second recorded scene begins on
 LATER_SCENE_FRAME = 4
 # What the live doors' scripted polled input says the mouse is at
@@ -113,6 +118,29 @@ FPS_EVENT_INTERVAL_MILLISECONDS = 50
 # A live frame longer than half the default FPS log interval (an FPS event after it), as on a
 # loaded machine (BUGS.md #196)
 LONG_LIVE_FRAME_SECONDS = 0.75
+
+
+@contextlib.contextmanager
+def two_loaded_scenes_named_game() -> Generator[None]:
+    """Hold two loaded stand-in scenes named Game, a game's and a demo's, then collect them.
+
+    The refusals of a shared name need several loaded scenes of that name. They are held here,
+    rather than borrowed from whichever games and demos happen to be loaded (PaddleSlap's and the
+    joystick demo's are both named Game).
+
+    Yields:
+        None, while both are loaded.
+
+    """
+    game_scene = type('Game', (Scene,), {'__module__': STAND_IN_GAME_PACKAGE})
+    demo_scene = type('Game', (Scene,), {'__module__': STAND_IN_DEMO_PACKAGE})
+    try:
+        yield
+    finally:
+        # The stand-ins stay in Scene.__subclasses__() until collected: remove them now, so no
+        # other test sees them (as test_rebaseline_across_logical_modules.py does)
+        del game_scene, demo_scene
+        gc.collect()
 
 
 def recorded_trace(*, path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -370,6 +398,8 @@ class TestPlaybackErrors:
             assert active_sources() is sources_before
             assert random_stream(COUNTING_STREAM_NAME).getstate() == expected_state
             assert 'boom' in caplog.text
+            # The player saw the playback stop: told how to report it
+            assert BUG_REPORT_HINT in caplog.messages
             assert outcome_reason(manager) == 'error'
             # The live game goes on
             step(manager)
@@ -394,6 +424,7 @@ class TestPlaybackErrors:
             expected_stream.setstate(expected_state)
             assert live_scene.marker.rect.x == int(expected_stream.random() * MARKER_TRAVEL)
             assert 'no setup' in caplog.text
+            assert BUG_REPORT_HINT in caplog.messages
             assert outcome_reason(manager) == 'error'
 
     def test_a_recording_without_a_scene_start_starts_nothing(self, tmp_path, caplog):
@@ -468,14 +499,45 @@ class TestPlaybackErrors:
         assert find_scene_class(name='CountingScene') is CountingScene
         assert find_scene_class(name='NoSuchScene') is None
 
-    def test_the_module_picks_one_of_two_loaded_scenes_named_alike(self):
-        """PaddleSlap's and the joystick demo's scenes are both named Game."""
-        assert paddleslap.Game.__name__ == joystick_demo.Game.__name__ == 'Game'
-        assert find_scene_class(name='Game', module='paddleslap') is paddleslap.Game
-        assert (
-            find_scene_class(name='Game', module='glitchygames.examples.joystick_demo')
-            is joystick_demo.Game
+    def test_the_module_picks_one_of_two_loaded_scenes_named_alike(self, mocker: MockerFixture):
+        """A game's and a demo's scenes both named Game resolve while both are loaded.
+
+        Stand-ins for PaddleSlap's and the joystick demo's (``games.paddleslap:Game`` and
+        ``demos.joystick_demo:Game``): one stand-in package in each layer, so the engine's tests
+        import neither member.
+        """
+        mocker.patch.dict(
+            logical_names.MEMBER_LAYERS,
+            {STAND_IN_GAME_PACKAGE: 'games', STAND_IN_DEMO_PACKAGE: 'demos'},
         )
+        game_scene = type('Game', (Scene,), {'__module__': STAND_IN_GAME_PACKAGE})
+        demo_scene = type('Game', (Scene,), {'__module__': STAND_IN_DEMO_PACKAGE})
+        try:
+            logical_scene_names = (
+                logical_names.logical_name(scene_class=game_scene),
+                logical_names.logical_name(scene_class=demo_scene),
+            )
+            # Each lookup must find its own class while both are loaded together
+            each_found_by_module = (
+                find_scene_class(name='Game', module=STAND_IN_GAME_PACKAGE) is game_scene,
+                find_scene_class(name='Game', module=STAND_IN_DEMO_PACKAGE) is demo_scene,
+            )
+            each_found_by_logical_name = (
+                find_scene_class(name='Game', logical=logical_scene_names[0]) is game_scene,
+                find_scene_class(name='Game', logical=logical_scene_names[1]) is demo_scene,
+            )
+        finally:
+            # The stand-ins stay in Scene.__subclasses__() until collected: remove them now, so
+            # no other test sees them (as test_rebaseline_across_logical_modules.py does)
+            del game_scene, demo_scene
+            gc.collect()
+
+        assert logical_scene_names == (
+            f'games.{STAND_IN_GAME_PACKAGE}:Game',
+            f'demos.{STAND_IN_DEMO_PACKAGE}:Game',
+        )
+        assert each_found_by_module == (True, True)
+        assert each_found_by_logical_name == (True, True)
 
     def test_a_scene_start_naming_a_logical_name_finds_its_scene(self):
         assert (
@@ -512,9 +574,10 @@ class TestPlaybackErrors:
         )
 
     def test_a_rebaseline_still_refuses_a_qualified_name_several_loaded_scenes_share(self, caplog):
-        assert (
-            find_scene_class(name='Game', module='a_moved_game.scenes', is_rebaseline=True) is None
-        )
+        with two_loaded_scenes_named_game():
+            found = find_scene_class(name='Game', module='a_moved_game.scenes', is_rebaseline=True)
+
+        assert found is None
         assert 'Several scene classes are named Game' in caplog.text
 
     def test_a_loaded_scene_run_as_main_matches_its_recorded_module_by_name(self):
@@ -523,8 +586,12 @@ class TestPlaybackErrors:
         assert find_scene_class(name='MainModuleOnlyScene', module='a_game.scenes') is main_scene
 
     def test_without_an_exact_match_a_shared_name_is_refused(self, caplog):
-        assert find_scene_class(name='Game', module=None) is None
-        assert find_scene_class(name='Game', module='__main__') is None
+        with two_loaded_scenes_named_game():
+            found_without_a_module = find_scene_class(name='Game', module=None)
+            found_from_main = find_scene_class(name='Game', module='__main__')
+
+        assert found_without_a_module is None
+        assert found_from_main is None
         assert 'Several scene classes are named Game' in caplog.text
 
     def test_a_recorded_start_names_the_scenes_module_and_qualified_name(self, tmp_path):

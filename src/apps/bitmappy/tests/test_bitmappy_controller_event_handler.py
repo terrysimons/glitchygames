@@ -1,4 +1,4 @@
-"""Tests for src/apps/bitmappy/bitmappy/controllers/event_handler.py.
+"""Tests for src/apps/bitmappy/src/bitmappy/controllers/event_handler.py.
 
 The ControllerEventHandler routes controller and joystick events to the mode strategies,
 switches modes from the triggers, and delegates to its canvas, slider, indicator and film

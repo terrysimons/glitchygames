@@ -1,4 +1,4 @@
-"""Tests for FrameOperationManager in src/apps/bitmappy/bitmappy/frame_operations.py.
+"""Tests for FrameOperationManager in src/apps/bitmappy/src/bitmappy/frame_operations.py.
 
 The manager runs against a small stand-in editor holding a real AnimatedSprite and a real
 UndoRedoManager, so the tests check what copy/paste and pixel-change submission do to the

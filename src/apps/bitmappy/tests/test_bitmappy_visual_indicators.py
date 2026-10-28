@@ -1,4 +1,4 @@
-"""Tests for src/apps/bitmappy/bitmappy/controllers/visual_indicators.py.
+"""Tests for src/apps/bitmappy/src/bitmappy/controllers/visual_indicators.py.
 
 Drives the VisualIndicators delegate through a real ControllerEventHandler with real
 ModeSwitcher, ControllerSelection, VisualCollisionManager and MultiControllerManager

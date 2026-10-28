@@ -1,8 +1,8 @@
 """Metrics from recordings' histories: speed changes, behaviour changes and the run ledger.
 
-A leaf beside glitchygames/recording_history.py (no engine imports), shared by
-scripts/recording_report.py, scripts/replay_metrics.py and the docs site's performance graphs
-(scripts/generate_performance_graphs.py). Designs:
+A leaf beside glitchygames/recording_history.py (no engine imports), shared by the engine's
+tools: glitchygames/replay/tools/report.py, measure.py and performance_pages.py (the docs site's
+performance graphs, through scripts/generate_performance_graphs.py). Designs:
 plans/2026-10-23-recording-metrics-1-frame-performance-history.md (Part 1) and
 plans/2026-10-23-recording-metrics-2-behaviour-change-map.md (Part 2).
 
@@ -21,8 +21,11 @@ Every comparison is between adjacent runs of one recording: newer run ``i`` and 
 
 The run ledger holds one ``LedgerRow`` per recording per run, beyond the
 ``MEASUREMENT_RUNS_HISTORY_DEPTH`` runs a recording keeps: JSON Lines (``ledger_text``,
-``parse_ledger``), published on the docs site's gh-pages branch, deduplicated by ``LedgerRow.key``
-(``merge_ledgers``) and graphed per recording, machine and pacing (``performance_series``).
+``parse_ledger``), published where the project's ``[tool.glitchygames]`` ``published-ledger`` says
+(ours: the docs site's gh-pages branch), deduplicated by ``LedgerRow.key`` (``merge_ledgers``)
+and graphed per recording, machine and pacing (``performance_series``). Where the ledger lives
+and which recordings moved are the project's settings (glitchygames/replay/tools/settings.py),
+passed in by the caller: this module reads no project file.
 """
 
 from __future__ import annotations
@@ -34,13 +37,12 @@ import os
 import re
 from datetime import UTC, datetime
 from enum import StrEnum
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, cast
 
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.build_info import RevisionSource, SourceRevision
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
     PROCESSING_SECONDS_FIELD,
@@ -54,6 +56,7 @@ from glitchygames.tracing import FRAMES_FIELD
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
+    from pathlib import Path
 
     from glitchygames.code_tree import LandedCommit
 
@@ -73,57 +76,24 @@ DEFAULT_MINIMUM_CHANGE_SECONDS = 0.0002
 SHORT_COMMIT_DIGITS = 7
 UNKNOWN_COMMIT = 'commit unknown'
 MILLISECONDS_PER_SECOND = 1000.0
-# Where the docs site publishes the ledger: docs/<this> in the docs tree, <this> on gh-pages
-PUBLISHED_LEDGER_PATH = 'quality/metrics/replay-ledger.jsonl'
-PUBLISHED_LEDGER_REF = 'origin/gh-pages'
-# Where measured rows wait for a deploy to publish them, relative to the repository (gitignored)
-PENDING_LEDGER_RELATIVE_PATH = Path('test-results') / 'replay-metrics' / 'pending.jsonl'
 GIT_TIMEOUT_SECONDS = 30.0
-# Recordings that moved, old repository path -> new: their ledger rows from before the move are
-# the same series (performance_series groups by the new path), so a recording's history
-# continues across its move (plans/2026-10-24-workspace-packages.md)
-RECORDING_PATH_RENAMES: dict[str, str] = {
-    # The rally demo moved twice (into src/, then into its member): a line from each old path
-    'glitchygames/examples/paddleslap_demos/rally.jsonl.gz': (
-        'src/games/paddleslap/paddleslap/demos/rally.jsonl.gz'
-    ),
-    'src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz': (
-        'src/games/paddleslap/paddleslap/demos/rally.jsonl.gz'
-    ),
-    'tests/fixtures/replays/mr-muncher/golden.jsonl.gz': (
-        'src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz'
-    ),
-    'tests/fixtures/replays/brave-adventurer/golden.jsonl.gz': (
-        'src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz'
-    ),
-    'tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz': (
-        'src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz'
-    ),
-    'tests/fixtures/replays/clockwork-keep/golden.jsonl.gz': (
-        'src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz'
-    ),
-    'tests/fixtures/replays/paddleslap/golden.jsonl.gz': (
-        'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
-    ),
-    'tests/fixtures/replays/drawing-fire/golden.jsonl.gz': (
-        'src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz'
-    ),
-}
 
 
 def short_commit(*, run: MeasurementRun | None) -> str | None:
-    """Return a run's commit, abbreviated.
+    """Return a run's commit, abbreviated: the game's, else the engine's.
 
     Args:
         run: The run, or None (unreadable).
 
     Returns:
-        The first ``SHORT_COMMIT_DIGITS`` digits of its commit, or None when unknown.
+        The first ``SHORT_COMMIT_DIGITS`` digits of its commit
+        (``MeasurementRun.game_or_engine_revision``), or None when unknown.
 
     """
-    if run is None or run.source_revision is None or run.source_revision.commit is None:
+    revision = None if run is None else run.game_or_engine_revision
+    if revision is None or revision.commit is None:
         return None
-    return run.source_revision.commit[:SHORT_COMMIT_DIGITS]
+    return revision.commit[:SHORT_COMMIT_DIGITS]
 
 
 def machine_label(*, run: MeasurementRun) -> str:
@@ -771,26 +741,40 @@ class LedgerRow(BaseModel):
         """The row's identity: the recording, when the run measured and on which machine."""
         return f'{self.recording}|{self.run.measured_at}|{self.run.machine}'
 
-    @property
-    def held_key(self: Self) -> str:
-        """The row's identity with its recording at its current path (``RECORDING_PATH_RENAMES``).
+    def held_key(self: Self, *, recording_renames: Mapping[str, str]) -> str:
+        """Return the row's identity with its recording at its current path.
 
         A moved recording's earlier runs are the same runs under either path, so "already held"
         compares these, not ``key``.
+
+        Args:
+            recording_renames: Recordings that moved, old repository path -> new
+                (``[tool.glitchygames]`` ``recording-renames``).
+
+        Returns:
+            The recording at its current path, when the run measured and on which machine.
+
         """
-        recording = RECORDING_PATH_RENAMES.get(self.recording, self.recording)
+        recording = recording_renames.get(self.recording, self.recording)
         return f'{recording}|{self.run.measured_at}|{self.run.machine}'
 
     @property
     def commit(self: Self) -> str | None:
-        """The run's full commit, or None when unknown."""
-        revision = self.run.source_revision
+        """The run's full commit, or None when unknown.
+
+        The game's (``MeasurementRun.game_or_engine_revision``): the engine's only for a run
+        from before ``game_source_revision``, or of a game whose package was not found.
+        """
+        revision = self.run.game_or_engine_revision
         return None if revision is None else revision.commit
 
     @property
     def measured_uncommitted_changes(self: Self) -> bool:
-        """Whether the run's checkout had uncommitted changes (unknown counts as none)."""
-        revision = self.run.source_revision
+        """Whether the run's checkout had uncommitted changes (unknown counts as none).
+
+        The game's checkout, as for ``commit``.
+        """
+        revision = self.run.game_or_engine_revision
         return revision is not None and bool(revision.uncommitted_changes)
 
     @property
@@ -912,10 +896,10 @@ def landed_rows(
     """Return the rows whose measured code landed, each labelled with the commit it landed in.
 
     A row naming a code tree that landed (``code_tree.landed_code_trees``) takes that commit
-    and its date, as committed code. A row naming one that did not (an intermediate commit's, a
-    branch's that never merged or was behind main) is left out, unless ``keep_unlanded`` (a
-    local build, showing a branch's rows before it merges). A row naming no code tree (the
-    history measured by commit) passes through.
+    and its date, as committed code (its game's revision does: ``_landed_run``). A row naming
+    one that did not (an intermediate commit's, a branch's that never merged or was behind
+    main) is left out, unless ``keep_unlanded`` (a local build, showing a branch's rows before
+    it merges). A row naming no code tree (the history measured by commit) passes through.
 
     Args:
         rows: The rows.
@@ -936,22 +920,43 @@ def landed_rows(
             if keep_unlanded:
                 kept.append(row)
             continue
-        revision = row.run.source_revision
-        landed_revision = (
-            SourceRevision(source=RevisionSource.GIT_CHECKOUT) if revision is None else revision
-        ).model_copy(
-            update={
-                'commit': landing.commit,
-                'committed_at': landing.committed_at,
-                'uncommitted_changes': False,
-            }
-        )
-        kept.append(
-            row.model_copy(
-                update={'run': row.run.model_copy(update={'source_revision': landed_revision})}
-            )
-        )
+        kept.append(row.model_copy(update={'run': _landed_run(run=row.run, landing=landing)}))
     return kept
+
+
+def _landed_run(*, run: MeasurementRun, landing: LandedCommit) -> MeasurementRun:
+    """Return a run labelled with the commit its code tree landed in, as committed code.
+
+    The code tree is the project's, so the landing commit is the game's: the game's revision
+    takes it when the run names one. The engine's takes it too when it named the same commit
+    (one checkout, as in this repository) or the run names no game revision (a run from before
+    the field); another repository's engine keeps its own.
+
+    Returns:
+        The run, relabelled.
+
+    """
+    landed_fields = {
+        'commit': landing.commit,
+        'committed_at': landing.committed_at,
+        'uncommitted_changes': False,
+    }
+    engine_revision = run.source_revision
+    game_revision = run.game_source_revision
+    update: dict[str, SourceRevision] = {}
+    if game_revision is not None:
+        update['game_source_revision'] = game_revision.model_copy(update=landed_fields)
+    if game_revision is None or (
+        engine_revision is not None
+        and engine_revision.commit is not None
+        and engine_revision.commit == game_revision.commit
+    ):
+        update['source_revision'] = (
+            SourceRevision(source=RevisionSource.GIT_CHECKOUT)
+            if engine_revision is None
+            else engine_revision
+        ).model_copy(update=landed_fields)
+    return run.model_copy(update=update)
 
 
 def ledger_text(*, rows: Iterable[LedgerRow]) -> str:
@@ -983,7 +988,7 @@ def _instant(text: str | None) -> datetime:
 
 
 def _row_order(row: LedgerRow) -> tuple[datetime, datetime]:
-    revision = row.run.source_revision
+    revision = row.run.game_or_engine_revision
     return (
         _instant(None if revision is None else revision.committed_at),
         _instant(row.run.measured_at),
@@ -1007,23 +1012,28 @@ def merge_ledgers(*, ledgers: Iterable[Iterable[LedgerRow]]) -> list[LedgerRow]:
     return sorted(merged.values(), key=_row_order)
 
 
-def published_ledger_text(*, project_root: Path, ref: str = PUBLISHED_LEDGER_REF) -> str:
-    """Return the ledger published on gh-pages, as the local ``ref`` holds it.
+def published_ledger_text(*, project_root: Path, published_ledger: str | None) -> str:
+    """Return the published ledger, as the local ref holds it.
 
     Args:
         project_root: The repository.
-        ref: The published branch's local ref (fetched by docs-deploy; never fetched here).
+        published_ledger: Where it is published, as ``REF:PATH`` (``[tool.glitchygames]``
+            ``published-ledger``; ours: on gh-pages, whose local ref docs-deploy fetches; it is
+            never fetched here), or None: the project publishes none.
 
     Returns:
-        The ledger's text; empty when git, the ref or the file is missing.
+        The ledger's text; empty when nothing is published, or git, the ref or the file is
+        missing.
 
     """
+    if published_ledger is None:
+        return ''
     try:
         completed = run_command(
-            command=['git', 'show', f'{ref}:{PUBLISHED_LEDGER_PATH}'],
+            command=['git', 'show', published_ledger],
             environment=os.environ,
             timeout_seconds=GIT_TIMEOUT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
             working_directory=project_root,
         )
     except OSError, TimeoutExpired:
@@ -1093,6 +1103,11 @@ def ledger_rows_from_rebaseline(
 ) -> list[LedgerRow]:
     """Return the ledger rows of a rebaselined recording: its newest run, then each it held.
 
+    Each row's commit and uncommitted-changes flag are its run's game's
+    (``MeasurementRun.game_source_revision``), else, for a run from before that field or of a
+    game whose package was not found, the engine's (``source_revision``): see
+    ``LedgerRow.commit``.
+
     Args:
         recording: The original recording's repository-relative path.
         console_script: The game's console script.
@@ -1161,13 +1176,17 @@ class PerformanceSeries(BaseModel):
         return f'{self.machine}, {kind}'
 
 
-def performance_series(*, rows: Iterable[LedgerRow]) -> list[PerformanceSeries]:
+def performance_series(
+    *, rows: Iterable[LedgerRow], recording_renames: Mapping[str, str]
+) -> list[PerformanceSeries]:
     """Group ledger rows into graph series (rows without a commit or summary are left out).
 
-    A recording that moved (``RECORDING_PATH_RENAMES``) is one series under its new path.
+    A recording that moved (``recording_renames``) is one series under its new path.
 
     Args:
         rows: The ledger's rows.
+        recording_renames: Recordings that moved, old repository path -> new
+            (``[tool.glitchygames]`` ``recording-renames``).
 
     Returns:
         The series, by recording, machine and pacing.
@@ -1179,7 +1198,7 @@ def performance_series(*, rows: Iterable[LedgerRow]) -> list[PerformanceSeries]:
         if row.commit is None or row.summary is None:
             continue
         # A moved recording's rows from before the move join its series under the new path
-        recording = RECORDING_PATH_RENAMES.get(row.recording, row.recording)
+        recording = recording_renames.get(row.recording, row.recording)
         series_key = (recording, row.machine, row.run.processing_paced)
         # Sorted by measurement within a commit, so the latest measurement of a commit wins
         grouped.setdefault(series_key, {})[row.commit] = row

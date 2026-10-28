@@ -3,8 +3,9 @@
 The engine tests run ``GameEngine.start()`` and ``SceneManager.start()`` headless, with the
 scene manager's clock replaced by a fake one and input posted into pygame's real event queue,
 so every recorded value goes through the real frame loop and event dispatch. The golden test
-runs a game's golden-trace script (``scripts/record_golden_traces.py``) with recording on and
-checks the recording's sprites against the golden harness's own frames.
+runs a golden input script through the engine's golden-trace harness
+(``glitchygames/replay/tools/golden_traces.py``) with recording on and checks the recording's
+sprites against the harness's own frames.
 """
 
 from __future__ import annotations
@@ -25,15 +26,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
-    FRAME_SECONDS,
-    GoldenTraceEngine,
-    GoldenTraceSceneManager,
-    command_line,
-    record_trace,
-)
 
-import paddleslap
 from glitchygames.effects.shake import Shake, ShakeStyle
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events import FPSEVENT
@@ -44,7 +37,7 @@ from glitchygames.input import devices as devices_module
 from glitchygames.input.state import IDLE_INPUT, apply_snapshot_changes
 from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_name
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.randomness import engine_random
 from glitchygames.recording import (
     CONTROL_EVENTS_FIELD,
@@ -65,6 +58,14 @@ from glitchygames.recording import (
     event_from_record,
 )
 from glitchygames.recording_history import CONTENT_HASH_FIELD, PROCESSING_SECONDS_FIELD
+from glitchygames.replay.tools.golden_traces import (
+    FRAME_SECONDS,
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    InputScript,
+    command_line,
+    record_trace,
+)
 from glitchygames.scene_start import SceneStart
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
@@ -74,6 +75,14 @@ from glitchygames.state.sandbox import open_saves
 from glitchygames.supervision import BREAKPOINT_KIND
 from glitchygames.tracing import TraceWriter, read_trace_result
 from glitchygames.transitions import FadeTransition
+from tests.stand_in_harness_games import (
+    TOWER_FIRST_HOP_FRAME,
+    TOWER_RECORDED_FRAMES,
+    TOWER_RIDE_HOP_FRAME,
+    TOWER_WALK_RIGHT_FRAME,
+    TowerFloorScene,
+    tower_script,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Sequence
@@ -119,8 +128,8 @@ RECORDING_FRAME_FIELDS = frozenset({
     CONTENT_HASH_FIELD,
 })
 
-# The whole Clockwork Keep golden script: the elevator ride (frames 352-592) and a pause (740-790)
-CLOCKWORK_KEEP_RECORDED_FRAMES = 900
+# The app name the save-opening stand-in opens its saves under (PaddleSlap opens 'paddleslap')
+SAVE_OPENING_APP_NAME = 'stand-in-saves'
 
 
 class FakePerfCounter:
@@ -259,6 +268,22 @@ class DepartureRecordedScene(ArrivalRecordedScene):
             self.transition_to(ArrivalRecordedScene(options=self.options), ScriptedTransition())
 
 
+class SaveOpeningScene(Scene):
+    """A stand-in game that opens its save store in ``__init__``, as PaddleSlap does.
+
+    PaddleSlap opens ``open_saves(app_name='paddleslap')`` while it is built
+    (src/games/paddleslap/src/paddleslap/__init__.py:167), before any recording starts.
+    """
+
+    NAME = 'Save Opening'
+    VERSION = '1.0'
+
+    def __init__(self: Self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Open the saves while the scene is built."""
+        super().__init__(options=options, groups=groups)
+        self.saves = open_saves(app_name=SAVE_OPENING_APP_NAME)
+
+
 # A child game that sends itself SIGTERM in its third frame (a real signal, delivered by the OS)
 SELF_TERMINATING_GAME_SOURCE = """\
 import os
@@ -323,7 +348,7 @@ def run_self_terminating_game(*, game_file: Path, extra_arguments: tuple[str, ..
         ],
         environment=environment,
         timeout_seconds=SIGNAL_CHILD_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
 
 
@@ -887,18 +912,19 @@ class TestRecordingThroughTheEngine:
         recording_path = tmp_path / 'session.jsonl.gz'
 
         def write_a_score(scene: Scene) -> None:
-            # PaddleSlap opened its saves in __init__, before recording starts
-            assert isinstance(scene, paddleslap.Game)
+            # The stand-in opened its saves in __init__, before recording starts
+            assert isinstance(scene, SaveOpeningScene)
             scene.saves.save('high_scores', {'scores': [{'score': 7}]})
 
         record_trace(
-            'paddleslap',
+            scene_class=SaveOpeningScene,
+            script=InputScript(),
             frame_count=2,
             recording_path=recording_path,
             before_recording=write_a_score,
         )
         header = read_trace_result(path=recording_path).trace
-        assert header[SAVES_HEADER_FIELD]['paddleslap']['high_scores']['data'] == {
+        assert header[SAVES_HEADER_FIELD][SAVE_OPENING_APP_NAME]['high_scores']['data'] == {
             'scores': [{'score': 7}]
         }
         assert all(SAVES_OPENED_FIELD not in frame for frame in header['frames'])
@@ -1018,25 +1044,37 @@ class TestRandomSeed:
 def test_recording_matches_the_golden_harness_frames(mocker, tmp_path):
     """Recording a golden script gives the harness's own sprite frames, plus dt and events.
 
-    The Clockwork Keep script runs 900 frames with an elevator ride (a transition) and a pause:
-    the recording holds exactly one frame per main-loop frame, numbered 0..899.
+    The stand-in tower session (tests/stand_in_harness_games.py, after Clockwork Keep's golden
+    script) runs 900 frames with an elevator ride (a transition) and a pause: the recording
+    holds exactly one frame per main-loop frame, numbered 0..899. A ride frame drains a press
+    and a release queued together.
     """
-    path = tmp_path / 'clockwork_keep.jsonl.gz'
+    path = tmp_path / 'tower.jsonl.gz'
     transition_frames = mocker.spy(SceneManager, '_process_transition_events')
+    ride_frames: set[int] = set()
+
+    def note_ride_frames(*, frame_number: int, scene: Scene | None, sprite_ids: object) -> None:
+        del scene, sprite_ids
+        # A transition still active after the frame ran: that frame was a ride frame
+        if SceneManager()._active_transition is not None:
+            ride_frames.add(frame_number)
 
     golden = record_trace(
-        'clockwork_keep', frame_count=CLOCKWORK_KEEP_RECORDED_FRAMES, recording_path=path
+        scene_class=TowerFloorScene,
+        script=tower_script(),
+        frame_count=TOWER_RECORDED_FRAMES,
+        recording_path=path,
+        frame_observer=note_ride_frames,
     )
     result = read_trace_result(path=path)
 
     assert result.is_complete
     recorded_frames = result.trace['frames']
-    assert [frame['frame'] for frame in recorded_frames] == list(
-        range(CLOCKWORK_KEEP_RECORDED_FRAMES)
-    )
+    assert [frame['frame'] for frame in recorded_frames] == list(range(TOWER_RECORDED_FRAMES))
     # The run really contains transition frames and paused frames
     assert transition_frames.call_count > 0
     assert 'PauseScene' in {frame['scene'] for frame in recorded_frames}
+    assert 'UpperTowerFloorScene' in {frame['scene'] for frame in recorded_frames}
     sprite_frames = [
         {field: value for field, value in frame.items() if field not in RECORDING_FRAME_FIELDS}
         for frame in recorded_frames
@@ -1044,12 +1082,20 @@ def test_recording_matches_the_golden_harness_frames(mocker, tmp_path):
     assert sprite_frames == golden['frames']
     assert {frame[DT_FIELD] for frame in recorded_frames} == {FRAME_SECONDS}
     # The script taps K_UP before frame 10 and presses K_RIGHT before frame 70
-    assert [(event.type, event.dict['key']) for event in _scripted_events(recorded_frames[10])] == [
-        (pygame.KEYDOWN, pygame.K_UP)
-    ]
-    assert [(event.type, event.dict['key']) for event in _scripted_events(recorded_frames[70])] == [
-        (pygame.KEYDOWN, pygame.K_RIGHT)
-    ]
+    assert [
+        (event.type, event.dict['key'])
+        for event in _scripted_events(recorded_frames[TOWER_FIRST_HOP_FRAME])
+    ] == [(pygame.KEYDOWN, pygame.K_UP)]
+    assert [
+        (event.type, event.dict['key'])
+        for event in _scripted_events(recorded_frames[TOWER_WALK_RIGHT_FRAME])
+    ] == [(pygame.KEYDOWN, pygame.K_RIGHT)]
+    # A ride frame drained the hop's press and release, queued together
+    assert TOWER_RIDE_HOP_FRAME in ride_frames
+    assert [
+        (event.type, event.dict['key'])
+        for event in _scripted_events(recorded_frames[TOWER_RIDE_HOP_FRAME])
+    ] == [(pygame.KEYDOWN, pygame.K_UP), (pygame.KEYUP, pygame.K_UP)]
 
 
 @contextlib.contextmanager
@@ -1085,11 +1131,63 @@ class TestRecordingEdgeCases:
         with constructed_engine():
             assert os.environ['SDL_NO_SIGNAL_HANDLERS'] == '0'
 
-    def test_pygame_initialized_before_the_engine_is_warned_about(self, mocker, caplog):
+    @pytest.mark.parametrize('hint', [None, '0'], ids=['hint unset', 'hint 0'])
+    def test_pygame_initialized_before_the_engine_is_warned_about(
+        self, mocker, caplog, monkeypatch, hint
+    ):
+        """Pygame already running without SDL's signal handlers turned off: SDL may own them."""
+        if hint is None:
+            monkeypatch.delenv('SDL_NO_SIGNAL_HANDLERS', raising=False)
+        else:
+            monkeypatch.setenv('SDL_NO_SIGNAL_HANDLERS', hint)
         mocker.patch.object(game_engine_module.pygame, 'get_init', return_value=True)
         with constructed_engine():
             pass
         assert 'SDL may own SIGINT and SIGTERM' in caplog.text
+
+    def test_pygame_initialized_with_sdls_signal_handlers_off_is_not_warned_about(
+        self, mocker, caplog, monkeypatch
+    ):
+        """Pygame started with SDL_NO_SIGNAL_HANDLERS=1: SDL installed no handlers, no warning.
+
+        The test harness's pygame, or a second engine's in one process.
+        """
+        monkeypatch.setenv('SDL_NO_SIGNAL_HANDLERS', '1')
+        mocker.patch.object(game_engine_module.pygame, 'get_init', return_value=True)
+        with constructed_engine():
+            pass
+        assert 'SDL may own SIGINT and SIGTERM' not in caplog.text
+
+    def test_a_second_engine_still_warns_about_a_pygame_started_without_the_hint(
+        self, mocker, caplog, monkeypatch
+    ):
+        """The hint the first engine set does not make a host's earlier pygame safe.
+
+        A host called pygame.init() without the hint (SDL installed its handlers); the first
+        engine warns and sets the hint for later inits. pygame was not restarted, so a second
+        engine must warn too. Once pygame is stopped, an engine finds nothing to warn about.
+        """
+        monkeypatch.delenv('SDL_NO_SIGNAL_HANDLERS', raising=False)
+        pygame_running = mocker.patch.object(
+            game_engine_module.pygame, 'get_init', return_value=True
+        )
+        with constructed_engine():
+            pass
+        assert os.environ['SDL_NO_SIGNAL_HANDLERS'] == '1'
+        caplog.clear()
+
+        with constructed_engine():
+            pass
+        assert 'SDL may own SIGINT and SIGTERM' in caplog.text
+        caplog.clear()
+
+        pygame_running.return_value = False
+        with constructed_engine():
+            pass
+        pygame_running.return_value = True
+        with constructed_engine():
+            pass
+        assert 'SDL may own SIGINT and SIGTERM' not in caplog.text
 
     def test_controller_input_mode_runs_with_a_controller_manager(self, mocker):
         """--input-mode controller: SDL's Game Controller API, its events left unblocked."""

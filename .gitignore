@@ -145,8 +145,9 @@ venv.bak/
 
 # wily complexity graphs (scripts/generate_complexity_graphs.py; nox -s docs-deploy makes them)
 docs/quality/graphs/
-# The run ledger and its performance graphs (scripts/generate_performance_graphs.py; every mkdocs
-# build makes them, nox -s docs-deploy publishes them)
+# The run ledger and its performance graphs (the engine's performance-pages through
+# scripts/generate_performance_graphs.py; every mkdocs build makes them, nox -s docs-deploy
+# publishes them)
 docs/quality/metrics/
 
 # mypy
@@ -191,7 +192,7 @@ safety-report.json
 *.orig
 
 # Personal sprite work kept on disk, outside git (move any you want into
-# src/apps/bitmappy/bitmappy/resources/sprites/ to track it)
+# src/apps/bitmappy/src/bitmappy/resources/sprites/ to track it)
 /bkp/
 /slime-jump*.toml
 /bomb-animation.toml2

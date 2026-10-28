@@ -3,12 +3,12 @@
 
 import pygame
 import pytest
+from src.apps.bitmappy.tests.film_strip_support import FRAME_SIZE, make_real_animated_sprite
 
 from bitmappy.film_strip import FilmStripWidget
 from bitmappy.film_strip_sprite import FilmStripSprite
 from glitchygames import events
 from glitchygames.input.state import InputSnapshot, set_current_input
-from test_bitmappy_film_strip_base import FRAME_SIZE, make_real_animated_sprite
 
 # The colour of the dropped image: far from magenta and from the strip's own frame colours
 DROPPED_IMAGE_COLOR = (12, 200, 34)

@@ -28,7 +28,14 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GOLDEN_TRACE_GAMES, golden_path, record_trace
+from scripts.record_golden_traces import (
+    GAME_SCENES,
+    GOLDEN_DIRECTORY,
+    GOLDEN_TRACE_GAMES,
+    PROJECT_ROOT,
+    SCRIPT_BUILDERS,
+    golden_path,
+)
 
 from brave_adventurer import constants as brave_constants
 from brave_adventurer.drawing import draw_player, draw_scarab
@@ -42,7 +49,14 @@ from clockwork_keep.constants import PLAYER_HEIGHT, PLAYER_WIDTH
 from clockwork_keep.drawing import draw_tinker
 from clockwork_keep.player import Tinker
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.logical_names import logical_name
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
+from glitchygames.replay.driver import GAME_HEADER_FIELD
+from glitchygames.replay.tools.golden_traces import (
+    RANDOM_SEED,
+    record_trace,
+    replay_golden_recording,
+)
 from glitchygames.tracing import (
     TRACE_FORMAT_VERSION,
     TraceReader,
@@ -51,6 +65,8 @@ from glitchygames.tracing import (
     write_trace,
 )
 from glitchygames.world import CULL_MARGIN_PIXELS, is_world_positioned
+from tests.workspace_goldens import every_games_golden
+from tests.world.test_gameplay_recording import RANDOM_SEED as GOLDEN_SCRIPT_SEED
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -62,15 +78,12 @@ if TYPE_CHECKING:
 # Marks an ExpectedDifference without a pinned value (None is a real value, so it can't be used)
 NO_EXPECTED_VALUE: Any = object()
 MISSING_EXPECTATION_MESSAGE = 'An ExpectedDifference needs an expected value or a rule'
+# A baseline's suffix after its game key (scripts/record_golden_traces.py golden_path)
+GOLDEN_TRACE_SUFFIX = '.jsonl.gz'
 
 
 class AmbiguousExpectedDifferenceError(ValueError):
     """A difference is explained by more than one entry: each must have exactly one cause."""
-
-
-# The seeded-reproducibility test: --random-seed value and frames per run
-SEEDED_TRACE_SEED = 123
-SEEDED_TRACE_FRAME_COUNT = 120
 
 
 @dataclass(frozen=True)
@@ -1320,8 +1333,19 @@ def _describe(difference: TraceDifference) -> str:
 
 
 def test_expected_differences_cover_every_game():
-    """Every game with a golden trace has an entry, so a new trace cannot slip past the list."""
-    assert set(EXPECTED_DIFFERENCES) == set(GOLDEN_TRACE_GAMES)
+    """Every game with a golden trace has an entry, so a new trace cannot slip past the list.
+
+    The expected set is the baselines themselves, one file per game in ``tests/world/golden/``
+    (frozen since the world-space change), so the golden-trace tests cannot pass on zero.
+    """
+    baselines = {
+        path.name.removesuffix(GOLDEN_TRACE_SUFFIX)
+        for path in GOLDEN_DIRECTORY.glob(f'*{GOLDEN_TRACE_SUFFIX}')
+    }
+
+    assert baselines
+    assert set(GOLDEN_TRACE_GAMES) == baselines
+    assert set(EXPECTED_DIFFERENCES) == baselines
 
 
 @pytest.mark.parametrize('game_key', sorted(GOLDEN_TRACE_GAMES))
@@ -1329,11 +1353,20 @@ def test_game_matches_golden_trace(game_key):
     """Replaying the game's script reproduces its golden trace, up to listed differences."""
     baseline = read_trace(path=golden_path(game_key))
     world_sampler = WorldSampler()
+    scene_class = GAME_SCENES[game_key]
     current = record_trace(
-        game_key, frame_count=len(baseline['frames']), frame_observer=world_sampler
+        scene_class=scene_class,
+        script=SCRIPT_BUILDERS[game_key](),
+        frame_count=len(baseline['frames']),
+        # The seed the baselines were recorded under (scripts/record_golden_traces.py)
+        random_seed=RANDOM_SEED,
+        frame_observer=world_sampler,
     )
 
-    assert current['game'] == baseline['game']
+    # The baselines name their game by key (scripts/record_golden_traces.py main); the harness
+    # names it by its scene's logical name
+    assert baseline['game'] == game_key
+    assert current['game'] == logical_name(scene_class=scene_class)
     assert current['frame_seconds'] == baseline['frame_seconds']
     unexplained, stale = unexplained_and_stale(
         differences=trace_differences(baseline=baseline, current=current),
@@ -1351,26 +1384,6 @@ def test_game_matches_golden_trace(game_key):
             f'{game_key}: {len(stale)} expected difference(s) no longer occur; first: {stale[0]}',
             pytrace=False,
         )
-
-
-def test_same_random_seed_gives_identical_paddleslap_traces():
-    """--random-seed 123 twice plays PaddleSlap identically; seed 124 plays differently.
-
-    Every random draw (serves, spawn positions, colours, shakes) comes from the run's seeded
-    streams, so the harness needs no patching of the games' randomness.
-    """
-    first_run = record_trace(
-        'paddleslap', frame_count=SEEDED_TRACE_FRAME_COUNT, random_seed=SEEDED_TRACE_SEED
-    )
-    second_run = record_trace(
-        'paddleslap', frame_count=SEEDED_TRACE_FRAME_COUNT, random_seed=SEEDED_TRACE_SEED
-    )
-    other_seed_run = record_trace(
-        'paddleslap', frame_count=SEEDED_TRACE_FRAME_COUNT, random_seed=SEEDED_TRACE_SEED + 1
-    )
-
-    assert second_run == first_run
-    assert trace_differences(baseline=first_run, current=other_seed_run) != []
 
 
 @pytest.mark.parametrize('game_key', sorted(GOLDEN_TRACE_GAMES))
@@ -1440,6 +1453,53 @@ def test_altered_middle_frame_is_found_at_its_frame_and_sprite(game_key, tmp_pat
     ]
     unexplained, _ = unexplained_and_stale(differences=differences, expected=[])
     assert unexplained == differences
+
+
+# The golden scripts' own round trip, moved here from tests/world/test_gameplay_replay.py (Part 3,
+# Stage D, Task D9) with our games' scripts, so that engine test reaches no scripts.*: how many
+# frames each game's golden script records (its seed, GOLDEN_SCRIPT_SEED, is the one those tests
+# used: tests/world/test_gameplay_recording.py RANDOM_SEED, imported)
+GOLDEN_SCRIPT_FRAMES = 300
+
+
+def test_the_golden_scripts_games_are_the_games_of_the_members_goldens():
+    """The tool's games are exactly the games the workspace's members hold goldens of.
+
+    Each key is mapped to its logical name explicitly (its scene class's), and compared with
+    the ``game`` of every golden of every games-layer member (each holds at least one), so
+    the parametrization below cannot pass on zero.
+    """
+    recorded_games: set[str] = set()
+    for golden in every_games_golden(project_root=PROJECT_ROOT):
+        with TraceReader(path=golden) as reader:
+            recorded_games.add(reader.header[GAME_HEADER_FIELD])
+
+    assert {
+        logical_name(scene_class=GAME_SCENES[game_key]) for game_key in GAME_SCENES
+    } == recorded_games
+
+
+@pytest.mark.parametrize('game_key', sorted(GAME_SCENES))
+def test_golden_script_recording_replays_without_divergence(game_key, tmp_path):
+    """The game's golden script, recorded and replayed through the harness, does not diverge.
+
+    The game is one a member holds a golden of (the test above).
+    """
+    recording_path = tmp_path / f'{game_key}.jsonl.gz'
+    record_trace(
+        scene_class=GAME_SCENES[game_key],
+        script=SCRIPT_BUILDERS[game_key](),
+        frame_count=GOLDEN_SCRIPT_FRAMES,
+        recording_path=recording_path,
+        random_seed=GOLDEN_SCRIPT_SEED,
+    )
+    result = replay_golden_recording(
+        scene_class=GAME_SCENES[game_key],
+        script=SCRIPT_BUILDERS[game_key](),
+        path=recording_path,
+    )
+    assert result.divergence is None
+    assert result.frames_replayed == GOLDEN_SCRIPT_FRAMES
 
 
 class TestTraceComparison:

@@ -1,6 +1,7 @@
 """Tests for multi-controller error handling and configuration."""
 
 import json
+import logging
 
 import pytest
 
@@ -63,19 +64,23 @@ class TestErrorInfo:
 class TestMultiControllerErrorHandler:
     """Tests for the MultiControllerErrorHandler class.
 
-    Note: The class has a bug where _setup_default_handlers is called in
-    __init__ but never defined. We add it as a no-op to allow testing the
-    rest of the class.
+    Its default recovery handlers are replaced with nothing, so each test registers its own.
+    The fixture once assigned the stand-in to the class and then deleted the attribute, which
+    deleted the class's real ``_setup_default_handlers`` for the rest of the process;
+    ``monkeypatch`` puts the real one back.
     """
 
     @pytest.fixture(autouse=True)
-    def _setup_handler(self):
-        """Create handler with the missing method patched."""
-        MultiControllerErrorHandler._setup_default_handlers = lambda self: None  # type: ignore[invalid-assignment]
+    def _setup_handler(self, monkeypatch):
+        """Create a handler without its default recovery handlers."""
+        monkeypatch.setattr(
+            MultiControllerErrorHandler, '_setup_default_handlers', lambda self: None
+        )
         self.handler = MultiControllerErrorHandler()
-        yield
-        # Clean up the monkey-patched method
-        del MultiControllerErrorHandler._setup_default_handlers
+
+    def test_building_a_handler_sets_no_logger_level(self):
+        """The level is the command line's (--log-level, BUGS.md #236), never the handler's."""
+        assert logging.getLogger('multi_controller').level == logging.NOTSET
 
     def test_initialization(self):
         """Test handler initializes with correct defaults."""

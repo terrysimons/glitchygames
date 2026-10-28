@@ -8,7 +8,7 @@ game.
 
 Everything is drawn from pygame primitives (no image files), every sound is synthesized, and the
 game is small enough to read in one sitting (about 2,700 lines in
-`src/games/clockwork-keep/clockwork_keep/`). It is also one of the engine's reference games: its
+`src/games/clockwork-keep/src/clockwork_keep/`). It is also one of the engine's reference games: its
 golden trace and golden replay pin world space, transitions, pausing and replay, so the page
 below shows both how the game works and which engine features it leans on.
 
@@ -149,7 +149,7 @@ engine's trace tests (`tests/world/golden/clockwork_keep.jsonl.gz`), and its bro
 ## Classes
 
 Clockwork Keep's own code is the scene, five sprite classes and the floor data, all in
-`src/games/clockwork-keep/clockwork_keep/`. The rest comes from the engine: `Scene` and the built-in
+`src/games/clockwork-keep/src/clockwork_keep/`. The rest comes from the engine: `Scene` and the built-in
 `PauseScene` and `GameOverScene` (`glitchygames.scenes`), `Sprite` (`glitchygames.sprites`) and
 `PhysicsBody` (`glitchygames.physics`). In the diagram, the Engine box is what every game gets; the
 Clockwork Keep box is what this game adds. Solid arrows are inheritance, pointing at the base
@@ -646,7 +646,7 @@ Clockwork Keep has both of the engine's golden checks:
 
 - **Golden trace** (`tests/world/golden/clockwork_keep.jsonl.gz`, checked by
   `tests/world/test_golden_traces.py`): a 900-frame scripted run (`clockwork_keep_script` in
-  `scripts/record_golden_traces.py`, fixed dt 1/60) recorded before the world-space change. It
+  `scripts/golden_inputs.py`, fixed dt 1/60) recorded before the world-space change. It
   jumps for a cog, walks both ways, is placed on the first elevator at frame 330 (reaching it
   takes more platforming than the script holds), presses W at frame 350, rides frames 352-592,
   then walks and pauses (frames 740-790) on Gear Works. Each sprite's rect and visibility must
@@ -671,7 +671,7 @@ otherwise auto-pause the game. Never re-record either baseline to make a change 
 | File | What it pins |
 |---|---|
 | `src/games/clockwork-keep/tests/test_clockwork_keep.py` | The game itself: elevator activation by interact only (not jump, BUGS.md #24), every recipe renders and each sound plays once at its moment, the elevator ride's motor, rumble, shakes and silent fallbacks, the clock's hand angles and animated layer, `MAX_FRAME_SECONDS`, `replay_arguments`, `--floor`, hitbox-based support, walls and pickups, collision layers, world space (no sprite positions itself, the engine follows the player, follow stops at game over), the pose rule at walls, scancode bindings, the moving gear and the Clock Face route, no fall-through after a slow frame (the swept ground check), victory on the Clock Face's top platform, death, high scores, pause/quit/focus input, joystick and controller buttons, the HUD, `main()` |
-| `src/games/clockwork-keep/tests/test_clockwork_keep_after_the_move.py` | The move out of the engine: every scene the golden replay starts keeps its logical name, and nothing is left of `glitchygames.examples.clockwork_keep` |
+| `src/games/clockwork-keep/tests/test_clockwork_keep_logical_names.py`, `test_clockwork_keep_install_location.py`, `test_clockwork_keep_recording_history.py` | The move out of the engine: every scene the golden replay starts keeps its logical name, nothing is left of `glitchygames.examples.clockwork_keep`, and the golden keeps its history |
 | `tests/world/test_golden_traces.py` | The 900-frame golden trace (above) |
 | `tests/world/test_gameplay_recording.py` | Recording the 900-frame script gives the golden harness's own sprite frames, including the ride and the pause |
 | `tests/world/test_transition_input.py` | A jump pressed during the elevator ride does not jump on arrival |
@@ -686,18 +686,18 @@ the native-driver comparison while iterating).
 
 | File | Holds |
 |---|---|
-| `src/games/clockwork-keep/clockwork_keep/__init__.py` | `main` (the `clockwork-keep` console script in the member's `pyproject.toml`) |
-| `src/games/clockwork-keep/clockwork_keep/game.py` | `ClockworkKeepScene` (floors, input, collision, elevator, death, saves, HUD), `CogCollectible`, the arrival shakes, `main()` |
-| `src/games/clockwork-keep/clockwork_keep/player.py` | `Tinker`: physics body, state machine, the pose rule, wall fitting |
-| `src/games/clockwork-keep/clockwork_keep/terrain.py` | `Platform`, `Elevator`, `MovingGear` |
-| `src/games/clockwork-keep/clockwork_keep/levels.py` | `FloorData`, `MovingGearData`, the three floors, `ALL_FLOORS` |
-| `src/games/clockwork-keep/clockwork_keep/drawing.py` | Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, `clock_hand_angles` |
-| `src/games/clockwork-keep/clockwork_keep/sounds.py` | The six `SoundRecipe`s, `ALL_RECIPES` |
-| `src/games/clockwork-keep/clockwork_keep/constants.py` | Screen, physics, layers, gameplay, colours, elevator ride feel, the clock |
+| `src/games/clockwork-keep/src/clockwork_keep/__init__.py` | `main` (the `clockwork-keep` console script in the member's `pyproject.toml`) |
+| `src/games/clockwork-keep/src/clockwork_keep/game.py` | `ClockworkKeepScene` (floors, input, collision, elevator, death, saves, HUD), `CogCollectible`, the arrival shakes, `main()` |
+| `src/games/clockwork-keep/src/clockwork_keep/player.py` | `Tinker`: physics body, state machine, the pose rule, wall fitting |
+| `src/games/clockwork-keep/src/clockwork_keep/terrain.py` | `Platform`, `Elevator`, `MovingGear` |
+| `src/games/clockwork-keep/src/clockwork_keep/levels.py` | `FloorData`, `MovingGearData`, the three floors, `ALL_FLOORS` |
+| `src/games/clockwork-keep/src/clockwork_keep/drawing.py` | Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, `clock_hand_angles` |
+| `src/games/clockwork-keep/src/clockwork_keep/sounds.py` | The six `SoundRecipe`s, `ALL_RECIPES` |
+| `src/games/clockwork-keep/src/clockwork_keep/constants.py` | Screen, physics, layers, gameplay, colours, elevator ride feel, the clock |
 | `src/glitchygames/transitions/elevator.py` | `ElevatorTransition` (engine, written for this game) |
 | `src/glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The pause and game-over screens |
-| `scripts/record_golden_traces.py` | The golden input script (`clockwork_keep_script`) and the golden trace harness |
-| `scripts/record_scripted_session.py` | Records the golden replay (`clockwork_keep_controls` is its tail) |
+| `scripts/golden_inputs.py`, `scripts/record_golden_traces.py` | The golden input script (`clockwork_keep_script`) and the golden trace recorder (on the engine's harness, `src/glitchygames/replay/tools/golden_traces.py`) |
+| `scripts/record_scripted_session.py` | Records the golden replay (`clockwork_keep_controls`, in `scripts/golden_inputs.py`, is its tail) |
 | `tests/world/golden/clockwork_keep.jsonl.gz` | Golden trace baseline |
 | `src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz` | Golden replay fixture |
 | `src/games/clockwork-keep/tests/test_clockwork_keep.py` | The game's tests |

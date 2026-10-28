@@ -1,4 +1,6 @@
-"""Tests for Bitmappy's undo/redo command classes (src/apps/bitmappy/bitmappy/history/commands.py).
+"""Tests for Bitmappy's undo/redo command classes.
+
+The classes are in src/apps/bitmappy/src/bitmappy/history/commands.py.
 
 Each command runs against a small stand-in editor holding a real AnimatedSprite, so the
 tests check what execute and undo do to the frames, pixels and controller state.

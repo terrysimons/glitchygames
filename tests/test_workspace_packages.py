@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
-import os
-import shutil
 from pathlib import Path
 
 import pytest
+from scripts.git_checkout import run_git as scripts_run_git
 from scripts.workspace_packages import (
+    ENGINE_DIRECTORY,
+    ENGINE_PACKAGE,
     WorkspaceMember,
+    canonical_distribution_name,
+    members_in_layer,
+    requirement_distribution,
     source_package_directories,
     workspace_members,
 )
 
-from glitchygames.process import run_command
+from tests import engine_source
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -27,6 +31,7 @@ members = ["src/games/space-game"]
 MEMBER_PYPROJECT = """
 [project]
 name = "space-game"
+dependencies = ["glitchygames>=1.0.0", "Pydantic_Core [email] ; python_version >= '3.14'"]
 
 [project.scripts]
 space-game = "space_game:main"
@@ -55,6 +60,7 @@ def test_a_member_is_read_from_its_own_pyproject(tmp_path):
         distribution='space-game',
         import_packages=('space_game',),
         console_scripts=('space-game',),
+        dependencies=('glitchygames', 'pydantic-core'),
     )
     assert member.package_directories == (tmp_path / 'src' / 'games' / 'space-game' / 'space_game',)
     assert member.tests_directory == tmp_path / 'src' / 'games' / 'space-game' / 'tests'
@@ -196,6 +202,45 @@ def test_a_member_outside_a_layer_is_refused(tmp_path):
         workspace_members(project_root=tmp_path)
 
 
+def write_layered_workspace(root: Path) -> None:
+    """Write a root project with a games member, a demos member and a second games member."""
+    members = ('src/games/space-game', 'src/demos/tiny-demo', 'src/games/rock-game')
+    members_toml = ', '.join(f'"{member_path}"' for member_path in members)
+    (root / 'pyproject.toml').write_text(
+        f'[project]\nname = "glitchygames"\n\n[tool.uv.workspace]\nmembers = [{members_toml}]\n',
+        encoding='utf-8',
+    )
+    for member_path in members:
+        directory = root / member_path
+        package = directory.name.replace('-', '_')
+        (directory / package).mkdir(parents=True)
+        (directory / 'pyproject.toml').write_text(
+            f'[project]\nname = "{directory.name}"\n\n'
+            f'[tool.hatch.build.targets.wheel]\npackages = ["{package}"]\n',
+            encoding='utf-8',
+        )
+
+
+def test_members_in_a_layer_are_those_in_its_directory_in_workspace_order(tmp_path):
+    """Only the layer's members, in the root pyproject's order."""
+    write_layered_workspace(tmp_path)
+
+    games = members_in_layer(project_root=tmp_path, layer='games')
+    demos = members_in_layer(project_root=tmp_path, layer='demos')
+
+    assert [member.distribution for member in games] == ['space-game', 'rock-game']
+    assert [member.distribution for member in demos] == ['tiny-demo']
+    assert members_in_layer(project_root=tmp_path, layer='apps') == []
+
+
+def test_a_layer_that_is_not_a_workspace_layer_is_refused(tmp_path):
+    """A misspelled layer is an error, not an empty list a test could pass on."""
+    write_layered_workspace(tmp_path)
+
+    with pytest.raises(ValueError, match="'game' is not a workspace layer"):
+        members_in_layer(project_root=tmp_path, layer='game')
+
+
 def test_this_repositorys_members_are_read():
     """The real workspace (members grow part by part)."""
     distributions = [member.distribution for member in workspace_members(project_root=PROJECT_ROOT)]
@@ -203,35 +248,10 @@ def test_this_repositorys_members_are_read():
     assert 'mr-muncher' in distributions
 
 
-# Part 2's and Part 4's end state (plans/2026-10-24-workspace-packages.md): every game and
-# Bitmappy are members, so the engine's examples hold only the three demos (Part 3 moves them)
-# and resources/ (which still holds snd/), beside foo2.toml (Part 3 moves it to the one test that
-# reads it)
-ENGINE_EXAMPLES_DIRECTORY = PROJECT_ROOT / 'src' / 'glitchygames' / 'examples'
-ENGINE_EXAMPLES_NOT_CHECKED = frozenset({'__init__.py', '__pycache__', 'foo2.toml'})
-ENGINE_EXAMPLES_AFTER_PART_2 = frozenset({
-    'dt_demo.py',
-    'joystick_demo.py',
-    'text_input_demo.py',
-    'resources',
-})
 # A console script a game had before Part 2 and no longer has (Brave Adventurer's launcher
 # replaced it): its old root golden directory is checked too
 FORMER_GAME_CONSOLE_SCRIPTS = ('brave-adventurer-papyrus',)
 ROOT_REPLAY_FIXTURES_DIRECTORY = PROJECT_ROOT / 'tests' / 'fixtures' / 'replays'
-
-
-def environment_without_git_variables() -> dict[str, str]:
-    """Return the environment with every ``GIT_*`` variable removed.
-
-    Inside a git hook, ``GIT_DIR`` and ``GIT_INDEX_FILE`` point at the real repository: a git
-    command run from a temporary directory would act on that repository instead.
-
-    Returns:
-        A copy of ``os.environ`` without the variables git reads.
-
-    """
-    return {name: value for name, value in os.environ.items() if not name.startswith('GIT_')}
 
 
 def run_git(*, arguments: list[str], directory: Path) -> str:
@@ -245,17 +265,9 @@ def run_git(*, arguments: list[str], directory: Path) -> str:
         git's standard output.
 
     """
-    git_program = shutil.which('git')
-    assert git_program is not None, 'these tests need git'
-    completed = run_command(
-        command=[git_program, *arguments],
-        environment=environment_without_git_variables(),
-        timeout_seconds=30.0,
-        capture_output=True,
-        working_directory=directory,
-    )
-    assert completed.returncode == 0, completed.stdout
-    return completed.stdout
+    returncode, output = scripts_run_git(arguments=arguments, directory=directory)
+    assert returncode == 0, output
+    return output
 
 
 def tracked_entry_names(*, directory: Path) -> set[str]:
@@ -279,11 +291,29 @@ def tracked_entry_names(*, directory: Path) -> set[str]:
     }
 
 
-def test_the_engines_examples_hold_only_the_demos_and_their_resources():
-    """The engine's examples are its three demos and resources/: each game moved to its member."""
-    entries = tracked_entry_names(directory=ENGINE_EXAMPLES_DIRECTORY)
+def test_the_engines_examples_directory_is_gone():
+    """Every game, demo and Bitmappy is a member: nothing is tracked or left at the old place."""
+    tracked = run_git(
+        arguments=[
+            'ls-files',
+            '-z',
+            '--',
+            'src/glitchygames/examples',
+            'tests/examples',
+            'docs/glitchygames/examples',
+        ],
+        directory=PROJECT_ROOT,
+    )
 
-    assert entries - ENGINE_EXAMPLES_NOT_CHECKED == ENGINE_EXAMPLES_AFTER_PART_2
+    assert not tracked
+    for leftover_directory in (
+        PROJECT_ROOT / 'src' / 'glitchygames' / 'examples',
+        PROJECT_ROOT / 'tests' / 'examples',
+    ):
+        assert not leftover_directory.exists(), (
+            f'{leftover_directory} still exists: ignored leftovers of the move (__pycache__); '
+            'rm -rf src/glitchygames/examples tests/examples'
+        )
 
 
 def test_tracked_entry_names_leaves_out_ignored_and_untracked_files(tmp_path):
@@ -339,3 +369,37 @@ def test_the_root_goldens_are_the_engines_own():
     assert [
         name for name in sorted(game_names) if (ROOT_REPLAY_FIXTURES_DIRECTORY / name).exists()
     ] == []
+
+
+def test_the_engine_tests_know_the_engines_source_directory_as_the_workspace_does():
+    """tests/engine_source.py keeps its own copy, so engine tests need not import this script."""
+    assert engine_source.ENGINE_PACKAGE == ENGINE_PACKAGE
+    assert engine_source.ENGINE_DIRECTORY == ENGINE_DIRECTORY
+
+
+@pytest.mark.parametrize(
+    ('requirement', 'distribution'),
+    [
+        ('glitchygames', 'glitchygames'),
+        ('glitchygames>=1.0.0', 'glitchygames'),
+        ('pygame-ce', 'pygame-ce'),
+        ('Pydantic_Core [email] ; python_version >= "3.14"', 'pydantic-core'),
+        ('aisuite[anthropic,aws]>=0.1.14', 'aisuite'),
+        ('zope.interface ~= 6.0', 'zope-interface'),
+        ('name @ https://example.invalid/name.whl', 'name'),
+    ],
+)
+def test_a_requirement_names_its_distribution(requirement, distribution):
+    """Only the name counts, canonical (PEP 503): extras, versions and markers are dropped."""
+    assert requirement_distribution(requirement=requirement) == distribution
+
+
+def test_a_requirement_without_a_name_is_refused():
+    """A requirement that does not start with a name is a mistake in a pyproject.toml."""
+    with pytest.raises(ValueError, match='names no distribution'):
+        requirement_distribution(requirement='>=1.0')
+
+
+def test_canonical_distribution_names_fold_case_and_separators():
+    """PEP 503: lower case, and each run of -, _ and . is one -."""
+    assert canonical_distribution_name(name='Pydantic__Core.Extra') == 'pydantic-core-extra'

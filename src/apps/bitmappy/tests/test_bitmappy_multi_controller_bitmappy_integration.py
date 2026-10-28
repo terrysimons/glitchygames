@@ -325,10 +325,7 @@ class TestBitmappyMultiControllerIntegration:
 
     def test_performance_integration(self):
         """Test performance characteristics in integration scenarios."""
-        import time
-
-        # Set up many controllers
-        start_time = time.time()
+        # Set up many controllers (timing lives in test_bitmappy_benchmarks.py)
         for i in range(10):
             instance_id = i
             self.manager.controllers[instance_id] = self._mocker.Mock()
@@ -343,26 +340,17 @@ class TestBitmappyMultiControllerIntegration:
                 color=(255, 0, 0),
                 position=(i * 10, i * 10),
             )
-        setup_time = time.time()
-
-        # Should set up quickly
-        assert setup_time - start_time < 1.0
+        assert len(self.visual_manager.indicators) == 10
 
         # Test rapid navigation
-        nav_start = time.time()
         for _ in range(100):
             for i in range(10):
                 self.scene.controller_selections[i].set_selection(f'animation_{i}', i)
-        nav_end = time.time()
-
-        # Should navigate quickly
-        assert nav_end - nav_start < 1.0
+        for i in range(10):
+            assert self.scene.controller_selections[i].get_selection() == (f'animation_{i}', i)
 
         # Test visual updates
-        visual_start = time.time()
         for i in range(10):
             self.visual_manager.update_controller_position(i, (i * 20, i * 20))
-        visual_end = time.time()
-
-        # Should update quickly
-        assert visual_end - visual_start < 1.0
+        for i in range(10):
+            assert self.visual_manager.get_controller_indicator(i).position == (i * 20, i * 20)

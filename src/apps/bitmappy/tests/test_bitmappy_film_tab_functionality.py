@@ -7,14 +7,14 @@ before or after existing frames in film strips.
 import itertools
 
 import pygame
-
-from bitmappy.film_strip import FilmTabWidget
-from glitchygames.sprites import AnimatedSprite, SpriteFrame
-from test_bitmappy_film_strip_base import (
+from src.apps.bitmappy.tests.film_strip_support import (
     FRAME_SIZE,
     FilmStripTestBase,
     make_real_animated_sprite,
 )
+
+from bitmappy.film_strip import FilmTabWidget
+from glitchygames.sprites import AnimatedSprite, SpriteFrame
 
 # Additional test constants
 TAB_X = 10

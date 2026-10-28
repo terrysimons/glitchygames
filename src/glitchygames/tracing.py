@@ -128,6 +128,12 @@ RESERVED_HEADER_FIELDS = (FORMAT_VERSION_FIELD, FRAMES_FIELD)
 # here, beside the reader, so tools that must tell a copy apart (the replay pytest plugin,
 # glitchygames/testing/replays.py) need not import the engine (is_bookmarked_copy)
 BOOKMARKED_COPY_OF_HEADER_FIELD = 'bookmarked_copy_of'
+# A project's recordings are collected from .../fixtures/replays/<console-script>/<name>.jsonl.gz,
+# or from a workspace member's <member>/tests/fixtures/replays/<name>.jsonl.gz: here, beside the
+# reader, so the replay pytest plugin (glitchygames/testing/replays.py), which every pytest run
+# with glitchygames installed loads, tells a recording apart without importing the engine (and
+# pygame) in a project that has none (glitchygames/replay/tools/children.py reads them too)
+REPLAY_FIXTURES_PATH_PARTS = ('fixtures', 'replays')
 
 # zlib wbits for a gzip stream (16 + the 15-bit window)
 GZIP_WINDOW_BITS = 16 + zlib.MAX_WBITS

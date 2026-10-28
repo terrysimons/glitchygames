@@ -151,6 +151,37 @@ flowchart TD
     SELF_OPT --> Access
 ```
 
+### Logging level and the startup options block
+
+A game logs at WARNING unless `--log-level` says otherwise (the owner, 2026-10-28: games default
+to WARNING, as the replay tools do), so a plain run prints only warnings and worse: the exit
+code it ended with, whether its seed was rolled or given, and the end-of-run performance reports
+are INFO, shown with `--log-level info`. Nothing else sets a level (the logger guards: no level set at import).
+Each failure a player sees (a crash, exit 70; a failed teardown; a playback that failed) logs
+one more line after its traceback, `exit_codes.BUG_REPORT_HINT`: "To report this, run the game
+again with --log-level info and include the output." The `glitchygames` command has no
+`--log-level`, so its own tool crashes do not say it.
+
+Every engine start (`start()` or `start_async()`) logs the run's whole options dictionary once,
+at CRITICAL, so it shows at every level ("for now": plans/future-work.md):
+
+```text
+game.engine - CRITICAL - Options for Paddle Slap (secrets redacted):
+    allow_dirty             = False
+    ...
+    log_level               = 'warning'
+    ...
+    replay_trace            = 'src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz'
+```
+
+Names are sorted, one `name = value` per line, aligned, with values as Python writes them; a
+nested mapping is indented below its name. Path options (the tools' and the engine's, the set a
+recording's header stores) are shown relative to the project root when inside it and absolute
+otherwise. An option whose name holds key, token, secret, password or credential, in any case,
+shows `<redacted>`. The environment is never read. A replay's options are the recorded run's.
+`random_seed` is the seed the run uses, rolled or given (the owner, 2026-10-28: "The seed should
+definitely be in the options"), never None, so `--random-seed` with it plays the run again.
+
 ## Complete Flag Reference
 
 Every option, by the layer that adds it and grouped as `uv run bitmappy --help` prints it:
@@ -238,7 +269,7 @@ Added by `FontManager.args()` in `src/glitchygames/fonts/font_manager.py`.
 
 Added by `GameEventManager.args()` in `src/glitchygames/events/game.py`.
 
-- `-l, --log-level {debug,info,warning,error,critical}` (`choice`, default `info`): set the logging level
+- `-l, --log-level {debug,info,warning,error,critical}` (`choice`, default `warning`): set the logging level (default: warning; a bug report asks for info)
 - `--no-unhandled-events` (`store_true`, default `False`): fail on unhandled events
 - `-p, --profile` (`store_true`, default `False`): enable profiling
 
@@ -263,7 +294,7 @@ leaves them out.
 
 #### Bitmappy v1.0 Options
 
-Added by `BitmapEditorScene.args()` in `src/apps/bitmappy/bitmappy/editor.py`; the heading is
+Added by `BitmapEditorScene.args()` in `src/apps/bitmappy/src/bitmappy/editor.py`; the heading is
 `<NAME> v<VERSION> Options`.
 
 - `-v, --version` (`store_true`, default `False`): print the game version and exit
@@ -275,12 +306,12 @@ The other games add their own options the same way:
 
 | Game | File | Arguments |
 |------|------|-----------|
-| Paddle Slap | `src/games/paddleslap/paddleslap/__init__.py` | `-v, --version`, `-b, --balls` (int, default 1), `--ball-spawn-mode` (choice, default `paddle_only`) |
-| DT Demo | `src/glitchygames/examples/dt_demo.py` | `-v, --version`, `-b, --balls` (int, default 1) |
-| Clockwork Keep | `src/games/clockwork-keep/clockwork_keep/game.py` | `--floor` (int, default 0) |
+| Paddle Slap | `src/games/paddleslap/src/paddleslap/__init__.py` | `-v, --version`, `-b, --balls` (int, default 1), `--ball-spawn-mode` (choice, default `paddle_only`) |
+| DT Demo | `src/demos/dt-demo/src/dt_demo/__init__.py` | `-v, --version`, `-b, --balls` (int, default 1) |
+| Clockwork Keep | `src/games/clockwork-keep/src/clockwork_keep/game.py` | `--floor` (int, default 0) |
 | Brave Adventurer (both editions) | `src/games/brave-adventurer/src/brave_adventurer/game.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py` | `-v, --version` |
 | Brave Adventurer's launcher | `src/games/brave-adventurer/src/brave_adventurer_modes/launcher.py` (read before the engine's parser, which never sees it), `title.py` (`TitleScene.args()` lists it in `-h`) | `--game {classic,papyrus}`, `-v, --version` |
-| Joystick Demo | `src/glitchygames/examples/joystick_demo.py` | none (the engine's `--input-mode` chooses what it shows) |
+| Joystick Demo | `src/demos/joystick-demo/src/joystick_demo/__init__.py` | none (the engine's `--input-mode` chooses what it shows) |
 | Bitrot Adventures | `scripts/bitrotadventures.py` | `-s, --some-game-specific-option` |
 | Animation Demo | `scripts/animation_scene_full_demo.py` | `-v, --version` |
 

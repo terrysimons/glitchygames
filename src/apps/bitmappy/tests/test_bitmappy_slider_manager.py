@@ -1,4 +1,4 @@
-"""Tests for the Bitmappy SliderManager (src/apps/bitmappy/bitmappy/slider_manager.py).
+"""Tests for the Bitmappy SliderManager (src/apps/bitmappy/src/bitmappy/slider_manager.py).
 
 The sliders, color well, tab control and bounding boxes are built for real by
 ``setup_sliders_and_color_well`` on a lightweight editor stand-in, so the tests

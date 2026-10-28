@@ -64,7 +64,7 @@ PRIORITY_TIERS: dict[int, list[Path]] = {
         / 'sprites'
     ],
     # Bitmappy's sprite library (package data in its member)
-    2: [PROJECT_ROOT / 'src' / 'apps' / 'bitmappy' / 'bitmappy' / 'resources' / 'sprites'],
+    2: [PROJECT_ROOT / 'src' / 'apps' / 'bitmappy' / 'src' / 'bitmappy' / 'resources' / 'sprites'],
     3: [
         PROJECT_ROOT / 'src' / 'glitchygames' / 'assets',
         PROJECT_ROOT / 'sprites',

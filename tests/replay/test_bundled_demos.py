@@ -3,33 +3,47 @@
 A bundled demo is an ordinary recording shipped in a workspace member's package, as package data
 (``<package>/demos/<name>.jsonl.gz``). The suite collects only ``tests/``, so
 the demos are reached through this module: one headless replay per demo
-(``bundled_demo_paths``, ``replay_recording_headless``; glitchygames/testing/replays.py), so a
-change that makes a demo diverge fails here before it ships. PaddleSlap's demo is also played the
-way the game plays it, through ``SceneManager.play_recording``.
+(``bundled_demo_paths``, glitchygames/testing/replays.py; ``replay_recording_headless``,
+glitchygames/replay/tools/children.py), so a change that makes a demo diverge fails here before
+it ships. PaddleSlap's own tests play its demo the way the game plays it, through
+``SceneManager.play_recording``
+(src/games/paddleslap/tests/test_paddleslap_demo_plays_in_game.py).
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
-from scripts.record_golden_traces import FRAME_SECONDS
+from scripts.workspace_packages import workspace_members
 
-# Loaded on purpose: its scene is also named Game, so the playback below must tell PaddleSlap's
-# apart by module (glitchygames/replay/playback.py, find_scene_class)
-from glitchygames.examples import joystick_demo
+from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
-from glitchygames.live_sources import LiveSources
-from glitchygames.testing.replays import bundled_demo_paths, replay_recording_headless
-from glitchygames.tracing import FRAMES_FIELD, read_trace_result
-from paddleslap import PADDLESLAP_DEMO_PATH, Game
-from tests.replay.playback_fixtures import step_finishing
-from tests.world.test_frame_integration import running_scene
+from glitchygames.replay.tools.children import replay_recording_headless
+from glitchygames.testing.replays import bundled_demo_paths
+from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS, MEMBER_PACKAGES
 
-BUNDLED_DEMOS = bundled_demo_paths()
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+BUNDLED_DEMOS = bundled_demo_paths(packages=MEMBER_PACKAGES)
 
 
 def test_paddleslap_ships_a_demo():
-    """PaddleSlap's demo is found among the bundled demos (the folder is collected)."""
-    assert ('paddleslap', PADDLESLAP_DEMO_PATH) in BUNDLED_DEMOS
+    """The bundled demos are the expected ones, each replayed by its own member's console script.
+
+    Compared by ``(package, name)``, not by path: nox's test sessions install the members
+    non-editable. This is the replay test's expected set (an empty parametrization would skip,
+    not fail), so the demos it replays are exactly these.
+    """
+    demos = bundled_demos(packages=MEMBER_PACKAGES)
+    members = workspace_members(project_root=PROJECT_ROOT)
+
+    assert {(demo.package, demo.path.name) for demo in demos} == EXPECTED_BUNDLED_DEMOS
+    assert [(console_script, path.name) for console_script, path in BUNDLED_DEMOS] == [
+        (demo.console_script, demo.path.name) for demo in demos
+    ]
+    for demo in demos:
+        (member,) = [member for member in members if demo.package in member.import_packages]
+        assert demo.console_script in member.console_scripts
 
 
 @pytest.mark.parametrize(
@@ -42,30 +56,3 @@ def test_bundled_demo_replays_without_divergence(console_script, demo_path):
     completed = replay_recording_headless(console_script=console_script, path=demo_path)
 
     assert completed.returncode == ExitCode.SUCCESS, completed.stdout
-
-
-def test_the_paddleslap_demo_plays_in_game(mocker):
-    """The demo plays to its end inside a running PaddleSlap and returns to the live scene.
-
-    Frames run with ``_finish_frame`` (``step_finishing``), where a playback's frames take the
-    recording's dt; the golden harness's ``step`` never feeds a playback the recording's dt.
-    The live frames get a fixed dt: measured, one slow frame (a busy machine, a real window's
-    first frames) moved the live ball far enough to end the game before the assertions.
-    """
-    mocker.patch.object(LiveSources, 'frame_seconds', return_value=FRAME_SECONDS)
-    assert joystick_demo.Game.__name__ == Game.__name__
-    recorded_frames = read_trace_result(path=PADDLESLAP_DEMO_PATH).trace[FRAMES_FIELD]
-    with running_scene(Game) as manager:
-        live_scene = manager.active_scene
-        assert live_scene is not None
-        manager.play_recording(path=PADDLESLAP_DEMO_PATH, then=live_scene)
-
-        # The frame that asks runs live; the demo's frames follow
-        step_finishing(manager, frames=len(recorded_frames) + 1)
-
-        assert manager.playback_session is None
-        assert manager.active_scene is live_scene
-        outcome = manager.last_playback_outcome
-        assert outcome is not None
-        assert outcome.reason == 'end_of_recording'
-        assert outcome.frames_played == len(recorded_frames)

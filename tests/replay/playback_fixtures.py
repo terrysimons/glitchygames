@@ -6,12 +6,12 @@ import time
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
-from scripts.record_golden_traces import discard_environment_events
 
 from glitchygames.input.state import current_input
 from glitchygames.randomness import random_stream
 from glitchygames.recording import post_event
 from glitchygames.replay.playback import start_playback_from_recording
+from glitchygames.replay.tools.golden_traces import discard_environment_events
 from glitchygames.scenes import SceneManager
 from glitchygames.state import open_saves
 from glitchygames.tracing import FRAMES_FIELD, read_trace_result, write_trace

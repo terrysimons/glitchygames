@@ -11,22 +11,31 @@ packages, Part 2: every game is its own package", 26 commits, verified by Task 9
 its own package, `src/apps/bitmappy/`; commits a97efbe9..1d0994a0 at present, the last hash
 pinned at merge; verified by its Task 7 and the user's manual checks, 2026-10-26, then a
 final-review fix pass; see [its plan](2026-10-26-workspace-packages-4-bitmappy.md); not yet
-merged). Part 3 (the demos) NOT STARTED; Part 5 (the browser IDE) NOT STARTED.
+merged). Part 3 (the demos) DONE on feature/workspace-packages-3a-src-layout (2026-10-26: Stage A,
+every member in a `src/` layout; Stage B, the three demos are members of the `demos` layer and
+`src/glitchygames/examples/` and `EXAMPLES_LAYERS` are gone; Stage C, engine tests stop borrowing
+members and the guards cover every member; commits 832c76e6..abbbba09 and the C6 commits on top, the
+last hash pinned at merge; then Stage D, the engine owns every recording, replay and
+measurement tool, as game flags and as the `glitchygames` command (D1-D11 done 2026-10-27,
+awaiting the final review and the user's look at `--compare-trace`); see [its
+plan](2026-10-26-workspace-packages-3-demos.md)); Part 5 (the browser IDE) NOT STARTED.
 Plan written 2026-10-24; amended 2026-10-25: everything under `src/`, decision 7; logical names
 in recordings, decision 8; where recordings live, decision 9; amended 2026-10-26: Part 4 runs
 before Part 3 (the user: "bitmappy should move first"), so deleting `src/glitchygames/examples/`
 moves to Part 3; the `examples:` file-name prefix is removed, not moved (decision 5); every
 member declares what it imports (decision 10); the four WAVs are kept as engine resources and
-the shared sprite-file checks become an engine testing helper (Part 3).
+the shared sprite-file checks became an engine testing helper (Part 3, done 2026-10-26).
 Parts 1, 2 and 4 have full implementation plans; Parts 3 and 5 are outlined here and get theirs
 when each starts, written against how Parts 2 and 4 turned out.
 
 Sub-plans:
-- Part 1 (DONE): [Foundation and the Mr. Muncher pilot](2026-10-24-workspace-packages-1-foundation.md)
+- Part 1 (DONE): [Foundation and the Mr. Muncher
+  pilot](2026-10-24-workspace-packages-1-foundation.md)
 - Part 2 (DONE): [The other five games](2026-10-25-workspace-packages-2-games.md) (Clockwork
   Keep, Brave Adventurer with Papyrus as one project, PaddleSlap and Drawing Fire, which postdates
   the outline; the move recipe is `docs/architecture/game_packages.md`)
-- Part 3: The three demos (outline below; not started). Its plan starts from the untracked
+- Part 3 (DONE): [The demos](2026-10-26-workspace-packages-3-demos.md) (outline below). Its plan
+  starts from the untracked
   draft `plans/2026-10-25-workspace-packages-2-games-demos-apps.md` (Tasks 10-12 and 18),
   corrected against #109 and Part 4 (the outline lists what is stale in it); the draft is
   deleted once Part 3 has its plan (the user, 2026-10-26)
@@ -46,7 +55,8 @@ wheel. Moving each into its own package beside the engine:
   `trajectory` and `record_trajectory_point`);
 - **slims the engine's wheel**: game code, sprites and demos stop shipping in `glitchygames`
   (games since Part 2, Bitmappy and its sprite library since Part 4; the demos and `foo2.toml`
-  still ship until Part 3, which also moves the four WAVs to the engine's own resources);
+  shipped until Part 3, which moved them out on 2026-10-26 and put the four WAVs in the engine's
+  own resources);
 - **gives one package per playable thing**, as the browser bundles and `play/` pages already
   are, and a template a new game copies.
 
@@ -95,8 +105,9 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
    application, not a game or demo; `src/apps/` also fits the API server and client should
    they move).
    (Since then: Part 2 removed one console script, `brave-adventurer-papyrus`, when Brave
-   Adventurer and Papyrus became one project with the `brave-adventurer` launcher; Part 3 adds
-   console scripts to the demos, which have none. The Arcade is an app too, `src/apps/arcade/`,
+   Adventurer and Papyrus became one project with the `brave-adventurer` launcher; Part 3 added
+   console scripts to the demos (`dt-demo`, `joystick-demo`, `text-input-demo`, 2026-10-26). The
+   Arcade is an app too, `src/apps/arcade/`,
    the user, 2026-10-25: `plans/2026-10-23-arcade-showcase.md`.)
 2. ~~**Recordings keep replaying unchanged** through `PREVIOUS_MODULES`~~: replaced by decision
    8 (2026-10-25). Part 1's Task 2 built it; Part 1's Task 5 removes it.
@@ -152,8 +163,9 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
    the current code, before anything moves, each NEW replayed strictly (Part 1, Task 6): the
    recordings change only by that conversion. A game's move then needs nothing for its
    recordings: its logical name does not change.
-   (Since then: after Part 2, `EXAMPLES_LAYERS` names only the three demos, and Part 3 deletes
-   it. Part 4 met the one exception to "a move needs nothing": a package that was in no layer.
+   (Since then: after Part 2, `EXAMPLES_LAYERS` named only the three demos, and Part 3 deleted
+   it (2026-10-26). Part 4 met the one exception to "a move needs nothing": a package that was in no
+   layer.
    Bitmappy's logical name changed from `glitchygames.bitmappy.editor:BitmapEditorScene` to
    `apps.bitmappy.editor:BitmapEditorScene`, so a plain replay refuses a recording made before
    its move, naming the remedy, and `--replay-trace OLD --rebaseline NEW --headless` converts it:
@@ -172,7 +184,8 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
     confirmed it for the demos the same day): its `pyproject.toml` lists every distribution its
     package imports (Bitmappy's: `glitchygames`, `aisuite` with the root's extras, `numpy`,
     `pydantic`, `pygame-ce`, `tenacity`), and a dependency only a member imports moves out of
-    the root (`tenacity`). The demos follow this rule in Part 3. The five games, moved earlier,
+    the root (`tenacity`). The demos follow this rule (Part 3, 2026-10-26). The five games, moved
+    earlier,
     still list only `glitchygames`; backfilling them is a small follow-up (Future work).
 
 ## What every part keeps true
@@ -191,8 +204,10 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
   glitchygames` resolves to the installed package (Part 1). Coverage maps the installed copies
   back to `src/` (`[tool.coverage.paths]`), so the report names the files in the repository.
 - A moved recording keeps its run-ledger history (`RECORDING_PATH_RENAMES`,
-  `src/glitchygames/recording_metrics.py`, Part 1): the engine's move already moves PaddleSlap's
-  bundled demo, and every later move adds one line per moved recording (old and new path).
+  `src/glitchygames/recording_metrics.py`, Part 1; since Part 3 Stage D, the root
+  `pyproject.toml`'s `[tool.glitchygames.recording-renames]`): the engine's move already moves
+  PaddleSlap's bundled demo, and every later move adds one line per moved recording (old and new
+  path).
 - Every committed recording names its game and scenes by logical names that resolve
   (`tests/replay/test_recording_logical_names.py`, Part 1), and the engine's `MEMBER_LAYERS`
   equals the workspace (`tests/test_workspace_config.py`). Recordings change only by Part 1's
@@ -206,28 +221,51 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
 - Member test modules are named for their package and never repeat a name across test roots
   (decision 3). Part 4 guards Bitmappy's at any depth
   (`tests/test_suite_collection.py::test_bitmappys_test_modules_are_named_for_it`); Part 3
-  extends the guard to every member.
-- Each moved package has a `test_<package>_after_the_move.py` that asserts its old module is gone
-  (`importlib.util.find_spec(...) is None`), so a leftover ignored `__pycache__` fails a test
-  instead of shadowing the member.
+  (2026-10-26) extended the guard to every member.
+- Each moved package's move tests are one file per subject (logical_names, install_location,
+  wheel, package_data, entry_points, recording_history), named for the member; the install-location
+  one asserts its old module is gone (`importlib.util.find_spec(...) is None`), so a leftover
+  ignored `__pycache__` fails a test instead of shadowing the member.
 - The engine points nowhere into a member: Part 4 guards Bitmappy
   (`tests/test_workspace_config.py::test_the_engine_outside_bitmappy_points_nowhere_into_it`,
-  `tests/test_suite_collection.py::test_no_engine_test_imports_bitmappy`); Part 3 extends the
-  guards to every member package. (Engine tests may still borrow a game on purpose:
-  `docs/architecture/game_packages.md`, step 5.)
+  `tests/test_suite_collection.py::test_no_engine_test_imports_bitmappy`); Part 3 (2026-10-26)
+  extended the guards to every member package (see the next items).
+- Every member's packages are under `<member>/src/` (`tests/test_workspace_config.py::
+  test_every_member_keeps_its_packages_under_src`).
+- No engine code and no root test imports a member, apart from the listed exemptions
+  (`MEMBER_IMPORT_EXEMPT_MODULES`, `MEMBER_IMPORT_EXEMPT_NAMES`: the golden-replay control tables
+  and the per-game world rules in `tests/world/test_golden_traces.py`). Engine tests use
+  stand-ins or discover members through the workspace and assert hand-written expectations
+  (`tests/workspace_expectations.py`); `docs/architecture/game_packages.md`, step 5.
+- Member tests are named for their member (`test_<distribution with - as _>*.py`, at any depth),
+  and their move tests are split by subject, never one `_after_the_move` file.
+- The engine's own wheel is tested (`tests/test_engine_wheel.py`): its package, four sounds and
+  two sprites, no member.
+- Browser bundles leave out ignored files: the engine archive is built from the files git does not
+  ignore (an ignored file never ships; a new, not-yet-added file still does).
+- Wall-clock timings live in benchmarks, never in the normal suite.
 - A check fed by a glob or a list asserts that its input is not empty, since an empty
   parametrize only skips (for example
   `tests/examples/test_examples_sprites.py::test_the_animated_sprite_checks_have_sprites_to_run_on`,
-  which Part 3 moves with the shared sprite-file checks).
+  which Part 3 moved into `glitchygames.testing.sprite_files`, 2026-10-26).
 - A check of a directory's contents reads the names git tracks, never the file system, so an
   ignored file (`.DS_Store`) cannot fail it, and runs git without the ambient `GIT_*` variables,
   so it also works inside a hook (`tests/test_workspace_packages.py` `tracked_entry_names`).
+- The engine owns every recording, replay and measurement tool (Part 3, Stage D, 2026-10-27:
+  `src/glitchygames/replay/tools/`), so a game the engine has never seen can record, replay,
+  verify, rebaseline, measure, report on and graph its recordings with only the engine's wheel;
+  `scripts/` keeps only this repository's policy (our games' input scripts in
+  `scripts/golden_inputs.py`, the pre-commit hook's git staging, the docs snippets). Game flags
+  and `glitchygames` subcommands share names and options: both are generated from one table,
+  `registry.TOOLS`, and `tests/replay/tools/test_registry.py` fails if they differ;
+  `tests/replay/tools/test_an_unseen_game.py` runs every tool both ways on a stand-in game.
 
 ## Parts
 
 ### Part 1: Foundation and the Mr. Muncher pilot (DONE)
 
-Full plan: [2026-10-24-workspace-packages-1-foundation.md](2026-10-24-workspace-packages-1-foundation.md).
+Full plan:
+[2026-10-24-workspace-packages-1-foundation.md](2026-10-24-workspace-packages-1-foundation.md).
 The shared, risky work, proven on one game: the workspace, the test harness as a plugin every
 package's tests get, logical names in recordings (replacing Task 2's `PREVIOUS_MODULES`) and the
 one conversion of the six committed recordings, the engine moved to `src/glitchygames/` (after
@@ -272,7 +310,7 @@ The outline as written:
 - Ends with `src/glitchygames/examples/` holding only the demos and Bitmappy's resources, and
   the root `tests/fixtures/replays/` holding only the engine's own recordings.
 
-### Part 3: The three demos (outline; not started)
+### Part 3: The three demos (outline; DONE 2026-10-26, Stages A, B and C)
 
 Starts from the untracked draft `plans/2026-10-25-workspace-packages-2-games-demos-apps.md`
 (Tasks 10-12, the demos, and 18, `examples/` deleted), corrected against #109 and Part 4. Its
@@ -372,8 +410,9 @@ imported by accident in place of the installed package.
   `former_examples_references`) keeps code and living docs from naming it. This plan names it
   on purpose, so the guard must exempt this plan.
 - Part 4's Bitmappy-only guards become every member's (the user, 2026-10-26): test modules named
-  for their package (Mr. Muncher's `test_logical_names_after_the_move.py` becomes
-  `test_mr_muncher_after_the_move.py`), and no engine source or test configuration pointing into
+  for their package (every member's `*_after_the_move.py` is split by subject: logical_names,
+  install_location, wheel, package_data, entry_points, recording_history), and no engine source or
+  test configuration pointing into
   a member package. Their Bitmappy leftovers go: the vestigial `'bitmappy/'` skip in
   `tests/test_workspace_config.py` `engine_files_pointing_into_bitmappy` (and the self-test case
   that plants `bitmappy/inside.py`), and its `'examples', 'resources', 'sprites'` path check
@@ -381,7 +420,8 @@ imported by accident in place of the installed package.
 
 ### Part 4: Bitmappy as an app (DONE)
 
-Full plan: [2026-10-26-workspace-packages-4-bitmappy.md](2026-10-26-workspace-packages-4-bitmappy.md).
+Full plan:
+[2026-10-26-workspace-packages-4-bitmappy.md](2026-10-26-workspace-packages-4-bitmappy.md).
 Done 2026-10-26 (commits a97efbe9..1d0994a0 at present, the last hash pinned at merge; the
 user's manual checks passed the same day, then a final-review fix pass). As built, beyond the
 outline: `--rebaseline` converts a recording whose classes moved to another logical module
@@ -389,8 +429,10 @@ outline: `--rebaseline` converts a recording whose classes moved to another logi
 with no `sys.path` edits, and a guard; `nox -s build-wheel` builds every package's wheel;
 Bitmappy's tests are named `test_bitmappy_*.py`, guarded at any depth; the member declares
 everything it imports (`tenacity` left the root, decision 10); the `examples:` prefix is removed,
-not moved (decision 5). Left to Part 3: `src/glitchygames/examples/`, `EXAMPLES_LAYERS`, and the
-shared sprite checks in `tests/examples/test_examples_sprites.py`. The outline as written:
+not moved (decision 5). Part 3 then did what was left (2026-10-26): `src/glitchygames/examples/`,
+`EXAMPLES_LAYERS`
+and the shared sprite checks in `tests/examples/test_examples_sprites.py` are gone or moved. The
+outline as written:
 
 - `src/apps/bitmappy/` (distribution `bitmappy`, import package `bitmappy`, console script
   `bitmappy` unchanged) with its sprites. Engine code that points into Bitmappy or its sprites
@@ -400,7 +442,7 @@ shared sprite checks in `tests/examples/test_examples_sprites.py`. The outline a
   `included_subpackages` and the Bitmappy docs follow. The biggest part: a survey of the
   engine's references into `src/glitchygames/bitmappy/` comes first.
 - (Its "Ends with `src/glitchygames/examples/` gone" moved to Part 3: Part 4 ran first, so the
-  demos were still there. After Part 4, `examples/` holds the three demos and their resources.)
+  demos were still there. Part 3 then moved them and deleted `examples/`.)
 
 ### Part 5: A browser IDE on each game's page (outline)
 
@@ -426,7 +468,8 @@ they go later.
   restart the scene; fall back to a fresh start; it needs the engine's per-run state held per
   context, `plans/2026-10-25-engine-context.md`), ruff in WebAssembly, and a replay check: run
   the game's golden replay against the edits and show the first divergent frame.
-- **Best** (follow-up): add, rename and delete files; edit sprite TOMLs in an embedded Bitmappy (its own archive, `bitmappy.zip`, loaded beside
+- **Best** (follow-up): add, rename and delete files; edit sprite TOMLs in an embedded Bitmappy (its
+  own archive, `bitmappy.zip`, loaded beside
   the game's; the files in a #58 workspace);
   run the package's tests in the browser; autocomplete; shareable links carrying edits.
 

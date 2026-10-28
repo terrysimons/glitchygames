@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.timing import (
     FastTimer,
     PacingTimer,
@@ -78,7 +78,7 @@ def hypervisor_description() -> str:
                 command=[SYSCTL_PATH, '-n', 'kern.hv_vmm_present'],
                 environment=os.environ,
                 timeout_seconds=10,
-                capture_output=True,
+                capture_output=OutputCapture.TOGETHER,
             )
         except (OSError, subprocess.SubprocessError) as error:
             return f'unknown (sysctl kern.hv_vmm_present: {error})'

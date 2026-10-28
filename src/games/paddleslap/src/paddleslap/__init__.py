@@ -1,0 +1,1191 @@
+#!/usr/bin/env python3
+"""Paddle Slap.
+
+This is a simple game where you try to keep the ball from hitting your side of the screen.
+"""
+
+from __future__ import annotations
+
+import copy
+import logging
+import math
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Self, override
+
+if TYPE_CHECKING:
+    import argparse
+
+    from glitchygames.events.base import (
+        ControllerAxisEvent,
+        ControllerButtonEvent,
+        JoyAxisEvent,
+        JoyButtonEvent,
+        KeyEvent,
+    )
+
+import pygame
+
+from glitchygames.collision.detection import snapped_world_position
+from glitchygames.collision.layers import get_sprite_collision_rect
+from glitchygames.color import BLACK, WHITE
+from glitchygames.engine import GameEngine
+from glitchygames.game_objects import BallSprite
+from glitchygames.game_objects.ball import (
+    BallSpawnMode,
+    ServeSettings,
+    SpeedUpAxes,
+    SpeedUpCurve,
+    SpeedUpSettings,
+    SpeedUpTrigger,
+)
+from glitchygames.game_objects.paddle import VerticalPaddle
+from glitchygames.game_objects.sounds import SFX
+from glitchygames.input import ActionMap
+from glitchygames.movement import Speed
+from glitchygames.randomness import random_stream
+from glitchygames.scenes import Scene
+from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
+from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
+
+# Its level is the engine's (--log-level): set here, at import, it reached every game.* logger in
+# any process that imported PaddleSlap, so --log-level warning still logged INFO (BUGS.md #236)
+log = logging.getLogger('game')
+
+# Threshold below which speed changes are considered noise
+SPEED_CHANGE_NOISE_FLOOR = 0.001
+
+# Minimum direction component to be considered significant for separation
+SIGNIFICANT_DIRECTION_THRESHOLD = 0.1
+
+# Number of recent positions to keep for trajectory analysis
+DEBUG_TRAJECTORY_HISTORY_SIZE = 10
+
+# Minimum number of positions needed to detect a curve
+MIN_TRAJECTORY_POSITIONS_FOR_CURVE = 5
+
+# Y trend threshold for detecting significant upward movement (negative = upward)
+UPWARD_CURVE_Y_TREND_THRESHOLD = -5
+
+# Engine random streams (glitchygames/randomness.py): spawn positions and ball colours draw
+# from separate streams, so a colour draw never moves where the next ball spawns
+SPAWN_RANDOM_STREAM = 'paddleslap.spawn'
+COLOR_RANDOM_STREAM = 'paddleslap.colors'
+# Each colour channel is drawn from range(COLOR_CHANNEL_LEVELS)
+COLOR_CHANNEL_LEVELS = 256
+
+# Attract mode: PaddleSlap has no title screen (a game starts serving at once), so its idle
+# screen is the game-over screen. After GAME_OVER_IDLE_SECONDS of its game time (Scene.game_time)
+# without a key or button press, it plays the bundled demo (SceneManager.play_recording), which
+# any press ends, returning to the game-over screen. The demo was recorded with
+# scripts/record_scripted_session.py --game paddleslap --frames 450 --script-only (before the
+# golden script pauses; no controls tail, so it never quits), and
+# tests/replay/test_bundled_demos.py replays it. It ships inside the package (package data,
+# found by glitchygames/bundled_demos.py).
+PADDLESLAP_DEMO_PATH = Path(__file__).parent / 'demos' / 'rally.jsonl.gz'
+GAME_OVER_IDLE_SECONDS = 10.0
+
+# Paddle hits speed the ball up along a logarithmic curve: big early boosts that taper
+# off so long rallies stay playable, preserving the angle the paddle set, capped at 500.
+# Opening serves: Pong-style diagonals 15-60 degrees from horizontal, toward either side
+PADDLESLAP_SERVE = ServeSettings()
+# Randomly-launched extra balls (BallSpawnMode.RANDOM_SPEED) start slower
+PADDLESLAP_SPAWN_SERVE = ServeSettings(speed=150.0)
+
+PADDLESLAP_SPEED_UP = SpeedUpSettings(
+    triggers=SpeedUpTrigger.PADDLE_BOUNCE,
+    curve=SpeedUpCurve.LOGARITHMIC,
+    axes=SpeedUpAxes.BOTH,
+    multiplier=1.15,
+    max_speed=500.0,
+)
+
+
+def _random_ball_color() -> tuple[int, int, int]:
+    """Draw a ball colour from the colour stream (red, then green, then blue).
+
+    Returns:
+        The (red, green, blue) colour, each channel in range(COLOR_CHANNEL_LEVELS).
+
+    """
+    color_random = random_stream(COLOR_RANDOM_STREAM)
+    red = color_random.randrange(COLOR_CHANNEL_LEVELS)
+    green = color_random.randrange(COLOR_CHANNEL_LEVELS)
+    blue = color_random.randrange(COLOR_CHANNEL_LEVELS)
+    return (red, green, blue)
+
+
+class Game(Scene):
+    """The main game class.  This is where the magic happens."""
+
+    # Set your game name/version here.
+    NAME = 'Paddle Slap'
+    VERSION = '1.1'
+
+    def __init__(
+        self: Self,
+        options: dict[str, object],
+        groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
+    ) -> None:
+        """Initialize the Game.
+
+        Args:
+            options (dict): The options passed to the game.
+            groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
+
+        """
+        if groups is None:
+            groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
+
+        super().__init__(options=options, groups=groups)  # type: ignore[arg-type]
+        # The court is black (named: a scene that sets no background shows the test pattern)
+        self.background_color = BLACK
+        # FPS will be set by command line arguments or default to 60
+
+        v_center = self.screen_height // 2
+        self.player1 = VerticalPaddle(
+            'Player 1',
+            (20, 100),  # Smaller paddle - 100 pixels tall
+            (0, v_center - 50),  # Center vertically
+            WHITE,
+            400,  # 400 pixels per second
+            collision_sound=SFX.SLAP,
+        )
+        self.player2 = VerticalPaddle(
+            'Player 2',
+            (20, 100),  # Smaller paddle - 100 pixels tall
+            (self.screen_width - 20, v_center - 50),  # Center vertically
+            WHITE,
+            400,  # 400 pixels per second
+            collision_sound=SFX.SLAP,
+        )
+        # Input action maps (separate per player for multi-controller)
+        self.p1_actions, self.p2_actions, self.pause_actions = self._create_action_maps(
+            input_mode=self.options.get('input_mode', 'auto'),
+        )
+
+        self.balls: list[BallSprite] = []
+        self.rally_count: int = 0  # Total paddle hits across all balls
+        self.saves: SaveManager = open_saves(app_name='paddleslap')
+        # Game time of the last spawn (Scene.game_time); -inf so the first spawn is never held
+        # back by the cooldown, as with the old wall-clock start of 0.0
+        self.last_ball_spawn_time = -math.inf
+        # Per-pair collision cooldown to prevent duplicate collision processing
+        # when ball bounding boxes overlap across multiple consecutive frames.
+        # Maps (ball_id_1, ball_id_2) to remaining cooldown frames.
+        self._ball_collision_cooldowns: dict[tuple[int, int], int] = {}
+        # (ball, ball) pairs that collided this frame, for _keep_collided_balls_playable
+        self._ball_collision_pairs: list[tuple[BallSprite, BallSprite]] = []
+
+        # Collision layers
+        self.collisions.add_layer('balls')
+        self.collisions.add_layer('paddles')
+        # Convert string argument to BallSpawnMode flag
+        spawn_mode_str = self.options.get('ball_spawn_mode', 'paddle_only')
+        if spawn_mode_str == 'paddle_only':
+            self.ball_spawn_mode = BallSpawnMode.PADDLE_ONLY
+        elif spawn_mode_str == 'wall_only':
+            self.ball_spawn_mode = BallSpawnMode.WALL_ONLY
+        elif spawn_mode_str == 'ball_only':
+            self.ball_spawn_mode = BallSpawnMode.BALL_ONLY
+        elif spawn_mode_str == 'frequent':
+            self.ball_spawn_mode = BallSpawnMode.FREQUENT_SPAWNING
+        elif spawn_mode_str == 'rare':
+            self.ball_spawn_mode = BallSpawnMode.PADDLE_ONLY | BallSpawnMode.RARE
+        elif spawn_mode_str == 'none':
+            self.ball_spawn_mode = BallSpawnMode.NO_SPAWNING
+        else:
+            self.ball_spawn_mode = BallSpawnMode.PADDLE_ONLY
+        for _ in range(self.options.get('balls', 1)):
+            ball = BallSprite(
+                collision_sound=SFX.BOUNCE,
+                bounce_top_bottom=True,  # Bounce off top and bottom walls
+                bounce_left_right=False,  # Don't bounce off side walls (scoring)
+                speed_up_settings=PADDLESLAP_SPEED_UP,
+                serve_settings=PADDLESLAP_SERVE,
+            )
+            self._connect_spawn_triggers(ball=ball)
+            self.balls.append(ball)
+
+        for ball in self.balls:
+            ball.color = _random_ball_color()
+            self.collisions.get_layer('balls').add(ball)
+
+        paddle_layer = self.collisions.get_layer('paddles')
+        paddle_layer.add(self.player1)
+        paddle_layer.add(self.player2)
+
+        self.all_sprites = pygame.sprite.LayeredDirty((self.player1, self.player2, *self.balls))
+
+        assert self.screen is not None
+        self.all_sprites.clear(self.screen, self.background)
+
+    @classmethod
+    def args(cls, parser: argparse.ArgumentParser) -> None:
+        """Add arguments to the argument parser.
+
+        Args:
+            parser (argparse.ArgumentParser): The argument parser.
+
+        """
+        # argparse prints the version and exits as it parses (before the game starts)
+        parser.add_argument(
+            '-v',
+            '--version',
+            action='version',
+            version=f'{cls.NAME} {cls.VERSION}',
+            help='print the game version and exit',
+        )
+
+        parser.add_argument(
+            '-b',
+            '--balls',
+            type=int,
+            help='the number of balls to start with',
+            default=1,
+        )
+
+        parser.add_argument(
+            '--ball-spawn-mode',
+            type=str,
+            help='ball spawn mode (paddle_only, wall_only, ball_only, frequent, rare, none)',
+            default='paddle_only',
+            choices=['paddle_only', 'wall_only', 'ball_only', 'frequent', 'rare', 'none'],
+        )
+
+    def _debug_log_ball_trajectory(self: Self, ball_index: int, ball: BallSprite) -> None:
+        """Track and log ball trajectory for debugging curving patterns.
+
+        dt_tick calls it only with DEBUG logging on, so the history fills only while it is logged.
+
+        Args:
+            ball_index: The index of the ball in the balls list (0-based).
+            ball: The ball sprite to track.
+
+        """
+        # Track trajectory over time to detect curving (BallSprite starts the history empty)
+        drawn_x, drawn_y = snapped_world_position(ball, ball.world_x, ball.world_y)
+        ball.record_trajectory_point(
+            x=drawn_x,
+            y=drawn_y,
+            speed_x=ball.speed.x,
+            speed_y=ball.speed.y,
+            limit=DEBUG_TRAJECTORY_HISTORY_SIZE,
+        )
+
+        # Check for upward curving pattern
+        positions = ball.trajectory
+        if len(positions) >= MIN_TRAJECTORY_POSITIONS_FOR_CURVE:
+            # Calculate if ball is curving upward
+            y_positions: list[float] = [pos[1] for pos in positions]
+            if len(set(y_positions)) > 1:  # Only if Y is changing
+                y_trend: float = y_positions[-1] - y_positions[0]
+                if y_trend < UPWARD_CURVE_Y_TREND_THRESHOLD:  # Moving upward significantly
+                    log.debug(
+                        'BALL %s UPWARD CURVE DETECTED: '
+                        'y_trend=%.1f positions=%s '
+                        'speed=(%.1f,%.1f)',
+                        ball_index + 1,
+                        y_trend,
+                        y_positions[-3:],
+                        ball.speed.x,
+                        ball.speed.y,
+                    )
+
+        log.debug(
+            'BALL %s BEFORE: pos=(%.1f,%.1f) speed=(%.1f,%.1f) magnitude=%.1f',
+            ball_index + 1,
+            ball.world_x,
+            ball.world_y,
+            ball.speed.x,
+            ball.speed.y,
+            math.sqrt(ball.speed.x**2 + ball.speed.y**2),
+        )
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Update the game.
+
+        Args:
+            dt (float): The delta time.
+
+        """
+        self.dt = dt
+        self.dt_timer += self.dt
+
+        # Process held-state input actions (paddle movement)
+        self._process_paddle_input()
+
+        # The ball trajectory logs run for every ball every frame, and the trajectory history
+        # exists only to feed them: skip both unless DEBUG is on
+        debug_enabled = log.isEnabledFor(logging.DEBUG)
+
+        # Debug log ball positions and speeds before update
+        if debug_enabled:
+            for i, ball in enumerate(self.balls):
+                if ball.alive():
+                    self._debug_log_ball_trajectory(ball_index=i, ball=ball)
+
+        for sprite in self.all_sprites:
+            sprite.dt_tick(dt)
+
+        # Debug log ball positions and speeds after update
+        if debug_enabled:
+            for i, ball in enumerate(self.balls):
+                if ball.alive():
+                    log.debug(
+                        'BALL %s AFTER:  pos=(%.1f,%.1f) speed=(%.1f,%.1f) magnitude=%.1f',
+                        i + 1,
+                        ball.world_x,
+                        ball.world_y,
+                        ball.speed.x,
+                        ball.speed.y,
+                        math.sqrt(ball.speed.x**2 + ball.speed.y**2),
+                    )
+
+        # Collisions are game logic, so they run here, after every sprite moved. The engine
+        # positions the world-space balls after dt_tick and before update() renders, so a
+        # bounce or a ball spawned here is drawn this frame (glitchygames/world.py).
+        self._resolve_collisions()
+
+    def _resolve_collisions(self: Self) -> None:
+        """Resolve this frame's paddle and ball-ball hits, remove dead balls, check game over.
+
+        Runs at the end of dt_tick, after every sprite moved this frame.
+        """
+        # Debug log ball state before collision checks (every ball, every frame: DEBUG only)
+        if log.isEnabledFor(logging.DEBUG):
+            for i, ball in enumerate(self.balls):
+                if not ball.alive():
+                    continue
+
+                log.debug(
+                    'BALL %s COLLISION CHECK: pos=(%.1f,%.1f) '
+                    'speed=(%.1f,%.1f) '
+                    'paddle1_rect=(%s,'
+                    '%s,'
+                    '%s,'
+                    '%s) '
+                    'paddle2_rect=(%s,'
+                    '%s,'
+                    '%s,'
+                    '%s)',
+                    i + 1,
+                    ball.world_x,
+                    ball.world_y,
+                    ball.speed.x,
+                    ball.speed.y,
+                    self.player1.rect.x,
+                    self.player1.rect.y,
+                    self.player1.rect.width,
+                    self.player1.rect.height,
+                    self.player2.rect.x,
+                    self.player2.rect.y,
+                    self.player2.rect.width,
+                    self.player2.rect.height,
+                )
+
+        # Ball-paddle hits: the collision manager pairs overlapping collision rects (AABB broad
+        # phase) and BallSprite.handle_paddle_collision does the exact circle-vs-rect check and
+        # the bounce (which also triggers ball spawn via on_paddle_collision). This runs after
+        # every ball moved and before ball-ball collisions and dead-ball cleanup.
+        self.collisions.check_overlap(
+            'balls',
+            'paddles',
+            callback=self._on_ball_paddle_collision,
+        )
+
+        # Check for ball-to-ball collisions (exact elastic physics), then keep every ball that
+        # collided moving like a serve (a game rule, separate from the physics)
+        self._handle_ball_collisions()
+        self._keep_collided_balls_playable()
+        self._spawn_new_balls_for_ball_collisions()
+
+        # Remove dead balls from our list: a ball dies only by leaving past a paddle (a score)
+        balls_to_remove = [ball for ball in self.balls if not ball.alive()]
+
+        for ball in balls_to_remove:
+            self.balls.remove(ball)
+            self.collisions.get_layer('balls').remove(ball)
+
+        # Spawn for scores before the Game Over check, so a spawn can keep the game going
+        for ball in balls_to_remove:
+            self._spawn_new_ball_on_trigger(trigger=BallSpawnMode.ON_SCORE, ball=ball)
+
+        # Check for Game Over condition
+        if len(self.balls) == 0:
+            self._show_game_over()
+
+    def _show_game_over(self: Self) -> None:
+        """Save high score and show the Game Over scene."""
+        high_scores = self._save_high_score()
+        self.next_scene = PaddleSlapGameOverScene(
+            final_score=self.rally_count,
+            high_scores=high_scores,
+            options=self.options,
+        )
+        self.previous_scene = self
+
+    def _save_high_score(self: Self) -> list[dict[str, int]]:
+        """Save the current rally count to the high scores list.
+
+        Returns:
+            The updated high scores list, sorted descending by score.
+
+        """
+        max_high_scores = 10
+        try:
+            existing = self.saves.load('high_scores')
+            scores: list[dict[str, int]] = existing.get('scores', [])
+        except SaveNotFoundError:
+            scores = []
+
+        scores.append({'score': self.rally_count})
+        scores.sort(key=lambda entry: entry.get('score', 0), reverse=True)
+        scores = scores[:max_high_scores]
+
+        self.saves.save('high_scores', {'scores': scores})
+        log.info('Saved rally score: %d (total entries: %d)', self.rally_count, len(scores))
+        return scores
+
+    def _spawn_new_ball(self: Self, _ball: BallSprite | None = None) -> None:
+        """Spawn a new ball at random location with random direction.
+
+        Args:
+            _ball: The ball that triggered the spawn (unused, for callback compatibility)
+
+        """
+        # Create new ball at default speed
+        new_ball = BallSprite(
+            collision_sound=SFX.BOUNCE,
+            bounce_top_bottom=True,  # Bounce off top and bottom walls
+            bounce_left_right=False,  # Don't bounce off side walls (scoring)
+            speed_up_settings=PADDLESLAP_SPEED_UP,
+        )
+
+        # Position the ball based on spawn mode
+        if self.ball_spawn_mode & BallSpawnMode.RANDOM_POSITION:
+            # Spawn at random location between the paddles and within top/bottom boundaries
+            # Left paddle ends at x=20, right paddle starts at x=screen_width-20
+            # So spawn between x=30 and x=screen_width-30 (with some margin)
+            # And between y=20 and y=screen_height-20 (with some margin from top/bottom)
+            # Try to find a location that's not too close to existing balls
+            max_attempts = 10
+            spawn_x = self.screen_width // 2
+            spawn_y = self.screen_height // 2
+            spawn_random = random_stream(SPAWN_RANDOM_STREAM)
+            for _ in range(max_attempts):
+                spawn_x = (
+                    spawn_random.randrange(self.screen_width - 60) + 30
+                )  # Between paddles with margin
+                spawn_y = (
+                    spawn_random.randrange(self.screen_height - 40) + 20
+                )  # Within top/bottom boundaries
+
+                # Check if this location is far enough from existing balls
+                min_distance = 100  # Minimum distance from other balls
+                too_close = False
+                for existing_ball in self.balls:
+                    existing_center_x, existing_center_y = existing_ball.drawn_center()
+                    dx = spawn_x - existing_center_x
+                    dy = spawn_y - existing_center_y
+                    distance = math.sqrt(dx * dx + dy * dy)
+                    if distance < min_distance:
+                        too_close = True
+                        break
+
+                if not too_close:
+                    break
+
+            new_ball.world_x = float(spawn_x)
+            new_ball.world_y = float(spawn_y)
+        else:
+            # Fixed position (center of screen)
+            new_ball.world_x = float(self.screen_width // 2)
+            new_ball.world_y = float(self.screen_height // 2)
+
+        # Set speed based on spawn mode
+        if self.ball_spawn_mode & BallSpawnMode.RANDOM_SPEED:
+            # Random diagonal at a lower speed (serve() keeps the ball where we placed it)
+            new_ball.serve_settings = PADDLESLAP_SPAWN_SERVE
+            new_ball.serve()
+        else:
+            # Fixed speed (default ball speed)
+            new_ball.speed = Speed(250.0, 125.0)
+
+        # Set color based on spawn mode
+        if self.ball_spawn_mode & BallSpawnMode.RANDOM_COLOR:
+            new_ball.color = _random_ball_color()
+        else:
+            new_ball.color = WHITE
+        self._connect_spawn_triggers(ball=new_ball)
+
+        # Add to balls list, sprite group, and collision layer
+        self.balls.append(new_ball)
+        self.all_sprites.add(new_ball)
+        self.collisions.get_layer('balls').add(new_ball)
+
+    def _connect_spawn_triggers(self: Self, *, ball: BallSprite) -> None:
+        """Connect a ball's paddle-hit and wall-bounce callbacks to the ball spawner.
+
+        Ball-ball collisions and scores are seen by _resolve_collisions instead, which
+        handles every ball's.
+
+        Args:
+            ball: An opening or spawned ball.
+
+        """
+        # The paddle callback also counts the rally, whatever the spawn mode
+        ball.on_paddle_collision = self._spawn_new_ball_with_speed_check
+        ball.on_wall_bounce = self._spawn_new_ball_on_wall_bounce
+
+    def _spawn_new_ball_with_speed_check(self: Self, ball: BallSprite) -> None:
+        """Count the rally hit and spawn a new ball if paddle hits are a spawn trigger.
+
+        Args:
+            ball: The ball that hit a paddle
+
+        """
+        self.rally_count += 1
+        self._spawn_new_ball_on_trigger(trigger=BallSpawnMode.ON_PADDLE_COLLISION, ball=ball)
+
+    def _spawn_new_ball_on_wall_bounce(self: Self, ball: BallSprite) -> None:
+        """Spawn a new ball if wall bounces are a spawn trigger.
+
+        Args:
+            ball: The ball that bounced off a wall
+
+        """
+        self._spawn_new_ball_on_trigger(trigger=BallSpawnMode.ON_WALL_BOUNCE, ball=ball)
+
+    def _spawn_new_ball_on_trigger(self: Self, *, trigger: int, ball: BallSprite) -> None:
+        """Spawn a new ball for a trigger event, if the spawn mode allows it now.
+
+        All triggers share one cooldown and one speed check (the triggering ball's speed).
+
+        Args:
+            trigger: The BallSpawnMode trigger flag of the event (ON_PADDLE_COLLISION,
+                ON_WALL_BOUNCE, ON_BALL_COLLISION or ON_SCORE).
+            ball: The ball that triggered the event.
+
+        """
+        # Only the triggers the spawn mode names spawn (NO_SPAWNING names none)
+        if not self.ball_spawn_mode & trigger:
+            return
+
+        # Check cooldown if enabled
+        if self.ball_spawn_mode & BallSpawnMode.COOLDOWN_ENABLED:
+            current_time = self.game_time
+            cooldown = self._get_spawn_cooldown()
+            if current_time - self.last_ball_spawn_time < cooldown:
+                log.debug(
+                    'Ball spawn cooldown active (%.1fs < %ss), not spawning',
+                    current_time - self.last_ball_spawn_time,
+                    cooldown,
+                )
+                return
+
+        # Check speed if enabled
+        if self.ball_spawn_mode & BallSpawnMode.SPEED_CHECK_ENABLED:
+            speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
+            max_reasonable_speed = 1000.0  # 1000 pixels per second
+            if speed_magnitude > max_reasonable_speed:
+                log.debug('Ball speed too high (%.1f), not spawning new ball', speed_magnitude)
+                return
+
+        # Spawn conditions met, spawn a new ball
+        if self.ball_spawn_mode & BallSpawnMode.COOLDOWN_ENABLED:
+            self.last_ball_spawn_time = self.game_time
+        self._spawn_new_ball()
+
+    def _get_spawn_cooldown(self: Self) -> float:
+        """Get the spawn cooldown based on the spawn mode.
+
+        Returns:
+            float: The cooldown time in seconds
+
+        """
+        if self.ball_spawn_mode & BallSpawnMode.FREQUENT:
+            return 0.5
+        if self.ball_spawn_mode & BallSpawnMode.RARE:
+            return 5.0
+        # NORMAL or default
+        return 2.0
+
+    @staticmethod
+    def _on_ball_paddle_collision(ball: BallSprite, paddle: VerticalPaddle) -> None:
+        """Handle a ball-paddle candidate from the collision manager.
+
+        A ball that left the screen this frame was killed in its dt_tick but stays in the
+        'balls' layer until _resolve_collisions removes dead balls, so it is skipped here.
+        """
+        if not ball.alive():
+            return
+        ball.handle_paddle_collision(paddle)
+
+    def _handle_ball_collisions(self: Self) -> None:
+        """Handle ball-to-ball collisions with proper physics.
+
+        Uses the collision manager for broad-phase AABB detection, then
+        circle-distance fine check for accuracy. Energy-conserving elastic
+        collisions with per-pair cooldown.
+        """
+        self._tick_collision_cooldowns()
+        self._ball_collision_pairs = []
+
+        # Use collision manager for same-layer pair detection (AABB broad phase)
+        self.collisions.check_overlap(
+            'balls',
+            'balls',
+            callback=self._on_ball_ball_collision,
+        )
+
+    def _on_ball_ball_collision(self: Self, ball1: BallSprite, ball2: BallSprite) -> None:
+        """Handle a ball-ball collision candidate from the collision manager.
+
+        The collision manager found an AABB overlap. We do the precise
+        circle-distance check here, then apply elastic collision physics.
+        """
+        cooldown_frames = 10
+
+        # Skip pairs still in cooldown
+        pair_key = (id(ball1), id(ball2))
+        reverse_key = (id(ball2), id(ball1))
+        if (
+            pair_key in self._ball_collision_cooldowns
+            or reverse_key in self._ball_collision_cooldowns
+        ):
+            return
+
+        dx, dy, distance, collision_distance = self._calculate_ball_distance(ball1, ball2)
+
+        # Fine check: circle distance (AABB is broad phase only)
+        if distance > collision_distance or distance < SPEED_CHANGE_NOISE_FLOOR:
+            return
+
+        # Play collision sound
+        if hasattr(ball1, 'snd') and ball1.snd is not None:  # type: ignore[reportUnnecessaryComparison]
+            ball1.snd.play()
+
+        # Collision normal (unit vector from ball1 center to ball2 center)
+        normal_x = dx / distance
+        normal_y = dy / distance
+
+        # Only skip if balls are clearly separating AND not overlapping
+        dvn = (ball2.speed.x - ball1.speed.x) * normal_x + (
+            ball2.speed.y - ball1.speed.y
+        ) * normal_y
+        if dvn > 0 and distance >= collision_distance:
+            return
+
+        self._apply_elastic_collision(ball1, ball2, normal_x, normal_y)
+        self._cap_ball_speeds(ball1, ball2)
+        self._separate_overlapping_balls(
+            ball1,
+            ball2,
+            normal_x=normal_x,
+            normal_y=normal_y,
+            collision_distance=collision_distance,
+            distance=distance,
+        )
+
+        # Set cooldown for this pair
+        self._ball_collision_cooldowns[pair_key] = cooldown_frames
+        self._ball_collision_pairs.append((ball1, ball2))
+
+    def _keep_collided_balls_playable(self: Self) -> None:
+        """Keep every ball that collided with another this frame moving like a serve.
+
+        Runs after _handle_ball_collisions. See _keep_ball_playable for the rule and why it
+        is separate from the collision physics.
+        """
+        for ball1, ball2 in self._ball_collision_pairs:
+            self._keep_ball_playable(ball1, partner=ball2)
+            self._keep_ball_playable(ball2, partner=ball1)
+
+    def _spawn_new_balls_for_ball_collisions(self: Self) -> None:
+        """Spawn a new ball for each ball-ball collision this frame, if they are a trigger.
+
+        Runs after _keep_collided_balls_playable (and outside the collision manager's pass,
+        so spawned balls never join it). The speed check uses the pair's faster ball.
+        """
+        for ball1, ball2 in self._ball_collision_pairs:
+            faster_ball = max(
+                (ball1, ball2), key=lambda ball: math.hypot(ball.speed.x, ball.speed.y)
+            )
+            self._spawn_new_ball_on_trigger(
+                trigger=BallSpawnMode.ON_BALL_COLLISION, ball=faster_ball
+            )
+
+    @staticmethod
+    def _keep_ball_playable(ball: BallSprite, *, partner: BallSprite) -> None:
+        """Turn and speed up a ball that left a ball-ball collision unplayable.
+
+        The equal-mass elastic exchange is exact (momentum and kinetic energy are
+        conserved), and exact physics can leave a ball almost stopped (a head-on hit on a
+        slower ball hands over nearly all its speed), almost vertical (it bounces between
+        the top and bottom walls and never reaches a paddle) or flat (vy = 0 slides along a
+        wall). PaddleSlap therefore applies a deliberate game-design rule (not physics) to
+        prevent stalled, vertical and flat balls, reusing the ball's own ServeSettings,
+        which already define a playable ball: the velocity's angle from horizontal is
+        moved into [minimum_angle_degrees, maximum_angle_degrees], keeping the sign of each
+        component, and its speed is raised to at least the serve speed. A component that is
+        exactly zero points away from the partner ball (down or right when the centres are
+        level). A ball already inside the band and at serve speed or faster is unchanged.
+        The rule is not momentum-conserving and adds energy when it raises a slow ball's
+        speed; it is deliberately not part of _apply_elastic_collision, whose physics the
+        collision sweep tests check.
+
+        Args:
+            ball (BallSprite): The ball to adjust.
+            partner (BallSprite): The ball it collided with.
+
+        """
+        serve_settings = ball.serve_settings
+        speed = math.hypot(ball.speed.x, ball.speed.y)
+        angle_degrees = math.degrees(math.atan2(abs(ball.speed.y), abs(ball.speed.x)))
+        playable_angle_degrees = min(
+            max(angle_degrees, serve_settings.minimum_angle_degrees),
+            serve_settings.maximum_angle_degrees,
+        )
+        if speed >= serve_settings.speed and playable_angle_degrees == angle_degrees:
+            return
+
+        ball_rect = get_sprite_collision_rect(ball)
+        partner_rect = get_sprite_collision_rect(partner)
+        horizontal_sign = Game._component_sign(
+            component=ball.speed.x, away_from_partner=ball_rect.centerx - partner_rect.centerx
+        )
+        vertical_sign = Game._component_sign(
+            component=ball.speed.y, away_from_partner=ball_rect.centery - partner_rect.centery
+        )
+        playable_speed = max(speed, serve_settings.speed)
+        playable_angle_radians = math.radians(playable_angle_degrees)
+        ball.speed.x = horizontal_sign * playable_speed * math.cos(playable_angle_radians)
+        ball.speed.y = vertical_sign * playable_speed * math.sin(playable_angle_radians)
+
+    @staticmethod
+    def _component_sign(*, component: float, away_from_partner: float) -> float:
+        """Return the direction (+1 or -1) a velocity component should keep or take.
+
+        Returns:
+            float: The component's own sign; for a zero component (within
+            SPEED_CHANGE_NOISE_FLOOR), the sign of the offset
+            away from the partner ball; +1 when both are zero.
+
+        """
+        if not math.isclose(component, 0.0, abs_tol=SPEED_CHANGE_NOISE_FLOOR):
+            return math.copysign(1.0, component)
+        if away_from_partner != 0:
+            return math.copysign(1.0, away_from_partner)
+        return 1.0
+
+    def _tick_collision_cooldowns(self: Self) -> None:
+        """Tick cooldowns: decrement all active cooldowns and remove expired ones."""
+        expired_pairs = [
+            pair for pair, remaining in self._ball_collision_cooldowns.items() if remaining <= 1
+        ]
+        for pair in expired_pairs:
+            del self._ball_collision_cooldowns[pair]
+        for pair in self._ball_collision_cooldowns:
+            self._ball_collision_cooldowns[pair] -= 1
+
+    @staticmethod
+    def _calculate_ball_distance(
+        ball1: BallSprite,
+        ball2: BallSprite,
+    ) -> tuple[float, float, float, int]:
+        """Calculate distance and collision threshold between two balls.
+
+        Uses the balls' collision rects (their visible circles, the same rects the
+        collision manager's broad phase compared), so balls collide when the circles
+        players see touch rather than when their larger transparent images do.
+
+        Returns:
+            Tuple of (dx, dy, distance, collision_distance).
+
+        """
+        ball1_rect = get_sprite_collision_rect(ball1)
+        ball2_rect = get_sprite_collision_rect(ball2)
+        dx = float(ball2_rect.centerx - ball1_rect.centerx)
+        dy = float(ball2_rect.centery - ball1_rect.centery)
+        distance = math.sqrt(dx * dx + dy * dy)
+        collision_distance = int(ball1_rect.width // 2 + ball2_rect.width // 2)
+        return dx, dy, distance, collision_distance
+
+    @staticmethod
+    def _apply_elastic_collision(
+        ball1: BallSprite,
+        ball2: BallSprite,
+        normal_x: float,
+        normal_y: float,
+    ) -> None:
+        """Apply elastic collision physics for equal mass balls.
+
+        Decomposes velocities into normal and tangential components,
+        then exchanges normal components while preserving tangential components.
+        """
+        ball1_speed_before = math.sqrt(ball1.speed.x**2 + ball1.speed.y**2)
+        ball2_speed_before = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
+
+        log.debug(
+            'BALL-TO-BALL: ball1 speed before=%.2f, ball2 speed before=%.2f',
+            ball1_speed_before,
+            ball2_speed_before,
+        )
+
+        # Decompose velocities into normal and tangential components
+        v1n_scalar = ball1.speed.x * normal_x + ball1.speed.y * normal_y
+        v2n_scalar = ball2.speed.x * normal_x + ball2.speed.y * normal_y
+
+        v1n_vec_x = v1n_scalar * normal_x
+        v1n_vec_y = v1n_scalar * normal_y
+        v2n_vec_x = v2n_scalar * normal_x
+        v2n_vec_y = v2n_scalar * normal_y
+
+        v1t_vec_x = ball1.speed.x - v1n_vec_x
+        v1t_vec_y = ball1.speed.y - v1n_vec_y
+        v2t_vec_x = ball2.speed.x - v2n_vec_x
+        v2t_vec_y = ball2.speed.y - v2n_vec_y
+
+        # Exchange normal components, preserve tangential components
+        ball1.speed.x = v1t_vec_x + v2n_vec_x
+        ball1.speed.y = v1t_vec_y + v2n_vec_y
+        ball2.speed.x = v2t_vec_x + v1n_vec_x
+        ball2.speed.y = v2t_vec_y + v1n_vec_y
+
+        # Energy debugging
+        ball1_speed_after = math.sqrt(ball1.speed.x**2 + ball1.speed.y**2)
+        ball2_speed_after = math.sqrt(ball2.speed.x**2 + ball2.speed.y**2)
+
+        log.debug(
+            'BALL-TO-BALL: ball1 speed after=%.2f, '
+            'ball2 speed after=%.2f, '
+            'energy before=%.2f, '
+            'energy after=%.2f',
+            ball1_speed_after,
+            ball2_speed_after,
+            ball1_speed_before**2 + ball2_speed_before**2,
+            ball1_speed_after**2 + ball2_speed_after**2,
+        )
+
+    @staticmethod
+    def _cap_ball_speeds(ball1: BallSprite, ball2: BallSprite) -> None:
+        """Cap ball speeds to prevent runaway physics."""
+        max_speed = 500.0
+        for ball in [ball1, ball2]:
+            speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
+            if speed_magnitude > max_speed:
+                scale_factor = max_speed / speed_magnitude
+                ball.speed.x *= scale_factor
+                ball.speed.y *= scale_factor
+
+    @staticmethod
+    def _separate_overlapping_balls(
+        ball1: BallSprite,
+        ball2: BallSprite,
+        *,
+        normal_x: float,
+        normal_y: float,
+        collision_distance: int,
+        distance: float,
+    ) -> None:
+        """Separate overlapping balls to prevent sticking."""
+        overlap = collision_distance - distance
+        separation_distance = max(overlap + 2.0, 3.0)
+        half_separation = separation_distance * 0.5
+        separation_x = normal_x * half_separation
+        separation_y = normal_y * half_separation
+
+        # Ensure at least 1 pixel separation in each significant direction
+        min_pixel_separation = 1.0
+        if (
+            abs(normal_x) > SIGNIFICANT_DIRECTION_THRESHOLD
+            and abs(separation_x) < min_pixel_separation
+        ):
+            separation_x = min_pixel_separation * (1 if separation_x >= 0 else -1)
+        if (
+            abs(normal_y) > SIGNIFICANT_DIRECTION_THRESHOLD
+            and abs(separation_y) < min_pixel_separation
+        ):
+            separation_y = min_pixel_separation * (1 if separation_y >= 0 else -1)
+
+        # Move the sub-pixel world positions; the engine places each ball's rect from them
+        # before this frame's render. Moving rect directly would be undone, because the
+        # engine rebuilds rect from world_x/world_y every frame.
+        ball1.world_x -= separation_x
+        ball1.world_y -= separation_y
+        ball2.world_x += separation_x
+        ball2.world_y += separation_y
+
+    @staticmethod
+    def _create_action_maps(
+        input_mode: str = 'auto',
+    ) -> tuple[ActionMap, ActionMap, ActionMap]:
+        """Create per-player and pause ActionMaps with default bindings.
+
+        Args:
+            input_mode: Gamepad event family: 'auto' (the engine's --input-mode default: both
+                families), 'joystick' or 'controller'.
+
+        Returns:
+            Tuple of (player1_actions, player2_actions, pause_actions).
+
+        """
+        # Every control binds a physical key position (a scancode: the same place on every
+        # keyboard layout), pause included (ActionMap module docstring)
+        player1_actions = ActionMap(input_mode=input_mode)
+        player1_actions.bind(
+            'up',
+            scancode=pygame.KSCAN_W,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_UP,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, -0.3),
+            instance_id=0,
+        )
+        player1_actions.bind(
+            'down',
+            scancode=pygame.KSCAN_S,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_DOWN,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, 0.3),
+            instance_id=0,
+        )
+
+        player2_actions = ActionMap(input_mode=input_mode)
+        player2_actions.bind(
+            'up',
+            scancode=pygame.KSCAN_UP,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_UP,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, -0.3),
+            instance_id=1,
+        )
+        player2_actions.bind(
+            'down',
+            scancode=pygame.KSCAN_DOWN,
+            controller_button=pygame.CONTROLLER_BUTTON_DPAD_DOWN,
+            controller_axis=(pygame.CONTROLLER_AXIS_LEFTY, 0.3),
+            instance_id=1,
+        )
+
+        pause_actions = ActionMap(input_mode=input_mode)
+        pause_actions.bind('pause', scancode=pygame.KSCAN_SPACE)
+
+        return player1_actions, player2_actions, pause_actions
+
+    def _process_paddle_input(self: Self) -> None:
+        """Apply held movement actions from ActionMaps each frame."""
+        for action_map in (self.p1_actions, self.p2_actions, self.pause_actions):
+            action_map.begin_frame()
+
+        if self.p1_actions.is_held('up'):
+            self.player1.up()
+        elif self.p1_actions.is_held('down'):
+            self.player1.down()
+        else:
+            self.player1.stop()
+
+        if self.p2_actions.is_held('up'):
+            self.player2.up()
+        elif self.p2_actions.is_held('down'):
+            self.player2.down()
+        else:
+            self.player2.stop()
+
+    @override
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
+        """Feed controller button events to action maps.
+
+        Movement is handled frame-driven in dt_tick.
+
+        Args:
+            event: The controller button down event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_controller_button_up_event(self: Self, event: ControllerButtonEvent) -> None:
+        """Feed controller button releases to action maps.
+
+        Args:
+            event: The controller button up event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_controller_axis_motion_event(self: Self, event: ControllerAxisEvent) -> None:
+        """Feed controller axis motion to action maps.
+
+        Args:
+            event: The controller axis motion event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
+        """Feed joystick button events to action maps (pygame-ce uses joystick API).
+
+        Args:
+            event: The joystick button down event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_joy_button_up_event(self: Self, event: JoyButtonEvent) -> None:
+        """Feed joystick button releases to action maps.
+
+        Args:
+            event: The joystick button up event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_joy_axis_motion_event(self: Self, event: JoyAxisEvent) -> None:
+        """Feed joystick axis motion to action maps.
+
+        Args:
+            event: The joystick axis motion event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
+        """Feed key presses to action maps.
+
+        Movement is handled frame-driven in dt_tick.
+
+        Args:
+            event: The key down event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions, self.pause_actions):
+            action_map.handle_event(event)
+
+    @override
+    def on_key_up_event(self: Self, event: KeyEvent) -> None:
+        """Feed key releases to action maps.
+
+        Args:
+            event: The key up event.
+
+        """
+        for action_map in (self.p1_actions, self.p2_actions, self.pause_actions):
+            action_map.handle_event(event)
+
+        if self.pause_actions.just_released('pause'):
+            self.pause()
+        elif self.pause_actions.get_action(event) is None:
+            # Let base Scene handle ESC/q to quit
+            super().on_key_up_event(event)
+
+
+class PaddleSlapGameOverScene(GameOverScene):
+    """PaddleSlap's game-over screen: plays the bundled demo while nobody presses anything.
+
+    After GAME_OVER_IDLE_SECONDS of game time without a key or button press, the demo plays
+    (``SceneManager.play_recording``) and returns here; the idle wait starts again when the demo
+    starts, and game time does not advance while it plays. SPACE starts a new PaddleSlap game.
+    The press that ends a demo is consumed (it never reaches this screen), so starting a new
+    game after a demo takes a second press.
+    """
+
+    def __init__(
+        self: Self,
+        final_score: int | None = None,
+        high_scores: list[dict[str, int]] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize the game-over screen.
+
+        Args:
+            final_score: The rally count of the game that ended.
+            high_scores: The high scores, sorted descending.
+            **kwargs: Scene keyword arguments (``options``).
+
+        """
+        super().__init__(final_score=final_score, high_scores=high_scores, **kwargs)
+        # Game time (Scene.game_time) the idle wait began at: the last press, or the last demo
+        self.idle_since_game_time = 0.0
+
+    @override
+    def replay_arguments(self: Self) -> dict[str, Any]:
+        """Return the score and high scores this screen was built with.
+
+        Returns:
+            ``final_score`` and ``high_scores``, as passed to the constructor.
+
+        """
+        return {
+            'final_score': self.final_score,
+            'high_scores': copy.deepcopy(self.high_scores),
+        }
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Play the bundled demo once the screen has been idle for GAME_OVER_IDLE_SECONDS.
+
+        Args:
+            dt: The frame's delta time.
+
+        """
+        super().dt_tick(dt)
+        if self.game_time - self.idle_since_game_time >= GAME_OVER_IDLE_SECONDS:
+            self.idle_since_game_time = self.game_time
+            self.scene_manager.play_recording(path=PADDLESLAP_DEMO_PATH, then=self)
+
+    @override
+    def on_key_down_event(self: Self, event: KeyEvent) -> None:
+        """Start the idle wait again, then handle the key as the game-over screen does.
+
+        Args:
+            event: The key down event.
+
+        """
+        self.idle_since_game_time = self.game_time
+        super().on_key_down_event(event)
+
+    @override
+    def on_joy_button_down_event(self: Self, event: JoyButtonEvent) -> None:
+        """Start the idle wait again.
+
+        Args:
+            event: The joystick button down event.
+
+        """
+        self.idle_since_game_time = self.game_time
+        super().on_joy_button_down_event(event)
+
+    @override
+    def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
+        """Start the idle wait again.
+
+        Args:
+            event: The controller button down event.
+
+        """
+        self.idle_since_game_time = self.game_time
+        super().on_controller_button_down_event(event)
+
+    @override
+    def resume(self: Self) -> None:
+        """Start a new PaddleSlap game.
+
+        Explicitly a ``Game``: GameOverScene.resume restarts the type of the scene manager's
+        ``previous_scene``, which depends on how this screen was reached (a playback scope
+        restores it as it ends: BUGS.md #81), while game over here always starts a new game.
+        """
+        self.scene_manager.switch_to_scene(Game(options=self.options))
+
+
+def main() -> None:
+    """Run the main function."""
+    GameEngine(game=Game).start()

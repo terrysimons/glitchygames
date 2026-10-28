@@ -8,15 +8,18 @@ suite needs are declared here; the shared test harness (tests/harness.py) is one
 # SDL defaults are in place before any other plugin imports pygame, and loaded here so every
 # package's tests (tests/, src/games/*/tests/) get it
 # pytester runs a test sequence in a fresh interpreter (tests/world/test_mock_isolation.py);
-# glitchygames.testing.replays runs each recording in a member's tests/fixtures/replays/ (or another
-# project's fixtures/replays/<console-script>/) as a test item (a headless replay through the real
-# engine); tests.driver_comparison runs a local run on the native SDL driver too and compares the
+# tests.driver_comparison runs a local run on the native SDL driver too and compares the
 # frames glitchygames.testing.frame_fingerprints records (it must configure before that plugin
 # reads its variables: its hook is tryfirst)
+# tests.memory_guard stops a run past GLITCHYGAMES_TEST_RSS_LIMIT_MB (the Linux CI job's), naming
+# the test, instead of the kernel's signal 9 (BUGS.md #235); unset, it does nothing
+# tests.collection_logger_levels stops a run whose collected imports set a project logger's level
+# or disabled logging (BUGS.md #235, #236)
 pytest_plugins = [
     'tests.harness',
     'pytester',
-    'glitchygames.testing.replays',
     'tests.driver_comparison',
     'glitchygames.testing.frame_fingerprints',
+    'tests.memory_guard',
+    'tests.collection_logger_levels',
 ]

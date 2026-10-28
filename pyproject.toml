@@ -51,6 +51,19 @@ dependencies = [
 [project.scripts]
 glitchygames-server = "glitchygames.api.main:run"
 glitchygames-client = "glitchygames.api.client:run"
+# The engine's recording, replay and measurement tools (glitchygames/replay/tools/command.py),
+# started through glitchygames/__main__.py, which hides pygame's banner first
+glitchygames = "glitchygames.__main__:main"
+
+# The golden-replay pytest plugin (glitchygames/testing/replays.py) registers itself: any project
+# with glitchygames installed has its fixtures/replays/ recordings collected with no conftest
+# line. It imports neither the engine nor pygame until it finds a recording, so a project that is
+# no game gets no item and no output from it. Named after its module, not `glitchygames`: a
+# project that still loads it by name (`-p glitchygames.testing.replays`, or `pytest_plugins`)
+# then loads it once (pytest refuses one module registered under two names).
+# `-p no:glitchygames.testing.replays` turns it off
+[project.entry-points.pytest11]
+"glitchygames.testing.replays" = "glitchygames.testing.replays"
 
 [project.optional-dependencies]
 docs = [
@@ -97,8 +110,7 @@ api = []
 # The workspace members by layer (src/<layer>/<member>/, docs/architecture/game_packages.md):
 # `pip install glitchygames[games]` installs the engine and every game. Each member depends on
 # glitchygames, so these are a cycle through an extra, which pip and uv both resolve. Kept equal
-# to the workspace by tests/test_workspace_config.py; an empty layer is an empty extra until its
-# first member moves (demos: Part 3)
+# to the workspace by tests/test_workspace_config.py; an empty layer would be an empty extra
 games = [
   "mr-muncher",
   "brave-adventurer",
@@ -106,7 +118,7 @@ games = [
   "paddleslap",
   "drawing-fire",
 ]
-demos = []
+demos = ["dt-demo", "joystick-demo", "text-input-demo"]
 apps = ["bitmappy"]
 
 [tool.uv.workspace]
@@ -118,6 +130,9 @@ members = [
   "src/games/clockwork-keep",
   "src/games/paddleslap",
   "src/games/drawing-fire",
+  "src/demos/dt-demo",
+  "src/demos/joystick-demo",
+  "src/demos/text-input-demo",
   "src/apps/bitmappy",
 ]
 
@@ -128,6 +143,9 @@ brave-adventurer = { workspace = true }
 clockwork-keep = { workspace = true }
 paddleslap = { workspace = true }
 drawing-fire = { workspace = true }
+dt-demo = { workspace = true }
+joystick-demo = { workspace = true }
+text-input-demo = { workspace = true }
 bitmappy = { workspace = true }
 
 [dependency-groups]
@@ -141,6 +159,9 @@ dev = [
   "clockwork-keep",
   "paddleslap",
   "drawing-fire",
+  "dt-demo",
+  "joystick-demo",
+  "text-input-demo",
   "bitmappy",
 ]
 
@@ -154,6 +175,63 @@ artifacts = ["src/glitchygames/_build_info.json"]
 # the top level as before
 packages = ["src/glitchygames"]
 
+# The engine's recording, replay and measurement tools read this project's layout from here
+# (glitchygames/replay/tools/settings.py; a project without this table gets the defaults there)
+[tool.glitchygames]
+# Every workspace member's console script: the five games, the three demos and Bitmappy
+games = [
+  "bitmappy",
+  "brave-adventurer",
+  "clockwork-keep",
+  "drawing-fire",
+  "dt-demo",
+  "joystick-demo",
+  "mr-muncher",
+  "paddleslap",
+  "text-input-demo",
+]
+# Each member's golden replays, directly in its tests/fixtures/replays/ (src/<layer>/<member>/)
+golden-globs = ["src/*/*/tests/fixtures/replays/golden*.jsonl.gz"]
+# The measured rows, one file per row (plans/2026-10-25-measured-rows-in-the-repository.md);
+# not a measured path, so never part of a code tree
+ledger-directory = "quality/replay-ledger"
+# Where measured rows wait for a deploy to publish them (gitignored)
+pending-ledger = "test-results/replay-metrics/pending.jsonl"
+# Where the docs site publishes the ledger: docs/<this path> in the docs tree, on gh-pages
+published-ledger = "origin/gh-pages:quality/metrics/replay-ledger.jsonl"
+# The branch whose commits count as landed (the remote-tracking ref of the shared main)
+landed-ref = "origin/main"
+# What can change how the golden replays run: the only paths a code tree holds. src/ holds the
+# engine and every workspace member (games, demos, apps: plans/2026-10-24-workspace-packages.md)
+measured-paths = ["src", "tests/fixtures/replays", "uv.lock", "pyproject.toml"]
+# Under src/, a workspace member's tests (src/<layer>/<member>/tests/) are not measured, but for
+# its recordings there (the root's tests/ is outside measured-paths; its tests/fixtures/replays
+# is in). One pair per layer (glitchygames.logical_names.LAYERS)
+unmeasured-paths = [
+  ":(glob)src/games/*/tests/**",
+  ":(glob)src/demos/*/tests/**",
+  ":(glob)src/apps/*/tests/**",
+  ":(exclude,glob)src/games/*/tests/fixtures/replays/**",
+  ":(exclude,glob)src/demos/*/tests/fixtures/replays/**",
+  ":(exclude,glob)src/apps/*/tests/fixtures/replays/**",
+]
+
+# Recordings that moved, old repository path -> new: their ledger rows from before the move are
+# the same series (performance graphs group by the new path), so a recording's history continues
+# across its move (plans/2026-10-24-workspace-packages.md). The rally demo moved three times
+# (into src/, into its member, then under the member's src/): a line from each old path, every
+# one straight to the final path
+[tool.glitchygames.recording-renames]
+"glitchygames/examples/paddleslap_demos/rally.jsonl.gz" = "src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz"
+"src/glitchygames/examples/paddleslap_demos/rally.jsonl.gz" = "src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz"
+"src/games/paddleslap/paddleslap/demos/rally.jsonl.gz" = "src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz"
+"tests/fixtures/replays/mr-muncher/golden.jsonl.gz" = "src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz"
+"tests/fixtures/replays/brave-adventurer/golden.jsonl.gz" = "src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz"
+"tests/fixtures/replays/brave-adventurer-papyrus/golden.jsonl.gz" = "src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz"
+"tests/fixtures/replays/clockwork-keep/golden.jsonl.gz" = "src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz"
+"tests/fixtures/replays/paddleslap/golden.jsonl.gz" = "src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz"
+"tests/fixtures/replays/drawing-fire/golden.jsonl.gz" = "src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz"
+
 [tool.pytest.ini_options]
 testpaths = [
   "tests",
@@ -162,13 +240,27 @@ testpaths = [
   "src/games/clockwork-keep/tests",
   "src/games/paddleslap/tests",
   "src/games/drawing-fire/tests",
+  "src/demos/dt-demo/tests",
+  "src/demos/joystick-demo/tests",
+  "src/demos/text-input-demo/tests",
   "src/apps/bitmappy/tests",
 ]
 python_files = ["test_*.py"]
+# Every test module is imported under a name made from its path from the repository root
+# (importlib mode: src.apps.bitmappy.tests.test_bitmappy_film_strip, tests.replay.test_x), never
+# under its bare file name: two members may have test files or helpers of the same name (the
+# user, 2026-10-27: "we can't really control what a game calls its files"). Namespace packages
+# are not considered: with them the name would follow sys.path, which an editable engine install
+# changes (apps.bitmappy.tests...), so a module would get another name in another environment.
+# Nothing is put on sys.path for a test directory; the repository root is, so a member's helper
+# is imported by that same path (src.apps.bitmappy.tests.film_strip_support).
+# tests/test_suite_collection.py guards all of it
+consider_namespace_packages = false
+pythonpath = ["."]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 # Directory *name* patterns pytest will not recurse into, matched at any depth. Do not
-# list "examples": it also matched tests/examples/ and silently skipped those tests.
+# list "examples": it once matched a tests/examples/ and silently skipped those tests.
 # (The top-level examples/ directory is already outside testpaths.)
 norecursedirs = [
   "build",
@@ -178,7 +270,7 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "-n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "--import-mode=importlib -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=dt_demo --cov=joystick_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
@@ -201,6 +293,9 @@ source = [
   "clockwork_keep",
   "paddleslap",
   "drawing_fire",
+  "dt_demo",
+  "joystick_demo",
+  "text_input_demo",
   "bitmappy",
 ]
 branch = true
@@ -217,7 +312,10 @@ omit = [
 # The imported copy (nox: site-packages, not editable; uv sync: src/ itself) is reported as the
 # repository's src/glitchygames, so the report and its 100% gate name the files in git
 glitchygames = ["src/glitchygames", "*/site-packages/glitchygames"]
-mr_muncher = ["src/games/mr-muncher/mr_muncher", "*/site-packages/mr_muncher"]
+mr_muncher = [
+  "src/games/mr-muncher/src/mr_muncher",
+  "*/site-packages/mr_muncher",
+]
 brave_adventurer_core = [
   "src/games/brave-adventurer/src/brave_adventurer_core",
   "*/site-packages/brave_adventurer_core",
@@ -235,15 +333,27 @@ brave_adventurer_modes = [
   "*/site-packages/brave_adventurer_modes",
 ]
 clockwork_keep = [
-  "src/games/clockwork-keep/clockwork_keep",
+  "src/games/clockwork-keep/src/clockwork_keep",
   "*/site-packages/clockwork_keep",
 ]
-paddleslap = ["src/games/paddleslap/paddleslap", "*/site-packages/paddleslap"]
+paddleslap = [
+  "src/games/paddleslap/src/paddleslap",
+  "*/site-packages/paddleslap",
+]
 drawing_fire = [
-  "src/games/drawing-fire/drawing_fire",
+  "src/games/drawing-fire/src/drawing_fire",
   "*/site-packages/drawing_fire",
 ]
-bitmappy = ["src/apps/bitmappy/bitmappy", "*/site-packages/bitmappy"]
+dt_demo = ["src/demos/dt-demo/src/dt_demo", "*/site-packages/dt_demo"]
+joystick_demo = [
+  "src/demos/joystick-demo/src/joystick_demo",
+  "*/site-packages/joystick_demo",
+]
+text_input_demo = [
+  "src/demos/text-input-demo/src/text_input_demo",
+  "*/site-packages/text_input_demo",
+]
+bitmappy = ["src/apps/bitmappy/src/bitmappy", "*/site-packages/bitmappy"]
 
 [tool.coverage.report]
 show_missing = true
@@ -276,12 +386,15 @@ src = [
   "src",
   "tests",
   "scripts",
-  "src/games/mr-muncher",
+  "src/games/mr-muncher/src",
   "src/games/brave-adventurer/src",
-  "src/games/clockwork-keep",
-  "src/games/paddleslap",
-  "src/games/drawing-fire",
-  "src/apps/bitmappy",
+  "src/games/clockwork-keep/src",
+  "src/games/paddleslap/src",
+  "src/games/drawing-fire/src",
+  "src/demos/dt-demo/src",
+  "src/demos/joystick-demo/src",
+  "src/demos/text-input-demo/src",
+  "src/apps/bitmappy/src",
   "src/apps/bitmappy/tests",
 ]
 include = [
@@ -291,6 +404,9 @@ include = [
   "src/games/clockwork-keep/**/*.py",
   "src/games/paddleslap/**/*.py",
   "src/games/drawing-fire/**/*.py",
+  "src/demos/dt-demo/**/*.py",
+  "src/demos/joystick-demo/**/*.py",
+  "src/demos/text-input-demo/**/*.py",
   "src/apps/bitmappy/**/*.py",
   "tests/**/*.py",
   "scripts/**/*.py",
@@ -305,6 +421,9 @@ namespace-packages = [
   "src/games/clockwork-keep/tests",
   "src/games/paddleslap/tests",
   "src/games/drawing-fire/tests",
+  "src/demos/dt-demo/tests",
+  "src/demos/joystick-demo/tests",
+  "src/demos/text-input-demo/tests",
   "src/apps/bitmappy/tests",
 ]
 
@@ -353,6 +472,26 @@ fixable = ["ALL"]
 ]
 # Workspace members' tests get the same relaxations as tests/ (one glob per layer)
 "src/games/*/tests/**/*.py" = [
+  "PLR2004",
+  "ANN",
+  "ARG001",
+  "ARG005",
+  "PLC2701",
+  "PLC2801", # Tests may call dunder methods directly to verify they work
+  "D102",    # Test method names are self-documenting
+  "DOC201",  # Test helper return docs unnecessary
+  "RET504",  # Explicit assignment before return aids test readability
+  "F841",
+  "B007",
+  "S101",
+  "PT018",   # Compound assertions are acceptable in tests
+  "RUF069",  # Exact float comparisons are intentional in property-based tests
+  "B905",    # zip() without strict= is fine in tests
+  "B002",    # False positive on double-negation test: -(-speed)
+  "ARG002",  # Pytest fixtures are activated by parameter presence, not by direct use
+  "S311",    # Tests build seeded random.Random instances for reproducible inputs
+]
+"src/demos/*/tests/**/*.py" = [
   "PLR2004",
   "ANN",
   "ARG001",
@@ -454,13 +593,25 @@ fixable = ["ALL"]
 "src/glitchygames/game_objects/paddle.py" = [
   "PLR0913", # Paddle constructors need geometry, speed, color, collision params
 ]
-"src/glitchygames/examples/joystick_demo.py" = [
-  "PLR0913", # Demo widget constructors follow standard UI geometry pattern
-]
-"src/games/paddleslap/paddleslap/__init__.py" = [
+"src/games/paddleslap/src/paddleslap/__init__.py" = [
   "PLR0913", # Game helper functions need ball geometry and physics params
   # The game is one module: its recordings name games.paddleslap:Game, so Game stays defined in
   # the package itself (docs/architecture/game_packages.md, "A game that is one module")
+  "RUF067",
+]
+"src/demos/dt-demo/src/dt_demo/__init__.py" = [
+  # The demo is one module: its logical name is demos.dt_demo:Game, so Game stays defined in the
+  # package itself (docs/architecture/game_packages.md, "A game that is one module")
+  "RUF067",
+]
+"src/demos/joystick-demo/src/joystick_demo/__init__.py" = [
+  # The demo is one module: its logical name is demos.joystick_demo:Game, so Game stays defined
+  # in the package itself (docs/architecture/game_packages.md, "A game that is one module")
+  "RUF067",
+]
+"src/demos/text-input-demo/src/text_input_demo/__init__.py" = [
+  # The demo is one module: its logical name is demos.text_input_demo:Game, so Game stays defined
+  # in the package itself (docs/architecture/game_packages.md, "A game that is one module")
   "RUF067",
 ]
 "src/glitchygames/services/sprite_generation_service.py" = [
@@ -495,6 +646,9 @@ known-first-party = [
   "clockwork_keep",
   "paddleslap",
   "drawing_fire",
+  "dt_demo",
+  "joystick_demo",
+  "text_input_demo",
   "bitmappy",
 ]
 
@@ -507,12 +661,15 @@ python-version = "3.14"
 root = [
   "src",
   ".",
-  "src/games/mr-muncher",
+  "src/games/mr-muncher/src",
   "src/games/brave-adventurer/src",
-  "src/games/clockwork-keep",
-  "src/games/paddleslap",
-  "src/games/drawing-fire",
-  "src/apps/bitmappy",
+  "src/games/clockwork-keep/src",
+  "src/games/paddleslap/src",
+  "src/games/drawing-fire/src",
+  "src/demos/dt-demo/src",
+  "src/demos/joystick-demo/src",
+  "src/demos/text-input-demo/src",
+  "src/apps/bitmappy/src",
 ]
 extra-paths = ["scripts"]
 
@@ -524,12 +681,22 @@ include = [
   "src/games/clockwork-keep",
   "src/games/paddleslap",
   "src/games/drawing-fire",
+  "src/demos/dt-demo",
+  "src/demos/joystick-demo",
+  "src/demos/text-input-demo",
   "src/apps/bitmappy",
   "scripts",
 ]
 # Tests excluded: ty doesn't understand pytest-mock's mocker.patch semantics,
 # generating hundreds of false positives on mock attribute access and assignments.
-exclude = ["tests", "src/games/*/tests", "src/apps/*/tests", ".venv", ".nox"]
+exclude = [
+  "tests",
+  "src/games/*/tests",
+  "src/demos/*/tests",
+  "src/apps/*/tests",
+  ".venv",
+  ".nox",
+]
 
 [tool.ty.rules]
 # type: ignore comments are shared with basedpyright — don't flag them as unused
@@ -553,8 +720,15 @@ confidence = "medium"
 package_module_name_map = { "pygame-ce" = "pygame" }
 # Not this package's code: the pygame-ce submodule (its own project), browser/, which runs
 # in Pyodide on its runtime modules (js, pyodide) and its own files, and the workspace members
-# under src/games and src/apps (projects of their own, each declaring its dependencies)
-extend_exclude = ["third_party", "browser", "src/games", "src/apps"]
+# under src/games, src/demos and src/apps (projects of their own, each declaring its dependencies:
+# tests/test_workspace_config.py, test_every_member_declares_what_it_imports)
+extend_exclude = [
+  "third_party",
+  "browser",
+  "src/games",
+  "src/demos",
+  "src/apps",
+]
 # The engine's own package, under src/, and the workspace members' packages scripts/ imports
 # (deptry guesses first-party modules from the root's direct children only)
 known_first_party = [
@@ -567,6 +741,9 @@ known_first_party = [
   "clockwork_keep",
   "paddleslap",
   "drawing_fire",
+  "dt_demo",
+  "joystick_demo",
+  "text_input_demo",
   "bitmappy",
 ]
 
@@ -574,7 +751,12 @@ known_first_party = [
 # numpy is used indirectly via pygame.surfarray (array3d/array4d) which requires it at runtime
 # Dev/build/lint/docs tools are invoked via CLI, not imported in Python code
 # bokeh is kept deliberately for future plotting tools (the user, 2026-10-22); nothing imports it yet
+# The demos layer's members are in the root's `demos` extra, but nothing deptry scans imports them
+# (scripts/ imports the games, not the demos; a demo's tests are its member's, under src/demos)
 DEP002 = [
+  "dt-demo",
+  "joystick-demo",
+  "text-input-demo",
   "numpy",
   "bokeh",
   "deptry",

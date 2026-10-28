@@ -3,7 +3,7 @@ r"""Compare the frames tests presented on every driver configuration with every 
 ``nox -s compare-drivers`` runs the suite on several configurations (scripts/
 driver_configurations.py: dummy, cocoa, x11-macos, x11-linux, ...), each recorded by the frame
 fingerprints plugin (glitchygames/testing/frame_fingerprints.py). This compares them all, pair by
-pair (with scripts/compare_driver_frames.py's ``compare_frames``), where
+pair (with glitchygames/testing/frame_comparison.py's ``compare_frames``), where
 scripts/compare_driver_frames.py compares each driver with the baseline only:
 
 - runs sharing a label are repeats on one configuration (dummy runs twice): a test whose frames
@@ -15,7 +15,7 @@ scripts/compare_driver_frames.py compares each driver with the baseline only:
 
 Given re-runs of those tests that saved their frames (``--rerun LABEL=DIRECTORY``, made with
 ``--frame-images-request``), every differing pair's frames are compared as images too: both
-PNG files and a difference image (scripts/compare_driver_frames.py's) per pair under
+PNG files and a difference image (glitchygames/testing/frame_comparison.py's) per pair under
 ``OUTPUT/differences/<first>-vs-<second>/<test folder>/``, and the count of differing pixels.
 
 It writes ``OUTPUT/matrix.md`` (runs, a summary per pair, the patterns, a table per test file and
@@ -49,8 +49,7 @@ import pydantic
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.testing.frame_fingerprints import RecordedFrames, read_recorded_frames
-from scripts.compare_driver_frames import (
+from glitchygames.testing.frame_comparison import (
     FrameImageComparison,
     FrameSequenceDifference,
     LabelledRun,
@@ -60,8 +59,9 @@ from scripts.compare_driver_frames import (
     compare_runs,
     frames_vary_tests,
     image_request_for_differences,
-    parse_labelled_run,
 )
+from glitchygames.testing.frame_fingerprints import RecordedFrames, read_recorded_frames
+from scripts.compare_driver_frames import parse_labelled_run
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence

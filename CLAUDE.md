@@ -121,9 +121,12 @@ nox -s static-analysis-ty           # Run ty only
 # --- Testing ---
 nox -s test                # Run tests with coverage
 nox -s performance-test    # Run performance benchmarks (every testpath: the engine's and each member's)
+# tests/benchmarks/test_logging_cost.py (only under --benchmark-only): every golden and bundled demo at
+# --log-level warning, info and debug; the chattiest loggers and the cost per frame (docs/quality/performance.md)
 nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU share, sleep wakes (diagnostic)
 nox -s replay-metrics      # (the project's editable install) Rebaseline every golden replay + bundled demo headless; append run-ledger rows to test-results/replay-metrics/pending.jsonl (skips this commit+machine; `-- --force`, `-- --allow-dirty`, `-- --only TEXT`)
 nox -s test-linux-x11      # Tests on Linux in Docker: X11 windows on XQuartz, sound on the Mac's PulseAudio (starts it; `pulseaudio --kill` stops it; macOS)
+nox -s test-linux-ci       # Tests as CircleCI's Linux job runs them, in Docker: its amd64 image, 2 GB without swap, 1 CPU, serial, CI=true, the RSS guard (read from .circleci/config.yml); results in test-results/linux-ci/
 nox -s compare-drivers     # On demand N-way matrix: dummy x2, native, x11-macos, x11-linux (whatever runs here); `-- --drivers a,b`, `-- tests/x`; report test-results/driver-comparison/nox/matrix.md
 nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/Caches/glitchygames/sdl-x11; SDL_DYNAMIC_API loads it) and check it on XQuartz
 
@@ -174,10 +177,41 @@ uv run bitmappy --timer-backend=fast --log-timer-jitter
 uv run bitmappy --timer-backend=fast --windows-timer-1ms
 ```
 
+### Recording, Replay and Measurement Tools
+The engine owns every tool (`src/glitchygames/replay/tools/`; `registry.TOOLS` is the reference
+for every flag and option). Each is a flag on every game and a `glitchygames` subcommand (also
+`python -m glitchygames`) with the same name and options; settings come from the project's
+`[tool.glitchygames]` (docs/architecture/gameplay_replay.md, "Tools for any game"). Both front
+ends run a tool inside the engine's crash boundary (`game_engine.run_inside_tool_crash_boundary`:
+a crash exits 70, a signal stops and reaps the game first, a missing required option exits 64),
+and `game-timeout-seconds` bounds each game `verify` and `measure` start.
+```bash
+uv run glitchygames --help                                 # every tool, with its options
+uv run paddleslap --record-trace run.jsonl.gz              # record (or: glitchygames record-trace paddleslap run.jsonl.gz)
+uv run paddleslap --replay-trace run.jsonl.gz --headless   # replay (or: glitchygames replay-trace run.jsonl.gz --headless)
+uv run glitchygames report run.jsonl.gz                    # its runs, speed and behavior changes
+uv run glitchygames verify                                 # every game's goldens and bundled demos, headless
+uv run glitchygames verify --game paddleslap --only rally  # one game's, filtered
+uv run glitchygames unmeasured                             # what measure would measure on this machine
+uv run glitchygames measure --game paddleslap              # measure into the pending ledger
+uv run glitchygames performance-pages <directory>          # the ledger and graph pages
+# A scripted session (PaddleSlap's golden: 622 frames, with its controls tail and quit)
+uv run glitchygames record-session paddleslap out.jsonl.gz --headless \
+    --input-script scripts.golden_inputs:paddleslap_script --frame-count 600 \
+    --controls-tail scripts.golden_inputs:paddleslap_controls --input-only-placements
+# GAME is a script path, MODULE:CALLABLE, or a console script or module; arguments after a
+# bare -- go to the game. Our goldens are recorded by scripts/record_scripted_session.py and
+# scripts/record_golden_traces.py, which call the engine with scripts/golden_inputs.py
+```
+
 ### Example Games
 Every game is its own workspace package under `src/games/` (Part 2 of
 plans/2026-10-24-workspace-packages.md; the recipe is docs/architecture/game_packages.md), with
-its code, tests and golden replay; `src/glitchygames/examples/` keeps only the three demos
+its code, tests and golden replay; the engine has no examples package. The `demos` layer
+(`src/demos/<demo>/src/<package>/`, Part 3) holds the three demos, each a workspace member with
+its own console script: `uv run dt-demo`, `uv run joystick-demo`, `uv run text-input-demo` (or
+`python -m dt_demo`, `joystick_demo`, `text_input_demo`); demos get no browser build. A demos-layer
+member is not a game's bundled demo recording (`<package>/demos/*.jsonl.gz`, package data).
 (Bitmappy is an app, its own package in the apps layer, `src/apps/bitmappy/`: Part 4 of the same
 plan). `uv run paddleslap` (its own workspace package `src/games/paddleslap/`, one module: `Game` is
 defined in `paddleslap/__init__.py`), `brave-adventurer` (one project holding both editions, Classic and Papyrus,
@@ -201,6 +235,17 @@ games.
 - Handles pygame initialization, display management, event routing
 - Bootstraps command-line arguments for all games
 - Pre-computes `EVENT_HANDLERS` dict for O(1) event dispatch
+- Logging: a game logs at `--log-level warning` by default (the owner, 2026-10-28; the tools'
+  level), so the exit code, whether the seed was rolled or given, and the end-of-run performance
+  reports (INFO) show only with `--log-level info`; the seed itself is always in the options
+  block below. Each failure a player sees (exit 70 from a run's or a game flag
+  tool's crash, a failed teardown, a failed playback) logs `exit_codes.BUG_REPORT_HINT` after
+  its traceback ("run the game again with --log-level info and include the output"; not the
+  `glitchygames` command's, which has no `--log-level`). Every engine start logs the whole
+  options dictionary once at CRITICAL (`startup_options_block`: sorted, aligned, nested values
+  indented, path options relative to the project root inside it and absolute outside, any
+  option named like a key/token/secret/password/credential `<redacted>`; "for now",
+  plans/future-work.md; docs/architecture/argument_system.md)
 
 **SceneManager** (`src/glitchygames/scenes/__init__.py`)
 - Singleton running the main game loop; each frame (`_run_scene_frame`), in order:
@@ -366,7 +411,9 @@ games.
 - Transition captures hide a world-space player with `hidden` and restore it afterwards; the
   arriving capture snaps the camera to `camera_target()` on its followed axes only
   (`camera.snap_followed_axes_to`), or to the player on both axes when there is no target
-- Golden traces (`scripts/record_golden_traces.py`, `tests/world/test_golden_traces.py`) replay
+- Golden traces (`scripts/record_golden_traces.py` with our input scripts in
+  `scripts/golden_inputs.py`, on the engine's harness
+  `src/glitchygames/replay/tools/golden_traces.py`; `tests/world/test_golden_traces.py`) replay
   every game older than the world-space change (`GOLDEN_TRACE_GAMES`; Mr. Muncher and Drawing
   Fire, newer, have only their golden replays) and compare each sprite's rect and visibility,
   frame by frame, with baselines recorded before the world-space change. Every difference must
@@ -480,6 +527,125 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   supervisor, a harness) posts with `post_input_event`, recorded external whatever its type, so
   every replay serves it and drops a copy the replayed code posts (BUGS.md #84). The format is
   described in `src/glitchygames/recording.py`
+- The engine's tools (Part 3 Stage D; `src/glitchygames/replay/tools/`): every recording, replay
+  and measurement tool is described once in `registry.TOOLS` (`Tool`, `ToolOption`), and both
+  front ends are built from it so names and options can't drift: `GameEngine.args` adds each
+  tool to every game's command line (`add_game_flags`: `--record-trace` with `--random-seed`
+  and `--headless`, `--replay-trace` and its options `--replay-fps`, `--audit`, `--compare-processing`, `--max-processing-slowdown`,
+  `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`, `--headless`, `--compare-trace
+  OLD`, `--compare-alpha PERCENT` and the hidden `--replay-frame-stream PORT:TOKEN`
+  (`ToolOption.hidden`: parsed on both front ends, in neither's help),
+  `--record-golden-trace PATH` with `--input-script MODULE:NAME`, `--frame-count N`,
+  `--random-seed` and `--headless`, `--record-session PATH` with those and `--controls-tail
+  MODULE:NAME`, `--polled-input`, `--input-only-placements`, `--verify [PATH ...]` with
+  `--only TEXT`), and `GameEngine.__init__`
+  (`_run_game_flag_tool`, before the engine starts pygame or opens a window) runs a tool with a
+  game handler in its place and exits with its code: one that doesn't run the game, or one that
+  runs it its own way (record-golden-trace in the golden-trace harness, record-session in the
+  scripted-session recorder), so the game's own engine never builds a second one
+  (`run_game_flag_tool`). The
+  `glitchygames` console script (and `python -m glitchygames`, both via
+  `src/glitchygames/__main__.py`, which hides pygame's banner first) has the same tools as subcommands
+  (`glitchygames record-trace GAME PATH`, `glitchygames replay-trace PATH [--game GAME]`,
+  `glitchygames record-golden-trace GAME PATH --input-script MODULE:NAME --frame-count N`,
+  `glitchygames record-session GAME PATH --input-script MODULE:NAME --frame-count N`,
+  `glitchygames verify [PATH ...] [--only TEXT] [--game GAME ...]`,
+  `glitchygames measure [PATH ...] [--force] [--allow-dirty | --skip-dirty] [--only TEXT]
+  [--code-tree TREE] [--rows-directory DIR] [--pending PATH] [--game GAME ...]`,
+  `glitchygames unmeasured [--code-tree TREE] [--rows-directory DIR] [--pending PATH] [--game GAME
+  ...]`, `glitchygames clear-published [--pending PATH]`,
+  `glitchygames report PATH [--threshold PERCENT] [--minimum-ms MS] [--spans N]`,
+  `glitchygames performance-pages DIRECTORY [--published]`, each with
+  `--project-root DIR`; arguments after a bare `--` go to the game). `--game` is the one
+  command-only option (`COMMAND_ONLY_FLAGS` in `tests/replay/tools/test_registry.py`): a game needs
+  none, it is the game. `verify` (`verify.py`) replays each recording headless in a child (no
+  seed: it always compares; `--random-seed`, given to it or among the arguments it passes on, is
+  refused OPTIONS_REFUSED before anything runs), prints `PASS|FAIL <name>: <why>` per recording and `verify: N of M
+  recordings passed`, and exits SUCCESS only when all matched (or none was found, which it says),
+  REPLAY_DIVERGED when the only failures diverged, else the first other failure's code. On the
+  game it runs from `__init__` (the game is never built) and replays through the game started
+  again (`children.running_game_command`); with no PATHs it verifies the game's own recordings
+  (`recordings.game_recordings(*, identity, settings, project_root)`: the `golden-globs` goldens
+  its console script replays, plus `<package>/demos/*.jsonl.gz`). The command with no PATHs runs
+  `GAME --verify` per game (`--game`, else `[tool.glitchygames] games`); with PATHs each is
+  replayed by the game its header names (or the one `--game`). Both find the project the same
+  way (`--project-root`, else the nearest directory up whose `pyproject.toml` has
+  `[tool.glitchygames]`, else the nearest with a `pyproject.toml`, so inside a workspace member
+  the root is the project: `settings.find_project_root`, Stage D Task D6; none is said) and pass the game's other arguments to the games they
+  start (the command's after `--`; the game's own beside `--verify`, `registry.tool_free_arguments`).
+  A replay that crashes before its engine starts exits 1 and counts as a divergence (user, 2026-10-27). It starts the game as a child
+  (`children.py`: `resolve_game` reads `GAME` as a script path, `MODULE:CALLABLE`, an installed
+  console script or a module; `replay-trace` takes the game from the recording's header and asks
+  for `--game` when its module no longer imports). `children.py` also holds the console-script
+  lookups and the headless child replay/rebaseline the pytest plugin uses (pytest-free).
+  `measure`, `unmeasured` and `clear-published` (`replay/tools/measure.py`, Stage D Task D6, moved
+  from the deleted scripts/replay_metrics.py) are the run ledger's tools: `--measure [PATH ...]`
+  rebaselines the game's own recordings (or the PATHs) headless through its console script into
+  the project's pending ledger (or `--rows-directory`, row files), skipping what this machine
+  measured for the game's commit (or `--code-tree`); each recording under its recorded seed, so
+  `--random-seed` is refused as verify refuses it. The commit, refusal and rows are the GAME's
+  revision (`identity.game_source_revision`, else the engine's): uncommitted changes or an
+  unknown commit are refused OPTIONS_REFUSED unless `--allow-dirty` (a trial row) or
+  `--skip-dirty` (nothing measured, SUCCESS). `glitchygames measure` runs `GAME --measure` per
+  game (`--game`, else `[tool.glitchygames] games`) and exits with the first failure's code
+  (`combined_exit_code`); with the settings' games, a golden none of them replays is a failure
+  line naming why (`unclaimed_goldens`). `unmeasured` lists, one ledger name per line (summary on
+  stderr), what `measure` would measure (`missing_measurements`); the command reads a console
+  script's game without starting it (`identity.console_script_identity`). `clear-published` drops
+  the pending rows the published ledger holds. A pending ledger under `.glitchygames/` is made
+  through `settings.ensure_local_directory`; settings come from the project found, never from a
+  module-level read of ours.
+  `report` (`replay/tools/report.py`, Stage D Task D7, moved whole from the deleted
+  scripts/recording_report.py; output byte-identical) prints a recording's runs, speed changes
+  and behaviour-change map. `performance-pages DIRECTORY` (`replay/tools/performance_pages.py`,
+  D7: the rendering half of scripts/generate_performance_graphs.py and its source merge) writes a
+  local build (default) of the project's ledger and graph pages (`merged_ledger`: row files landed by git,
+  published and pending rows, from the settings given; `write_performance_pages`); with
+  `--published` it builds what a deploy publishes (trials and unlanded row files left out), through
+  the same `build_performance_pages` the docs hook's gh-deploy build uses. Neither runs
+  the game; on the game both run from `__init__` (never built). Our docs build reaches it through
+  `scripts/mkdocs_hooks.py` -> `scripts/generate_performance_graphs.py` (our docs paths and the
+  `performance_graphs.md` snippet only; it passes our settings) -> the engine.
+  An option may be listed under several tools but is one game flag (`--random-seed`: every tool
+  that runs the game; `--headless`: record-trace, replay-trace, record-golden-trace and
+  record-session; `--input-script` and `--frame-count`:
+  record-golden-trace and record-session). `--random-seed` (the user's rule, 2026-10-26)
+  defaults to None everywhere: a run or recording rolls a seed (the harness tools too; our
+  goldens pass `RANDOM_SEED`), a replay uses the recording's; a replay given another seed plays
+  the inputs out under it without comparing or writing (headless: the rebaseline's summary, exit
+  0), `--rebaseline NEW --random-seed N` records them under N, and `--audit` under another seed is
+  refused (rule 19 of `replay/driver.py`). The end-to-end proof is
+  `tests/replay/tools/test_an_unseen_game.py` (Task D9): a stand-in game in its own git
+  repository in `tmp_path` (package under `src/`, a launcher script, an input-script module, a
+  golden, a local bare repository as its published ledger), run through every tool in `TOOLS` on
+  both front ends and in all three `GAME` forms, in a project with a `[tool.glitchygames]` and in
+  one without; each case checks the exit, exactly the files written, the stand-in's commit in its
+  rows and runs, and (an import watch in the children's `sitecustomize`) that no child imported
+  `scripts`, `tests` or a member; a tool in `TOOLS` without a case there fails it. The
+  golden-trace harness (`golden_traces.py`: `record_trace(*, scene_class, script, frame_count,
+  ...)`, `replay_golden_recording(*, scene_class, script, path, ...)`, `golden_game`,
+  `GoldenTraceEngine`, `InputScript`, `press`/`release`) runs any game by its scene class and an
+  `InputScript`; `load_input_script(*, reference)` reads `--input-script MODULE:NAME`: a callable
+  taking no arguments that returns an `InputScript`, its module looked for in the current
+  directory first. A trace's `game` is the scene's logical name (our goldens relabel theirs with
+  the game key). The scripted-session recorder (`scripted_sessions.py`:
+  `record_scripted_session(*, scene_class, script, frame_count, path, controls_tail=None,
+  polled_input=False, input_only_placements=False, random_seed=None)`,
+  `ScriptedInputSupervisor`, `PostedPolledInput`, `GameDidNotQuitError`) runs any game for real
+  with `--record-trace` while a supervisor posts the script. Our five games' scripts and controls
+  tails are `scripts/golden_inputs.py`. Two tool flags at once are
+  refused, and a tool that runs no game must have a game handler. Every tool's flag and option is
+  added to every game's parser, so a game may not define one of those names (`--threshold`,
+  `--only`, ...; `test_no_tool_option_clashes_with_any_of_our_games_arguments` checks ours). The general flags no tool
+  lists (`--resolution`, ...) stay in `GameEngine.args`. A project's settings for the tools are
+  `[tool.glitchygames]` in its `pyproject.toml` (`settings.py`: `load_project_settings(*,
+  project_root)` -> `ProjectSettings`, kebab-case keys, unknown keys refused by name, defaults
+  for a project without the table); ours, in the root `pyproject.toml`, hold what were the
+  constants of `code_tree.py` and `recording_metrics.py` (`ledger-directory`, `measured-paths`,
+  `unmeasured-paths`, `landed-ref`, `pending-ledger`, `published-ledger` as `REF:PATH`,
+  `recording-renames`), which those modules now take as arguments. A game's identity comes from
+  its scene class alone (`identity.py`: `game_identity(*, game)` -> `GameIdentity` with its
+  package, package directory, console script and distribution, each None when not found)
 - Scene starts (`src/glitchygames/scene_start.py`, a leaf: scenes never import the replay package;
   Part 3 Task 1): while the active doors' `captures_scene_starts` is True (`--record-trace` runs
   from their start, `--rebaseline`, the playback scope) or the class sets
@@ -526,16 +692,19 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - Bundled demos (Part 3 Task 4): a workspace member's `<package>/demos/<name>.jsonl.gz` ships in
   its wheel as package data (hatch includes every file in the package; no pyproject change).
   One engine lookup finds them in the installed packages,
-  `glitchygames.bundled_demos.bundled_demos()` (`BundledDemo`: console script, path, install
-  name); the replay plugin's `bundled_demo_paths`
-  and scripts/replay_metrics.py call it. Development installs are editable (`uv sync`; the
+  `glitchygames.bundled_demos.bundled_demos(*, packages)` (`BundledDemo`: console script, path,
+  install name; `packages` is required, no default since Stage D Task D5: a game passes its own,
+  our tests `tests/workspace_expectations.MEMBER_PACKAGES`); the replay plugin's
+  `bundled_demo_paths(*, packages)` and `replay/tools/recordings.py` (which measure uses)
+  call it. Development installs are editable (`uv sync`; the
   `replay-metrics` nox session runs `uv run --all-packages`), so the ledger names a demo by its
   repository path; outside a repository, by its install name. PaddleSlap's is
-  `src/games/paddleslap/paddleslap/demos/rally.jsonl.gz`. PaddleSlap has no title screen, so its
+  `src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz`. PaddleSlap has no title screen, so its
   game-over screen (`PaddleSlapGameOverScene`) plays
   `PADDLESLAP_DEMO_PATH` after `GAME_OVER_IDLE_SECONDS` (10) of game time without a key or
   button press. `tests/replay/test_bundled_demos.py` replays every demo headless
-  (`bundled_demo_paths`, `replay_recording_headless` in `src/glitchygames/testing/replays.py`) and
+  (`bundled_demo_paths` in `src/glitchygames/testing/replays.py`, `replay_recording_headless` in
+  `src/glitchygames/replay/tools/children.py`) and
   plays PaddleSlap's through `play_recording` (stepped with `step_finishing`: the golden harness's
   `step` never gives a playback the recording's dt). A recording names its game (header `game`)
   and each scene start (`scene`) by logical names (`src/glitchygames/logical_names.py`: the layer,
@@ -555,7 +724,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `numpy_stream('name')` (numpy `Generator`), looked up at draw time; `engine_random()` is
   `random_stream('engine')`, `reset_streams(seed=...)` reseeds (tests, replay). Never use
   `secrets`, `random.SystemRandom`, global `random.*` functions or an unseeded
-  `np.random.default_rng()` in gameplay (`tests/test_randomness.py` scans for them)
+  `np.random.default_rng()` in gameplay (`tests/test_unseeded_randomness_guard.py` scans for them)
 - `--replay-trace PATH` (`src/glitchygames/replay/driver.py`; its module docstring lists the rules):
   replay a recording exactly through the real engine. `ReplaySources` serve its events, dt,
   polled input, devices, in-memory saves, clocks and seed, and every frame's sprites are compared
@@ -603,6 +772,61 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `REPLAY_DIVERGED` (1), `UNUSABLE_INPUT` (65) for a truncated recording that matched to its
   cut-off. Recorded window references map to None (live events of the display window carry None).
   Version-2 recordings replay with one warning (polled input reads as idle)
+- `--replay-trace NEW --compare-trace OLD [--compare-alpha PERCENT]` (Stage D Task D11;
+  `src/glitchygames/replay/tools/compare.py`, whose docstring is the contract; rule 20 of
+  `replay/driver.py`): the onion skin. NEW replays watched as always; `ReplaySources.onion_skin`
+  (`OnionSkin`) draws OLD's items from the frame of the same number over the presented copy
+  (`draw_overlay`, before the status bar; not while rebuilding) at PERCENT, NEW staying opaque
+  (Tasks D13 and D16, rule 10: `GhostCompositor`, each frame on its own: OLD's background
+  colors are the exact colors covering at least `BACKGROUND_COLOR_SHARE`, 5%, of OLD's frame;
+  an OLD pixel that differs from NEW's in none of those colors is an item, blended with SDL's
+  alpha arithmetic, `blend_over`; numpy on RGBX as `uint32`) (default 50;
+  `argument_types.percent_from_zero_to_one_hundred`, kind `bounded-percent`). OLD is replayed by a headless
+  child (OLD's game from its header, `traces.find_recorded_game`, else
+  `children.running_game_command`; started inside the run by `OnionSkin.begin`, on the first
+  presented frame or as a restart's rebuild begins, with `process.start_command`, its output in
+  a temporary file logged when it fails) with the hidden `--replay-frame-stream PORT:TOKEN`
+  (`FrameStreamAddress`; the token, from `secrets` per child, is sent first, and a connection
+  without it is closed and logged; `tests/test_unseeded_randomness_guard.py` lists the module):
+  `ReplaySources.frame_sink` (`FrameStream`) writes each frame from the display surface in
+  `end_frame` to the parent's loopback socket (`FRAME_HEADER` `<III`: frame, width, height; then
+  RGB rows), and a write nobody reads stops the child. The parent reads only when it draws
+  (lockstep through pause and steps; one frame held as sent, decoded only when drawn); OLD
+  ended: its last frame stays, labelled `OLD ended at frame N`; a child silent for
+  `CHILD_READ_TIMEOUT_SECONDS` ends OLD the same way and is stopped at once (NEW goes on).
+  Refused before anything runs: with `--headless`, `--audit`, `--rebaseline` (64), an OLD of
+  another screen size or unreadable (65: not a readable recording, its seed or size missing or
+  malformed included; a header without a size is warned about, not refused), missing (66); a frame stream without `--headless` or not `PORT:TOKEN` (64), or with
+  nobody listening (69). A step back's restart keeps `--compare-trace`; its child gets the same
+  `--replay-pause-at-frame N`, starts as the rebuild begins (the two rebuild at once) and
+  streams from `first_streamed_frame` (N - 1). The teardown (`_shutdown`: `_end_the_comparison`,
+  then `_shut_down_the_run` even if that failed) always stops and reaps the child. The three
+  options are `REPLAY_LOCAL_OPTIONS`
+- Stored paths (D15 item 4): every path the tools write into a file (a recording header's path
+  options, `rebaselined_from`, a ledger row's recording) is relative to the project root
+  (`find_project_root`, the settings' anchor; `--project-root` where a subcommand takes it), a
+  path in another checkout of the same project (same `[project] name`) relative to that
+  checkout's root, or the file name alone for any other path outside it (`replay/tools/settings.py` `stored_path`;
+  `GameEngine` `stored_options`). `tests/test_our_stored_paths.py` fails on an absolute path in
+  any tracked recording header or row-shaped JSON; the recording-renames table is refused when a
+  path is absolute or a new path is itself an old one, and each new path must exist
+- `<game> --compare-trace OLD [--compare-alpha PERCENT]` without `--replay-trace` (Task D12,
+  decision 19; rule 9 of `replay/tools/compare.py`): live play against OLD. The same `OnionSkin`
+  is the live host's overlay (`HostSources.overlay`, drawn over each presented frame before
+  inner doors' overlay). Frames pair by game frame (Task D14, rule 11;
+  `src/glitchygames/game_frames.py`: `GameFrameClock`, a context slot restarted by
+  `SceneManager.begin_run`; `begin_frame` in `_run_frame_steps` with the scene whose logic the
+  frame runs, a pause screen's being one whose `debug_subject` is another scene): live, replay
+  and OLD's child's stream (game frames only) read it, so pausing freezes OLD and a recording
+  of the run replayed with `--compare-trace OLD` pairs the same frames; a step back carries the
+  game frame shown in `ViewerState.compare_first_game_frame` (`ReplayResult.shown_game_frames`). Live play runs under OLD's recorded seed unless `--random-seed N` is given
+  (`_live_random_seed`, logged by `_log_the_runs_seed`). Refused before anything runs:
+  `--headless` (64), OLD missing (66) or unreadable (65; its seed or size missing or malformed
+  included), another size than the opened window (65,
+  `_refuse_a_live_display_of_another_size_than_old`). `start_async` (a browser page) refuses
+  `--compare-trace`, live or replayed, before anything starts (64,
+  `_refuse_a_comparison_in_a_browser`: OLD's child is a process). `--record-trace NEW` may go with it;
+  no step back; game flag only (no `play` subcommand)
 - `--replay-fps {recorded,real}` (default `recorded`): FPS events, the performance stats and the
   overlay's performance panel use the recorded frame times (exact, compared) or this machine's
   measured ones (FPS events then not compared); logic always gets the recorded `dt`
@@ -642,10 +866,16 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   script: `GAME_CONSOLE_SCRIPTS`), and its bundled demos in
   `<package>/demos/`.
   They are recorded through the
-  real engine loop by `scripts/record_scripted_session.py` (a supervisor posts each game's golden
+  real engine loop by `scripts/record_scripted_session.py` (our games' policy over the engine's
+  `scripted_sessions.record_scripted_session`: a supervisor posts each game's golden
   input script one frame ahead; never the golden harness, whose recordings have no FPS events).
-  Each is a pytest item of its own: the plugin `src/glitchygames/testing/replays.py` (root
-  `conftest.py` `pytest_plugins`) collects every `.../fixtures/replays/<console-script>/*.jsonl.gz`,
+  Each is a pytest item of its own: the plugin `src/glitchygames/testing/replays.py` (registered
+  by the engine's `pytest11` entry point, named after its module, so no conftest loads it;
+  `-p no:glitchygames.testing.replays` turns it off; it imports no pygame until it finds a
+  recording, so a project that is no game gets no item and no output from it, unless it has a
+  `fixtures/replays/<directory>/*.jsonl.gz`, whose non-console-script directory is a collection
+  error; a wheel install has pytest rewrite asserts throughout the engine package, harmless, with
+  `*-pytest-*.pyc` files in site-packages) collects every `.../fixtures/replays/<console-script>/*.jsonl.gz`,
   replays it in a child process through the console script's entry point with
   `--replay-trace PATH --headless`, and fails with the exit code and the printed report unless it
   exits `SUCCESS`; `tests/replay/test_golden_replays.py` keeps the fixture-set and tamper checks.
@@ -709,7 +939,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   newest-first `content_hash` (64 bits of SHA-256 of its content fields as JSON decodes them,
   re-encoded compact and key-sorted, scheme 1; each frame field is content or a measurement, enforced) and `processing_seconds`
   lists, and the header `measurement_runs` (each run's provenance: machine, paced and its pacing timer, versions, the
-  engine's `source_revision` (see Source revision), the `machine_state`
+  engine's `source_revision` (see Source revision) and the game's `game_source_revision`, the `machine_state`
   (`src/glitchygames/machine_state.py`: CPU, memory, mains or battery, macOS thermal report, CI),
   a `summary` (`RunSummary`: processing p50/p95/p99/max, worst frame and scene, frames over the
   target FPS budget, the live run's frame times; filled in when the next run stacks, since a
@@ -728,21 +958,25 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   ledger lives in the repository, one file per row (`quality/replay-ledger/`; design
   `plans/2026-10-25-measured-rows-in-the-repository.md`): the `replay-metrics` pre-commit hook
   (`scripts/measure_staged_replays.py`, its docstring the rules; installed by `.envrc` when
-  missing) measures every golden replay and bundled demo when this machine has no rows for the
-  staged code tree (`src/glitchygames/code_tree.py`: a git tree of only `MEASURED_PATHS`,
-  `src/` (the engine, games, demos, apps; less the members' `tests/` but for their
-  `tests/fixtures/replays/`: `is_measured_path`), recordings, `uv.lock`, `pyproject.toml`), so
+  missing; it keeps only git staging and its refusals, and runs `glitchygames unmeasured` then
+  `glitchygames measure --code-tree TREE --rows-directory DIR` in its own process) measures every
+  golden replay and bundled demo when this machine has no rows for the
+  staged code tree (`src/glitchygames/code_tree.py`: a git tree of only the root
+  `pyproject.toml`'s `[tool.glitchygames]` `measured-paths`, `src/` (the engine, games, demos,
+  apps; less its `unmeasured-paths`, the members' `tests/` but for their
+  `tests/fixtures/replays/`), recordings, `uv.lock`, `pyproject.toml`), so
   code that arrived by
   a merge or rebase is measured by the next commit, and stages the rows, each naming that code
   tree (`LedgerRow.code_tree`), into the same commit, plus the `history-...` row files it wrote
   (a recording's earlier header runs, written only when measured on a commit on `origin/main`
   without uncommitted changes, and never again under a moved recording's new path:
-  `replay_metrics.rows_to_write`, `LedgerRow.held_key`; none without an `origin/main`) (refused for a partial `git commit <path>`
+  `measure.rows_to_write`, `LedgerRow.held_key`; none without an `origin/main`) (refused for a partial `git commit <path>`
   or untracked files under the measured paths; `SKIP=replay-metrics` skips it); every docs build reads them and keeps the rows whose tree
   landed (`landed_code_trees`: the tree of each commit that added rows, i.e. main's squash
   merge; `landed_rows`), labelled with that commit, then merges gh-pages' ledger and local
-  pending rows (`nox -s replay-metrics`, `scripts/replay_metrics.py`) and graphs them
-  (`scripts/generate_performance_graphs.py`, docs/quality/performance.md); CircleCI's
+  pending rows (`nox -s replay-metrics`: `glitchygames measure`) and graphs them
+  (the engine's `performance-pages`, through `scripts/generate_performance_graphs.py`,
+  docs/quality/performance.md); CircleCI's
   `deploy-docs` publishes after each merge (`nox -s docs-deploy` refuses unless HEAD is on
   origin/main). A branch updated from main is measured by its next commit, or by hand: `uv run
   python -m scripts.measure_staged_replays`, then commit what it stages Each measured row carries a `FrameProfile` (about 100 buckets of the run's slowest frame
@@ -751,9 +985,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   uncommitted changes (`LedgerRow.from_uncommitted_changes`, e.g. `--allow-dirty`) are left out
   of a published build (the hook's `on_startup` sees `gh-deploy`; no startup event counts as
   published) and shown, labelled, in a local `mkdocs build`/`serve`; they stay in the pending
-  file after a deploy (`clear-published` removes only rows gh-pages holds). `uv run python
-  scripts/recording_report.py PATH` prints a recording's runs, speed changes and
-  behaviour-change map
+  file after a deploy (`clear-published` removes only rows gh-pages holds). `uv run glitchygames
+  report PATH` prints a recording's runs, speed changes and behaviour-change map
 - Bookmarks (watched replay): B bookmarks the frame shown, S saves `x.bookmarked.jsonl.gz`
   (header `bookmarked_copy_of`; only such a file is updated in place) with a
   `{"kind": "breakpoint", "label": "bookmark"}` control event in frame N - 1 per bookmark N; a
@@ -831,7 +1064,12 @@ installed in another repository's `.venv` does not count), a git archive
 source zips write the commit in), a build stamp (`_build_info.json`, written by
 `scripts/write_build_stamp.py` around `nox -s build-wheel`/`build-binary`/`test`, gitignored, packaged
 through hatch `artifacts`), else unknown. Every recorded run holds it
-(`MeasurementRun.source_revision`; `engine_source_revision()` looks it up once per process)
+(`MeasurementRun.source_revision`; `engine_source_revision()` looks it up once per process), and
+the game's beside it (`MeasurementRun.game_source_revision`: the same lookup in the game's package
+directory, `glitchygames.replay.tools.identity.game_source_revision`; None when that directory is
+not found, or for a run from before the field). A ledger row's commit and uncommitted-changes flag
+are the game's (`MeasurementRun.game_or_engine_revision`), the engine's only when there is no game
+revision: a game outside this repository names its own commit. Here both are one checkout.
 
 **Screen Shake and Rumble** (`src/glitchygames/effects/shake.py`, `src/glitchygames/input/rumble.py`)
 - `Scene.shake(Shake(...), targets=ShakeTarget.WORLD | ShakeTarget.SCREEN)`
@@ -968,14 +1206,14 @@ Dialogs: `LoadDialogScene`, `SaveDialogScene`, `NewCanvasDialogScene`
 
 **Focus Model**: Focusable sprites intercept keyboard input via `active` attribute
 
-### Bitmappy Pixel Art Editor (`src/apps/bitmappy/bitmappy/`)
+### Bitmappy Pixel Art Editor (`src/apps/bitmappy/src/bitmappy/`)
 
 Bitmappy is an app: the first workspace member of the apps layer (`src/apps/bitmappy/`;
 distribution, import package and console script are all `bitmappy`; Part 4 of
 plans/2026-10-24-workspace-packages.md, plans/2026-10-26-workspace-packages-4-bitmappy.md). The
 scene's logical name, which recordings hold, is `apps.bitmappy.editor:BitmapEditorScene`. The
 engine never imports it. Its sprite library (71 sprites, also the AI's training data) is package
-data in `src/apps/bitmappy/bitmappy/resources/sprites/` (`bitmappy.SPRITE_CONFIG_DIR`), beside
+data in `src/apps/bitmappy/src/bitmappy/resources/sprites/` (`bitmappy.SPRITE_CONFIG_DIR`), beside
 its window icon and `bitmappy.cfg`. Its tests are in `src/apps/bitmappy/tests/`, and its
 `pyproject.toml` declares what it imports (the engine, aisuite, numpy, pydantic, pygame-ce,
 tenacity). The Load and Save dialogs open the file name as typed (whitespace trimmed): there is
@@ -988,9 +1226,9 @@ Features:
 - Collision visualization (`VisualCollisionManager`)
 - TOML file format for sprites
 - AI integration via aisuite, behind the feature flag `AI_FEATURES_ENABLED`
-  (`src/apps/bitmappy/bitmappy/constants.py`; off in WebAssembly builds for now: the AI worker is a separate
+  (`src/apps/bitmappy/src/bitmappy/constants.py`; off in WebAssembly builds for now: the AI worker is a separate
   process, which a browser cannot start). `tenacity` is imported only when an AI request is made
-  (`src/apps/bitmappy/bitmappy/ai_worker.py` `_create_ai_retry_decorator`), so Bitmappy imports without it
+  (`src/apps/bitmappy/src/bitmappy/ai_worker.py` `_create_ai_retry_decorator`), so Bitmappy imports without it
 - Voice recognition support
 - PNG drag-and-drop
 - Runs in the browser: `nox -s browser -- bitmappy` (its bundle ships the app as its own archive, `bitmappy.zip` beside `glitchygames.zip`, as a member game ships `mr_muncher.zip`; the builder runs as `python -m scripts.build_browser_bundle`).
@@ -1050,12 +1288,65 @@ Features:
   (pixels), not on draw calls. Assertions must not assume the display's pixel format (cocoa's has
   per-pixel alpha)
 - Test filenames: Use descriptive names, not generic suffixes like `_simple`
+- Sprite-file checks (equal row lengths, save round trips of timings, hitboxes, pixels, metadata
+  and transitions) are `glitchygames.testing.sprite_files`: the engine and every package that
+  ships sprites call its `check_*` functions on their own sprites instead of copying them
+- Wall-clock timings never belong in the normal suite (they flake under load and under `-n auto`):
+  assert the outcome, and measure time in a benchmark (`pytest --benchmark-only`,
+  `nox -s performance-test`)
+- `tests/test_engine_wheel.py` builds the engine's wheel and asserts it holds the engine alone
+  (its package, its four sounds and its two sprites, no member); `nox -s build-wheel` builds every
+  member's wheel
 - Tests import the installed packages (`uv sync` installs the engine and every member) and never
   edit `sys.path`: `tests/test_suite_collection.py` fails on any `sys.path.insert` or
   `sys.path.append` in a test file. A member's tests (`src/<layer>/<member>/tests/`, no
-  `__init__.py`) are rootless, so pytest imports each file under its bare name: name every file
-  after its package, which for Bitmappy is `test_bitmappy_*.py` (subdirectories included; the same
-  guard checks it)
+  `__init__.py`) are rootless; pytest imports every test module and conftest under its path from
+  the repository root (`--import-mode=importlib`, `consider_namespace_packages = false`,
+  `pythonpath = ["."]`; D15 item 5: `src.apps.bitmappy.tests.test_bitmappy_film_strip` under
+  `uv run pytest` and nox alike, pinned by `test_bitmappy_test_module_names.py`), so no two names
+  collide, and a member's helper module is imported by its qualified path from
+  the repository root (`src.apps.bitmappy.tests.film_strip_support`), never by a bare name
+  (`test_no_member_test_imports_a_module_by_a_bare_name`). By convention every test file is
+  named `test_<distribution with - as _>*.py` (`test_mr_muncher_*.py`, `test_bitmappy_*.py`;
+  subdirectories included; `misnamed_member_test_modules` checks every member). A member's move
+  tests are one file per subject, six in all (`_logical_names`, `_install_location`, `_wheel`,
+  `_package_data`, `_entry_points`, `_recording_history`); a move test outside them goes beside
+  the member's other tests, named for its subject (`test_brave_adventurer_shared_core.py`). The
+  guards (the naming convention, the import mode and bare-name imports, and the member-import
+  guard) cover every member and every root test
+- The engine never imports a member, in its source or its tests: `tests/test_workspace_config.py`
+  (`engine_files_importing_a_member`) and `tests/test_suite_collection.py`
+  (`engine_test_imports_of_members`) fail on any import of one, at any level and by a literal
+  `importlib.import_module`/`__import__` string. An engine test that needs a game uses a
+  stand-in (`tests/stand_in_harness_games.py`, `tests/stand_in_games.py`) or discovers the members
+  through the workspace (`tests/workspace_goldens.py`) and asserts the hand-written expectations
+  in `tests/workspace_expectations.py` (which imports no `scripts.*`), which are edited when a
+  game, golden, bundled demo or console script is added. The only exemptions
+  (`MEMBER_IMPORT_EXEMPT_MODULES`, `MEMBER_IMPORT_EXEMPT_NAMES`,
+  each with its reason and date) are the golden-replay control tables
+  (`tests/replay/golden_replay_controls.py`) and the per-game world rules' named imports in
+  `tests/world/test_golden_traces.py`; a stale exemption fails too. The tools in `scripts/` are
+  out of scope
+- No engine test reaches `scripts/` (Part 3 Stage D, Task D9): `tests/test_suite_collection.py`
+  (`engine_tests_reaching_scripts`) follows every root test module's imports, at any level, by a
+  literal string, a bare `import scripts`, relative or through a package (its own included),
+  through the root tests' own helper modules, and through every `conftest.py` above it and the
+  plugins their `pytest_plugins` name (a fixture reaches a test by name), and fails naming the
+  shortest chain (`tests.x -> conftest -> tests.helper -> scripts.y`). Exempt by name: a
+  script's own test (`SCRIPT_TEST_FILES`, with the scripts it tests) and a file that holds only
+  tests of this repository itself (`REPOSITORY_TEST_FILES`, with its reason: the workspace, our
+  members' goldens, demos and console scripts, CI, the suite, and the source guards that scan
+  every member through `tests/workspace_sources.py`: `tests/test_engine_doors.py`,
+  `test_pump_seam_guard.py`, `test_unseeded_randomness_guard.py`,
+  `test_engine_context_source_guards.py`); a stale exemption (no file, no `scripts.*` reached, or
+  a script gone) fails too. A repository test never shares a file with engine tests: put it in
+  its own file, named for what it checks (`tests/engine/test_every_game_powers_on.py`). The shared
+  AST and import-graph helpers (`tests/ast_scanning.py`) import no `scripts.*`; what reads the
+  workspace is `tests/workspace_sources.py` and `tests/workspace_goldens.py`. The engine's own
+  source directory for the engine's tests is `tests/engine_source.py` (kept equal to
+  `scripts/workspace_packages.py`'s by `tests/test_workspace_packages.py`). No engine module
+  reaches `scripts/` either, directly or through another engine module
+  (`tests/test_workspace_config.py` `engine_modules_reaching_scripts`)
 - `tests/harness.py` defaults `SDL_VIDEODRIVER` and `SDL_AUDIODRIVER` to `dummy` for every run (no windows, no sound), so
   plain `uv run pytest` is enough; set either variable yourself only to override (e.g. `SDL_VIDEODRIVER=cocoa`).
 - Real pads never reach tests: `tests/sdl_defaults.py` defaults SDL's macOS joystick drivers off
@@ -1063,7 +1354,9 @@ Features:
   so tests see only their stand-ins (`tests/input/stand_in_devices.py`); set one to `1` yourself
   to test with a real pad. Windows' and Linux's joystick drivers are not covered
 - Driver comparison (`tests/driver_comparison.py`; frames recorded by
-  `src/glitchygames/testing/frame_fingerprints.py`, compared by `scripts/compare_driver_frames.py`):
+  `src/glitchygames/testing/frame_fingerprints.py`, compared by
+  `src/glitchygames/testing/frame_comparison.py`, both shipped in the engine wheel, whose command
+  line is `scripts/compare_driver_frames.py`):
   outside CI, `uv run pytest` (and `nox -s test`) also starts the same command on the native
   driver (macOS cocoa + coreaudio, Windows windows, Linux wayland or x11 with dummy audio) as a
   child run, the usual workers split between them (native two thirds), then compares every frame

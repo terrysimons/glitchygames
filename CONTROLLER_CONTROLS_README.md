@@ -4,7 +4,7 @@ This document provides a comprehensive guide to all controller controls and feat
 
 ## 🎮 **Multi-Controller System Overview**
 
-The Bitmappy tool supports up to **4 simultaneous controllers** with independent navigation, editing, and visual distinction. Each controller is assigned a color in activation order (`MultiControllerManager.CONTROLLER_COLORS` in `src/apps/bitmappy/bitmappy/controllers/manager.py`):
+The Bitmappy tool supports up to **4 simultaneous controllers** with independent navigation, editing, and visual distinction. Each controller is assigned a color in activation order (`MultiControllerManager.CONTROLLER_COLORS` in `src/apps/bitmappy/src/bitmappy/controllers/manager.py`):
 
 - **1st activation**: Red (255, 0, 0)
 - **2nd activation**: Green (0, 255, 0)
@@ -19,7 +19,7 @@ The Bitmappy tool supports up to **4 simultaneous controllers** with independent
 
 ## 🔄 **Mode Switching System**
 
-Controllers step through the editing modes with the analog triggers (`ModeSwitcher.handle_trigger_input` in `src/apps/bitmappy/bitmappy/controllers/modes.py`). A press is the trigger crossing 40% of its travel, with a 100 ms debounce:
+Controllers step through the editing modes with the analog triggers (`ModeSwitcher.handle_trigger_input` in `src/apps/bitmappy/src/bitmappy/controllers/modes.py`). A press is the trigger crossing 40% of its travel, with a 100 ms debounce:
 
 ### **Mode Switching Controls**
 - **L2 Trigger**: Step forward: Film Strip -> Canvas -> R Slider -> G Slider -> B Slider -> Film Strip

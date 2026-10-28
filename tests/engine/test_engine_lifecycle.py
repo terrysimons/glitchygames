@@ -7,21 +7,18 @@ cause (a teardown or an event manager that breaks) are simulated with targeted m
 """
 
 import asyncio
+import errno
 import itertools
 import logging
 import os
 import signal
 import sys
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GoldenTraceEngine, command_line
-from scripts.workspace_packages import declared_console_scripts
 
-from glitchygames import crt_power_on
-from glitchygames.backgrounds import BackgroundPattern, paint_default_background
 from glitchygames.crt_power_on import PowerOnOutcome
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
@@ -29,15 +26,21 @@ from glitchygames.events.audio import AudioEventManager
 from glitchygames.events.joystick import JoystickEventManager
 from glitchygames.events.keyboard import KeyboardEventManager
 from glitchygames.events.mouse import MouseEventManager
-from glitchygames.exit_codes import ExitCode
+from glitchygames.exit_codes import BUG_REPORT_HINT, ExitCode
 from glitchygames.host import HostSources
 from glitchygames.input import device_listing
 from glitchygames.live_sources import LiveSources
+from glitchygames.recording import RecordingWriteError
+from glitchygames.replay.tools import registry
+from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
+from glitchygames.replay.tools.registry import Tool
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import active_sources
-from glitchygames.testing.replays import game_entry_point
 from glitchygames.timing import FastTimer
 from tests.input.stand_in_devices import STAND_IN_PAD, STAND_IN_STICK, install_stand_in_devices
+
+if TYPE_CHECKING:
+    import argparse
 
 # GameEngine parses sys.argv when it is constructed: a small window (the conftest puts the
 # 800x600 test display back after the test), no frame pacing, quiet logs
@@ -144,9 +147,9 @@ def engine_run_environment(mocker):
 def build_engine(mocker, *, game: type[Scene], extra_arguments: tuple[str, ...] = ()):
     """Construct a real engine for ``game`` on ENGINE_ARGUMENTS plus ``extra_arguments``.
 
-    The engine is GoldenTraceEngine (scripts/record_golden_traces.py): GameEngine opening a
-    plain window, because SDL's dummy video driver warns "no fast renderer available" for
-    GameEngine's SCALED window, an error under pytest's filterwarnings.
+    The engine is GoldenTraceEngine (glitchygames/replay/tools/golden_traces.py): GameEngine
+    opening a plain window, because SDL's dummy video driver warns "no fast renderer available"
+    for GameEngine's SCALED window, an error under pytest's filterwarnings.
 
     Returns:
         GoldenTraceEngine: The engine, constructed (not started).
@@ -154,6 +157,24 @@ def build_engine(mocker, *, game: type[Scene], extra_arguments: tuple[str, ...] 
     """
     mocker.patch.object(sys, 'argv', ['test_engine_lifecycle', *ENGINE_ARGUMENTS, *extra_arguments])
     return GoldenTraceEngine(game=game)
+
+
+def bug_report_hints_follow_each_traceback(caplog) -> bool:
+    """Tell whether every record with a traceback is followed by the bug-report hint at ERROR.
+
+    Returns:
+        True when there is at least one traceback and the next record after each is
+        ``BUG_REPORT_HINT``, logged at ERROR.
+
+    """
+    records = caplog.records
+    traceback_positions = [index for index, record in enumerate(records) if record.exc_info]
+    return bool(traceback_positions) and all(
+        index + 1 < len(records)
+        and records[index + 1].getMessage() == BUG_REPORT_HINT
+        and records[index + 1].levelno == logging.ERROR
+        for index in traceback_positions
+    )
 
 
 def logged_crash_scene_names(caplog) -> list[str]:
@@ -353,6 +374,8 @@ class TestStartExitStatus:
         crash_records = [record for record in caplog.records if record.exc_info is not None]
         assert len(crash_records) == 1
         assert crash_records[0].exc_info[1] is run_error
+        # Exit 70: the player is told how to report it, after the traceback
+        assert bug_report_hints_follow_each_traceback(caplog)
 
     def test_a_deliberate_system_exit_passes_through_unchanged(self, mocker):
         engine = engine_whose_run_raises(
@@ -374,6 +397,7 @@ class TestStartExitStatus:
         engine._shutdown.assert_called_once_with(run_ended_by=ExitCode.INTERRUPTED.describe())
         assert f'Exiting with {ExitCode.INTERRUPTED.describe()}' in caplog.text
         assert all(record.exc_info is None for record in caplog.records)
+        assert BUG_REPORT_HINT not in caplog.text
 
     def test_signal_handlers_are_restored_even_when_the_teardown_does_not(self, mocker):
         """start() restores what it installed itself, so a mocked _shutdown leaks nothing."""
@@ -405,6 +429,7 @@ class TestStartExitStatus:
         logged_errors = [record.exc_info[1] for record in caplog.records if record.exc_info]
         expected_errors = [teardown_error] if run_error is None else [run_error, teardown_error]
         assert logged_errors == expected_errors
+        assert bug_report_hints_follow_each_traceback(caplog)
         assert f'Exiting with {ExitCode.INTERNAL_ERROR.describe()}' in caplog.text
 
 
@@ -590,6 +615,301 @@ class TestListInputDevices:
         assert f'Cannot list input devices with {flag}: the listing replaces the run' in caplog.text
 
 
+def tool_that_runs_no_game(*, calls: list[dict[str, Any]], exit_code: ExitCode) -> Tool:
+    """A tool that runs instead of the game (``--report-thing PATH``), recording its calls.
+
+    The real table holds only tools that run the game until later tasks add the others.
+
+    Returns:
+        The tool.
+
+    """
+
+    def handle(*, options: dict[str, Any], game: type[Scene] | Scene) -> ExitCode:
+        calls.append({'path': options['report_thing'], 'game': game})
+        return exit_code
+
+    def never_run_as_a_command(
+        *, tool: Tool, arguments: argparse.Namespace, game_arguments: list[str]
+    ) -> int:
+        raise AssertionError(tool.name)
+
+    return Tool(
+        name='report-thing',
+        help='report on a recording',
+        options=(),
+        runs_game=False,
+        game_handler=handle,
+        command_handler=never_run_as_a_command,
+    )
+
+
+def tool_with_handler(*, handler: registry.GameHandler) -> Tool:
+    """A tool that runs instead of the game (``--report-thing PATH``) with the given handler.
+
+    Returns:
+        The tool.
+
+    """
+
+    def never_run_as_a_command(
+        *, tool: Tool, arguments: argparse.Namespace, game_arguments: list[str]
+    ) -> int:
+        raise AssertionError(tool.name)
+
+    return Tool(
+        name='report-thing',
+        help='report on a recording',
+        options=(),
+        runs_game=False,
+        game_handler=handler,
+        command_handler=never_run_as_a_command,
+    )
+
+
+def raising_tool(*, error: BaseException) -> Tool:
+    """A tool that runs instead of the game and raises ``error``.
+
+    Returns:
+        The tool.
+
+    """
+
+    def raise_error(*, options: dict[str, Any], game: type[Scene] | Scene) -> ExitCode:
+        del options, game
+        raise error
+
+    return tool_with_handler(handler=raise_error)
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestGameFlagTools:
+    """A tool flag with a game handler runs in place of the game (``run_game_flag_tool``).
+
+    It runs while the engine is built, before the engine starts pygame or opens a window (Stage
+    D, Task D4b: a harness tool builds its own engine, so a second one inside the game's must
+    never start), and the process ends with the tool's exit code.
+    """
+
+    def test_the_tool_replaces_the_game(self, mocker):
+        """The tool runs with the game and its options; pygame is never started for the game."""
+        calls: list[dict[str, Any]] = []
+        tool = tool_that_runs_no_game(calls=calls, exit_code=ExitCode.SUCCESS)
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+        pygame_started = mocker.spy(pygame, 'init')
+
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert exit_information.value.code == ExitCode.SUCCESS
+        assert calls == [{'path': 'run.jsonl.gz', 'game': GameWhoseConstructorRaises}]
+        pygame_started.assert_not_called()
+
+    def test_a_tool_that_fails_ends_the_run_with_its_exit_code(self, mocker):
+        """Any other exit code than SUCCESS ends the run with it, the game never built."""
+        calls: list[dict[str, Any]] = []
+        tool = tool_that_runs_no_game(calls=calls, exit_code=ExitCode.UNUSABLE_INPUT)
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert exit_information.value.code == ExitCode.UNUSABLE_INPUT
+        assert len(calls) == 1
+
+    def test_a_headless_tool_puts_the_sdl_driver_variables_back(self, mocker):
+        """``--headless`` chose the dummy drivers for the tool; they are put back after it."""
+        calls: list[dict[str, Any]] = []
+        tool = tool_that_runs_no_game(calls=calls, exit_code=ExitCode.SUCCESS)
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+        mocker.patch.dict(os.environ, {'SDL_VIDEODRIVER': 'a-driver-of-its-own'})
+
+        with pytest.raises(SystemExit):
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--headless', '--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert len(calls) == 1
+        assert os.environ['SDL_VIDEODRIVER'] == 'a-driver-of-its-own'
+
+    def test_a_tool_that_crashes_exits_internal_error_as_the_run_would(self, mocker, caplog):
+        """A tool's uncaught exception ends the process INTERNAL_ERROR, logged, as start()'s run."""
+        tool = raising_tool(error=RuntimeError('the tool broke'))
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert exit_information.value.code == ExitCode.INTERNAL_ERROR
+        assert 'the tool broke' in caplog.text
+        # A game takes --log-level, so its tool's crash tells the player to rerun it at info
+        assert bug_report_hints_follow_each_traceback(caplog)
+
+    def test_ctrl_c_in_a_tool_exits_interrupted(self, mocker):
+        """Ctrl-C (KeyboardInterrupt) during a tool exits INTERRUPTED, as during a run."""
+        tool = raising_tool(error=KeyboardInterrupt())
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert exit_information.value.code == ExitCode.INTERRUPTED
+
+    def test_a_tool_whose_recording_fails_part_way_exits_cannot_write_output(self, mocker):
+        """A recording write that fails part way exits CANNOT_WRITE_OUTPUT, as during a run."""
+        failure = RecordingWriteError(
+            path=Path('run.jsonl.gz'), cause=OSError(errno.ENOSPC, 'No space left on device')
+        )
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, raising_tool(error=failure)))
+
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert exit_information.value.code == ExitCode.CANNOT_WRITE_OUTPUT
+
+    def test_sigterm_in_a_tool_exits_with_the_signals_code(self, mocker):
+        """SIGTERM during a tool ends it through the engine's handler; the handler goes after."""
+        mocker.patch.object(signal, 'getsignal', return_value=signal.SIG_DFL)
+        installed = mocker.patch.object(signal, 'signal')
+
+        def send_sigterm(*, options: dict[str, Any], game: type[Scene] | Scene) -> ExitCode:
+            del options, game
+            # The handler the engine installed for SIGTERM, called as the signal would call it
+            handlers = {call.args[0]: call.args[1] for call in installed.call_args_list}
+            handlers[signal.SIGTERM](signal.SIGTERM, None)
+            return ExitCode.SUCCESS
+
+        tool = tool_with_handler(handler=send_sigterm)
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert exit_information.value.code == ExitCode.for_signal(signal.SIGTERM)
+        # Put back to the default once the tool ended
+        assert installed.call_args_list[-1].args[1] is signal.SIG_DFL
+
+    def test_a_golden_trace_of_a_game_that_crashes_exits_internal_error(self, mocker, tmp_path):
+        """``--record-golden-trace`` of a game whose scene raises: INTERNAL_ERROR, as on BASE."""
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=(
+                    '--record-golden-trace',
+                    str(tmp_path / 'golden.jsonl.gz'),
+                    '--input-script',
+                    'glitchygames.replay.tools.golden_traces:InputScript',
+                    '--frame-count',
+                    '1',
+                ),
+            )
+
+        assert exit_information.value.code == ExitCode.INTERNAL_ERROR
+
+
+def game_with_its_own_argument(*flags: str) -> type[Scene]:
+    """A game whose own ``args`` adds an argument with these flags.
+
+    Returns:
+        The game's class.
+
+    """
+
+    class GameWithItsOwnArgument(Scene):
+        NAME = 'GameWithItsOwnArgument'
+        VERSION = '1.0'
+
+        @classmethod
+        def args(cls, parser: argparse._ArgumentGroup) -> None:
+            parser.add_argument(*flags, action='store_true', help="the game's own")
+
+    return GameWithItsOwnArgument
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestAGameArgumentTheEngineReserves:
+    """A game argument named as one of the engine's: a clear refusal, never a traceback.
+
+    Every tool's flag and option is added to every game (``registry.add_game_flags``), so an
+    unseen game that already has ``--force`` (``--measure``'s) fails to build its parser. The
+    refusal names the flag, says the engine reserves it, and exits ``OPTIONS_REFUSED`` (64), the
+    engine's usage-error code, on every run of the game.
+    """
+
+    def test_a_tool_option_is_named_as_reserved_for_the_engines_tools(self, mocker, capsys):
+        """``--force`` in the game: refused, naming ``--force`` and the tools' help."""
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(mocker, game=game_with_its_own_argument('--force'))
+
+        assert exit_information.value.code == ExitCode.OPTIONS_REFUSED
+        error = capsys.readouterr().err
+        assert (
+            "GameWithItsOwnArgument's argument --force: --force is reserved by the engine for its "
+            'tools (glitchygames --help lists them)'
+        ) in error
+        assert 'Traceback' not in error
+
+    def test_an_engine_option_is_named_as_reserved_for_the_engine(self, mocker, capsys):
+        """``--resolution`` in the game: refused, naming it as the engine's own option."""
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(mocker, game=game_with_its_own_argument('--resolution'))
+
+        assert exit_information.value.code == ExitCode.OPTIONS_REFUSED
+        error = capsys.readouterr().err
+        assert '--resolution is reserved by the engine (an option of every game' in error
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestTheRunsSeedIsLogged:
+    """Every run logs the seed it uses, rolled or given, so a plain run can be reproduced."""
+
+    def test_a_run_without_a_seed_logs_the_one_it_rolled(self, mocker, caplog):
+        """No ``--random-seed``: the rolled seed is logged at INFO."""
+        caplog.set_level(logging.INFO)
+
+        engine = build_engine(mocker, game=first_frame_game())
+
+        assert f'Random seed {engine.random_seed} (rolled)' in caplog.text
+
+    def test_a_run_given_a_seed_logs_it(self, mocker, caplog):
+        """``--random-seed N``: N is logged at INFO."""
+        caplog.set_level(logging.INFO)
+
+        engine = build_engine(
+            mocker, game=first_frame_game(), extra_arguments=('--random-seed', '5')
+        )
+
+        assert engine.random_seed == 5
+        assert 'Random seed 5 (given)' in caplog.text
+
+
 @pytest.mark.usefixtures('engine_run_environment')
 class TestCrtPowerOnOption:
     """--crt-power-on chooses when the power-on sequence plays (glitchygames/crt_power_on.py)."""
@@ -724,88 +1044,113 @@ class TestCrtPowerOnBeforeEveryGame:
         player.assert_not_called()
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-# Every game's console script (the root's and the members' [project.scripts]): the power-on
-# sequence must play before each (brave-adventurer's, Brave Adventurer's launcher, before its
-# title screen: one sequence for both its games, as the engine plays it once, before the first
-# scene)
-GAME_CONSOLE_SCRIPTS = (
-    'bitmappy',
-    'brave-adventurer',
-    'clockwork-keep',
-    'drawing-fire',
-    'mr-muncher',
-    'paddleslap',
-)
-# Console scripts that are not games (the API server and client run no GameEngine)
-NOT_GAME_CONSOLE_SCRIPTS = frozenset({'glitchygames-server', 'glitchygames-client'})
+# A value no options block may show: the --api-key of GameWithASecretOption
+VALUE_NEVER_SHOWN = 'not-a-real-key-0123456789'
 
 
-class PowerOnPlayed(BaseException):
-    """Raised after the real power-on sequence played, to stop the run before the game is built.
+class GameWithASecretOption(FirstFrameGame):
+    """A game with an option whose name suggests a secret (``--api-key``)."""
 
-    Not an Exception (start()'s crash boundary would turn it into INTERNAL_ERROR), and not a
-    SystemExit (Bitmappy's main catches that), so it reaches the test unchanged.
+    NAME = 'GameWithASecretOption'
+
+    @classmethod
+    def args(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        """Add ``--api-key``.
+
+        Returns:
+            The parser.
+
+        """
+        parser.add_argument('--api-key', default=None)
+        return parser
+
+
+def startup_option_records(caplog, *, game_name: str) -> list[logging.LogRecord]:
+    """Return the startup options blocks the engine logged for a game.
+
+    Returns:
+        The records whose message starts with the block's heading.
+
     """
+    return [
+        record
+        for record in caplog.records
+        if record.name == 'game.engine'
+        and record.getMessage().startswith(f'Options for {game_name} ')
+    ]
 
 
-def test_every_game_console_script_is_covered():
-    """A new game's console script must join GAME_CONSOLE_SCRIPTS, so its power-on is tested.
+def option_shown(*, record: logging.LogRecord, name: str) -> str:
+    """Return what a startup options block shows for one top-level option.
 
-    The root project's console scripts and every workspace member's (src/games/mr-muncher).
+    Returns:
+        The text after ``=`` on the option's line.
+
     """
-    scripts = declared_console_scripts(project_root=PROJECT_ROOT)
-
-    assert set(scripts) - NOT_GAME_CONSOLE_SCRIPTS == set(GAME_CONSOLE_SCRIPTS)
+    (line,) = [
+        line
+        for line in record.getMessage().splitlines()[1:]
+        if line.split('=', 1)[0].strip() == name
+    ]
+    return line.split('=', 1)[1].strip()
 
 
 @pytest.mark.usefixtures('engine_run_environment')
-@pytest.mark.parametrize('background', [pattern.value for pattern in BackgroundPattern])
-@pytest.mark.parametrize('console_script', GAME_CONSOLE_SCRIPTS)
-def test_every_game_powers_on_through_its_own_main(mocker, console_script, background):
-    """Each game's real main() plays the real sequence to its end on the game's canvas first.
+class TestStartupOptions:
+    """Every engine start logs the run's options once, at CRITICAL (the owner, 2026-10-28)."""
 
-    Once per screen it can settle on (--default-background): the colour bars and channel 3.
+    @pytest.mark.parametrize('level', ['debug', 'info', 'warning', 'error', 'critical'])
+    def test_the_options_show_once_at_every_level(self, mocker, caplog, level):
+        """At any --log-level, the default warning included, one CRITICAL block per start."""
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class, extra_arguments=('--log-level', level))
 
-    The run is stopped once it has (PowerOnPlayed), before the game's scene is built.
-    """
-    main = game_entry_point(console_script=console_script).load()
-    # The dummy driver cannot honour GameEngine's SCALED window (GoldenTraceEngine's docstring)
-    mocker.patch.dict(main.__globals__, {'GameEngine': GoldenTraceEngine})
-    # Bitmappy's main sets it process-wide; later tests on this worker keep their own
-    mocker.patch('multiprocessing.set_start_method')
-    mocker.patch.object(
-        crt_power_on, 'measured_seconds', side_effect=itertools.count(start=0.0, step=0.05)
-    )
-    mocker.patch.object(crt_power_on.time, 'sleep')
-    played: list[tuple[PowerOnOutcome, bool]] = []
-    real_player = game_engine_module.play_power_on
+        # The logging level the run asked for (basicConfig is a no-op under pytest's handlers)
+        with caplog.at_level(level.upper()):
+            engine.start()
 
-    def play_then_stop(**arguments: Any) -> PowerOnOutcome:
-        outcome = real_player(**arguments)
-        settled = pygame.Surface(arguments['screen'].get_size())
-        paint_default_background(surface=settled)
-        shows_settled = pygame.image.tobytes(arguments['screen'], 'RGB') == pygame.image.tobytes(
-            settled, 'RGB'
+        (record,) = startup_option_records(caplog, game_name=game_class.NAME)
+        assert record.levelno == logging.CRITICAL
+        assert option_shown(record=record, name='log_level') == repr(level)
+
+    def test_a_secret_looking_option_is_redacted(self, mocker, caplog):
+        """--api-key's value never reaches the log; the block shows <redacted> in its place."""
+        engine = build_engine(
+            mocker,
+            game=GameWithASecretOption,
+            extra_arguments=('--api-key', VALUE_NEVER_SHOWN),
         )
-        played.append((outcome, shows_settled))
-        raise PowerOnPlayed
 
-    mocker.patch.object(game_engine_module, 'play_power_on', side_effect=play_then_stop)
+        with caplog.at_level(logging.WARNING):
+            engine.start()
 
-    with (
-        command_line([
-            '--crt-power-on',
-            'on',
-            '--default-background',
-            background,
-            '--log-level',
-            'warning',
-            '--resolution',
-            '320x240',
-        ]),
-        pytest.raises(PowerOnPlayed),
-    ):
-        main()
+        (record,) = startup_option_records(caplog, game_name=GameWithASecretOption.NAME)
+        assert VALUE_NEVER_SHOWN not in caplog.text
+        assert option_shown(record=record, name='api_key') == (
+            game_engine_module.REDACTED_OPTION_VALUE
+        )
 
-    assert played == [(PowerOnOutcome.FINISHED, True)]
+    def test_a_rolled_seed_is_shown_as_the_seed_the_run_uses(self, mocker, caplog):
+        """No --random-seed: the block shows the rolled seed, not None, so the run can be redone.
+
+        The owner, 2026-10-28: "The seed should definitely be in the options".
+        """
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class)
+
+        with caplog.at_level(logging.WARNING):
+            engine.start()
+
+        (record,) = startup_option_records(caplog, game_name=game_class.NAME)
+        assert option_shown(record=record, name='random_seed') == str(engine.random_seed)
+
+    def test_a_given_seed_is_shown(self, mocker, caplog):
+        """--random-seed 5: the block shows 5."""
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class, extra_arguments=('--random-seed', '5'))
+
+        with caplog.at_level(logging.WARNING):
+            engine.start()
+
+        (record,) = startup_option_records(caplog, game_name=game_class.NAME)
+        assert option_shown(record=record, name='random_seed') == '5'

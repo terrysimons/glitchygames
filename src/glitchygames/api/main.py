@@ -34,18 +34,27 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from glitchygames.api.routes import health_router, sprites_router
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-)
-
 LOG = logging.getLogger('glitchygames.api')
+SERVER_LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+
+
+def configure_server_logging() -> None:
+    """Log INFO and above to standard error, as the server starts (never at import).
+
+    Called by ``run()`` and by the app's lifespan (``uvicorn glitchygames.api.main:app`` starts
+    no ``run()``, and a ``--reload`` worker imports the module afresh). It was a
+    ``logging.basicConfig`` at import: any process importing the API, the test suite included,
+    logged every logger's INFO records from then on, whatever its own level was (BUGS.md #236).
+    ``basicConfig`` does nothing once the root logger has a handler, so a process that
+    configured its logging first keeps its own.
+    """
+    logging.basicConfig(level=logging.INFO, format=SERVER_LOG_FORMAT)
 
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncGenerator[None]:  # ruff: ignore[unused-function-argument]
     """Manage application startup and shutdown lifecycle."""
+    configure_server_logging()
     LOG.info('Starting GlitchyGames Sprite Generation API')
 
     # Pre-initialize renderer service to set up pygame in headless mode
@@ -120,6 +129,8 @@ def run() -> None:
     host = os.environ.get('GLITCHYGAMES_HOST', '127.0.0.1')
     port = int(os.environ.get('GLITCHYGAMES_PORT', '8000'))
     reload = os.environ.get('GLITCHYGAMES_RELOAD', 'false').lower() == 'true'
+
+    configure_server_logging()
 
     LOG.info('Starting server on %s:%s', host, port)
     uvicorn.run(

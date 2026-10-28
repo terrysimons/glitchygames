@@ -1,4 +1,4 @@
-# GlitchyGames Arcade: a showcase and game picker (`uv run glitchygames`) — master spec
+# GlitchyGames Arcade: a showcase and game picker (`uv run arcade`) — master spec
 
 Status: SPEC (agreed with the user 2026-10-25; drafted 2026-10-23), not started. Tracked as
 feature #43 in `plans/future-features.md`. This is the master plan: each piece below gets its own
@@ -9,11 +9,15 @@ real frames from each game's golden replay (a 5x2 grid of ten tiles; the tile co
 
 ## What it is
 
-A `glitchygames` console script, from the Arcade app at `src/apps/arcade/` (its own workspace
-package, distribution `arcade`; the owner, 2026-10-25), and a browser bundle (`nox -s browser -- glitchygames`) that open an arcade front end for every
+An `arcade` console script, from the Arcade app at `src/apps/arcade/` (its own workspace
+package, distribution `arcade`; the owner, 2026-10-25), and a browser bundle (`nox -s browser -- arcade`) that open an arcade front end for every
 game the engine ships. One screen, one process (the browser cannot start child processes:
 Pyodide has no subprocesses, which is why Bitmappy's AI worker is off there and replay restarts
 only show a message there).
+
+The command is `arcade`, not `glitchygames` (the owner, 2026-10-27): `glitchygames` is the engine's
+tools command (`glitchygames record-trace`, `verify`, ...; Workspace Packages Part 3, Stage D),
+and the engine must not reach up into an app to open the Arcade.
 
 ```
 +------------------------------------------------------------------+
@@ -61,6 +65,15 @@ only show a message there).
   Bitmappy, and the dt, joystick and text input demos), a 3x3 grid. Every tile plays its game's
   demo live, silent, at the same time (real playback, not pre-rendered images). The tile shown
   in the top frame is highlighted.
+- **A tile is a game's command, not an edition or a recording** (the owner, 2026-10-27, after
+  the Arcade spikes): Brave Adventurer's tile runs its launcher (`brave_adventurer_modes`, the
+  title screen offering Classic and Papyrus), which itself wraps the two editions; PaddleSlap is
+  one tile (its Rally demo is its attract reel, not a tile: future-features #60).
+- **The debug overlay** (the owner, 2026-10-27, from the in-process spike): F3 toggles the
+  Arcade's own overlay and every tile's with it; Shift+F3 toggles only the highlighted tile; F4
+  cycles the highlighted tile's panel. The Arcade keeps each tile's overlay state and restores it
+  when the tile's game restarts; a tile switched off stays off until F3 or Shift+F3 turns it on
+  again, and a tile with no state yet follows the Arcade's own.
 
 ### The chime
 
@@ -140,7 +153,7 @@ lists "inner frames handed to a sink rather than presented" as a later user of t
 
 ### 3. The Arcade
 
-`src/apps/arcade/arcade/` (the app's package), an ordinary outer game: its scene holds nine `DemoPlayer`s, draws the
+`src/apps/arcade/src/arcade/` (the app's package), an ordinary outer game: its scene holds nine `DemoPlayer`s, draws the
 top frame, separator and grid, runs the reel (bars, chime, demo) and the highlight, and shares
 the frame budget. One Arcade frame:
 
@@ -219,9 +232,18 @@ sprite being drawn; the joystick demo's shows its readout answering a recorded p
   launching and the idle time-out.
 - **Launch and return, every game:** launch, play briefly, quit, and the Arcade is back with the
   highlight on that game.
+- **The debug overlay survives a tile's game looping** (the owner, 2026-10-27, after the spikes
+  lost it on restart): turn F3 on for every tile, F4 to a panel on one, Shift+F3 off on another;
+  let every tile's demo loop at least once; each restarted game has exactly its tile's overlay
+  state back (on, its panel, or off), F3 again turns all on, and the overlay changes no tile's
+  replay digests. The spike's `loop-overlay-all` check (`.superpowers/arcade-spike/`) is the model.
+- **Tiles are opaque on a real display's format:** a tile's render target in the native driver's
+  pixel format (alpha channel without SRCALPHA), stepped through a scene with a per-pixel-alpha
+  sprite, has no alpha-0 byte when composed (the spike's vanished-sprites bug; BUGS.md #142's
+  rule for frames that are never presented).
 - **The chime:** its waveform has the four notes, the level and the fades; a rendered file to
   listen to.
-- **Browser:** the Arcade bundle builds and `nox -s browser -- glitchygames` runs it.
+- **Browser:** the Arcade bundle builds and `nox -s browser -- arcade` runs it.
 
 ## Sub-plans (each written before its work starts, linked both ways)
 
@@ -236,7 +258,7 @@ sprite being drawn; the joystick demo's shows its readout answering a recorded p
    highlight, input, idle time-out, the chime recipe.
 5. **Launching in the same process:** discovery by entry point, fresh contexts for games, return,
    window size.
-6. **The browser bundle:** `nox -s browser -- glitchygames`.
+6. **The browser bundle:** `nox -s browser -- arcade`.
 
 ## Decisions (the user, 2026-10-23 and 2026-10-25)
 

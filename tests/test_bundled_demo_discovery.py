@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING
+import inspect
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
@@ -15,42 +16,57 @@ from glitchygames.bundled_demos import (
     package_demo_paths,
 )
 from glitchygames.replay.driver import write_bookmarked_copy
-from paddleslap import PADDLESLAP_DEMO_PATH
+from glitchygames.testing.replays import bundled_demo_paths
+from tests.stand_in_games import (
+    write_stand_in_distribution,
+    write_stand_in_package,
+    write_stand_in_recording,
+)
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from collections.abc import Callable
+
+# A stand-in recording's frames: a bookmark on frame 2 needs at least 2, and 3 leaves a frame
+# after the bookmark
+STAND_IN_RECORDING_FRAMES = 3
 
 
-def write_stand_in_package(*, directory: Path, package: str, demo_names: tuple[str, ...]) -> Path:
-    """Write an import package with no console script, holding files in its demos/ directory.
+def test_a_games_demo_is_found_with_its_console_script_and_install_name(tmp_path, monkeypatch):
+    """A package's rally demo, with the console script in it, named the same under any install.
 
-    Returns:
-        The package's demos directory.
-
+    A stand-in package with one demo, installed with a stand-in distribution whose one console
+    script's entry point is in the package (as PaddleSlap's is; its real demo is checked in
+    tests/test_bundled_demos.py).
     """
-    demo_directory = directory / package / BUNDLED_DEMO_DIRECTORY_NAME
-    demo_directory.mkdir(parents=True)
-    (directory / package / '__init__.py').write_text('', encoding='utf-8')
-    for name in demo_names:
-        (demo_directory / name).write_bytes(b'')
-    return demo_directory
+    install_directory = tmp_path / 'site-packages'
+    demo_directory = write_stand_in_package(
+        directory=install_directory, package='stand_in_rally', demo_names=('rally.jsonl.gz',)
+    )
+    write_stand_in_distribution(
+        directory=install_directory,
+        distribution='stand-in-rally',
+        console_scripts={'stand-in-rally': 'stand_in_rally:main'},
+    )
+    monkeypatch.syspath_prepend(install_directory)
 
-
-def test_paddleslaps_demo_is_found_with_its_console_script_and_install_name():
-    """The rally demo, wherever paddleslap is installed, named the same under any install."""
-    (demo,) = bundled_demos(packages=('paddleslap',))
+    (demo,) = bundled_demos(packages=('stand_in_rally',))
 
     assert demo == BundledDemo(
-        package='paddleslap',
-        console_script='paddleslap',
-        path=PADDLESLAP_DEMO_PATH,
-        install_name='paddleslap/demos/rally.jsonl.gz',
+        package='stand_in_rally',
+        console_script='stand-in-rally',
+        path=demo_directory / 'rally.jsonl.gz',
+        install_name='stand_in_rally/demos/rally.jsonl.gz',
     )
 
 
-def test_a_bundled_demo_is_a_frozen_record():
+def test_a_bundled_demo_is_a_frozen_record(tmp_path):
     """A demo's fields cannot be changed in place."""
-    (demo,) = bundled_demos(packages=('paddleslap',))
+    demo = BundledDemo(
+        package='stand_in_game',
+        console_script='stand-in-game',
+        path=tmp_path / 'stand_in_game' / BUNDLED_DEMO_DIRECTORY_NAME / 'rally.jsonl.gz',
+        install_name='stand_in_game/demos/rally.jsonl.gz',
+    )
 
     with pytest.raises(dataclasses.FrozenInstanceError):
         demo.console_script = 'other'  # type: ignore[misc]
@@ -65,8 +81,11 @@ def test_package_demo_paths_lists_only_recordings_and_leaves_out_bookmarked_copi
     )
     (tmp_path / 'stand_in_game' / 'sprites').mkdir()
     (tmp_path / 'stand_in_game' / 'sprites' / 'ball.jsonl.gz').write_bytes(b'')
+    # The copy's source: a small stand-in recording, written beside the package
+    stand_in_recording_path = tmp_path / 'stand_in_rally.jsonl.gz'
+    write_stand_in_recording(path=stand_in_recording_path, frame_count=STAND_IN_RECORDING_FRAMES)
     write_bookmarked_copy(
-        recording_path=PADDLESLAP_DEMO_PATH,
+        recording_path=stand_in_recording_path,
         bookmarks=[2],
         destination=demo_directory / 'rally.bookmarked.jsonl.gz',
     )
@@ -113,18 +132,32 @@ def test_packages_without_demos_and_those_not_installed_have_none(tmp_path, monk
     assert demos == []
 
 
-def test_every_member_package_is_searched_by_default():
-    """Without packages, the demos come from every workspace member's (MEMBER_LAYERS), sorted."""
-    demos = bundled_demos()
+def test_the_packages_to_search_are_always_given():
+    """No default: a caller names the packages it searches (Stage D, Task D5).
 
-    assert [demo.install_name for demo in demos if demo.package == 'paddleslap'] == [
-        'paddleslap/demos/rally.jsonl.gz'
-    ]
-    assert all(demo.path.parent.name == BUNDLED_DEMO_DIRECTORY_NAME for demo in demos)
-    assert [demo.path for demo in demos] == sorted(demo.path for demo in demos)
+    The default was every workspace member's (``MEMBER_LAYERS``), which an unseen game is not;
+    a game's own demos are its package's (``glitchygames.replay.tools.recordings``).
+    """
+    for lookup in (bundled_demos, bundled_demo_paths):
+        packages = inspect.signature(lookup).parameters['packages']
+
+        assert packages.default is inspect.Parameter.empty, lookup.__name__
+        with pytest.raises(TypeError, match='packages'):
+            # Called as a caller that names no packages would call it
+            cast('Callable[[], object]', lookup)()
 
 
-def test_a_console_script_is_found_by_the_module_of_its_entry_point():
-    """The first installed console script whose entry point's module is the one asked for."""
-    assert console_script_in_module(module='paddleslap') == 'paddleslap'
+def test_a_console_script_is_found_by_the_module_of_its_entry_point(tmp_path, monkeypatch):
+    """The first installed console script whose entry point's module is the one asked for.
+
+    A stand-in distribution whose one console script's entry point is in the stand-in module.
+    """
+    write_stand_in_distribution(
+        directory=tmp_path,
+        distribution='stand-in-rally',
+        console_scripts={'stand-in-rally': 'stand_in_rally:main'},
+    )
+    monkeypatch.syspath_prepend(tmp_path)
+
+    assert console_script_in_module(module='stand_in_rally') == 'stand-in-rally'
     assert console_script_in_module(module='no_such_module') is None

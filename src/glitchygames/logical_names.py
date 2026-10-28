@@ -9,22 +9,13 @@ third-party game's, ``__main__``) keeps its module path.
 
 The layers are data here, not read from the workspace: an installed engine has no workspace to
 read, and the engine never imports scripts/. ``MEMBER_LAYERS`` is kept equal to the workspace
-(scripts/workspace_packages.py) by tests/test_workspace_config.py; ``EXAMPLES_LAYERS`` covers
-the demos still inside glitchygames/examples/ and goes when they move out (Part 3).
+(scripts/workspace_packages.py) by tests/test_workspace_config.py.
 A leaf module: it imports nothing from the engine.
 """
 
 from __future__ import annotations
 
 LAYERS: tuple[str, ...] = ('games', 'demos', 'apps')
-EXAMPLES_PACKAGE = 'glitchygames.examples'
-# Demos not yet moved out of glitchygames/examples/ (every game has: Part 2): package name
-# there -> layer (the user, 2026-10-25; Part 3 of the workspace plan moves the demos and deletes it)
-EXAMPLES_LAYERS: dict[str, str] = {
-    'dt_demo': 'demos',
-    'joystick_demo': 'demos',
-    'text_input_demo': 'demos',
-}
 # Workspace members: top-level import package -> layer (src/<layer>/<member>/); equal to the
 # workspace, checked by tests/test_workspace_config.py
 MEMBER_LAYERS: dict[str, str] = {
@@ -37,6 +28,9 @@ MEMBER_LAYERS: dict[str, str] = {
     'paddleslap': 'games',
     'drawing_fire': 'games',
     'bitmappy': 'apps',
+    'dt_demo': 'demos',
+    'joystick_demo': 'demos',
+    'text_input_demo': 'demos',
 }
 
 
@@ -51,11 +45,6 @@ def logical_module_name(*, module: str) -> str:
         belongs to no layer.
 
     """
-    examples_prefix = f'{EXAMPLES_PACKAGE}.'
-    if module.startswith(examples_prefix):
-        inside_examples = module.removeprefix(examples_prefix)
-        layer = EXAMPLES_LAYERS.get(inside_examples.partition('.')[0])
-        return module if layer is None else f'{layer}.{inside_examples}'
     layer = MEMBER_LAYERS.get(module.partition('.')[0])
     return module if layer is None else f'{layer}.{module}'
 
@@ -90,6 +79,4 @@ def module_for_logical_module(*, logical_module: str) -> str:
     package = inside_package.partition('.')[0]
     if MEMBER_LAYERS.get(package) == layer:
         return inside_package
-    if EXAMPLES_LAYERS.get(package) == layer:
-        return f'{EXAMPLES_PACKAGE}.{inside_package}'
     return logical_module

@@ -14,15 +14,10 @@ import ast
 from typing import TYPE_CHECKING
 
 import pytest
-from scripts.workspace_packages import ENGINE_DIRECTORY
 
-from tests.ast_scanning import (
-    PROJECT_ROOT,
-    import_bindings,
-    qualified_name,
-    scanned_source_files,
-    write_project_with_member_module,
-)
+from tests.ast_scanning import PROJECT_ROOT, import_bindings, qualified_name
+from tests.engine_source import ENGINE_DIRECTORY
+from tests.workspace_sources import scanned_source_files, write_project_with_member_module
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -154,6 +149,19 @@ ALLOWED_FUNCTION_BYPASSES: dict[str, dict[str, frozenset[str]]] = {
         'trace_recording_header': frozenset({'datetime.datetime.now'}),
         'measurement_run': frozenset({'datetime.datetime.now'}),
     },
+    # The golden-trace harness is the scripted player and the host, outside the game: it posts
+    # the input script's events into the real queue before each frame (the frame's pump reads
+    # them through the door, as it reads a player's), and drops the host environment's events
+    # by draining and reposting the rest. Moved from scripts/record_golden_traces.py unchanged
+    # (Stage D, Task D4a)
+    'replay/tools/golden_traces.py': {
+        'record_trace': frozenset({'pygame.event.post'}),
+        'discard_environment_events': frozenset({'pygame.event.get', 'pygame.event.post'}),
+    },
+    # A measurement's wall time for its summary line (describe_measurement's seconds), outside
+    # any game: the rebaseline child measures the frames. Moved from scripts/replay_metrics.py
+    # unchanged (Stage D, Task D6)
+    'replay/tools/measure.py': {'measure': frozenset({'time.perf_counter'})},
 }
 
 

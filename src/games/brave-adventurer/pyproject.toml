@@ -3,7 +3,8 @@ name = "brave-adventurer"
 version = "1.0.0"
 description = "Brave Adventurer and its Papyrus Edition: a Pitfall-style adventure in ancient Egypt, built on GlitchyGames"
 requires-python = ">=3.14,<4.0"
-dependencies = ["glitchygames"]
+# What it imports (decision 10: a member declares every distribution it imports)
+dependencies = ["glitchygames>=1.0.0", "pygame-ce"]
 
 # The one entry: the launcher (a title screen; --game classic|papyrus; a recording's own game)
 [project.scripts]

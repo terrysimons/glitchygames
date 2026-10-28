@@ -12,17 +12,20 @@ import math
 import multiprocessing
 import os
 import platform
+import pprint
 import signal
 import sys
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, override
 
 import pygame
 
 from glitchygames import events
+from glitchygames.argument_types import non_negative_int
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
     BackgroundPattern,
@@ -52,7 +55,7 @@ from glitchygames.events.midi import MidiEventManager
 from glitchygames.events.mouse import MouseEventManager
 from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
-from glitchygames.exit_codes import ExitCode
+from glitchygames.exit_codes import BUG_REPORT_HINT, ExitCode
 from glitchygames.fonts import FontManager
 from glitchygames.host import GameHost, HostSources
 from glitchygames.input.device_listing import list_input_devices
@@ -94,7 +97,6 @@ from glitchygames.replay.audit import (
 from glitchygames.replay.driver import (
     GAME_HEADER_FIELD,
     REAL_REPLAY_FPS,
-    REPLAY_FPS_CHOICES,
     RUNNING_END_REASON,
     ReplayRefusedError,
     ReplaySources,
@@ -105,13 +107,37 @@ from glitchygames.replay.driver import (
     start_replay,
 )
 from glitchygames.replay.processing import machine_description
-from glitchygames.replay.rebaseline import Rebaseline, rebaseline_refusal
+from glitchygames.replay.rebaseline import Rebaseline, RebaselineSummary, rebaseline_refusal
 from glitchygames.replay.rebuild import (
     ViewerState,
     parse_viewer_state,
     relaunch_replay,
     restart_command,
 )
+from glitchygames.replay.tools.compare import (
+    DEFAULT_COMPARE_ALPHA_PERCENT,
+    CompareRefusal,
+    FrameStream,
+    FrameStreamAddress,
+    OldRecording,
+    OnionSkin,
+    compare_trace_refusal,
+    first_streamed_frame,
+    frame_stream_refusal,
+    old_game_command,
+    old_recording_refusal,
+    read_old_recording,
+    screen_size_refusal,
+)
+from glitchygames.replay.tools.identity import game_source_revision
+from glitchygames.replay.tools.registry import (
+    add_game_flags,
+    given_tools,
+    path_option_destinations,
+    run_game_flag_tool,
+    tool_flags,
+)
+from glitchygames.replay.tools.settings import find_project_root, stored_path
 from glitchygames.replay.viewer import run_watched_replay_async
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
@@ -136,13 +162,15 @@ from glitchygames.timing import (
 from glitchygames.tracing import TraceFormatError
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Generator, Mapping
+    from collections.abc import Awaitable, Callable, Generator, Sequence
     from types import FrameType
 
     from glitchygames.input.state import InputSnapshot
 
 LOG: logging.Logger = logging.getLogger('game.engine')
 LOG.addHandler(logging.NullHandler())
+# How the log lines of a game's run read, and those of the glitchygames command too
+LOG_FORMAT = '%(name)s - %(levelname)s - %(message)s'
 
 
 # The glitchygames package directory, and its assets (the default window icon). This module is
@@ -171,6 +199,8 @@ DEFAULT_LIVE_VOICE_POOL = 4
 HEADLESS_SDL_DRIVER = 'dummy'
 # The environment variables that choose SDL's video and audio drivers (--headless sets both)
 SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
+# SDL's hint that turns its own SIGINT/SIGTERM handlers off (the engine owns the signals)
+SDL_NO_SIGNAL_HANDLERS_HINT = 'SDL_NO_SIGNAL_HANDLERS'
 # --video-driver's choices: SDL 2's video drivers by platform.system() name (SDL's own list,
 # src/video/SDL_video.c bootstrap[]; checked on macOS: cocoa, offscreen and dummy start, metal and
 # x11 are not drivers of pygame-ce's SDL there), then the ones SDL builds on every platform
@@ -248,54 +278,6 @@ def target_fps_value(value: str) -> float:
     return number
 
 
-def non_negative_percent(value: str) -> float:
-    """Argparse type: a finite percentage >= 0.
-
-    Args:
-        value: The command-line text.
-
-    Returns:
-        The parsed percentage.
-
-    Raises:
-        argparse.ArgumentTypeError: If the text is not a finite number >= 0.
-
-    """
-    try:
-        number = float(value)
-    except ValueError as error:
-        message = f'{value!r} is not a number'
-        raise argparse.ArgumentTypeError(message) from error
-    if not math.isfinite(number) or number < 0:
-        message = f'{value!r} must be a finite number >= 0'
-        raise argparse.ArgumentTypeError(message)
-    return number
-
-
-def non_negative_int(value: str) -> int:
-    """Argparse type: an integer >= 0.
-
-    Args:
-        value: The command-line text.
-
-    Returns:
-        The parsed integer.
-
-    Raises:
-        argparse.ArgumentTypeError: If the text is not an integer >= 0.
-
-    """
-    try:
-        number = int(value)
-    except ValueError as error:
-        message = f'{value!r} is not an integer'
-        raise argparse.ArgumentTypeError(message) from error
-    if number < 0:
-        message = f'{value!r} must be >= 0'
-        raise argparse.ArgumentTypeError(message)
-    return number
-
-
 def terminating_signals() -> list[int]:
     """Return the TERMINATING_SIGNAL_NAMES this platform has, as signal numbers.
 
@@ -328,6 +310,134 @@ def exit_on_signal(signal_number: int, _frame: FrameType | None) -> None:
     """
     signal.signal(signal_number, signal.SIG_IGN)
     raise SystemExit(ExitCode.for_signal(signal_number))
+
+
+def reserved_flag_refusal(*, game_name: str, error: argparse.ArgumentError) -> str:
+    """Say which of a game's argument's flags the engine already has, and that it reserves them.
+
+    argparse raises ``ArgumentError`` when the game's ``args`` adds an argument with a flag the
+    engine's parser holds (``conflicting option string(s): --force``). Each conflicting flag is
+    named: one of the engine's tools' (``registry.tool_flags``: ``glitchygames --help`` lists
+    them), or one of every game's general options (its ``--help`` lists them).
+
+    Args:
+        game_name: The game's name (``NAME``).
+        error: What argparse raised (its ``argument_name``: the game's argument, all its flags).
+
+    Returns:
+        The message.
+
+    """
+    # argparse's message is "conflicting option string(s): FLAG, FLAG"
+    _, _, listed = error.message.partition(': ')
+    flags_of_the_tools = tool_flags()
+    reasons = [
+        f'{flag} is reserved by the engine for its tools (glitchygames --help lists them)'
+        if flag in flags_of_the_tools
+        else f'{flag} is reserved by the engine (an option of every game: --help lists them)'
+        for flag in listed.split(', ')
+    ]
+    return (
+        f"{game_name}'s argument {error.argument_name}: {'; '.join(reasons)}. Rename the game's "
+        'argument'
+    )
+
+
+def install_exit_on_signal_handlers() -> list[int]:
+    """Make each of terminating_signals() raise SystemExit, if nothing else handles it yet.
+
+    The engine's one way of installing ``exit_on_signal`` (``GameEngine._install_signal_handlers``
+    for a run, ``run_inside_tool_crash_boundary`` for a tool on either front end). While it is
+    installed, a SIGTERM (or SIGHUP, SIGBREAK) raises SystemExit wherever this process waits, so
+    ``subprocess.run`` kills and reaps a child it is waiting for instead of leaving it running.
+
+    Limitation: Python sets signal handlers from the main thread only. On another thread none is
+    installed, and SDL's own handler is off (SDL_NO_SIGNAL_HANDLERS), so SIGTERM (or SIGHUP,
+    SIGBREAK) then kills the process the system's default way, without the teardown: a recording
+    is left unclosed (it still reads up to its last full frame).
+
+    Returns:
+        The signals it installed the handler for (``restore_default_signal_handling`` puts them
+        back).
+
+    """
+    installed: list[int] = []
+    for signal_number in terminating_signals():
+        try:
+            # Limitation: a C-level handler (SDL's, when pygame was initialized before the
+            # engine set SDL_NO_SIGNAL_HANDLERS) is invisible here, as getsignal still
+            # reports SIG_DFL; installing then replaces it, which is what the engine wants
+            if signal.getsignal(signal_number) == signal.SIG_DFL:
+                signal.signal(signal_number, exit_on_signal)
+                installed.append(signal_number)
+        except ValueError as signal_error:
+            # Signal handlers can only be set from the main thread
+            LOG.debug('Signal %d handler not installed: %s', signal_number, signal_error)
+    return installed
+
+
+def restore_default_signal_handling(*, signal_numbers: list[int]) -> None:
+    """Put back the default handling of signals ``install_exit_on_signal_handlers`` claimed.
+
+    Args:
+        signal_numbers: The signals it returned.
+
+    """
+    for signal_number in signal_numbers:
+        signal.signal(signal_number, signal.SIG_DFL)
+
+
+def run_inside_tool_crash_boundary(
+    *, run_tool: Callable[[], int], tool_description: str, report_hint: str | None
+) -> tuple[int, BaseException | None]:
+    """Run a tool inside the crash boundary and signal handling a game's run gets.
+
+    The one boundary of both front ends' tools: a game flag's (``GameEngine._run_game_flag_tool``)
+    and the ``glitchygames`` command's (glitchygames/replay/tools/command.py). While the tool runs,
+    a terminating signal raises SystemExit with its own code (``exit_on_signal``), so a child the
+    tool waits for is killed and reaped by ``subprocess.run`` before this process ends; the
+    handlers are put back afterwards. However the tool ends is turned into an exit status, as
+    ``start()``'s run turns a run's ending into one (``_crash_boundary``):
+
+    - Ctrl-C (KeyboardInterrupt): ``ExitCode.INTERRUPTED`` (``subprocess.run`` has stopped and
+      reaped a child first, as for a signal);
+    - a recording write that failed part way: ``ExitCode.CANNOT_WRITE_OUTPUT``;
+    - any other exception: ``ExitCode.INTERNAL_ERROR``, logged with its traceback as
+      ``Runtime error during game execution @ tool '<tool>'``, then ``report_hint`` (an ERROR
+      line of its own) when there is one.
+
+    A SystemExit (a signal handler's) passes through with its own code.
+
+    Args:
+        run_tool: Runs the tool and returns its exit status.
+        tool_description: How the log names the tool (its flag: ``--verify``).
+        report_hint: What to do to report a crash (``BUG_REPORT_HINT``, on a game, which takes
+            ``--log-level``), or None (the ``glitchygames`` command, which has no such option).
+
+    Returns:
+        The exit status, and the exception that ended the tool (None when it returned).
+
+    """
+    installed = install_exit_on_signal_handlers()
+    cause: BaseException | None = None
+    try:
+        exit_status = run_tool()
+    except KeyboardInterrupt as interrupt:
+        # Ctrl-C: never an internal error
+        exit_status, cause = ExitCode.INTERRUPTED, interrupt
+    except RecordingWriteError as error:
+        # The disk filled part way: logged on one line by the recorder (BUGS.md #82)
+        exit_status, cause = ExitCode.CANNOT_WRITE_OUTPUT, error
+    except Exception as error:
+        LOG.exception("Runtime error during game execution @ tool '%s'", tool_description)
+        if report_hint is not None:
+            # Its own line after the traceback (logged above), where a player reads last
+            LOG.error(report_hint)  # ruff: ignore[error-instead-of-exception]
+        exit_status, cause = ExitCode.INTERNAL_ERROR, error
+    finally:
+        # A signal's SystemExit (exit_on_signal) passes through with its own code
+        restore_default_signal_handling(signal_numbers=installed)
+    return exit_status, cause
 
 
 def input_device_prompt() -> Callable[[str], None] | None:
@@ -381,6 +491,194 @@ class UnhandledEventRecord:
     attribute_names: tuple[str, ...]
 
 
+# The options whose values are paths besides the tools' (the supervising replay's handoff file)
+ENGINE_PATH_OPTIONS = frozenset({'replay_restart_handoff'})
+
+
+def stored_options(*, options: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a run's options as a recording's header stores them: paths relative to the project.
+
+    Every path option (a tool's own value or a path option of one,
+    ``path_option_destinations``, and ``ENGINE_PATH_OPTIONS``) is stored relative to the project
+    root the current directory is in (``find_project_root``), or as its file name when outside
+    any project (``stored_path``); every other option is stored as given.
+
+    Args:
+        options: The parsed options.
+
+    Returns:
+        The options to store.
+
+    """
+    return _with_path_options_converted(options=options, convert=stored_path)
+
+
+def _with_path_options_converted(
+    *,
+    options: Mapping[str, Any],
+    convert: Callable[..., str],
+) -> dict[str, Any]:
+    """Return options with every path option's path (or each of its paths) converted.
+
+    The path options are a tool's own value or a path option of one
+    (``path_option_destinations``) and ``ENGINE_PATH_OPTIONS``; every other option is kept as
+    given. Shared by ``stored_options`` and ``displayed_options``.
+
+    Args:
+        options: The parsed options.
+        convert: Called as ``convert(path=..., project_root=...)`` with the project root the
+            current directory is in (``find_project_root``); returns the path to keep.
+
+    Returns:
+        The converted options.
+
+    """
+    path_options = path_option_destinations() | ENGINE_PATH_OPTIONS
+    project_root = find_project_root(start=Path.cwd())
+    converted: dict[str, Any] = {}
+    for name, value in options.items():
+        if name in path_options and isinstance(value, str | os.PathLike):
+            converted[name] = convert(
+                path=cast('str | os.PathLike[str]', value), project_root=project_root
+            )
+        elif name in path_options and isinstance(value, list | tuple):
+            converted[name] = [
+                convert(path=path, project_root=project_root)
+                for path in cast('Sequence[str | os.PathLike[str]]', value)
+            ]
+        else:
+            converted[name] = value
+    return converted
+
+
+# The startup options block (GameEngine._log_the_startup_options): an option whose name holds
+# one of these, in any case, shows REDACTED_OPTION_VALUE instead of its value (the coordinator's
+# ruling, 2026-10-28; the AI tooling's API keys must never reach a log)
+SECRET_OPTION_NAME_PARTS = ('key', 'token', 'secret', 'password', 'credential')
+REDACTED_OPTION_VALUE = '<redacted>'
+# Each nesting level of the block indents this much more
+OPTIONS_BLOCK_INDENT = '    '
+# pprint's width for a value that does not fit on one line
+OPTIONS_BLOCK_WIDTH = 100
+
+
+def is_secret_option_name(*, name: str) -> bool:
+    """Tell whether an option's name suggests a secret (a key, token, password, ...).
+
+    Args:
+        name: The option's name.
+
+    Returns:
+        True when the name holds one of ``SECRET_OPTION_NAME_PARTS``, in any case.
+
+    """
+    lowered = name.lower()
+    return any(part in lowered for part in SECRET_OPTION_NAME_PARTS)
+
+
+def displayed_path(*, path: str | os.PathLike[str], project_root: Path | None) -> str:
+    """Return a path as the startup options block shows it.
+
+    Inside the project, its stored path (``stored_path``: relative to the root, POSIX-style);
+    anywhere else absolute (the coordinator's ruling, 2026-10-28), where ``stored_path`` would
+    keep only the file name, or a path in another checkout.
+
+    Args:
+        path: The path as given.
+        project_root: The project's root (``find_project_root``), or None.
+
+    Returns:
+        The path to show.
+
+    """
+    resolved = Path(path).expanduser().resolve()
+    if project_root is not None:
+        stored = stored_path(path=path, project_root=project_root)
+        # The stored path is shown only when it leads back to the path from this project's root
+        if (project_root.resolve() / stored).resolve() == resolved:
+            return stored
+    return str(resolved)
+
+
+def displayed_options(*, options: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a run's options with every path option shown by ``displayed_path``.
+
+    The path options are ``stored_options``' (``path_option_destinations`` and
+    ``ENGINE_PATH_OPTIONS``); every other option is kept as given.
+
+    Args:
+        options: The parsed options.
+
+    Returns:
+        The options to show.
+
+    """
+    return _with_path_options_converted(options=options, convert=displayed_path)
+
+
+def options_block_lines(*, options: Mapping[Any, Any], indent: str) -> list[str]:
+    """Return an options mapping's lines: sorted, ``name = value``, aligned, nested indented.
+
+    A name that suggests a secret (``is_secret_option_name``) shows ``REDACTED_OPTION_VALUE``,
+    whatever its value, at any depth. A non-empty mapping is shown below its name, one level
+    deeper; any other value is ``pprint``'s, its further lines (a long list) under the first.
+
+    Args:
+        options: The options (or a mapping nested in one).
+        indent: The lines' indentation.
+
+    Returns:
+        The lines, without line ends.
+
+    """
+    names = sorted(options, key=str)
+    width = max((len(str(name)) for name in names), default=0)
+    lines: list[str] = []
+    for name in names:
+        value = options[name]
+        prefix = f'{indent}{str(name).ljust(width)} = '
+        if is_secret_option_name(name=str(name)):
+            lines.append(f'{prefix}{REDACTED_OPTION_VALUE}')
+        elif isinstance(value, Mapping) and value:
+            lines.append(prefix.rstrip())
+            lines.extend(
+                options_block_lines(
+                    options=cast('Mapping[Any, Any]', value),
+                    indent=indent + OPTIONS_BLOCK_INDENT,
+                )
+            )
+        else:
+            # Any value at all (an empty mapping too): pformat writes each as Python would
+            first, *rest = pprint.pformat(
+                cast('object', value), width=max(OPTIONS_BLOCK_WIDTH - len(prefix), 1)
+            ).splitlines()
+            lines.append(f'{prefix}{first}')
+            lines.extend(f'{" " * len(prefix)}{line}' for line in rest)
+    return lines
+
+
+def startup_options_block(*, game_name: str, options: Mapping[str, Any]) -> str:
+    """Return the startup options block: a run's whole options dictionary, pretty printed.
+
+    The owner, 2026-10-28: the game's startup options dictionary, "Pretty printed", logged at
+    CRITICAL so it shows at every level. Sorted names, one ``name = value`` per line, aligned;
+    nested values indented; paths by ``displayed_options``; nothing secret
+    (``is_secret_option_name``). The environment is never read.
+
+    Args:
+        game_name: The game's name, for the heading.
+        options: The run's options.
+
+    Returns:
+        The heading line, then one line per option (more for a nested or long value).
+
+    """
+    lines = options_block_lines(
+        options=displayed_options(options=options), indent=OPTIONS_BLOCK_INDENT
+    )
+    return '\n'.join([f'Options for {game_name} (secrets redacted):', *lines])
+
+
 class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     """Glitchy Games' Game engine.
 
@@ -410,6 +708,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     MISSING_EVENTS: ClassVar[list[str]] = []
     UNIMPLEMENTED_EVENTS: ClassVar[list[int]] = []
     USE_FASTEVENTS: ClassVar[bool] = False
+    # pygame was found running without SDL_NO_SIGNAL_HANDLERS (SDL owns the signals): every
+    # engine warns until pygame is found stopped, even after the first engine set the hint
+    PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS: ClassVar[bool] = False
 
     # We add a layer of encapsulation here to simplify
     # the processing of events.  New event types added
@@ -433,6 +734,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     # The --rebaseline writer while rebaselining (glitchygames/replay/rebaseline.py), else None.
     # A class default so it reads None on an engine whose __init__ did not run.
     rebaseline: Rebaseline | None = None
+    # --compare-trace's onion skin (OLD's child and its frames; glitchygames/replay/tools/
+    # compare.py) and a headless child's --replay-frame-stream, else None; both are stopped by
+    # the teardown (_shutdown). Class defaults so they read None on an engine whose __init__
+    # did not run.
+    onion_skin: OnionSkin | None = None
+    frame_stream: FrameStream | None = None
+    # OLD when --compare-trace OLD is played live (no --replay-trace; rule 9 of
+    # glitchygames/replay/tools/compare.py), else None
+    live_old_recording: OldRecording | None = None
 
     @classmethod
     def initialize_icon(cls: Any, icon: pygame.Surface | Path | str | None = None) -> None:
@@ -592,83 +902,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             action='store_true',
             default=False,
         )
-        diagnostics_group.add_argument(
-            '--record-trace',
-            metavar='PATH',
-            help=(
-                'record the session (sprites, frame times, input events, random seed) to a '
-                'gzip JSON Lines trace for inspection and later replay (default: off)'
-            ),
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--replay-trace',
-            metavar='PATH',
-            help=(
-                'replay a --record-trace recording exactly through the engine, comparing every '
-                'frame with it and reporting the first divergence (default: off)'
-            ),
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--replay-fps',
-            choices=REPLAY_FPS_CHOICES,
-            help=(
-                'with --replay-trace: post FPS events from the recorded frame times (recorded, '
-                "the default: exact, and compared with the recording) or from this machine's "
-                'measured frame times (real: what this machine achieves; FPS events are then '
-                'not compared, and sprites that draw the FPS value may diverge)'
-            ),
-            # None (not RECORDED_REPLAY_FPS) so that giving it without --replay-trace can be
-            # warned about; start_replay reads None as recorded
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--audit',
-            action=argparse.BooleanOptionalAction,
-            help=(
-                'with --replay-trace: instead of replaying, replay the recording twice in fresh '
-                'headless processes with different hash seeds and compare every frame with the '
-                f'recording and between the runs; exits {ExitCode.SUCCESS:d} when both match, '
-                f'{ExitCode.AUDIT_NONDETERMINISTIC:d} otherwise, {ExitCode.INTERNAL_ERROR:d} if '
-                'a run could not finish'
-            ),
-            default=False,
-        )
-        diagnostics_group.add_argument(
-            '--compare-processing',
-            action='store_true',
-            help=(
-                "with --replay-trace --headless: measure each frame's processing time (its "
-                'work, without presenting or pacing) and report how it compares with the '
-                "recording's (only meaningful on the machine that recorded)"
-            ),
-            # None (not False) so that giving it without --replay-trace can be warned about
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--max-processing-slowdown',
-            metavar='PERCENT',
-            type=non_negative_percent,
-            help=(
-                'with --replay-trace --headless (implies --compare-processing): a replay that '
-                "matched but took more than PERCENT longer than the recording's processing time "
-                f'exits {ExitCode.PROCESSING_SLOWER:d}; a recording without processing times '
-                f'exits {ExitCode.UNUSABLE_INPUT:d}'
-            ),
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--replay-pause-at-frame',
-            metavar='N',
-            type=non_negative_int,
-            help=(
-                'with --replay-trace, watched: skip the start screen, run frames 0 to N - 1 '
-                'without showing them, then pause with frame N next (what step back restarts '
-                'with; ignored with --headless)'
-            ),
-            default=None,
-        )
+        # Every tool flag and the options the tools list come from the one table both front
+        # ends are built from (glitchygames/replay/tools/registry.py)
+        add_game_flags(parser=diagnostics_group)
         diagnostics_group.add_argument(
             '--replay-restart-handoff',
             metavar='PATH',
@@ -684,35 +920,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # Internal: a restarted replay's viewer state (speed, debug panel, divergence frame),
             # as glitchygames/replay/rebuild.py describes
             help=argparse.SUPPRESS,
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--rebaseline',
-            metavar='NEW',
-            help=(
-                'with --replay-trace OLD and --headless: replay OLD on the current code without '
-                "stopping at divergences, write the run's recording (OLD's inputs, the current "
-                'sprites) to NEW, print a summary of the frames and sprites that changed and '
-                f'exit {ExitCode.SUCCESS:d}'
-            ),
-            default=None,
-        )
-        diagnostics_group.add_argument(
-            '--replay-digest',
-            metavar='PATH',
-            help=(
-                'with --replay-trace: write a SHA-256 of every replayed frame, then the '
-                'divergence, to PATH as JSON lines (used by --audit)'
-            ),
-            default=None,
-        )
-        group.add_argument(
-            '--random-seed',
-            type=int,
-            help=(
-                'master seed for every engine random stream (default: a random 64-bit seed, '
-                'logged in recordings)'
-            ),
             default=None,
         )
         group.add_argument(
@@ -789,18 +996,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             default=False,
         )
 
-        diagnostics_group.add_argument(
-            '--headless',
-            action='store_true',
-            help=(
-                "run on SDL's dummy video and audio drivers: no window, no sound. With "
-                '--replay-trace the replay also runs unpaced and prints its report to stdout '
-                f'(exit {ExitCode.SUCCESS:d} when it matches, {ExitCode.REPLAY_DIVERGED:d} '
-                f'when it diverges, {ExitCode.UNUSABLE_INPUT:d} for a truncated recording)'
-            ),
-            default=False,
-        )
-
         event_managers = (
             AppEventManager,
             AudioEventManager,
@@ -873,6 +1068,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     def initialize_arguments(cls, game: type[Scene] | Scene) -> dict[str, Any]:
         """Initialize the game arguments.
 
+        A game argument with a flag the engine already added (a tool's, ``--force``, or a
+        general one, ``--resolution``) is refused before anything runs: the process exits
+        ``ExitCode.OPTIONS_REFUSED`` with a message naming the flag
+        (``reserved_flag_refusal``), not argparse's traceback.
+
         Args:
             game: The game instance.
 
@@ -891,7 +1091,18 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # command line parameters. It is optional (Scene does not declare it): looked up by name
         game_args_method: Callable[..., Any] | None = getattr(game, 'args', None)
         if game_args_method is not None:
-            game_args_method(parser.add_argument_group(f'{game.NAME} v{game.VERSION} Options'))
+            try:
+                game_args_method(parser.add_argument_group(f'{game.NAME} v{game.VERSION} Options'))
+            except argparse.ArgumentError as error:
+                # Every game has the engine's flags, so a clash fails every run of the game, not
+                # only a tool's: said as a usage error, with the engine's code for one
+                parser.exit(
+                    status=ExitCode.OPTIONS_REFUSED,
+                    message=(
+                        f'{parser.prog}: error: '
+                        f'{reserved_flag_refusal(game_name=game.NAME, error=error)}\n'
+                    ),
+                )
         else:
             cls.log.info('Game does not implement arguments.  Add a def args(parser) class method.')
 
@@ -899,7 +1110,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         # Set the logging level
         logging.basicConfig(
-            format='%(name)s - %(levelname)s - %(message)s',
+            format=LOG_FORMAT,
             level=args.log_level.upper(),
         )
 
@@ -918,6 +1129,27 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         game.options = options
 
         return options
+
+    def _warn_about_a_pygame_that_may_own_the_signals(self: Self) -> None:
+        """Warn when pygame runs already, started without SDL's signal handlers turned off.
+
+        pygame started with the hint already '1' (an earlier engine in this process, or a host
+        that set it, such as the test harness) has no SDL handlers: nothing to warn about. The
+        hint now is not the hint pygame started under: one found started without it stays
+        suspect (every engine warns) until pygame is found stopped.
+        """
+        if not pygame.get_init():
+            GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS = False  # type: ignore[reportConstantRedefinition]
+        elif (
+            GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS
+            or os.environ.get(SDL_NO_SIGNAL_HANDLERS_HINT) != '1'
+        ):
+            GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS = True  # type: ignore[reportConstantRedefinition]
+            self.log.warning(
+                'pygame was initialized before the engine, so SDL may own SIGINT and SIGTERM '
+                '(turning them into QUIT events); the engine still installs its own handlers '
+                "when it starts, which replace SDL's"
+            )
 
     def __init__(  # ruff: ignore[too-many-statements]
         self: Self,
@@ -956,6 +1188,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # processes: _waiting_for_child_processes, which --audit uses before start() runs)
         self._installed_signal_handlers: list[int] = []
 
+        # A tool given as a game flag that runs in place of the game runs now, before this
+        # engine starts pygame or opens a window: a harness tool builds its own engine (a second
+        # one inside this one would find pygame started and resize this one's window), and a
+        # tool that runs no game needs none
+        self._run_game_flag_tool(game=game, options=options)
+
         # A replay's recorded options and seed are in place from here on (start_replay), so
         # everything below reads the options as the recorded run did
         self.replay_sources = self._start_requested_replay(game=game, options=options)
@@ -971,7 +1209,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 destination=Path(rebaseline_path),
                 # A headless replay: its frames are not paced
                 measurement_run=self.measurement_run(
-                    processing_paced=False, rebaselined_from=options['replay_trace']
+                    game=game,
+                    processing_paced=False,
+                    rebaselined_from=stored_path(
+                        path=options['replay_trace'],
+                        project_root=find_project_root(start=Path.cwd()),
+                    ),
                 ),
                 game_class=type(game) if isinstance(game, Scene) else game,
             )
@@ -982,8 +1225,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.random_seed: int = (
             self.replay_sources.random_seed
             if self.replay_sources is not None
-            else seed_engine_random(seed=options.get('random_seed'))
+            else seed_engine_random(seed=self._live_random_seed(options=options))
         )
+        self._log_the_runs_seed(options=options)
         # The background a scene that sets none shows (glitchygames/backgrounds.py); without
         # the option the process's default (the test pattern) stays
         default_background = options.get('default_background')
@@ -1024,13 +1268,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # SIG_DFL): SIGTERM would end the run as a normal quit, exit SUCCESS and be recorded as
         # an external QUIT. A value set beforehand wins. SDL_HINT_NO_SIGNAL_HANDLERS:
         # https://wiki.libsdl.org/SDL2/SDL_HINT_NO_SIGNAL_HANDLERS
-        if pygame.get_init():
-            self.log.warning(
-                'pygame was initialized before the engine, so SDL may own SIGINT and SIGTERM '
-                '(turning them into QUIT events); the engine still installs its own handlers '
-                "when it starts, which replace SDL's"
-            )
-        os.environ.setdefault('SDL_NO_SIGNAL_HANDLERS', '1')
+        self._warn_about_a_pygame_that_may_own_the_signals()
+        os.environ.setdefault(SDL_NO_SIGNAL_HANDLERS_HINT, '1')
 
         # Shorten the GIL switch interval before audio starts: the mixer's channel-finished
         # callback needs the GIL to queue the next live-voice chunk (BUGS.md #27).
@@ -1076,7 +1315,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                         # A recorded run captures scene starts from its first scene on, which
                         # is built before recording starts (glitchygames/scene_start.py)
                         captures_scene_starts=options.get('record_trace') is not None,
-                    )
+                    ),
+                    # Live play against OLD draws OLD over each presented frame
+                    overlay=self.onion_skin,
                 )
             )
             install_sources(sources=self.host.sources)
@@ -1140,6 +1381,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # replay is refused: the game would be set up on another size (rule 1 of
         # glitchygames/replay/driver.py)
         self._refuse_a_replay_display_of_another_size(options=options)
+        # Live play against OLD needs OLD's size too, checked on the window as it opened
+        self._refuse_a_live_display_of_another_size_than_old()
 
         self.initialize_event_handlers()
 
@@ -1610,14 +1853,22 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         return scene.NAME or scene.__class__.__name__
 
     def measurement_run(
-        self: Self, *, processing_paced: bool, rebaselined_from: str | None
+        self: Self,
+        *,
+        game: type[Scene] | Scene,
+        processing_paced: bool,
+        rebaselined_from: str | None,
     ) -> MeasurementRun:
         """Return this run's provenance for a recording's ``measurement_runs`` (newest first).
 
         Its ``measured_at`` is the real time now: provenance only, never replayed or served to
-        the game (tests/test_engine_doors.py allows this read for that reason).
+        the game (tests/test_engine_doors.py allows this read for that reason). It names the
+        game's source revision beside the engine's (``game_source_revision``): a ledger row's
+        commit is the game's, so a game outside this repository names its own.
 
         Args:
+            game: The game scene class or instance (a rebaseline names its run before
+                ``GameEngine.game`` is set).
             processing_paced: Whether the run paces its frames (a live run with a target FPS; a
                 rebaseline, a headless replay, is not paced).
             rebaselined_from: The recording this run rebaselines, or None for a fresh recording.
@@ -1645,6 +1896,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             hash_scheme=CONTENT_HASH_SCHEME,
             pacing_timer=pacing_timer,
             source_revision=engine_source_revision(),
+            game_source_revision=game_source_revision(game=game),
             machine_state=current_machine_state(),
         )
 
@@ -1673,8 +1925,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             'pygame_version': pygame.version.ver,
             'python_version': platform.python_version(),
             'screen_size': [self.screen_width, self.screen_height],
+            # Path options relative to the project root (stored_options)
             'options': {
-                str(name): json_safe_value(value) for name, value in GameEngine.OPTIONS.items()
+                str(name): json_safe_value(value)
+                for name, value in stored_options(options=GameEngine.OPTIONS).items()
             },
             # The origin of the run's wall clock from here on, recorded and replayed alike:
             # recorded_at plus the frame clock (RecordingSources.wall_clock_time; rule 9 of
@@ -1685,7 +1939,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # paces its frames when it has a target FPS (0 is uncapped)
             MEASUREMENT_RUNS_HEADER_FIELD: [
                 self.measurement_run(
-                    processing_paced=self.scene_manager.target_fps > 0, rebaselined_from=None
+                    game=game_class,
+                    processing_paced=self.scene_manager.target_fps > 0,
+                    rebaselined_from=None,
                 ).to_json()
             ],
         }
@@ -1784,28 +2040,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     def _install_signal_handlers(self: Self) -> None:
         """Make each of terminating_signals() raise SystemExit, if nothing else handles it yet.
 
-        Limitation: Python sets signal handlers from the main thread only. An engine started on
-        another thread installs none, and SDL's own handler is off (SDL_NO_SIGNAL_HANDLERS), so
-        SIGTERM (or SIGHUP, SIGBREAK) then kills the process the system's default way, without
-        the teardown: a recording is left unclosed (it still reads up to its last full frame).
+        Through ``install_exit_on_signal_handlers``, whose limitation applies: an engine started
+        on another thread installs none (a recording is then left unclosed by SIGTERM).
         """
-        for signal_number in terminating_signals():
-            try:
-                # Limitation: a C-level handler (SDL's, when pygame was initialized before the
-                # engine set SDL_NO_SIGNAL_HANDLERS) is invisible here, as getsignal still
-                # reports SIG_DFL; installing then replaces it, which is what the engine wants
-                if signal.getsignal(signal_number) == signal.SIG_DFL:
-                    signal.signal(signal_number, exit_on_signal)
-                    self._installed_signal_handlers.append(signal_number)
-            except ValueError as signal_error:
-                # Signal handlers can only be set from the main thread
-                self.log.debug('Signal %d handler not installed: %s', signal_number, signal_error)
+        self._installed_signal_handlers.extend(install_exit_on_signal_handlers())
 
     def _restore_signal_handlers(self: Self) -> None:
         """Put back the default handling of each signal _install_signal_handlers claimed."""
         installed, self._installed_signal_handlers = self._installed_signal_handlers, []
-        for signal_number in installed:
-            signal.signal(signal_number, signal.SIG_DFL)
+        restore_default_signal_handling(signal_numbers=installed)
 
     @contextlib.contextmanager
     def _waiting_for_child_processes(self: Self) -> Generator[None]:
@@ -1828,6 +2071,98 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         finally:
             self._restore_signal_handlers()
 
+    def _log_the_runs_seed(self: Self, *, options: dict[str, Any]) -> None:
+        """Log the seed a run uses, rolled or given (rows 1 and 2 of the user's seed rule).
+
+        Every run names its seed at INFO, so a plain run (one that records nothing) can be run
+        again under it with ``--random-seed``. A replay announces its seed itself
+        (``announce_replay``).
+
+        Args:
+            options: The parsed options (``random_seed``: the seed given, or None).
+
+        """
+        if self.replay_sources is not None:
+            return
+        old = self.live_old_recording
+        if old is None:
+            how = 'rolled' if options.get('random_seed') is None else 'given'
+        elif options.get('random_seed') is None:
+            how = f"OLD's, from --compare-trace {old.path}"
+        else:
+            how = f'given; OLD was recorded under {old.random_seed}'
+        self.log.info('Random seed %d (%s)', self.random_seed, how)
+
+    def _live_random_seed(self: Self, *, options: dict[str, Any]) -> int | None:
+        """Return the seed live play is given: ``--random-seed N``, else OLD's, else None.
+
+        Live play against OLD starts under OLD's recorded seed, so OLD's ghost starts in the
+        same world (rule 9 of glitchygames/replay/tools/compare.py), unless a seed is given.
+
+        Args:
+            options: The parsed options.
+
+        Returns:
+            The seed, or None to roll one.
+
+        """
+        given_seed: int | None = options.get('random_seed')
+        if given_seed is None and self.live_old_recording is not None:
+            return self.live_old_recording.random_seed
+        return given_seed
+
+    def _run_game_flag_tool(
+        self: Self, *, game: type[Scene] | Scene, options: dict[str, Any]
+    ) -> None:
+        """Run the tool given as a game flag in place of the game, and end the process.
+
+        Called by ``__init__`` right after the options are read (and ``--headless`` chose the
+        dummy drivers), before this engine starts pygame, opens its window or installs its
+        doors: a tool with a game handler (``run_game_flag_tool``,
+        glitchygames/replay/tools/registry.py) never needs them. The golden-trace and
+        scripted-session tools build their own engine for the game, which then starts pygame
+        once, at its own size; a tool that runs no game builds nothing. The process ends with
+        the tool's exit code (``exit_with``: SystemExit), ``ExitCode.SUCCESS`` included, so the
+        game's ``start()`` never runs. The tool runs inside the exit-code mapping and signal
+        handlers of ``start()``'s crash boundary, as it did when it ran there: an uncaught
+        exception exits ``ExitCode.INTERNAL_ERROR`` (logged with its traceback), Ctrl-C
+        ``ExitCode.INTERRUPTED``, a failed recording write ``ExitCode.CANNOT_WRITE_OUTPUT``, and
+        a terminating signal its own code (``exit_on_signal``). The handlers and the SDL driver
+        variables ``--headless`` set are put back first. Nothing happens when no such tool was
+        given.
+
+        Args:
+            game: The game (its class, or a scene the game passed in).
+            options: The game's parsed options.
+
+        """
+        # Only a tool with a game handler runs here; two tool flags without one (--record-trace
+        # with --replay-trace) are left to the replay's own refusal, which says what to use
+        tools = [tool for tool in given_tools(options=options) if tool.game_handler is not None]
+        if not tools:
+            return
+
+        def run_the_tool() -> int:
+            tool_exit_code = run_game_flag_tool(options=options, game=game)
+            # A tool with a game handler always ends the run (its code, or a refusal's)
+            assert tool_exit_code is not None
+            return tool_exit_code
+
+        # The crash boundary and signal handling start()'s run gives a game (_crash_boundary),
+        # so a tool ends the process with the exit codes it had when it ran inside start(); the
+        # glitchygames command runs its tools inside the same one (replay/tools/command.py)
+        try:
+            exit_status, cause = run_inside_tool_crash_boundary(
+                run_tool=run_the_tool,
+                tool_description=' and '.join(tool.flag for tool in tools),
+                report_hint=BUG_REPORT_HINT,
+            )
+        finally:
+            # After a signal's SystemExit (exit_on_signal) too, which passes through
+            self._restore_sdl_driver_variables()
+        # A game handler returns an ExitCode, and the boundary maps everything else to one
+        exit_with(exit_code=ExitCode(exit_status), cause=cause)
+
     def _start_requested_replay(
         self: Self, *, game: type[Scene] | Scene, options: dict[str, Any]
     ) -> ReplaySources | None:
@@ -1844,7 +2179,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         is --rebaseline's job), --rebaseline's options are unsound (``rebaseline_refusal``) or
         it or --audit is given without --replay-trace, or --audit with --replay-fps real or
         to an interpreter started with -E or -I. Auditing a truncated recording exits with
-        ``ExitCode.UNUSABLE_INPUT`` too (an audit needs the whole recording).
+        ``ExitCode.UNUSABLE_INPUT`` too (an audit needs the whole recording). --compare-trace
+        and --replay-frame-stream are refused as glitchygames/replay/tools/compare.py (rule 6)
+        says.
 
         Args:
             game: The game scene class or instance (its class name must match the recording's).
@@ -1860,7 +2197,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if replay_trace_path is None:
             self._check_replay_options_without_a_recording(options=options)
             self._refuse_unwritable_outputs(options=options)
+            self._prepare_the_live_comparison_with_old(options=options)
             return None
+        self._refuse_an_unsound_comparison_with_old(
+            replay_trace_path=replay_trace_path, options=options
+        )
         self._refuse_an_unsound_recording_over_the_replay(
             replay_trace_path=replay_trace_path, options=options
         )
@@ -1883,11 +2224,18 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             refusal = error
         else:
             if options.get('audit'):
+                self._refuse_an_audit_under_another_seed(
+                    replay_trace_path=replay_trace_path, sources=sources
+                )
                 self._refuse_auditing_a_truncated_recording(
                     replay_trace_path=replay_trace_path, sources=sources
                 )
                 self._audit_replay(path=Path(replay_trace_path))
             self._refuse_unwritable_outputs(options=options)
+            self._prepare_the_comparison_with_old(
+                replay_trace_path=replay_trace_path, sources=sources, options=options
+            )
+            self._connect_the_frame_stream(sources=sources, options=options)
             announce_replay(path=Path(replay_trace_path), sources=sources)
             return sources
         # Logged without a traceback: the message says what is wrong with the recording
@@ -1902,6 +2250,35 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ),
             cause=refusal,
         )
+
+    def _refuse_an_audit_under_another_seed(
+        self: Self, *, replay_trace_path: str, sources: ReplaySources
+    ) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED for ``--audit`` under another seed than recorded.
+
+        An audit checks that a recording replays the same each time; under another seed
+        (``--random-seed N``, rule 19 of glitchygames/replay/driver.py) nothing is compared, so
+        there is nothing to check, and it is refused before anything runs (the user's decision,
+        2026-10-26). A plain replay under that seed plays the inputs out, and a rebaseline
+        records them.
+
+        Args:
+            replay_trace_path: The recording (for the message).
+            sources: The replay's sources (``is_reseeded``).
+
+        """
+        if not sources.is_reseeded:
+            return
+        self.log.error(
+            'Cannot audit %s under --random-seed %d: it was recorded under seed %d, and an '
+            "audit checks a replay under its recording's seed. To play its inputs out under "
+            'a new seed, replay it without --audit; to record them under it: --replay-trace '
+            'OLD --rebaseline NEW --random-seed N',
+            replay_trace_path,
+            sources.random_seed,
+            sources.recorded_seed,
+        )
+        exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
     def _refuse_a_replay_display_of_another_size(self: Self, *, options: dict[str, Any]) -> None:
         """Exit with ExitCode.UNUSABLE_INPUT if the replay's window has another size than recorded.
@@ -1928,7 +2305,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """Refuse --audit and --rebaseline without --replay-trace; warn about ignored options.
 
         Exits (``exit_with``) with ``ExitCode.OPTIONS_REFUSED`` for --audit or --rebaseline;
-        --replay-fps, --replay-digest and --replay-pause-at-frame are only warned about.
+        --replay-fps, --replay-digest, --replay-pause-at-frame, the processing comparison's
+        options and --replay-frame-stream are only warned about, and --compare-alpha without
+        --compare-trace (--compare-trace OLD alone plays live against OLD:
+        ``_prepare_the_live_comparison_with_old``).
 
         Args:
             options: The parsed options (no ``replay_trace``).
@@ -1946,9 +2326,64 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             ('replay_pause_at_frame', '--replay-pause-at-frame'),
             ('compare_processing', '--compare-processing'),
             ('max_processing_slowdown', '--max-processing-slowdown'),
+            ('replay_frame_stream', '--replay-frame-stream'),
         ):
             if options.get(option_name) is not None:
                 self.log.warning('%s is ignored without --replay-trace', flag)
+        if options.get('compare_trace') is None and options.get('compare_alpha') is not None:
+            self.log.warning('--compare-alpha is ignored without --compare-trace')
+
+    def _prepare_the_live_comparison_with_old(self: Self, *, options: dict[str, Any]) -> None:
+        """Give live play its onion skin when --compare-trace OLD is given without a replay.
+
+        Rule 9 of glitchygames/replay/tools/compare.py. Refused before anything runs, the run
+        exiting (``exit_with``): with --headless (``ExitCode.OPTIONS_REFUSED``), an OLD that
+        is missing (``ExitCode.MISSING_INPUT``) or not a readable recording
+        (``ExitCode.UNUSABLE_INPUT``). OLD's size is checked once the window opens
+        (``_refuse_a_live_display_of_another_size_than_old``). The child starts on the first
+        presented frame, inside the run, so the teardown always stops it.
+
+        Args:
+            options: The parsed options (no ``replay_trace``).
+
+        """
+        compare_trace_path = options.get('compare_trace')
+        if compare_trace_path is None:
+            return
+        old_path = Path(compare_trace_path)
+        refusal_reason = compare_trace_refusal(options=options)
+        if refusal_reason is not None:
+            self.log.error('Cannot play live against %s: %s', old_path, refusal_reason)
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+        old = read_old_recording(old_path=old_path)
+        if isinstance(old, CompareRefusal):
+            self.log.error('Cannot play live against %s: %s', old_path, old.reason)
+            exit_with(exit_code=old.exit_code)
+        self.live_old_recording = old
+        compare_alpha = options.get('compare_alpha')
+        self.onion_skin = OnionSkin(
+            old_path=old_path,
+            alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT if compare_alpha is None else compare_alpha,
+            game_command=old_game_command(old_path=old_path),
+            # Live play has no step back
+            pause_at_frame=None,
+        )
+
+    def _refuse_a_live_display_of_another_size_than_old(self: Self) -> None:
+        """Exit with ExitCode.UNUSABLE_INPUT if live play's window is not OLD's recorded size.
+
+        Before the first frame (rule 9 of glitchygames/replay/tools/compare.py): OLD's frames
+        are drawn over the live ones pixel for pixel. Nothing to check without live play
+        against OLD.
+        """
+        old = self.live_old_recording
+        if old is None:
+            return
+        refusal = screen_size_refusal(old=old, new_size=self.screen.get_size())
+        if refusal is None:
+            return
+        self.log.error('Cannot play live against %s: %s', old.path, refusal.reason)
+        exit_with(exit_code=refusal.exit_code)
 
     def _refuse_unwritable_outputs(self: Self, *, options: dict[str, Any]) -> None:
         """Exit with ExitCode.CANNOT_WRITE_OUTPUT if an output file of the run cannot be written.
@@ -2020,6 +2455,133 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                     'Cannot list input devices with %s: the listing replaces the run', flag
                 )
                 exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+
+    def _refuse_an_unsound_comparison_with_old(
+        self: Self, *, replay_trace_path: str, options: dict[str, Any]
+    ) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED for --compare-trace or a frame stream that can't run.
+
+        ``--compare-trace`` with ``--headless``, ``--audit`` or ``--rebaseline``, and
+        ``--replay-frame-stream`` without ``--headless`` (rule 6 of
+        glitchygames/replay/tools/compare.py), before anything runs.
+
+        Args:
+            replay_trace_path: The recording (for the message).
+            options: The parsed options.
+
+        """
+        refusal_reason = compare_trace_refusal(options=options)
+        if refusal_reason is not None:
+            self.log.error(
+                'Cannot compare %s with %s: %s',
+                replay_trace_path,
+                options['compare_trace'],
+                refusal_reason,
+            )
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+        refusal_reason = frame_stream_refusal(options=options)
+        if refusal_reason is not None:
+            self.log.error('Cannot replay %s: %s', replay_trace_path, refusal_reason)
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+
+    def _prepare_the_comparison_with_old(
+        self: Self, *, replay_trace_path: str, sources: ReplaySources, options: dict[str, Any]
+    ) -> None:
+        """Give a watched replay its onion skin when --compare-trace OLD is given.
+
+        OLD must be a readable recording made at NEW's screen size (rule 6 of
+        glitchygames/replay/tools/compare.py): otherwise the run exits (``exit_with``) with
+        ``ExitCode.MISSING_INPUT`` or ``ExitCode.UNUSABLE_INPUT`` before anything runs. Its child
+        starts on the first presented frame, inside the run, so the teardown always stops it.
+        ``--compare-alpha`` without ``--compare-trace`` is warned about (it draws nothing).
+
+        Args:
+            replay_trace_path: NEW (for the message).
+            sources: NEW's replay sources.
+            options: The parsed options.
+
+        """
+        compare_trace_path = options.get('compare_trace')
+        compare_alpha = options.get('compare_alpha')
+        if compare_trace_path is None:
+            if compare_alpha is not None:
+                self.log.warning('--compare-alpha is ignored without --compare-trace')
+            return
+        old_path = Path(compare_trace_path)
+        refusal = old_recording_refusal(old_path=old_path, new_header=sources.header)
+        if refusal is not None:
+            self.log.error(
+                'Cannot compare %s with %s: %s', replay_trace_path, old_path, refusal.reason
+            )
+            exit_with(exit_code=refusal.exit_code)
+        self.onion_skin = OnionSkin(
+            old_path=old_path,
+            alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT if compare_alpha is None else compare_alpha,
+            game_command=old_game_command(old_path=old_path),
+            pause_at_frame=self._olds_pause_at_frame(options=options),
+        )
+        sources.onion_skin = self.onion_skin
+
+    @staticmethod
+    def _olds_pause_at_frame(*, options: dict[str, Any]) -> int | None:
+        """Return the ``--replay-pause-at-frame`` OLD's child gets: a game frame, not a frame.
+
+        A restart (a step back) names the game frame it shows paused in its viewer state
+        (``ViewerState.compare_first_game_frame``); the child's stream then writes from that
+        game frame on (``first_streamed_frame`` of one past it). Without it (no restart, or a
+        pause frame given by hand), the child streams from OLD's first frame.
+
+        Args:
+            options: The parsed options.
+
+        Returns:
+            The child's pause frame, or None.
+
+        """
+        viewer_state: ViewerState | None = options.get('replay_viewer_state')
+        if viewer_state is None or viewer_state.compare_first_game_frame is None:
+            return None
+        return viewer_state.compare_first_game_frame + 1
+
+    def _connect_the_frame_stream(
+        self: Self, *, sources: ReplaySources, options: dict[str, Any]
+    ) -> None:
+        """Connect a headless replay's frame stream to its parent (--replay-frame-stream).
+
+        Nothing listening on the port exits (``exit_with``) with
+        ``ExitCode.SERVICE_UNAVAILABLE`` before anything runs. The stream writes nothing before
+        the frame a restart at ``--replay-pause-at-frame`` shows (``first_streamed_frame``; rule
+        8 of glitchygames/replay/tools/compare.py).
+
+        Args:
+            sources: The replay's sources.
+            options: The parsed options.
+
+        """
+        address_text = options.get('replay_frame_stream')
+        if address_text is None:
+            return
+        address = FrameStreamAddress.parse(text=address_text)
+        # Refused before the replay started when it does not read (frame_stream_refusal)
+        assert address is not None
+        try:
+            self.frame_stream = FrameStream.connect(
+                address=address,
+                first_frame=first_streamed_frame(
+                    pause_at_frame=options.get('replay_pause_at_frame')
+                ),
+            )
+        except OSError as error:
+            refusal = error
+        else:
+            sources.frame_sink = self.frame_stream
+            # The sink takes each frame as presented, in draw_overlay (rule 20 of
+            # glitchygames/replay/driver.py)
+            sources.draws_overlay = True
+            return
+        # Logged without a traceback: the message says what is wrong
+        self.log.error('Cannot stream frames to port %s: %s', address.port, refusal)
+        exit_with(exit_code=ExitCode.SERVICE_UNAVAILABLE, cause=refusal)
 
     def _refuse_an_unsound_recording_over_the_replay(
         self: Self, *, replay_trace_path: str, options: dict[str, Any]
@@ -2211,6 +2773,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             else:
                 self.rebaseline.discard()
                 report = f'{report}\n{self.rebaseline.destination} was not written'
+        elif self.replay_sources.is_reseeded and run_ended_by is None:
+            # Under another seed than recorded (rule 19 of glitchygames/replay/driver.py) the
+            # differences are what the replay reports, never a failure, and nothing is written
+            report = RebaselineSummary.from_result(
+                result=result, path=None
+            ).describe_reseeded_replay(
+                random_seed=self.replay_sources.random_seed,
+                recorded_seed=self.replay_sources.recorded_seed,
+            )
+            is_failure = False
         if result.processing is not None:
             # After the replay's own report (glitchygames/replay/processing.py)
             report = f'{report}\n{result.processing.describe()}'
@@ -2303,6 +2875,31 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 os.environ[name] = value
 
     def _shutdown(self: Self, *, run_ended_by: str | None = None) -> None:
+        """Stop the comparison, then close any recording, report any replay, shut down pygame.
+
+        OLD's child and a frame stream end first (``_end_the_comparison``); if that fails, the
+        rest of the teardown still runs (``_shut_down_the_run``), and the failure propagates
+        after it (the teardown failed).
+
+        Args:
+            run_ended_by: What ended the run early (``_report_replay_result``), or None.
+
+        """
+        try:
+            self._end_the_comparison()
+        finally:
+            self._shut_down_the_run(run_ended_by=run_ended_by)
+
+    def _end_the_comparison(self: Self) -> None:
+        """Stop --compare-trace's child and close a frame stream (each runs if the other fails)."""
+        try:
+            if self.onion_skin is not None:
+                self.onion_skin.stop()
+        finally:
+            if self.frame_stream is not None:
+                self.frame_stream.close()
+
+    def _shut_down_the_run(self: Self, *, run_ended_by: str | None) -> None:
         """Close any recording, report any replay, print performance reports, shut down pygame.
 
         Args:
@@ -2421,6 +3018,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self._shutdown(run_ended_by=run_ended_by)
         except Exception as error:
             self.log.exception('The teardown failed')
+            # Its own line after the traceback (logged above), where a player reads last
+            self.log.error(BUG_REPORT_HINT)  # ruff: ignore[error-instead-of-exception]
             teardown_error = error
         finally:
             # Again (it is idempotent): _shutdown restores them, but not if it failed first
@@ -2477,7 +3076,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 it would never give control back), or (from ``_begin_start``) the game is not
                 initialized.
 
+        ``--compare-trace`` is refused before anything starts, exiting (``exit_with``) with
+        ``ExitCode.OPTIONS_REFUSED``: OLD is replayed by a child process, which a browser page
+        (the host start_async is for) cannot start (``_refuse_a_comparison_in_a_browser``).
+
         """
+        self._refuse_a_comparison_in_a_browser()
         # Chosen first (a run start_async cannot drive is refused before anything starts), but
         # called inside the boundary
         run_frames: Callable[[], Awaitable[None]]
@@ -2508,8 +3112,44 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 self._build_game(paced_by_timer=False)
                 await run_frames()
 
+    def _refuse_a_comparison_in_a_browser(self: Self) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED for --compare-trace driven by ``start_async``.
+
+        OLD is replayed by a child process (glitchygames/replay/tools/compare.py, rule 2),
+        which a browser page cannot start, as a watched replay's restarts cannot
+        (``RESTARTS_AVAILABLE``). Live play and a watched replay alike; the child was never
+        started (it starts on the first presented frame).
+        """
+        if self.onion_skin is None:
+            return
+        self.log.error(
+            'Cannot compare with %s here: --compare-trace replays OLD in a child process, '
+            'which start_async (a browser page) cannot start; run it with start() on a desktop',
+            self.onion_skin.old_path,
+        )
+        exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+
+    def _log_the_startup_options(self: Self) -> None:
+        """Log the run's options at CRITICAL, once per engine start (``startup_options_block``).
+
+        CRITICAL "for now" (the owner, 2026-10-28: "Log that at critical" ... "Do it for now"),
+        so the options show at every level, the default WARNING included; it prints on every
+        launch and in every engine the test suite starts (plans/future-work.md). The options are
+        a replay's as recorded, which ``start_replay`` put in place before the start.
+
+        ``random_seed`` is the seed the run uses (``self.random_seed``: rolled, given, OLD's or
+        the recording's), not the option as given, which is None when the seed was rolled (the
+        owner, 2026-10-28: "The seed should definitely be in the options"); rolled or given is
+        on the INFO line (``_log_the_runs_seed``), hidden at the default WARNING.
+        """
+        # The game's (the engine's own NAME names no game); the engine's only when no game was
+        # given, which _begin_start refuses next
+        game_name = getattr(self.game, 'NAME', type(self).NAME)
+        shown_options = {**GameEngine.OPTIONS, 'random_seed': self.random_seed}
+        self.log.critical('%s', startup_options_block(game_name=game_name, options=shown_options))
+
     def _begin_start(self: Self) -> cProfile.Profile | None:
-        """Log the start, check there is a game and start the profiler (``--profile``).
+        """Log the start and the options, check there is a game, start the profiler (``--profile``).
 
         Returns:
             The running profiler, or None.
@@ -2522,6 +3162,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         logging.getLogger('game')
 
         self.log.info('Starting game engine for game: %s', type(self).NAME)
+        self._log_the_startup_options()
         if self.game is None:
             raise RuntimeError(GAME_NOT_INITIALIZED_MSG)
 
@@ -2577,6 +3218,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         except Exception as error:
             scene_name = self._resolve_scene_name_for_error()
             self.log.exception("Runtime error during game execution @ scene '%s'", scene_name)
+            # Its own line after the traceback (logged above), where a player reads last
+            self.log.error(BUG_REPORT_HINT)  # ruff: ignore[error-instead-of-exception]
             exit_code = ExitCode.INTERNAL_ERROR
             run_ended_by = exit_code.describe()
             run_error = error
@@ -2603,13 +3246,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self.scene_manager.start()
 
     def _begin_run(self: Self) -> bool:
-        """Start the run inside the crash boundary: signal handlers, then the game or a listing.
+        """Start the run in the crash boundary: signal handlers, then the game or what runs instead.
 
-        With --list-input-devices the listing replaces the game: it is printed and nothing is
-        built, so no frame runs.
+        With --list-input-devices the listing runs in place of the game (it is printed):
+        nothing is built, so no frame runs. (A tool given as a game flag that runs in place of
+        the game already ran, in ``__init__``: ``_run_game_flag_tool``.)
 
         Returns:
-            Whether the game is to be built and run (False after --list-input-devices).
+            Whether the game is to be built and run (False after the listing).
 
         """
         # For the whole run, so a signal always ends it through start()'s teardown
@@ -2728,9 +3372,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """Return how a run ends when a game's own successful exit cut its replay short.
 
         A plain replay ends as diverged: ``SUCCESS`` would say it matched (the report says
-        where it stopped). A rebaseline takes it as the game ending early, as ``quit_game()``
-        would: the run ends normally, NEW is written with the frames that ran and the run exits
-        ``REBASELINE_INPUT_LOST`` (glitchygames/replay/rebaseline.py, rule 4).
+        where it stopped). A reseeded replay (another seed than recorded) ends normally: it
+        compares nothing, so an early end is no failure. A rebaseline takes it as the game
+        ending early, as ``quit_game()`` would: the run ends normally, NEW is written with the
+        frames that ran and the run exits ``REBASELINE_INPUT_LOST``
+        (glitchygames/replay/rebaseline.py, rule 4).
 
         Args:
             run_ended_by: The exit, described (``_describe_exit_request``).
@@ -2741,6 +3387,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         """
         if self.rebaseline is not None:
+            return None, None
+        if self.replay_sources is not None and self.replay_sources.is_reseeded:
+            # Under another seed than recorded the game may well end otherwise (rule 19 of
+            # glitchygames/replay/driver.py): its own exit ends the run normally, as quit_game()
+            # would, and the replay reports what differed, never a failure
             return None, None
         return ExitCode.REPLAY_DIVERGED, run_ended_by
 
@@ -2836,6 +3487,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 speed=controls.speed,
                 debug_panel=debug_overlay.panel,
                 divergence_frame=controls.divergence_frame,
+                # The game frame the restart shows paused, for OLD's child (rule 8 of
+                # glitchygames/replay/tools/compare.py)
+                compare_first_game_frame=(
+                    None
+                    if self.onion_skin is None
+                    else replay_sources.result.shown_game_frames.get(
+                        first_streamed_frame(pause_at_frame=restart_frame)
+                    )
+                ),
             ),
         )
         # _shutdown put the default handling back: while supervising, SIGTERM and SIGHUP end the

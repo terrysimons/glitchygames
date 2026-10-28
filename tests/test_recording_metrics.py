@@ -28,7 +28,6 @@ from glitchygames.recording_history import (
 )
 from glitchygames.recording_metrics import (
     PROFILE_BUCKET_COUNT,
-    RECORDING_PATH_RENAMES,
     BehaviourChange,
     FrameProfile,
     FrameSpan,
@@ -54,6 +53,13 @@ from glitchygames.recording_metrics import (
     write_row_files,
 )
 from glitchygames.tracing import FRAMES_FIELD, read_trace
+
+# A stand-in project's moved recording, old path -> new ([tool.glitchygames] recording-renames)
+STAND_IN_RECORDING_RENAMES = {
+    'tests/fixtures/replays/a-game/golden.jsonl.gz': (
+        'src/games/a-game/tests/fixtures/replays/golden.jsonl.gz'
+    ),
+}
 
 # PaddleSlap's golden replay, in its workspace member
 GOLDEN_PADDLESLAP = (
@@ -523,14 +529,15 @@ class TestPerformanceSeries:
             update={'run': run(commit=NEWER_COMMIT, cpu_model='Intel')}
         )
         other_recording = ledger_row(
-            recording='src/games/paddleslap/paddleslap/demos/rally.jsonl.gz'
+            recording='src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz'
         )
         no_commit = ledger_row(commit=None)
         series = performance_series(
-            rows=[remeasured, first, older, other_machine, other_recording, no_commit]
+            rows=[remeasured, first, older, other_machine, other_recording, no_commit],
+            recording_renames={},
         )
         assert [(entry.recording, entry.machine, entry.paced) for entry in series] == [
-            ('src/games/paddleslap/paddleslap/demos/rally.jsonl.gz', 'Apple M4 Max', False),
+            ('src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz', 'Apple M4 Max', False),
             ('src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz', 'Apple M4 Max', False),
             ('src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz', 'Intel', False),
         ]
@@ -539,14 +546,18 @@ class TestPerformanceSeries:
 
     def test_a_recording_that_moved_keeps_one_series(self):
         """Rows from before a move (old path) and after (new path) are one series, new path."""
-        old_path, new_path = next(iter(RECORDING_PATH_RENAMES.items()))
+        old_path, new_path = next(iter(STAND_IN_RECORDING_RENAMES.items()))
         before = ledger_row(
             commit=OLDER_COMMIT, committed_at='2026-10-22T12:00:00-07:00', recording=old_path
         )
         after = ledger_row(recording=new_path)
 
-        (moved,) = performance_series(rows=[before, after])
-        (only_old,) = performance_series(rows=[before])
+        (moved,) = performance_series(
+            rows=[before, after], recording_renames=STAND_IN_RECORDING_RENAMES
+        )
+        (only_old,) = performance_series(
+            rows=[before], recording_renames=STAND_IN_RECORDING_RENAMES
+        )
 
         assert moved.recording == new_path
         assert [row.recording for row in moved.rows] == [old_path, new_path]
@@ -557,7 +568,7 @@ class TestPerformanceSeries:
         paced = ledger_row().model_copy(
             update={'run': run(commit=NEWER_COMMIT, processing_paced=True)}
         )
-        (series,) = performance_series(rows=[unsummarised, paced])
+        (series,) = performance_series(rows=[unsummarised, paced], recording_renames={})
         assert series.paced
         assert series.label == 'Apple M4 Max, paced live run'
 

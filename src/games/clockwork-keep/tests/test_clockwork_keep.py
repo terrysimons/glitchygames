@@ -9,14 +9,6 @@ from pathlib import Path
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
-    GoldenTraceEngine,
-    GoldenTraceSceneManager,
-    _golden_game,
-    command_line,
-    press,
-    release,
-)
 
 from clockwork_keep import game as clockwork_game
 from clockwork_keep import sounds as clockwork_sounds
@@ -61,6 +53,14 @@ from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events.base import HashableEvent
 from glitchygames.exit_codes import ExitCode
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
+from glitchygames.replay.tools.golden_traces import (
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    command_line,
+    golden_game,
+    press,
+    release,
+)
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.state import DiskSaveManager
@@ -1242,7 +1242,7 @@ class TestFloorInput:
 
     def test_the_quit_key_ends_the_run(self):
         """Through the engine's frame loop (next_scene = None never ended it)."""
-        with _golden_game('clockwork_keep', random_seed=1) as manager:
+        with golden_game(scene_class=ClockworkKeepScene, random_seed=1) as manager:
             pygame.event.post(press(pygame.K_q))
             pygame.event.post(release(pygame.K_q))
             for _ in range(3):

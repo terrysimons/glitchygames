@@ -59,6 +59,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import override
 
+from scripts.git_checkout import files_not_ignored
 from scripts.workspace_packages import workspace_members
 
 REPOSITORY_DIRECTORY = Path(__file__).resolve().parent.parent
@@ -316,20 +317,21 @@ def is_bundled(
 def bundled_package_files(
     *, package_directory: Path, excluded_subpackages: frozenset[str] = EXCLUDED_SUBPACKAGES
 ) -> list[Path]:
-    """Return the package's files that go into the bundle, relative to the package, sorted.
+    """Return the package's files that go into the bundle, relative to it, sorted.
+
+    Files git ignores (macOS Finder's ``.DS_Store``) never ship; tracked files and new files not
+    yet added do. Bundles are built from a checkout, so a directory outside one raises
+    ``NotAGitCheckoutError``.
 
     Returns:
         The files.
 
     """
     return sorted(
-        path.relative_to(package_directory)
-        for path in package_directory.rglob('*')
-        if path.is_file()
-        and is_bundled(
-            relative_path=path.relative_to(package_directory),
-            excluded_subpackages=excluded_subpackages,
-        )
+        relative_path
+        for relative_path in files_not_ignored(directory=package_directory)
+        if (package_directory / relative_path).is_file()
+        and is_bundled(relative_path=relative_path, excluded_subpackages=excluded_subpackages)
     )
 
 
@@ -553,19 +555,26 @@ def write_bundle(
     (output_directory / 'boot_config.json').write_text(
         json.dumps(boot_config(game=game, arguments=arguments), indent=2) + '\n', encoding='utf-8'
     )
-    file_count = write_engine_archive(
-        package_directory=PACKAGE_DIRECTORY,
-        archive_path=output_directory / 'glitchygames.zip',
-        excluded_subpackages=EXCLUDED_SUBPACKAGES,
-        engine_version=installed_engine_version(),
-    )
+    # Each archive's file count, the engine's first, then each member package's
+    file_counts = {
+        'glitchygames': write_engine_archive(
+            package_directory=PACKAGE_DIRECTORY,
+            archive_path=output_directory / 'glitchygames.zip',
+            excluded_subpackages=EXCLUDED_SUBPACKAGES,
+            engine_version=installed_engine_version(),
+        )
+    }
     for member_package in GAMES[game].member_packages:
-        write_engine_archive(
+        file_counts[member_package] = write_engine_archive(
             package_directory=member_package_directory(import_package=member_package),
             archive_path=output_directory / f'{member_package}.zip',
             excluded_subpackages=frozenset(),
         )
-    report(f'{output_directory}: {GAMES[game].title}, {file_count} engine files, {wheel_path.name}')
+    archives = ', '.join(f'{package} {count}' for package, count in file_counts.items())
+    report(
+        f'{output_directory}: {GAMES[game].title}, {sum(file_counts.values())} files '
+        f'({archives}), {wheel_path.name}'
+    )
 
 
 class BundleRequestHandler(SimpleHTTPRequestHandler):

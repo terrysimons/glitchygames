@@ -20,7 +20,10 @@ glitchygames/recording_history.py), so measurements can be traced to the commit 
 
 An archive is exactly its commit, so only a checkout or a stamp made from one says whether there
 were uncommitted changes. Git runs through ``glitchygames.process.run_command`` (the one
-launcher), with a short timeout; a missing or failing git is "no answer", never an error.
+launcher), with a short timeout and without this process's variables that point git at another
+repository (``environment_without_git_variables``), so the revision is always the package's own
+checkout's;
+a missing or failing git is "no answer", never an error.
 """
 
 from __future__ import annotations
@@ -35,7 +38,7 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 
 PACKAGE_DIRECTORY = Path(__file__).resolve().parent
 ARCHIVE_FILE_NAME = '_git_archival.txt'
@@ -45,6 +48,20 @@ GIT_TIMEOUT_SECONDS = 5.0
 UNEXPANDED_PLACEHOLDER_PREFIX = '$Format:'
 ARCHIVE_COMMIT_KEY = 'commit'
 ARCHIVE_COMMITTED_AT_KEY = 'committed'
+# The variables that move git off the repository its directory is in (a hook's, a worktree's, an
+# alias's): which repository, work tree, index or object store it reads, under which namespace,
+# and GIT_CEILING_DIRECTORIES, which can stop it finding the directory's own repository at all.
+# The others (GIT_CONFIG_*: safe.directory given through the environment, say) reach git
+REPOSITORY_LOCATION_VARIABLES = frozenset({
+    'GIT_DIR',
+    'GIT_WORK_TREE',
+    'GIT_INDEX_FILE',
+    'GIT_COMMON_DIR',
+    'GIT_OBJECT_DIRECTORY',
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_NAMESPACE',
+    'GIT_CEILING_DIRECTORIES',
+})
 
 
 class RevisionSource(StrEnum):
@@ -90,8 +107,31 @@ class SourceRevision(BaseModel):
 UNKNOWN_REVISION = SourceRevision(source=RevisionSource.UNKNOWN)
 
 
+def environment_without_git_variables() -> dict[str, str]:
+    """Return this process's environment without the variables that move git to another repository.
+
+    A ``GIT_DIR``, ``GIT_WORK_TREE``, ``GIT_INDEX_FILE`` or ``GIT_COMMON_DIR`` (and the others of
+    ``REPOSITORY_LOCATION_VARIABLES``) in the environment (a git hook's, a worktree's, an
+    alias's) would make ``git -C <package directory>`` read that repository instead, so a game's
+    rows would name another repository's commit. Every other variable stays: ``GIT_CONFIG_*``
+    may be what lets git trust the checkout at all (``safe.directory``).
+
+    Returns:
+        A copy of ``os.environ`` without ``REPOSITORY_LOCATION_VARIABLES``.
+
+    """
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if name not in REPOSITORY_LOCATION_VARIABLES
+    }
+
+
 def _git_output(*, arguments: list[str], directory: Path) -> str | None:
     """Run git in a directory and return its standard output, stripped.
+
+    git runs without this process's variables that point it at another repository
+    (``environment_without_git_variables``), so ``directory``'s own repository answers.
 
     Args:
         arguments: git's arguments.
@@ -107,9 +147,9 @@ def _git_output(*, arguments: list[str], directory: Path) -> str | None:
     try:
         completed = run_command(
             command=[git_program, '-C', str(directory), *arguments],
-            environment=os.environ,
+            environment=environment_without_git_variables(),
             timeout_seconds=GIT_TIMEOUT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
         )
     except OSError, TimeoutExpired:
         return None
@@ -219,6 +259,23 @@ def source_revision(*, package_directory: Path = PACKAGE_DIRECTORY) -> SourceRev
         if revision is not None:
             return revision
     return UNKNOWN_REVISION
+
+
+@functools.cache
+def package_source_revision(*, package_directory: Path) -> SourceRevision:
+    """Return a package's source revision, looked up once per process (git takes a while).
+
+    A game's package (``glitchygames.replay.tools.identity.game_source_revision``): every run
+    of a process names the revision its first run found, as for the engine's.
+
+    Args:
+        package_directory: The package's directory.
+
+    Returns:
+        The revision (``source_revision``).
+
+    """
+    return source_revision(package_directory=package_directory)
 
 
 @functools.cache

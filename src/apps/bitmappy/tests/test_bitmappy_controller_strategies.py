@@ -1,4 +1,4 @@
-"""Tests for src/apps/bitmappy/bitmappy/controllers/strategies.py.
+"""Tests for src/apps/bitmappy/src/bitmappy/controllers/strategies.py.
 
 Each mode strategy maps controller buttons to editor actions. These tests press and release
 buttons through the strategies a real ModeSwitcher hands out for a real

@@ -10,10 +10,10 @@ import sys
 
 import pygame
 import pytest
-from scripts.record_golden_traces import GoldenTraceEngine
 
 from glitchygames.events.joystick import JoystickEventManager
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
+from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene, SceneManager
 from tests.input.stand_in_devices import install_stand_in_devices
 
@@ -53,9 +53,9 @@ def stand_in_joystick(*, device_index: int) -> DeviceDescriptor:
 def real_engine(mocker):
     """Construct a real engine for PropertiesTestGame, leaving pygame as the test found it.
 
-    The engine is GoldenTraceEngine (scripts/record_golden_traces.py): GameEngine opening a
-    plain window, because SDL's dummy video driver warns "no fast renderer available" for
-    GameEngine's SCALED window, an error under pytest's filterwarnings.
+    The engine is GoldenTraceEngine (glitchygames/replay/tools/golden_traces.py): GameEngine
+    opening a plain window, because SDL's dummy video driver warns "no fast renderer available"
+    for GameEngine's SCALED window, an error under pytest's filterwarnings.
 
     Yields:
         GoldenTraceEngine: The engine, constructed (not started).

@@ -1,0 +1,20 @@
+[project]
+name = "text-input-demo"
+version = "1.0.0"
+description = "Text Input Demo: one InputBox on a yellow background, built on GlitchyGames"
+requires-python = ">=3.14,<4.0"
+# What the demo imports: the engine and pygame-ce (decision 10: a member declares its imports)
+dependencies = ["glitchygames>=1.0.0", "pygame-ce"]
+
+[project.scripts]
+text-input-demo = "text_input_demo:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/text_input_demo"]
+
+[tool.uv.sources]
+glitchygames = { workspace = true }

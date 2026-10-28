@@ -5,10 +5,6 @@ from pathlib import Path
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
-    GoldenTraceEngine,
-    command_line,
-)
 
 import brave_adventurer as brave_adventurer_package
 import brave_adventurer_core as brave_adventurer_core_package
@@ -22,6 +18,7 @@ from glitchygames.audio import VoiceAssistant
 from glitchygames.display_mode import set_display_mode
 from glitchygames.events.base import HashableEvent
 from glitchygames.exit_codes import ExitCode
+from glitchygames.replay.tools.golden_traces import GoldenTraceEngine, command_line
 from glitchygames.scenes import SceneManager
 from glitchygames.world import CoordinateSpace, position_world_sprites
 

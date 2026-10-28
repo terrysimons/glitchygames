@@ -1,7 +1,7 @@
 # Replay Performance
 
 How long the engine takes to process each frame of the recorded sessions (the golden replays in
-`tests/fixtures/replays/` and the demos bundled with the games), commit by commit. Every
+each game's `tests/fixtures/replays/` and the demos bundled with the games), commit by commit. Every
 measurement replays a recording headless and unpaced on one machine (`--rebaseline`, which times
 each frame's work without the pacing sleep), so a line moves only when the code got faster or
 slower, or the machine changed. Times compare only on one machine: each machine (its CPU model)
@@ -17,10 +17,10 @@ and kind of run is its own line.
   each frame really took, start to start: how steady pacing was. Replays have none.
 
 - **Slowest frame across the recording, by commit**: a heatmap per machine. Each column is a
-  stretch of the recording (about 1% of it, start to end) and each row a commit; the colour is
+  stretch of the recording (about 1% of it, start to end) and each row a commit; the color is
   the slowest frame of that stretch. Hover a cell for its frames, its scene and the time. It
   shows time only: whether the work itself changed (frames whose content hash differs) is what
-  `scripts/recording_report.py` shows. Measurements from before per-frame profiles have no row.
+  `glitchygames report` shows. Measurements from before per-frame profiles have no row.
 
 Hover a point for the commit's date and when it was measured.
 
@@ -49,14 +49,67 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    machines vary).
 3. The history measured before this (rows naming their commit) was moved into the repository
    too (`scripts/import_published_ledger.py`). `nox -s replay-metrics` still measures by hand
-   into the local pending file (`test-results/replay-metrics/pending.jsonl`), which a local build
-   shows.
+   (`glitchygames measure`) into the local pending file
+   (`test-results/replay-metrics/pending.jsonl`), which a local build shows.
 
-A recording holds its own last ten runs too; `uv run python scripts/recording_report.py PATH`
-prints them, which frames got slower or faster between runs (only frames that did the same
-work, by their content hash), and where behaviour changed (the frames whose content hash
+The measuring and the pages are the engine's tools, so any game can keep its own ledger the same
+way ([Tools for any game](../architecture/gameplay_replay.md#tools-for-any-game)), with the
+paths in its `[tool.glitchygames]` (ours: `ledger-directory`, `pending-ledger`,
+`published-ledger`, `measured-paths`):
+
+```bash
+uv run glitchygames unmeasured --game <game>   # what is not measured yet on this machine
+uv run glitchygames measure --game <game>      # measure it into the pending ledger
+uv run glitchygames performance-pages <directory>   # the ledger and one graph page per recording
+```
+
+(`<game> --measure`, `--unmeasured` and `--performance-pages <directory>` are the same tools as
+the game's own flags.) Our docs build makes these pages through `scripts/mkdocs_hooks.py` and
+`scripts/generate_performance_graphs.py`, which only add our docs paths and the snippet below.
+
+A recording holds its own last ten runs too; `uv run glitchygames report PATH` (or
+`<game> --report PATH`) prints them, which frames got slower or faster between runs (only frames that did the same
+work, by their content hash), and where behavior changed (the frames whose content hash
 differs, with both runs' commits). Design:
 `plans/2026-10-23-recording-metrics.md` (Parts 1 and 2).
+
+## What logging costs
+
+A benchmark rebaselines every golden replay and bundled demo headless three times, through the
+same child command `glitchygames measure` runs: at `--log-level warning` (the replay tools' level
+and a game's default: logging off), at `--log-level info` (what a bug report asks a player to run
+with) and at `--log-level debug` (everything on). It is not part of the test run (`nox -s test`;
+it takes under a minute), but CI runs it with the other benchmarks in the macOS job's
+`nox -s performance-test`, where a failed rebaseline fails the job. Run it alone with
+
+```bash
+uv run pytest tests/benchmarks/test_logging_cost.py -o addopts= -p no:xdist --benchmark-only --dummy-only
+```
+
+or with every other benchmark in `nox -s performance-test`. It prints two tables and writes them
+to `test-results/logging-cost.md`:
+
+1. **Top loggers by volume at `debug`, per recording**: each recording's five chattiest
+   loggers, with their records per frame, record count and share of all the records. A logger
+   far ahead of the others (tens of records a frame) is where logging needs cleaning up: a
+   `log.debug` inside a per-frame or per-sprite loop.
+2. **Logging cost**: per recording, the mean processing time per frame at each level and the
+   change of `info` and of `debug` against `warning`, the medians, each run's peak resident
+   memory, the records per frame at each level and how much output `info` and `debug` wrote.
+   The processing times are the engine's own per-frame measurements (what the performance
+   graphs above plot), so the change is the time logging adds to each frame's work. Times
+   compare only on one machine and between runs of the same table. The peak memory is the
+   replaying child's (`n/a` on Windows), and its output goes to a file, so a large difference
+   there means the game keeps records in memory.
+
+On one Mac (2026-10-28) `info` cost every recording within 1% of `warning` (0.08 to 0.33 records
+a frame), while `debug` doubled PaddleSlap's processing time per frame (about 10 records a
+frame) and added 15% to Brave Adventurer's papyrus golden (about 33).
+
+At `warning` no recording should emit an INFO or DEBUG record (the startup options block is one
+CRITICAL record a run): a logger that does has a level set behind the command line's back
+(BUGS.md #236), which `tests/replay/test_replays_log_quietly.py`
+and `tests/test_logger_levels_at_import.py` fail on in the ordinary test run.
 
 Until a build generates them, this page has only this text.
 

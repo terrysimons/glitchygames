@@ -213,6 +213,27 @@ session again, and every frame's sprites are compared with the recorded frame. T
     live posts. A frame's ``playback_answers`` are kept for the frame
     (``recorded_playback_answers``): the playback scope answers the replayed code's playback
     requests with them (glitchygames/replay/playback.py, ``answered_playback_request``).
+19. Seed (``--random-seed``; the user's decisions, 2026-10-26): a replay runs under its
+    recording's seed (``random_seed``), unless given another (``ReplayOptions.random_seed``,
+    which ``start_replay`` reads before the recorded options are applied). Given the recorded
+    one, nothing changes. Given another, the replay is reseeded (``ReplaySources.is_reseeded``):
+    the recording's inputs are played out under it (the engine's streams are seeded with it,
+    here and in the engine), a difference never stops it (as in rule 17), and the run's
+    ``random_seed`` option names it. A reseeded rebaseline writes NEW under that seed (NEW's
+    header and options name it); a plain reseeded replay writes nothing and exits ``SUCCESS``
+    whatever it found (``ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING``), its report the
+    rebaseline's summary of what differed. ``--audit`` is a check, so the engine refuses one
+    under another seed.
+20. Onion skin (``--compare-trace OLD``; glitchygames/replay/tools/compare.py, whose docstring
+    is the contract): a watched replay's ``onion_skin`` draws OLD's frame of the same number
+    over the presented copy of the frame shown (``draw_overlay``, before the status bar; not
+    while rebuilding, though ``hold_frame`` begins it as a rebuild starts, so OLD's child
+    rebuilds alongside), and a headless child's ``frame_sink`` takes each replayed game frame
+    (glitchygames/game_frames.py) as it is presented: the engine makes such a replay draw its
+    overlay (``draws_overlay``), and its ``draw_overlay`` hands the presented frame over instead
+    of drawing (a scene switched to after the frame was presented never shows in it); ``False``
+    back stops the replay at the frame's end (``frame_sink_closed``: nobody reads). Neither
+    changes what is replayed or compared.
 """
 
 from __future__ import annotations
@@ -227,7 +248,7 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Final, Literal, Self, cast
+from typing import TYPE_CHECKING, Any, Final, Literal, Protocol, Self, cast
 
 import pygame
 from pydantic import BaseModel, ConfigDict, Field
@@ -235,6 +256,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from glitchygames.clock import measured_seconds
 from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
+from glitchygames.game_frames import game_frame_clock
 from glitchygames.input.devices import (
     DeviceDescriptor,
     EnumerationAnswer,
@@ -292,6 +314,7 @@ from glitchygames.replay.controls import (
     BREAKPOINT_LABEL_FIELD,
     FIRST_PAUSED_FRAME,
     ReplayControls,
+    Reseeding,
 )
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.replay.processing import (
@@ -352,6 +375,11 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     'replay_restart_handoff',
     'replay_viewer_state',
     'replay_fps',
+    # --compare-trace's options and its child's frame stream (glitchygames/replay/tools/
+    # compare.py): how this run is watched
+    'compare_trace',
+    'compare_alpha',
+    'replay_frame_stream',
     'compare_processing',
     'max_processing_slowdown',
     'profile',
@@ -462,6 +490,29 @@ VERSION_TWO_INPUT_WARNING = (
 )
 
 
+class FrameSink(Protocol):
+    """Takes each replayed frame as presented (``ReplaySources.frame_sink``; rule 20)."""
+
+    def write_frame(self, *, frame_index: int, surface: pygame.Surface) -> bool:
+        """Take the frame just replayed; return False to stop the replay (nobody takes more)."""
+        ...
+
+
+class FrameOverlay(Protocol):
+    """Draws over a presented frame: a watched replay's (``ReplaySources.onion_skin``; rule 20).
+
+    Live play's too (``HostSources.overlay``; rule 9 of glitchygames/replay/tools/compare.py).
+    """
+
+    def begin(self) -> None:
+        """Get ready to draw (start what it needs), drawing nothing yet; idempotent."""
+        ...
+
+    def draw(self, *, surface: pygame.Surface, frame_index: int) -> None:
+        """Draw over the presented copy of frame ``frame_index``."""
+        ...
+
+
 class ReplayRefusedError(RuntimeError):
     """The recording cannot be replayed by this game (a recording of another game)."""
 
@@ -474,6 +525,9 @@ class ReplayExitPolicy(enum.Enum):
     # ExitCode.SUCCESS whatever the result (--rebaseline: the new recording is the outcome),
     # but ExitCode.REBASELINE_INPUT_LOST when the run lost recorded input
     SUCCESS_AFTER_WRITING = 'success'
+    # ExitCode.SUCCESS whatever the result: a replay under another seed than recorded
+    # (--random-seed N; rule 19), which plays the recording's inputs out and compares nothing
+    SUCCESS_WITHOUT_COMPARING = 'success-without-comparing'
 
 
 class ReplayOptions(BaseModel):
@@ -523,6 +577,10 @@ class ReplayOptions(BaseModel):
             one (``--compare-processing``; glitchygames/replay/processing.py).
         max_processing_slowdown_percent: The slowdown a replay that matched may show before it
             exits ``PROCESSING_SLOWER`` (``--max-processing-slowdown``), or None for no check.
+        random_seed: The master seed the replay runs the recording's inputs under in place of
+            the recorded one (``--random-seed N``; rule 19), or None (the default) for the
+            recorded seed. A seed other than the recorded one makes the replay reseeded
+            (``ReplaySources.is_reseeded``).
 
     """
 
@@ -545,6 +603,7 @@ class ReplayOptions(BaseModel):
     serves_redelivered_events: bool = False
     compare_processing: bool = False
     max_processing_slowdown_percent: float | None = Field(default=None, ge=0)
+    random_seed: int | None = None
 
 
 # The options of a replay given none (a test's, a tool's): watched without the start screen,
@@ -838,6 +897,10 @@ class ReplayResult:
             compared.
         max_processing_slowdown_percent: The slowdown a matched replay may show
             (``--max-processing-slowdown``), or None for no check.
+        shown_game_frames: With an onion skin, the game frame each frame run showed
+            (glitchygames/game_frames.py), by frame index (None: no game frame yet); a step
+            back's restart starts OLD's child at one (rule 8 of
+            glitchygames/replay/tools/compare.py). Empty without one.
 
     """
 
@@ -845,6 +908,7 @@ class ReplayResult:
     divergence: Divergence | None = None
     end_reason: str = RUNNING_END_REASON
     restart_frame: int | None = None
+    shown_game_frames: dict[int, int | None] = dataclasses.field(default_factory=dict, repr=False)
     recorded_history: collections.deque[tuple[int, list[dict[str, Any]]]] = dataclasses.field(
         default_factory=_new_frame_history, repr=False
     )
@@ -906,6 +970,7 @@ class ReplayResult:
         Returns:
             Under ``ReplayExitPolicy.SUCCESS_AFTER_WRITING``: ``REBASELINE_INPUT_LOST`` when the
             run lost recorded input (``has_lost_input``), else ``SUCCESS``. Under
+            ``ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING``: ``SUCCESS``. Under
             ``ReplayExitPolicy.RESULT``: ``SUCCESS`` when the replay matched to the end of the
             recording or was quit or restarted before it; ``UNUSABLE_INPUT`` when it matched up
             to the cut-off of a truncated recording; ``REPLAY_DIVERGED`` when it diverged, or is
@@ -918,6 +983,8 @@ class ReplayResult:
         """
         if policy == ReplayExitPolicy.SUCCESS_AFTER_WRITING:
             return ExitCode.REBASELINE_INPUT_LOST if self.has_lost_input else ExitCode.SUCCESS
+        if policy == ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING:
+            return ExitCode.SUCCESS
         if self.divergence is not None:
             return ExitCode.REPLAY_DIVERGED
         if self.end_reason in {END_OF_RECORDING_END_REASON, QUIT_END_REASON, RESTART_END_REASON}:
@@ -1053,7 +1120,7 @@ def recorded_screen_size(*, header: Mapping[str, Any]) -> tuple[int, int] | None
             raise TraceFormatError(message)
 
 
-def _recorded_seed(*, header: dict[str, Any]) -> int:
+def recorded_random_seed(*, header: Mapping[str, Any]) -> int:
     """Return the header's ``random_seed``.
 
     Raises:
@@ -1065,6 +1132,41 @@ def _recorded_seed(*, header: dict[str, Any]) -> int:
         message = f'The recording header has no integer random_seed (found {random_seed!r})'
         raise TraceFormatError(message)
     return random_seed
+
+
+def replay_seed_and_options(
+    *, recorded_seed: int, options: ReplayOptions
+) -> tuple[int, ReplayOptions, bool]:
+    """Return the seed a replay runs under, how it runs and whether it is reseeded (rule 19).
+
+    Under another seed than recorded it plays the recording's inputs out without stopping at
+    a difference; unless it rebaselines (rule 17: NEW is its outcome), it exits ``SUCCESS``
+    whatever it found.
+
+    Args:
+        recorded_seed: The recording's seed.
+        options: The replay's options as given (``random_seed``: the seed given, or None).
+
+    Returns:
+        The seed (the given one, else the recorded one); the options: as given under the
+        recorded seed, else with ``stop_on_divergence`` False and, but for a rebaseline's,
+        ``ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING``; and whether the seed is another than
+        recorded.
+
+    """
+    if options.random_seed is None or options.random_seed == recorded_seed:
+        return recorded_seed, options, False
+    reseeded = options.model_copy(
+        update={
+            'stop_on_divergence': False,
+            'exit_policy': (
+                options.exit_policy
+                if options.exit_policy == ReplayExitPolicy.SUCCESS_AFTER_WRITING
+                else ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING
+            ),
+        }
+    )
+    return options.random_seed, reseeded, True
 
 
 def _sprite_differences(
@@ -1201,7 +1303,12 @@ class ReplaySources:
         recording: The recorded frames.
         options: How the replay is run (``ReplayOptions``).
         result: How the replay went so far.
-        random_seed: The recorded master seed.
+        random_seed: The replay's master seed: the recorded one, or one given in its place
+            (``ReplayOptions.random_seed``; rule 19).
+        recorded_seed: The recording's own master seed (its header's ``random_seed``).
+        is_reseeded: True when the replay runs under another seed than recorded (rule 19): it
+            never stops at a difference, and its options say so (``stop_on_divergence``
+            False; ``ReplayExitPolicy.SUCCESS_WITHOUT_COMPARING`` unless it rebaselines).
         controls: The watched replay's controls (rule 14; unused by a headless replay).
         viewer: The watched replay's outer loop (rule 14, glitchygames/replay/viewer.py).
         bookmarks: Saves the viewer's bookmarks into a copy of the recording (rule 16).
@@ -1220,6 +1327,12 @@ class ReplaySources:
             yet given again (an instant-replay journal's ``playback_answers``; rule 18).
         digest_write_failed: True once ``finish_run`` could not write the digest file (rule
             12; the engine then exits ``ExitCode.CANNOT_WRITE_OUTPUT``).
+        frame_sink: Takes each replayed frame as presented (rule 20: a headless child's frame
+            stream), or None.
+        frame_sink_closed: True once the frame sink took no more (the replay stops at the
+            frame's end).
+        onion_skin: Draws over each presented frame of a watched replay (rule 20:
+            ``--compare-trace``), or None.
 
     """
 
@@ -1228,6 +1341,10 @@ class ReplaySources:
     recorded_playback_answers: collections.deque[bool]
     # Set by finish_run when the digest file cannot be written
     digest_write_failed: bool = False
+    # Set by the engine for --replay-frame-stream and --compare-trace (rule 20)
+    frame_sink: FrameSink | None = None
+    frame_sink_closed: bool = False
+    onion_skin: FrameOverlay | None = None
 
     def __init__(
         self: Self,
@@ -1250,8 +1367,11 @@ class ReplaySources:
 
         """
         self.header = header
-        self.options = options
-        self.random_seed = _recorded_seed(header=header)
+        # The recorded seed is read (and checked) whatever the replay runs under
+        self.recorded_seed = recorded_random_seed(header=header)
+        self.random_seed, self.options, self.is_reseeded = replay_seed_and_options(
+            recorded_seed=self.recorded_seed, options=options
+        )
         self._recorded_at = _recorded_start(header=header)
         # A bookmarked copy of a cut-off recording ends as its source did (rule 16)
         self.recording = RecordedFrames(
@@ -1283,6 +1403,12 @@ class ReplaySources:
         self.controls = ReplayControls(
             total_frames=self.recording.frame_count,
             awaiting_start=options.wait_for_start and not options.headless,
+            # Watched, a reseeded replay's status says it is not compared (rule 19)
+            reseeding=(
+                Reseeding(random_seed=self.random_seed, recorded_seed=self.recorded_seed)
+                if self.is_reseeded
+                else None
+            ),
         )
         self.viewer = ReplayViewer(controls=self.controls)
         # A bookmarked copy's bookmarks are the viewer's from the start, so S keeps them
@@ -1561,6 +1687,9 @@ class ReplaySources:
         if self._rebuild is not None:
             # Before frame 0's game code: the game's own music pauses are followed from it
             self._rebuild.begin()
+            # An onion skin's OLD rebuilds alongside (rule 20), not after this rebuild
+            if self.onion_skin is not None:
+                self.onion_skin.begin()
             now = measured_seconds()
             if not self._rebuild.progress_is_due(frame_index=self._frame_index, now=now):
                 return False
@@ -1587,10 +1716,27 @@ class ReplaySources:
         What is drawn changes once per control tick (``hold_frame``); it is drawn on every
         presented frame.
 
+        With ``--compare-trace`` (rule 20) OLD's frame is drawn first, over the frame the replay
+        shows (the last one run), but never over a rebuild's progress screen. OLD's frame is
+        the one of the game frame shown (glitchygames/game_frames.py): through a pause screen's
+        frames, the game frame before them.
+
         Args:
             surface: The presented frame (never a screenshot or a traced frame).
 
         """
+        if self.options.headless:
+            # Only a frame sink makes a headless replay draw an overlay: it takes the frame
+            self._hand_frame_to_sink(surface=surface)
+            return
+        shown_game_frame = game_frame_clock().shown_game_frame
+        if (
+            self.onion_skin is not None
+            and self._rebuild is None
+            and self._frame_index > self.options.start_frame
+            and shown_game_frame is not None
+        ):
+            self.onion_skin.draw(surface=surface, frame_index=shown_game_frame)
         self.controls.draw(surface=surface)
 
     def input_snapshot(self: Self) -> InputSnapshot:
@@ -1723,7 +1869,9 @@ class ReplaySources:
                     if self.recording.is_truncated
                     else END_OF_RECORDING_BANNER,
                 )
-        if self._window_was_closed or self.controls.quit_requested:
+        self._note_the_shown_game_frame()
+        # A frame sink nobody reads any more ends the replay as a quit does (rule 20)
+        if self.frame_sink_closed or self._window_was_closed or self.controls.quit_requested:
             self._stop(end_reason=QUIT_END_REASON)
         self._frame_index += 1
         self._pump_index = 0
@@ -1738,6 +1886,37 @@ class ReplaySources:
             ):
                 self._finish_rebuild(rebuild=self._rebuild)
         self._begin_frame()
+
+    def _note_the_shown_game_frame(self: Self) -> None:
+        """Note the game frame the frame just run showed, with an onion skin (rule 20).
+
+        Only an onion skin's step back reads them (``ReplayResult.shown_game_frames``): a replay
+        without one keeps none, so a long headless run holds nothing for it.
+        """
+        if self.onion_skin is not None:
+            self.result.shown_game_frames[self._frame_index] = game_frame_clock().shown_game_frame
+
+    def _hand_frame_to_sink(self: Self, *, surface: pygame.Surface) -> None:
+        """Give the frame being presented to the frame sink, if a game frame (rule 20).
+
+        Only game frames, numbered by the game-frame clock (glitchygames/game_frames.py): a
+        pause screen's frame is never sent as one of OLD's. A sink that takes no more (nobody
+        reads its frames) stops the replay at the frame's end (``frame_sink_closed``) rather
+        than letting it run on unseen.
+
+        Args:
+            surface: The frame as presented (the display surface).
+
+        """
+        # Only a frame sink makes a headless replay draw (the engine's _connect_the_frame_stream)
+        assert self.frame_sink is not None
+        clock = game_frame_clock()
+        if not clock.is_game_frame:
+            return
+        # A game frame always shows itself
+        assert clock.shown_game_frame is not None
+        if not self.frame_sink.write_frame(frame_index=clock.shown_game_frame, surface=surface):
+            self.frame_sink_closed = True
 
     def finish_run(self: Self) -> None:
         """Settle the result when the run ends (``GameEngine._shutdown``).
@@ -2958,9 +3137,12 @@ def start_replay(
     headless = bool(options.get('headless'))
     pause_at_frame = options.get('replay_pause_at_frame')
     if pause_at_frame is not None and headless:
-        LOG.warning(
-            '--replay-pause-at-frame is ignored with --headless: nobody could unpause the replay'
-        )
+        # A frame stream reads it itself (rule 20: where a restarted onion skin's child starts)
+        if options.get('replay_frame_stream') is None:
+            LOG.warning(
+                '--replay-pause-at-frame is ignored with --headless: nobody could unpause the '
+                'replay'
+            )
         pause_at_frame = None
     restart_handoff = options.get('replay_restart_handoff')
     is_rebaseline = options.get('rebaseline') is not None
@@ -2988,6 +3170,9 @@ def start_replay(
         compare_processing=bool(options.get('compare_processing'))
         or options.get('max_processing_slowdown') is not None,
         max_processing_slowdown_percent=options.get('max_processing_slowdown'),
+        # Read before the recorded options are applied (random_seed is not local): a given seed
+        # replaces the recorded one (rule 19)
+        random_seed=options.get('random_seed'),
     )
     sources = ReplaySources.from_path(path=path, options=replay_options)
     check_recorded_game(header=sources.header, game_class=game_class, is_rebaseline=is_rebaseline)
@@ -3000,6 +3185,9 @@ def start_replay(
             installed_version,
         )
     apply_recorded_options(options=options, recorded=sources.header.get(OPTIONS_HEADER_FIELD, {}))
+    if sources.is_reseeded:
+        # The run's options name the seed it runs under (rule 19), as a rebaseline's NEW does
+        options['random_seed'] = sources.random_seed
     apply_recorded_screen_size(
         options=options, screen_size=recorded_screen_size(header=sources.header)
     )

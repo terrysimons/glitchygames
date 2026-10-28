@@ -16,11 +16,6 @@ from typing import Any, Self
 import pygame
 import pygame._sdl2.controller
 import pytest
-from scripts.record_golden_traces import (
-    GoldenTraceEngine,
-    GoldenTraceSceneManager,
-    command_line,
-)
 
 from glitchygames.events import (
     ControllerEvents,
@@ -40,6 +35,11 @@ from glitchygames.input.devices import (
 )
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.live_sources import LiveSources
+from glitchygames.replay.tools.golden_traces import (
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    command_line,
+)
 from glitchygames.scenes import Scene
 from glitchygames.sources import install_sources
 

@@ -57,9 +57,10 @@ if TYPE_CHECKING:
 
 
 from glitchygames import events
+from glitchygames.argument_types import non_negative_int, non_negative_percent
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
-from glitchygames.engine.game_engine import non_negative_int, non_negative_percent, unit_interval
+from glitchygames.engine.game_engine import unit_interval
 from glitchygames.events import base as events_base
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.input_devices import InputMode
@@ -121,7 +122,7 @@ class PlainWindowEngine(GameEngine):
     available" (an error under pytest's filterwarnings); on a real driver (cocoa, x11) SCALED and
     FULLSCREEN would change the display every later test on the worker draws on, and FULLSCREEN
     would take over the screen. mode_flags keeps what the engine chose, so tests can check it;
-    scripts/record_golden_traces.py's GoldenTraceEngine opens its window the same way.
+    glitchygames/replay/tools/golden_traces.py's GoldenTraceEngine opens its window the same way.
     """
 
     @override
@@ -250,7 +251,7 @@ class TestGameEngineInitializeArguments:
         assert result['resolution'] == '640x480'
         assert result['update_type'] == 'flip'
         assert result['target_fps'] == 30.0
-        assert result['log_level'] == 'info'
+        assert result['log_level'] == 'warning'
         assert EngineTestGame.options is result
 
     def test_initialize_arguments_adds_the_game_options(self, mocker):

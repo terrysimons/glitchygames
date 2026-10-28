@@ -565,7 +565,7 @@ Two kinds of golden test pin the game's behaviour frame by frame:
 | Golden replay | `src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz` (and `golden-papyrus.jsonl.gz`), both replayed through the launcher, `brave-adventurer`, which starts the game each header names | `scripts/record_scripted_session.py --game brave_adventurer --frames 400` through the real engine loop: the golden input script, then a controls tail (walk left, jump with Space, quit with Q): 472 frames | Replayed in a child process with `--replay-trace PATH --headless` by the replay pytest plugin; any divergence fails. `tests/replay/test_golden_replays.py` also checks that every bound control is exercised, or listed with the reason it is not (no gamepad on the dummy driver) |
 | Golden trace | `tests/world/golden/brave_adventurer.jsonl.gz` (and `brave_adventurer_papyrus.jsonl.gz`) | `scripts/record_golden_traces.py`, before the world-space change | `tests/world/test_golden_traces.py` replays the script and compares every sprite's rect and visibility with that baseline; every difference must be explained by exactly one `ExpectedDifference` rule (engine culling, separate snapping, the pose fix, scarabs resting on their drawn underside, and the player falling into the screen-4 pit in its falling pose instead of its running pose) |
 
-The golden script (`brave_adventurer_script()` in `scripts/record_golden_traces.py`) runs right
+The golden script (`brave_adventurer_script()` in `scripts/golden_inputs.py`) runs right
 over screens 0 and 1 jumping for the higher scarabs, pauses and resumes, then places the
 player at x = 2400 (a 900-frame run cannot reach the first pit from the start) and jumps the
 two screen-3 walls and the screen-4 pit before walking back. Re-record either golden only
@@ -581,11 +581,12 @@ deliberately, after finding out why it changed (the scripts' docstrings give the
 | `src/games/brave-adventurer/tests/classic/test_brave_adventurer_classic.py` | The classic edition: its sprites declare world space and no module (its own or the core's) positions or culls sprites; culled enemies keep animating; the mic button and no voice assistant in a replay; enemy poses drawn in `dt_tick`; its player's running to falling |
 | `src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus.py` | The Papyrus Edition: facing-left hitboxes and foot anchoring; falling transitions in TOML; world space (its sprites, and no module of its own or the core's positions, culls or rounds); the sprite utilities; its player's running to falling |
 | `src/games/brave-adventurer/tests/test_brave_adventurer_modes.py` | The launcher: `--game` runs that game's own `main()` without the flag, an unknown game is an error, a recording starts its own game without the title screen (the replay plugin replays both goldens through `brave-adventurer`, as `brave-adventurer/golden-classic` and `brave-adventurer/golden-papyrus`), another game's recording is refused; the title screen: its logical name, both cards, choosing with the keyboard (through the real engine) and a gamepad, Q, B and Back quitting, Esc doing nothing, `-v`, `-h`, and a recording made from it replaying through the launcher |
-| `src/games/brave-adventurer/tests/test_brave_adventurer_after_the_move.py` | The move into one project: both scenes keep their logical names, the old example packages are gone, both goldens keep their history, the core imports neither game, each level manager builds its own gold scarab |
+| `src/games/brave-adventurer/tests/test_brave_adventurer_logical_names.py`, `test_brave_adventurer_install_location.py`, `test_brave_adventurer_recording_history.py` | The move into one project: both scenes keep their logical names, the old example packages are gone, both goldens keep their history |
+| `src/games/brave-adventurer/tests/core/test_brave_adventurer_shared_core.py` | The shared core: both scenes share one base and give only their hooks, the core imports neither game, each level manager builds its own gold scarab |
 | `tests/world/test_golden_traces.py` | The golden traces above |
 | `tests/replay/test_golden_replays.py` and the golden replay items | The golden replays above, and which controls they exercise |
 | `tests/collision/test_collision.py` | The Cobra's hitbox follows its drawing; Papyrus hitboxes scale with `SPRITE_SCALE` |
-| `src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus_sprite_files.py` | The Papyrus TOML sprites pass the engine's sprite-file checks (`tests/examples/test_examples_sprites.py`: equal rows; timings, hitboxes, pixels, metadata and `[[transition]]` sections survive a save round trip), and their state machines reload in order |
+| `src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus_sprite_files.py` | The Papyrus TOML sprites pass the engine's sprite-file checks (`glitchygames.testing.sprite_files`: equal rows; timings, hitboxes, pixels, metadata and `[[transition]]` sections survive a save round trip), and their state machines reload in order |
 
 ## The Papyrus Edition
 
@@ -799,4 +800,4 @@ names; and its one browser page, the title screen, ships all four archives, the 
 | `src/games/brave-adventurer/tests/` (`core/`, `classic/`, `papyrus/`) | The games' tests |
 | `src/games/brave-adventurer/tests/fixtures/replays/golden-*.jsonl.gz` | The golden replays |
 | `tests/world/golden/brave_adventurer*.jsonl.gz` | The golden traces |
-| `scripts/record_scripted_session.py`, `scripts/record_golden_traces.py` | The scripts that record them, with the input scripts |
+| `scripts/record_scripted_session.py`, `scripts/record_golden_traces.py`, `scripts/golden_inputs.py` | The scripts that record them (on the engine's scripted-session recorder and golden-trace harness, `src/glitchygames/replay/tools/`), and the input scripts |

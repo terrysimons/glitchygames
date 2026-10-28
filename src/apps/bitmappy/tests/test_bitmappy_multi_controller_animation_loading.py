@@ -5,7 +5,6 @@ are active, ensuring proper state management and visual indicator updates.
 """
 
 import logging
-import time
 
 import pytest
 
@@ -345,13 +344,10 @@ class TestMultiControllerAnimationLoading:
                 position=(100 + i * 10, 100 + i * 10),
             )
 
-        # Measure time for loading animation
-        start_time = time.time()
+        # Timing lives in test_bitmappy_benchmarks.py (--benchmark-only); this checks the outcome
         self._simulate_animation_loading('performance_test_animation')
-        end_time = time.time()
-
-        # Should complete quickly (less than 1 second)
-        assert end_time - start_time < 1.0
+        assert 'performance_test_animation' in self.scene.film_strips
+        assert 'performance_test_animation' in self.scene.film_strip_sprites
 
         # Verify all controllers are still active
         for i in range(num_controllers):

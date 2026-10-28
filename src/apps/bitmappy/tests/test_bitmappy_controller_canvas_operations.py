@@ -1,4 +1,4 @@
-"""Tests for src/apps/bitmappy/bitmappy/controllers/canvas_operations.py.
+"""Tests for src/apps/bitmappy/src/bitmappy/controllers/canvas_operations.py.
 
 The canvas delegate paints, erases, moves and jumps a controller's canvas cursor and
 collects drag strokes for undo. These tests drive it through a real ControllerEventHandler,

@@ -35,7 +35,7 @@ from glitchygames.events import (
     unhandled_event,
 )
 from glitchygames.events.mouse import MouseEventManager
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.tracing import TraceFormatError
 
 # Constants for magic values
@@ -1127,7 +1127,7 @@ class TestCustomEventTypes:
             command=[sys.executable, '-c', code],
             environment=dict(os.environ),
             timeout_seconds=120,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
         )
         assert completed.returncode == 0, completed.stdout
         return json.loads(completed.stdout.strip().splitlines()[-1])

@@ -23,6 +23,7 @@ import os
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] — runs the engine's own game commands (argument list, no shell)
 import sys
+from enum import StrEnum
 from typing import TYPE_CHECKING, TextIO
 
 if TYPE_CHECKING:
@@ -38,6 +39,30 @@ CompletedProcess = subprocess.CompletedProcess
 RunningProcess = subprocess.Popen
 # How long stop_command lets a child end on its own before killing it
 STOP_GRACE_SECONDS = 10.0
+
+
+class OutputCapture(StrEnum):
+    """What ``run_command`` does with a child's standard output and error.
+
+    Attributes:
+        NONE: Neither is captured: the child writes to this process's.
+        TOGETHER: Both are captured together, in the result's ``stdout``.
+        APART: Each is captured on its own, in ``stdout`` and ``stderr`` (a child whose
+            standard output is a listing: ``glitchygames unmeasured``'s).
+
+    """
+
+    NONE = 'none'
+    TOGETHER = 'together'
+    APART = 'apart'
+
+
+# The subprocess settings (stdout, stderr) that make each capture
+OUTPUT_STREAMS: dict[OutputCapture, tuple[int | None, int | None]] = {
+    OutputCapture.NONE: (None, None),
+    OutputCapture.TOGETHER: (subprocess.PIPE, subprocess.STDOUT),
+    OutputCapture.APART: (subprocess.PIPE, subprocess.PIPE),
+}
 # Arguments after a bare -- are not options: appended options go before it
 END_OF_OPTIONS = '--'
 
@@ -108,7 +133,7 @@ def run_command(
     command: Sequence[str],
     environment: Mapping[str, str],
     timeout_seconds: float | None,
-    capture_output: bool = False,
+    capture_output: OutputCapture = OutputCapture.NONE,
     working_directory: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command (an argument list, never a shell) as a child process and wait for it.
@@ -122,25 +147,91 @@ def run_command(
         environment: The child's whole environment, in place before its interpreter starts.
         timeout_seconds: Kill the child (TimeoutExpired) after this long; None waits for as long
             as it runs (a restarted watched replay, glitchygames/replay/rebuild.py).
-        capture_output: True to capture standard output and error together in ``stdout``;
-            False to let the child write to this process's.
+        capture_output: What is captured of the child's standard output and error
+            (``OutputCapture``: none, together in ``stdout``, or apart in ``stdout`` and
+            ``stderr``).
         working_directory: The child's working directory (None: this process's), e.g. a
             build's directory for SDL's configure script (scripts/build_sdl_x11.py).
 
     Returns:
-        The finished process (``returncode``; ``stdout`` when captured, else None).
+        The finished process (``returncode``; ``stdout`` when captured, else None; ``stderr``
+        when captured apart, else None).
 
     """
+    standard_output, standard_error = OUTPUT_STREAMS[capture_output]
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with a game's command line plus fixed flags, as an argument list (no shell)
         list(command),
         env=dict(environment),
-        stdout=subprocess.PIPE if capture_output else None,
-        stderr=subprocess.STDOUT if capture_output else None,
+        stdout=standard_output,
+        stderr=standard_error,
         text=True,
         check=False,
         timeout=timeout_seconds,
         cwd=working_directory,
     )
+
+
+def run_command_stopped_at_timeout(
+    *,
+    command: Sequence[str],
+    environment: Mapping[str, str],
+    timeout_seconds: float,
+    working_directory: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a command as ``run_command`` does, its output not captured, stopping it gently.
+
+    For a child that may start children of its own (a game given ``--verify`` or ``--measure``
+    replays each recording in one): a child still running after ``timeout_seconds`` is asked to
+    stop first (SIGTERM; on Windows, terminated), so its engine can stop and reap its own
+    children as it ends (``exit_on_signal``), and is killed only if it is still running after
+    STOP_GRACE_SECONDS. ``run_command`` kills a child at once, which would leave such a
+    grandchild running. The child is stopped the same way, and reaped, however this process
+    stops waiting (a signal's SystemExit, Ctrl-C).
+
+    Args:
+        command: The program and its arguments.
+        environment: The child's whole environment, in place before its interpreter starts.
+        timeout_seconds: Stop the child (TimeoutExpired) after this long.
+        working_directory: The child's working directory (None: this process's).
+
+    Returns:
+        The finished process (``returncode``; ``stdout`` and ``stderr`` None: the child writes
+        to this process's). A child that outlived ``timeout_seconds`` raises ``TimeoutExpired``
+        once it is stopped and reaped.
+
+    """
+    child = subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with a game's command line plus fixed flags, as an argument list (no shell)
+        list(command),
+        env=dict(environment),
+        text=True,
+        cwd=working_directory,
+    )
+    try:
+        returncode = child.wait(timeout=timeout_seconds)
+    except BaseException:
+        # The timeout, or this process being stopped (a signal's SystemExit, Ctrl-C) while waiting
+        stop_and_reap(process=child)
+        raise
+    return subprocess.CompletedProcess(args=list(command), returncode=returncode)
+
+
+def stop_and_reap(*, process: subprocess.Popen[str]) -> None:
+    """Ask a child to stop, kill it if it is still running after STOP_GRACE_SECONDS, reap it.
+
+    The child alone (``stop_command`` stops a child started in a session of its own with its
+    whole group). SIGTERM lets a game end through its engine's teardown, which stops and reaps
+    the children it is waiting for.
+
+    Args:
+        process: The child.
+
+    """
+    process.terminate()
+    try:
+        process.wait(timeout=STOP_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
 
 
 def start_command(
@@ -176,7 +267,8 @@ def stop_command(*, process: subprocess.Popen[str]) -> None:
     """End a child ``start_command`` started, with every process in its group, and reap it.
 
     The group is asked to stop (SIGTERM; on Windows, the child is terminated) and killed if it
-    is still running after STOP_GRACE_SECONDS. A child that has already ended is only reaped.
+    is still running after STOP_GRACE_SECONDS. A child that has already ended is only reaped,
+    also when it ends between the check and a signal (``_signal_the_group``).
 
     Args:
         process: The child.
@@ -186,13 +278,45 @@ def stop_command(*, process: subprocess.Popen[str]) -> None:
         return
     if sys.platform == 'win32':
         process.terminate()
-    else:
-        os.killpg(process.pid, signal.SIGTERM)
+    elif not _signal_the_group(process=process, signal_number=signal.SIGTERM):
+        return
     try:
         process.wait(timeout=STOP_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
         if sys.platform == 'win32':
             process.kill()
-        else:
-            os.killpg(process.pid, signal.SIGKILL)
+        elif not _signal_the_group(process=process, signal_number=signal.SIGKILL):
+            return
         process.wait()
+
+
+def _signal_the_group(*, process: subprocess.Popen[str], signal_number: int) -> bool:
+    """Signal a running child's process group (POSIX), unless the child ended meanwhile.
+
+    A child that is ending after ``stop_command`` asked whether it runs (exiting, or a zombie
+    until reaped): macOS then answers a signal to its group with EPERM (``PermissionError``),
+    even before ``poll()`` can see the exit, and any POSIX system answers ESRCH
+    (``ProcessLookupError``) for a group already gone. Either is no failure to stop it, when
+    the child ends within ``STOP_GRACE_SECONDS``: it is waited for and reaped here.
+
+    Args:
+        process: The child (its process group leader).
+        signal_number: The signal.
+
+    Returns:
+        True when the group was signalled; False when the child was ending (it is reaped).
+
+    Raises:
+        PermissionError: If the signal is refused and the child does not end in time.
+        ProcessLookupError: If the group is gone and the child does not end in time.
+
+    """
+    try:
+        os.killpg(process.pid, signal_number)
+    except (PermissionError, ProcessLookupError) as refusal:
+        try:
+            process.wait(timeout=STOP_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            raise refusal from None
+        return False
+    return True

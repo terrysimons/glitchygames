@@ -8,7 +8,7 @@ turn dull blue and run away, and you can eat them. Each life is a **take**, a cl
 **CUT!**, and the last life ends with **THE END**.
 
 This page explains how the game is built, for a developer who wants to understand it or write a
-game like it. Everything here comes from `src/games/mr-muncher/mr_muncher/`. The module
+game like it. Everything here comes from `src/games/mr-muncher/src/mr_muncher/`. The module
 docstrings there are the detailed reference.
 
 ## Running it
@@ -71,20 +71,20 @@ Its recordings name it `games.mr_muncher.game:MrMuncherScene`, its golden replay
 
 | File | What it holds |
 |---|---|
-| `src/games/mr-muncher/mr_muncher/__init__.py` | Re-exports `main` (the `mr-muncher` console script's entry point) |
-| `src/games/mr-muncher/mr_muncher/maze.py` | `MAZE_LAYOUT` (the maze as text), tile characters, `Direction`, `DIRECTION_PREFERENCE`, `Maze` (a frozen pydantic model: tile questions, wrapping, distances) |
-| `src/games/mr-muncher/mr_muncher/levels.py` | `LevelSettings` and `settings_for_level` (the difficulty ramp), the scatter/chase schedule helpers, the frightened flash |
-| `src/games/mr-muncher/mr_muncher/actors.py` | `MazeGeometry` (tiles to pixels), `MazeActor` (tile-to-tile movement), `Player`, `Muncher`, `MuncherProfile`, `Personality`, `MuncherState`, `ChaseSituation`, `chase_target` |
-| `src/games/mr-muncher/mr_muncher/game.py` | `MrMuncherScene` (one reel: phases, scoring, input, saves, sound, drawing), `Phase`, `GameProgress`, `MrMuncherGameOverScene`, `main` |
-| `src/games/mr-muncher/mr_muncher/drawing.py` | Every picture, drawn with pygame primitives and cached with `functools.cache`: maze, bucket, munchers, eyes, sprockets, snacks, bonus reel, film-strip panels |
-| `src/games/mr-muncher/mr_muncher/scenery.py` | The sprites that never move (`Sprocket`, `Picture`, `SidePanel`) and the text helpers (`bundled_font`, `fitted_font`, `render_text`) |
-| `src/games/mr-muncher/mr_muncher/sounds.py` | The sound effects and jingles as synth `SoundRecipe`s |
-| `src/games/mr-muncher/mr_muncher/autopilot.py` | `Autopilot`, a bot that plays the game. The golden replay's script and the tests use it |
+| `src/games/mr-muncher/src/mr_muncher/__init__.py` | Re-exports `main` (the `mr-muncher` console script's entry point) |
+| `src/games/mr-muncher/src/mr_muncher/maze.py` | `MAZE_LAYOUT` (the maze as text), tile characters, `Direction`, `DIRECTION_PREFERENCE`, `Maze` (a frozen pydantic model: tile questions, wrapping, distances) |
+| `src/games/mr-muncher/src/mr_muncher/levels.py` | `LevelSettings` and `settings_for_level` (the difficulty ramp), the scatter/chase schedule helpers, the frightened flash |
+| `src/games/mr-muncher/src/mr_muncher/actors.py` | `MazeGeometry` (tiles to pixels), `MazeActor` (tile-to-tile movement), `Player`, `Muncher`, `MuncherProfile`, `Personality`, `MuncherState`, `ChaseSituation`, `chase_target` |
+| `src/games/mr-muncher/src/mr_muncher/game.py` | `MrMuncherScene` (one reel: phases, scoring, input, saves, sound, drawing), `Phase`, `GameProgress`, `MrMuncherGameOverScene`, `main` |
+| `src/games/mr-muncher/src/mr_muncher/drawing.py` | Every picture, drawn with pygame primitives and cached with `functools.cache`: maze, bucket, munchers, eyes, sprockets, snacks, bonus reel, film-strip panels |
+| `src/games/mr-muncher/src/mr_muncher/scenery.py` | The sprites that never move (`Sprocket`, `Picture`, `SidePanel`) and the text helpers (`bundled_font`, `fitted_font`, `render_text`) |
+| `src/games/mr-muncher/src/mr_muncher/sounds.py` | The sound effects and jingles as synth `SoundRecipe`s |
+| `src/games/mr-muncher/src/mr_muncher/autopilot.py` | `Autopilot`, a bot that plays the game. The golden replay's script and the tests use it |
 | `src/games/mr-muncher/tests/test_mr_muncher.py` | The scene: game flow, scoring, input, saves, screens, whole games |
 | `src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py` | The parts: maze, levels, actors, pictures, scenery, sounds, autopilot |
 | `src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz` | The golden replay (2,072 frames) |
-| `scripts/record_golden_traces.py` | `mr_muncher_script` and `MuncherSteering` (the autopilot pressing arrow keys) |
-| `scripts/record_scripted_session.py` | `mr_muncher_controls` (the golden replay's controls tail) and the command that records the fixture |
+| `scripts/golden_inputs.py` | `mr_muncher_script` and `MuncherSteering` (the autopilot pressing arrow keys) |
+| `scripts/record_scripted_session.py`, `scripts/golden_inputs.py` | The command that records the fixture (on the engine's scripted-session recorder, `src/glitchygames/replay/tools/scripted_sessions.py`); `mr_muncher_controls` (the golden replay's controls tail) |
 
 ## Scenes and how they switch
 
@@ -134,7 +134,7 @@ stateDiagram-v2
 
 ### Scene classes
 
-Mr. Muncher's scenes are two classes in `src/games/mr-muncher/mr_muncher/game.py`:
+Mr. Muncher's scenes are two classes in `src/games/mr-muncher/src/mr_muncher/game.py`:
 `MrMuncherScene` and `MrMuncherGameOverScene`. `Scene` and the built-in `PauseScene` and
 `GameOverScene` come from the engine (`glitchygames.scenes`). In the diagram, the Engine box is
 what every game gets; the Mr. Muncher box is what this game adds. Solid arrows are inheritance,
@@ -666,7 +666,7 @@ live voice or no audio is available, the game logs a warning and plays without i
 the screen, and never changes it. `Autopilot.choose_direction(scene=...)` returns the direction
 to ask for in each frame. It has two uses:
 
-- **Steering the golden replay.** `scripts/record_golden_traces.py: mr_muncher_script` wraps it
+- **Steering the golden replay.** `scripts/golden_inputs.py: mr_muncher_script` wraps it
   in `MuncherSteering`, which holds the arrow key for the direction the autopilot wants
   (pressing it again if the player still wants another way after 4 frames). With
   `seek_capture_after_seconds=22.0` it walks into a muncher once, so the recording includes a

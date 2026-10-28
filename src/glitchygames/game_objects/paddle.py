@@ -15,8 +15,9 @@ from glitchygames.sprites import Sprite
 
 from .sounds import load_sound
 
+# Its level is the engine's (--log-level), never set here: set at import, it outlived the command
+# line's (BUGS.md #236)
 log = logging.getLogger('game.paddle')
-log.setLevel(logging.INFO)
 
 
 class BasePaddle(Sprite):

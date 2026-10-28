@@ -15,6 +15,7 @@ import pytest
 
 from glitchygames import process
 from glitchygames.audio import tts
+from glitchygames.process import OutputCapture
 
 FAKE_SAY_PATH = '/usr/bin/say'
 
@@ -94,7 +95,7 @@ class TestMacOSTTSSpeakToFile:
             ],
             environment=os.environ,
             timeout_seconds=30,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
         )
 
     def test_creates_a_temporary_wav_without_a_path(self, macos_with_say):

@@ -34,7 +34,7 @@ from scripts.microphone_capture_check import (
 )
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.process import run_command
+from glitchygames.process import OutputCapture, run_command
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -372,7 +372,7 @@ def test_the_script_exits_with_its_exit_code():
         command=[sys.executable, str(SCRIPT_PATH), '--duration', '0'],
         environment=os.environ,
         timeout_seconds=SCRIPT_TIMEOUT_SECONDS,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
 
     assert completed.returncode == ExitCode.ARGUMENT_PARSER_ERROR

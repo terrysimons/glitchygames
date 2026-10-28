@@ -1,9 +1,10 @@
 """Tests for scene-based film strip system."""
 
+from src.apps.bitmappy.tests.film_strip_support import make_real_animated_sprite
+
 from bitmappy import editor as bitmappy
 from bitmappy.film_strip import FilmStripWidget
 from bitmappy.film_strip_sprite import FilmStripSprite
-from test_bitmappy_film_strip_base import make_real_animated_sprite
 
 
 def build_editor_with_sprite(*, frame_counts):

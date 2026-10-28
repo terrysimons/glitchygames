@@ -31,7 +31,7 @@ on first use); a stream only the capture holds is made in its captured state.
 
 Streams in use: ``'shake'`` (glitchygames/effects/shake.py), ``'ball.serve'``
 (glitchygames/game_objects/ball.py), ``'paddleslap.spawn'`` and ``'paddleslap.colors'``
-(src/games/paddleslap/paddleslap/__init__.py), ``'audio.controller_noise'``
+(src/games/paddleslap/src/paddleslap/__init__.py), ``'audio.controller_noise'``
 (glitchygames/audio/controller_audio.py), and the numpy streams ``'audio.live'`` and
 ``'audio.synth'`` (glitchygames/audio/live.py, synth.py). ``glitchygames/audio/recipes.py``
 seeds its noise with the constant ``RECIPE_NOISE_SEED`` so a recipe sounds the same every time;
@@ -39,8 +39,8 @@ that is deterministic and needs no stream.
 
 Never use ``secrets``, ``random.SystemRandom``, the ``random`` module's global functions,
 ``random.Random()`` without a seed or ``np.random.default_rng()`` without a seed in the
-package: ``tests/test_randomness.py`` scans for them. This module is the one exception (it
-draws the master seed when none is given).
+package: ``tests/test_unseeded_randomness_guard.py`` scans for them. This module is the one
+exception (it draws the master seed when none is given).
 """
 
 from __future__ import annotations

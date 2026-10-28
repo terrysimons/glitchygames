@@ -8,15 +8,17 @@ from __future__ import annotations
 
 import os
 import signal
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - a stand-in child raises its TimeoutExpired; Popen names the type
 import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
 from glitchygames import process
-from glitchygames.process import start_command, stop_command
+from glitchygames.process import OutputCapture, start_command, stop_command
 
 # SIGKILL's number on POSIX (Windows' signal module has no SIGKILL)
 SIGKILL_NUMBER = 9
@@ -82,7 +84,7 @@ class TestRunCommand:
             command=[sys.executable, '-c', 'import os; print(os.getcwd())'],
             environment=os.environ,
             timeout_seconds=WAIT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
             working_directory=tmp_path,
         )
 
@@ -94,10 +96,39 @@ class TestRunCommand:
             command=[sys.executable, '-c', 'import os; print(os.getcwd())'],
             environment=os.environ,
             timeout_seconds=WAIT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
         )
 
         assert completed.stdout.strip() == str(Path.cwd().resolve())
+
+    @pytest.mark.parametrize(
+        ('capture', 'captured_output', 'captured_error'),
+        [
+            (OutputCapture.NONE, None, None),
+            (OutputCapture.TOGETHER, 'out\nerr\n', None),
+            (OutputCapture.APART, 'out\n', 'err\n'),
+        ],
+    )
+    def test_each_capture_keeps_what_it_says(self, capture, captured_output, captured_error):
+        """None: neither stream; together: both in stdout; apart: each in its own."""
+        completed = process.run_command(
+            command=[
+                sys.executable,
+                '-c',
+                'import sys; print("out", flush=True); print("err", file=sys.stderr, flush=True)',
+            ],
+            environment=os.environ,
+            timeout_seconds=WAIT_SECONDS,
+            capture_output=capture,
+        )
+
+        assert completed.stdout == captured_output
+        assert completed.stderr == captured_error
+        assert list(OutputCapture) == [
+            OutputCapture.NONE,
+            OutputCapture.TOGETHER,
+            OutputCapture.APART,
+        ]
 
 
 class TestStartCommand:
@@ -181,6 +212,55 @@ class TestStopCommandOnEveryPlatform:
             ]
 
 
+class TestStopCommandRacingTheChildsEnd:
+    """A child that ends between stop_command's poll() and its signal is only reaped (POSIX).
+
+    macOS answers a signal to a group whose leader is exiting (or an unreaped zombie) with
+    EPERM, even before poll() sees the exit, and a group already gone answers ESRCH: neither is
+    a failure to stop the child, which is then waited for.
+    """
+
+    @pytest.fixture(autouse=True)
+    def posix(self, mocker):
+        mocker.patch.object(process.sys, 'platform', 'linux')
+        mocker.patch.object(
+            process, 'signal', SimpleNamespace(SIGTERM=signal.SIGTERM, SIGKILL=SIGKILL_NUMBER)
+        )
+
+    @pytest.mark.parametrize('error', [PermissionError, ProcessLookupError])
+    def test_a_child_ending_as_the_sigterm_is_sent_is_only_reaped(self, mocker, error):
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.return_value = 0
+        group_signal = mocker.patch.object(process.os, 'killpg', create=True, side_effect=error)
+
+        stop_command(process=child)
+
+        # Signalled once (no SIGKILL), then waited for
+        assert group_signal.call_count == 1
+        child.wait.assert_called_once_with(timeout=process.STOP_GRACE_SECONDS)
+
+    @pytest.mark.parametrize('error', [PermissionError, ProcessLookupError])
+    def test_a_child_ending_as_the_sigkill_is_sent_is_only_reaped(self, mocker, error):
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.side_effect = [process.TimeoutExpired(cmd='game', timeout=1.0), 0]
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=[None, error])
+
+        stop_command(process=child)
+
+        assert child.wait.call_count == 2
+
+    def test_a_signal_refused_while_the_child_keeps_running_is_raised(self, mocker):
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.side_effect = process.TimeoutExpired(cmd='game', timeout=1.0)
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=PermissionError)
+
+        with pytest.raises(PermissionError):
+            stop_command(process=child)
+
+
 @pytest.mark.skipif(sys.platform == 'win32', reason='process groups are POSIX')
 class TestStopCommand:
     """stop_command ends the child's whole group and reaps the child."""
@@ -231,3 +311,127 @@ class TestStopCommand:
             stop_command(process=child)
 
         assert child.returncode == 0
+
+
+# A child that writes its process id to the file it is given, then never ends on its own
+CHILD_THAT_NEVER_ENDS = (
+    'import os, pathlib, sys, time\n'
+    "pathlib.Path(sys.argv[1]).write_text(f'{os.getpid()}\\n', encoding='utf-8')\n"
+    'time.sleep(60)\n'
+)
+# The same, ignoring SIGTERM (so only the kill ends it)
+CHILD_THAT_NEVER_ENDS_IGNORING_TERMINATE = (
+    'import signal\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\n' + CHILD_THAT_NEVER_ENDS
+)
+# How long the children above get before their timeout
+SHORT_TIMEOUT_SECONDS = 1.0
+
+
+# A killed child's status on POSIX (-SIGKILL), written out: Windows' signal module has no SIGKILL
+KILLED_STATUS = -9
+
+
+class ChildThatOutlivesTheGracePeriod:
+    """Stands in for a child that ignores the request to stop: only the kill ends it.
+
+    A real one cannot exist on Windows (``terminate`` is ``TerminateProcess`` there), so the
+    kill path is checked with this on every platform.
+    """
+
+    def __init__(self) -> None:
+        """Record nothing yet."""
+        self.calls: list[tuple[str, float | None]] = []
+
+    def terminate(self) -> None:
+        """Record the request to stop (and ignore it)."""
+        self.calls.append(('terminate', None))
+
+    def kill(self) -> None:
+        """Record the kill."""
+        self.calls.append(('kill', None))
+
+    def wait(self, timeout: float | None = None) -> int:
+        """Time out while given a timeout (still running); else end, killed.
+
+        Returns:
+            The killed child's status.
+
+        Raises:
+            subprocess.TimeoutExpired: While given a timeout.
+
+        """
+        self.calls.append(('wait', timeout))
+        if timeout is not None:
+            raise subprocess.TimeoutExpired(cmd='game', timeout=timeout)
+        return KILLED_STATUS
+
+
+def test_a_child_still_running_after_the_grace_period_is_killed_then_reaped():
+    """Asked to stop, still running STOP_GRACE_SECONDS later: killed, then waited for."""
+    child = ChildThatOutlivesTheGracePeriod()
+
+    process.stop_and_reap(process=cast('subprocess.Popen[str]', child))
+
+    assert child.calls == [
+        ('terminate', None),
+        ('wait', process.STOP_GRACE_SECONDS),
+        ('kill', None),
+        ('wait', None),
+    ]
+
+
+def test_a_child_still_running_at_its_timeout_raises_once_stopped(tmp_path):
+    """On every platform (Windows too): the timeout raises TimeoutExpired after the stop.
+
+    Whether the child is gone is checked on POSIX only (``TestRunCommandStoppedAtTimeout``):
+    signal 0 to a process id is POSIX.
+    """
+    with pytest.raises(process.TimeoutExpired):
+        process.run_command_stopped_at_timeout(
+            command=[sys.executable, '-c', CHILD_THAT_NEVER_ENDS, str(tmp_path / 'child.pid')],
+            environment=os.environ,
+            timeout_seconds=SHORT_TIMEOUT_SECONDS,
+        )
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='signal 0 to a process id is POSIX')
+class TestRunCommandStoppedAtTimeout:
+    """``run_command_stopped_at_timeout`` stops a child that outlives its timeout, then reaps it.
+
+    Asked to stop first (SIGTERM: a game's engine then ends its own children), killed only if
+    it is still running after STOP_GRACE_SECONDS; either way reaped (no zombie is left), and the
+    timeout raised.
+    """
+
+    def test_a_child_that_ends_in_time_gives_its_status(self, tmp_path):
+        """Within its timeout: the child's exit status, in its working directory."""
+        finished = process.run_command_stopped_at_timeout(
+            command=[sys.executable, '-c', 'import sys; sys.exit(3)'],
+            environment=os.environ,
+            timeout_seconds=WAIT_SECONDS,
+            working_directory=tmp_path,
+        )
+
+        assert finished.returncode == 3
+
+    @pytest.mark.parametrize(
+        'source',
+        [CHILD_THAT_NEVER_ENDS, CHILD_THAT_NEVER_ENDS_IGNORING_TERMINATE],
+        ids=['stopped by sigterm', 'killed after the grace period'],
+    )
+    def test_a_child_still_running_at_its_timeout_is_stopped_and_reaped(
+        self, tmp_path, mocker, source
+    ):
+        """Its timeout raises TimeoutExpired, after the child is gone (not even a zombie)."""
+        mocker.patch.object(process, 'STOP_GRACE_SECONDS', SHORT_TIMEOUT_SECONDS)
+        pid_file = tmp_path / 'child.pid'
+
+        with pytest.raises(process.TimeoutExpired):
+            process.run_command_stopped_at_timeout(
+                command=[sys.executable, '-c', source, str(pid_file)],
+                environment=os.environ,
+                timeout_seconds=SHORT_TIMEOUT_SECONDS * 3,
+            )
+
+        child_pid = int(first_line(path=pid_file))
+        assert not is_running(pid=child_pid)

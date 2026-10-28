@@ -8,13 +8,12 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 import pytest
-from scripts.record_golden_traces import (
-    GAME_SCENES,
+
+from glitchygames.replay.tools.golden_traces import (
     GoldenTraceEngine,
     GoldenTraceSceneManager,
     command_line,
 )
-
 from glitchygames.tracing import read_trace_result, write_trace
 
 if TYPE_CHECKING:
@@ -24,6 +23,7 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
     from glitchygames.replay import ReplayResult
+    from glitchygames.scenes import Scene
 
 
 @dataclasses.dataclass(frozen=True)
@@ -43,7 +43,7 @@ class EngineReplay:
 def replay_through_engine(
     *,
     mocker: MockerFixture,
-    game_key: str,
+    scene_class: type[Scene],
     path: Path,
     extra_arguments: tuple[str, ...] = (),
 ) -> EngineReplay:
@@ -56,7 +56,7 @@ def replay_through_engine(
 
     Args:
         mocker: pytest-mock's fixture.
-        game_key: The game (a key of GAME_SCENES).
+        scene_class: The game's scene class.
         path: The recording.
         extra_arguments: More command-line arguments (``--rebaseline NEW``).
 
@@ -79,7 +79,7 @@ def replay_through_engine(
             '--headless',
             *extra_arguments,
         ]):
-            engine = GoldenTraceEngine(game=GAME_SCENES[game_key])
+            engine = GoldenTraceEngine(game=scene_class)
         with pytest.raises(SystemExit) as exit_info:
             engine.start()
     finally:

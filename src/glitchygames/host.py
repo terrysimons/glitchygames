@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 import pygame
 
+from glitchygames.game_frames import game_frame_clock
 from glitchygames.live_sources import LiveSources
 from glitchygames.sources import active_sources
 
@@ -47,6 +48,7 @@ if TYPE_CHECKING:
 
     from glitchygames.input.devices import DeviceRegistry
     from glitchygames.input.state import InputSnapshot
+    from glitchygames.replay.driver import FrameOverlay
     from glitchygames.scenes import Scene, SceneManager
     from glitchygames.sources import EngineSources
     from glitchygames.state.manager import SaveManager
@@ -132,23 +134,40 @@ class HostSources:  # ruff: ignore[too-many-public-methods] - every EngineSource
 
     The host's layer of the doors: installed around a live run's doors, beneath the recorder.
     Every member forwards unchanged, but event batches lose what a window recreation queued
-    (``without_window_recreation_bursts``).
+    (``without_window_recreation_bursts``), and an ``overlay`` is drawn over each presented
+    frame (``--compare-trace OLD`` in live play: rule 9 of glitchygames/replay/tools/compare.py),
+    numbered by the game-frame clock (glitchygames/game_frames.py).
 
     Attributes:
         inner: The doors read through (the run's live doors).
         random_seed: The run's master seed (``inner``'s).
+        overlay: Drawn over each presented frame, numbered by the game frame it shows
+            (``game_frame_clock().shown_game_frame``), or None.
 
     """
 
-    def __init__(self: Self, *, inner: EngineSources) -> None:
+    def __init__(self: Self, *, inner: EngineSources, overlay: FrameOverlay | None = None) -> None:
         """Wrap ``inner``.
 
         Args:
             inner: The doors to read through.
+            overlay: Drawn over each presented frame (never recorded), or None.
 
         """
         self.inner = inner
         self.random_seed = inner.random_seed
+        self.overlay = overlay
+        self._frames_ended = 0
+
+    @property
+    def frames_ended(self: Self) -> int:
+        """How many frames these doors ended: the number a recording gives the frame running now.
+
+        The doors are installed before the first frame, and every frame the loop runs ends
+        here (a recording's doors, around these, end theirs into these; a playback scope ends
+        its frames into the installed doors), so this counts as ``--record-trace`` does.
+        """
+        return self._frames_ended
 
     @property
     def opened_save_namespaces(self: Self) -> Mapping[str, SaveManager]:
@@ -236,11 +255,17 @@ class HostSources:  # ruff: ignore[too-many-public-methods] - every EngineSource
 
     @property
     def draws_overlay(self: Self) -> bool:
-        """Whether ``inner`` draws an overlay of its own."""
-        return self.inner.draws_overlay
+        """Whether these doors draw an ``overlay``, or ``inner`` an overlay of its own."""
+        return self.overlay is not None or self.inner.draws_overlay
 
     def draw_overlay(self: Self, *, surface: pygame.Surface) -> None:
-        """Let ``inner`` draw its overlay."""
+        """Draw the ``overlay`` over the game frame shown now, then let ``inner`` draw its own."""
+        # Paired by game frames (glitchygames/game_frames.py): a pause screen's frame shows the
+        # game frame before it, so OLD's stays; nothing before the first game frame
+        shown_game_frame = game_frame_clock().shown_game_frame
+        if self.overlay is not None and shown_game_frame is not None:
+            self.overlay.draw(surface=surface, frame_index=shown_game_frame)
+        # Asked even when ``inner`` draws none (live doors' draw_overlay draws nothing)
         self.inner.draw_overlay(surface=surface)
 
     def input_snapshot(self: Self) -> InputSnapshot:
@@ -300,7 +325,7 @@ class HostSources:  # ruff: ignore[too-many-public-methods] - every EngineSource
         control_events: list[ControlEvent],
         processing_seconds: float | None = None,
     ) -> None:
-        """Let ``inner`` end the frame."""
+        """Let ``inner`` end the frame, and count it (``frames_ended``)."""
         self.inner.end_frame(
             frame_number=frame_number,
             dt=dt,
@@ -308,6 +333,7 @@ class HostSources:  # ruff: ignore[too-many-public-methods] - every EngineSource
             control_events=control_events,
             processing_seconds=processing_seconds,
         )
+        self._frames_ended += 1
 
 
 class TickPacer:

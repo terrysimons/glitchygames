@@ -21,8 +21,9 @@ if TYPE_CHECKING:
     import argparse
 
 # Set up logging
+# Its level is the command line's (--log-level; debug shows this demo's debug lines): never
+# set here, where at import it reached every game.* logger of a process importing it (BUGS.md #236)
 LOG = logging.getLogger('game')
-LOG.setLevel(logging.DEBUG)
 
 
 class AnimationGame(Scene):

@@ -56,7 +56,7 @@ The sprite API server and client (FastAPI, uvicorn, httpx, apng, pillow) are cor
 
 ### `bitmappy` -- Pixel Art Editor
 
-Full-featured pixel art and sprite editor with animation timeline, multi-controller support (up to 4 simultaneous controllers), AI sprite generation, and voice recognition. It is an app, its own package in `src/apps/bitmappy/` (code in `src/apps/bitmappy/bitmappy/`, its sprite library in `src/apps/bitmappy/bitmappy/resources/sprites/`, tests in `src/apps/bitmappy/tests/`; `src/apps/bitmappy/README.md`).
+Full-featured pixel art and sprite editor with animation timeline, multi-controller support (up to 4 simultaneous controllers), AI sprite generation, and voice recognition. It is an app, its own package in `src/apps/bitmappy/` (code in `src/apps/bitmappy/src/bitmappy/`, its sprite library in `src/apps/bitmappy/src/bitmappy/resources/sprites/`, tests in `src/apps/bitmappy/tests/`; `src/apps/bitmappy/README.md`).
 
 ```bash
 # Run with default settings (32x32 canvas)
@@ -185,7 +185,7 @@ Every example game is its own package, with its own code, tests and golden repla
 | PaddleSlap | `uv run paddleslap` | `src/games/paddleslap/` |
 | Drawing Fire | `uv run drawing-fire` | `src/games/drawing-fire/` |
 
-Brave Adventurer is one project holding both games: the shared primitives (`brave_adventurer_core`), each game (`brave_adventurer`, the Classic edition, and `brave_adventurer_papyrus`, the Egyptian one) and a launcher (`brave_adventurer_modes`) that is its one console script. Its title screen offers Classic and Papyrus; `--game classic` or `--game papyrus` starts one at once. The engine's `src/glitchygames/examples/` keeps only the three demos (`dt_demo`, `joystick_demo`, `text_input_demo`); Bitmappy is its own package, `src/apps/bitmappy/`.
+Brave Adventurer is one project holding both games: the shared primitives (`brave_adventurer_core`), each game (`brave_adventurer`, the Classic edition, and `brave_adventurer_papyrus`, the Egyptian one) and a launcher (`brave_adventurer_modes`) that is its one console script. Its title screen offers Classic and Papyrus; `--game classic` or `--game papyrus` starts one at once. The demos (`dt_demo`, `joystick_demo`, `text_input_demo`) are members of the demos layer (`src/demos/dt-demo/`, console scripts `dt-demo`, `joystick-demo` and `text-input-demo`, each also `python -m <package>`), and Bitmappy is its own package, `src/apps/bitmappy/`.
 
 ## Engine Options
 

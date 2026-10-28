@@ -150,8 +150,8 @@ is_animated = detect_animation_request("animated walking character")
 
 ## Integration Points
 
-All AI code in Bitmappy lives in `src/apps/bitmappy/bitmappy/ai_manager.py` (`AIManager`, in the editor
-process) and `src/apps/bitmappy/bitmappy/ai_worker.py` (the worker process that calls aisuite).
+All AI code in Bitmappy lives in `src/apps/bitmappy/src/bitmappy/ai_manager.py` (`AIManager`, in the editor
+process) and `src/apps/bitmappy/src/bitmappy/ai_worker.py` (the worker process that calls aisuite).
 
 | Step | Where |
 |------|-------|

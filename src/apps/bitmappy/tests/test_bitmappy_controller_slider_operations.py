@@ -1,4 +1,4 @@
-"""Tests for src/apps/bitmappy/bitmappy/controllers/slider_operations.py.
+"""Tests for src/apps/bitmappy/src/bitmappy/controllers/slider_operations.py.
 
 The slider delegate moves a controller between the R, G and B slider modes and adjusts the
 slider of its mode, once or continuously with acceleration. These tests drive it through a

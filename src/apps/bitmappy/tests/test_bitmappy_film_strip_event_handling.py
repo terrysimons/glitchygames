@@ -2,11 +2,7 @@
 
 import pygame
 import pytest
-
-from bitmappy import editor as bitmappy
-from bitmappy.onion_skinning import get_onion_skinning_manager
-from glitchygames import events
-from test_bitmappy_film_strip_base import (
+from src.apps.bitmappy.tests.film_strip_support import (
     FRAME_INDEX_2,
     PIXEL_SIZE,
     PIXELS_ACROSS,
@@ -14,6 +10,10 @@ from test_bitmappy_film_strip_base import (
     frame_color_for_index,
     make_real_animated_sprite,
 )
+
+from bitmappy import editor as bitmappy
+from bitmappy.onion_skinning import get_onion_skinning_manager
+from glitchygames import events
 
 # Frame colours far from magenta, so no frame is drawn or sampled as transparent
 BASE_FRAME_COLOR = (200, 40, 10)

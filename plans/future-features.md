@@ -56,8 +56,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Network performance (for multiplayer)
   - GPU utilization (if available)
 
-### 43. GlitchyGames Arcade: Showcase and Game Picker (`uv run glitchygames`) — TODO
-- **Description**: A `glitchygames` console script that opens an arcade front end. A demo reel
+### 43. GlitchyGames Arcade: Showcase and Game Picker (`uv run arcade`) — TODO
+- **Description**: An `arcade` console script that opens an arcade front end. A demo reel
   across the top plays each game's demo with sound, with the colour bars for a few seconds and
   a beep between games. Below it, a boxed grid of the games, each tile looping its replay
   silently; pick one to play it.
@@ -183,10 +183,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   from that. The power-on sound and a power-off collapse are follow-ups
 
 ### 57. A pygame-examples-Like Demos Experience — TODO (plan later)
-- **Description**: the demos (today `dt_demo.py`, `joystick_demo.py`, `text_input_demo.py` in
-  `src/glitchygames/examples/`) become a browsable set of small, focused examples of what the
+- **Description**: the demos (today `dt_demo`, `joystick_demo` and `text_input_demo`, each a member of the
+  demos layer) become a browsable set of small, focused examples of what the
   engine does, in the spirit of pygame's own examples (`python -m pygame.examples.aliens`): easy to
-  list and run, each showing one engine feature. They leave the engine's examples for the demos
+  list and run, each showing one engine feature. They left the engine's examples for the demos
   layer, each its own member (the user, 2026-10-26: `src/demos/dt-demo/`, `src/demos/joystick-demo/`,
   `src/demos/text-input-demo/`, Part 3 of #56), not inside Bitmappy, which takes only its own
   resources (Part 4)
@@ -1652,6 +1652,25 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Microphone capture with a device choice and silence trimming
   - An editor or command-line front end (e.g. a `glitchygames-sfx` console script, or a panel in
     Bitmappy or Glitchy Studio)
+
+### 60. PaddleSlap: A Start Screen With Its Game Options — TODO
+- **Description**: PaddleSlap is one game. "Rally" is not a mode: it is the score
+  (`rally_count`, paddle hits across all balls), and `rally.jsonl.gz` (`PADDLESLAP_DEMO_PATH`) is
+  the attract demo the game-over screen plays after it sits idle (`dt_tick`), recorded with the
+  default options (1 ball, `paddle_only`). The game's real options are command-line flags only
+  today: `--ball-spawn-mode` (`paddle_only`, the default: a new ball on each paddle hit;
+  `wall_only`; `ball_only`; `frequent`; `rare`; `none`) and `--balls N` (balls at the start).
+  Add a start screen that offers them as game options (the owner, 2026-10-27: "feels more like a
+  game option"), with the flags still setting them (and skipping the screen when given, if that
+  reads better).
+- **Status**: TODO (requested by the owner 2026-10-27, after the Arcade spike gave the golden and
+  the Rally demo a tile each: in the Arcade, PaddleSlap is one tile; the Rally demo stays its
+  attract reel). To settle when it is planned: the screen's layout and input (keys, controller,
+  mouse), whether the chosen options persist between runs (as the high scores do), that a
+  recording keeps the options it was played with so `--replay-trace` starts with them and no
+  screen, and that the golden and the Rally demo still replay identically (the screen must not
+  shift a recorded frame; rebaseline only deliberately).
+- **Priority**: Medium
 
 ## Notes
 

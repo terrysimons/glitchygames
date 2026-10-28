@@ -27,18 +27,31 @@ from glitchygames.build_info import (
     SourceRevision,
     archive_revision,
     engine_source_revision,
+    environment_without_git_variables,
     git_checkout_revision,
     source_revision,
     stamped_revision,
     write_build_stamp,
 )
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 from glitchygames.recording_history import MeasurementRun, latest_measurement_run
 from tests.harness import CHECKOUT_ENGINE_DIRECTORY
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+# The variables that point git at another repository than the one its directory is in, written
+# out by hand (build_info.REPOSITORY_LOCATION_VARIABLES must name each)
+REPOSITORY_LOCATION_VARIABLES = (
+    'GIT_DIR',
+    'GIT_WORK_TREE',
+    'GIT_INDEX_FILE',
+    'GIT_COMMON_DIR',
+    'GIT_OBJECT_DIRECTORY',
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_NAMESPACE',
+    'GIT_CEILING_DIRECTORIES',
+)
 ARCHIVAL_TEMPLATE = 'commit: $Format:%H$\ncommitted: $Format:%cI$\n'
 BUILT_AT = '2026-10-23T12:00:00+00:00'
 MODULE_FILE_NAME = 'module.py'
@@ -66,7 +79,7 @@ def _git(*arguments: str, directory: Path) -> str:
         command=[git_program, '-C', str(directory), *arguments],
         environment=environment,
         timeout_seconds=30.0,
-        capture_output=True,
+        capture_output=OutputCapture.TOGETHER,
     )
     assert completed.returncode == 0, completed.stdout
     return completed.stdout.strip()
@@ -125,6 +138,52 @@ class TestGitCheckout:
 
         assert revision is not None
         assert revision.uncommitted_changes is True
+
+    def test_git_variables_in_the_environment_never_point_it_at_another_repository(
+        self, tmp_path, monkeypatch
+    ):
+        """The commit is the package's own checkout's, whatever repository GIT_* names.
+
+        GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE and GIT_COMMON_DIR set (a hook's, an alias's)
+        name another repository, at another commit and with uncommitted changes.
+        """
+        package_directory = _repository_with_package(tmp_path / 'game')
+        other = tmp_path / 'other'
+        other_package = _repository_with_package(other)
+        (other_package / MODULE_FILE_NAME).write_text('# edited\n', encoding='utf-8')
+        _git('commit', '--quiet', '--all', '--message', 'second', directory=other)
+        (other_package / MODULE_FILE_NAME).write_text('# dirty\n', encoding='utf-8')
+        own_commit = _git('rev-parse', 'HEAD', directory=package_directory)
+        monkeypatch.setenv('GIT_DIR', str(other / '.git'))
+        monkeypatch.setenv('GIT_WORK_TREE', str(other))
+        monkeypatch.setenv('GIT_INDEX_FILE', str(other / '.git' / 'index'))
+        monkeypatch.setenv('GIT_COMMON_DIR', str(other / '.git'))
+
+        revision = git_checkout_revision(package_directory=package_directory)
+
+        assert revision is not None
+        assert revision.commit == own_commit
+        assert revision.uncommitted_changes is False
+
+    def test_git_configuration_variables_reach_the_lookup(self, monkeypatch):
+        """Only the variables that move git to another repository are left out of its lookup.
+
+        ``GIT_CONFIG_*`` (``safe.directory`` given through the environment, say) and the rest
+        reach git as they are, so a checkout git would trust still names its commit.
+        """
+        for name in REPOSITORY_LOCATION_VARIABLES:
+            monkeypatch.setenv(name, 'another-repository')
+        monkeypatch.setenv('GIT_CONFIG_COUNT', '1')
+        monkeypatch.setenv('GIT_CONFIG_KEY_0', 'safe.directory')
+        monkeypatch.setenv('GIT_CONFIG_VALUE_0', '*')
+
+        environment = environment_without_git_variables()
+
+        assert set(REPOSITORY_LOCATION_VARIABLES) == build_info.REPOSITORY_LOCATION_VARIABLES
+        assert not set(REPOSITORY_LOCATION_VARIABLES) & set(environment)
+        assert environment['GIT_CONFIG_COUNT'] == '1'
+        assert environment['GIT_CONFIG_KEY_0'] == 'safe.directory'
+        assert environment['GIT_CONFIG_VALUE_0'] == '*'
 
     def test_an_untracked_new_file_is_not_an_uncommitted_change(self, tmp_path):
         package_directory = _repository_with_package(tmp_path)

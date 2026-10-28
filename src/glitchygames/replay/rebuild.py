@@ -102,6 +102,9 @@ class ViewerState(BaseModel):
         speed: The playback speed.
         debug_panel: The debug overlay's panel (F4).
         divergence_frame: The frame the replay diverged at, if it had (so D works at once).
+        compare_first_game_frame: With ``--compare-trace``, the game frame the restart shows
+            paused (glitchygames/game_frames.py), so OLD's child streams from it (rule 8 of
+            glitchygames/replay/tools/compare.py); None to stream from OLD's first frame.
 
     """
 
@@ -110,6 +113,7 @@ class ViewerState(BaseModel):
     speed: float = Field(default=1.0, ge=ReplayControls.MIN_SPEED, le=ReplayControls.MAX_SPEED)
     debug_panel: DebugPanel = DebugPanel.ALL
     divergence_frame: int | None = Field(default=None, ge=0)
+    compare_first_game_frame: int | None = Field(default=None, ge=0)
 
 
 def parse_viewer_state(text: str) -> ViewerState:

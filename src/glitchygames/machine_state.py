@@ -34,7 +34,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.process import TimeoutExpired, run_command
+from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 
 TOOL_TIMEOUT_SECONDS = 5.0
 MACOS_SYSTEM = 'Darwin'
@@ -103,7 +103,7 @@ def _tool_output(*, command: list[str]) -> str | None:
             command=[program, *command[1:]],
             environment=os.environ,
             timeout_seconds=TOOL_TIMEOUT_SECONDS,
-            capture_output=True,
+            capture_output=OutputCapture.TOGETHER,
         )
     except OSError, TimeoutExpired:
         return None
