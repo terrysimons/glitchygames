@@ -6,7 +6,9 @@ import threading
 
 import pytest
 
+from glitchygames.events import voice as voice_module
 from glitchygames.events.voice import VoiceEventManager
+from tests.stand_in_time import patch_module_time
 
 
 @pytest.fixture
@@ -439,7 +441,8 @@ class TestListenLoop:
         mock_audio = mocker.Mock()
         mock_recognizer.recognize_google.side_effect = mock_sr.RequestError('service unavailable')
 
-        mock_sleep = mocker.patch('glitchygames.events.voice.time.sleep')
+        mock_sleep = mocker.Mock()
+        patch_module_time(mocker=mocker, module=voice_module, sleep=mock_sleep)
 
         call_count = [0]
 
@@ -517,7 +520,8 @@ class TestListenLoop:
         manager.microphone = mock_microphone
         manager.recognizer = mock_recognizer
         manager.is_listening = True
-        mock_sleep = mocker.patch('glitchygames.events.voice.time.sleep')
+        mock_sleep = mocker.Mock()
+        patch_module_time(mocker=mocker, module=voice_module, sleep=mock_sleep)
 
         call_count = [0]
 

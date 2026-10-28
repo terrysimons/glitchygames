@@ -6,6 +6,7 @@ import re
 
 import pytest
 
+from glitchygames.performance import adaptive_clamping as adaptive_clamping_module
 from glitchygames.performance.adaptive_clamping import (
     FPS_HISTORY_MAX_SIZE,
     HISTOGRAM_BUCKET_COUNT,
@@ -15,6 +16,7 @@ from glitchygames.performance.adaptive_clamping import (
     FpsHistogramMode,
 )
 from tests.logged_messages import logged_messages
+from tests.stand_in_time import patch_module_time
 
 
 class TestAdaptiveClampingSingleton:
@@ -1198,7 +1200,11 @@ class TestAdaptiveDeltaTime:
     def test_get_adaptive_dt_logging_interval(self, mocker):
         """Test that performance adjustments are logged at the correct interval."""
         # Start with time 0
-        mock_time = mocker.patch('time.perf_counter', return_value=0.0)
+        patch_module_time(
+            mocker=mocker,
+            module=adaptive_clamping_module,
+            perf_counter=mocker.Mock(return_value=0.0),
+        )
 
         # Add sufficient history with a very large dt to ensure significant adjustment
         for i in range(10):

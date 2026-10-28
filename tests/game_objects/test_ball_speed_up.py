@@ -6,6 +6,7 @@ import math
 
 import pytest
 
+from glitchygames.game_objects import ball as ball_module
 from glitchygames.game_objects.ball import (
     BallSprite,
     SpeedUpAxes,
@@ -16,6 +17,7 @@ from glitchygames.game_objects.ball import (
     speed_up_step_ratio,
 )
 from glitchygames.movement import Speed
+from tests.stand_in_time import patch_module_time
 
 # Constants for magic values
 MULTIPLIER_1_15 = 1.15
@@ -301,7 +303,10 @@ class TestBallSpeedUpBehavior:
 
     def test_continuous_timer_uses_game_time_not_wall_clock(self, mocker):
         """Wall-clock time passing (e.g. while paused) does not advance the timer."""
-        mock_time = mocker.patch('time.time', return_value=0.0)
+        # The ball module does not import time (its timer advances by dt): created there, the
+        # wall clock it would read if it did
+        mock_time = mocker.Mock(return_value=0.0)
+        patch_module_time(mocker=mocker, module=ball_module, create=True, time=mock_time)
         ball = _ball_with_speed_up(triggers=SpeedUpTrigger.CONTINUOUS, interval=1.0)
         mock_time.return_value = 1_000.0  # a long pause: dt_tick is not called
         ball.dt_tick(1 / 64)
