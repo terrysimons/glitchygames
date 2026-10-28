@@ -73,6 +73,36 @@ work, by their content hash), and where behavior changed (the frames whose conte
 differs, with both runs' commits). Design:
 `plans/2026-10-23-recording-metrics.md` (Parts 1 and 2).
 
+## What logging costs
+
+A benchmark rebaselines every golden replay and bundled demo headless twice, through the same
+child command `glitchygames measure` runs: once at `--log-level warning` (the replay tools' level:
+logging off) and once at `--log-level debug` (everything on). It is not part of the test run (it
+takes about half a minute); run it alone with
+
+```bash
+uv run pytest tests/benchmarks/test_logging_cost.py -o addopts= -p no:xdist --benchmark-only --dummy-only
+```
+
+or with every other benchmark in `nox -s performance-test`. It prints two tables and writes them
+to `test-results/logging-cost.md`:
+
+1. **Top loggers by volume at `debug`, per recording**: each recording's five chattiest
+   loggers, with their records per frame, record count and share of all the records. A logger
+   far ahead of the others (tens of records a frame) is where logging needs cleaning up: a
+   `log.debug` inside a per-frame or per-sprite loop.
+2. **Logging cost**: per recording, the mean processing time per frame at each level and its
+   change (`debug` against `warning`), the medians, each run's peak resident memory, the records
+   per frame at each level and how much output `debug` wrote. The processing times are the
+   engine's own per-frame measurements (what the performance graphs above plot), so the change
+   is the time logging adds to each frame's work. Times compare only on one machine and between
+   runs of the same table. The peak memory is the replaying child's (`n/a` on Windows), and its
+   output goes to a file, so a large difference there means the game keeps records in memory.
+
+At `warning` no recording should emit an INFO or DEBUG record: a logger that does has a level set
+behind the command line's back (BUGS.md #236), which `tests/replay/test_replays_log_quietly.py`
+and `tests/test_logger_levels_at_import.py` fail on in the ordinary test run.
+
 Until a build generates them, this page has only this text.
 
 --8<-- "docs/quality/metrics/performance_graphs.md"

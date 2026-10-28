@@ -14,8 +14,15 @@ from typing import TYPE_CHECKING
 
 from scripts.workspace_packages import members_in_layer
 
+from glitchygames.replay.tools.children import recording_console_script
+from glitchygames.testing.replays import bundled_demo_paths
 from glitchygames.tracing import is_bookmarked_copy
-from tests.workspace_expectations import EXPECTED_GOLDENS, GAMES_LAYER, GOLDEN_SUFFIX
+from tests.workspace_expectations import (
+    EXPECTED_GOLDENS,
+    GAMES_LAYER,
+    GOLDEN_SUFFIX,
+    MEMBER_PACKAGES,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -92,3 +99,26 @@ def every_games_golden(
     """
     goldens = check_every_game_holds_a_golden(project_root=project_root, expected=expected)
     return sorted(path for paths in goldens.values() for path in paths)
+
+
+def every_golden_and_bundled_demo(*, project_root: Path) -> list[tuple[str, Path]]:
+    """Return every golden (``every_games_golden``), then every bundled demo, with its game.
+
+    What the quiet-run guard (tests/replay/test_replays_log_quietly.py) and the logging-cost
+    benchmark (tests/benchmarks/test_logging_cost.py) replay.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        ``(console script, recording)`` pairs: the goldens sorted by path, then the demos
+        (``bundled_demo_paths`` of every member package).
+
+    """
+    return [
+        *(
+            (recording_console_script(path=path), path)
+            for path in every_games_golden(project_root=project_root)
+        ),
+        *bundled_demo_paths(packages=MEMBER_PACKAGES),
+    ]

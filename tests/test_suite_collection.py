@@ -1168,6 +1168,9 @@ SOURCE_GUARD_REASON = (
 # had them moved out to a file named for what it checks (Task D9 fix round 1), so no engine test
 # shares an exemption. They may reach scripts/ too
 REPOSITORY_TEST_FILES: dict[str, str] = {
+    'tests/benchmarks/test_logging_cost.py': (
+        "measures what logging costs our members' goldens and bundled demos"
+    ),
     'tests/engine/test_every_game_powers_on.py': (
         "powers on every member's console script through its own main(), listed from the workspace"
     ),

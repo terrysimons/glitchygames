@@ -18,23 +18,14 @@ from pathlib import Path
 import pytest
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.replay.tools.children import recording_console_script
-from glitchygames.testing.replays import bundled_demo_paths
 from tests.logged_records import replay_counting_records
-from tests.workspace_expectations import MEMBER_PACKAGES
-from tests.workspace_goldens import every_games_golden
+from tests.workspace_goldens import every_golden_and_bundled_demo
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 # The levels below the tools' warning
 QUIET_LEVELS = frozenset({'INFO', 'DEBUG'})
 # Every golden, then every bundled demo: (console script, recording)
-RECORDINGS = [
-    *(
-        (recording_console_script(path=path), path)
-        for path in every_games_golden(project_root=PROJECT_ROOT)
-    ),
-    *bundled_demo_paths(packages=MEMBER_PACKAGES),
-]
+RECORDINGS = every_golden_and_bundled_demo(project_root=PROJECT_ROOT)
 
 
 def quiet_level_offenders(*, loggers: dict[str, int]) -> str:
