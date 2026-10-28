@@ -169,6 +169,15 @@ class ResidentMemoryGuard:
             if self.check():
                 return
 
+    def sampling(self: Self) -> bool:
+        """Tell whether this guard's sampling thread is running.
+
+        Returns:
+            True between ``start`` and the thread's end.
+
+        """
+        return self._thread is not None and self._thread.is_alive()
+
     def finish(self: Self) -> None:
         """Stop sampling and wait for the thread to end."""
         self._finished.set()

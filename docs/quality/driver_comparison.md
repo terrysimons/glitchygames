@@ -155,7 +155,8 @@ CPU, given to `docker run` as `--memory`, `--memory-swap` and `--cpus`) and its 
 `CIRCLECI=true`. The container copies the working tree (uncommitted changes included; not
 `.venv`, `.nox` or the outputs), installs fontconfig, uv and Python at the job's versions and
 runs `uvx nox -s test` as the job does. Its `test-results/` (junit.xml) come back to
-`test-results/linux-ci/`, and the last line names the container's peak memory. It takes as long
+`test-results/linux-ci/`, and the last line names the container's peak memory (the page cache
+included, so near 2 GB even on a healthy run; the memory guard watches the test process itself). It takes as long
 as the job (a serial run) or longer: the image is amd64, as CircleCI's machines are (the same
 wheels: taplo has no arm64 Linux wheel, and building it ran out of the 2 GB), emulated on Apple
 silicon.

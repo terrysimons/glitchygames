@@ -850,7 +850,15 @@ _LINUX_CI_UV_CACHE_VOLUME = 'glitchygames-linux-ci-uv-cache'
 _LINUX_CI_UV_CACHE = '/uv-cache'
 _LINUX_CI_PROJECT = '/home/circleci/project'
 # What is never copied into the container: the host's environments and outputs
-_LINUX_CI_SKIPPED_DIRECTORIES = ('.venv', '.nox', 'test-results', 'htmlcov', 'dist', 'build')
+_LINUX_CI_SKIPPED_DIRECTORIES = (
+    '.git',
+    '.venv',
+    '.nox',
+    'test-results',
+    'htmlcov',
+    'dist',
+    'build',
+)
 
 
 def _circleci_parameter(*, configuration: str, name: str) -> str:
@@ -963,6 +971,12 @@ def _linux_ci_script(*, python_version: str, uv_version: str, nox_version: str) 
         # session writes its outputs and a build stamp into the project
         f'mkdir -p {_LINUX_CI_PROJECT}',
         f'tar -C /source {skipped} -cf - . | tar -C {_LINUX_CI_PROJECT} -xf -',
+        # A fresh .git, cloned from this checkout's: the original's worktrees and submodules
+        # name paths on this machine that the container does not have
+        # (another user owns the mounted checkout: git refuses it unless it is a safe directory)
+        "git config --global --add safe.directory '*'",
+        f'git clone --quiet --no-checkout /source {_LINUX_CI_PROJECT}.git-clone',
+        f'mv {_LINUX_CI_PROJECT}.git-clone/.git {_LINUX_CI_PROJECT}/.git',
         f'cd {_LINUX_CI_PROJECT}',
         # "Install Linux system dependencies"
         'sudo apt-get update -qq',
@@ -977,9 +991,11 @@ def _linux_ci_script(*, python_version: str, uv_version: str, nox_version: str) 
         f'uvx --from "nox[uv]=={nox_version}" nox -s test || status=$?',
         # Whatever the session got to (none if it failed before pytest ran)
         'cp -a test-results/. /results/ || true',
-        # The container's peak memory (cgroup v2), all of it: uv's installs and the test run
+        # The container's peak memory (cgroup v2), all of it: uv's installs, the test run and the
+        # page cache, which the kernel reclaims before it kills anything (so it can read 2 GB on
+        # a healthy run); the memory guard watches the test process alone
         'peak=$(cat /sys/fs/cgroup/memory.peak 2>/dev/null || echo unknown)',
-        'echo "container peak memory: $peak bytes"',
+        'echo "container peak memory (page cache included): $peak bytes"',
         'exit "$status"',
     ])
 

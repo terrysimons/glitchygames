@@ -14,7 +14,6 @@ import pytest
 from tests.memory_guard import (
     BYTES_PER_MEGABYTE,
     LIMIT_VARIABLE,
-    THREAD_NAME,
     ResidentMemoryGuard,
     guard_from_environment,
     statm_resident_reader,
@@ -202,7 +201,7 @@ def test_the_thread_samples_until_the_limit_is_passed():
     assert stopped
     (message,) = stops.messages
     assert 'in tests/test_x.py::test_long (+490 MB since it started)' in message
-    assert not any(thread.name == THREAD_NAME for thread in threading.enumerate())
+    assert not guard.sampling()
 
 
 def test_finish_ends_the_thread_below_the_limit():
@@ -211,10 +210,13 @@ def test_finish_ends_the_thread_below_the_limit():
     guard = make_guard(read_resident_bytes=StandInSampler(megabytes(10)), stop=stops)
 
     guard.start()
+    sampling_before_finish = guard.sampling()
     guard.finish()
 
+    assert sampling_before_finish
+
     assert stops.messages == []
-    assert not any(thread.name == THREAD_NAME for thread in threading.enumerate())
+    assert not guard.sampling()
 
 
 @pytest.mark.parametrize('environment', [{}, {LIMIT_VARIABLE: ''}, {LIMIT_VARIABLE: '  '}])
@@ -316,7 +318,11 @@ def test_the_plugin_stops_a_run_past_the_limit_naming_its_test(pytester, monkeyp
 
 
 def test_the_plugin_does_nothing_unset(pytester, monkeypatch):
-    """Through pytest's hooks, unset: the tests run, no guard thread runs and nothing stops."""
+    """Through pytest's hooks, unset: no guard is made (so no thread starts) and nothing stops.
+
+    Checked by the inner run's stash, not by thread names: this process may run the real guard
+    (the Linux CI job sets the variable).
+    """
     monkeypatch.delenv(LIMIT_VARIABLE, raising=False)
     monkeypatch.setattr(
         'tests.memory_guard.stop_the_run',
@@ -324,9 +330,9 @@ def test_the_plugin_does_nothing_unset(pytester, monkeypatch):
     )
     pytester.makepyfile(
         test_inner_run=(
-            'import threading\n'
-            'def test_no_guard_thread():\n'
-            f'    assert {THREAD_NAME!r} not in [thread.name for thread in threading.enumerate()]\n'
+            'from tests.memory_guard import GUARD_KEY\n'
+            'def test_no_guard(request):\n'
+            '    assert GUARD_KEY not in request.config.stash\n'
         )
     )
 
