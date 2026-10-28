@@ -4,13 +4,19 @@ Tests cover: create_app factory, run() entry point, and lifespan context manager
 """
 # pyright: reportMissingImports=false
 
+import os
+import sys
 from http import HTTPStatus
 
 import pytest
 
+from glitchygames.process import OutputCapture, run_command
+
 # Skip tests if FastAPI is not installed
 pytest.importorskip('fastapi')
 
+# A fresh interpreter importing the API starts in a few seconds (FastAPI, pygame)
+CHILD_TIMEOUT_SECONDS = 120.0
 EXPECTED_API_PATHS = {
     '/',
     '/health',
@@ -141,3 +147,26 @@ class TestLifespan:
 
         # RendererService should have been called during startup
         mock_renderer_cls.assert_called()
+
+
+class TestServerLogging:
+    """The server configures its logging as it starts, never at import (BUGS.md #236)."""
+
+    def test_the_server_logs_info_once_it_starts_and_importing_configures_nothing(self):
+        """In a fresh interpreter: the import leaves the root alone; starting configures it."""
+        probe = (
+            'import logging; import glitchygames.api.main as main; root = logging.getLogger(); '
+            'print(logging.getLevelName(root.level), len(root.handlers)); '
+            'main.configure_server_logging(); '
+            'print(logging.getLevelName(root.level), len(root.handlers))'
+        )
+
+        completed = run_command(
+            command=[sys.executable, '-c', probe],
+            environment=os.environ,
+            timeout_seconds=CHILD_TIMEOUT_SECONDS,
+            capture_output=OutputCapture.APART,
+        )
+
+        assert completed.returncode == 0, completed.stderr
+        assert completed.stdout.splitlines()[-2:] == ['WARNING 0', 'INFO 1']

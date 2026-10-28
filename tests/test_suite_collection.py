@@ -1173,6 +1173,9 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     ),
     'tests/replay/test_bundled_demos.py': "replays our members' bundled demos",
     'tests/replay/test_golden_replays.py': "checks our members' goldens with our games' tables",
+    'tests/replay/test_replays_log_quietly.py': (
+        "replays our members' goldens and bundled demos at the tools' log level"
+    ),
     'tests/replay/test_recording_logical_names.py': (
         'checks the logical names of every committed recording of our members'
     ),

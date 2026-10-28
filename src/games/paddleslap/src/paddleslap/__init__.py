@@ -47,8 +47,9 @@ from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 
+# Its level is the engine's (--log-level): set here, at import, it reached every game.* logger in
+# any process that imported PaddleSlap, so --log-level warning still logged INFO (BUGS.md #236)
 log = logging.getLogger('game')
-log.setLevel(logging.INFO)
 
 # Threshold below which speed changes are considered noise
 SPEED_CHANGE_NOISE_FLOOR = 0.001
