@@ -3,7 +3,7 @@
 CircleCI's Linux job (``resource_class: small``, 2 GB, serial) was killed with signal 9 when a
 test ran the process out of memory (BUGS.md #235): the job log ended mid-test, with no test named
 and no hint of what grew. This plugin is on only when ``GLITCHYGAMES_TEST_RSS_LIMIT_MB`` is set
-(the Linux job sets 1900; mebibytes, so 1900 is 1992 MB). A background thread samples the memory
+(the Linux job sets 1600; mebibytes, so 1600 is 1678 MB). A background thread samples the memory
 every ``SAMPLE_INTERVAL_SECONDS``, and each test's start and end are checked too. Past the limit it
 stops the run (``os._exit``, ``LIMIT_EXIT_STATUS``) after writing, straight to the original
 standard error, which memory passed it, the test running then (with how much it grew since it

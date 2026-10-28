@@ -226,12 +226,12 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
       PYTEST_WORKERS: "0"
-      # Stop the run past 1900 MiB of the container's memory (its page cache left out), naming the
+      # Stop the run past 1600 MiB of the container's memory (its page cache left out), naming the
       # test (tests/memory_guard.py), before the 2 GB executor's kernel kills it with signal 9 and
-      # no test named (BUGS.md #235). It was 1600 while the guard read the pytest process alone; the
-      # container's figure counts the children the suite starts, and a healthy run passed 1600 MiB
-      # (2026-10-28, nox -s test-linux-ci: 1621 MiB at 63%, during the Mr. Muncher golden's replay)
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1900"
+      # no test named (BUGS.md #235). The owner keeps 1600 (2026-10-28: "stay at 1600 for a bit and
+      # see if we can reduce it further"): the container's figure counts the children the suite
+      # starts too
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
 
     steps:
       - checkout
