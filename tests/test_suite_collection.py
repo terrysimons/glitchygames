@@ -9,6 +9,7 @@ the engine's examples tests (tests/examples/, deleted since) for months.
 import ast
 import fnmatch
 import importlib.metadata
+import importlib.util
 import json
 import re
 import tomllib
@@ -442,10 +443,13 @@ def bare_name_imports(*, members: Sequence[WorkspaceMember]) -> list[str]:
             if not TEST_DATA_DIRECTORY_NAMES
             & set(python_file.relative_to(member.tests_directory).parts)
         )
+        # A test subdirectory counts only when it holds modules and its name is no module an
+        # import finds (a tests/pygame/ never makes `import pygame` a bare-name import)
         local_names = {python_file.stem for python_file in python_files} | {
-            directory.name
-            for directory in member.tests_directory.rglob('*')
-            if directory.is_dir() and directory.name not in TEST_DATA_DIRECTORY_NAMES
+            python_file.parent.name
+            for python_file in python_files
+            if python_file.parent != member.tests_directory
+            and importlib.util.find_spec(python_file.parent.name) is None
         }
         for python_file in python_files:
             tree = ast.parse(python_file.read_text(encoding='utf-8'), filename=str(python_file))
@@ -487,6 +491,16 @@ def test_a_bare_name_import_of_a_members_test_module_is_found(tmp_path):
     )
     (tests_directory / 'fixtures').mkdir()
     (tests_directory / 'fixtures' / 'data.py').write_text('import ship_support\n', encoding='utf-8')
+    # A test directory named like an installed package does not make its imports bare-name ones
+    (tests_directory / 'pygame').mkdir()
+    (tests_directory / 'pygame' / 'test_space_game_pygame.py').write_text(
+        'import pygame\n', encoding='utf-8'
+    )
+    # Nor does a directory holding no module
+    (tests_directory / 'art').mkdir()
+    (tests_directory / 'fleet' / 'test_space_game_art.py').write_text(
+        'import art\n', encoding='utf-8'
+    )
     member = WorkspaceMember(
         directory=tmp_path / 'src' / 'games' / 'space-game',
         distribution='space-game',

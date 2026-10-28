@@ -897,9 +897,10 @@ class ReplayResult:
             compared.
         max_processing_slowdown_percent: The slowdown a matched replay may show
             (``--max-processing-slowdown``), or None for no check.
-        shown_game_frames: The game frame each frame run showed (glitchygames/game_frames.py),
-            by frame index (None: no game frame yet); a step back's restart starts OLD's child
-            at one (rule 8 of glitchygames/replay/tools/compare.py).
+        shown_game_frames: With an onion skin, the game frame each frame run showed
+            (glitchygames/game_frames.py), by frame index (None: no game frame yet); a step
+            back's restart starts OLD's child at one (rule 8 of
+            glitchygames/replay/tools/compare.py). Empty without one.
 
     """
 
@@ -1868,7 +1869,7 @@ class ReplaySources:
                     if self.recording.is_truncated
                     else END_OF_RECORDING_BANNER,
                 )
-        self.result.shown_game_frames[self._frame_index] = game_frame_clock().shown_game_frame
+        self._note_the_shown_game_frame()
         # A frame sink nobody reads any more ends the replay as a quit does (rule 20)
         if self.frame_sink_closed or self._window_was_closed or self.controls.quit_requested:
             self._stop(end_reason=QUIT_END_REASON)
@@ -1885,6 +1886,15 @@ class ReplaySources:
             ):
                 self._finish_rebuild(rebuild=self._rebuild)
         self._begin_frame()
+
+    def _note_the_shown_game_frame(self: Self) -> None:
+        """Note the game frame the frame just run showed, with an onion skin (rule 20).
+
+        Only an onion skin's step back reads them (``ReplayResult.shown_game_frames``): a replay
+        without one keeps none, so a long headless run holds nothing for it.
+        """
+        if self.onion_skin is not None:
+            self.result.shown_game_frames[self._frame_index] = game_frame_clock().shown_game_frame
 
     def _hand_frame_to_sink(self: Self, *, surface: pygame.Surface) -> None:
         """Give the frame being presented to the frame sink, if a game frame (rule 20).

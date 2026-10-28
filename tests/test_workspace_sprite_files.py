@@ -1,6 +1,6 @@
 """Every workspace member's sprite files pass the engine's checks of a bundled sprite file.
 
-The sprite files are discovered, not listed: every TOML sprite (a file with a ``[sprite]`` table)
+The sprite files are discovered, not listed: every TOML sprite (a file with a ``sprite`` table)
 in any member's import packages. So a sprite that moves with its game into a member, or a new
 member's sprites, are checked without anyone adding them (Drawing Fire's soldier dropped out of
 the checks once when it left examples/: the Part 2 draft audit's M5). The checks are
@@ -13,6 +13,7 @@ The files are read from the source tree by path: nothing here imports a member.
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 import pygame
@@ -23,8 +24,9 @@ from glitchygames.display_mode import set_display_mode
 from glitchygames.testing import sprite_files
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-# What makes a TOML file a sprite file
-SPRITE_TABLE = '[sprite]'
+# What makes a TOML file a sprite file: a [sprite] table (read as TOML, so a header written
+# '[ sprite ]' or with a comment counts too)
+SPRITE_TABLE = 'sprite'
 
 
 def member_sprite_files(*, project_root: Path) -> list[Path]:
@@ -42,7 +44,7 @@ def member_sprite_files(*, project_root: Path) -> list[Path]:
         for member in workspace_members(project_root=project_root)
         for package_directory in member.package_directories
         for toml_file in package_directory.rglob(sprite_files.SPRITE_FILE_PATTERN)
-        if SPRITE_TABLE in toml_file.read_text(encoding='utf-8').splitlines()
+        if SPRITE_TABLE in tomllib.loads(toml_file.read_text(encoding='utf-8'))
     )
 
 
@@ -98,9 +100,11 @@ def test_a_new_members_sprite_is_found_and_a_toml_without_a_sprite_is_not(tmp_pa
         encoding='utf-8',
     )
     (art / 'ship.toml').write_text('[sprite]\nname = "ship"\n', encoding='utf-8')
+    # A table header written another way is still a sprite's
+    (art / 'tug.toml').write_text('[ sprite ]  # the tug\nname = "tug"\n', encoding='utf-8')
     (art / 'settings.toml').write_text('[speed]\nmaximum = 3\n', encoding='utf-8')
 
-    assert member_sprite_files(project_root=tmp_path) == [art / 'ship.toml']
+    assert member_sprite_files(project_root=tmp_path) == [art / 'ship.toml', art / 'tug.toml']
 
 
 @pytest.mark.parametrize('sprite_file', MEMBER_SPRITE_FILES, ids=sprite_file_id)

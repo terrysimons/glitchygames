@@ -918,6 +918,10 @@ def distributions_by_module(*, members: Sequence[WorkspaceMember]) -> dict[str, 
 def undeclared_imports(*, member: WorkspaceMember, owners: dict[str, set[str]]) -> list[str]:
     """Return what a member imports from a distribution its pyproject.toml does not declare.
 
+    Every import counts: an optional one (in ``try``) or a type-only one (under
+    ``if TYPE_CHECKING:``) too, since the member installed alone may still reach it (a type
+    checker of the member, a feature turned on); declare it, or leave it out of the package.
+
     Returns:
         One line per undeclared module.
 
@@ -944,10 +948,15 @@ def test_every_member_declares_what_it_imports(member):
 
 @pytest.mark.parametrize('member', MEMBERS, ids=member_name)
 def test_every_member_depends_on_the_engine_with_a_floor(member):
-    """``glitchygames>=1.0.0``: a member never resolves an older engine (BUGS.md #224 item 45)."""
-    pyproject = tomllib.loads((member.directory / 'pyproject.toml').read_text(encoding='utf-8'))
+    """``glitchygames>=<the engine's version>``: no member resolves an older engine (#224 item 45).
 
-    assert 'glitchygames>=1.0.0' in pyproject['project']['dependencies']
+    The floor is the engine's own version, read from the root pyproject.toml, so a version bump
+    fails here until every member's floor follows it.
+    """
+    pyproject = tomllib.loads((member.directory / 'pyproject.toml').read_text(encoding='utf-8'))
+    engine_version = root_pyproject()['project']['version']
+
+    assert f'glitchygames>={engine_version}' in pyproject['project']['dependencies']
 
 
 def test_an_undeclared_import_is_found(tmp_path):
@@ -992,4 +1001,32 @@ def test_an_import_no_distribution_installs_is_found(tmp_path):
 
     assert problems == [
         'space-game imports not_installed_anywhere (no installed distribution) undeclared'
+    ]
+
+
+def test_an_optional_or_type_only_import_must_be_declared_too(tmp_path):
+    """Every import counts, a guarded or a TYPE_CHECKING one too: installed alone, it may run."""
+    package_directory = tmp_path / 'space_game'
+    package_directory.mkdir()
+    (package_directory / 'game.py').write_text(
+        'from typing import TYPE_CHECKING\n'
+        'if TYPE_CHECKING:\n'
+        '    from pydantic import BaseModel\n'
+        'try:\n'
+        '    import numpy\n'
+        'except ImportError:\n'
+        '    numpy = None\n',
+        encoding='utf-8',
+    )
+    member = WorkspaceMember(
+        directory=tmp_path,
+        distribution='space-game',
+        import_packages=('space_game',),
+        console_scripts=(),
+        dependencies=('glitchygames',),
+    )
+
+    assert undeclared_imports(member=member, owners=distributions_by_module(members=MEMBERS)) == [
+        'space-game imports numpy (numpy) undeclared',
+        'space-game imports pydantic (pydantic) undeclared',
     ]

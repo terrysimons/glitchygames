@@ -857,9 +857,10 @@ REPLAY_FRAME_STREAM_OPTION = ToolOption(
     kind='text',
     metavar='PORT:TOKEN',
     help=(
-        "internal: with --replay-trace --headless, write each replayed frame's pixels to the "
-        'parent listening on this loopback port, after its token (--compare-trace starts OLD '
-        'with it)'
+        "internal: with --replay-trace --headless, write each replayed game frame's pixels "
+        "(numbered by game frames; a pause screen's frames are left out) to the parent "
+        'listening on this loopback port, after its token (--compare-trace starts OLD with it; '
+        'its --replay-pause-at-frame is then read as a game frame)'
     ),
     default=None,
     hidden=True,

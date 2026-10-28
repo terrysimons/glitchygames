@@ -787,6 +787,13 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   streams from `first_streamed_frame` (N - 1). The teardown (`_shutdown`: `_end_the_comparison`,
   then `_shut_down_the_run` even if that failed) always stops and reaps the child. The three
   options are `REPLAY_LOCAL_OPTIONS`
+- Stored paths (D15 item 4): every path the tools write into a file (a recording header's path
+  options, `rebaselined_from`, a ledger row's recording) is relative to the project root
+  (`find_project_root`, the settings' anchor; `--project-root` where a subcommand takes it), or
+  the file name alone for a path outside it (`replay/tools/settings.py` `stored_path`;
+  `GameEngine` `stored_options`). `tests/test_our_stored_paths.py` fails on an absolute path in
+  any tracked recording header or row-shaped JSON; the recording-renames table is refused when a
+  path is absolute or a new path is itself an old one, and each new path must exist
 - `<game> --compare-trace OLD [--compare-alpha PERCENT]` without `--replay-trace` (Task D12,
   decision 19; rule 9 of `replay/tools/compare.py`): live play against OLD. The same `OnionSkin`
   is the live host's overlay (`HostSources.overlay`, drawn over each presented frame before
