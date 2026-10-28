@@ -777,8 +777,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   ended: its last frame stays, labelled `OLD ended at frame N`; a child silent for
   `CHILD_READ_TIMEOUT_SECONDS` ends OLD the same way and is stopped at once (NEW goes on).
   Refused before anything runs: with `--headless`, `--audit`, `--rebaseline` (64), an OLD of
-  another screen size or unreadable (65; a header without a size is warned about, not
-  refused), missing (66); a frame stream without `--headless` or not `PORT:TOKEN` (64), or with
+  another screen size or unreadable (65: not a readable recording, its seed or size missing or
+  malformed included; a header without a size is warned about, not refused), missing (66); a frame stream without `--headless` or not `PORT:TOKEN` (64), or with
   nobody listening (69). A step back's restart keeps `--compare-trace`; its child gets the same
   `--replay-pause-at-frame N`, starts as the rebuild begins (the two rebuild at once) and
   streams from `first_streamed_frame` (N - 1). The teardown (`_shutdown`: `_end_the_comparison`,
@@ -791,8 +791,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `--record-trace` gives it, so a recording of the run replayed with `--compare-trace OLD` pairs
   the same frames. Live play runs under OLD's recorded seed unless `--random-seed N` is given
   (`_live_random_seed`, logged by `_log_the_runs_seed`). Refused before anything runs:
-  `--headless` (64), OLD missing (66) or unreadable (65), another size than the opened window
-  (65, `_refuse_a_live_display_of_another_size_than_old`). `--record-trace NEW` may go with it;
+  `--headless` (64), OLD missing (66) or unreadable (65; its seed or size missing or malformed
+  included), another size than the opened window (65,
+  `_refuse_a_live_display_of_another_size_than_old`). `start_async` (a browser page) refuses
+  `--compare-trace`, live or replayed, before anything starts (64,
+  `_refuse_a_comparison_in_a_browser`: OLD's child is a process). `--record-trace NEW` may go with it;
   no step back; game flag only (no `play` subcommand)
 - `--replay-fps {recorded,real}` (default `recorded`): FPS events, the performance stats and the
   overlay's performance panel use the recorded frame times (exact, compared) or this machine's

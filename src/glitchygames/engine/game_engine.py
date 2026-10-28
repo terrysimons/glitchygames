@@ -2823,7 +2823,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 it would never give control back), or (from ``_begin_start``) the game is not
                 initialized.
 
+        ``--compare-trace`` is refused before anything starts, exiting (``exit_with``) with
+        ``ExitCode.OPTIONS_REFUSED``: OLD is replayed by a child process, which a browser page
+        (the host start_async is for) cannot start (``_refuse_a_comparison_in_a_browser``).
+
         """
+        self._refuse_a_comparison_in_a_browser()
         # Chosen first (a run start_async cannot drive is refused before anything starts), but
         # called inside the boundary
         run_frames: Callable[[], Awaitable[None]]
@@ -2853,6 +2858,23 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                     )
                 self._build_game(paced_by_timer=False)
                 await run_frames()
+
+    def _refuse_a_comparison_in_a_browser(self: Self) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED for --compare-trace driven by ``start_async``.
+
+        OLD is replayed by a child process (glitchygames/replay/tools/compare.py, rule 2),
+        which a browser page cannot start, as a watched replay's restarts cannot
+        (``RESTARTS_AVAILABLE``). Live play and a watched replay alike; the child was never
+        started (it starts on the first presented frame).
+        """
+        if self.onion_skin is None:
+            return
+        self.log.error(
+            'Cannot compare with %s here: --compare-trace replays OLD in a child process, '
+            'which start_async (a browser page) cannot start; run it with start() on a desktop',
+            self.onion_skin.old_path,
+        )
+        exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
     def _begin_start(self: Self) -> cProfile.Profile | None:
         """Log the start, check there is a game and start the profiler (``--profile``).

@@ -1581,7 +1581,13 @@ window opens, before the first frame); `--audit` and `--rebaseline` are already 
   `test_live_play_reaps_the_child_on_quit_and_on_failure`; the warning test no longer expects
   `--compare-trace is ignored without --replay-trace`.
 - [x] **Step 2:** implement; lint; `CI=true nox -s test`; commit (2026-10-27).
-- [ ] **Step 3: the user's look:** Mr. Muncher played live against its golden.
+- [x] **Fix round 1** (review M1-M5, 2026-10-27): an OLD without a valid seed is refused up front
+  on both paths (tested); the recorded seed is the one played (tested); the host overlay tests
+  check the order; no type-ignore; `start_async` refuses `--compare-trace` (a browser page
+  cannot start OLD's child).
+- [ ] **Step 3: the user's look:** Mr. Muncher played live against its golden. Also put the pause
+  choice to the user: (a) OLD runs through a game's pause (built), or (b) a compared-frame
+  counter on both sides that holds OLD in a pause and keeps the replay pairing (a follow-up).
 
 ### Task D10: Docs, then Stage D's verification
 

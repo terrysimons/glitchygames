@@ -267,7 +267,8 @@ def stop_command(*, process: subprocess.Popen[str]) -> None:
     """End a child ``start_command`` started, with every process in its group, and reap it.
 
     The group is asked to stop (SIGTERM; on Windows, the child is terminated) and killed if it
-    is still running after STOP_GRACE_SECONDS. A child that has already ended is only reaped.
+    is still running after STOP_GRACE_SECONDS. A child that has already ended is only reaped,
+    also when it ends between the check and a signal (``_signal_the_group``).
 
     Args:
         process: The child.
@@ -277,13 +278,45 @@ def stop_command(*, process: subprocess.Popen[str]) -> None:
         return
     if sys.platform == 'win32':
         process.terminate()
-    else:
-        os.killpg(process.pid, signal.SIGTERM)
+    elif not _signal_the_group(process=process, signal_number=signal.SIGTERM):
+        return
     try:
         process.wait(timeout=STOP_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
         if sys.platform == 'win32':
             process.kill()
-        else:
-            os.killpg(process.pid, signal.SIGKILL)
+        elif not _signal_the_group(process=process, signal_number=signal.SIGKILL):
+            return
         process.wait()
+
+
+def _signal_the_group(*, process: subprocess.Popen[str], signal_number: int) -> bool:
+    """Signal a running child's process group (POSIX), unless the child ended meanwhile.
+
+    A child that is ending after ``stop_command`` asked whether it runs (exiting, or a zombie
+    until reaped): macOS then answers a signal to its group with EPERM (``PermissionError``),
+    even before ``poll()`` can see the exit, and any POSIX system answers ESRCH
+    (``ProcessLookupError``) for a group already gone. Either is no failure to stop it, when
+    the child ends within ``STOP_GRACE_SECONDS``: it is waited for and reaped here.
+
+    Args:
+        process: The child (its process group leader).
+        signal_number: The signal.
+
+    Returns:
+        True when the group was signalled; False when the child was ending (it is reaped).
+
+    Raises:
+        PermissionError: If the signal is refused and the child does not end in time.
+        ProcessLookupError: If the group is gone and the child does not end in time.
+
+    """
+    try:
+        os.killpg(process.pid, signal_number)
+    except (PermissionError, ProcessLookupError) as refusal:
+        try:
+            process.wait(timeout=STOP_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            raise refusal from None
+        return False
+    return True

@@ -50,7 +50,8 @@ The contract (decision 18 of plans/2026-10-26-workspace-packages-3-demos.md, Tas
    with ``--headless`` (an onion skin is watched; a headless replay under another seed, or
    ``--rebaseline``, is the headless way to see what changed), ``--audit`` or ``--rebaseline``
    (``ExitCode.OPTIONS_REFUSED``); an OLD recorded on a display of another size than NEW's, or
-   that is not a readable recording (``ExitCode.UNUSABLE_INPUT``); a missing OLD
+   that is not a readable recording, a header whose seed or size is missing or malformed
+   included (``ExitCode.UNUSABLE_INPUT``: its child could not replay it); a missing OLD
    (``ExitCode.MISSING_INPUT``). A header without a screen size (not the engine's recorder's)
    lets the sizes go uncompared, with a warning. A frame stream without ``--headless``, or whose
    value is not ``PORT:TOKEN``, is refused too (``frame_stream_refusal``): it is a headless
@@ -299,9 +300,14 @@ def read_old_recording(*, old_path: Path) -> OldRecording | CompareRefusal:
             )
     except FileNotFoundError:
         return CompareRefusal(exit_code=ExitCode.MISSING_INPUT, reason='no such recording')
-    # A TraceFormatError is a ValueError; an unreadable file (gzip.BadGzipFile) an OSError
-    except OSError, TraceFormatError:
+    # An unreadable file (gzip.BadGzipFile, no permission, a directory) is an OSError
+    except OSError:
         return CompareRefusal(exit_code=ExitCode.UNUSABLE_INPUT, reason='not a readable recording')
+    # A TraceFormatError (a ValueError) says what is wrong: a malformed line, size or seed
+    except TraceFormatError as error:
+        return CompareRefusal(
+            exit_code=ExitCode.UNUSABLE_INPUT, reason=f'not a readable recording ({error})'
+        )
 
 
 def old_recording_refusal(

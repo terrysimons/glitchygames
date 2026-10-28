@@ -210,6 +210,55 @@ class TestStopCommandOnEveryPlatform:
             ]
 
 
+class TestStopCommandRacingTheChildsEnd:
+    """A child that ends between stop_command's poll() and its signal is only reaped (POSIX).
+
+    macOS answers a signal to a group whose leader is exiting (or an unreaped zombie) with
+    EPERM, even before poll() sees the exit, and a group already gone answers ESRCH: neither is
+    a failure to stop the child, which is then waited for.
+    """
+
+    @pytest.fixture(autouse=True)
+    def posix(self, mocker):
+        mocker.patch.object(process.sys, 'platform', 'linux')
+        mocker.patch.object(
+            process, 'signal', SimpleNamespace(SIGTERM=signal.SIGTERM, SIGKILL=SIGKILL_NUMBER)
+        )
+
+    @pytest.mark.parametrize('error', [PermissionError, ProcessLookupError])
+    def test_a_child_ending_as_the_sigterm_is_sent_is_only_reaped(self, mocker, error):
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.return_value = 0
+        group_signal = mocker.patch.object(process.os, 'killpg', create=True, side_effect=error)
+
+        stop_command(process=child)
+
+        # Signalled once (no SIGKILL), then waited for
+        assert group_signal.call_count == 1
+        child.wait.assert_called_once_with(timeout=process.STOP_GRACE_SECONDS)
+
+    @pytest.mark.parametrize('error', [PermissionError, ProcessLookupError])
+    def test_a_child_ending_as_the_sigkill_is_sent_is_only_reaped(self, mocker, error):
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.side_effect = [process.TimeoutExpired(cmd='game', timeout=1.0), 0]
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=[None, error])
+
+        stop_command(process=child)
+
+        assert child.wait.call_count == 2
+
+    def test_a_signal_refused_while_the_child_keeps_running_is_raised(self, mocker):
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.side_effect = process.TimeoutExpired(cmd='game', timeout=1.0)
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=PermissionError)
+
+        with pytest.raises(PermissionError):
+            stop_command(process=child)
+
+
 @pytest.mark.skipif(sys.platform == 'win32', reason='process groups are POSIX')
 class TestStopCommand:
     """stop_command ends the child's whole group and reaps the child."""

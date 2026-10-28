@@ -474,7 +474,8 @@ replay's own rebuild.
 - **Refused before anything runs:** with `--headless` (an onion skin is watched; headless, a
   replay under another seed or a `--rebaseline` reports what changed), `--audit` or
   `--rebaseline` (exit 64), and an OLD recorded at another screen size than NEW, or no readable
-  recording (65), or missing (66).
+  recording (65; a header without its seed counts, as OLD's child could not replay it), or
+  missing (66).
 
 The child always ends with the replay: when it ends, fails, is interrupted or restarts. The
 contract is the docstring of `src/glitchygames/replay/tools/compare.py`.
@@ -494,9 +495,11 @@ OLD is replayed by the same headless child as above.
 - **OLD shorter than your play:** OLD's last frame stays, labelled `OLD ended at frame N`, and
   play goes on. The child is stopped when the game quits, fails or is interrupted.
 - **Refused before anything runs:** with `--headless` (exit 64), an OLD that is missing (66) or
-  not a readable recording (65), or one recorded at another screen size than the game's window
-  (65). `--record-trace NEW` may be given too. There is no step back in live play, and this is a
-  game flag only.
+  not a readable recording (65; a header without its seed counts), or one recorded at another
+  screen size than the game's window (65). `--record-trace NEW` may be given too, and records the
+  seed played. There is no step back in live play, and this is a game flag only.
+- **Not in a browser:** OLD's child is a separate process, which a browser page cannot start, so
+  `--compare-trace` (live or with a replay) is refused there before anything starts (exit 64).
 
 ### `--replay-fps {recorded,real}`
 

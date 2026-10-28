@@ -13,6 +13,7 @@ them. OLD is replayed by a real child process, as it always is.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import contextlib
 import dataclasses
 import importlib
@@ -695,11 +696,32 @@ REFUSALS = (
     ),
     Refusal(case='missing', exit_code=ExitCode.MISSING_INPUT, message='no such recording'),
     Refusal(
+        case='no-seed',
+        exit_code=ExitCode.UNUSABLE_INPUT,
+        message='not a readable recording (The recording header has no integer random_seed',
+    ),
+    Refusal(
         case='not-a-recording',
         exit_code=ExitCode.UNUSABLE_INPUT,
         message='not a readable recording',
     ),
 )
+
+
+def without_its_seed(*, old: Path, path: Path) -> Path:
+    """Copy a recording to ``path`` without its header's ``random_seed``.
+
+    Returns:
+        The copy.
+
+    """
+    path.write_bytes(old.read_bytes())
+
+    def drop_the_seed(trace: dict[str, Any]) -> None:
+        del trace['random_seed']
+
+    rewrite_recording(recording_path=path, change=drop_the_seed)
+    return path
 
 
 @pytest.mark.parametrize('refusal', REFUSALS, ids=[refusal.case for refusal in REFUSALS])
@@ -725,6 +747,8 @@ def test_compare_trace_refuses_headless_audit_rebaseline_and_different_sizes(
         )
     elif case == 'missing':
         old = tmp_path / 'missing.jsonl.gz'
+    elif case == 'no-seed':
+        old = without_its_seed(old=color_game.old, path=tmp_path / 'no-seed.jsonl.gz')
     else:
         old = tmp_path / 'not-a-recording.jsonl.gz'
         old.write_text('not a recording\n', encoding='utf-8')
@@ -1812,16 +1836,29 @@ LIVE_SEED_CASES = (
 
 
 @pytest.mark.parametrize('seed_case', LIVE_SEED_CASES, ids=[case.case for case in LIVE_SEED_CASES])
-def test_live_play_uses_olds_seed_unless_one_is_given(color_game, mocker, caplog, seed_case):
-    """Live play starts in OLD's world (its recorded seed), unless --random-seed N is given."""
+def test_live_play_uses_olds_seed_unless_one_is_given(
+    color_game, mocker, caplog, tmp_path, seed_case
+):
+    """Live play starts in OLD's world (its recorded seed), unless --random-seed N is given.
+
+    A recording of it holds the seed played.
+    """
+    new = tmp_path / 'new.jsonl.gz'
     run = live_play(
         mocker=mocker,
         scene_class=color_game.scene_class,
-        arguments=(*seed_case.seed_arguments, '--compare-trace', str(color_game.old)),
+        arguments=(
+            *seed_case.seed_arguments,
+            '--record-trace',
+            str(new),
+            '--compare-trace',
+            str(color_game.old),
+        ),
     )
 
     assert live_run_succeeded(run=run), run.exit_status
     assert run.engine.random_seed == seed_case.live_seed
+    assert read_trace_result(path=new).trace['random_seed'] == seed_case.live_seed
     assert seed_case.logged in caplog.text
     assert run.presented
     for frame in run.presented:
@@ -1921,7 +1958,17 @@ LIVE_REFUSALS = (
     ),
     Refusal(case='missing', exit_code=ExitCode.MISSING_INPUT, message='no such recording'),
     Refusal(
+        case='no-seed',
+        exit_code=ExitCode.UNUSABLE_INPUT,
+        message='not a readable recording (The recording header has no integer random_seed',
+    ),
+    Refusal(
         case='not-a-recording',
+        exit_code=ExitCode.UNUSABLE_INPUT,
+        message='not a readable recording',
+    ),
+    Refusal(
+        case='a-directory',
         exit_code=ExitCode.UNUSABLE_INPUT,
         message='not a readable recording',
     ),
@@ -1944,6 +1991,12 @@ def test_live_play_refusals(color_game, mocker, tmp_path, caplog, refusal):
         )
     elif case == 'missing':
         old = tmp_path / 'missing.jsonl.gz'
+    elif case == 'no-seed':
+        old = without_its_seed(old=color_game.old, path=tmp_path / 'no-seed.jsonl.gz')
+    elif case == 'a-directory':
+        # Unreadable as a file at all (an OSError, not a malformed recording)
+        old = tmp_path / 'a-directory.jsonl.gz'
+        old.mkdir()
     else:
         old = tmp_path / 'not-a-recording.jsonl.gz'
         old.write_text('not a recording\n', encoding='utf-8')
@@ -2001,3 +2054,44 @@ def test_live_play_reaps_the_child_on_quit_and_on_failure(color_game, mocker, en
     assert onion_skin.process is not None
     assert onion_skin.process.returncode is not None
     assert onion_skin.is_stopped
+
+
+@pytest.mark.parametrize('run_kind', ['live', 'watched-replay'])
+def test_compare_trace_is_refused_in_a_browser(color_game, mocker, caplog, run_kind):
+    """start_async (a browser page) cannot start OLD's child: refused before anything starts."""
+    start_command = mocker.spy(compare, 'start_command')
+    replay_arguments = (
+        ('--replay-trace', str(color_game.old), '--random-seed', str(NEW_SEED))
+        if run_kind == 'watched-replay'
+        else ()
+    )
+
+    async def wait_for_tick() -> float:
+        await asyncio.sleep(0)
+        message = 'no tick may be waited for: the run is refused before it starts'
+        raise AssertionError(message)
+
+    with engine_environment(mocker):
+        GoldenTraceSceneManager.install()
+        try:
+            with command_line([
+                '--log-level',
+                'warning',
+                '--resolution',
+                f'{STAND_IN_SIZE[0]}x{STAND_IN_SIZE[1]}',
+                *replay_arguments,
+                '--compare-trace',
+                str(color_game.old),
+            ]):
+                engine = GoldenTraceEngine(game=color_game.scene_class)
+            with pytest.raises(SystemExit) as exit_info:
+                asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
+        finally:
+            GoldenTraceSceneManager.uninstall()
+
+    assert exit_info.value.code == ExitCode.OPTIONS_REFUSED
+    assert f'Cannot compare with {color_game.old} here' in caplog.text
+    assert 'which start_async (a browser page) cannot start' in caplog.text
+    start_command.assert_not_called()
+    assert engine.onion_skin is not None
+    assert engine.onion_skin.process is None

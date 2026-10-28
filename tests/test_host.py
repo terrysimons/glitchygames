@@ -582,27 +582,47 @@ class TestGameHost:
 
 
 class RecordingOverlay:
-    """An overlay that notes each frame it is asked to draw over."""
+    """An overlay that notes each frame it is asked to draw over, in a shared call log."""
 
-    def __init__(self) -> None:
-        """Start with nothing drawn."""
-        self.frames_drawn: list[int] = []
+    def __init__(self, *, calls: list[tuple[str, int]]) -> None:
+        """Note into ``calls``.
+
+        Args:
+            calls: The log shared with the inner doors' notes.
+
+        """
+        self.calls = calls
 
     def begin(self) -> None:
         """Nothing to start."""
 
     def draw(self, *, surface: pygame.Surface, frame_index: int) -> None:
         assert surface is not None
-        self.frames_drawn.append(frame_index)
+        self.calls.append(('overlay', frame_index))
 
 
 class TestHostOverlay:
     """An overlay (live play against OLD) is drawn over each frame, numbered as recorded."""
 
-    def test_the_overlay_draws_over_each_frame_by_the_frames_ended(self):
-        inner = RecordingDoors()
-        overlay = RecordingOverlay()
-        host = HostSources(inner=inner, overlay=overlay)  # type: ignore[arg-type]
+    def test_the_overlay_draws_over_each_frame_by_the_frames_ended(self, mocker):
+        """OLD's frame N over frame N, then the inner doors' overlay; a frame counts once ended.
+
+        The inner doors end the frame before it is counted: inside their ``end_frame`` the
+        count is still the frame's own number.
+        """
+        calls: list[tuple[str, int]] = []
+        live = LiveSources(random_seed=1, captures_scene_starts=False)
+        host = HostSources(inner=live, overlay=RecordingOverlay(calls=calls))
+        mocker.patch.object(
+            live,
+            'draw_overlay',
+            side_effect=lambda **_: calls.append(('inner overlay', host.frames_ended)),
+        )
+        mocker.patch.object(
+            live,
+            'end_frame',
+            side_effect=lambda **_: calls.append(('inner end_frame', host.frames_ended)),
+        )
         surface = pygame.Surface((2, 2))
 
         assert host.frames_ended == 0
@@ -613,12 +633,19 @@ class TestHostOverlay:
         host.end_frame(frame_number=1, dt=0.1, scene=None, control_events=[])
 
         assert host.frames_ended == 2
-        assert overlay.frames_drawn == [0, 1, 1]
-        # The inner doors' overlay is still asked for, after this one
-        assert [name for name, _ in inner.calls].count('draw_overlay') == 3
+        assert calls == [
+            ('overlay', 0),
+            ('inner overlay', 0),
+            ('inner end_frame', 0),
+            ('overlay', 1),
+            ('inner overlay', 1),
+            ('overlay', 1),
+            ('inner overlay', 1),
+            ('inner end_frame', 1),
+        ]
 
     def test_an_overlay_makes_the_doors_draw_one(self):
         live = LiveSources(random_seed=1, captures_scene_starts=False)
 
         assert HostSources(inner=live).draws_overlay is False
-        assert HostSources(inner=live, overlay=RecordingOverlay()).draws_overlay is True
+        assert HostSources(inner=live, overlay=RecordingOverlay(calls=[])).draws_overlay is True
