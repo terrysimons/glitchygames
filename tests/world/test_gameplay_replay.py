@@ -25,6 +25,7 @@ from pydantic import ValidationError
 
 from glitchygames import logical_names, recording_history
 from glitchygames.build_info import RevisionSource, engine_source_revision
+from glitchygames.clock import raw_counter_ns, raw_sleep
 from glitchygames.debug import DebugPanel
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
@@ -5473,7 +5474,8 @@ class TestProcessingComparison:
             return_value=SleepModel(constant_ns=0, fraction=0.25),
         )
         record_session(tmp_path=tmp_path, mocker=mocker, extra_arguments=('--target-fps', '60'))
-        measure.assert_called_once_with()
+        # On the engine timer's own counter and sleep: the raw ones (glitchygames/clock.py)
+        measure.assert_called_once_with(read_counter_ns=raw_counter_ns, sleep=raw_sleep)
 
     def test_an_uncapped_run_and_a_replay_never_measure_the_sleep_model(self, mocker, tmp_path):
         """Nothing paces them, so calibrating would only delay their start."""

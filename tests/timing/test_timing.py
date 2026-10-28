@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, override
 
 import pytest
 
-from glitchygames import timing as timing_module
+from glitchygames.clock import raw_counter_ns, raw_sleep
 from glitchygames.timing import (
     DEFAULT_SLEEP_GRANULARITY_NS,
     FastTimer,
@@ -25,7 +25,6 @@ from glitchygames.timing import (
     s_to_ns,
     sleep_overshoot_ns,
 )
-from tests.stand_in_time import patch_module_time
 
 if TYPE_CHECKING:
     from collections.abc import Buffer, Callable
@@ -181,16 +180,13 @@ class TestFastTimer:
         assert result >= near_deadline
 
     def test_final_spin_yields_the_gil_each_iteration(self, mocker):
-        """Test the final spin calls time.sleep(0) so audio callbacks can take the GIL."""
-        timer = FastTimer()
+        """Test the final spin calls sleep(0) so audio callbacks can take the GIL."""
         deadline_ns = 10_000_000
         # Calls: coarse loop reads 9_999_000 (inside the spin window, so no coarse sleep),
         # then the spin reads 9_999_100, 9_999_500 (both short) and 10_000_001 (past).
         mock_sleep = mocker.Mock()
-        patch_module_time(
-            mocker=mocker,
-            module=timing_module,
-            perf_counter_ns=mocker.Mock(side_effect=[9_999_000, 9_999_100, 9_999_500, 10_000_001]),
+        timer = FastTimer(
+            read_counter_ns=mocker.Mock(side_effect=[9_999_000, 9_999_100, 9_999_500, 10_000_001]),
             sleep=mock_sleep,
         )
 
@@ -579,12 +575,13 @@ TWO_MS_LATE_NS = 2 * ONE_MS_IN_NS
 class FakeClock:
     """A nanosecond clock that only moves when the code under test sleeps or a test advances it.
 
-    Stands in for ``time.perf_counter_ns`` / ``time.sleep`` (FastTimer) and for
+    Stands in for the raw counter and sleep a FastTimer is given (``read_counter_ns``, ``sleep``)
+    and for
     ``pygame.time.get_ticks`` / ``pygame.time.delay`` (PygameTimer), so pacing runs with no real
     sleeping. ``sleep_count`` counts calls that moved the clock forward.
     """
 
-    # FastTimer spins with time.sleep(0); each spin step costs one microsecond of fake time so
+    # FastTimer spins with sleep(0); each spin step costs one microsecond of fake time so
     # the spin loop terminates.
     SPIN_STEP_NS = 1_000
 
@@ -607,7 +604,7 @@ class FakeClock:
         return self.now_ns
 
     def sleep(self, seconds: float) -> None:
-        """Sleep on the fake clock (time.sleep replacement)."""
+        """Sleep on the fake clock (the raw sleep's replacement)."""
         self.now_ns += max(round(seconds * 1_000_000_000), self.SPIN_STEP_NS)
         self.sleep_count += 1
 
@@ -627,7 +624,7 @@ class FakeClock:
             self.sleep_count += 1
 
 
-def make_timer_on_fake_clock(*, backend: str, clock: FakeClock, mocker) -> FastTimer | PygameTimer:
+def make_timer_on_fake_clock(*, backend: str, clock: FakeClock) -> FastTimer | PygameTimer:
     """Build a timer backend whose clock and sleeps are the fake clock.
 
     Returns:
@@ -638,13 +635,7 @@ def make_timer_on_fake_clock(*, backend: str, clock: FakeClock, mocker) -> FastT
     # (the final spin reads the clock every fake microsecond), and a mock keeping each call held
     # about 2 GB in the 1,000-frame test (BUGS.md #85)
     if backend == 'fast':
-        patch_module_time(
-            mocker=mocker,
-            module=timing_module,
-            perf_counter_ns=clock.perf_counter_ns,
-            sleep=clock.sleep,
-        )
-        return FastTimer()
+        return FastTimer(read_counter_ns=clock.perf_counter_ns, sleep=clock.sleep)
     timer = PygameTimer()
     timer._pg = SimpleNamespace(time=SimpleNamespace(get_ticks=clock.get_ticks, delay=clock.delay))
     return timer
@@ -685,9 +676,9 @@ BACKENDS = ['fast', 'pygame']
 class TestDeadlineReanchorsAfterHitch:
     """After falling more than one period behind, pacing re-anchors instead of bursting."""
 
-    def test_two_second_hitch_reanchors_to_now_plus_period(self, backend, mocker):
+    def test_two_second_hitch_reanchors_to_now_plus_period(self, backend):
         clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
-        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock)
         previous_deadline_ns = clock.now_ns
         clock.advance(HITCH_NS)
 
@@ -695,9 +686,9 @@ class TestDeadlineReanchorsAfterHitch:
 
         assert deadline_ns == clock.now_ns + PERIOD_60_01_NS
 
-    def test_frames_after_a_hitch_are_all_paced(self, backend, mocker):
+    def test_frames_after_a_hitch_are_all_paced(self, backend):
         clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
-        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock)
         frame_count = 200
         hitch_frame = 20
         work_ns_per_frame = [LIGHT_WORK_NS] * frame_count
@@ -713,9 +704,9 @@ class TestDeadlineReanchorsAfterHitch:
         # Without re-anchoring the ~120 frames after the hitch ran back to back unslept.
         assert slept_per_frame.count(False) == 0
 
-    def test_hitch_frame_is_followed_by_steady_period_deadlines(self, backend, mocker):
+    def test_hitch_frame_is_followed_by_steady_period_deadlines(self, backend):
         clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
-        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock)
         work_ns_per_frame = [LIGHT_WORK_NS] * 10
         work_ns_per_frame[3] = HITCH_NS
 
@@ -730,9 +721,9 @@ class TestDeadlineReanchorsAfterHitch:
         assert gaps[2] > HITCH_NS  # the re-anchor jump (the dropped backlog)
         assert all(gap == PERIOD_60_01_NS for gap in gaps[3:])
 
-    def test_slightly_late_frame_still_catches_up(self, backend, mocker):
+    def test_slightly_late_frame_still_catches_up(self, backend):
         clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
-        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock)
         previous_deadline_ns = clock.now_ns
         # 2 ms past this frame's deadline (previous + period): normal jitter.
         clock.advance(PERIOD_60_01_NS + TWO_MS_LATE_NS)
@@ -741,9 +732,9 @@ class TestDeadlineReanchorsAfterHitch:
 
         assert deadline_ns == previous_deadline_ns + PERIOD_60_01_NS
 
-    def test_average_rate_over_jittery_frames_equals_target_exactly(self, backend, mocker):
+    def test_average_rate_over_jittery_frames_equals_target_exactly(self, backend):
         clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
-        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock)
         frame_count = 1_000
         # Deterministic jitter: 0 to 0.95 periods of work per frame, with a 1.8-period spike
         # every 50th frame. A spike leaves the loop less than one period behind, so it is caught
@@ -768,17 +759,17 @@ class TestDeadlineReanchorsAfterHitch:
         # The period is rounded to a whole nanosecond, 60.0100013 FPS.
         assert measured_fps == pytest.approx(60.01, abs=1e-5)
 
-    def test_uncapped_period_zero_is_unchanged(self, backend, mocker):
+    def test_uncapped_period_zero_is_unchanged(self, backend):
         clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
-        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock)
         previous_deadline_ns = clock.now_ns
         clock.advance(HITCH_NS)
 
         assert timer.compute_deadline(previous_deadline_ns, 0) == previous_deadline_ns
 
-    def test_first_frame_is_now_plus_period(self, backend, mocker):
+    def test_first_frame_is_now_plus_period(self, backend):
         clock = FakeClock(start_ns=10 * ONE_S_IN_NS)
-        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock)
 
         assert timer.compute_deadline(None, PERIOD_60_01_NS) == clock.now_ns + PERIOD_60_01_NS
 
@@ -792,27 +783,27 @@ BOUNDARY_PREVIOUS_DEADLINE_NS = ONE_S_IN_NS - 2 * PERIOD_60_01_NS
 class TestDeadlineReanchorBoundary:
     """Exactly one period behind still catches up; any later than that re-anchors."""
 
-    def test_one_millisecond_inside_the_boundary_catches_up(self, backend, mocker):
+    def test_one_millisecond_inside_the_boundary_catches_up(self, backend):
         clock = FakeClock(start_ns=ONE_S_IN_NS - ONE_MS_IN_NS)
-        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock)
 
         deadline_ns = timer.compute_deadline(BOUNDARY_PREVIOUS_DEADLINE_NS, PERIOD_60_01_NS)
 
         assert deadline_ns == BOUNDARY_PREVIOUS_DEADLINE_NS + PERIOD_60_01_NS
 
-    def test_exactly_one_period_behind_catches_up(self, backend, mocker):
+    def test_exactly_one_period_behind_catches_up(self, backend):
         clock = FakeClock(start_ns=ONE_S_IN_NS)
-        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock)
 
         deadline_ns = timer.compute_deadline(BOUNDARY_PREVIOUS_DEADLINE_NS, PERIOD_60_01_NS)
 
         assert deadline_ns == BOUNDARY_PREVIOUS_DEADLINE_NS + PERIOD_60_01_NS
 
-    def test_past_one_period_behind_reanchors(self, backend, mocker):
+    def test_past_one_period_behind_reanchors(self, backend):
         # The smallest step each clock can show past the boundary: 1 ns, or 1 ms for pygame.
         step_past_boundary_ns = 1 if backend == 'fast' else ONE_MS_IN_NS
         clock = FakeClock(start_ns=ONE_S_IN_NS + step_past_boundary_ns)
-        timer = make_timer_on_fake_clock(backend=backend, clock=clock, mocker=mocker)
+        timer = make_timer_on_fake_clock(backend=backend, clock=clock)
 
         deadline_ns = timer.compute_deadline(BOUNDARY_PREVIOUS_DEADLINE_NS, PERIOD_60_01_NS)
 
@@ -824,13 +815,11 @@ class TestSleepGranularityEndsTheSleep:
 
     def test_the_sleep_ends_the_granularity_before_the_deadline(self, mocker):
         """A 16 ms granularity sleeps 4 ms of a 20 ms wait, then spins the last 16 ms."""
-        timer = FastTimer(sleep_granularity_ns=16_000_000)
         # Reads: 0 (sleep 4 ms), 4 ms (inside the granularity: spin), then past the deadline
         mock_sleep = mocker.Mock()
-        patch_module_time(
-            mocker=mocker,
-            module=timing_module,
-            perf_counter_ns=mocker.Mock(side_effect=[0, 4_000_000, 20_000_001]),
+        timer = FastTimer(
+            sleep_granularity_ns=16_000_000,
+            read_counter_ns=mocker.Mock(side_effect=[0, 4_000_000, 20_000_001]),
             sleep=mock_sleep,
         )
 
@@ -841,13 +830,9 @@ class TestSleepGranularityEndsTheSleep:
 
     def test_the_default_still_spins_only_the_last_millisecond(self, mocker):
         """The 1 ms default sleeps to 1 ms before the deadline, as the fixed spin window did."""
-        timer = FastTimer()
         mock_sleep = mocker.Mock()
-        patch_module_time(
-            mocker=mocker,
-            module=timing_module,
-            perf_counter_ns=mocker.Mock(side_effect=[0, 9_000_000, 10_000_001]),
-            sleep=mock_sleep,
+        timer = FastTimer(
+            read_counter_ns=mocker.Mock(side_effect=[0, 9_000_000, 10_000_001]), sleep=mock_sleep
         )
 
         timer.sleep_until_next(10_000_000)
@@ -867,7 +852,7 @@ class TestSleepModel:
         """Delays of 0.25 ms after 1 ms and 2 ms after 8 ms: 0 ms constant, 25% of the length."""
         mocker.patch(
             'glitchygames.timing.sleep_overshoot_ns',
-            side_effect=lambda *, probe_ns, samples: probe_ns // 4,
+            side_effect=lambda *, probe_ns, samples, **_clock: probe_ns // 4,
         )
 
         model = measure_sleep_model()
@@ -878,7 +863,7 @@ class TestSleepModel:
         """90 ms late whatever the length (background priority): no fraction."""
         mocker.patch(
             'glitchygames.timing.sleep_overshoot_ns',
-            side_effect=lambda *, probe_ns, samples: 90_000_000,
+            side_effect=lambda *, probe_ns, samples, **_clock: 90_000_000,
         )
 
         assert measure_sleep_model() == SleepModel(constant_ns=90_000_000, fraction=0.0)
@@ -891,26 +876,22 @@ class TestSleepModel:
         clock_reads = []
         for overshoot in overshoots:
             clock_reads.extend([0, 1_000_000 + overshoot])
-        patch_module_time(
-            mocker=mocker,
-            module=timing_module,
-            perf_counter_ns=mocker.Mock(side_effect=clock_reads),
+        measured = sleep_overshoot_ns(
+            probe_ns=1_000_000,
+            samples=samples,
+            read_counter_ns=mocker.Mock(side_effect=clock_reads),
             sleep=mocker.Mock(),
         )
-
-        measured = sleep_overshoot_ns(probe_ns=1_000_000, samples=samples)
 
         assert measured == sorted(overshoots)[int(0.9 * (samples - 1))]
         assert measured < 500_000_000
 
     def test_a_sleep_is_sized_to_wake_the_granularity_before_the_deadline(self, mocker):
         """25% delay, 12.7 ms to wait: sleep 9.36 ms (wakes 11.7 ms in), spin the rest."""
-        timer = FastTimer(sleep_model=SleepModel(constant_ns=0, fraction=0.25))
         mock_sleep = mocker.Mock()
-        patch_module_time(
-            mocker=mocker,
-            module=timing_module,
-            perf_counter_ns=mocker.Mock(side_effect=[0, 11_700_000, 12_700_001]),
+        timer = FastTimer(
+            sleep_model=SleepModel(constant_ns=0, fraction=0.25),
+            read_counter_ns=mocker.Mock(side_effect=[0, 11_700_000, 12_700_001]),
             sleep=mock_sleep,
         )
 
@@ -922,12 +903,10 @@ class TestSleepModel:
 
     def test_a_delay_longer_than_the_wait_spins_the_whole_wait(self, mocker):
         """A 90 ms constant delay and a 16.7 ms frame: sleeping can only be late, so spin."""
-        timer = FastTimer(sleep_model=SleepModel(constant_ns=90_000_000, fraction=0.0))
         mock_sleep = mocker.Mock()
-        patch_module_time(
-            mocker=mocker,
-            module=timing_module,
-            perf_counter_ns=mocker.Mock(side_effect=[0, 8_000_000, 16_700_001]),
+        timer = FastTimer(
+            sleep_model=SleepModel(constant_ns=90_000_000, fraction=0.0),
+            read_counter_ns=mocker.Mock(side_effect=[0, 8_000_000, 16_700_001]),
             sleep=mock_sleep,
         )
 
@@ -944,15 +923,15 @@ class TestSleepModel:
         # Describing it (a recording naming its run's timer) does not measure
         assert timer.pacing_timer().sleep_model is None
         measure.assert_not_called()
-        # The first paced sleep (or calibrate()) measures, once
-        patch_module_time(mocker=mocker, module=timing_module, sleep=mocker.Mock())
+        # The first paced sleep (or calibrate()) measures, once (a deadline already past: no
+        # sleep), with the timer's own counter and sleep
         timer.sleep_until_next(timer.ns_now() - 1)
         timer.calibrate()
         assert timer.pacing_timer() == PacingTimer(
             backend='fast', sleep_granularity_ns=DEFAULT_SLEEP_GRANULARITY_NS, sleep_model=model
         )
 
-        measure.assert_called_once_with()
+        measure.assert_called_once_with(read_counter_ns=raw_counter_ns, sleep=raw_sleep)
 
     def test_auto_with_an_explicit_granularity_calibrates_with_that_margin(self, mocker):
         """--sleep-granularity-ns sets the final spin; auto still measures the sleep model."""
