@@ -28,7 +28,7 @@ dependencies = [
   # published and pins google-cloud-aiplatform to 1.71.1[all], an extra that release lacks).
   # Google's models stay reachable through the `gemini` provider. The model is a run-time
   # setting ('provider:model'), so every other provider stays installable as with [all]
-  "aisuite[anthropic,aws,cerebras,cohere,deepgram,deepseek,gemini,groq,lmstudio,mcp,mistral,ollama,openai,postgres,watsonx]>=0.1.14",
+  "aisuite[anthropic,aws,cerebras,cohere,deepgram,deepseek,gemini,groq,lmstudio,mcp,mistral,ollama,openai,watsonx]>=0.1.14",
   "numpy",
   "miniaudio",
   "speechrecognition",

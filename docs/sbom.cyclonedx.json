@@ -24846,143 +24846,6 @@
       "version": "7.36.2"
     },
     {
-      "author": "Daniele Varrazzo <daniele.varrazzo@gmail.com>",
-      "cpe": "cpe:2.3:a:daniele_varrazzo_\\<daniele_varrazzo_project:python-psycopg:3.3.6:*:*:*:*:*:*:*",
-      "licenses": [
-        {
-          "license": {
-            "id": "LGPL-3.0-only"
-          }
-        }
-      ],
-      "name": "psycopg",
-      "properties": [
-        {
-          "name": "syft:package:foundBy",
-          "value": "python-installed-package-cataloger"
-        },
-        {
-          "name": "syft:package:language",
-          "value": "python"
-        },
-        {
-          "name": "syft:package:type",
-          "value": "python"
-        },
-        {
-          "name": "syft:package:metadataType",
-          "value": "python-package"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:daniele_varrazzo_\\<daniele_varrazzo_project:python_psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:daniele_varrazzo_\\<daniele_varrazzoproject:python-psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:daniele_varrazzo_\\<daniele_varrazzoproject:python_psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:daniele_varrazzo_\\<daniele_varrazzo_project:psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:daniele-varrazzo-\\<daniele-varrazzo:python-psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:daniele-varrazzo-\\<daniele-varrazzo:python_psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:daniele_varrazzo_\\<daniele_varrazzo:python-psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:daniele_varrazzo_\\<daniele_varrazzo:python_psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:daniele_varrazzo_\\<daniele_varrazzoproject:psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:daniele-varrazzo-\\<daniele-varrazzo:psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:daniele_varrazzo_\\<daniele_varrazzo:psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-psycopg:python-psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-psycopg:python_psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_psycopg:python-psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_psycopg:python_psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:psycopg:python-psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:psycopg:python_psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-psycopg:psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_psycopg:psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:psycopg:psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:psycopg:3.3.6:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:location:0:path",
-          "value": "/lib/python3.14/site-packages/psycopg-3.3.6.dist-info/METADATA"
-        },
-        {
-          "name": "syft:location:1:path",
-          "value": "/lib/python3.14/site-packages/psycopg-3.3.6.dist-info/RECORD"
-        },
-        {
-          "name": "syft:location:2:path",
-          "value": "/lib/python3.14/site-packages/psycopg-3.3.6.dist-info/top_level.txt"
-        }
-      ],
-      "purl": "pkg:pypi/psycopg@3.3.6",
-      "type": "library",
-      "version": "3.3.6"
-    },
-    {
       "author": "Matthew Brennan Jones <matthew.brennan.jones@gmail.com>, Aarni Koskela <akx@iki.fi>",
       "cpe": "cpe:2.3:a:matthew_brennan_jones_\\<matthew_brennan_jones_project:python-py-cpuinfo2:10.1.1:*:*:*:*:*:*:*",
       "licenses": [
@@ -36601,7 +36464,6 @@
         "pkg:pypi/nest-asyncio@1.6.0",
         "pkg:pypi/numpy@1.26.4",
         "pkg:pypi/openai@1.109.1",
-        "pkg:pypi/psycopg@3.3.6",
         "pkg:pypi/pydantic@2.14.1",
         "pkg:pypi/scipy@1.17.1",
         "pkg:pypi/soundfile@0.12.1"
@@ -36745,16 +36607,6 @@
         "pkg:pypi/python-multipart@0.0.32",
         "pkg:pypi/pyyaml@6.0.3",
         "pkg:pypi/typing-extensions@4.16.0"
-      ]
-    },
-    {
-      "dependsOn": [
-        "pkg:pypi/anyio@4.15.1",
-        "pkg:pypi/pre-commit@4.7.0",
-        "pkg:pypi/pytest-cov@7.1.0",
-        "pkg:pypi/pytest@9.1.1",
-        "pkg:pypi/typing-extensions@4.16.0",
-        "pkg:pypi/tzdata@2026.6"
       ]
     },
     {
