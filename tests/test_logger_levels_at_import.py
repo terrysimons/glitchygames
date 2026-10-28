@@ -11,9 +11,12 @@ nothing. A logger that emits nothing in a replay (``game.paddle``) escapes the r
 
 A fresh interpreter imports every module under the engine's package and each member's import
 packages (``glitchygames.logical_names.MEMBER_LAYERS``), one at a time, and after each import
-records any logger whose level became set, and the root logger's level and handlers if they
-changed, naming the module that did it. Modules named ``__main__`` are not imported (importing
-one runs its program in some packages). By name only: this file imports no member.
+records every change it made: a logger's level (each change, not only the first), the root
+logger's level or handlers, and ``logging.disable``. A logger whose name starts with an
+installed package that is not the project's (``urllib3``) is a third party's: listed apart,
+never blamed on the project module whose import created it. The result goes to a file, not
+standard output (a module may print at exit). Modules named ``__main__`` are not imported
+(importing one runs its program in some packages). By name only: this file imports no member.
 """
 
 from __future__ import annotations
@@ -21,48 +24,75 @@ from __future__ import annotations
 import json
 import os
 import sys
+from typing import TYPE_CHECKING
 
 from glitchygames.logical_names import MEMBER_LAYERS
 from glitchygames.process import OutputCapture, run_command
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # Importing every module takes several seconds (pygame, FastAPI, numpy)
 CHILD_TIMEOUT_SECONDS = 300.0
 ENGINE_PACKAGE = 'glitchygames'
 
-# The child: import each module, and after each name the loggers whose level it set
+# The child: import each module, and after each name what it changed. Arguments: the result
+# file, then the packages
 PROBE = """\
 import importlib
+import importlib.util
 import json
 import logging
 import pkgutil
 import sys
 
-packages = sys.argv[1:]
+result_path, *packages = sys.argv[1:]
+project_prefixes = set(packages)
 root = logging.getLogger()
-root_state = (root.level, len(root.handlers))
-attributed = set()
+manager = logging.root.manager
+
+
+def root_state():
+    return (root.level, len(root.handlers), manager.disable)
+
+
+def project_logger(name):
+    first = name.split('.', 1)[0]
+    if first in project_prefixes or first == 'game':
+        return True
+    # A name no installed module has (a project's own logger name) is the project's
+    try:
+        return importlib.util.find_spec(first) is None
+    except (ImportError, ValueError):
+        return True
+
+
+previous_root = root_state()
+levels = {}
 changes = []
+third_party = []
 failures = []
 
 
 def note_changes(module):
-    global root_state
-    current_root = (root.level, len(root.handlers))
-    if current_root != root_state:
+    global previous_root
+    current_root = root_state()
+    if current_root != previous_root:
+        level, handlers, disabled = current_root
         changes.append([
             module,
             'root',
-            logging.getLevelName(root.level) + f' ({len(root.handlers)} handlers)',
+            f'{logging.getLevelName(level)} ({handlers} handlers, disable {disabled})',
         ])
-        root_state = current_root
-    for name, logger in list(logging.root.manager.loggerDict.items()):
-        if (
-            isinstance(logger, logging.Logger)
-            and logger.level != logging.NOTSET
-            and name not in attributed
-        ):
-            attributed.add(name)
-            changes.append([module, name, logging.getLevelName(logger.level)])
+        previous_root = current_root
+    for name, logger in list(manager.loggerDict.items()):
+        if not isinstance(logger, logging.Logger):
+            continue
+        if logger.level == levels.get(name, logging.NOTSET):
+            continue
+        levels[name] = logger.level
+        change = [module, name, logging.getLevelName(logger.level)]
+        (changes if project_logger(name) else third_party).append(change)
 
 
 for package_name in packages:
@@ -76,38 +106,47 @@ for package_name in packages:
         except Exception as error:
             failures.append([module.name, repr(error)])
         note_changes(module.name)
-print(json.dumps({'changes': changes, 'failures': failures}))
+with open(result_path, 'w', encoding='utf-8') as result_file:
+    json.dump(
+        {'changes': changes, 'third_party': third_party, 'failures': failures}, result_file
+    )
 """
 
 
-def import_every_module(*, packages: list[str]) -> dict[str, list[list[str]]]:
-    """Import every module of ``packages`` in a fresh interpreter and report the levels set.
+def run_probe(
+    *, packages: list[str], result_path: Path, environment: dict[str, str] | None = None
+) -> dict[str, list[list[str]]]:
+    """Import every module of ``packages`` in a fresh interpreter; return what each changed.
 
     Args:
         packages: Import packages (``glitchygames``, ``paddleslap``).
+        result_path: Where the child writes its report.
+        environment: The child's environment (this process's when None).
 
     Returns:
-        ``changes``: ``[module, logger, level]`` for each logger whose level a module set
-        (``root`` when the root logger's level or handlers changed); ``failures``:
-        ``[module, error]`` for each module that did not import.
+        ``changes``: ``[module, logger, level]`` for each change (``root`` for the root
+        logger's level, handlers or ``logging.disable``); ``third_party``: the same for a third
+        party's loggers; ``failures``: ``[module, error]`` for each module that did not import.
 
     """
     completed = run_command(
-        command=[sys.executable, '-c', PROBE, *packages],
-        environment=os.environ,
+        command=[sys.executable, '-c', PROBE, str(result_path), *packages],
+        environment=os.environ if environment is None else environment,
         timeout_seconds=CHILD_TIMEOUT_SECONDS,
         capture_output=OutputCapture.APART,
     )
     assert completed.returncode == 0, completed.stderr
-    return json.loads(completed.stdout.splitlines()[-1])
+    return json.loads(result_path.read_text(encoding='utf-8'))
 
 
-def test_importing_any_module_sets_no_logger_level():
+def test_importing_any_module_sets_no_logger_level(tmp_path):
     """No module of the engine or a member sets a logger's level, or configures the root, at import.
 
     The level is the command line's (``--log-level``); a module that needs to log only logs.
     """
-    report = import_every_module(packages=[ENGINE_PACKAGE, *MEMBER_LAYERS])
+    report = run_probe(
+        packages=[ENGINE_PACKAGE, *MEMBER_LAYERS], result_path=tmp_path / 'report.json'
+    )
 
     assert report['failures'] == []
     assert report['changes'] == [], '\n'.join(
@@ -115,8 +154,8 @@ def test_importing_any_module_sets_no_logger_level():
     )
 
 
-def test_the_probe_names_the_module_that_set_a_level(tmp_path):
-    """A planted package whose module sets a level at import is named with the logger and level."""
+def test_the_probe_names_every_change_and_the_module_that_made_it(tmp_path):
+    """A planted package: each level change (a second one too), the root, logging.disable."""
     package = tmp_path / 'chatty_package'
     package.mkdir()
     (package / '__init__.py').write_text('', encoding='utf-8')
@@ -125,21 +164,50 @@ def test_the_probe_names_the_module_that_set_a_level(tmp_path):
         'logging.basicConfig(level=logging.DEBUG)\n',
         encoding='utf-8',
     )
+    (package / 'quiet.py').write_text(
+        "import logging\nlogging.getLogger('game').setLevel(logging.ERROR)\n"
+        'logging.disable(logging.INFO)\n',
+        encoding='utf-8',
+    )
     environment = {**os.environ, 'PYTHONPATH': str(tmp_path)}
 
-    completed = run_command(
-        command=[sys.executable, '-c', PROBE, 'chatty_package'],
+    report = run_probe(
+        packages=['chatty_package'],
+        result_path=tmp_path / 'report.json',
         environment=environment,
-        timeout_seconds=CHILD_TIMEOUT_SECONDS,
-        capture_output=OutputCapture.APART,
     )
 
-    assert completed.returncode == 0, completed.stderr
-    report = json.loads(completed.stdout.splitlines()[-1])
     assert report == {
         'changes': [
-            ['chatty_package.noisy', 'root', 'DEBUG (1 handlers)'],
+            ['chatty_package.noisy', 'root', 'DEBUG (1 handlers, disable 0)'],
             ['chatty_package.noisy', 'game', 'INFO'],
+            ['chatty_package.quiet', 'root', 'DEBUG (1 handlers, disable 20)'],
+            ['chatty_package.quiet', 'game', 'ERROR'],
         ],
+        'third_party': [],
         'failures': [],
     }
+
+
+def test_a_third_partys_logger_is_never_blamed_on_the_project(tmp_path):
+    """A logger named after another installed package (here pytest) is listed apart.
+
+    A module that prints at exit does not upset the report either: it goes to a file.
+    """
+    package = tmp_path / 'importer_package'
+    package.mkdir()
+    (package / '__init__.py').write_text(
+        "import atexit, logging\nlogging.getLogger('pytest.thing').setLevel(logging.DEBUG)\n"
+        "atexit.register(print, 'goodbye')\n",
+        encoding='utf-8',
+    )
+    environment = {**os.environ, 'PYTHONPATH': str(tmp_path)}
+
+    report = run_probe(
+        packages=['importer_package'],
+        result_path=tmp_path / 'report.json',
+        environment=environment,
+    )
+
+    assert report['changes'] == []
+    assert report['third_party'] == [['importer_package', 'pytest.thing', 'DEBUG']]
