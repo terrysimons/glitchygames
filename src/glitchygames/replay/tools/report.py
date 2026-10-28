@@ -169,7 +169,8 @@ def report_lines(
     """Return the report's lines for a read recording.
 
     Args:
-        path: The recording's path (named in the first line).
+        path: The recording's path (named in the first line, with ``/`` separators on every
+            platform, as ``measure`` and ``verify`` name recordings).
         trace: The recording, read (header fields plus ``frames``).
         threshold_percent: How much a same-work frame's time must change, in percent.
         minimum_ms: How much it must change in milliseconds too.
@@ -182,7 +183,11 @@ def report_lines(
     frames: list[dict[str, Any]] = trace[FRAMES_FIELD]
     runs = recorded_measurement_runs(header=trace)
     summaries = recording_run_summaries(header=trace, frames=frames)
-    lines = [f'{path}: {len(frames)} frames, {len(runs)} runs', '', 'Runs (newest first):']
+    lines = [
+        f'{path.as_posix()}: {len(frames)} frames, {len(runs)} runs',
+        '',
+        'Runs (newest first):',
+    ]
     for run_index, run in enumerate(runs):
         lines.extend((
             f'  {describe_run(run_index=run_index, run=run)}',
@@ -215,7 +220,8 @@ def report(*, path: Path, threshold_percent: float, minimum_ms: float, span_limi
     """Print the report for a recording.
 
     Args:
-        path: The recording (named, as given, in the report's first line).
+        path: The recording (named, as given but with ``/`` separators, in the report's first
+            line).
         threshold_percent: How much a same-work frame's time must change, in percent.
         minimum_ms: How much it must change in milliseconds too.
         span_limit: How many spans each comparison lists.
@@ -225,7 +231,7 @@ def report(*, path: Path, threshold_percent: float, minimum_ms: float, span_limi
 
     """
     if not path.is_file():
-        sys.stderr.write(f'{path}: no such recording\n')
+        sys.stderr.write(f'{path.as_posix()}: no such recording\n')
         return ExitCode.MISSING_INPUT
     try:
         trace = read_trace(path=path)

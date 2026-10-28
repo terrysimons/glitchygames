@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING, Any
 
 import pygame
@@ -100,7 +101,7 @@ def test_a_real_recording_reports_every_run_and_no_behaviour_change(tmp_path, ca
 
     output = capsys.readouterr().out
     frame_count = len(read_trace(path=path)[FRAMES_FIELD])
-    assert f'{path}: {frame_count} frames, {recorded_runs + 2} runs' in output
+    assert f'{path.as_posix()}: {frame_count} frames, {recorded_runs + 2} runs' in output
     assert output.count('rebaselined from') == 2 + recorded_rebaselines
     # The two new runs name the game's commit (its stamp: this checkout's, as the engine they ran
     # names), never an unknown one
@@ -188,6 +189,24 @@ def test_the_span_limit_condenses_long_lists(tmp_path):
     lines = report_lines(path=path, trace=trace, threshold_percent=50, minimum_ms=0.5, span_limit=0)
 
     assert '    ... and 1 more span' in lines
+
+
+def test_the_recording_is_named_with_forward_slashes_on_windows(tmp_path):
+    """A Windows path is named with ``/`` separators, as typed and as ``measure`` names it."""
+    path = tmp_path / 'changed.jsonl.gz'
+    hand_built_recording(path=path)
+    trace = read_trace(path=path)
+
+    lines = report_lines(
+        # A Windows path's str() has backslashes (a WindowsPath cannot be made off Windows)
+        path=PureWindowsPath('recordings/stand-in-rally/golden.jsonl.gz'),
+        trace=trace,
+        threshold_percent=50,
+        minimum_ms=0.5,
+        span_limit=0,
+    )
+
+    assert lines[0].startswith('recordings/stand-in-rally/golden.jsonl.gz: ')
 
 
 def test_a_missing_file_and_a_file_that_is_not_a_recording(tmp_path, capsys):

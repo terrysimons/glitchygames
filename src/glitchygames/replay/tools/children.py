@@ -571,7 +571,10 @@ def resolve_game(*, game: str, project_root: Path | None = None) -> GameLaunch:
     if SCRIPT_PATH_SEPARATOR in game or game.endswith(SCRIPT_SUFFIX):
         script = Path(game)
         if not script.is_file():
-            raise UnknownGameError(unknown_game_message(game=game, reason=f'no script at {script}'))
+            # Named with / as typed (a Windows Path would show scripts\game.py)
+            raise UnknownGameError(
+                unknown_game_message(game=game, reason=f'no script at {script.as_posix()}')
+            )
         return GameLaunch(form='script', command=[sys.executable, str(script.resolve())])
     if ENTRY_POINT_SEPARATOR in game:
         module = game.partition(ENTRY_POINT_SEPARATOR)[0]
