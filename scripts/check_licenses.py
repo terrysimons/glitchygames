@@ -69,6 +69,11 @@ ALLOWLIST: frozenset[str] = frozenset({
     'BSL-1.0',
     # Zope Public License 2.1: permissive, BSD-style
     'ZPL-2.1',
+    # Mozilla Public License 2.0: file-level copyleft; using or bundling an unmodified package
+    # asks only for its notice and a pointer to its source (the owner, 2026-10-28: "Allow
+    # MPL-2.0: it asks only for a notice and a pointer to the source"). certifi and tqdm at
+    # runtime; pathspec and hypothesis in development
+    'MPL-2.0',
 })
 """Licenses accepted without per-package review (SPDX identifiers, https://spdx.org/licenses/)."""
 
@@ -95,6 +100,13 @@ EXCEPTIONS: dict[str, str] = {
         'whole source tree publicly on GitHub, so anyone can rebuild the binary against another '
         'pygame-ce (the owner: "we\'re good because we also ship the source tree on github '
         'publicly"; Terry Simons, 2026-10-28)'
+    ),
+    'pyinstaller-hooks-contrib': (
+        'GPL-2.0-or-later AND Apache-2.0, split by file (its LICENSE): the build hooks are '
+        'GPL-2.0-or-later and run inside PyInstaller at build time, never bundled; the runtime '
+        'hooks (_pyinstaller_hooks_contrib/rthooks), the only files bundled into the Bitmappy '
+        'binary, are Apache-2.0. What ships is Apache-2.0 (the owner: "can we opt for '
+        'Apache-2.0 for pyinstaller-hooks-contrib"; Terry Simons, 2026-10-28)'
     ),
 }
 """Per-package exceptions to the allowlist and denylist, each reviewed."""

@@ -625,6 +625,12 @@ only replays; Part 2 Task 1).
 - Optional: lazy-import `speech_recognition` so the audio import chain doesn't load `aifc` (its
   deprecation warning is already filtered in `pyproject.toml`).
 - ty reports 50 pre-existing `unused-ignore-comment` warnings (identical on main).
+- **Bundle the dependencies' license texts into the Bitmappy binary** (found 2026-10-28 writing
+  README.md's license obligations). `bitmappy.spec` freezes one executable and collects no
+  license files, so a distributed build does not carry pygame-ce's LGPL-2.1, the MPL-2.0 and
+  Apache-2.0 notices, or the permissive copyright notices the README lists. Collect them (each
+  bundled distribution's `dist-info` license files, e.g. PyInstaller's `copy_metadata`) into the
+  build, then remove README.md's "Not yet met" note.
 - **Lift the `pytest<=9.1.1` cap** (the owner, 2026-10-28; `pyproject.toml`'s `dev` group). pytest
   9.2.0 removed the private `Node._nodeid`, which pytest-benchmark 5.3.0 (the newest) still reads
   (`pytest_benchmark/fixture.py:88`), so every `benchmark` test errored at setup. Lift it once a
@@ -634,13 +640,13 @@ only replays; Part 2 Task 1).
   and pip-audit, `feature/test-memory-reduction`). `nox -s security-scan` fails on
   `scripts/check_licenses.py` until the owner decides each package it lists: an `EXCEPTIONS`
   entry (license, why, reviewer, date), an allowlist change, or removing the dependency.
-  - Denied (GPL): `yamllint` (GPL-3.0-or-later, a lint tool) and `pyinstaller-hooks-contrib`
-    (its hooks GPL-2.0-or-later and run at build time; its runtime hooks, bundled, Apache-2.0).
+  - Denied (GPL): `yamllint` (GPL-3.0-or-later, a lint tool).
   - Decided (the owner, 2026-10-28): `pygame-ce` (LGPL-2.1) is an exception, the source tree
     being public on GitHub; `psycopg` (LGPL-3.0-only) is gone with aisuite's `postgres` extra,
-    which nothing used.
-  - Unreviewed: `pyinstaller` (GPL-2.0-or-later with its bootloader exception), `certifi`, `pathspec`, `hypothesis` (MPL-2.0), `tqdm` (MPL-2.0 AND
-    MIT), `text-unidecode` (Artistic License or GPL).
+    which nothing used; `pyinstaller-hooks-contrib` is an exception, only its Apache-2.0 runtime
+    hooks being bundled; MPL-2.0 is allowed (`certifi`, `tqdm`, `pathspec`, `hypothesis`).
+  - Unreviewed: `pyinstaller` (GPL-2.0-or-later with its bootloader exception),
+    `text-unidecode` (Artistic License or GPL).
   - The SBOM is the whole nox venv (dev and docs tools included), not what the binary bundles;
     a runtime-only SBOM for the policy is the other option (`nox -s security-scan`).
 - **Run nox without the `uvx` wrapper in CI** (found 2026-10-28 by the test-memory-reduction

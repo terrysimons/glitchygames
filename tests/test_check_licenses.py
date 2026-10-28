@@ -1,7 +1,7 @@
 """Tests for scripts/check_licenses.py: the license policy over small hand-written SBOMs.
 
-Permissive licenses pass; GPL and AGPL are denied; LGPL, MPL and anything unrecognized fail as
-unreviewed, since Bitmappy's frozen binary bundles what it depends on; the project's own
+Permissive licenses and MPL-2.0 pass; GPL and AGPL are denied; LGPL and anything unrecognized
+fail as unreviewed, since Bitmappy's frozen binary bundles what it depends on; the project's own
 packages are skipped.
 """
 
@@ -66,7 +66,7 @@ def spdx(identifier: str) -> dict[str, Any]:
         # OR: an allowlisted arm is elected; otherwise a denied arm names the blocker
         ('GPL-3.0-only OR BSD-3-Clause', 'BSD-3-Clause'),
         ('GPL-3.0-only OR LGPL-3.0-only', 'GPL-3.0-only'),
-        ('LGPL-3.0-only OR MPL-2.0', 'LGPL-3.0-only'),
+        ('LGPL-3.0-only OR MPL-2.0', 'MPL-2.0'),
         # AND: every part must pass; the first that does not names the blocker
         ('MIT AND Apache-2.0', 'MIT'),
         ('MPL-2.0 AND MIT', 'MPL-2.0'),
@@ -131,14 +131,17 @@ def test_permissive_licenses_pass():
     assert check_licenses.check_sbom(sbom, own_packages=OWN_PACKAGES) == []
 
 
-def test_gpl_is_denied_and_lgpl_mpl_and_unknown_are_unreviewed():
-    """GPL and AGPL are refused; LGPL, MPL, a missing and an unknown license need review."""
+def test_gpl_is_denied_lgpl_and_unknown_are_unreviewed_and_mpl_passes():
+    """GPL and AGPL are refused; LGPL, a missing and an unknown license need review; MPL passes.
+
+    The names are made up: a real package may be in EXCEPTIONS, which skips it.
+    """
     sbom = {
         'components': [
-            library('yamllint', spdx('GPL-3.0-or-later'), version='1.38.0'),
+            library('gpl-tool', spdx('GPL-3.0-or-later'), version='1.38.0'),
             library('agpl-thing', {'license': {'name': 'AGPLv3+'}}),
-            library('pygame-ce', {'license': {'name': 'LGPL v2.1'}}, version='2.5.8'),
-            library('certifi', spdx('MPL-2.0')),
+            library('lgpl-library', {'license': {'name': 'LGPL v2.1'}}, version='2.5.8'),
+            library('mpl-library', spdx('MPL-2.0')),
             library('mystery'),
             library('odd', {'license': {'name': 'UNKNOWN'}}),
         ]
@@ -148,7 +151,7 @@ def test_gpl_is_denied_and_lgpl_mpl_and_unknown_are_unreviewed():
 
     assert violations == [
         Violation(
-            package='yamllint',
+            package='gpl-tool',
             version='1.38.0',
             raw_license='GPL-3.0-or-later',
             normalized='GPL-3.0-or-later',
@@ -162,17 +165,10 @@ def test_gpl_is_denied_and_lgpl_mpl_and_unknown_are_unreviewed():
             category=ViolationCategory.DENIED,
         ),
         Violation(
-            package='pygame-ce',
+            package='lgpl-library',
             version='2.5.8',
             raw_license='LGPL v2.1',
             normalized='LGPL-2.1-only',
-            category=ViolationCategory.UNREVIEWED,
-        ),
-        Violation(
-            package='certifi',
-            version='1.0',
-            raw_license='MPL-2.0',
-            normalized='MPL-2.0',
             category=ViolationCategory.UNREVIEWED,
         ),
         Violation(
@@ -192,19 +188,22 @@ def test_gpl_is_denied_and_lgpl_mpl_and_unknown_are_unreviewed():
     ]
 
 
-def test_an_override_replaces_the_sbom_license_and_is_still_checked():
+def test_an_override_replaces_the_sbom_license_and_is_still_checked(mocker: MockerFixture):
     """The pandas digest is replaced by its BSD-3-Clause; an overridden GPL is still denied."""
+    mocker.patch.dict(
+        PACKAGE_LICENSE_OVERRIDES, {'overridden-gpl-tool': ('GPL-2.0-or-later', 'its LICENSE')}
+    )
     sbom = {
         'components': [
             library('pandas', {'license': {'name': 'sha256:1efd'}}),
-            library('pyinstaller-hooks-contrib'),
+            library('overridden-gpl-tool'),
         ]
     }
 
     violations = check_licenses.check_sbom(sbom, own_packages=OWN_PACKAGES)
 
     assert [(violation.package, violation.category) for violation in violations] == [
-        ('pyinstaller-hooks-contrib', ViolationCategory.DENIED)
+        ('overridden-gpl-tool', ViolationCategory.DENIED)
     ]
 
 
@@ -217,10 +216,15 @@ def test_an_exception_clears_a_package_by_name(mocker: MockerFixture):
 
 
 def test_the_policy_lists_are_consistent():
-    """No license is both allowed and denied; GPL and AGPL are denied; LGPL and MPL are neither."""
+    """No license is both allowed and denied; GPL and AGPL are denied; MPL-2.0 is allowed.
+
+    MPL-2.0 by the owner's decision (2026-10-28); LGPL is neither, each LGPL package reviewed by
+    name.
+    """
     assert ALLOWLIST.isdisjoint(DENYLIST)
     assert {'GPL-2.0-only', 'GPL-3.0-or-later', 'AGPL-3.0-only'} <= DENYLIST
-    assert not {'LGPL-2.1-only', 'LGPL-3.0-only', 'MPL-2.0'} & (ALLOWLIST | DENYLIST)
+    assert 'MPL-2.0' in ALLOWLIST
+    assert not {'LGPL-2.1-only', 'LGPL-3.0-only'} & (ALLOWLIST | DENYLIST)
 
 
 def test_every_override_names_a_license_the_policy_can_read():
