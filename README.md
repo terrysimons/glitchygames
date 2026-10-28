@@ -415,6 +415,9 @@ runtime dependencies. Anyone distributing that executable takes on these obligat
 - **pyinstaller-hooks-contrib.** Only its runtime hooks are bundled, and they are Apache-2.0: ship
   the Apache-2.0 license with the executable. Its other hooks (GPL-2.0-or-later) run only during
   the build and are not distributed.
+- **text-unidecode (GPL-2.0-or-later or the Artistic License, recipient's choice).** The
+  Artistic License is elected; bundled unmodified, it asks that its copyright notice be kept.
+  It arrives through `cookiecutter`, which the engine's project templates use.
 - **PyInstaller's bootloader** (GPL-2.0-or-later with the bootloader exception). The exception
   allows distributing the frozen executable under its own terms.
 - **Permissive dependencies** (MIT, BSD, Apache-2.0 and similar). Ship their copyright and

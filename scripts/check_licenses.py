@@ -108,6 +108,12 @@ EXCEPTIONS: dict[str, str] = {
         'binary, are Apache-2.0. What ships is Apache-2.0 (the owner: "can we opt for '
         'Apache-2.0 for pyinstaller-hooks-contrib"; Terry Simons, 2026-10-28)'
     ),
+    'text-unidecode': (
+        'GPL-2.0-or-later OR Artistic-1.0 (its LICENSE: "either GPL or GPLv2+ ... or Artistic '
+        'License"), at runtime through cookiecutter and python-slugify. The Artistic License is '
+        'elected: bundled unmodified, it asks only that its notice be kept, and the GPL arm never '
+        'applies (the owner: "Artistic"; Terry Simons, 2026-10-28)'
+    ),
 }
 """Per-package exceptions to the allowlist and denylist, each reviewed."""
 

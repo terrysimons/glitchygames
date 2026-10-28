@@ -644,9 +644,9 @@ only replays; Part 2 Task 1).
   - Decided (the owner, 2026-10-28): `pygame-ce` (LGPL-2.1) is an exception, the source tree
     being public on GitHub; `psycopg` (LGPL-3.0-only) is gone with aisuite's `postgres` extra,
     which nothing used; `pyinstaller-hooks-contrib` is an exception, only its Apache-2.0 runtime
-    hooks being bundled; MPL-2.0 is allowed (`certifi`, `tqdm`, `pathspec`, `hypothesis`).
-  - Unreviewed: `pyinstaller` (GPL-2.0-or-later with its bootloader exception),
-    `text-unidecode` (Artistic License or GPL).
+    hooks being bundled; MPL-2.0 is allowed (`certifi`, `tqdm`, `pathspec`, `hypothesis`);
+    `text-unidecode` is an exception electing the Artistic License.
+  - Unreviewed: `pyinstaller` (GPL-2.0-or-later with its bootloader exception).
   - The SBOM is the whole nox venv (dev and docs tools included), not what the binary bundles;
     a runtime-only SBOM for the policy is the other option (`nox -s security-scan`).
 - **Run nox without the `uvx` wrapper in CI** (found 2026-10-28 by the test-memory-reduction
