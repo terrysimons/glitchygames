@@ -29,8 +29,8 @@ uv sync --all-packages
 # Install with dev extras (for testing/linting)
 uv sync --extra dev --all-packages
 
-# Install with all extras: the engine, every game, every app and the dev tools (what development
-# uses)
+# Install with all extras: the engine, every game, every app, the templates' cookiecutter and
+# the dev tools (what development uses)
 uv sync --all-extras --all-groups --all-packages
 
 # Outside the repository: the engine alone, or with every game or app (the `games` and `apps`
@@ -42,6 +42,10 @@ uv build --all-packages
 pip install --find-links dist glitchygames
 pip install --find-links dist "glitchygames[games]"
 pip install --find-links dist "glitchygames[apps]"      # Bitmappy
+# cookiecutter is the `templates` extra, not a core dependency: only glitchygames.templates
+# (building a new game project, scripts/create.py) uses it; without it build() raises
+# TemplatesUnavailableError and scripts/create.py exits 1 naming the extra
+pip install --find-links dist "glitchygames[templates]"
 
 # Optional: trust the project's .envrc (direnv); on entering the repo it runs
 # `uv sync --all-extras --all-groups --all-packages` (the locked versions) and, on macOS,

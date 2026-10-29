@@ -41,6 +41,7 @@ uv build --all-packages                                # every wheel, into dist/
 pip install --find-links dist glitchygames             # the engine
 pip install --find-links dist "glitchygames[games]"    # the engine and every game
 pip install --find-links dist "glitchygames[apps]"     # the engine and Bitmappy
+pip install --find-links dist "glitchygames[templates]"  # the engine and its project templates
 ```
 
 ### Optional Dependency Groups
@@ -49,6 +50,7 @@ pip install --find-links dist "glitchygames[apps]"     # the engine and Bitmappy
 |-------|---------|
 | `dev` | nox, pytest (cov, xdist, mock, benchmark), hypothesis, ruff, basedpyright, ty, bandit, deptry, vulture, wily, pyinstaller |
 | `docs` | MkDocs documentation generation |
+| `templates` | cookiecutter, for building a new game project from a template (`glitchygames.templates`, `scripts/create.py`); without it, building says `pip install glitchygames[templates]` |
 
 The sprite API server and client (FastAPI, uvicorn, httpx, apng, pillow) are core dependencies; the `api` extra is empty.
 
@@ -418,7 +420,9 @@ runtime dependencies. Anyone distributing that executable takes on these obligat
   the build and are not distributed.
 - **text-unidecode (GPL-2.0-or-later or the Artistic License, recipient's choice).** The
   Artistic License is elected; bundled unmodified, it asks that its copyright notice be kept.
-  It arrives through `cookiecutter`, which the engine's project templates use.
+  It arrives through `cookiecutter`, which the engine's project templates use: since 2026-10-28
+  the optional `templates` extra, no longer a core dependency (it stays in the SBOM, which covers
+  every extra).
 - **PyInstaller's bootloader** (GPL-2.0-or-later with the bootloader exception). The exception
   allows distributing the frozen executable under its own terms.
 - **Permissive dependencies** (MIT, BSD, Apache-2.0 and similar). Ship their copyright and
