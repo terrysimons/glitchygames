@@ -15,6 +15,22 @@ and kind of run is its own line.
 - **Frames over budget**: frames whose processing alone took longer than the budget.
 - **Live frame time**: for the runs that recorded a session live (paced, in a window), how long
   each frame really took, start to start: how steady pacing was. Replays have none.
+- **FPS by commit**: the same runs as frames per second. A live run's line (solid) is the FPS
+  it achieved (1 / its frame time); it is paced, so it never passes the target (the dotted
+  line, 1 / the frame budget). A replay's line (dashed) is its headroom (1 / its processing
+  time): how fast the work alone could run. Each point is the average, with a bar from the
+  "5% low" to the "5% high": the mean of the slowest and of the fastest 5% of frames (at least
+  one frame; pause frames count; a live run's first frame, timed from the clock's start, does
+  not). The axis is logarithmic, as headroom runs to thousands. Paced and unpaced numbers do
+  not compare: the processor slows down between paced frames.
+- **Machines**: each machine's latest replay, as a bar of its average headroom FPS with the
+  same 5% low and high, so platforms compare at a glance for the same recording. Replays only;
+  machines marked **(CI)** measured on continuous integration's virtual runners, which are
+  noisy.
+
+The figures are stored in seconds and turned into FPS only for display. Measurements from
+before them (2026-10-28) have no FPS point. `glitchygames measure` and `glitchygames report`
+print the same FPS beside the milliseconds.
 
 - **Slowest frame across the recording, by commit**: a heatmap per machine. Each column is a
   stretch of the recording (about 1% of it, start to end) and each row a commit; the color is

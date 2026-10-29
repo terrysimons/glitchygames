@@ -955,7 +955,12 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   (`src/glitchygames/machine_state.py`: CPU, memory, mains or battery, macOS thermal report, CI),
   a `summary` (`RunSummary`: processing p50/p95/p99/max, worst frame and scene, frames over the
   target FPS budget, the live run's frame times; filled in when the next run stacks, since a
-  header is written first; `recording_run_summaries` computes the newest's),
+  header is written first; `recording_run_summaries` computes the newest's; since 2026-10-28
+  also the mean and the "5% low"/"5% high" slice means of the processing times and of a live
+  run's frame times, stored in seconds, never FPS: `slice_frame_count` is the one definition,
+  `ceil(5%)` of the frames and at least one, pause frames included, a live run's first frame
+  left out of its frame-time mean and slices (its `dt` runs from the clock's start); older
+  summaries read them as None and are completed from the frames when the next run stacks),
   `measured_at` from `GameEngine.measurement_run`, `rebaselined_from`, `hash_scheme`, and
   `frame_count`, filled in when the next run stacks; read leniently, written strictly); index `i`
   is run `i` everywhere, each list capped at its depth constant (10). A rebaseline stacks its run
@@ -998,7 +1003,16 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   of a published build (the hook's `on_startup` sees `gh-deploy`; no startup event counts as
   published) and shown, labelled, in a local `mkdocs build`/`serve`; they stay in the pending
   file after a deploy (`clear-published` removes only rows gh-pages holds). `uv run glitchygames
-  report PATH` prints a recording's runs, speed changes and behaviour-change map
+  report PATH` prints a recording's runs, speed changes and behaviour-change map. FPS is for
+  display only, one division from the stored seconds (`recording_metrics.fps_from_seconds`,
+  None for missing or zero seconds; `describe_fps`: `avg 222 fps (5% low 168, 5% high 251)`):
+  `measure`'s line and `report`'s run summaries show headroom FPS (1 / processing time) and a
+  live run's achieved FPS (1 / frame time) beside the milliseconds; the performance pages add
+  FPS by commit (`fps_charts`: live runs' achieved FPS solid, replays' headroom FPS dashed,
+  each point the average with its 5% low and high as an error bar, log axis, a dotted
+  target-FPS line from `budget_seconds`) and a machines view (`machines_chart`: each machine's
+  latest replay row as a bar of headroom FPS, replays only, CI machines marked `(CI)`). Rows
+  from before the slice means have no FPS
 - Bookmarks (watched replay): B bookmarks the frame shown, S saves `x.bookmarked.jsonl.gz`
   (header `bookmarked_copy_of`; only such a file is updated in place) with a
   `{"kind": "breakpoint", "label": "bookmark"}` control event in frame N - 1 per bookmark N; a

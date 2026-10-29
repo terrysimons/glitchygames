@@ -75,6 +75,25 @@
    startup event) leaves them out of the ledger file and every graph, `build`/`serve` show them
    labelled. `clear-published` removes only rows gh-pages holds, so they stay pending, local only.
 
+## FPS figures (the owner, 2026-10-28; done)
+
+7. **FPS per run, compared across platforms**: the summaries keep, in seconds (never FPS), a
+   live run's frame-time `mean_seconds` and `slowest_5_percent_mean_seconds` /
+   `fastest_5_percent_mean_seconds`, and the processing times'
+   `slowest_5_percent_mean_processing_seconds` / `fastest_5_percent_mean_processing_seconds`
+   (the mean is `total_processing_seconds / measured_frames`, a property). A slice is
+   `recording_history.slice_frame_count`: `ceil(5%)` of the frames the percentiles read, at
+   least one (1-20 frames: one; 472: 24), pause frames included; a live run's first frame is
+   left out of its frame-time mean and slices (its `dt` runs from the clock's start, about a
+   microsecond). Older summaries read the fields as None (no version bump: the trace format
+   reads later header fields without one, and the ledger has no version); a stored summary
+   that lacks them gets them from the frames when the next run stacks (`completed_summary`).
+   `recording_metrics.fps_from_seconds` is the one conversion (None for missing or zero
+   seconds). `measure` and `report` print `headroom avg N fps (5% low A, 5% high B)` (and a
+   live run's `achieved ...`) beside the milliseconds; the pages add FPS by commit
+   (`fps_charts`) and a machines view (`machines_chart`, replays only, CI marked), each with a
+   target-FPS line. Deferred: `plans/future-work.md`, "Performance and pacing".
+
 ## Tests
 
 `tests/test_recording_metrics.py` (pure analysis, real recordings from `record_session`),
