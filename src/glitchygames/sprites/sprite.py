@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 
 import pygame
 
+from glitchygames.read_only_views import ReadOnlyViewsABC
+
 from .root_sprite import RootSprite
 
 LOG = logging.getLogger('game.sprites')
@@ -35,7 +37,10 @@ LOG = logging.getLogger('game.sprites')
 _ERR_CANNOT_CREATE_SURFACE = "Can't create Surface(({width}, {height}))."
 
 
-class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
+# ReadOnlyViewsABC: RootSprite's metaclass is abc.ABCMeta (read_only_views.py). pygame-ce's stubs
+# derive pygame.sprite.Sprite from a Protocol (_HasImageAndRect), so ty takes typing._ProtocolMeta
+# for the metaclass; at run time it is ABCMeta, which ReadOnlyViewsABC derives from
+class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-public-methods]  # ty: ignore[conflicting-metaclass]
     """A convenience class for handling all of the common sprite behaviors."""
 
     log = LOG

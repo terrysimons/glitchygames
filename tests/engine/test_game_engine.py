@@ -40,6 +40,7 @@ import dataclasses
 import logging
 import os
 import platform
+import re
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -60,12 +61,13 @@ if TYPE_CHECKING:
 
 from glitchygames import events
 from glitchygames.argument_types import non_negative_int, non_negative_percent, unit_interval
-from glitchygames.engine import GameEngine
+from glitchygames.engine import GameEngine, NoRunningEngineError, current_engine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.engine.game_engine import (
     pygame_needs_fastevents,
     scene_class_of,
 )
+from glitchygames.engine_context import EngineContext
 from glitchygames.events import base as events_base
 from glitchygames.events.controller import ControllerEventManager
 from glitchygames.exit_codes import ExitCode
@@ -79,7 +81,12 @@ from glitchygames.input.devices import (
 from glitchygames.input.input_devices import InputMode, RecordedDevices
 from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene, SceneManager
-from glitchygames.sources import active_sources, advance_frame_clock, install_sources
+from glitchygames.sources import (
+    active_sources,
+    advance_frame_clock,
+    install_sources,
+    reset_sources,
+)
 from tests.display_canvas import CANVAS_PATTERN, show_canvas_on_new_display
 from tests.input.stand_in_devices import (
     STAND_IN_PAD,
@@ -3371,3 +3378,57 @@ class TestSceneClassOf:
 
         assert scene_class_of(EngineTestGame.__new__(EngineTestGame)) is EngineTestGame
         assert scene_class_of(stand_in) is type(stand_in)
+
+
+def test_current_engine_answers_with_each_contexts_own_engine(mocker):
+    """current_engine() is the engine made last in the current context (answer 2)."""
+    first_context = EngineContext(name='first')
+    second_context = EngineContext(name='second')
+    with first_context.active():
+        first_engine = _make_engine(mocker, '--target-fps', '30')
+    with second_context.active():
+        second_engine = _make_engine(mocker, '--target-fps', '50')
+    with first_context.active():
+        first_answer = current_engine()
+    with second_context.active():
+        second_answer = current_engine()
+    for context in (first_context, second_context):
+        with context.active():
+            reset_sources()
+
+    assert first_answer is first_engine
+    assert second_answer is second_engine
+
+
+def test_current_engine_refuses_when_no_engine_runs_in_the_context():
+    """A context no engine was made in names itself in the refusal."""
+    with (
+        EngineContext(name='idle').active(),
+        pytest.raises(
+            NoRunningEngineError,
+            match=re.escape("No game engine is running in the engine context 'idle'"),
+        ),
+    ):
+        current_engine()
+
+
+def test_an_engine_that_shut_down_is_no_longer_current(mocker):
+    """_shutdown clears the context's engine, so the finished engine is not kept alive."""
+    engine = _make_engine(mocker, '--target-fps', '30')
+    mocker.patch('pygame.display.quit')
+    mocker.patch('pygame.quit')
+    engine._shutdown()
+
+    with pytest.raises(NoRunningEngineError):
+        current_engine()
+
+
+def test_an_engine_that_is_not_current_shuts_down_leaving_the_current_one(mocker):
+    """Only the engine the context holds is cleared: a newer engine stays current."""
+    earlier_engine = _make_engine(mocker, '--target-fps', '30')
+    later_engine = _make_engine(mocker, '--target-fps', '50')
+    mocker.patch('pygame.display.quit')
+    mocker.patch('pygame.quit')
+    earlier_engine._shutdown()
+
+    assert current_engine() is later_engine

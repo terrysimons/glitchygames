@@ -15,7 +15,7 @@ import re
 import sys
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, cast, override
 
 import numpy as np
 import pygame
@@ -35,6 +35,11 @@ from glitchygames.backgrounds import (
     BackgroundPattern,
     active_default_background_pattern,
     set_active_default_background_pattern,
+)
+from glitchygames.engine.game_engine import (
+    CURRENT_ENGINE_SLOT,
+    NoRunningEngineError,
+    current_engine,
 )
 from glitchygames.engine_context import (
     DEFAULT_CONTEXT_NAME,
@@ -95,6 +100,7 @@ from tests.input.test_input_state import snapshot_with
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
+    from glitchygames.engine import GameEngine
     from glitchygames.input.devices import DeviceDescriptor
 
 # A slot of this test module's own (declared once, as the module is imported, like every slot)
@@ -961,6 +967,31 @@ def check_scene_managers(*, first: EngineContext, second: EngineContext) -> None
     assert default_manager is not second_manager
 
 
+def current_engine_or_none() -> GameEngine | None:
+    """Return the current context's engine, or None when no engine runs in it.
+
+    Returns:
+        The engine, or None.
+
+    """
+    try:
+        return current_engine()
+    except NoRunningEngineError:
+        return None
+
+
+def check_current_engine(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context answers with its own engine, and the default context with its own."""
+    default_answer = current_engine_or_none()
+    stand_in_engine = cast('GameEngine', object())
+    first.value(slot=CURRENT_ENGINE_SLOT).engine = stand_in_engine
+    with first.active():
+        assert current_engine() is stand_in_engine
+    with second.active(), pytest.raises(NoRunningEngineError):
+        current_engine()
+    assert current_engine_or_none() is default_answer
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -973,6 +1004,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.randomness.streams': check_random_streams,
     'glitchygames.sources.registry': check_sources_registry,
     'glitchygames.scenes.scene.scene_managers': check_scene_managers,
+    'glitchygames.engine.game_engine.current_engine': check_current_engine,
 }
 
 

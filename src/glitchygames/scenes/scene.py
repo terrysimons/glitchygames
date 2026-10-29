@@ -44,6 +44,7 @@ from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.opacity import OPAQUE, make_opaque
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.randomness import restore_stream_states
+from glitchygames.read_only_views import ReadOnlyViews
 from glitchygames.recording import (
     SCENE_START_DEVICES_HEADER_FIELD,
     is_input_post,
@@ -246,7 +247,7 @@ def _scene_manager_for_class(*, scene_manager_class: type[SceneManager]) -> Scen
     return None
 
 
-class SceneManager(SceneInterface, events.EventManager):
+class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews):
     """Glitchy Games Scene Manager.
 
     The scene manager is responsible for managing the active scene,

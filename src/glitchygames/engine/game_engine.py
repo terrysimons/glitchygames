@@ -43,6 +43,7 @@ from glitchygames.crt_power_on import (
     should_play,
 )
 from glitchygames.display_mode import set_display_mode
+from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.events.app import AppEventManager
 from glitchygames.events.audio import AudioEventManager
 from glitchygames.events.controller import ControllerEventManager
@@ -71,6 +72,7 @@ from glitchygames.logical_names import logical_name
 from glitchygames.machine_state import current_machine_state
 from glitchygames.output_files import output_refusal, partial_path
 from glitchygames.randomness import seed_engine_random
+from glitchygames.read_only_views import ReadOnlyViews
 from glitchygames.recording import (
     CUSTOM_EVENT_TYPES_HEADER_FIELD,
     DEVICE_ENUMERATION_FIELD,
@@ -722,7 +724,43 @@ def startup_options_block(*, game_name: str, options: Mapping[str, Any]) -> str:
     return '\n'.join([f'Options for {game_name} (secrets redacted):', *lines])
 
 
-class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
+class NoRunningEngineError(RuntimeError):
+    """``current_engine()`` was called in an engine context where no game engine is running."""
+
+
+@dataclass
+class _CurrentEngine:
+    """The engine running in an engine context (``CURRENT_ENGINE_SLOT``)."""
+
+    # Set by GameEngine.__init__, cleared by its _shutdown; None when no engine is running
+    engine: GameEngine | None = None
+
+
+# The engine running in each engine context (several games can run in one process: the Arcade)
+CURRENT_ENGINE_SLOT: ContextSlot[_CurrentEngine] = ContextSlot(
+    name='glitchygames.engine.game_engine.current_engine', factory=_CurrentEngine
+)
+
+
+def current_engine() -> GameEngine:
+    """Return the game engine running in the current engine context.
+
+    Returns:
+        The engine made last in this context, until it shuts down.
+
+    Raises:
+        NoRunningEngineError: If no engine is running in this context.
+
+    """
+    context = current_context()
+    engine = context.value(slot=CURRENT_ENGINE_SLOT).engine
+    if engine is None:
+        message = f"No game engine is running in the engine context '{context.name}'"
+        raise NoRunningEngineError(message)
+    return engine
+
+
+class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[too-many-public-methods]
     """Glitchy Games' Game engine.
 
     The game engine is responsible for initializing pygame and
@@ -1280,6 +1318,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.initialize_icon(icon=icon)
 
         options = self.initialize_arguments(game=game)
+        # The current context's engine from here on (current_engine()): every piece of the
+        # engine's own state is set above this line, so no view finds a half-made engine
+        current_context().value(slot=CURRENT_ENGINE_SLOT).engine = self
         # The SDL driver variables as they were before --headless or --video-driver set them
         # (by name; None: the variable was not set), put back when the run ends
         # (_restore_sdl_driver_variables); None when the run changed neither
@@ -3237,6 +3278,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             run_ended_by: What ended the run early (``_report_replay_result``), or None.
 
         """
+        # First, so every teardown path (a replay restart's early return included) leaves no
+        # finished engine current: its views then read None, and it is not kept alive
+        current = current_context().value(slot=CURRENT_ENGINE_SLOT)
+        if current.engine is self:
+            current.engine = None
         try:
             self._end_the_comparison()
         finally:

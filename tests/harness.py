@@ -30,6 +30,7 @@ from glitchygames.audio.voices import release_channels
 from glitchygames.backgrounds import set_active_default_background_pattern
 from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
+from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import current_context, default_context
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
@@ -304,6 +305,8 @@ def _reset_all_singleton_instances():
     # Sound.play() raise "IndexError: invalid channel index" after another test restarted pygame
     # (tests/test_logging.py). No engine outlives a test here, so nothing needs to keep one
     release_channels()
+    # No engine is current until a test makes one (glitchygames.engine.game_engine)
+    default_context().reset_value(slot=CURRENT_ENGINE_SLOT)
 
     # Reset ResourceManager singleton instances (FontManager, event managers, etc.)
     ResourceManager.__instances__.clear()

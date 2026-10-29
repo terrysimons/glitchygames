@@ -80,6 +80,7 @@ class GameFont(Protocol):
 
 
 from glitchygames.events import FontEvents, ResourceManager  # ruff: ignore[module-import-not-at-top-of-file]
+from glitchygames.read_only_views import ReadOnlyViews  # ruff: ignore[module-import-not-at-top-of-file]
 
 log = logging.getLogger('game.fonts')
 log.addHandler(logging.NullHandler())
@@ -184,7 +185,7 @@ def bundled_font_path(*, font_name: str) -> Path | None:
     return BUNDLED_FONT_DIRECTORY / file_name
 
 
-class FontManager(ResourceManager):
+class FontManager(ResourceManager, metaclass=ReadOnlyViews):
     """A font manager for handling fonts in the game.
 
     Supports both pygame.font and pygame.freetype font systems:

@@ -10,6 +10,8 @@ from glitchygames.engine.game_engine import (
     TEST_MODE,
     UNKNOWN_SDL2_EVENT_TYPE_1543,
     GameEngine,
+    NoRunningEngineError,
+    current_engine,
 )
 
 # Re-export GameEventManager since it was importable from glitchygames.engine
@@ -30,4 +32,6 @@ __all__ = [
     'ExitCode',
     'GameEngine',
     'GameEventManager',
+    'NoRunningEngineError',
+    'current_engine',
 ]
