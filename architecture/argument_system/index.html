@@ -263,7 +263,8 @@ are left out. The <a href="#complete-flag-reference">Complete Flag Reference</a>
 <p>A game adds arguments by defining a <code>@classmethod</code> called <code>args()</code> on its scene class.
 The engine discovers this method via <code>getattr(game, 'args', None)</code> and calls it with
 a dedicated argument group. If the game does not define <code>args()</code>, the engine logs an
-informational message and continues.</p>
+informational message (INFO, once the command line has set the level, so <code>--log-level info</code>
+shows it; the default warning does not) and continues.</p>
 <pre class="mermaid"><code>flowchart TD
     subgraph Engine["Engine: GameEngine.initialize_arguments()"]
         CHECK{"getattr(game, 'args', None)"}
