@@ -35,6 +35,7 @@ from glitchygames.engine_context import current_context, default_context
 from glitchygames.events import ResourceManager
 from glitchygames.fonts import FontManager
 from glitchygames.input.state import reset_current_input
+from glitchygames.performance.adaptive_clamping import PERFORMANCE_MANAGERS_SLOT
 from glitchygames.recording import reset_internal_post_tracking
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import (
@@ -307,6 +308,8 @@ def _reset_all_singleton_instances():
     release_channels()
     # No engine is current until a test makes one (glitchygames.engine.game_engine)
     default_context().reset_value(slot=CURRENT_ENGINE_SLOT)
+    # A fresh performance manager each test (glitchygames.performance.adaptive_clamping)
+    default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
 
     # Reset ResourceManager singleton instances (FontManager, event managers, etc.)
     ResourceManager.__instances__.clear()

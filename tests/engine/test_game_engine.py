@@ -80,6 +80,7 @@ from glitchygames.input.devices import (
 )
 from glitchygames.input.input_devices import InputMode, RecordedDevices
 from glitchygames.live_sources import LiveSources
+from glitchygames.performance import AdaptiveClamping
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
     active_sources,
@@ -2943,7 +2944,9 @@ class TestGameEngineTimerCalibration:
         timer = mocker.Mock()
         timer.calibrate.side_effect = lambda: calls.append('calibrate')
         mocker.patch('glitchygames.engine.game_engine.create_timer', return_value=timer)
-        mocker.patch('glitchygames.performance.performance_manager')
+        # The methods start() calls on the current context's performance manager
+        for method_name in ('set_trim_percent', 'set_histogram_mode'):
+            mocker.patch.object(AdaptiveClamping, method_name, autospec=True)
         mocker.patch.object(GameEngine, 'game', mocker.Mock())
         mocker.patch.object(
             GameEngine,
@@ -3248,7 +3251,11 @@ class TestFpsHistogramArgument:
         """Test start() calls set_histogram_mode with the parsed option."""
         engine = _make_engine(mocker)
         mocker.patch('glitchygames.engine.game_engine.create_timer')
-        mock_manager = mocker.patch('glitchygames.performance.performance_manager')
+        # The methods start() calls on the current context's performance manager
+        set_trim_percent = mocker.patch.object(AdaptiveClamping, 'set_trim_percent', autospec=True)
+        set_histogram_mode = mocker.patch.object(
+            AdaptiveClamping, 'set_histogram_mode', autospec=True
+        )
         mocker.patch.object(GameEngine, 'game', mocker.Mock())
         mocker.patch.object(
             GameEngine,
@@ -3266,7 +3273,8 @@ class TestFpsHistogramArgument:
 
         engine.start()
 
-        mock_manager.set_histogram_mode.assert_called_once_with('target-relative')
+        set_histogram_mode.assert_called_once_with(AdaptiveClamping(), 'target-relative')
+        set_trim_percent.assert_called_once_with(AdaptiveClamping(), 5.0)
 
     def test_an_unknown_histogram_mode_is_logged_and_the_run_goes_on(self, mocker, caplog):
         """A mode the performance manager refuses (set in OPTIONS, not parsed) never ends a run."""
@@ -3308,8 +3316,13 @@ class TestFpsHistogramArgument:
         """Test a bad trim value cannot skip setting the histogram mode."""
         engine = _make_engine(mocker)
         mocker.patch('glitchygames.engine.game_engine.create_timer')
-        mock_manager = mocker.patch('glitchygames.performance.performance_manager')
-        mock_manager.set_trim_percent.side_effect = ValueError('bad trim')
+        # The methods start() calls on the current context's performance manager
+        set_trim_percent = mocker.patch.object(
+            AdaptiveClamping, 'set_trim_percent', autospec=True, side_effect=ValueError('bad trim')
+        )
+        set_histogram_mode = mocker.patch.object(
+            AdaptiveClamping, 'set_histogram_mode', autospec=True
+        )
         mocker.patch.object(GameEngine, 'game', mocker.Mock())
         mocker.patch.object(
             GameEngine,
@@ -3327,7 +3340,8 @@ class TestFpsHistogramArgument:
 
         engine.start()
 
-        mock_manager.set_histogram_mode.assert_called_once_with('target-relative')
+        set_trim_percent.assert_called_once_with(AdaptiveClamping(), 5.0)
+        set_histogram_mode.assert_called_once_with(AdaptiveClamping(), 'target-relative')
 
 
 class TestReplayRestartExitStatus:

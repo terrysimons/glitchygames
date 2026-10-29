@@ -419,10 +419,11 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         self.log.info('Target FPS: %s', self.target_fps)
 
         # Configure performance manager with the same log interval and target FPS
-        from glitchygames.performance import performance_manager
+        from glitchygames.performance import AdaptiveClamping
 
-        performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
-        performance_manager.set_target_fps(self.target_fps)
+        adaptive_clamping = AdaptiveClamping()
+        adaptive_clamping.set_fps_log_interval(self.fps_log_interval_ms)
+        adaptive_clamping.set_target_fps(self.target_fps)
 
     @property
     def input_devices(self: Self) -> InputDevices:
@@ -1611,10 +1612,10 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             scene: The scene made active.
 
         """
-        from glitchygames.performance import performance_manager
+        from glitchygames.performance import AdaptiveClamping
 
         if scene:  # Only track performance for real scenes, not None
-            performance_manager.set_current_scene(scene.NAME)
+            AdaptiveClamping().set_current_scene(scene.NAME)
 
     def _clear_outgoing_scene_pending_switch(self: Self) -> None:
         """Clear the pending switch of the scene being switched away from.
@@ -1777,7 +1778,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             processing_time: Actual processing time in seconds
 
         """
-        from glitchygames.performance import performance_manager
+        from glitchygames.performance import AdaptiveClamping
 
         # Deliberately NOT self.pacing_fallback_clock.get_fps(). pygame's Clock.get_fps():
         #   1. recomputes only every 10 tick() calls, so each value repeats for 10 frames,
@@ -1790,7 +1791,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         # (_performance_frame_seconds).
         performance_frame_seconds = self._performance_frame_seconds()
         current_fps = (1.0 / performance_frame_seconds) if performance_frame_seconds > 0 else 0.0
-        performance_manager.track_fps_from_event(current_fps, processing_time)
+        AdaptiveClamping().track_fps_from_event(current_fps, processing_time)
 
     def start(self: Self) -> None:
         """Start the scene manager.

@@ -21,6 +21,7 @@ import pytest
 
 from glitchygames.engine import GameEngine, current_engine
 from glitchygames.engine_context import EngineContext
+from glitchygames.performance import AdaptiveClamping
 from glitchygames.read_only_views import (
     ClassOnlyView,
     ReadOnlyView,
@@ -984,6 +985,70 @@ def check_event_handlers_view(
 
 
 VIEW_CHECKS['GameEngine.EVENT_HANDLERS'] = check_event_handlers_view
+
+
+def check_performance_manager_view(
+    *, first: EngineContext, second: EngineContext, mocker: MockerFixture
+) -> None:
+    """glitchygames.performance.performance_manager: each context's own manager (audit C14).
+
+    Read (imported) inside a context, the module view answers that context's
+    ``AdaptiveClamping()``; a fresh context's is a new one. Writing, deleting or patching it
+    raises, naming what to do instead.
+    """
+    import glitchygames.performance
+
+    managers: list[AdaptiveClamping] = []
+    reads_answer_their_manager: list[bool] = []
+    for context in (first, second):
+        with context.active():
+            from glitchygames.performance import performance_manager
+
+            managers.append(AdaptiveClamping())
+            reads_answer_their_manager.append(performance_manager is managers[-1])
+    with EngineContext(name='fresh').active():
+        from glitchygames.performance import performance_manager as fresh_read
+
+    assert reads_answer_their_manager == [True, True]
+    assert managers[0] is not managers[1]
+    assert fresh_read is not managers[0]
+    assert fresh_read is not managers[1]
+    assert isinstance(fresh_read, AdaptiveClamping)
+    where_to_write = re.escape(
+        'glitchygames.performance.performance_manager is a read-only view of the current game; '
+        "write nothing: AdaptiveClamping() is the current context's manager; patch its methods"
+    )
+    for write in (
+        lambda: setattr(glitchygames.performance, 'performance_manager', managers[0]),
+        lambda: delattr(glitchygames.performance, 'performance_manager'),
+        lambda: mocker.patch('glitchygames.performance.performance_manager', managers[0]),
+    ):
+        with pytest.raises(ReadOnlyViewError, match=where_to_write):
+            write()
+
+
+VIEW_CHECKS['glitchygames.performance.performance_manager'] = check_performance_manager_view
+
+
+# A name glitchygames.performance never had: its module class lets it be set and deleted
+UNRELATED_MODULE_ATTRIBUTE = 'attribute_no_module_declares'
+
+
+def test_the_performance_module_lists_its_view_and_refuses_only_view_writes():
+    """dir() lists the view; any other name is set, deleted and missing as on any module."""
+    import glitchygames.performance
+
+    listed = dir(glitchygames.performance)
+    setattr(glitchygames.performance, UNRELATED_MODULE_ATTRIBUTE, 1)
+    was_set = getattr(glitchygames.performance, UNRELATED_MODULE_ATTRIBUTE)
+    delattr(glitchygames.performance, UNRELATED_MODULE_ATTRIBUTE)
+
+    assert 'performance_manager' in listed
+    assert 'AdaptiveClamping' in listed
+    assert was_set == 1
+    assert not hasattr(glitchygames.performance, UNRELATED_MODULE_ATTRIBUTE)
+    with pytest.raises(AttributeError, match=re.escape(repr(UNRELATED_MODULE_ATTRIBUTE))):
+        getattr(glitchygames.performance, UNRELATED_MODULE_ATTRIBUTE)
 
 
 @pytest.mark.parametrize('view_name', sorted(VIEW_CHECKS))

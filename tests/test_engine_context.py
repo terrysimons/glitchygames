@@ -54,6 +54,7 @@ from glitchygames.game_frames import game_frame_clock
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, EnumerationAnswer
 from glitchygames.input.state import IDLE_INPUT, current_input, set_current_input
 from glitchygames.live_sources import LiveSources
+from glitchygames.performance import AdaptiveClamping
 from glitchygames.pixel_snap import (
     PixelSnapMode,
     active_default_snap_mode,
@@ -1013,6 +1014,34 @@ def check_internal_post_tracker(*, first: EngineContext, second: EngineContext) 
     assert live_game_code_running() is default_running
 
 
+# A target FPS the first context's performance manager is given (the default is 0.0: unlimited)
+FIRST_TARGET_FPS = 30.0
+
+
+def check_performance_managers(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context has its own performance manager, and the default context its own (C14).
+
+    ``_target_fps`` is read through the manager: it has no public reader and no observable
+    effect outside the shutdown reports (decision 1).
+    """
+    default_manager = AdaptiveClamping()
+    default_target_fps = default_manager._target_fps
+    with first.active():
+        first_manager = AdaptiveClamping()
+        first_manager.set_target_fps(FIRST_TARGET_FPS)
+    with second.active():
+        second_manager = AdaptiveClamping()
+        assert second_manager is not first_manager
+        assert second_manager._target_fps == 0.0
+    with first.active():
+        assert AdaptiveClamping() is first_manager
+        assert first_manager._target_fps == FIRST_TARGET_FPS
+    assert AdaptiveClamping() is default_manager
+    assert default_manager is not first_manager
+    assert default_manager is not second_manager
+    assert default_manager._target_fps == default_target_fps
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1027,6 +1056,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.scenes.scene.scene_managers': check_scene_managers,
     'glitchygames.engine.game_engine.current_engine': check_current_engine,
     'glitchygames.recording.internal_posts': check_internal_post_tracker,
+    'glitchygames.performance.adaptive_clamping.managers': check_performance_managers,
 }
 
 

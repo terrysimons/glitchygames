@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pytest
 
+from glitchygames.engine_context import EngineContext, default_context
 from glitchygames.live_sources import LiveSources
 from glitchygames.performance import AdaptiveClamping
 from glitchygames.recording import RecordingSources
@@ -262,9 +263,9 @@ class FrameDriver:
             'OPTIONS',
             {'fps_log_interval_ms': FPS_LOG_INTERVAL_MS, 'log_timer_jitter': log_timer_jitter},
         )
-        self.performance_manager = mocker.Mock()
-        mocker.patch(
-            'glitchygames.performance.performance_manager', self.performance_manager, create=True
+        # The current context's manager records each frame: its one method the loop calls
+        self.track_fps_from_event = mocker.patch.object(
+            AdaptiveClamping, 'track_fps_from_event', autospec=True
         )
         self.post_event = mocker.patch('glitchygames.scenes.scene.post_event')
 
@@ -322,9 +323,7 @@ class FrameDriver:
             The recorded FPS values.
 
         """
-        return [
-            call.args[0] for call in self.performance_manager.track_fps_from_event.call_args_list
-        ]
+        return [call.args[1] for call in self.track_fps_from_event.call_args_list]
 
     def processing_samples(self) -> list[float]:
         """Return the processing times recorded by the performance manager, in order.
@@ -333,9 +332,7 @@ class FrameDriver:
             The recorded processing times in seconds.
 
         """
-        return [
-            call.args[1] for call in self.performance_manager.track_fps_from_event.call_args_list
-        ]
+        return [call.args[2] for call in self.track_fps_from_event.call_args_list]
 
 
 @pytest.fixture
@@ -353,6 +350,92 @@ def driver_factory(mocker: MockerFixture) -> Generator[Callable[..., FrameDriver
 
     yield make_driver
     DtWriteRecordingSceneManager._reset()
+
+
+class SteppedSceneManager(SceneManager):
+    """A SceneManager whose scene frame is fake work on the fake clock, then an optional body.
+
+    Its options are the ones an engine would give (FrameDriver patches SceneManager's instead).
+    """
+
+    OPTIONS: ClassVar[dict[str, Any]] = {
+        'fps_log_interval_ms': FPS_LOG_INTERVAL_MS,
+        'log_timer_jitter': False,
+    }
+    fake_clock: FakeClock
+    work_seconds: float
+    frame_body: Callable[[], None] | None
+
+    @override
+    def _run_scene_frame(self: Self) -> None:
+        """Do the frame's fake work, then run its body."""
+        self.fake_clock.advance(seconds=self.work_seconds)
+        if self.frame_body is not None:
+            self.frame_body()
+
+
+@pytest.fixture(autouse=True)
+def fresh_stepped_scene_manager() -> Generator[None]:
+    """Give each test its own SteppedSceneManager in the default context, and drop it after.
+
+    SceneManager._reset() in the harness clears SceneManager's entry only: a subclass keeps
+    its own (as driver_factory resets DtWriteRecordingSceneManager).
+
+    Yields:
+        Nothing.
+
+    """
+    SteppedSceneManager._reset()
+    yield
+    SteppedSceneManager._reset()
+
+
+class StandInFrameStepper:
+    """Steps one stand-in game's frames in its own engine context, as an outer driver does.
+
+    Each step is a real ``SceneManager.run_frame_step(paced=False)`` (``GameHost.run_async``'s
+    path) on the fake clock, with the scene frame replaced by fake work and an optional body
+    (SteppedSceneManager).
+    """
+
+    def __init__(
+        self,
+        *,
+        clock: FakeClock,
+        context: EngineContext,
+        scene_name: str,
+        work_seconds: float = 0.0,
+        frame_body: Callable[[], None] | None = None,
+    ) -> None:
+        """Set up the context's scene manager and performance manager, and begin the frames.
+
+        Args:
+            clock: The fake clock (patched in as glitchygames.clock.raw_counter_seconds).
+            context: The engine context the game runs in.
+            scene_name: The scene the context's performance manager counts frames under.
+            work_seconds: Fake seconds of work in each frame.
+            frame_body: Runs in each frame, after the work (an outer game steps inner ones).
+
+        """
+        self.context = context
+        self.scene_name = scene_name
+        with context.active():
+            # The context's own (fresh_stepped_scene_manager resets the default context's)
+            self.manager = SteppedSceneManager()
+            self.manager.fake_clock = clock
+            self.manager.work_seconds = work_seconds
+            self.manager.frame_body = frame_body
+            self.manager.active_scene = Scene(options={})
+            AdaptiveClamping().set_current_scene(scene_name)
+            self.performance_manager: AdaptiveClamping = AdaptiveClamping()
+            self.frame_start_seconds = self.manager.begin_frames()
+
+    def step(self) -> None:
+        """Run one unpaced frame step in the context, keeping its closing reading."""
+        with self.context.active():
+            self.frame_start_seconds = self.manager.run_frame_step(
+                frame_start_seconds=self.frame_start_seconds, paced=False
+            )
 
 
 def _closing_samples(driver: FrameDriver) -> list[float]:
@@ -830,6 +913,66 @@ class TestSceneFrameCap:
 
     def test_scene_default_has_no_cap(self):
         assert Scene.MAX_FRAME_SECONDS is None
+
+
+# Fake work per frame: the two inner games' and the outer game's own
+INNER_WORK_SECONDS = (1 / 256, 1 / 128)
+OUTER_WORK_SECONDS = 1 / 1024
+AGGREGATE_FRAME_COUNT = 4
+
+
+def test_an_outer_games_report_covers_the_inner_games_it_steps(mocker):
+    """Each game's report holds its own frames; the outer game's covers the whole tick (C14).
+
+    The owner, 2026-10-28: the Arcade's wrapper is a game in its own context whose frame
+    contains every inner game's ticks, so its report is the whole system's aggregate.
+    """
+    clock = FakeClock()
+    # The one clock (glitchygames.clock): patched on the module, as FrameDriver does
+    mocker.patch('glitchygames.clock.raw_counter_seconds', new=clock.perf_counter)
+    mocker.patch('glitchygames.scenes.scene.post_event')
+    recorded = mocker.spy(AdaptiveClamping, 'track_fps_from_event')
+    inner_steppers = [
+        StandInFrameStepper(
+            clock=clock,
+            context=EngineContext(name=f'inner {index}'),
+            scene_name=f'Inner {index}',
+            work_seconds=work_seconds,
+        )
+        for index, work_seconds in enumerate(INNER_WORK_SECONDS)
+    ]
+
+    def outer_frame() -> None:
+        for stepper in inner_steppers:
+            stepper.step()
+        clock.advance(seconds=OUTER_WORK_SECONDS)
+
+    outer_stepper = StandInFrameStepper(
+        clock=clock,
+        context=default_context(),
+        scene_name='Outer',
+        frame_body=outer_frame,
+    )
+    for _frame_index in range(AGGREGATE_FRAME_COUNT):
+        outer_stepper.step()
+
+    processing_by_manager: dict[int, list[float]] = {}
+    for call in recorded.call_args_list:
+        processing_by_manager.setdefault(id(call.args[0]), []).append(call.args[2])
+    inner_samples = [
+        processing_by_manager[id(stepper.performance_manager)] for stepper in inner_steppers
+    ]
+    outer_samples = processing_by_manager[id(outer_stepper.performance_manager)]
+    for stepper in [*inner_steppers, outer_stepper]:
+        assert set(stepper.performance_manager.get_per_scene_shutdown_stats()) == {
+            stepper.scene_name
+        }
+    assert len(outer_samples) == AGGREGATE_FRAME_COUNT
+    for frame_index in range(AGGREGATE_FRAME_COUNT):
+        inner_total = sum(samples[frame_index] for samples in inner_samples)
+        assert outer_samples[frame_index] >= inner_total + OUTER_WORK_SECONDS
+        for samples, work_seconds in zip(inner_samples, INNER_WORK_SECONDS, strict=True):
+            assert samples[frame_index] >= work_seconds
 
 
 # An outer driver's wait between two unpaced steps (GameHost.run_async's tick)

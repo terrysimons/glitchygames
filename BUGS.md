@@ -23,7 +23,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 268. An Unpaced Frame Step Counted the Outer Driver's Wait as the Frame's Processing Time
 - **Description**: `SceneManager.run_frame_step` (`src/glitchygames/scenes/scene.py`) took a frame's processing time as `clock.raw_counter_seconds() - frame_start_seconds`, where `frame_start_seconds` is the previous step's closing reading. A paced step (`start()`) sleeps before that closing reading, so its processing time was its work alone, as the comment says ("its work, without the pacing sleep that follows"). An unpaced step (`paced=False`: `GameHost.run_async`, the replay viewer at `src/glitchygames/replay/viewer.py`) waits after its closing reading, for the outer driver's next tick, so the wait landed in the next frame's processing time. The performance manager's processing and spare-time statistics, and the shutdown reports built on them, then showed every unpaced frame as busy for its whole period. Under the Arcade's wrapper, each inner game's processing held the other games' steps too
-- **Status**: Resolved (2026-10-29, in the commit that adds this entry: an unpaced step's work starts at its own reading; a paced step is unchanged)
+- **Status**: Resolved (2026-10-29, commit e4aa093c: an unpaced step's work starts at its own reading; a paced step is unchanged)
 - **Priority**: Medium (wrong statistics in a browser or outer-driver run; no frame time, recording or replay changed)
 - **Reporter**: Found by the engine-context sub-plan 2, Task 4's outer-report test (`plans/2026-10-27-engine-context-2-engine-state.md`)
 - **Date Reported**: 2026-10-29
