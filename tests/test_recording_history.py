@@ -23,13 +23,18 @@ from glitchygames.recording_history import (
     UnclassifiedFrameFieldError,
     add_frame_histories,
     budget_seconds_for,
+    completed_summary,
     frame_content_hash,
+    frame_time_summary,
     latest_measurement_run,
     recording_content_hash,
     recording_run_summaries,
     run_summary,
+    slice_frame_count,
+    slice_means,
     stacked_history,
     stacked_measurement_runs,
+    summary_lacks_fields,
 )
 from glitchygames.timing import PacingTimer, SleepModel
 
@@ -295,6 +300,9 @@ class TestRunSummaries:
             # 17 ms to 100 ms are over a 16.7 ms budget
             frames_over_budget=84,
             frame_time=None,
+            # 5% of 100 frames is 5: (96 + 97 + 98 + 99 + 100) / 5 ms and (1 + 2 + 3 + 4 + 5) / 5
+            slowest_5_percent_mean_processing_seconds=0.098,
+            fastest_5_percent_mean_processing_seconds=0.003,
         )
 
     def test_each_run_reads_its_own_index_and_skips_frames_without_a_time(self):
@@ -340,8 +348,15 @@ class TestRunSummaries:
         summary = run_summary(frames=frames, run_index=0, budget_seconds=1 / 60, live_run=True)
 
         assert summary is not None
+        # The mean and slices leave out the first frame: (1/60 + 1/60 + 0.05) / 3
         assert summary.frame_time == FrameTimeSummary(
-            p50_seconds=0.016667, p99_seconds=0.05, max_seconds=0.05, late_frames=1
+            p50_seconds=0.016667,
+            p99_seconds=0.05,
+            max_seconds=0.05,
+            late_frames=1,
+            mean_seconds=0.027778,
+            slowest_5_percent_mean_seconds=0.05,
+            fastest_5_percent_mean_seconds=0.016667,
         )
 
     def test_frame_times_need_a_dt_and_count_late_frames_only_with_a_budget(self):
@@ -437,3 +452,171 @@ class TestSummariesWhenRunsStack:
 
         assert latest is not None
         assert latest.summary is None
+
+
+class TestSliceMeans:
+    """The "5% low" and "5% high" slices (slice_frame_count, the one definition), by hand."""
+
+    @pytest.mark.parametrize(
+        ('frame_count', 'expected'),
+        [(1, 1), (2, 1), (19, 1), (20, 1), (21, 2), (40, 2), (41, 3), (472, 24), (2072, 104)],
+    )
+    def test_a_slice_is_five_percent_of_the_frames_rounded_up_and_at_least_one(
+        self, frame_count, expected
+    ):
+        assert slice_frame_count(frame_count=frame_count) == expected
+
+    def test_one_frame_is_both_slices(self):
+        assert slice_means(sorted_values=[0.004]) == (0.004, 0.004)
+
+    def test_nineteen_and_twenty_frames_average_one_frame_each(self):
+        """ceil(0.95) and ceil(1.0) are both 1: the single slowest and fastest frame."""
+        nineteen = [index / 1000 for index in range(1, 20)]
+        twenty = [index / 1000 for index in range(1, 21)]
+
+        assert slice_means(sorted_values=nineteen) == (0.019, 0.001)
+        assert slice_means(sorted_values=twenty) == (0.020, 0.001)
+
+    def test_twenty_one_frames_average_two_frames_each(self):
+        twenty_one = [index / 1000 for index in range(1, 22)]
+
+        slowest, fastest = slice_means(sorted_values=twenty_one)
+
+        # (20 + 21) / 2 ms and (1 + 2) / 2 ms
+        assert slowest == pytest.approx(0.0205)
+        assert fastest == pytest.approx(0.0015)
+
+    def test_a_one_frame_run_summarises_its_frame_as_both_slices(self):
+        frames = timed_frames(run_times=[[0.004]])
+
+        summary = run_summary(frames=frames, run_index=0, budget_seconds=None, live_run=True)
+
+        assert summary is not None
+        assert summary.slowest_5_percent_mean_processing_seconds == 0.004
+        assert summary.fastest_5_percent_mean_processing_seconds == 0.004
+        assert summary.mean_processing_seconds == 0.004
+        # Its one frame time is its first: no mean or slices of frame times
+        assert summary.frame_time is not None
+        assert summary.frame_time.mean_seconds is None
+        assert summary.frame_time.slowest_5_percent_mean_seconds is None
+        assert summary.frame_time.fastest_5_percent_mean_seconds is None
+
+    def test_pause_frames_count_like_any_other(self):
+        """Frame 2 of timed_frames is in the Pause scene; it is the slowest here, and counted."""
+        frames = timed_frames(run_times=[[0.001], [0.001], [0.009]])
+
+        summary = run_summary(frames=frames, run_index=0, budget_seconds=None, live_run=False)
+
+        assert summary is not None
+        assert summary.slowest_5_percent_mean_processing_seconds == 0.009
+
+    def test_the_first_frame_time_is_left_out_of_the_mean_and_slices_only(self):
+        """Its dt runs from the clock's start (about a microsecond), not from a frame before."""
+        frames = [{'frame': 0, 'dt': 0.000001}] + [
+            {'frame': index, 'dt': index / 1000} for index in range(1, 21)
+        ]
+
+        summary = frame_time_summary(frames=frames, budget_seconds=None)
+
+        assert summary is not None
+        # 20 frames after the first: one frame per slice, 1 ms to 20 ms, mean 10.5 ms
+        assert summary.mean_seconds == 0.0105
+        assert summary.slowest_5_percent_mean_seconds == 0.02
+        assert summary.fastest_5_percent_mean_seconds == 0.001
+        # The percentiles still read every frame: the median of 21 is the 11th, 10 ms
+        assert summary.p50_seconds == 0.01
+
+    def test_no_measured_frames_has_no_mean(self):
+        summary = run_summary(
+            frames=timed_frames(run_times=[[0.001]]),
+            run_index=0,
+            budget_seconds=None,
+            live_run=False,
+        )
+        assert summary is not None
+
+        assert summary.model_copy(update={'measured_frames': 0}).mean_processing_seconds is None
+
+
+class TestSummariesFromBeforeTheSliceMeans:
+    """Rows and recordings written before the slice means read, and get them when runs stack."""
+
+    def old_summary(self) -> dict[str, Any]:
+        """Return a live run's stored summary as written before the slice means (2026-10-28).
+
+        Returns:
+            The summary's JSON.
+
+        """
+        frames = timed_frames(run_times=[[0.002], [0.001], [0.003]])
+        summary = run_summary(frames=frames, run_index=0, budget_seconds=None, live_run=True)
+        assert summary is not None
+        fields = summary.model_dump(mode='json')
+        for name in (
+            'slowest_5_percent_mean_processing_seconds',
+            'fastest_5_percent_mean_processing_seconds',
+        ):
+            del fields[name]
+        for name in (
+            'mean_seconds',
+            'slowest_5_percent_mean_seconds',
+            'fastest_5_percent_mean_seconds',
+        ):
+            del fields['frame_time'][name]
+        return fields
+
+    def test_an_old_summary_reads_without_the_new_figures(self):
+        summary = RunSummary.model_validate(self.old_summary())
+
+        assert summary.slowest_5_percent_mean_processing_seconds is None
+        assert summary.fastest_5_percent_mean_processing_seconds is None
+        assert summary.frame_time is not None
+        assert summary.frame_time.mean_seconds is None
+        assert summary_lacks_fields(summary=self.old_summary())
+
+    @pytest.mark.parametrize(
+        'summary', ['not a mapping', {'measured_frames': 1}, {'frame_time': None}]
+    )
+    def test_an_unreadable_summary_lacks_nothing(self, summary):
+        """It is left as it is: completing it would not make it readable."""
+        assert not summary_lacks_fields(summary=summary)
+
+    def test_a_current_summary_lacks_nothing(self):
+        frames = timed_frames(run_times=[[0.002], [0.001]])
+        summary = run_summary(frames=frames, run_index=0, budget_seconds=None, live_run=True)
+        assert summary is not None
+
+        assert not summary_lacks_fields(summary=summary.model_dump(mode='json'))
+        rebaselined = summary.model_copy(update={'frame_time': None})
+        assert not summary_lacks_fields(summary=rebaselined.model_dump(mode='json'))
+
+    def test_an_old_summary_gets_the_new_figures_and_keeps_its_own(self):
+        frames = timed_frames(run_times=[[0.002, 0.005], [0.001, 0.006], [0.003, 0.007]])
+        stored = {**self.old_summary(), 'p50_processing_seconds': 0.123}
+        previous = [
+            {**measurement_run().to_json(), 'rebaselined_from': 'older.jsonl.gz'},
+            {**measurement_run().to_json(), 'summary': stored},
+        ]
+
+        runs = stacked_measurement_runs(
+            newest=measurement_run(),
+            previous=previous,
+            previous_frame_count=3,
+            previous_frames=frames,
+            budget_seconds=None,
+        )
+
+        completed = RunSummary.model_validate(runs[2]['summary'])
+        # Its stored figures are kept, even one the frames would now give otherwise
+        assert completed.p50_processing_seconds == 0.123
+        # The new ones come from its own column of the frames' histories (index 1)
+        assert completed.slowest_5_percent_mean_processing_seconds == 0.007
+        assert completed.fastest_5_percent_mean_processing_seconds == 0.005
+        assert completed.frame_time is not None
+        assert completed.frame_time.mean_seconds == round(1 / 60, 6)
+
+    def test_a_stored_frame_time_of_none_stays_none(self):
+        stored = {**self.old_summary(), 'frame_time': None}
+        computed = {**self.old_summary(), 'frame_time': {'mean_seconds': 1.0}}
+
+        assert completed_summary(stored=stored, computed=computed)['frame_time'] is None
