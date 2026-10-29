@@ -222,6 +222,8 @@ unmeasured-paths = [
   ":(exclude,glob)src/games/*/tests/fixtures/replays/**",
   ":(exclude,glob)src/demos/*/tests/fixtures/replays/**",
   ":(exclude,glob)src/apps/*/tests/fixtures/replays/**",
+  # The website (play.glitchy.games) runs no game: editing it measures nothing
+  ":(glob)src/website/**",
 ]
 
 # Recordings that moved, old repository path -> new: their ledger rows from before the move are
@@ -394,6 +396,7 @@ src = [
   "src",
   "tests",
   "scripts",
+  "infra/src",
   "src/games/mr-muncher/src",
   "src/games/brave-adventurer/src",
   "src/games/clockwork-keep/src",
@@ -418,12 +421,14 @@ include = [
   "src/apps/bitmappy/**/*.py",
   "tests/**/*.py",
   "scripts/**/*.py",
+  "infra/**/*.py",
   "noxfile.py",
 ]
 target-version = "py314"
 # A workspace member's tests directory is not a package (pytest imports its files by name; a
 # package named tests would shadow the engine's tests/), so it is a namespace on purpose
 namespace-packages = [
+  "infra/tests",
   "src/games/mr-muncher/tests",
   "src/games/brave-adventurer/tests",
   "src/games/clockwork-keep/tests",
@@ -520,6 +525,27 @@ fixable = ["ALL"]
   "S311",    # Tests build seeded random.Random instances for reproducible inputs
 ]
 "src/apps/*/tests/**/*.py" = [
+  "PLR2004",
+  "ANN",
+  "ARG001",
+  "ARG005",
+  "PLC2701",
+  "PLC2801", # Tests may call dunder methods directly to verify they work
+  "D102",    # Test method names are self-documenting
+  "DOC201",  # Test helper return docs unnecessary
+  "RET504",  # Explicit assignment before return aids test readability
+  "F841",
+  "B007",
+  "S101",
+  "PT018",   # Compound assertions are acceptable in tests
+  "RUF069",  # Exact float comparisons are intentional in property-based tests
+  "B905",    # zip() without strict= is fine in tests
+  "B002",    # False positive on double-negation test: -(-speed)
+  "ARG002",  # Pytest fixtures are activated by parameter presence, not by direct use
+  "S311",    # Tests build seeded random.Random instances for reproducible inputs
+]
+# The website project's tests (infra/) too
+"infra/tests/**/*.py" = [
   "PLR2004",
   "ANN",
   "ARG001",
@@ -729,13 +755,15 @@ package_module_name_map = { "pygame-ce" = "pygame" }
 # Not this package's code: the pygame-ce submodule (its own project), browser/, which runs
 # in Pyodide on its runtime modules (js, pyodide) and its own files, and the workspace members
 # under src/games, src/demos and src/apps (projects of their own, each declaring its dependencies:
-# tests/test_workspace_config.py, test_every_member_declares_what_it_imports)
+# tests/test_workspace_config.py, test_every_member_declares_what_it_imports), and infra/ (the
+# website's CDK app: its own uv project with its own lock, declaring aws-cdk-lib and boto3)
 extend_exclude = [
   "third_party",
   "browser",
   "src/games",
   "src/demos",
   "src/apps",
+  "infra",
 ]
 # The engine's own package, under src/, and the workspace members' packages scripts/ imports
 # (deptry guesses first-party modules from the root's direct children only)

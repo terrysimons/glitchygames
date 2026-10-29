@@ -662,3 +662,76 @@ def test_missing_syft_or_grype_fails_in_ci(mocker, monkeypatch, variable):
 
     with pytest.raises(AssertionError, match='syft and grype not found on PATH'):
         noxfile.security_scan(session)
+
+
+def circleci_job_definition(*, name: str) -> str:
+    """Return a job's definition under ``jobs:`` (its lines, as text).
+
+    Returns:
+        The definition, from its ``name:`` line to the next job's (or the workflows).
+
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    jobs = configuration[configuration.index('\njobs:\n') : configuration.index('\nworkflows:')]
+    # The body ends at the next line indented less than a job's contents: the next job, or a
+    # comment or key at the top level
+    match = re.search(
+        rf'^  {name}:\n(?P<body>(?:(?:    .*)?\n)+?)(?=^ {{0,2}}\S|\Z)', jobs + '\n', re.MULTILINE
+    )
+    assert match is not None, f'the configuration has no job {name}'
+    return match['body']
+
+
+def test_the_infra_tests_run_on_every_branch():
+    """The website's CDK app and publisher are tested on every branch, like the engine.
+
+    The workflow lists the job bare (``- test-infra``, no requires or filters).
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    workflow = configuration[configuration.index('\nworkflows:') :]
+
+    assert re.search(r'^      - test-infra\n', workflow, flags=re.MULTILINE)
+    assert 'nox -s infra-test' in circleci_job_definition(name='test-infra')
+
+
+def test_the_site_deploys_from_main_after_the_docs_publish():
+    """play.glitchy.games is published from main only, after the docs publish and infra tests.
+
+    The owner (2026-10-28): "it should run on main after docs publish". deploy-docs itself
+    waits for the macOS job, so the site never publishes ahead of a passing build.
+    """
+    entry = circleci_workflow_job(name='deploy-site')
+
+    assert 'requires:\n            - deploy-docs\n            - test-infra\n' in entry
+    assert 'branches:\n              only: main\n' in entry
+    assert 'serial-group: << pipeline.project.slug >>/deploy-site' in entry
+    assert 'nox -s site-publish' in circleci_job_definition(name='deploy-site')
+
+
+def test_the_site_deploy_uses_oidc_not_stored_keys():
+    """The deploy assumes its role with CircleCI's OIDC token: no AWS keys anywhere in CI."""
+    definition = circleci_job_definition(name='deploy-site')
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+
+    assert 'CIRCLE_OIDC_TOKEN_V2' in definition
+    assert 'AWS_WEB_IDENTITY_TOKEN_FILE' in definition
+    assert 'AWS_ROLE_ARN' in definition
+    assert 'AWS_ACCESS_KEY_ID' not in configuration
+    assert 'AWS_SECRET_ACCESS_KEY' not in configuration
+
+
+def test_the_site_deploy_role_arn_stays_out_of_the_repository():
+    """The role's ARN names the AWS account, so it lives in CircleCI's project settings.
+
+    The owner (2026-10-28): "Make SITE_DEPLOY_ROLE_ARN private." The job reads the project
+    environment variable and refuses to run without it; the public configuration holds neither
+    a pipeline parameter for it nor any ARN.
+    """
+    definition = circleci_job_definition(name='deploy-site')
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+
+    assert 'pipeline.parameters.SITE_DEPLOY_ROLE_ARN' not in configuration
+    assert not re.search(r'^  SITE_DEPLOY_ROLE_ARN:', configuration, flags=re.MULTILINE)
+    assert 'arn:aws:' not in configuration
+    assert '"${SITE_DEPLOY_ROLE_ARN:-}"' in definition
+    assert 'Project Settings > Environment Variables' in definition

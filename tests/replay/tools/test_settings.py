@@ -275,7 +275,8 @@ def test_our_settings_equal_the_old_constants():
 
     assert settings.ledger_directory == OLD_LEDGER_DIRECTORY
     assert settings.measured_paths == OLD_MEASURED_PATHS
-    assert settings.unmeasured_paths == OLD_MEMBER_TEST_PATHSPECS
+    # The old constants, then the website (added 2026-10-28, test_the_website_is_not_measured)
+    assert settings.unmeasured_paths == (*OLD_MEMBER_TEST_PATHSPECS, WEBSITE_PATHSPEC)
     assert settings.landed_ref == OLD_ORIGIN_MAIN
     assert settings.pending_ledger == OLD_PENDING_LEDGER_RELATIVE_PATH
     assert settings.published_ledger_ref == OLD_PUBLISHED_LEDGER_REF
@@ -295,6 +296,20 @@ def test_our_unmeasured_paths_name_every_layer():
     for layer in LAYERS:
         assert f':(glob)src/{layer}/*/tests/**' in unmeasured
         assert f':(exclude,glob)src/{layer}/*/tests/fixtures/replays/**' in unmeasured
+
+
+WEBSITE_PATHSPEC = ':(glob)src/website/**'
+
+
+def test_the_website_is_not_measured():
+    """The website's files are under src/ but run no game, so editing them measures nothing.
+
+    measured-paths holds all of src/ (every game's code); without this a commit touching only
+    src/website/ would make the pre-commit hook re-measure every golden replay.
+    """
+    unmeasured = load_project_settings(project_root=PROJECT_ROOT).unmeasured_paths
+
+    assert WEBSITE_PATHSPEC in unmeasured
 
 
 def test_settings_made_in_code_take_the_field_names_and_nothing_published():
