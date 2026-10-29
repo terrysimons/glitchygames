@@ -1,0 +1,3 @@
+# Golden fixtures keep their exact bytes: the CRLF ones test CRLF handling
+Tests/SpriteCoreTests/Golden/** -text
+tools/fixtures/** -text
