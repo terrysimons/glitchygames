@@ -221,7 +221,7 @@ class TestQueryModelCapabilities:
 
     def test_slow_answer_is_reported_as_a_likely_download(self, mocker, caplog):
         """A query slower than the download threshold logs that the model was downloaded."""
-        mocker.patch.object(ai_worker, 'measured_seconds', side_effect=[0.0, 120.0])
+        mocker.patch('glitchygames.clock.measured_seconds', side_effect=[0.0, 120.0])
         completions = FakeCompletions(response=_response_with_content('4096'))
 
         with caplog.at_level(logging.INFO, logger=LOG.name):

@@ -13,7 +13,7 @@ from bitmappy.controllers.manager import (
 )
 from bitmappy.controllers.selection import ControllerSelection
 from bitmappy.indicators.collision import IndicatorShape, VisualCollisionManager
-from glitchygames.clock import elapsed_seconds
+from glitchygames import clock
 from glitchygames.sources import advance_frame_clock
 
 
@@ -145,12 +145,12 @@ class TestMultiControllerEdgeCases:
                 instance_id=instance_id,
                 status=ControllerStatus.ACTIVE,
                 color=self.manager.CONTROLLER_COLORS[i],
-                last_activity=elapsed_seconds(),
+                last_activity=clock.elapsed_seconds(),
             )
             self.manager.assigned_controllers[instance_id] = i
 
         # Simulate old activity for some controllers
-        old_time = elapsed_seconds() - 1000  # Very old
+        old_time = clock.elapsed_seconds() - 1000  # Very old
         self.manager.controllers[0].last_activity = old_time
         self.manager.controllers[1].last_activity = old_time
 
@@ -402,7 +402,7 @@ class TestMultiControllerIntegration:
                 instance_id=instance_id,
                 status=ControllerStatus.ACTIVE,
                 color=self.manager.CONTROLLER_COLORS[i],
-                last_activity=elapsed_seconds() - i,  # Different activity times
+                last_activity=clock.elapsed_seconds() - i,  # Different activity times
             )
             self.manager.assigned_controllers[instance_id] = i
 

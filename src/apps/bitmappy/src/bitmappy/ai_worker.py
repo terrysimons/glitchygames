@@ -16,8 +16,8 @@ import urllib.request
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, Protocol
 
+from glitchygames import clock
 from glitchygames.ai import get_sprite_size_hint
-from glitchygames.clock import measured_seconds, raw_sleep
 
 from .constants import (
     AI_BASE_DELAY,
@@ -382,13 +382,13 @@ def _query_model_capabilities(log: logging.Logger, client: AIClient) -> dict[str
     log.info('Querying model capabilities...')
     log.info('This may take a while if the model needs to be downloaded first...')
 
-    start_time = measured_seconds()
+    start_time = clock.measured_seconds()
     response = client.chat.completions.create(
         model=AI_MODEL,
         messages=test_messages,
         max_tokens=256,
     )
-    duration = measured_seconds() - start_time
+    duration = clock.measured_seconds() - start_time
 
     log.info('Model capability query completed in %.2f seconds', duration)
     if duration > MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS:
@@ -472,7 +472,7 @@ def _is_non_retryable_ai_error(error: BaseException) -> bool:
 def _create_ai_retry_decorator(
     log: logging.Logger,
     *,
-    sleep: Callable[[float], None] = raw_sleep,
+    sleep: Callable[[float], None] | None = None,
 ) -> Callable[[Callable[..., object]], Callable[..., object]]:
     """Create a retry decorator for AI requests with exponential backoff.
 
@@ -485,9 +485,10 @@ def _create_ai_retry_decorator(
 
     Args:
         log: The worker's logger, for each retry and the final give-up.
-        sleep: The wait between attempts (tenacity's ``sleep``): the engine's raw sleep
-            (glitchygames/clock.py), so tenacity never sleeps through its own ``time.sleep``;
-            tests pass one that does not wait.
+        sleep: The wait between attempts (tenacity's ``sleep``; tests pass one that does not
+            wait). None is the engine's raw sleep (glitchygames/clock.py), looked up at each
+            wait, so tenacity never sleeps through its own ``time.sleep`` and a patch on
+            ``glitchygames.clock.raw_sleep`` reaches it.
 
     Returns:
         The decorator.
@@ -496,6 +497,9 @@ def _create_ai_retry_decorator(
     # Imported here, when an AI request is made, not with the module: Bitmappy then imports
     # where tenacity is not installed (a browser build), with only AI requests unavailable
     import tenacity
+
+    def wait_between_attempts(seconds: float) -> None:
+        (clock.raw_sleep if sleep is None else sleep)(seconds)
 
     def should_retry(error: BaseException) -> bool:
         if _is_non_retryable_ai_error(error):
@@ -528,7 +532,7 @@ def _create_ai_retry_decorator(
         retry=tenacity.retry_if_exception(should_retry),
         before_sleep=log_retry,
         retry_error_callback=give_up,
-        sleep=sleep,
+        sleep=wait_between_attempts,
     )
 
 
@@ -549,7 +553,7 @@ def _make_ai_api_call(
     log.debug('Max input tokens: %s', AI_MAX_INPUT_TOKENS)
     log.debug('Max context tokens: %s', AI_MAX_CONTEXT_SIZE)
 
-    start_time = measured_seconds()
+    start_time = clock.measured_seconds()
 
     # Only logs the failure (with its duration) and re-raises it: the retry decorator and
     # _process_ai_request decide what happens to any provider SDK error
@@ -557,13 +561,13 @@ def _make_ai_api_call(
         api_arguments = _build_ai_api_arguments(request=request, client=client, log=log)
         response = client.chat.completions.create(**api_arguments)
     except Exception:
-        end_time = measured_seconds()
+        end_time = clock.measured_seconds()
         duration = end_time - start_time
         log.exception('API call failed after %.2f seconds', duration)
         log.exception('API call failed with exception')
         raise
 
-    end_time = measured_seconds()
+    end_time = clock.measured_seconds()
     duration = end_time - start_time
     log.info('AI response received from API in %.2f seconds', duration)
 

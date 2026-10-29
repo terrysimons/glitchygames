@@ -13,7 +13,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from glitchygames.clock import elapsed_seconds, measured_seconds
+from glitchygames import clock
 
 if TYPE_CHECKING:
     from bitmappy.controllers.manager import MultiControllerManager
@@ -63,7 +63,7 @@ class PerformanceMonitor:
             metrics.average_time = metrics.total_time / metrics.operation_count
             metrics.max_time = max(metrics.max_time, duration)
             metrics.min_time = min(metrics.min_time, duration)
-            metrics.last_operation = measured_seconds()
+            metrics.last_operation = clock.measured_seconds()
 
             # Add to history
             self.operation_history[operation].append(duration)
@@ -305,7 +305,7 @@ class OptimizedVisualCollisionManager:
             position: Position tuple
 
         """
-        start_time = measured_seconds()
+        start_time = clock.measured_seconds()
 
         # Use base manager
         self.base_manager.add_controller_indicator(controller_id, instance_id, color, position)
@@ -315,7 +315,7 @@ class OptimizedVisualCollisionManager:
             self.position_cache.set_position(controller_id, 'default', 0, position)
 
         # Record performance
-        duration = measured_seconds() - start_time
+        duration = clock.measured_seconds() - start_time
         self.performance_monitor.record_operation('add_controller_indicator', duration)
 
     def update_controller_position(self, controller_id: int, position: tuple[int, int]) -> None:
@@ -327,13 +327,13 @@ class OptimizedVisualCollisionManager:
 
         """
         # Throttle updates
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
         if current_time - self.last_update_time < self.update_throttle:
             # Store pending update
             self.pending_updates[controller_id] = position
             return
 
-        start_time = measured_seconds()
+        start_time = clock.measured_seconds()
 
         # Process pending updates
         if self.pending_updates:
@@ -351,12 +351,12 @@ class OptimizedVisualCollisionManager:
         self.last_update_time = current_time
 
         # Record performance
-        duration = measured_seconds() - start_time
+        duration = clock.measured_seconds() - start_time
         self.performance_monitor.record_operation('update_controller_position', duration)
 
     def optimize_positioning(self) -> None:
         """Optimize positioning with performance monitoring."""
-        start_time = measured_seconds()
+        start_time = clock.measured_seconds()
 
         # Use base manager optimization
         self.base_manager.optimize_positioning()
@@ -367,7 +367,7 @@ class OptimizedVisualCollisionManager:
             LOG.debug('Cleaned up %s dead objects', cleaned)
 
         # Record performance
-        duration = measured_seconds() - start_time
+        duration = clock.measured_seconds() - start_time
         self.performance_monitor.record_operation('optimize_positioning', duration)
 
     def get_performance_stats(self) -> dict[str, Any]:
@@ -437,7 +437,7 @@ class MultiControllerPerformanceOptimizer:
 
         # Optimization settings
         self.auto_cleanup_interval = 300  # 5 minutes
-        self.last_cleanup_time = elapsed_seconds()
+        self.last_cleanup_time = clock.elapsed_seconds()
 
     def optimize_system(self) -> dict[str, Any]:
         """Optimize the entire multi-controller system.
@@ -446,7 +446,7 @@ class MultiControllerPerformanceOptimizer:
             Dict with optimization results
 
         """
-        start_time = measured_seconds()
+        start_time = clock.measured_seconds()
         results = {
             'controllers_cleaned': 0,
             'memory_cleaned': 0,
@@ -471,7 +471,7 @@ class MultiControllerPerformanceOptimizer:
         results['performance_improved'] = True
 
         # Record performance
-        duration = measured_seconds() - start_time
+        duration = clock.measured_seconds() - start_time
         self.performance_monitor.record_operation('optimize_system', duration)
 
         return results
@@ -526,7 +526,7 @@ class MultiControllerPerformanceOptimizer:
             True if optimization was performed
 
         """
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
 
         if current_time - self.last_cleanup_time > self.auto_cleanup_interval:
             self.optimize_system()

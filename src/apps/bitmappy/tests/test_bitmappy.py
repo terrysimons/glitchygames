@@ -1252,7 +1252,7 @@ class TestAiRequestIds:
         """In a replay the wall clock stands still within a frame; the ids still differ."""
         from bitmappy import ai_manager
 
-        mocker.patch.object(ai_manager, 'wall_clock_epoch_seconds', return_value=1_700_000_000.0)
+        mocker.patch('glitchygames.clock.wall_clock_epoch_seconds', return_value=1_700_000_000.0)
         manager = ai_manager.AIManager(editor=mocker.Mock())
         manager.ai_request_queue = mocker.Mock()
 

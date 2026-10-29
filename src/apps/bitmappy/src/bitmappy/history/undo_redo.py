@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from glitchygames.clock import wall_clock_epoch_seconds
+from glitchygames import clock
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -344,7 +344,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         """
         operation = Operation(
             operation_type=operation_type,
-            timestamp=wall_clock_epoch_seconds(),
+            timestamp=clock.wall_clock_epoch_seconds(),
             description=description,
             undo_data=undo_data,
             redo_data=redo_data,
@@ -379,7 +379,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
         """
         operation = Operation(
             operation_type=operation_type,
-            timestamp=wall_clock_epoch_seconds(),
+            timestamp=clock.wall_clock_epoch_seconds(),
             description=description,
             undo_data=undo_data,
             redo_data=redo_data,
