@@ -1001,7 +1001,7 @@ class TestFindAvailablePathTimestampFallback:
         """Test that timestamp is used when MAX_FILE_NUMBERING_ATTEMPTS files exist."""
         mocker.patch('glitchygames.api.client.MAX_FILE_NUMBERING_ATTEMPTS', 3)
         # The wall clock comes through the clock door (glitchygames/clock.py)
-        mocker.patch('glitchygames.api.client.wall_clock_epoch_seconds', return_value=1234567890.5)
+        mocker.patch('glitchygames.clock.wall_clock_epoch_seconds', return_value=1234567890.5)
 
         base_path = tmp_path / 'sprite.toml'
         base_path.touch()
@@ -1026,7 +1026,7 @@ class TestFindAvailableDirectoryTimestampFallback:
         """Test that timestamp is used when MAX_FILE_NUMBERING_ATTEMPTS dirs exist."""
         mocker.patch('glitchygames.api.client.MAX_FILE_NUMBERING_ATTEMPTS', 3)
         # The wall clock comes through the clock door (glitchygames/clock.py)
-        mocker.patch('glitchygames.api.client.wall_clock_epoch_seconds', return_value=9876543210.5)
+        mocker.patch('glitchygames.clock.wall_clock_epoch_seconds', return_value=9876543210.5)
 
         (tmp_path / 'sprite-001').mkdir()
         (tmp_path / 'sprite-002').mkdir()

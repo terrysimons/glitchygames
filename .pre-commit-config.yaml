@@ -13,7 +13,7 @@ repos:
       stages: [pre-push]
 
     - id: lint
-      name: lint (code, docs, yaml, toml, deps, dead code, cves)
+      name: lint (code, docs, yaml, toml, deps, dead code)
       language: system
       entry: uv run --extra dev nox -s lint
       pass_filenames: false
@@ -33,8 +33,11 @@ repos:
       pass_filenames: false
       stages: [pre-push]
 
+    # bandit, then the syft SBOM (docs/sbom.cyclonedx.json; a regenerated SBOM that differs from
+    # the committed one fails), grype's CVE scan and the license check. syft and grype come from
+    # .envrc (Homebrew); without them the session warns and runs bandit alone
     - id: security-scan
-      name: security-scan (bandit, safety)
+      name: security-scan (bandit, syft SBOM, grype CVEs, licenses)
       language: system
       entry: uv run --extra dev nox -s security-scan
       pass_filenames: false

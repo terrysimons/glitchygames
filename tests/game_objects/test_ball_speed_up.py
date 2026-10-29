@@ -299,12 +299,18 @@ class TestBallSpeedUpBehavior:
         ball._advance_continuous_speed_up(1.0)
         assert ball.speed_up_count == 2
 
-    def test_continuous_timer_uses_game_time_not_wall_clock(self, mocker):
-        """Wall-clock time passing (e.g. while paused) does not advance the timer."""
-        mock_time = mocker.patch('time.time', return_value=0.0)
+    def test_continuous_timer_uses_game_time_not_wall_clock(self):
+        """Wall-clock time passing (e.g. while paused) does not advance the timer.
+
+        No clock is patched: the timer must hold exactly the game time it was given. A read of
+        any wall clock, through any module or clock function, would add the real time that passed
+        between building the ball and each tick, and the equality would fail.
+        """
         ball = _ball_with_speed_up(triggers=SpeedUpTrigger.CONTINUOUS, interval=1.0)
-        mock_time.return_value = 1_000.0  # a long pause: dt_tick is not called
         ball.dt_tick(1 / 64)
+        assert ball._continuous_elapsed_time == 1 / 64
+        ball.dt_tick(1 / 64)
+        assert ball._continuous_elapsed_time == 2 / 64
         assert ball.speed_up_count == 0
 
     def test_dt_tick_drives_the_continuous_timer(self):

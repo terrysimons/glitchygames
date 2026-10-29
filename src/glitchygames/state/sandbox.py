@@ -37,7 +37,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, override
 
-from glitchygames.clock import wall_clock_time
+from glitchygames import clock
 from glitchygames.sources import active_sources, notify_save_store_opened
 from glitchygames.state.exceptions import SaveCorruptedError
 from glitchygames.state.manager import SaveManager, SaveSlotInfo
@@ -218,7 +218,7 @@ class MemorySaveManager(SaveManager):
                 read_content=lambda: content,
                 size_bytes=lambda: len(content.encode('utf-8')),
                 # A file just written has the current modification time
-                fallback_timestamp=wall_clock_time,
+                fallback_timestamp=clock.wall_clock_time,
             )
         record = entry.get(LISTING_KEY)
         if record is None:

@@ -460,12 +460,21 @@ class _FrameDecoder:
 
     Holds the current frame's scene and its sprite records keyed by id (in draw order). A
     delta updates that state in place: a changed sprite gets a new record and the others are
-    kept, so no frame is ever copied as a whole. Each decoded frame is an independent copy
-    the caller owns.
+    kept, so no frame is ever copied as a whole, and a record is never changed once made. Each
+    decoded frame is an independent copy the caller owns, unless ``share_records``: then its
+    sprite records are the decoder's own, shared with the frames before and after it that hold
+    the same sprite unchanged (the caller must not change them).
     """
 
-    def __init__(self) -> None:
-        """Start with no frame decoded."""
+    def __init__(self, *, share_records: bool = False) -> None:
+        """Start with no frame decoded.
+
+        Args:
+            share_records: Return the decoder's own sprite records instead of copies (see the
+                class docstring).
+
+        """
+        self.share_records = share_records
         self.has_frame = False
         self.scene: object = None
         self.sprites_by_id: dict[str, dict[str, Any]] = {}
@@ -514,7 +523,11 @@ class _FrameDecoder:
             'frame': frame_number,
             **other_fields,
             SCENE_FIELD: self.scene,
-            SPRITES_FIELD: [_copy_json(sprite) for sprite in self.sprites_by_id.values()],
+            SPRITES_FIELD: (
+                list(self.sprites_by_id.values())
+                if self.share_records
+                else [_copy_json(sprite) for sprite in self.sprites_by_id.values()]
+            ),
         }
 
     def _apply(self, *, line_record: dict[str, Any], frame_number: object) -> None:
@@ -737,7 +750,10 @@ class TraceReader:
 
     The file is decompressed a chunk at a time and frames are rebuilt one by one, so a long
     recording is never held in memory as a whole. Each yielded frame is an independent copy
-    the caller may keep or change. The frames can be iterated once.
+    the caller may keep or change, unless ``share_records``: then a sprite record that did not
+    change from one frame to the next is the same object in both, and the caller must change
+    none (a whole recording kept in memory then holds each record once, not once per frame:
+    Mr. Muncher's golden replay held about 135 MiB of copies). The frames can be iterated once.
 
     A file whose gzip stream stops part way (a recorder that never closed) reads up to its
     last complete line; ``is_complete`` and ``dropped_partial_line`` say what happened once
@@ -745,6 +761,7 @@ class TraceReader:
 
     Attributes:
         path: The trace file.
+        share_records: Whether the frames share their unchanged sprite records.
         header: The header fields, without ``format_version``.
         format_version: The file's ``format_version`` (one of ``READABLE_FORMAT_VERSIONS``).
         bytes_read: Compressed bytes read from the file so far.
@@ -754,7 +771,13 @@ class TraceReader:
 
     """
 
-    def __init__(self, *, path: Path, chunk_bytes: int = DEFAULT_READ_CHUNK_BYTES) -> None:
+    def __init__(
+        self,
+        *,
+        path: Path,
+        chunk_bytes: int = DEFAULT_READ_CHUNK_BYTES,
+        share_records: bool = False,
+    ) -> None:
         """Open the file and read the header line.
 
         A file with no header line or an unknown ``format_version`` raises
@@ -763,9 +786,12 @@ class TraceReader:
         Args:
             path: The trace file.
             chunk_bytes: How many compressed bytes to read at a time.
+            share_records: Yield frames that share their unchanged sprite records, read-only
+                to the caller (see the class docstring).
 
         """
         self.path = path
+        self.share_records = share_records
         self.chunk_bytes = chunk_bytes
         self.bytes_read = 0
         self.dropped_partial_line: str | None = None
@@ -860,7 +886,7 @@ class TraceReader:
             message = f'{self.path}: a TraceReader iterates its frames once'
             raise ValueError(message)
         self._has_iterated = True
-        decoder = _FrameDecoder()
+        decoder = _FrameDecoder(share_records=self.share_records)
         while (line := self._next_line()) is not None:
             line_record = _parse_line(path=self.path, line=line, line_number=self._line_number)
             try:
@@ -913,17 +939,20 @@ class TraceReadResult:
     is_complete: bool
 
 
-def read_trace_result(*, path: Path) -> TraceReadResult:
+def read_trace_result(*, path: Path, share_records: bool = False) -> TraceReadResult:
     """Read a whole trace file into memory, reporting a final line cut off part way.
 
     Args:
         path: The trace file.
+        share_records: Whether the frames share their unchanged sprite records, which the
+            caller must then never change (``TraceReader``): each record is held once, not
+            once per frame.
 
     Returns:
         The trace and how complete the file was.
 
     """
-    with TraceReader(path=path) as reader:
+    with TraceReader(path=path, share_records=share_records) as reader:
         frames = list(reader)
     return TraceReadResult(
         trace={**reader.header, FRAMES_FIELD: frames},

@@ -42,7 +42,7 @@ class FakeTime:
         self.now = 1.0e5
         self._lateness_seconds = lateness_seconds
         self._random = random.Random(seed)
-        mocker.patch.object(viewer_module, 'measured_seconds', side_effect=self.read)
+        mocker.patch('glitchygames.clock.measured_seconds', side_effect=self.read)
         # Which sleep each wait used: 'fine' (sleep then spin) or 'coarse' (no spin)
         self.sleeps: list[str] = []
         mocker.patch.object(viewer_module, 'sleep_for', side_effect=self.sleep)
@@ -251,12 +251,12 @@ def test_effective_speed_is_zero_before_any_time_passed():
 
 
 def test_sleep_coarsely_sleeps_only_for_a_positive_time(mocker):
-    """The coarse sleep is one time.sleep of the time asked for; none for zero or less."""
-    sleep = mocker.patch.object(viewer_module.time, 'sleep')
-    viewer_module.sleep_coarsely(seconds=0.0)
-    viewer_module.sleep_coarsely(seconds=-0.5)
+    """The coarse sleep is one sleep of the time asked for; none for zero or less."""
+    sleep = mocker.Mock()
+    viewer_module.sleep_coarsely(seconds=0.0, sleep=sleep)
+    viewer_module.sleep_coarsely(seconds=-0.5, sleep=sleep)
     sleep.assert_not_called()
-    viewer_module.sleep_coarsely(seconds=0.002)
+    viewer_module.sleep_coarsely(seconds=0.002, sleep=sleep)
     sleep.assert_called_once_with(0.002)
 
 

@@ -17,9 +17,11 @@ import asyncio
 import contextlib
 import dataclasses
 import importlib
+import itertools
 import logging
 import os
 import socket
+import struct
 import sys
 import threading
 import time
@@ -70,7 +72,9 @@ from tests.demo_runs import engine_run_environment
 from tests.replay.replay_helpers import replay_through_engine, rewrite_recording
 from tests.stand_in_games import (
     StandInGame,
+    copy_recording,
     record_stand_in_game,
+    record_stand_in_game_once,
     use_stand_in_game,
     write_stand_in_distribution,
 )
@@ -238,15 +242,13 @@ def recorded_frame_count(*, path: Path) -> int:
     return len(read_trace_result(path=path).trace['frames'])
 
 
-@pytest.fixture
-def color_game(tmp_path, monkeypatch, mocker) -> ColorGame:
-    """Install the color game for this test and its children, and record OLD.
+def install_color_game(*, install_directory: Path) -> StandInGame:
+    """Install the color game (its package and its distribution's console script).
 
     Returns:
-        The color game.
+        The installed stand-in.
 
     """
-    install_directory = tmp_path / 'site-packages'
     package_directory = install_directory / PACKAGE
     package_directory.mkdir(parents=True)
     (package_directory / '__init__.py').write_text(COLOR_GAME_SOURCE, encoding='utf-8')
@@ -255,11 +257,7 @@ def color_game(tmp_path, monkeypatch, mocker) -> ColorGame:
         distribution=CONSOLE_SCRIPT,
         console_scripts={CONSOLE_SCRIPT: f'{PACKAGE}:main'},
     )
-    use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
-    # Imported here for the watched replays; gone from sys.modules after the test
-    mocker.patch.dict(sys.modules)
-    module = importlib.import_module(PACKAGE)
-    game = StandInGame(
+    return StandInGame(
         package=PACKAGE,
         distribution=CONSOLE_SCRIPT,
         console_script=CONSOLE_SCRIPT,
@@ -267,11 +265,45 @@ def color_game(tmp_path, monkeypatch, mocker) -> ColorGame:
         install_directory=install_directory,
         layer=None,
     )
-    old = record_stand_in_game(
-        game=game,
-        path=tmp_path / 'old.jsonl.gz',
+
+
+@pytest.fixture(scope='module')
+def recorded_old(tmp_path_factory) -> Path:
+    """Record OLD once per module (and xdist worker), from a color game installed for it alone.
+
+    Every test copies it (``color_game``): the color game is deterministic under its seed, so
+    a test's own install would record the same frames.
+
+    Returns:
+        The recording.
+
+    """
+    root = tmp_path_factory.mktemp('recorded-old')
+    # Paced: a watched replay presents OLD's frames by their recorded frame times (its viewer
+    # runs as many recorded frames per 60 Hz tick as their times fill, up to 32), so an
+    # uncapped OLD's frames would all go by in one tick
+    return record_stand_in_game_once(
+        game=install_color_game(install_directory=root / 'site-packages'),
+        path=root / 'old.jsonl.gz',
         extra_arguments=('--random-seed', str(OLD_SEED)),
+        paced=True,
     )
+
+
+@pytest.fixture
+def color_game(tmp_path, monkeypatch, mocker, recorded_old) -> ColorGame:
+    """Install the color game for this test and its children, with its own copy of OLD.
+
+    Returns:
+        The color game.
+
+    """
+    game = install_color_game(install_directory=tmp_path / 'site-packages')
+    use_stand_in_game(install_directory=game.install_directory, monkeypatch=monkeypatch)
+    # Imported here for the watched replays; gone from sys.modules after the test
+    mocker.patch.dict(sys.modules)
+    module = importlib.import_module(PACKAGE)
+    old = copy_recording(recording=recorded_old, path=tmp_path / 'old.jsonl.gz')
     return ColorGame(
         game=game,
         scene_class=getattr(module, SCENE_NAME),
@@ -414,7 +446,7 @@ def watched_replay(
             )
         )
 
-    mocker.patch.object(viewer_module, 'measured_seconds', side_effect=read_clock)
+    mocker.patch('glitchygames.clock.measured_seconds', side_effect=read_clock)
     mocker.patch.object(viewer_module, 'sleep_for', side_effect=wait)
     mocker.patch.object(viewer_module, 'sleep_coarsely', side_effect=wait)
     mocker.patch.object(pygame.display, 'flip', side_effect=flip)
@@ -548,6 +580,7 @@ class FrameStreamListener:
     Attributes:
         address: Its ``PORT:TOKEN`` (``--replay-frame-stream``); a connection is read only
             after it sends the token.
+        closed: Set once a ``closes_at_once`` listener has closed its connection.
 
     """
 
@@ -555,22 +588,29 @@ class FrameStreamListener:
         """Listen, and read on a thread from the first connection.
 
         Args:
-            closes_at_once: Close the connection as soon as it is made, reading nothing.
+            closes_at_once: Close the connection as soon as it is made, reading nothing, and
+                abortively (a reset, not a graceful close), so a send after it fails at once.
 
         """
         self._listener = socket.create_server((compare.FRAME_STREAM_HOST, 0))
         self._token = 'a' * compare.FRAME_STREAM_TOKEN_LENGTH
         self.address = f'{self._listener.getsockname()[1]}:{self._token}'
         self._closes_at_once = closes_at_once
+        self.closed = threading.Event()
         self._frames: list[StreamedFrame] = []
         self._thread = threading.Thread(target=self._read, daemon=True)
         self._thread.start()
 
     def _read(self) -> None:
         connection, _ = self._listener.accept()
+        if self._closes_at_once:
+            # Linger on, for 0 seconds: close resets the connection rather than closing it
+            # gracefully, which Windows' loopback lets sends succeed against into its buffers
+            connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+            connection.close()
+            self.closed.set()
+            return
         with connection:
-            if self._closes_at_once:
-                return
             token = receive_exactly(connection=connection, count=len(self._token))
             assert token == self._token.encode('ascii')
             while (
@@ -637,8 +677,25 @@ def test_the_child_streams_one_frame_per_frame_in_order(
 
 
 def test_a_stream_nobody_reads_any_more_ends_the_replay(color_game, mocker):
-    """When the parent is gone, the child stops replaying instead of running on unseen."""
+    """When the parent is gone, the child stops replaying instead of running on unseen.
+
+    The child writes its first frame only once the listener has reset the connection: left to
+    the threads, a slow listener on a loaded Windows runner closed after the child had sent
+    every frame into loopback's buffers, so the replay ended at the end of the recording.
+    """
     listener = FrameStreamListener(closes_at_once=True)
+    connect = compare.FrameStream.connect
+
+    def connect_once_the_listener_is_gone(
+        *, address: compare.FrameStreamAddress, first_frame: int
+    ) -> compare.FrameStream:
+        stream = connect(address=address, first_frame=first_frame)
+        assert listener.closed.wait(timeout=CHILD_TIMEOUT_SECONDS)
+        return stream
+
+    mocker.patch.object(
+        compare.FrameStream, 'connect', side_effect=connect_once_the_listener_is_gone
+    )
 
     replay = replay_through_engine(
         mocker=mocker,
@@ -1670,6 +1727,41 @@ def test_a_silent_stranger_does_not_stretch_the_wait_for_the_child(color_game, m
     assert waited < compare.TOKEN_TIMEOUT_SECONDS / 2
 
 
+def test_a_stranger_refused_past_the_deadline_ends_the_wait_for_the_child(
+    color_game, mocker, caplog
+):
+    """A stranger refused once the connect deadline has passed ends the wait there.
+
+    The clock is a stand-in: before the stranger's token wait it reads 0, after it the deadline
+    has passed. The real-time test above can end the other way on Windows, whose socket
+    timeouts may wake a little early on a coarse clock, so the loop sees time left, accepts
+    again, times out and ends there instead; this one pins the refusal's own ending.
+    """
+    readings = itertools.chain([0.0, 0.0], itertools.repeat(compare.CHILD_CONNECT_TIMEOUT_SECONDS))
+    mocker.patch('glitchygames.clock.measured_seconds', side_effect=lambda: next(readings))
+    mocker.patch.object(compare, 'TOKEN_TIMEOUT_SECONDS', 0.2)
+    onion_skin = OnionSkin(
+        old_path=color_game.old,
+        alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        # A child that never connects
+        game_command=[sys.executable, '-c', 'import time; time.sleep(60)'],
+        pause_at_frame=None,
+    )
+    never_connected = mocker.spy(onion_skin, '_never_connected')
+    try:
+        onion_skin.begin()
+        address = onion_skin.command[onion_skin.command.index('--replay-frame-stream') + 1]
+        port, _ = address.split(':')
+        with socket.create_connection((compare.FRAME_STREAM_HOST, int(port))):
+            onion_skin.draw(surface=surface_of(color=NEW_RED), frame_index=0)
+    finally:
+        onion_skin.stop()
+
+    assert onion_skin.label == OLD_NOT_REPLAYED_LABEL
+    assert 'refused a frame stream connection without the token' in caplog.text
+    never_connected.assert_called_once_with()
+
+
 def test_a_frame_stream_whose_token_cannot_be_sent_closes_its_socket(mocker):
     """A failure sending the token leaves no socket open: it is closed, and the failure raised."""
     created: list[socket.socket] = []
@@ -2484,10 +2576,13 @@ def record_a_pausing_run(*, color_game: ColorGame, path: Path) -> Path:
         The recording.
 
     """
+    # Paced, as OLD is (color_game): the watched replays present its frames by their recorded
+    # frame times
     recording = record_stand_in_game(
         game=color_game.game,
         path=path,
         extra_arguments=('--random-seed', str(PAUSING_SEED)),
+        paced=True,
     )
     assert recorded_frame_count(path=recording) == len(GAME_FRAME_OF_A_PAUSING_RUN)
     return recording

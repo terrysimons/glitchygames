@@ -22,7 +22,8 @@ uv run mr-muncher --replay-trace run.jsonl.gz   # watch it again, exactly
 
 `main()` (`game.py`) is just `GameEngine(game=MrMuncherScene).start()`. The scene does not
 define an `args()` class method, so the game adds no options of its own (the engine logs `Game
-does not implement arguments`). All its options are the engine's. These are the ones that
+does not implement arguments` at INFO, shown with `--log-level info`). All its options are the
+engine's. These are the ones that
 matter here:
 
 | Option | Effect on Mr. Muncher |

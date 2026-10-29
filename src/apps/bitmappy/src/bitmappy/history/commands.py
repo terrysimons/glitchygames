@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from glitchygames.clock import elapsed_seconds, wall_clock_epoch_seconds
+from glitchygames import clock
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -105,7 +105,7 @@ class BrushStrokeCommand(_ApplyingUndoRedoGuard):
         self.editor = editor
         self.pixels = pixels
         self.operation_type = operation_type
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
 
         if len(pixels) == 1:
             self.description = f'Pixel change at ({pixels[0][0]}, {pixels[0][1]})'
@@ -199,7 +199,7 @@ class FloodFillCommand(_ApplyingUndoRedoGuard):
         self.new_color = new_color
         self.affected_pixels = affected_pixels
         self.operation_type = OperationType.CANVAS_FLOOD_FILL
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f'Flood fill at ({start_x}, {start_y}) - {len(affected_pixels)} pixels'
 
     def execute(self) -> bool:
@@ -282,7 +282,7 @@ class CanvasPanCommand(_ApplyingUndoRedoGuard):
         self.old_pixels = tuple(old_pixels)
         self.new_pixels = tuple(new_pixels)
         self.operation_type = OperationType.CANVAS_PAN
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f'Pan {animation}[{frame}]'
 
     def execute(self) -> bool:
@@ -348,7 +348,7 @@ class FrameSelectionCommand(_ApplyingUndoRedoGuard):
         self.new_animation = new_animation
         self.new_frame = new_frame
         self.operation_type = OperationType.FRAME_SELECTION
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f'Selected frame {new_animation}[{new_frame}]'
 
     def execute(self) -> bool:
@@ -430,7 +430,7 @@ class FramePasteCommand(_ApplyingUndoRedoGuard):
         self.new_pixels = new_pixels
         self.new_duration = new_duration
         self.operation_type = OperationType.FRAME_PASTE
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f'Paste frame to {animation}[{frame}]'
 
     def execute(self) -> bool:
@@ -548,7 +548,7 @@ class FrameAddCommand:
         self.animation_name = animation_name
         self.frame_data = frame_data
         self.operation_type = OperationType.FILM_STRIP_FRAME_ADD
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f"Added frame {frame_index} to '{animation_name}'"
 
     def execute(self) -> bool:
@@ -747,7 +747,7 @@ class FrameDeleteCommand:
         self.animation_name = animation_name
         self.frame_data = frame_data
         self.operation_type = OperationType.FILM_STRIP_FRAME_DELETE
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f"Deleted frame {frame_index} from '{animation_name}'"
 
     def execute(self) -> bool:
@@ -809,7 +809,7 @@ class FrameReorderCommand:
         self.new_index = new_index
         self.animation_name = animation_name
         self.operation_type = OperationType.FILM_STRIP_FRAME_REORDER
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f"Moved frame {old_index} to {new_index} in '{animation_name}'"
 
     def execute(self) -> bool:
@@ -933,7 +933,7 @@ class AnimationAddCommand:
         self.animation_name = animation_name
         self.animation_data = animation_data
         self.operation_type = OperationType.FILM_STRIP_ANIMATION_ADD
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f"Added animation '{animation_name}'"
 
     def execute(self) -> bool:
@@ -1078,7 +1078,7 @@ class AnimationDeleteCommand:
         self.animation_name = animation_name
         self.animation_data = animation_data
         self.operation_type = OperationType.FILM_STRIP_ANIMATION_DELETE
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f"Deleted animation '{animation_name}'"
 
     def execute(self) -> bool:
@@ -1150,7 +1150,7 @@ class AnimationRenameCommand:
         self.old_name = old_name
         self.new_name = new_name
         self.operation_type = OperationType.FILM_STRIP_ANIMATION_RENAME
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f"Renamed animation '{old_name}' to '{new_name}'"
 
     def execute(self) -> bool:
@@ -1222,7 +1222,7 @@ class ControllerPositionCommand(_ApplyingUndoRedoGuard):
         self.old_mode = old_mode
         self.new_mode = new_mode
         self.operation_type = OperationType.CONTROLLER_POSITION_CHANGE
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f'Controller {controller_id} moved from {old_position} to {new_position}'
 
     def execute(self) -> bool:
@@ -1311,7 +1311,7 @@ class ControllerModeCommand(_ApplyingUndoRedoGuard):
         self.old_mode = old_mode
         self.new_mode = new_mode
         self.operation_type = OperationType.CONTROLLER_MODE_CHANGE
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f'Controller {controller_id} mode changed from {old_mode} to {new_mode}'
 
     def execute(self) -> bool:
@@ -1372,7 +1372,7 @@ class ControllerModeCommand(_ApplyingUndoRedoGuard):
             LOG.warning('Invalid controller mode: %s', mode)
             return False
 
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
         self.editor.mode_switcher.controller_modes[self.controller_id].switch_to_mode(
             controller_mode,
             current_time,
@@ -1419,7 +1419,7 @@ class FrameCopyCommand:
         self.source_animation = source_animation
         self.frame_data = frame_data
         self.operation_type = OperationType.FRAME_COPY
-        self.timestamp: float = wall_clock_epoch_seconds()
+        self.timestamp: float = clock.wall_clock_epoch_seconds()
         self.description = f"Copied frame {source_frame} from '{source_animation}'"
 
     def execute(self) -> bool:

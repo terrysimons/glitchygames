@@ -34,9 +34,12 @@ from tests.stand_in_games import (
     RECORD_TIMEOUT_SECONDS,
     STAND_IN_GAME_FRAMES,
     STAND_IN_GAME_RESOLUTION,
+    UNPACED_TARGET_FPS,
     GameThatIsNeverBuilt,
     StandInGame,
+    copy_recording,
     record_stand_in_game,
+    record_stand_in_game_once,
     stand_in_game_source,
     use_stand_in_game,
     write_header_only_recording,
@@ -75,8 +78,25 @@ def stand_in_game(tmp_path_factory, monkeypatch) -> StandInGame:
     return game
 
 
+@pytest.fixture(scope='module')
+def recorded_good_golden(tmp_path_factory) -> Path:
+    """Record the stand-in game once per module (and xdist worker), from its own install.
+
+    A test's own install (``stand_in_game``) is the same game, so it would record the same
+    frames; every test copies it (``stand_in_project``).
+
+    Returns:
+        The recording.
+
+    """
+    root = tmp_path_factory.mktemp('recorded-good')
+    return record_stand_in_game_once(
+        game=write_stand_in_game(directory=root / 'site-packages'), path=root / 'good.jsonl.gz'
+    )
+
+
 @pytest.fixture
-def stand_in_project(tmp_path, stand_in_game) -> Path:
+def stand_in_project(tmp_path, stand_in_game, recorded_good_golden) -> Path:
     """A project whose settings name the stand-in game, with one good and one tampered golden.
 
     Returns:
@@ -86,7 +106,7 @@ def stand_in_project(tmp_path, stand_in_game) -> Path:
     project = tmp_path / 'project'
     goldens = project.joinpath(*GOLDEN_DIRECTORY_PARTS, stand_in_game.console_script)
     goldens.mkdir(parents=True)
-    good = record_stand_in_game(game=stand_in_game, path=goldens / 'good.jsonl.gz')
+    good = copy_recording(recording=recorded_good_golden, path=goldens / 'good.jsonl.gz')
     shutil.copyfile(good, goldens / 'tampered.jsonl.gz')
     tamper_first_sprite_rect(recording_path=goldens / 'tampered.jsonl.gz', frame_number=10)
     (project / 'pyproject.toml').write_text(
@@ -323,8 +343,17 @@ def test_a_game_run_as_a_script_verifies_the_paths_it_is_given(tmp_path):
     script = write_script_game(directory=tmp_path)
     recording = tmp_path / 'script.jsonl.gz'
     arguments = ['--headless', '--resolution', STAND_IN_GAME_RESOLUTION, '--log-level', 'error']
+    # Uncapped, as record_stand_in_game records: only the replays below read the recording
     recorded = run_command(
-        command=[sys.executable, str(script), *arguments, '--record-trace', str(recording)],
+        command=[
+            sys.executable,
+            str(script),
+            *arguments,
+            '--target-fps',
+            UNPACED_TARGET_FPS,
+            '--record-trace',
+            str(recording),
+        ],
         environment=os.environ,
         timeout_seconds=RECORD_TIMEOUT_SECONDS,
         capture_output=OutputCapture.TOGETHER,
@@ -473,9 +502,7 @@ def test_the_game_flag_finds_this_games_recordings_in_the_current_directory(
     """With no paths, the game's own: ``game_recordings`` of its identity, in the project here."""
     (tmp_path / 'pyproject.toml').write_text('', encoding='utf-8')
     monkeypatch.chdir(tmp_path)
-    identity = GameIdentity(
-        package='a_game', package_directory=None, console_script='a-game', distribution=None
-    )
+    identity = GameIdentity(package='a_game', package_directory=None, console_script='a-game')
     mocker.patch.object(verify, 'game_identity', return_value=identity)
     found = mocker.patch.object(verify, 'game_recordings', return_value=[])
 
@@ -793,9 +820,7 @@ def test_no_project_above_the_current_directory_is_said(tmp_path, mocker, monkey
     """No pyproject.toml here or above: said on both front ends, and the current directory used."""
     mocker.patch.object(verify, 'find_project_root', return_value=None)
     monkeypatch.chdir(tmp_path)
-    identity = GameIdentity(
-        package='a_game', package_directory=None, console_script='a-game', distribution=None
-    )
+    identity = GameIdentity(package='a_game', package_directory=None, console_script='a-game')
     mocker.patch.object(verify, 'game_identity', return_value=identity)
     found = mocker.patch.object(verify, 'game_recordings', return_value=[])
 

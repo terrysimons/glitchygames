@@ -16,7 +16,6 @@ import pygame
 import pytest
 from scripts.workspace_packages import declared_console_scripts, workspace_members
 
-from glitchygames import crt_power_on
 from glitchygames.backgrounds import BackgroundPattern, paint_default_background
 from glitchygames.crt_power_on import PowerOnOutcome
 from glitchygames.engine import game_engine as game_engine_module
@@ -100,15 +99,17 @@ def test_every_game_powers_on_through_its_own_main(mocker, console_script, backg
     mocker.patch.dict(main.__globals__, {'GameEngine': GoldenTraceEngine})
     # Bitmappy's main sets it process-wide; later tests on this worker keep their own
     mocker.patch('multiprocessing.set_start_method')
-    mocker.patch.object(
-        crt_power_on, 'measured_seconds', side_effect=itertools.count(start=0.0, step=0.05)
+    mocker.patch(
+        'glitchygames.clock.measured_seconds', side_effect=itertools.count(start=0.0, step=0.05)
     )
-    mocker.patch.object(crt_power_on.time, 'sleep')
     played: list[tuple[PowerOnOutcome, bool]] = []
     real_player = game_engine_module.play_power_on
 
     def play_then_stop(**arguments: Any) -> PowerOnOutcome:
-        outcome = real_player(**arguments)
+        # Its frames do not wait: it is given a sleep that returns at once (its default,
+        # glitchygames/clock.py's raw_sleep, is bound when play_power_on is defined, so a patch
+        # could not reach it)
+        outcome = real_player(**arguments, sleep=lambda _seconds: None)
         settled = pygame.Surface(arguments['screen'].get_size())
         paint_default_background(surface=settled)
         shows_settled = pygame.image.tobytes(arguments['screen'], 'RGB') == pygame.image.tobytes(

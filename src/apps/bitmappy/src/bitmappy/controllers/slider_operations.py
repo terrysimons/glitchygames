@@ -16,8 +16,7 @@ from bitmappy.constants import (
     CONTROLLER_ACCEL_LEVEL3_TIME,
 )
 from bitmappy.controllers.modes import ControllerMode
-from glitchygames import events
-from glitchygames.clock import elapsed_seconds
+from glitchygames import clock, events
 
 if TYPE_CHECKING:
     from bitmappy.controllers.event_handler import ControllerEventHandler
@@ -94,7 +93,7 @@ class SliderOperations:
         new_mode = slider_cycle[new_index]
 
         # Switch to new mode
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
         self.handler.editor.mode_switcher.controller_modes[target_controller_id].switch_to_mode(
             new_mode,
             current_time,
@@ -180,7 +179,7 @@ class SliderOperations:
 
         # Initialize continuous adjustment for this controller
         # Set last_adjustment to current time so the next adjustment waits for the full interval
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
         self.handler.slider_continuous_adjustments[controller_id] = {
             'direction': direction,
             'start_time': current_time,
@@ -214,7 +213,7 @@ class SliderOperations:
         if not hasattr(self.handler, 'slider_continuous_adjustments'):
             return
 
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
 
         for controller_id, adjustment_data in list(
             self.handler.slider_continuous_adjustments.items(),

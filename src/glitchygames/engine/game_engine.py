@@ -15,16 +15,14 @@ import platform
 import pprint
 import signal
 import sys
-import time
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, override
 
 import pygame
 
-from glitchygames import events
+from glitchygames import clock, events
 from glitchygames.argument_types import non_negative_int
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -33,7 +31,6 @@ from glitchygames.backgrounds import (
     set_active_default_background_pattern,
 )
 from glitchygames.build_info import engine_source_revision
-from glitchygames.clock import elapsed_seconds
 from glitchygames.color import PURPLE
 from glitchygames.crt_power_on import (
     CrtPowerOnMode,
@@ -1103,8 +1100,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                         f'{reserved_flag_refusal(game_name=game.NAME, error=error)}\n'
                     ),
                 )
-        else:
-            cls.log.info('Game does not implement arguments.  Add a def args(parser) class method.')
 
         args: argparse.Namespace = parser.parse_args()
 
@@ -1113,6 +1108,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             format=LOG_FORMAT,
             level=args.log_level.upper(),
         )
+        if game_args_method is None:
+            # A hint for the game's author, at INFO (--log-level info shows it). Logged once the
+            # level is set: before basicConfig only Python's last-resort handler saw it, which
+            # drops INFO, so it never showed at any level (D18's report)
+            cls.log.info('Game does not implement arguments.  Add a def args(parser) class method.')
 
         GameEngine.OPTIONS = vars(args)  # type: ignore[reportConstantRedefinition]
 
@@ -1891,7 +1891,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             engine_version=installed_engine_version(),
             pygame_version=pygame.version.ver,
             python_version=platform.python_version(),
-            measured_at=datetime.now(tz=UTC).isoformat(),
+            measured_at=clock.raw_wall_clock_time().isoformat(),
             rebaselined_from=rebaselined_from,
             hash_scheme=CONTENT_HASH_SCHEME,
             pacing_timer=pacing_timer,
@@ -1933,7 +1933,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # The origin of the run's wall clock from here on, recorded and replayed alike:
             # recorded_at plus the frame clock (RecordingSources.wall_clock_time; rule 9 of
             # glitchygames/replay/driver.py), so game code reading it replays exactly
-            RECORDED_AT_HEADER_FIELD: datetime.now(tz=UTC).isoformat(),
+            RECORDED_AT_HEADER_FIELD: clock.raw_wall_clock_time().isoformat(),
             'random_seed': self.random_seed,
             # Each run's provenance, newest first (glitchygames/recording_history.py): this one
             # paces its frames when it has a target FPS (0 is uncapped)
@@ -3142,11 +3142,22 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         owner, 2026-10-28: "The seed should definitely be in the options"); rolled or given is
         on the INFO line (``_log_the_runs_seed``), hidden at the default WARNING.
         """
-        # The game's (the engine's own NAME names no game); the engine's only when no game was
-        # given, which _begin_start refuses next
-        game_name = getattr(self.game, 'NAME', type(self).NAME)
         shown_options = {**GameEngine.OPTIONS, 'random_seed': self.random_seed}
-        self.log.critical('%s', startup_options_block(game_name=game_name, options=shown_options))
+        self.log.critical(
+            '%s', startup_options_block(game_name=self._game_name(), options=shown_options)
+        )
+
+    def _game_name(self: Self) -> str:
+        """Return the game's NAME, which the start line and the options block name.
+
+        The engine's own NAME names no game ("Boilerplate Adventures", D18's report); it is
+        used only when no game was given, which ``_begin_start`` refuses.
+
+        Returns:
+            The name.
+
+        """
+        return str(getattr(self.game, 'NAME', type(self).NAME))
 
     def _begin_start(self: Self) -> cProfile.Profile | None:
         """Log the start and the options, check there is a game, start the profiler (``--profile``).
@@ -3161,7 +3172,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # This ensures that logging is enabled as soon as the game object is created.
         logging.getLogger('game')
 
-        self.log.info('Starting game engine for game: %s', type(self).NAME)
+        self.log.info('Starting game engine for game: %s', self._game_name())
         self._log_the_startup_options()
         if self.game is None:
             raise RuntimeError(GAME_NOT_INITIALIZED_MSG)
@@ -4217,7 +4228,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.unhandled_events[event.type] = UnhandledEventRecord(
             count=1,
             # The frame clock, which reset_sources() restarted in __init__
-            first_seen_seconds=elapsed_seconds(),
+            first_seen_seconds=clock.elapsed_seconds(),
             attribute_names=attribute_names,
         )
 
@@ -4325,7 +4336,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self.suppress_event(*args, attr=self.LAST_EVENT_MISS, **kwargs)
 
         # Ensures we can always ctrl-c in cases where event spam occurs.
-        time.sleep(0)
+        clock.raw_sleep(0)
 
     # If the game hasn't hooked a call, we should check if the scene manager has.
     #

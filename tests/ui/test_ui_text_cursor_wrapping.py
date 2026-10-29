@@ -251,7 +251,7 @@ class TestMultiLineTextBoxCursorWrapping:
         textbox.is_active = True
         textbox.cursor_pos = len(long_text)
         clock = mocker.patch(
-            'glitchygames.ui.text_widgets.frame_clock_milliseconds',
+            'glitchygames.clock.frame_clock_milliseconds',
             return_value=textbox.cursor_blink_time,
         )
 

@@ -70,7 +70,6 @@ def identity_of(
         package=package,
         package_directory=install_directory / package,
         console_script=console_script,
-        distribution=console_script,
     )
 
 

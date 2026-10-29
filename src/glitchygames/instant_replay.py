@@ -108,7 +108,7 @@ from typing import TYPE_CHECKING, Any, Final, Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from glitchygames.clock import wall_clock_time
+from glitchygames import clock
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
 from glitchygames.logical_names import logical_name
 from glitchygames.recording import (
@@ -120,7 +120,6 @@ from glitchygames.recording import (
 )
 from glitchygames.sources import (
     active_sources,
-    frame_clock_seconds,
     has_scoped_sources,
     observe_device_answers,
     observe_save_store_openings,
@@ -324,7 +323,7 @@ class InstantReplayJournal:
         # The wall clock the scene saw, less the frame clock: a playback's wall clock is this
         # stamp plus its frame clock (glitchygames/replay/driver.py, rule 9)
         self._header['recorded_at'] = (
-            wall_clock_time() - timedelta(seconds=frame_clock_seconds())
+            clock.wall_clock_time() - timedelta(seconds=clock.frame_clock_seconds())
         ).isoformat()
 
     def suspend(self: Self) -> None:

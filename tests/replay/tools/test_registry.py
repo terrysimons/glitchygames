@@ -37,7 +37,7 @@ from glitchygames.scenes import Scene
 from tests.stand_in_games import (
     STAND_IN_GAME_FRAMES,
     STAND_IN_GAME_RESOLUTION,
-    STAND_IN_GAME_TARGET_FPS,
+    UNPACED_TARGET_FPS,
     StandInGame,
     record_stand_in_game,
     stand_in_game_source,
@@ -53,6 +53,7 @@ if TYPE_CHECKING:
 # A child that only prints its help, or replays a stand-in's few frames, ends in seconds
 CHILD_TIMEOUT_SECONDS = 120.0
 # The game arguments a recording child of the stand-in gets after --, as record_stand_in_game's
+# (uncapped: these tests check where the arguments go, not the run's pacing)
 STAND_IN_RECORDING_ARGUMENTS = (
     '--headless',
     '--log-level',
@@ -60,7 +61,7 @@ STAND_IN_RECORDING_ARGUMENTS = (
     '--resolution',
     STAND_IN_GAME_RESOLUTION,
     '--target-fps',
-    STAND_IN_GAME_TARGET_FPS,
+    UNPACED_TARGET_FPS,
 )
 # pygame's banner variable, which the command sets before pygame is imported
 PYGAME_BANNER_VARIABLE = 'PYGAME_HIDE_SUPPORT_PROMPT'

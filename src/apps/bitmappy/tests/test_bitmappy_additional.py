@@ -1244,10 +1244,11 @@ class TestCreateAiRetryDecorator:
 
     def test_does_not_retry_client_errors(self, logger, mocker):
         """Test that 4xx errors like billing/auth failures are not retried."""
-        sleep = mocker.patch('time.sleep')
+        # The retry waits between attempts with the sleep it is given (the engine's raw sleep)
+        sleep = mocker.Mock()
         call_count = 0
 
-        @_create_ai_retry_decorator(logger)
+        @_create_ai_retry_decorator(logger, sleep=sleep)
         def failing_call():
             nonlocal call_count
             call_count += 1
@@ -1262,10 +1263,10 @@ class TestCreateAiRetryDecorator:
 
     def test_retries_rate_limit_errors(self, logger, mocker):
         """Test that 429 rate-limit errors are still retried."""
-        mocker.patch('time.sleep')
+        sleep = mocker.Mock()
         call_count = 0
 
-        @_create_ai_retry_decorator(logger)
+        @_create_ai_retry_decorator(logger, sleep=sleep)
         def flaky_call():
             nonlocal call_count
             call_count += 1
@@ -1276,6 +1277,8 @@ class TestCreateAiRetryDecorator:
 
         assert flaky_call() == 'ok'
         assert call_count == EXPECTED_CALLS_AFTER_ONE_RETRY
+        # The one wait went through the sleep given, never tenacity's own time.sleep
+        sleep.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

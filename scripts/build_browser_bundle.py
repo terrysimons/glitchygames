@@ -103,6 +103,13 @@ def report(message: str) -> None:
     sys.stdout.flush()
 
 
+# The play/ index's sections, in page order; each lists its entries by title (the owner,
+# 2026-10-28: sorted alphabetically, Bitmappy below the games in its own "Tools" section)
+SECTION_GAMES = 'Games'
+SECTION_TOOLS = 'Tools'
+INDEX_SECTIONS = (SECTION_GAMES, SECTION_TOOLS)
+
+
 @dataclasses.dataclass(frozen=True)
 class GameSpecification:
     """One game the browser build can start.
@@ -118,6 +125,7 @@ class GameSpecification:
             'brave_adventurer_papyrus', 'brave_adventurer_modes')``). The bundle ships each as
             ``<package>.zip``, apart from the engine's archive. Empty for a game inside the
             engine package.
+        section: The play/ index's section listing it (``SECTION_GAMES`` or ``SECTION_TOOLS``).
 
     """
 
@@ -125,6 +133,7 @@ class GameSpecification:
     scene_class: str
     title: str
     member_packages: tuple[str, ...] = ()
+    section: str = SECTION_GAMES
 
 
 # The keys a touch button can press, by DOM KeyboardEvent.code: the event's key, its legacy
@@ -293,6 +302,7 @@ GAMES: dict[str, GameSpecification] = {
         scene_class='BitmapEditorScene',
         title='Bitmappy',
         member_packages=('bitmappy',),
+        section=SECTION_TOOLS,
     ),
 }
 
@@ -665,16 +675,30 @@ def serve(*, server: ThreadingHTTPServer, directory: Path, open_browser: bool) -
 
 
 def site_index_page() -> str:
-    """Return the site's index.html: a link to each game's page.
+    """Return the site's index.html: a link to each game's page, by section, sorted by title.
 
     Returns:
         The page.
 
     """
-    links = ''.join(
-        f'      <li><a href="{html.escape(game)}/">{html.escape(specification.title)}</a></li>\n'
-        for game, specification in GAMES.items()
-    )
+    sections = ''
+    for section in INDEX_SECTIONS:
+        entries = sorted(
+            (
+                (specification.title, game)
+                for game, specification in GAMES.items()
+                if specification.section == section
+            ),
+            key=lambda entry: entry[0].casefold(),
+        )
+        if not entries:
+            continue
+        links = ''.join(
+            f'      <li><a href="{html.escape(game)}/">{html.escape(title)}</a></li>\n'
+            for title, game in entries
+        )
+        sections += f'    <h2>{html.escape(section)}</h2>\n    <ul>\n{links}    </ul>\n'
+
     return (
         '<!doctype html>\n'
         '<html lang="en">\n'
@@ -696,9 +720,7 @@ def site_index_page() -> str:
         '    <h1>GlitchyGames in the browser</h1>\n'
         '    <p>Python and pygame-ce in WebAssembly (PyScript). The first load takes a few\n'
         '      seconds; then click the game to start it.</p>\n'
-        '    <ul>\n'
-        f'{links}'
-        '    </ul>\n'
+        f'{sections}'
         '    <p><a href="../">GlitchyGames documentation</a></p>\n'
         '  </main>\n'
         '</body>\n'

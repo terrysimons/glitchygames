@@ -74,7 +74,6 @@ local branches are deleted. The decisions made on the way, for the record:
 | Papyrus sprites keep their unscaled native rect size | BUGS.md #59 | Latent; fixing it needs its own golden expected-difference class. |
 | Brave Adventurer's ground and walls stay drawn only because the parallax layers dirty the whole screen | BUGS.md #60 | Fragile; make the terrain `dirty = 2` or document the dependency. |
 | Brave Adventurer's and Papyrus's enemies (Cobra, Scarab, Scorpion) still draw in `update()` | `src/games/brave-adventurer/src/brave_adventurer/enemies.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | Harmless while their hitboxes do not depend on the pose (the scarab's bounds are the same at every roll angle); move drawing into `dt_tick` (the pose rule) if they ever do. |
-| The serial Linux test run comes close to the memory guard's limit: the container's memory (page cache left out, what `tests/memory_guard.py` reads) reached 1621 MiB at about 63% of a serial run, pytest plus a replay child (`mr-muncher/golden`, +181 MiB since it started). The limit is 1750 MiB by the owner's choice (2026-10-28); reducing the peak is deferred | `.circleci/config.yml` (`GLITCHYGAMES_TEST_RSS_LIMIT_MB`), `tests/memory_guard.py`, `src/glitchygames/replay/driver.py`, `src/glitchygames/tracing.py` | Found 2026-10-28 by `nox -s test-linux-ci`. Lead, measured on macOS and not yet confirmed in the container: a headless replay holds its whole decoded recording, about 135 MiB of Python objects for Mr. Muncher's 73 KB golden (tracemalloc: `game_engine.py:1040` and `:2055`, through `driver.py:3177` and `:1517` and `tracing.py:927`), so its child peaks at about 320 MiB against about 150 MiB for the other goldens. Measure in the container first (pytest's baseline, the children, overlap), then fix at the source; never relax the limit or weaken a test. |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
@@ -598,9 +597,33 @@ only replays; Part 2 Task 1).
   default costs ~16-25 ns, a direct read ~5-17 ns); the per-sprite helpers (`resolve_snap_mode`,
   `is_world_positioned`, `screen_position_for`, collision) make about 1,200 lookups per Brave
   Adventurer frame, ~20 us of ~2 ms, and need their defaults for foreign sprites.
+- **FPS figures follow-ups (2026-10-28, feature/fps-metrics).** (1) `verify` prints no times (a
+  plain headless replay measures none), so it shows no FPS; it could append the recording's
+  newest run's headroom from its header. (2) The live runs' ledger rows (`history-...` files)
+  were written before the figures and are never rewritten, so the FPS chart's live line stays
+  empty until a live recording is measured again. (3) The goldens and the rally demo were
+  rebaselined (their frame-0 scene starts now name the members' modules) and the two member
+  tests that only checked the migration from the old names were removed (the owner,
+  2026-10-28); the engine code that reads and converts recordings made before logical names or
+  before the move stays, with its own stand-in tests, until the owner decides (the FPS metrics
+  report lists it: `replay/driver.py` `modules_not_compared` and `check_recorded_game`'s
+  header-without-`game` branch, `replay/playback.py` `find_scene_class`'s branch without a
+  logical name, `replay/tools/children.py` `recorded_game_module`'s refusal, Brave
+  Adventurer's launcher message).
 - Deferred from the screen-shake spec (see its known follow-ups in
   `plans/2026-10-17-screen-shake-and-synth.md`): the audio probe capture mode and the spin-window
   power idea.
+- **pygame's clock through the door too** (left from `feature/clock-door`, 2026-10-28: "move the
+  calls behind the door"; the `time` module and `datetime`'s now are read only in
+  `src/glitchygames/clock.py` now). `pygame.time` stays outside it: `SceneManager.__init__`'s
+  pacing fallback `pygame.time.Clock` (allowed by function in `tests/test_engine_doors.py`) and
+  `PygameTimer` (`--timer-backend pygame`), which calls `pygame.time.get_ticks`/`delay` through
+  its own `self._pg`, a path the doors scan cannot follow. Moving them means raw
+  `clock.raw_ticks_milliseconds()`/`raw_delay()` functions and a `PygameTimer` that takes them as
+  parameters, as `FastTimer` takes `read_counter_ns`/`sleep`. Not fenced: `asyncio.sleep` (the
+  package has none today; its async loops wait for the host's tick) and third-party code's own
+  clock reads (tenacity stamps each retry's start with `time.monotonic()`; only its sleep is
+  ours, through `sleep=`).
 
 ## Assets and art
 
@@ -625,16 +648,24 @@ only replays; Part 2 Task 1).
 - Optional: lazy-import `speech_recognition` so the audio import chain doesn't load `aifc` (its
   deprecation warning is already filtered in `pyproject.toml`).
 - ty reports 50 pre-existing `unused-ignore-comment` warnings (identical on main).
-- **Run nox without the `uvx` wrapper in CI** (found 2026-10-28 by the test-memory-reduction
-  work, `feature/test-memory-reduction`; the owner asked to look at it later).
-  - Every CircleCI step runs `uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox
-    -s ...` (`.circleci/config.yml`). The `uvx` process stays alive as nox's parent, holding about
-    47 MiB of anonymous memory, which the Linux job's memory guard (`tests/memory_guard.py`,
-    `GLITCHYGAMES_TEST_RSS_LIMIT_MB`) counts.
-  - Option: install nox once per job (`uv tool install "nox[uv]==<pinned version>"`) and run
-    `nox -s ...` directly, so no wrapper process waits on it.
-  - It changes the test step of both the Linux and macOS jobs (and the shared commands), so check
-    the Windows job and the cache keys too; measure the guard's peak before and after.
+- **Bundle the dependencies' license texts into the Bitmappy binary** (found 2026-10-28 writing
+  README.md's license obligations). `bitmappy.spec` freezes one executable and collects no
+  license files, so a distributed build does not carry pygame-ce's LGPL-2.1, the MPL-2.0 and
+  Apache-2.0 notices, or the permissive copyright notices the README lists. Collect them (each
+  bundled distribution's `dist-info` license files, e.g. PyInstaller's `copy_metadata`) into the
+  build, then remove README.md's "Not yet met" note.
+- **Lift the `pytest<=9.1.1` cap** (the owner, 2026-10-28; `pyproject.toml`'s `dev` group). pytest
+  9.2.0 removed the private `Node._nodeid`, which pytest-benchmark 5.3.0 (the newest) still reads
+  (`pytest_benchmark/fixture.py:88`), so every `benchmark` test errored at setup. Lift it once a
+  pytest-benchmark release works with 9.2, then re-run the benchmarks and the memory guard's
+  check that pytest still keeps each test's class instance (`tests/garbage_collection.py`).
+- **The SBOM's scope** (found 2026-10-28 when syft and grype replaced safety and pip-audit).
+  The license decisions are in `scripts/check_licenses.py`'s `EXCEPTIONS`. The SBOM
+  (`docs/sbom.cyclonedx.json`) is everything `uv.lock` pins, development and docs tools included,
+  so dev-only tools (yamllint, pyinstaller) need exceptions under a policy written for what
+  ships. A runtime-only SBOM for the policy is the other option. (Its platform half is done:
+  since the cleanup branch, 2026-10-28, syft scans `uv.lock`, so the SBOM is the same on every
+  platform; `scripts/generate_sbom.py`'s docstring.)
 - **Stamp each game's build with its own revision** (found 2026-10-26, Part 3 Stage D, Task D3
   review).
   - Since D3, every recorded run names its game's source revision

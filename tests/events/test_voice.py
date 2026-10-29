@@ -431,15 +431,14 @@ class TestListenLoop:
         mock_microphone.__enter__ = mocker.Mock(return_value=mock_microphone)
         mock_microphone.__exit__ = mocker.Mock(return_value=False)
 
-        manager = VoiceEventManager()
+        mock_sleep = mocker.Mock()
+        manager = VoiceEventManager(sleep=mock_sleep)
         # Ensure manager has microphone and recognizer set for the loop
         manager.microphone = mock_microphone
         manager.recognizer = mock_recognizer
         manager.is_listening = True
         mock_audio = mocker.Mock()
         mock_recognizer.recognize_google.side_effect = mock_sr.RequestError('service unavailable')
-
-        mock_sleep = mocker.patch('glitchygames.events.voice.time.sleep')
 
         call_count = [0]
 
@@ -512,12 +511,12 @@ class TestListenLoop:
         mock_microphone.__enter__ = mocker.Mock(return_value=mock_microphone)
         mock_microphone.__exit__ = mocker.Mock(return_value=False)
 
-        manager = VoiceEventManager()
+        mock_sleep = mocker.Mock()
+        manager = VoiceEventManager(sleep=mock_sleep)
         # Ensure manager has microphone and recognizer set for the loop
         manager.microphone = mock_microphone
         manager.recognizer = mock_recognizer
         manager.is_listening = True
-        mock_sleep = mocker.patch('glitchygames.events.voice.time.sleep')
 
         call_count = [0]
 

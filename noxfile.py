@@ -54,7 +54,7 @@ _SOURCE_PACKAGE_DIRS = [
     'src/apps/bitmappy/src/bitmappy',
 ]
 # The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
-# through scripts/workspace_packages.py: CI runs nox through uvx, whose interpreter has neither
+# through scripts/workspace_packages.py: CI runs nox as a uv tool, whose interpreter has neither
 # pydantic nor the engine; tests/test_workspace_config.py keeps the list equal to the workspace
 _MEMBER_DISTRIBUTIONS = [
     'mr-muncher',
@@ -178,72 +178,6 @@ def _lint_dead_code(session: nox.Session) -> None:
     session.run('vulture', *_SOURCE_PACKAGE_DIRS, 'vulture_whitelist.py', '--min-confidence=80')
 
 
-# Known vulnerabilities pip-audit ignores: only ones with no fix we can take yet, each with why.
-# Re-check every entry when dependencies are upgraded and remove it once upstream allows the fix
-# (pip-audit says nothing about an ignore that no longer matches). Checked 2026-10-23.
-_IGNORED_VULNERABILITIES: dict[str, str] = {
-    # google-cloud-aiplatform 1.71.1 (also PYSEC-2026-2500, GHSA-wh2j-26j7-9728): predictable
-    # bucket names in Vertex AI Experiments, fixed in 1.133.0. vertexai 1.71.1, the newest, pins
-    # google-cloud-aiplatform==1.71.1, and aisuite 0.2.0, the newest, needs vertexai (its Google
-    # backend). The engine never uses Vertex AI Experiments
-    'CVE-2026-2473': 'google-cloud-aiplatform 1.71.1, pinned by vertexai (aisuite)',
-    # filelock 3.32.7, fixed in 4.2.1: the SQLite-backed ReadWriteLock/AsyncReadWriteLock (all
-    # platforms) and, on Windows, the soft locks and the read-write lock's database path. safety
-    # 3.8.1, the newest (nox -s safety-scan), requires filelock<4.0; forcing filelock 4 moves the
-    # lock back to safety 3.2.3. Only tools use filelock (safety, virtualenv, huggingface-hub);
-    # the engine never imports it
-    'CVE-2026-112907': 'filelock 3.32.7, capped below 4 by safety 3.8.1',
-    'CVE-2026-112913': 'filelock 3.32.7, capped below 4 by safety 3.8.1',
-    'CVE-2026-112940': 'filelock 3.32.7, capped below 4 by safety 3.8.1',
-}
-
-
-def _lint_cves(session: nox.Session) -> None:
-    """Audit every locked dependency (all extras) for known CVEs with pip-audit.
-
-    Ignores only ``_IGNORED_VULNERABILITIES``, each documented with why it cannot be fixed yet.
-    """
-    import tempfile
-
-    # Export requirements to a temp file (cross-platform; /dev/stdin doesn't exist on Windows)
-    with tempfile.NamedTemporaryFile(
-        mode='w',
-        suffix='.txt',
-        delete=False,
-        encoding='utf-8',
-    ) as tmp:
-        tmp_path = tmp.name
-    try:
-        session.run(
-            'uv',
-            'export',
-            '--quiet',
-            # Not the workspace's own projects (the root and every member): the root's dev group
-            # names each member, which uv exports as an editable path pip-audit cannot hash
-            '--no-emit-workspace',
-            # The extras too (dev tools, aisuite and its SDKs): what `uv sync --all-extras` installs
-            '--all-extras',
-            '--output-file',
-            tmp_path,
-            external=True,
-        )
-        ignore_arguments = [
-            argument
-            for vulnerability in _IGNORED_VULNERABILITIES
-            for argument in ('--ignore-vuln', vulnerability)
-        ]
-        session.run(
-            'pip-audit',
-            '--requirement',
-            tmp_path,
-            '--require-hashes',
-            '--disable-pip',
-            *ignore_arguments,
-        )
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
-
-
 # ---------------------------------------------------------------------------
 # Aggregate sessions
 # ---------------------------------------------------------------------------
@@ -259,7 +193,7 @@ def format_all(session: nox.Session) -> None:
 
 @nox.session(python=['3.14'], reuse_venv=False, name='lint')
 def lint_all(session: nox.Session) -> None:
-    """Run all linters (code, docs, YAML, TOML, deps, dead code, CVEs)."""
+    """Run all linters (code, docs, YAML, TOML, deps, dead code)."""
     _install_from_lockfile(session)
     _lint_code(session)
     _lint_docs(session)
@@ -269,7 +203,6 @@ def lint_all(session: nox.Session) -> None:
     _lint_toml(session)
     _lint_dependencies(session)
     _lint_dead_code(session)
-    _lint_cves(session)
 
 
 # ---------------------------------------------------------------------------
@@ -480,13 +413,6 @@ def lint_dead_code(session: nox.Session) -> None:
     """Detect dead code with vulture."""
     _install_from_lockfile(session)
     _lint_dead_code(session)
-
-
-@nox.session(python=['3.14'], reuse_venv=False, name='lint-cves', default=False)
-def lint_cves(session: nox.Session) -> None:
-    """Audit dependencies for known CVEs with pip-audit."""
-    _install_from_lockfile(session)
-    _lint_cves(session)
 
 
 # ---------------------------------------------------------------------------
@@ -1085,10 +1011,12 @@ def _linux_ci_script(
         'export PATH="$HOME/.local/bin:$PATH"',
         'uv --version',
         f'uv python install "{python_version}"',
+        # install-deps-posix installs nox as a uv tool, run directly (no uvx parent process)
+        f'uv tool install "nox[uv]=={nox_version}"',
         # nox-test, then the job's store_test_results (to this checkout's test-results/linux-ci),
         # writable by the host's user whatever its id (a Linux host's is not the container's)
         'status=0',
-        f'uvx --from "nox[uv]=={nox_version}" nox -s test || status=$?',
+        'nox -s test || status=$?',
         (
             'if [ -d test-results ]; then cp -r test-results/. /results/; '
             'else echo "test-linux-ci: the session wrote no test-results/"; fi'
@@ -1119,8 +1047,9 @@ def test_linux_ci(session: nox.Session) -> None:
     directory, mounted read-only at its own path, so it runs from a worktree too. Its HEAD is this
     checkout's, on its branch, and its remote branches are this checkout's, as fresh as its last
     fetch (CircleCI fetches its own). Then it installs fontconfig, uv and Python at the job's
-    versions and runs ``uvx nox -s test``, as the job does. The test results come back to
-    test-results/linux-ci/ (junit.xml). The uv cache is kept in a Docker volume between runs.
+    versions, then nox as a uv tool, and runs ``nox -s test``, as the job does. The test results
+    come back to test-results/linux-ci/ (junit.xml). The uv cache is kept in a Docker volume
+    between runs.
     The image is amd64, as CircleCI's machines are (the same wheels; emulated on Apple silicon, so
     slower than CI). Made on macOS; on a Linux host the results are made writable for any user.
     """
@@ -1707,27 +1636,6 @@ def _bandit_scan(session: nox.Session) -> None:
     )
 
 
-def _safety_scan(session: nox.Session) -> None:
-    """Run safety check for known vulnerabilities."""
-    if not os.getenv('SAFETY_API_KEY'):
-        session.log('SAFETY_API_KEY not set; skipping Safety scan.')
-        return
-
-    session.run(
-        'safety',
-        'scan',
-        '--exclude',
-        '.venv',
-        '--exclude',
-        '.nox',
-        '--output',
-        'screen',
-        '--save-as',
-        'json',
-        'safety-report.json',
-    )
-
-
 @nox.session(python=['3.14'], reuse_venv=False, name='bandit-scan', default=False)
 def bandit_scan(session: nox.Session) -> None:
     """Run bandit security scan."""
@@ -1735,19 +1643,84 @@ def bandit_scan(session: nox.Session) -> None:
     _bandit_scan(session)
 
 
-@nox.session(python=['3.14'], reuse_venv=False, name='safety-scan', default=False)
-def safety_scan(session: nox.Session) -> None:
-    """Run safety vulnerability scan."""
-    _install_from_lockfile(session)
-    _safety_scan(session)
+# The committed CycloneDX SBOM (scripts/generate_sbom.py writes it, scripts/check_licenses.py and
+# grype read it) and grype's reviewed exceptions
+_SBOM_PATH = 'docs/sbom.cyclonedx.json'
+_GRYPE_CONFIG_PATH = '.grype.yaml'
+_SUPPLY_CHAIN_TOOLS = ('syft', 'grype')
+
+
+def _running_in_ci() -> bool:
+    """Return whether this is a CI run (``CI`` or ``CIRCLECI`` set, as CircleCI sets both).
+
+    Returns:
+        True in CI.
+
+    """
+    return bool(os.environ.get('CI') or os.environ.get('CIRCLECI'))
+
+
+def _supply_chain_scan(session: nox.Session) -> None:
+    """Write the SBOM with syft, scan it with grype, check its licenses, then check its drift.
+
+    Adapted from exoneris noxfile.py's ``security-scan`` (the owner, 2026-10-28: swap safety and
+    pip-audit for syft and grype). syft and grype are system binaries (Homebrew through .envrc
+    locally; CircleCI installs pinned, checksummed releases), not Python packages. Missing
+    locally, the scan warns and is skipped, so bandit still runs for a contributor without them;
+    missing in CI, the session fails, so CI never passes a scan that did not happen.
+
+    The SBOM is generated from uv.lock (every package it pins, for every platform and Python
+    version, so it is the same file on every machine); each package's license comes from
+    scripts/check_licenses.py's overrides or from this session's virtualenv, which uv.lock fills
+    with every extra and the dev group (``_install_from_lockfile``; scripts/generate_sbom.py).
+    grype fails on a high or critical finding not reviewed in .grype.yaml; the license check
+    applies scripts/check_licenses.py's policy. The drift check runs last, so one pass over a
+    dependency upgrade reports its CVE and license findings too, rather than stopping at
+    "commit the SBOM": it fails when the regenerated SBOM differs from the committed one (the
+    dependencies changed without it). Commit the regenerated SBOM with its uv.lock change.
+    """
+    missing_tools = [tool for tool in _SUPPLY_CHAIN_TOOLS if shutil.which(tool) is None]
+    if missing_tools:
+        message = (
+            f'{" and ".join(missing_tools)} not found on PATH: install with '
+            f'`brew install {" ".join(missing_tools)}` (or `direnv allow`)'
+        )
+        if _running_in_ci():
+            session.error(f'{message}; CI must run the SBOM, CVE and license scan')
+        session.warn(f'{message}; skipping the SBOM, CVE and license scan')
+        return
+    session.run(
+        'python', '-m', 'scripts.generate_sbom', '--lock', 'uv.lock', '--output', _SBOM_PATH
+    )
+    drift_report = session.run(
+        'git', 'status', '--porcelain', '--', _SBOM_PATH, external=True, silent=True
+    )
+    drifted = [line.strip() for line in str(drift_report or '').splitlines() if line.strip()]
+    for drifted_file in drifted:
+        session.warn(f'SBOM drift: {drifted_file}')
+    session.run(
+        'grype',
+        f'sbom:{_SBOM_PATH}',
+        '--fail-on',
+        'high',
+        '--config',
+        _GRYPE_CONFIG_PATH,
+        external=True,
+    )
+    session.run('python', '-m', 'scripts.check_licenses', '--sbom', _SBOM_PATH)
+    if drifted:
+        session.error(
+            f'{_SBOM_PATH} differs from the committed one: the dependencies changed without '
+            'their SBOM. Commit the regenerated SBOM with the uv.lock change'
+        )
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='security-scan', default=False)
 def security_scan(session: nox.Session) -> None:
-    """Run all security scanning tools (bandit + safety)."""
+    """Run all security scans: bandit, then the syft SBOM, grype CVEs and the license check."""
     _install_from_lockfile(session)
     _bandit_scan(session)
-    _safety_scan(session)
+    _supply_chain_scan(session)
 
 
 # ---------------------------------------------------------------------------

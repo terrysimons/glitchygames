@@ -22,13 +22,12 @@ keywords = ["pygame", "game-engine", "pixel-art", "sprite-editor"]
 dependencies = [
   "tomli-w",
   "pygame-ce",
-  "cookiecutter",
   "pyperclip",
   # Every aisuite provider but `google` (its Vertex AI shim, vertexai 1.71.1, is no longer
   # published and pins google-cloud-aiplatform to 1.71.1[all], an extra that release lacks).
   # Google's models stay reachable through the `gemini` provider. The model is a run-time
   # setting ('provider:model'), so every other provider stays installable as with [all]
-  "aisuite[anthropic,aws,cerebras,cohere,deepgram,deepseek,gemini,groq,lmstudio,mcp,mistral,ollama,openai,postgres,watsonx]>=0.1.14",
+  "aisuite[anthropic,aws,cerebras,cohere,deepgram,deepseek,gemini,groq,lmstudio,mcp,mistral,ollama,openai,watsonx]>=0.1.14",
   "numpy",
   "miniaudio",
   "speechrecognition",
@@ -80,23 +79,29 @@ docs = [
 ]
 dev = [
   "nox[uv]",
-  "pytest",
+  # Capped at 9.1.1 (the owner, 2026-10-28): pytest 9.2.0 removed the private Node._nodeid,
+  # which pytest-benchmark 5.3.0 (the newest) still reads, so every benchmark test errors at
+  # setup. Lift the cap once a pytest-benchmark release works with 9.2
+  "pytest<=9.1.1",
   "pytest-cov",
   "pytest-xdist",
   "pytest-benchmark",
   "pytest-mock",
+  # bandit scans our code; the dependencies' CVEs and licenses are scanned by syft and grype,
+  # system binaries outside this environment (nox -s security-scan, .grype.yaml,
+  # scripts/check_licenses.py). safety and pip-audit were dropped for them (the owner,
+  # 2026-10-28): safety pinned filelock below 4 (3.8.1 requires filelock<4, so the lock held
+  # safety at 3.2.3 and forked filelock on Python 3.15), and grype covers what pip-audit did
   "bandit",
-  "safety",
   "ruff",
   "pre-commit",
   "basedpyright",
   "ty",
   "pillow",
   "pyinstaller",
-  # Lint, audit and test tools (run from nox; never imported by the game)
+  # Lint and test tools (run from nox; never imported by the game)
   "deptry>=0.25.1",
   "vulture>=2.15",
-  "pip-audit>=2.10.0",
   "hypothesis>=6.151.9",
   "taplo>=0.9.3",
   "yamllint>=1.38.0",
@@ -105,8 +110,14 @@ dev = [
   "radon>=5.1.0",
   # The complexity graphs' generation lock (scripts/generate_complexity_graphs.py, BUGS.md #214)
   "filelock>=3.32.7",
+  # uv.lock's dependency markers and package names (scripts/generate_sbom.py)
+  "packaging>=26.0",
 ]
 api = []
+# Building a new game project from a template (glitchygames.templates, scripts/create.py):
+# `pip install glitchygames[templates]`. Optional, as only the templates use it; without it
+# templates.build() raises TemplatesUnavailableError naming this extra
+templates = ["cookiecutter"]
 # The workspace members by layer (src/<layer>/<member>/, docs/architecture/game_packages.md):
 # `pip install glitchygames[games]` installs the engine and every game. Each member depends on
 # glitchygames, so these are a cycle through an extra, which pip and uv both resolve. Kept equal
@@ -774,14 +785,12 @@ DEP002 = [
   "pytest-benchmark",
   "pytest-mock",
   "bandit",
-  "safety",
   "ruff",
   "pre-commit",
   "basedpyright",
   "ty",
   "pyinstaller",
   "vulture",
-  "pip-audit",
   "hypothesis",
   "taplo",
   "yamllint",

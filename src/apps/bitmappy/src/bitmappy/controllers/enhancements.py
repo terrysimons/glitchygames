@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
-from glitchygames.clock import elapsed_seconds, measured_seconds, wall_clock_epoch_seconds
+from glitchygames import clock
 
 if TYPE_CHECKING:
     from bitmappy.editor import BitmapEditorScene
@@ -165,7 +165,7 @@ class BitmappyMultiControllerEnhancements:
             self.visual_manager.update_controller_position(controller_id, position)
 
         # Update performance metrics
-        self._update_performance_metrics('visual_update', measured_seconds())
+        self._update_performance_metrics('visual_update', clock.measured_seconds())
 
     def _calculate_enhanced_position(
         self,
@@ -282,7 +282,7 @@ class BitmappyMultiControllerEnhancements:
 
         """
         # Throttle updates for performance
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
         if current_time - self.last_update_time < self.update_throttle:
             return
 
@@ -308,7 +308,11 @@ class BitmappyMultiControllerEnhancements:
         if controller_id not in self.controller_history:
             self.controller_history[controller_id] = []
 
-        action_record = {'timestamp': wall_clock_epoch_seconds(), 'action': action, 'data': data}
+        action_record = {
+            'timestamp': clock.wall_clock_epoch_seconds(),
+            'action': action,
+            'data': data,
+        }
 
         self.controller_history[controller_id].append(action_record)
 

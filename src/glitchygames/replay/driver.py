@@ -253,7 +253,7 @@ from typing import TYPE_CHECKING, Any, Final, Literal, Protocol, Self, cast
 import pygame
 from pydantic import BaseModel, ConfigDict, Field
 
-from glitchygames.clock import measured_seconds
+from glitchygames import clock
 from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
 from glitchygames.game_frames import game_frame_clock
@@ -637,7 +637,11 @@ class RecordedFrames:
 
     @property
     def frames(self: Self) -> Sequence[dict[str, Any]]:
-        """Every complete frame, decoded (a rebaseline summarises the earlier runs from them)."""
+        """Every complete frame, decoded (a rebaseline summarises the earlier runs from them).
+
+        Read-only: read from a file (``from_path``), the frames share their unchanged sprite
+        records (glitchygames/tracing.py, ``share_records``).
+        """
         return self._frames
 
     def frame(self: Self, *, frame_index: int) -> dict[str, Any] | None:
@@ -1514,7 +1518,9 @@ class ReplaySources:
             The sources.
 
         """
-        read_result = read_trace_result(path=path)
+        # The frames share their unchanged sprite records (a replay only reads them): a whole
+        # recording held as independent frames was most of a replay child's memory
+        read_result = read_trace_result(path=path, share_records=True)
         frames = read_result.trace[FRAMES_FIELD]
         is_truncated = is_cut_off(read_result=read_result)
         header = {name: value for name, value in read_result.trace.items() if name != FRAMES_FIELD}
@@ -1690,7 +1696,7 @@ class ReplaySources:
             # An onion skin's OLD rebuilds alongside (rule 20), not after this rebuild
             if self.onion_skin is not None:
                 self.onion_skin.begin()
-            now = measured_seconds()
+            now = clock.measured_seconds()
             if not self._rebuild.progress_is_due(frame_index=self._frame_index, now=now):
                 return False
             self._run_control_tick(now=now)
@@ -1910,12 +1916,14 @@ class ReplaySources:
         """
         # Only a frame sink makes a headless replay draw (the engine's _connect_the_frame_stream)
         assert self.frame_sink is not None
-        clock = game_frame_clock()
-        if not clock.is_game_frame:
+        game_frames = game_frame_clock()
+        if not game_frames.is_game_frame:
             return
         # A game frame always shows itself
-        assert clock.shown_game_frame is not None
-        if not self.frame_sink.write_frame(frame_index=clock.shown_game_frame, surface=surface):
+        assert game_frames.shown_game_frame is not None
+        if not self.frame_sink.write_frame(
+            frame_index=game_frames.shown_game_frame, surface=surface
+        ):
             self.frame_sink_closed = True
 
     def finish_run(self: Self) -> None:

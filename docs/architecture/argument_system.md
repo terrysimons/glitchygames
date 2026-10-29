@@ -67,7 +67,8 @@ are left out. The [Complete Flag Reference](#complete-flag-reference) lists them
 A game adds arguments by defining a `@classmethod` called `args()` on its scene class.
 The engine discovers this method via `getattr(game, 'args', None)` and calls it with
 a dedicated argument group. If the game does not define `args()`, the engine logs an
-informational message and continues.
+informational message (INFO, once the command line has set the level, so `--log-level info`
+shows it; the default warning does not) and continues.
 
 ```mermaid
 flowchart TD

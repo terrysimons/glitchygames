@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
+from glitchygames import clock
 from glitchygames.ai import (
     build_refinement_messages,
     build_sprite_generation_messages,
@@ -28,7 +29,6 @@ from glitchygames.ai import (
 from glitchygames.ai import (
     clean_ai_response as ai_clean_response,
 )
-from glitchygames.clock import wall_clock_epoch_seconds
 from glitchygames.color import (
     RGB_COMPONENT_COUNT,
 )
@@ -374,7 +374,7 @@ class AIManager:
             last_sprite_content: Last sprite TOML content for refinement.
 
         """
-        request_id = f'{wall_clock_epoch_seconds()}-{next(_AI_REQUEST_COUNTER)}'
+        request_id = f'{clock.wall_clock_epoch_seconds()}-{next(_AI_REQUEST_COUNTER)}'
 
         request = AIRequest(prompt=str(messages), request_id=request_id, messages=messages)
         self.log.info('Submitting AI request: %s', request)

@@ -6,7 +6,11 @@ and are replaced with fakes; the background pipeline is run synchronously.
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import re
+import sys
 import threading
 import types
 from pathlib import Path
@@ -14,12 +18,24 @@ from typing import ClassVar
 
 import pytest
 
+import glitchygames.audio
 from glitchygames.audio import voice_assistant
 from glitchygames.audio.voice_assistant import VoiceAssistant
+from glitchygames.process import OutputCapture, run_command
 
 HEARD_TEXT = 'how do I jump'
 AI_ANSWER = 'Press the cross button to jump.'
 SPEECH_FILE = Path('generated-speech.wav')
+# Run in a fresh interpreter: whether the engine and its live voices import aisuite, whether
+# asking the package for the voice assistant does, and whether that is the class its module defines
+LAZY_IMPORT_PROBE = """\
+import json, sys
+import glitchygames.engine, glitchygames.audio.live
+before = 'aisuite' in sys.modules
+from glitchygames.audio import VoiceAssistant
+from glitchygames.audio.voice_assistant import VoiceAssistant as Defined
+print(json.dumps([before, 'aisuite' in sys.modules, VoiceAssistant is Defined]))
+"""
 
 
 class FakeUnknownValueError(Exception):
@@ -641,3 +657,32 @@ class TestFactories:
         with caplog.at_level(logging.ERROR, logger='game.audio.voice_assistant'):
             assert VoiceAssistant.discover() is None
         assert 'Failed to create voice assistant' in caplog.text
+
+
+class TestThePackagesLazyImport:
+    """``glitchygames.audio`` imports the voice assistant (and aisuite) only when asked for it."""
+
+    def test_the_engine_imports_no_aisuite_until_the_voice_assistant_is_asked_for(self):
+        """In a fresh interpreter: the engine and the live voices first, then the assistant."""
+        completed = run_command(
+            command=[sys.executable, '-c', LAZY_IMPORT_PROBE],
+            environment=dict(os.environ),
+            timeout_seconds=120,
+            capture_output=OutputCapture.TOGETHER,
+        )
+
+        assert completed.returncode == 0, completed.stdout
+        assert json.loads(completed.stdout.strip().splitlines()[-1]) == [False, True, True]
+
+    def test_the_package_gives_the_voice_assistant_class(self):
+        """The name the package exports is the class its module defines."""
+        assert glitchygames.audio.VoiceAssistant is VoiceAssistant
+        assert 'VoiceAssistant' in glitchygames.audio.__all__
+
+    def test_any_other_missing_name_is_an_attribute_error(self):
+        """As for any module: the error names the module and the attribute."""
+        with pytest.raises(
+            AttributeError,
+            match=re.escape("module 'glitchygames.audio' has no attribute 'NoSuchName'"),
+        ):
+            _ = glitchygames.audio.NoSuchName

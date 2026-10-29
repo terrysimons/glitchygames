@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 
 import pygame
 
-from glitchygames import events
+from glitchygames import clock, events
 from glitchygames.backgrounds import (
     BackgroundPattern,
     active_default_background_pattern,
     background_pattern_surface,
 )
 from glitchygames.camera import Camera2D
-from glitchygames.clock import frame_clock_seconds, measured_seconds
 from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT, RGBA_COMPONENT_COUNT
 from glitchygames.debug import DebugFrameInfo, DebugOverlay
@@ -277,7 +275,7 @@ class SceneManager(SceneInterface, events.EventManager):
         # The requested switch, as its next scene and its transition
         self._pending_transition: tuple[Scene | None, Transition] | None = None
 
-        self.clock: pygame.time.Clock = pygame.time.Clock()
+        self.pacing_fallback_clock: pygame.time.Clock = pygame.time.Clock()
 
         # SCREEN shake lives here (not on a scene) so it outlives scene switches
         self.screen_shake: ScreenShake = ScreenShake()
@@ -535,7 +533,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 input_before = current_input()
                 journal.resume(
                     bridge=ResumeBridge(
-                        frame_clock_seconds=frame_clock_seconds(),
+                        frame_clock_seconds=clock.frame_clock_seconds(),
                         fps_event_seconds=self._previous_fps_event_seconds,
                         earlier_internal_event_count=pending_code_post_count(),
                         input_before=snapshot_changes(previous=IDLE_INPUT, current=input_before),
@@ -1364,11 +1362,11 @@ class SceneManager(SceneInterface, events.EventManager):
 
         """
         if active_sources().presents_frames:
-            present_started_seconds = measured_seconds()
+            present_started_seconds = clock.measured_seconds()
             self._show_frame(full_update=full_update)
             # Not the frame's processing time: a live window and a headless replay's dummy
             # display present at very different costs (glitchygames/replay/processing.py)
-            self._frame_present_seconds += measured_seconds() - present_started_seconds
+            self._frame_present_seconds += clock.measured_seconds() - present_started_seconds
         else:
             # What this frame drew never reached the display: the next presented frame must
             # update all of it, not only its own dirty rects (an instant replay's first shown
@@ -1606,7 +1604,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """Handle frame pacing via timer or fallback to pygame clock.
 
         Only paces: the frame is measured afterwards, by _finish_frame, with
-        time.perf_counter().
+        raw_counter_seconds().
 
         Args:
             timer: The timer backend instance (or None)
@@ -1632,7 +1630,7 @@ class SceneManager(SceneInterface, events.EventManager):
             # Deadlines use the timer's own clock; the frame is NOT measured with it. The pygame
             # backend's ns_now() is whole milliseconds (get_ticks() * 1_000_000), so a true
             # 16.67 ms cadence would be measured as 17, 17, 16 ms (58.8, 58.8, 62.5 FPS).
-            # _finish_frame measures with time.perf_counter() instead (BUGS.md #26).
+            # _finish_frame measures with raw_counter_seconds() instead (BUGS.md #26).
             # Optional jitter logging
             if self.OPTIONS.get('log_timer_jitter', False):
                 self._log_jitter_stats(timer, wake_ns, deadline_ns)
@@ -1643,11 +1641,11 @@ class SceneManager(SceneInterface, events.EventManager):
             pass
         # Fallback to pygame clock for FPS measurement if no timer
         elif paced_seconds is not None:
-            self.clock.tick(1 / paced_seconds)
+            self.pacing_fallback_clock.tick(1 / paced_seconds)
         elif self.target_fps > 0:
-            self.clock.tick(self.target_fps)
+            self.pacing_fallback_clock.tick(self.target_fps)
         else:
-            self.clock.tick()
+            self.pacing_fallback_clock.tick()
 
     def _track_performance(self: Self, processing_time: float) -> None:
         """Feed this frame's FPS to the performance manager.
@@ -1658,13 +1656,13 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         from glitchygames.performance import performance_manager
 
-        # Deliberately NOT self.clock.get_fps(). pygame's Clock.get_fps():
+        # Deliberately NOT self.pacing_fallback_clock.get_fps(). pygame's Clock.get_fps():
         #   1. recomputes only every 10 tick() calls, so each value repeats for 10 frames,
         #   2. is 10000 / (milliseconds for the last 10 ticks), so values are quantized
         #      (357 = 10000/28, 385 = 10000/26, 500 = 10000/20, ...), and
         #   3. carries over from the previous scene (the clock is shared), so a new
         #      scene's first samples are stale.
-        # The frame time _finish_frame measured with time.perf_counter() (the full
+        # The frame time _finish_frame measured with raw_counter_seconds() (the full
         # start-to-start period of the frame just finished), as the doors pass it on
         # (_performance_frame_seconds).
         performance_frame_seconds = self._performance_frame_seconds()
@@ -1695,11 +1693,11 @@ class SceneManager(SceneInterface, events.EventManager):
             The perf_counter() reading the first frame starts at.
 
         """
-        frame_start_seconds: float = time.perf_counter()
-        self._previous_fps_event_seconds = frame_clock_seconds()
+        frame_start_seconds: float = clock.raw_counter_seconds()
+        self._previous_fps_event_seconds = clock.frame_clock_seconds()
         # The first frame has no previous frame: its dt is the short time since the reading
         # above, as before (a replay's frame-time door returns the recorded first dt)
-        self._set_frame_time(measured=time.perf_counter() - frame_start_seconds)
+        self._set_frame_time(measured=clock.raw_counter_seconds() - frame_start_seconds)
         mark_frames_started()
         return frame_start_seconds
 
@@ -1740,7 +1738,7 @@ class SceneManager(SceneInterface, events.EventManager):
             if not active_sources().stop_requested:
                 self._present_held_frame()
             # The hold is not part of the next frame's measured time
-            return time.perf_counter()
+            return clock.raw_counter_seconds()
 
         # Frame pacing using timer backend when available
         # None without an engine (a bare SceneManager) or before the engine made its timer
@@ -1760,7 +1758,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self._run_frame()
 
         # The frame's processing time: its work, without the pacing sleep that follows
-        processing_seconds = time.perf_counter() - frame_start_seconds
+        processing_seconds = clock.raw_counter_seconds() - frame_start_seconds
 
         return self._finish_frame(
             frame_start_seconds=frame_start_seconds,
@@ -1799,7 +1797,7 @@ class SceneManager(SceneInterface, events.EventManager):
 
         In order: pace (timer backend deadline on the timer's own clock, else the pygame
         clock; target 0 never sleeps, nor does a frame the doors leave unpaced) and log timer
-        jitter; read time.perf_counter() once, which ends this frame and starts the next; set
+        jitter; read raw_counter_seconds() once, which ends this frame and starts the next; set
         ``self.dt`` to the start-to-start period as the frame-time door returns it: the
         measurement when live, the recorded dt in a replay; add it to the frame clock; record
         it as the frame's FPS sample and post the FPS event when its interval of frame-clock
@@ -1833,14 +1831,14 @@ class SceneManager(SceneInterface, events.EventManager):
             paced_seconds=paced_seconds,
         )
 
-        closing_reading_seconds = time.perf_counter()
+        closing_reading_seconds = clock.raw_counter_seconds()
         self._set_frame_time(measured=closing_reading_seconds - frame_start_seconds)
         # The frame clock (glitchygames/sources.py) is the sum of closed frames' dt: UI timing and
         # FPS events use it, so they replay exactly
         advance_frame_clock(seconds=self.dt)
 
         self._track_performance(processing_time=processing_seconds)
-        frame_clock = frame_clock_seconds()
+        frame_clock = clock.frame_clock_seconds()
         if self._should_post_fps_event(frame_clock, self._previous_fps_event_seconds):
             self._post_fps_event()
             self._previous_fps_event_seconds = frame_clock
@@ -1917,7 +1915,7 @@ class SceneManager(SceneInterface, events.EventManager):
         work from here to its end, without presenting it (``_present_frame``), without the
         doors' own ``end_frame`` and without the pacing that follows.
         """
-        work_started_seconds = measured_seconds()
+        work_started_seconds = clock.measured_seconds()
         self._frame_present_seconds = 0.0
         self._enter_requested_playback()
         self._apply_resume_bridge()
@@ -1931,7 +1929,9 @@ class SceneManager(SceneInterface, events.EventManager):
             logic_scene=None if self._active_transition is not None else self.active_scene
         )
         self._run_in_playback_scope(step=self._run_frame_contents)
-        processing_seconds = measured_seconds() - work_started_seconds - self._frame_present_seconds
+        processing_seconds = (
+            clock.measured_seconds() - work_started_seconds - self._frame_present_seconds
+        )
         session = self._playback_session
         if session is None:
             self._end_frame_at_doors(
@@ -2617,9 +2617,9 @@ class SceneManager(SceneInterface, events.EventManager):
         """Post FPS event."""
         # From the frame time alone, as _track_performance does: it comes through the doors
         # (_performance_frame_seconds), so a replay posts the recorded value (or, with
-        # --replay-fps real, this machine's). Not self.clock.get_fps() for a zero frame time:
-        # that is pygame's real-time pacing clock (and stale; see _track_performance), which a
-        # replay cannot serve
+        # --replay-fps real, this machine's). Not self.pacing_fallback_clock.get_fps() for a zero
+        # frame time: that is pygame's real-time pacing clock (and stale; see
+        # _track_performance), which a replay cannot serve
         performance_frame_seconds = self._performance_frame_seconds()
         fps_value = 1.0 / performance_frame_seconds if performance_frame_seconds > 0 else 0.0
 
@@ -4116,7 +4116,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # FPSEVENT is pygame.USEREVENT + 1
         # Log FPS at the specified interval to reduce log spam. The frame clock starts at 0, so
         # the first log waits one full interval of play
-        current_time = frame_clock_seconds()
+        current_time = clock.frame_clock_seconds()
 
         # Use the configured log interval instead of hardcoded 1.0 second
         log_interval_seconds = float(self.scene_manager.fps_log_interval_ms) / 1000.0

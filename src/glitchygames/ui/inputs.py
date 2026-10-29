@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Self, cast, override
 import pygame
 from pygame import Rect
 
-from glitchygames.clock import frame_clock_seconds
+from glitchygames import clock
 from glitchygames.fonts import FontManager, GameFont
 from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 from glitchygames.input.state import current_input
@@ -149,7 +149,7 @@ class InputBox(Sprite):
         pygame.draw.rect(self.image, self.color, (0, 0, self.rect.width, self.rect.height), 1)
 
         # Blit the  cursor
-        if frame_clock_seconds() % 1 > CURSOR_BLINK_HALF_SECOND and self.is_active:
+        if clock.frame_clock_seconds() % 1 > CURSOR_BLINK_HALF_SECOND and self.is_active:
             self.cursor_rect = self.text_image.get_rect(topleft=(5, 2))
 
             self.cursor.midleft = self.cursor_rect.midright

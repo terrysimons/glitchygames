@@ -13,7 +13,9 @@ An `arcade` console script, from the Arcade app at `src/apps/arcade/` (its own w
 package, distribution `arcade`; the owner, 2026-10-25), and a browser bundle (`nox -s browser -- arcade`) that open an arcade front end for every
 game the engine ships. One screen, one process (the browser cannot start child processes:
 Pyodide has no subprocesses, which is why Bitmappy's AI worker is off there and replay restarts
-only show a message there).
+only show a message there). The browser bundle is listed on the published play/ page
+(`scripts/build_browser_bundle.py`'s `GAMES`, the Games section, which sorts by title; the
+owner, 2026-10-28: the Arcade goes there once it is up).
 
 The command is `arcade`, not `glitchygames` (the owner, 2026-10-27): `glitchygames` is the engine's
 tools command (`glitchygames record-trace`, `verify`, ...; Workspace Packages Part 3, Stage D),

@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-from glitchygames.clock import wall_clock_epoch_seconds
+from glitchygames import clock
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGB_COMPONENT_COUNT
 
 log = logging.getLogger(__name__)
@@ -104,7 +104,7 @@ class MultiControllerErrorHandler:
             error_type=type(error).__name__,
             message=str(error),
             severity=severity,
-            timestamp=wall_clock_epoch_seconds(),
+            timestamp=clock.wall_clock_epoch_seconds(),
             controller_id=controller_id,
             operation=operation,
             stack_trace=traceback.format_exc(),

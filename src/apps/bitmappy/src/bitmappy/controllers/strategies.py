@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Protocol
 
 import pygame
 
-from glitchygames.clock import elapsed_seconds
+from glitchygames import clock
 
 if TYPE_CHECKING:
     from bitmappy.controllers.event_handler import ControllerEventHandler
@@ -244,7 +244,7 @@ class CanvasModeStrategy:
             'active': True,
             'start_position': editor.mode_switcher.get_controller_position(controller_id),
             'pixels_drawn': [],
-            'start_time': elapsed_seconds(),
+            'start_time': clock.elapsed_seconds(),
         }
 
         # Paint at the current position
