@@ -186,7 +186,8 @@ PACKAGE_LICENSE_OVERRIDES: dict[str, tuple[str, str]] = {
     ),
     # Windows only, at runtime through aisuite's mcp. Its METADATA (License: PSF) and classifier
     # name the PSF license; the wheel also carries per-component license files, among them
-    # adodbapi/license.txt (LGPL-2.1), a subpackage nothing here imports
+    # adodbapi/license.txt (LGPL-2.1), a subpackage nothing here imports. PSF-2.0 accepted by the
+    # owner (2026-10-28), so a Windows Bitmappy binary may bundle it
     'pywin32': ('PSF-2.0', 'METADATA License: PSF; classifier Python Software Foundation License'),
     # Windows only (PyInstaller's Windows API shim)
     'pywin32-ctypes': ('BSD-3-Clause', 'METADATA License: BSD-3-Clause'),
