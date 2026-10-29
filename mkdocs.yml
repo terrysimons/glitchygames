@@ -20,6 +20,12 @@ nav:
     - Event System: "architecture/event_system.md"
     - Argument System: "architecture/argument_system.md"
     - Gameplay Recording and Replay: "architecture/gameplay_replay.md"
+    - Playback:
+      - Gameplay Playback: "architecture/playback/index.md"
+      - How a Frame Runs: "architecture/playback/how-a-frame-runs.md"
+      - Speeds and Timing: "architecture/playback/speeds-and-timing.md"
+      - The Recording File: "architecture/playback/recording-file.md"
+      - How We Test Playback: "architecture/playback/testing.md"
     - Engine Context: "architecture/engine_context.md"
     - Multi-Controller System: "multi_controller_system.md"
     - Code Complexity: "quality/complexity.md"

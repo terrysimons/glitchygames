@@ -18,7 +18,13 @@ site's paths and the snippet its page includes, and calls this module:
    per recording (``<console-script>-<name>.html``): processing time per frame (p50, p99 and
    max) by commit, frames over budget by commit, and the live runs' frame times (how steady
    pacing was), one line per machine and kind of run (``performance_series``: times compare only
-   on one machine, and paced frames process slower than replayed ones). The x axis is the
+   on one machine, and paced frames process slower than replayed ones); FPS by commit
+   (``fps_charts``: live runs' achieved FPS solid, replays' headroom FPS dashed, each point the
+   average with its 5% low and 5% high as an error bar, and a line at the target FPS from
+   ``budget_seconds``); and the machines view (``machines_chart``: each machine's latest replay
+   as a bar of average headroom FPS with its 5% low and high, CI machines marked). FPS is read
+   from the rows' seconds with ``fps_from_seconds``; rows from before the slice means
+   (2026-10-28) have no FPS point. The x axis is the
    commits in commit-date order, labelled with their short hash; plotly.js comes from jsDelivr
    (``PLOTLY_JS_URL``), so rendering imports nothing beyond the engine's own dependencies. Then a
    frame x commit heatmap per machine from the rows' per-frame profiles (``FrameProfile``: each
@@ -68,6 +74,7 @@ from glitchygames.recording_metrics import (
     FrameProfile,
     LedgerRow,
     PerformanceSeries,
+    fps_from_seconds,
     landed_rows,
     ledger_text,
     merge_ledgers,
@@ -130,6 +137,13 @@ SERIES_COLORS_DARK = (
 )
 # Each statistic of one series is told apart by its dash, so color only names the series
 STATISTIC_DASHES = {'p50': 'solid', 'p99': 'dash', 'max': 'dot'}
+# On the FPS chart the dash tells the kind of run instead (each series' statistics are one line:
+# the average, with the 5% low and 5% high as its error bar)
+LIVE_RUN_DASH = 'solid'
+REPLAY_DASH = 'dash'
+# How a machine that measured in continuous integration is labelled (its virtual runner's
+# timings are noisy)
+CONTINUOUS_INTEGRATION_LABEL = ' (CI)'
 
 
 class LedgerSources(BaseModel):
@@ -220,6 +234,208 @@ def _trace(
     }
 
 
+def _rounded_fps(seconds: float | None) -> float | None:
+    fps = fps_from_seconds(seconds=seconds)
+    return None if fps is None else round(fps, 1)
+
+
+class FpsPoint(BaseModel):
+    """One row's FPS: its average and its 5% low and 5% high (``fps_point``).
+
+    Attributes:
+        average: 1 / the mean time.
+        low: 1 / the mean of the slowest 5% (``recording_history.slice_frame_count``).
+        high: 1 / the mean of the fastest 5%.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    average: float
+    low: float
+    high: float
+
+
+def fps_point(*, row: LedgerRow, paced: bool) -> FpsPoint | None:
+    """Return a row's FPS: achieved (a paced live run's frame times) or headroom (a replay's).
+
+    A paced run's processing times are no headroom (the processor slows between paced frames:
+    glitchygames/replay/processing.py), so a paced row gives its frame times and an unpaced
+    one its processing times, each read as FPS with ``fps_from_seconds``.
+
+    Args:
+        row: The row.
+        paced: Whether its series paced its frames.
+
+    Returns:
+        The point, or None when the row lacks the figures (a row from before the slice means, a
+        paced row without frame times) or a time is zero.
+
+    """
+    summary = row.summary
+    if summary is None:
+        return None
+    if paced:
+        frame_time = summary.frame_time
+        if frame_time is None:
+            return None
+        mean, slowest, fastest = (
+            frame_time.mean_seconds,
+            frame_time.slowest_5_percent_mean_seconds,
+            frame_time.fastest_5_percent_mean_seconds,
+        )
+    else:
+        mean, slowest, fastest = (
+            summary.mean_processing_seconds,
+            summary.slowest_5_percent_mean_processing_seconds,
+            summary.fastest_5_percent_mean_processing_seconds,
+        )
+    average, low, high = _rounded_fps(mean), _rounded_fps(slowest), _rounded_fps(fastest)
+    if average is None or low is None or high is None:
+        return None
+    return FpsPoint(average=average, low=low, high=high)
+
+
+def _error_bars(*, points: Sequence[FpsPoint], width: int) -> dict[str, Any]:
+    """Return plotly error bars from each point's 5% low to its 5% high."""
+    return {
+        'type': 'data',
+        'symmetric': False,
+        'array': [round(point.high - point.average, 1) for point in points],
+        'arrayminus': [round(point.average - point.low, 1) for point in points],
+        'thickness': 1.5,
+        'width': width,
+    }
+
+
+def _slices_hover(*, point: FpsPoint) -> str:
+    return f'5% low {point.low:.0f}, 5% high {point.high:.0f} fps'
+
+
+def _fps_trace(
+    *, series: PerformanceSeries, slot: int, points: Sequence[tuple[str, FpsPoint, str]]
+) -> dict[str, Any]:
+    kind = 'achieved FPS' if series.paced else 'headroom FPS'
+    return {
+        'type': 'scatter',
+        'mode': 'lines+markers',
+        'name': f'{series.label}: {kind}',
+        'x': [label for label, _, _ in points],
+        'y': [point.average for _, point, _ in points],
+        'customdata': [f'{_slices_hover(point=point)}<br>{detail}' for _, point, detail in points],
+        'error_y': _error_bars(points=[point for _, point, _ in points], width=4),
+        'meta': slot,
+        'line': {'width': 2, 'dash': LIVE_RUN_DASH if series.paced else REPLAY_DASH},
+        'marker': {'size': 8},
+        'hovertemplate': '%{x}: avg %{y} fps, %{customdata}<extra>%{fullData.name}</extra>',
+    }
+
+
+def target_fps(*, series_list: Sequence[PerformanceSeries]) -> float | None:
+    """Return the target FPS the FPS charts draw a line at: 1 / the latest row's budget.
+
+    Args:
+        series_list: The recording's series.
+
+    Returns:
+        The target FPS of the latest row with a budget (``budget_seconds``), to 0.1, or None
+        when no row has one (an uncapped recording).
+
+    """
+    budgets = [
+        row.summary.budget_seconds
+        for row in merge_ledgers(ledgers=[[row for series in series_list for row in series.rows]])
+        if row.summary is not None and row.summary.budget_seconds is not None
+    ]
+    return _rounded_fps(budgets[-1]) if budgets else None
+
+
+def fps_charts(*, series_list: Sequence[PerformanceSeries]) -> list[dict[str, Any]]:
+    """Return the FPS-by-commit traces: one per series with any row that has the figures.
+
+    A paced series (live runs) plots its achieved FPS, solid; an unpaced one (replays) its
+    headroom FPS, dashed (``fps_point``). Each point is the average, its error bar running from
+    the 5% low to the 5% high. Rows without the figures are left out.
+
+    Args:
+        series_list: The recording's series.
+
+    Returns:
+        The plotly traces.
+
+    """
+    traces: list[dict[str, Any]] = []
+    for slot, series in enumerate(series_list):
+        points = [
+            (short_commit(run=row.run) or '', point, _hover_detail(row=row))
+            for row in series.rows
+            if (point := fps_point(row=row, paced=series.paced)) is not None
+        ]
+        if points:
+            traces.append(_fps_trace(series=series, slot=slot, points=points))
+    return traces
+
+
+def machine_name(*, row: LedgerRow) -> str:
+    """Return the machines view's name for a row's machine: its label, marked when in CI.
+
+    Returns:
+        ``LedgerRow.machine``, with ``CONTINUOUS_INTEGRATION_LABEL`` when the run was in
+        continuous integration (``MachineState.continuous_integration``).
+
+    """
+    state = row.run.machine_state
+    in_continuous_integration = state is not None and state.continuous_integration
+    return f'{row.machine}{CONTINUOUS_INTEGRATION_LABEL if in_continuous_integration else ""}'
+
+
+def machines_chart(*, series_list: Sequence[PerformanceSeries]) -> dict[str, Any] | None:
+    """Return the machines view: each machine's latest replay as a bar of headroom FPS.
+
+    Replays only (unpaced series): paced runs' times include the wait for the frame deadline.
+    Each machine's latest row in commit order that has the figures (``fps_point``) is one bar of
+    its average headroom FPS, with an error bar from its 5% low to its 5% high, so machines
+    compare at a glance. A machine that measured in CI is marked (``machine_name``).
+
+    Args:
+        series_list: The recording's series.
+
+    Returns:
+        One plotly bar trace (``meta``: each bar's series slot, for its color), or None when no
+        replay row has the figures.
+
+    """
+    bars: list[tuple[int, LedgerRow, FpsPoint]] = []
+    for slot, series in enumerate(series_list):
+        if series.paced:
+            continue
+        measured = [
+            (row, point)
+            for row in series.rows
+            if (point := fps_point(row=row, paced=False)) is not None
+        ]
+        if measured:
+            row, point = measured[-1]
+            bars.append((slot, row, point))
+    if not bars:
+        return None
+    return {
+        'type': 'bar',
+        'name': 'headroom FPS, latest replay',
+        'x': [machine_name(row=row) for _, row, _ in bars],
+        'y': [point.average for _, _, point in bars],
+        'customdata': [
+            f'{_slices_hover(point=point)}<br>commit {short_commit(run=row.run) or ""}, '
+            f'{_hover_detail(row=row)}'
+            for _, row, point in bars
+        ],
+        'error_y': _error_bars(points=[point for _, _, point in bars], width=6),
+        'meta': [slot for slot, _, _ in bars],
+        'marker': {},
+        'hovertemplate': '%{x}: avg %{y} fps, %{customdata}<extra></extra>',
+    }
+
+
 def recording_charts(*, series_list: Sequence[PerformanceSeries]) -> dict[str, Any]:
     """Return a recording's charts as plotly traces, and the commits' order.
 
@@ -228,8 +444,10 @@ def recording_charts(*, series_list: Sequence[PerformanceSeries]) -> dict[str, A
 
     Returns:
         ``commits`` (short hashes, commit-date order), ``processing``, ``over_budget`` and
-        ``frame_time`` trace lists (``frame_time`` empty when no live run has a commit), and
-        ``heatmaps`` (``profile_heatmap``, one per series with a profiled row).
+        ``frame_time`` trace lists (``frame_time`` empty when no live run has a commit),
+        ``fps`` (``fps_charts``), ``machines`` (``machines_chart``, or None), ``target_fps``
+        (``target_fps``, or None) and ``heatmaps`` (``profile_heatmap``, one per series with a
+        profiled row).
 
     """
     commits: list[str] = []
@@ -283,6 +501,9 @@ def recording_charts(*, series_list: Sequence[PerformanceSeries]) -> dict[str, A
         'processing': processing,
         'over_budget': over_budget,
         'frame_time': frame_time,
+        'fps': fps_charts(series_list=series_list),
+        'machines': machines_chart(series_list=series_list),
+        'target_fps': target_fps(series_list=series_list),
         'heatmaps': [
             heatmap
             for series in series_list
@@ -405,6 +626,15 @@ p {{ color: var(--text-secondary); margin: 0.2rem 0; font-size: 0.9rem; }}
 <div class="chart" id="over_budget"></div>
 <h2>Live frame time (ms): how steady pacing was</h2>
 <div class="chart" id="frame_time"></div>
+<h2>FPS by commit: achieved by live runs (solid), headroom of replays (dashed)</h2>
+<p>Each point is the average; its bar runs from the 5% low (the slowest 5% of frames, averaged)
+to the 5% high. Live runs are paced, so they never pass the target (the dotted line); a replay's
+headroom is 1 / its processing time, how fast the work alone could run. Log scale.</p>
+<div class="chart" id="fps"></div>
+<h2>Machines: headroom FPS of each machine's latest replay</h2>
+<p>Replays only (never paced runs). The bar is the average, its error bar the 5% low to the 5%
+high. Machines marked (CI) measured on continuous integration's virtual runners: noisy.</p>
+<div class="chart" id="machines"></div>
 <h2>Slowest frame across the recording, by commit (ms)</h2>
 <p>Each cell is the slowest frame of a stretch of the recording (about 1% of it). The heatmap
 shows time only: whether the work changed (a frame whose content hash differs) is what the
@@ -424,8 +654,20 @@ const empty = {{
   over_budget: 'No measurements with a frame budget yet.',
   frame_time: 'No live runs with a known commit yet: the recordings were made before runs '
     + 'named their commit.',
+  fps: 'No measurements with FPS figures yet: rows from before the 5% slices have none.',
 }};
-for (const name of ['processing', 'over_budget', 'frame_time']) {{
+const target = charts.target_fps;
+const targetLine = target === null ? [] : [{{
+  type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: target, y1: target,
+  line: {{ color: muted, width: 1.5, dash: 'dot' }},
+}}];
+// A log axis places annotations by the value's logarithm
+const targetLabel = (logarithmic) => target === null ? [] : [{{
+  xref: 'paper', x: 1, xanchor: 'right', yref: 'y', y: logarithmic ? Math.log10(target) : target,
+  yanchor: 'bottom', text: 'target ' + target + ' fps', showarrow: false,
+  font: {{ color: muted, size: 11 }},
+}}];
+for (const name of ['processing', 'over_budget', 'frame_time', 'fps']) {{
   const traces = charts[name];
   const element = document.getElementById(name);
   if (traces.length === 0) {{
@@ -435,8 +677,14 @@ for (const name of ['processing', 'over_budget', 'frame_time']) {{
   for (const trace of traces) {{
     trace.line.color = palette[trace.meta % palette.length];
     trace.marker.color = trace.line.color;
+    if (trace.error_y) {{
+      trace.error_y.color = trace.line.color;
+    }}
   }}
+  const fps = name === 'fps';
   Plotly.newPlot(element, traces, {{
+    shapes: fps ? targetLine : [],
+    annotations: fps ? targetLabel(true) : [],
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
     font: {{ color: ink }},
@@ -447,7 +695,32 @@ for (const name of ['processing', 'over_budget', 'frame_time']) {{
       type: 'category', categoryorder: 'array', categoryarray: charts.commits,
       title: {{ text: 'commit' }}, gridcolor: grid, linecolor: grid,
     }},
-    yaxis: {{ rangemode: 'tozero', gridcolor: grid, linecolor: grid, zerolinecolor: grid }},
+    yaxis: fps
+      ? {{ type: 'log', title: {{ text: 'fps' }}, gridcolor: grid, linecolor: grid }}
+      : {{ rangemode: 'tozero', gridcolor: grid, linecolor: grid, zerolinecolor: grid }},
+  }}, {{ responsive: true, displaylogo: false }});
+}}
+const machinesElement = document.getElementById('machines');
+if (charts.machines === null) {{
+  machinesElement.outerHTML = '<p>No replays with FPS figures yet.</p>';
+}} else {{
+  const bars = charts.machines;
+  bars.marker.color = bars.meta.map((slot) => palette[slot % palette.length]);
+  bars.error_y.color = muted;
+  Plotly.newPlot(machinesElement, [bars], {{
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: {{ color: ink }},
+    margin: {{ l: 56, r: 16, t: 24, b: 72 }},
+    hovermode: 'closest',
+    showlegend: false,
+    shapes: targetLine,
+    annotations: targetLabel(false),
+    xaxis: {{ type: 'category', gridcolor: grid, linecolor: grid }},
+    yaxis: {{
+      rangemode: 'tozero', title: {{ text: 'headroom fps' }}, gridcolor: grid, linecolor: grid,
+      zerolinecolor: grid,
+    }},
   }}, {{ responsive: true, displaylogo: false }});
 }}
 const heatmapScale = dark

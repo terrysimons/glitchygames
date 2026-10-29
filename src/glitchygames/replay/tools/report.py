@@ -8,7 +8,10 @@ glitchygames/recording_history.py); this prints, newest first:
 1. **Runs:** each run's commit (abbreviated, with ``uncommitted changes`` when the checkout had
    them), machine (CPU model), power source, when it measured and what it rebaselined, then its
    summary (stored in the header, else computed from the frames): processing p50/p95/p99/max,
-   the worst frame and its scene, frames over budget, and a live run's frame times.
+   the worst frame and its scene, frames over budget, the headroom FPS of its processing times
+   (average, 5% low and 5% high: ``recording_metrics.describe_processing_fps``), and a live
+   run's frame times with the FPS it achieved (``describe_frame_time_fps``). A summary from
+   before the slice means (2026-10-28) shows no FPS.
 2. **Processing:** for each adjacent pair of runs, the frames that did the same work (equal
    content hashes) and how their time changed; spans of frames that got slower or faster by
    more than ``--threshold`` percent and ``--minimum-ms`` milliseconds. Frames whose hash
@@ -51,6 +54,8 @@ from glitchygames.recording_metrics import (
     MILLISECONDS_PER_SECOND,
     UNKNOWN_COMMIT,
     behaviour_changes,
+    describe_frame_time_fps,
+    describe_processing_fps,
     machine_label,
     processing_comparisons,
     short_commit,
@@ -120,8 +125,9 @@ def describe_summary(*, summary: RunSummary | None) -> str:
         summary: The summary, or None when the run measured no times.
 
     Returns:
-        The frames, processing percentiles, worst frame, frames over budget and (for a live
-        run) its frame times.
+        The frames, processing percentiles, worst frame, frames over budget, headroom FPS
+        and (for a live run) its frame times and achieved FPS; the FPS only when the summary
+        has its slice means.
 
     """
     if summary is None:
@@ -139,6 +145,9 @@ def describe_summary(*, summary: RunSummary | None) -> str:
             f'{line}, {summary.frames_over_budget} over the '
             f'{_milliseconds(summary.budget_seconds)} budget'
         )
+    headroom = describe_processing_fps(summary=summary)
+    if headroom is not None:
+        line = f'{line}; headroom {headroom}'
     frame_time = summary.frame_time
     if frame_time is not None:
         late = '' if frame_time.late_frames is None else f', {frame_time.late_frames} late'
@@ -147,6 +156,9 @@ def describe_summary(*, summary: RunSummary | None) -> str:
             f'{_milliseconds(frame_time.p99_seconds)}, max '
             f'{_milliseconds(frame_time.max_seconds)}{late}'
         )
+        achieved = describe_frame_time_fps(frame_time=frame_time)
+        if achieved is not None:
+            line = f'{line}, achieved {achieved}'
     return line
 
 
