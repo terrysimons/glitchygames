@@ -15,7 +15,7 @@ import platform
 import pprint
 import signal
 import sys
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import (
@@ -82,7 +82,7 @@ from glitchygames.logical_names import logical_name
 from glitchygames.machine_state import current_machine_state
 from glitchygames.output_files import output_refusal, partial_path
 from glitchygames.randomness import seed_engine_random
-from glitchygames.read_only_views import ReadOnlyViews
+from glitchygames.read_only_views import ReadOnlyView, ReadOnlyViews
 from glitchygames.recording import (
     CUSTOM_EVENT_TYPES_HEADER_FIELD,
     DEVICE_ENUMERATION_FIELD,
@@ -181,7 +181,7 @@ from glitchygames.timing import (
 from glitchygames.tracing import TraceFormatError
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Generator, Sequence
+    from collections.abc import Awaitable, Generator, Sequence
     from types import FrameType
 
     from glitchygames.ai_console import AiConsole
@@ -782,6 +782,23 @@ def _stop_being_the_current_engine(*, engine: GameEngine) -> None:
         current.engine = None
 
 
+def _running_engine_attribute[T](*, read: Callable[[GameEngine], T]) -> T | None:
+    """Read the current context's engine's attribute (the ``GameEngine`` views share it).
+
+    Args:
+        read: Reads the attribute from the engine (``lambda engine: engine.event_handlers``).
+
+    Returns:
+        What ``read`` returns for the engine running in the current context, or None when no
+        engine is running there.
+
+    """
+    engine = current_context().value(slot=CURRENT_ENGINE_SLOT).engine
+    if engine is None:
+        return None
+    return read(engine)
+
+
 def _clear_a_half_made_engine[EngineT: GameEngine, **InitParameters](
     initialize: Callable[Concatenate[EngineT, InitParameters], None],
 ) -> Callable[Concatenate[EngineT, InitParameters], None]:
@@ -851,8 +868,17 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
     # to the events module need to be accounted for here
     # if they're not already handled
     #
-    # These are wired up at the end of __init__()
-    EVENT_HANDLERS: ClassVar[dict[int, Callable[..., Any]]] = {}
+    # These are wired up at the end of __init__(), one per engine; a read-only view of
+    # event_handlers
+    EVENT_HANDLERS = ReadOnlyView[
+        dict[int, Callable[..., Any]] | None, dict[int, Callable[..., Any]]
+    ](
+        read_current=lambda _owner: _running_engine_attribute(
+            read=lambda engine: engine.event_handlers
+        ),
+        read_own=lambda engine: engine.event_handlers,
+        write_instead="the engine's own: engine.event_handlers",
+    )
 
     # The --record-trace recorder while recording (start_trace_recording), else None; the
     # RecordingSources it installs write to it. A class default so it reads None on an engine
@@ -1368,6 +1394,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # The frame-pacing timer, created as the run starts (_configure_timer_and_performance);
         # declared first, as a rebaseline names its run (measurement_run) before then
         self.timer: Any = None
+        # Event type -> this engine's handler, filled by initialize_event_handlers (audit C10:
+        # one map per engine, so a second engine's handlers never replace the first's)
+        self.event_handlers: dict[int, Callable[..., Any]] = {}
 
         self.initialize_icon(icon=icon)
 
@@ -1689,19 +1718,19 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         """
         for event_type in events.AUDIO_EVENTS:
-            GameEngine.EVENT_HANDLERS[event_type] = self.process_audio_event
+            self.event_handlers[event_type] = self.process_audio_event
 
         for event_type in events.APP_EVENTS:
-            GameEngine.EVENT_HANDLERS[event_type] = self.process_app_event
+            self.event_handlers[event_type] = self.process_app_event
 
         for event_type in events.MIDI_EVENTS:
-            GameEngine.EVENT_HANDLERS[event_type] = self.process_midi_event
+            self.event_handlers[event_type] = self.process_midi_event
 
         for event_type in events.WINDOW_EVENTS:
-            GameEngine.EVENT_HANDLERS[event_type] = self.process_window_event
+            self.event_handlers[event_type] = self.process_window_event
 
         for event_type in events.GAME_EVENTS:
-            GameEngine.EVENT_HANDLERS[event_type] = self.process_game_event
+            self.event_handlers[event_type] = self.process_game_event
 
         self.initialize_input_event_handlers()
 
@@ -1747,25 +1776,25 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         """
         for event_type in events.CONTROLLER_EVENTS:
-            GameEngine.EVENT_HANDLERS[event_type] = self.process_controller_event
+            self.event_handlers[event_type] = self.process_controller_event
 
         for event_type in events.DROP_EVENTS:
-            GameEngine.EVENT_HANDLERS[event_type] = self.process_drop_event
+            self.event_handlers[event_type] = self.process_drop_event
 
         for event_type in events.TOUCH_EVENTS:
-            GameEngine.EVENT_HANDLERS[event_type] = self.process_touch_event
+            self.event_handlers[event_type] = self.process_touch_event
 
         for event_type in events.JOYSTICK_EVENTS:
-            GameEngine.EVENT_HANDLERS[event_type] = self.process_joystick_event
+            self.event_handlers[event_type] = self.process_joystick_event
 
         for event_type in events.KEYBOARD_EVENTS:
-            GameEngine.EVENT_HANDLERS[event_type] = self.process_keyboard_event
+            self.event_handlers[event_type] = self.process_keyboard_event
 
         for event_type in events.MOUSE_EVENTS:
-            GameEngine.EVENT_HANDLERS[event_type] = self.process_mouse_event
+            self.event_handlers[event_type] = self.process_mouse_event
 
         for event_type in events.TEXT_EVENTS:
-            GameEngine.EVENT_HANDLERS[event_type] = self.process_text_event
+            self.event_handlers[event_type] = self.process_text_event
 
     @property
     def input(self: Self) -> InputSnapshot:
@@ -4118,7 +4147,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         ``pygame.event.get()`` removes the whole batch from SDL's queue at once, so every event
         of the batch is handled here: none may be dropped. Each event is judged on its own; an
-        event whose type has no entry in ``EVENT_HANDLERS``, or whose handler did not handle
+        event whose type has no entry in ``event_handlers``, or whose handler did not handle
         it, goes to ``process_unimplemented_event``.
 
         Args:
@@ -4155,8 +4184,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
             # Decided per event: a type missing from the map is unhandled
             event_was_handled = False
-            if event.type in GameEngine.EVENT_HANDLERS:
-                event_was_handled = bool(GameEngine.EVENT_HANDLERS[event.type](event))
+            if event.type in self.event_handlers:
+                event_was_handled = bool(self.event_handlers[event.type](event))
 
             # If an event is not in the event handler map, or the function
             # called didn't handle the event in question, we'll process it

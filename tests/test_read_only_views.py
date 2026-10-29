@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from glitchygames.engine import current_engine
+from glitchygames.engine import GameEngine, current_engine
 from glitchygames.engine_context import EngineContext
 from glitchygames.read_only_views import (
     ClassOnlyView,
@@ -41,8 +41,6 @@ if TYPE_CHECKING:
 
     from pytest_mock import MockerFixture
 
-    from glitchygames.engine import GameEngine
-
 # The view descriptors, by the name a class body calls them with
 READ_ONLY_VIEW_NAME = 'ReadOnlyView'
 CLASS_ONLY_VIEW_NAME = 'ClassOnlyView'
@@ -58,6 +56,8 @@ STAND_IN_GAME_NAME = 'Read-only views stand-in'
 # What make_stand_in_engine's command line gives (its smoke test checks them)
 STAND_IN_RESOLUTION = (800, 600)
 STAND_IN_TARGET_FPS = 30
+# The second engine's --target-fps in a view check (two engines told apart)
+SECOND_STAND_IN_TARGET_FPS = 50
 
 # Every view, as 'GameEngine.OPTIONS' or 'glitchygames.performance.performance_manager', with
 # the check that it answers per context: (*, first, second, mocker) -> None
@@ -937,3 +937,58 @@ def test_a_stand_in_engine_is_made_and_current_in_its_context(mocker):
     assert engine.fps == STAND_IN_TARGET_FPS
     assert engine.scene_manager is manager
     assert engine.screen.get_size() == STAND_IN_RESOLUTION
+
+
+# --- Each view answers per context (VIEW_CHECKS) ---
+
+
+def check_event_handlers_view(
+    *, first: EngineContext, second: EngineContext, mocker: MockerFixture
+) -> None:
+    """GameEngine.EVENT_HANDLERS: each context's engine's own map (audit C10).
+
+    Read on the class, the current context's engine's ``event_handlers`` (``None`` where no
+    engine runs); on an engine, its own. Writing it raises, naming ``engine.event_handlers``.
+    """
+    engines: list[GameEngine] = []
+    class_reads_answer_their_engine: list[bool] = []
+    instance_reads_answer_their_engine: list[bool] = []
+    for context, target_fps in (
+        (first, STAND_IN_TARGET_FPS),
+        (second, SECOND_STAND_IN_TARGET_FPS),
+    ):
+        with context.active():
+            engine = make_stand_in_engine(mocker=mocker, target_fps=target_fps)
+            engines.append(engine)
+            class_reads_answer_their_engine.append(
+                GameEngine.EVENT_HANDLERS is engine.event_handlers
+            )
+            instance_reads_answer_their_engine.append(
+                engine.EVENT_HANDLERS is engine.event_handlers
+            )
+            reset_sources()
+    with EngineContext(name='fresh').active():
+        fresh_read = GameEngine.EVENT_HANDLERS
+
+    assert class_reads_answer_their_engine == [True, True]
+    assert instance_reads_answer_their_engine == [True, True]
+    assert engines[0].event_handlers is not engines[1].event_handlers
+    assert fresh_read is None
+    where_to_write = re.escape("write the engine's own: engine.event_handlers")
+    for write in (
+        lambda: setattr(GameEngine, 'EVENT_HANDLERS', {}),
+        lambda: setattr(engines[0], 'EVENT_HANDLERS', {}),
+    ):
+        with pytest.raises(ReadOnlyViewError, match=where_to_write):
+            write()
+
+
+VIEW_CHECKS['GameEngine.EVENT_HANDLERS'] = check_event_handlers_view
+
+
+@pytest.mark.parametrize('view_name', sorted(VIEW_CHECKS))
+def test_each_view_answers_per_context(view_name, mocker):
+    """Each view: two contexts each see their own value, and writing it names where to write."""
+    VIEW_CHECKS[view_name](
+        first=EngineContext(name='first'), second=EngineContext(name='second'), mocker=mocker
+    )

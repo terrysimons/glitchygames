@@ -158,7 +158,7 @@ class TestEngineInitialization:
         assert isinstance(GameEngine.MISSING_EVENTS, list)
         assert isinstance(GameEngine.UNIMPLEMENTED_EVENTS, list)
         assert isinstance(GameEngine.USE_FASTEVENTS, bool)
-        assert isinstance(GameEngine.EVENT_HANDLERS, dict)
+        assert GameEngine.EVENT_HANDLERS is None
 
     def test_game_engine_logger(self):
         """Test GameEngine logger."""
