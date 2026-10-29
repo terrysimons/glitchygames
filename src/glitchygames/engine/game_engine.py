@@ -15,16 +15,14 @@ import platform
 import pprint
 import signal
 import sys
-import time
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, override
 
 import pygame
 
-from glitchygames import events
+from glitchygames import clock, events
 from glitchygames.argument_types import non_negative_int
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -33,7 +31,6 @@ from glitchygames.backgrounds import (
     set_active_default_background_pattern,
 )
 from glitchygames.build_info import engine_source_revision
-from glitchygames.clock import elapsed_seconds
 from glitchygames.color import PURPLE
 from glitchygames.crt_power_on import (
     CrtPowerOnMode,
@@ -1891,7 +1888,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             engine_version=installed_engine_version(),
             pygame_version=pygame.version.ver,
             python_version=platform.python_version(),
-            measured_at=datetime.now(tz=UTC).isoformat(),
+            measured_at=clock.raw_wall_clock_time().isoformat(),
             rebaselined_from=rebaselined_from,
             hash_scheme=CONTENT_HASH_SCHEME,
             pacing_timer=pacing_timer,
@@ -1933,7 +1930,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # The origin of the run's wall clock from here on, recorded and replayed alike:
             # recorded_at plus the frame clock (RecordingSources.wall_clock_time; rule 9 of
             # glitchygames/replay/driver.py), so game code reading it replays exactly
-            RECORDED_AT_HEADER_FIELD: datetime.now(tz=UTC).isoformat(),
+            RECORDED_AT_HEADER_FIELD: clock.raw_wall_clock_time().isoformat(),
             'random_seed': self.random_seed,
             # Each run's provenance, newest first (glitchygames/recording_history.py): this one
             # paces its frames when it has a target FPS (0 is uncapped)
@@ -4217,7 +4214,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.unhandled_events[event.type] = UnhandledEventRecord(
             count=1,
             # The frame clock, which reset_sources() restarted in __init__
-            first_seen_seconds=elapsed_seconds(),
+            first_seen_seconds=clock.elapsed_seconds(),
             attribute_names=attribute_names,
         )
 
@@ -4325,7 +4322,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self.suppress_event(*args, attr=self.LAST_EVENT_MISS, **kwargs)
 
         # Ensures we can always ctrl-c in cases where event spam occurs.
-        time.sleep(0)
+        clock.raw_sleep(0)
 
     # If the game hasn't hooked a call, we should check if the scene manager has.
     #

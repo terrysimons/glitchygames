@@ -20,7 +20,6 @@ import platform
 import signal
 import sys
 import threading
-import types
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
@@ -68,7 +67,6 @@ from glitchygames.replay.tools.golden_traces import (
 )
 from glitchygames.scene_start import SceneStart
 from glitchygames.scenes import Scene, SceneManager
-from glitchygames.scenes import scene as scene_module
 from glitchygames.sources import active_sources, install_sources
 from glitchygames.state import DiskSaveManager, MemorySaveManager
 from glitchygames.state.sandbox import open_saves
@@ -392,7 +390,7 @@ def engine_run_environment(mocker) -> Generator[FakePerfCounter]:
     """
     Script.reset()
     fake_perf_counter = FakePerfCounter()
-    mocker.patch.object(scene_module, 'time', types.SimpleNamespace(perf_counter=fake_perf_counter))
+    mocker.patch('glitchygames.clock.raw_counter_seconds', new=fake_perf_counter)
     # GameEngine._shutdown quits pygame; later tests on this worker still need it
     mocker.patch.object(pygame, 'quit')
     real_display_quit = pygame.display.quit

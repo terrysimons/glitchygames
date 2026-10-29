@@ -3,8 +3,10 @@
 
 Backends:
 - PygameTimer: uses pygame.time.delay/get_ticks
-- FastTimer: uses time.perf_counter_ns() with sleep+spin: it sleeps so that it wakes
-  ``sleep_granularity_ns`` before the deadline, then spins the rest
+- FastTimer: uses the raw performance counter (glitchygames/clock.py ``raw_counter_ns``,
+  ``time.perf_counter_ns()``) with sleep+spin (``raw_sleep``): it sleeps so that it wakes
+  ``sleep_granularity_ns`` before the deadline, then spins the rest. A timer takes its counter
+  and sleep as parameters (``read_counter_ns``, ``sleep``), so a test passes a fake clock
 
 A sleep's delay past its length is modelled as a constant plus a fraction of the length
 (``SleepModel``): macOS lets a normal-priority sleep run late by a quarter of its length (4 ms
@@ -23,10 +25,14 @@ from __future__ import annotations
 
 import logging
 import sys
-import time
-from typing import Any, Literal, Self
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict
+
+from glitchygames import clock
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 LOG = logging.getLogger(__name__)
 
@@ -123,35 +129,92 @@ def describe_pacing_timer(*, pacing: PacingTimer) -> str:
     )
 
 
-def sleep_overshoot_ns(*, probe_ns: int, samples: int) -> int:
+def _counter_or_raw(read_counter_ns: Callable[[], int] | None) -> Callable[[], int]:
+    """Return the counter given, or glitchygames/clock.py's raw counter looked up now.
+
+    A default resolved when called, not when the function or timer was defined, so a test's
+    patch on ``glitchygames.clock.raw_counter_ns`` reaches every default.
+
+    Returns:
+        ``read_counter_ns``, or ``clock.raw_counter_ns`` when it is None.
+
+    """
+    return clock.raw_counter_ns if read_counter_ns is None else read_counter_ns
+
+
+def _sleep_or_raw(sleep: Callable[[float], None] | None) -> Callable[[float], None]:
+    """Return the sleep given, or glitchygames/clock.py's raw sleep looked up now.
+
+    A default resolved when called, not when the function or timer was defined, so a test's
+    patch on ``glitchygames.clock.raw_sleep`` reaches every default.
+
+    Returns:
+        ``sleep``, or ``clock.raw_sleep`` when it is None.
+
+    """
+    return clock.raw_sleep if sleep is None else sleep
+
+
+def sleep_overshoot_ns(
+    *,
+    probe_ns: int,
+    samples: int,
+    read_counter_ns: Callable[[], int] | None = None,
+    sleep: Callable[[float], None] | None = None,
+) -> int:
     """Measure how late this machine's OS wakes a sleep of one length.
 
     Args:
         probe_ns: Each sleep's length.
         samples: How many sleeps to take.
+        read_counter_ns: The counter the sleeps are timed by; None is the raw performance
+            counter (``clock.raw_counter_ns``, looked up when called).
+        sleep: The sleep measured; None is the raw sleep (``clock.raw_sleep``, looked up when
+            called).
 
     Returns:
         The ``SLEEP_CALIBRATION_PERCENTILE`` overshoot past the requested length, in ns.
 
     """
+    read_counter = _counter_or_raw(read_counter_ns)
+    probe_sleep = _sleep_or_raw(sleep)
     overshoots: list[int] = []
     for _ in range(samples):
-        started = time.perf_counter_ns()
-        time.sleep(probe_ns / 1e9)
-        overshoots.append(max(0, time.perf_counter_ns() - started - probe_ns))
+        started = read_counter()
+        probe_sleep(probe_ns / 1e9)
+        overshoots.append(max(0, read_counter() - started - probe_ns))
     overshoots.sort()
     return overshoots[int(SLEEP_CALIBRATION_PERCENTILE * (samples - 1))]
 
 
-def measure_sleep_model() -> SleepModel:
+def measure_sleep_model(
+    *,
+    read_counter_ns: Callable[[], int] | None = None,
+    sleep: Callable[[float], None] | None = None,
+) -> SleepModel:
     """Fit this machine's sleep delay from a short and a long probe.
+
+    Args:
+        read_counter_ns: The counter the probe sleeps are timed by; None is the raw
+            performance counter (looked up when called).
+        sleep: The sleep measured; None is the raw sleep (looked up when called).
 
     Returns:
         The model through both probes' delays (neither part negative).
 
     """
-    short_ns = sleep_overshoot_ns(probe_ns=SHORT_SLEEP_PROBE_NS, samples=SLEEP_CALIBRATION_SAMPLES)
-    long_ns = sleep_overshoot_ns(probe_ns=LONG_SLEEP_PROBE_NS, samples=SLEEP_CALIBRATION_SAMPLES)
+    short_ns = sleep_overshoot_ns(
+        probe_ns=SHORT_SLEEP_PROBE_NS,
+        samples=SLEEP_CALIBRATION_SAMPLES,
+        read_counter_ns=read_counter_ns,
+        sleep=sleep,
+    )
+    long_ns = sleep_overshoot_ns(
+        probe_ns=LONG_SLEEP_PROBE_NS,
+        samples=SLEEP_CALIBRATION_SAMPLES,
+        read_counter_ns=read_counter_ns,
+        sleep=sleep,
+    )
     fraction = max(0.0, (long_ns - short_ns) / (LONG_SLEEP_PROBE_NS - SHORT_SLEEP_PROBE_NS))
     constant_ns = max(0, round(short_ns - fraction * SHORT_SLEEP_PROBE_NS))
     return SleepModel(constant_ns=constant_ns, fraction=fraction)
@@ -285,15 +348,17 @@ class PygameTimer:
 
 
 class FastTimer:
-    """perf_counter_ns-based timer with sleep+spin pacing."""
+    """Sleep+spin pacing on the raw performance counter (or the counter and sleep given)."""
 
-    def __init__(
+    def __init__(  # ruff: ignore[too-many-arguments] - the injected clock and sleep, keyword-only
         self,
         sleep_granularity_ns: int = DEFAULT_SLEEP_GRANULARITY_NS,
         *,
         windows_timer_1ms: bool = False,
         sleep_model: SleepModel | None = None,
         calibrate: bool = False,
+        read_counter_ns: Callable[[], int] | None = None,
+        sleep: Callable[[float], None] | None = None,
     ) -> None:
         """Initialize the FastTimer with sleep granularity and Windows timer options.
 
@@ -305,8 +370,15 @@ class FastTimer:
                 they wake on time.
             calibrate: Measure the sleep model (``measure_sleep_model``) when first needed:
                 ``calibrate()`` or the first paced sleep. A run that never paces never measures.
+            read_counter_ns: The clock deadlines are read on; None is glitchygames/clock.py's
+                raw performance counter, looked up on every reading (a test passes a fake
+                clock, or patches ``glitchygames.clock.raw_counter_ns``).
+            sleep: The coarse sleep, and the spin's yield (``sleep(0)``); None is
+                glitchygames/clock.py's raw sleep, looked up on every sleep.
 
         """
+        self._read_counter_ns = read_counter_ns
+        self._sleep = sleep
         self.sleep_granularity_ns = max(0, int(sleep_granularity_ns))
         self.sleep_model = sleep_model
         self._calibration_pending = calibrate
@@ -364,7 +436,9 @@ class FastTimer:
         if not self._calibration_pending:
             return
         self._calibration_pending = False
-        self.sleep_model = measure_sleep_model()
+        self.sleep_model = measure_sleep_model(
+            read_counter_ns=self._read_counter_ns, sleep=self._sleep
+        )
         LOG.info('Timer calibrated: %s', describe_pacing_timer(pacing=self.pacing_timer()))
 
     def pacing_timer(self: Self) -> PacingTimer:
@@ -381,13 +455,13 @@ class FastTimer:
         )
 
     def ns_now(self) -> int:
-        """Return the current time in nanoseconds using perf_counter_ns.
+        """Return the current time in nanoseconds on this timer's counter (``read_counter_ns``).
 
         Returns:
             int: The current time in nanoseconds.
 
         """
-        return time.perf_counter_ns()
+        return _counter_or_raw(self._read_counter_ns)()
 
     def start_frame(self, target_fps: float) -> int:
         """Return the frame period in nanoseconds for the given target FPS.
@@ -424,6 +498,7 @@ class FastTimer:
 
         """
         self.calibrate()
+        sleep = _sleep_or_raw(self._sleep)
         model = self.sleep_model or SLEEP_WAKES_ON_TIME
         # Coarse sleep first, sized so its predicted wake is sleep_granularity_ns before the
         # deadline (a wake that came early sleeps again); a delay longer than the wait spins it
@@ -438,7 +513,7 @@ class FastTimer:
                 else 0
             )
             if sleep_ns > 0:
-                time.sleep(sleep_ns / 1e9)
+                sleep(sleep_ns / 1e9)
             else:
                 break
         # Final spin to tighten
@@ -447,7 +522,7 @@ class FastTimer:
             if now >= deadline_ns:
                 return now
             # Yield the GIL so audio callbacks (live-voice chunk handovers) can run mid-spin
-            time.sleep(0)
+            sleep(0)
 
 
 def pacing_timer_for_options(*, options: dict[str, Any]) -> PacingTimer:

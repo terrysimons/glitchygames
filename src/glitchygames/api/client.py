@@ -28,7 +28,7 @@ from typing import Any, cast
 import httpx
 from apng import APNG, PNG
 
-from glitchygames.clock import wall_clock_epoch_seconds
+from glitchygames import clock
 from glitchygames.exit_codes import ExitCode
 from glitchygames.tools.ascii_renderer import ASCIIRenderer
 
@@ -392,7 +392,7 @@ def find_available_path(base_path: Path) -> Path:
         counter += 1
 
     # Fallback: use timestamp if we somehow hit 999 files
-    timestamp = int(wall_clock_epoch_seconds())
+    timestamp = int(clock.wall_clock_epoch_seconds())
     return parent / f'{stem}_{timestamp}{suffix}'
 
 
@@ -420,7 +420,7 @@ def find_available_directory(base_dir: Path) -> Path:
         counter += 1
 
     # Fallback: use timestamp if we somehow hit 999 directories
-    timestamp = int(wall_clock_epoch_seconds())
+    timestamp = int(clock.wall_clock_epoch_seconds())
     return parent / f'{name}-{timestamp}'
 
 

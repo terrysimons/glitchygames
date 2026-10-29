@@ -601,6 +601,17 @@ only replays; Part 2 Task 1).
 - Deferred from the screen-shake spec (see its known follow-ups in
   `plans/2026-10-17-screen-shake-and-synth.md`): the audio probe capture mode and the spin-window
   power idea.
+- **pygame's clock through the door too** (left from `feature/clock-door`, 2026-10-28: "move the
+  calls behind the door"; the `time` module and `datetime`'s now are read only in
+  `src/glitchygames/clock.py` now). `pygame.time` stays outside it: `SceneManager.__init__`'s
+  pacing fallback `pygame.time.Clock` (allowed by function in `tests/test_engine_doors.py`) and
+  `PygameTimer` (`--timer-backend pygame`), which calls `pygame.time.get_ticks`/`delay` through
+  its own `self._pg`, a path the doors scan cannot follow. Moving them means raw
+  `clock.raw_ticks_milliseconds()`/`raw_delay()` functions and a `PygameTimer` that takes them as
+  parameters, as `FastTimer` takes `read_counter_ns`/`sleep`. Not fenced: `asyncio.sleep` (the
+  package has none today; its async loops wait for the host's tick) and third-party code's own
+  clock reads (tenacity stamps each retry's start with `time.monotonic()`; only its sleep is
+  ours, through `sleep=`).
 
 ## Assets and art
 

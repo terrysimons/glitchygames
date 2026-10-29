@@ -15,7 +15,7 @@ from bitmappy.controllers.manager import (
 from bitmappy.controllers.modes import ControllerMode
 from bitmappy.editor import BitmapEditorScene
 from bitmappy.film_strip import FilmStripWidget
-from glitchygames.clock import elapsed_seconds, frame_clock_milliseconds
+from glitchygames import clock
 from glitchygames.fonts import FontManager
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
@@ -156,7 +156,7 @@ class TestLabelsWithThePygameFontSystem:
         film_strip = film_strip_with_two_frames
         film_strip.editing_text = 'walk'
         film_strip.cursor_visible = False
-        film_strip.cursor_blink_time = frame_clock_milliseconds()
+        film_strip.cursor_blink_time = clock.frame_clock_milliseconds()
         label_surface = pygame.Surface((80, 20), pygame.SRCALPHA)
         label_surface.fill((0, 0, 0, 255))
 
@@ -360,7 +360,7 @@ class TestRenderEditingLabelWithoutText:
         film_strip = film_strip_with_two_frames
         film_strip.editing_text = ''
         film_strip.cursor_visible = False
-        film_strip.cursor_blink_time = frame_clock_milliseconds()
+        film_strip.cursor_blink_time = clock.frame_clock_milliseconds()
         label_surface = pygame.Surface((80, 20), pygame.SRCALPHA)
         label_surface.fill((0, 0, 0, 255))
 
@@ -446,7 +446,7 @@ def connect_film_strip_controller(
         color=color,
     )
     # Just scanned: no joystick is plugged in, so a scan now would disconnect it
-    manager.last_scan_time = elapsed_seconds()
+    manager.last_scan_time = clock.elapsed_seconds()
     editor.controller_handler.render_visual_indicators()
     editor.controller_selections[controller_id].set_selection(animation, frame)
     editor.controller_handler.render_visual_indicators()
@@ -542,7 +542,7 @@ class TestControllerIndicatorsInTheEditor:
             frame=0,
         )
         real_editor.mode_switcher.controller_modes[0].switch_to_mode(
-            ControllerMode.CANVAS, elapsed_seconds()
+            ControllerMode.CANVAS, clock.elapsed_seconds()
         )
         real_editor.controller_handler.render_visual_indicators()
 

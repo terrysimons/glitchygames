@@ -93,7 +93,7 @@ def cursor_hidden(mocker: MockerFixture) -> None:
     The cursor blinks with the frame clock (shown in the second half of each second), which a
     run advances by the measured frame times; the pictures compared here have no cursor.
     """
-    mocker.patch('glitchygames.ui.inputs.frame_clock_seconds', return_value=0.0)
+    mocker.patch('glitchygames.clock.frame_clock_seconds', return_value=0.0)
 
 
 @pytest.fixture

@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from glitchygames.clock import frame_clock_seconds
+from glitchygames import clock
 
 from .constants import (
     PIXEL_CHANGE_DEBOUNCE_SECONDS,
@@ -322,7 +322,7 @@ class FrameOperationManager:
         # because the frame clock reads 0.0 until the first frame closes
         pixel_change_timer = self.editor.pixel_change_timer
         if pixel_count == 1 and pixel_change_timer is not None:  # Only for single pixels
-            current_time = frame_clock_seconds()
+            current_time = clock.frame_clock_seconds()
             # If more than 0.1 seconds have passed since the first pixel change, submit it
             if current_time - pixel_change_timer > PIXEL_CHANGE_DEBOUNCE_SECONDS:
                 self.submit_pixel_changes_if_ready()

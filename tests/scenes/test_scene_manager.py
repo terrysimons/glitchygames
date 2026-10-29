@@ -317,15 +317,15 @@ class TestPostFpsEvent:
         """A zero dt gives 0.0, never pygame's real-time Clock.get_fps(), so a replay is exact."""
         _take_events(events.FPSEVENT)
         # A real Clock's methods are read-only; a stand-in with its interface records reads
-        scene_manager.clock = mocker.Mock(spec=pygame.time.Clock)
-        scene_manager.clock.get_fps.return_value = 123.0
+        scene_manager.pacing_fallback_clock = mocker.Mock(spec=pygame.time.Clock)
+        scene_manager.pacing_fallback_clock.get_fps.return_value = 123.0
         scene_manager.dt = 0.0
 
         scene_manager._post_fps_event()
 
         (fps_event,) = _take_events(events.FPSEVENT)
         assert fps_event.fps == 0.0
-        scene_manager.clock.get_fps.assert_not_called()
+        scene_manager.pacing_fallback_clock.get_fps.assert_not_called()
 
 
 class TestSceneManagerInternals:

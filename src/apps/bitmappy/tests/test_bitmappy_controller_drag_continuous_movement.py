@@ -9,7 +9,7 @@ from bitmappy.history.operations import (
     FilmStripOperationTracker,
 )
 from bitmappy.history.undo_redo import UndoRedoManager
-from glitchygames.clock import elapsed_seconds
+from glitchygames import clock
 
 
 class TestControllerDragContinuousMovement:
@@ -78,7 +78,7 @@ class TestControllerDragContinuousMovement:
         # Start a controller drag
         mock_scene.controller_handler.controller_drags[controller_id] = {
             'active': True,
-            'start_time': elapsed_seconds(),
+            'start_time': clock.elapsed_seconds(),
             'start_position': (5, 5),
             'pixels_drawn': [],
             'end_time': None,
@@ -87,8 +87,8 @@ class TestControllerDragContinuousMovement:
 
         # Set up continuous movement
         mock_scene.controller_handler.canvas_continuous_movements[controller_id] = {
-            'start_time': elapsed_seconds(),
-            'last_movement': elapsed_seconds() - 0.2,  # Ready for next movement
+            'start_time': clock.elapsed_seconds(),
+            'last_movement': clock.elapsed_seconds() - 0.2,  # Ready for next movement
             'dx': 1,
             'dy': 0,
             'acceleration_level': 0,
@@ -145,7 +145,7 @@ class TestControllerDragContinuousMovement:
         # Start a controller drag
         mock_scene.controller_handler.controller_drags[controller_id] = {
             'active': True,
-            'start_time': elapsed_seconds(),
+            'start_time': clock.elapsed_seconds(),
             'start_position': (5, 5),
             'pixels_drawn': [],
             'end_time': None,
@@ -165,8 +165,8 @@ class TestControllerDragContinuousMovement:
 
         # Set up continuous movement
         mock_scene.controller_handler.canvas_continuous_movements[controller_id] = {
-            'start_time': elapsed_seconds(),
-            'last_movement': elapsed_seconds() - 0.2,  # Ready for next movement
+            'start_time': clock.elapsed_seconds(),
+            'last_movement': clock.elapsed_seconds() - 0.2,  # Ready for next movement
             'dx': 1,
             'dy': 0,
             'acceleration_level': 0,
@@ -207,17 +207,17 @@ class TestControllerDragContinuousMovement:
         # Start a controller drag but mark it as inactive
         mock_scene.controller_handler.controller_drags[controller_id] = {
             'active': False,  # Inactive drag
-            'start_time': elapsed_seconds(),
+            'start_time': clock.elapsed_seconds(),
             'start_position': (5, 5),
             'pixels_drawn': [],
-            'end_time': elapsed_seconds(),
+            'end_time': clock.elapsed_seconds(),
             'end_position': (8, 5),
         }
 
         # Set up continuous movement
         mock_scene.controller_handler.canvas_continuous_movements[controller_id] = {
-            'start_time': elapsed_seconds(),
-            'last_movement': elapsed_seconds() - 0.2,  # Ready for next movement
+            'start_time': clock.elapsed_seconds(),
+            'last_movement': clock.elapsed_seconds() - 0.2,  # Ready for next movement
             'dx': 1,
             'dy': 0,
             'acceleration_level': 0,

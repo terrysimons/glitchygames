@@ -546,8 +546,8 @@ class TestListInputDevices:
         )
         install_stand_in_devices(descriptors=[STAND_IN_STICK, STAND_IN_PAD])
         # A clock past the settling time at its second reading: one pump, no wait
-        mocker.patch.object(
-            device_listing, 'measured_seconds', side_effect=itertools.count(start=0.0, step=5.0)
+        mocker.patch(
+            'glitchygames.clock.measured_seconds', side_effect=itertools.count(start=0.0, step=5.0)
         )
 
         frames_started = mocker.spy(engine.scene_manager, 'start')
@@ -566,8 +566,8 @@ class TestListInputDevices:
             mocker, game=GameWhoseConstructorRaises, extra_arguments=('--list-input-devices',)
         )
         install_stand_in_devices(descriptors=[STAND_IN_STICK, STAND_IN_PAD])
-        mocker.patch.object(
-            device_listing, 'measured_seconds', side_effect=itertools.count(start=0.0, step=5.0)
+        mocker.patch(
+            'glitchygames.clock.measured_seconds', side_effect=itertools.count(start=0.0, step=5.0)
         )
         ticks, wait_for_tick = async_ticks()
 
