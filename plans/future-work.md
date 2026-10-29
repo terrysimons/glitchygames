@@ -598,19 +598,19 @@ only replays; Part 2 Task 1).
   default costs ~16-25 ns, a direct read ~5-17 ns); the per-sprite helpers (`resolve_snap_mode`,
   `is_world_positioned`, `screen_position_for`, collision) make about 1,200 lookups per Brave
   Adventurer frame, ~20 us of ~2 ms, and need their defaults for foreign sprites.
-- **FPS figures follow-ups (2026-10-28, feature/fps-metrics).** (1) The goldens and the rally
-  demo were not rebaselined to carry the new figures in their headers: every rebaseline
-  rewrites frame 0's `scene_start.scene_module` (and the header's `game_module`) from the
-  module the game had before the workspace-packages move to the member's (`paddleslap`,
-  `clockwork_keep.game`, ...),
-  which changes each recording's content hash, and the members' tests pin the old module
-  (`test_paddleslap_recording_history.py` and its siblings). The owner decides whether to
-  rebaseline (and update those tests) or keep the goldens. Until then `report` computes run 0's
-  figures from the frames, and every measured ledger row carries them. (2) `verify` prints no
-  times (a plain headless replay measures none), so it shows no FPS; it could append the
-  recording's newest run's headroom from its header. (3) The live runs' ledger rows
-  (`history-...` files) were written before the figures and are never rewritten, so the FPS
-  chart's live line stays empty until a live recording is measured again.
+- **FPS figures follow-ups (2026-10-28, feature/fps-metrics).** (1) `verify` prints no times (a
+  plain headless replay measures none), so it shows no FPS; it could append the recording's
+  newest run's headroom from its header. (2) The live runs' ledger rows (`history-...` files)
+  were written before the figures and are never rewritten, so the FPS chart's live line stays
+  empty until a live recording is measured again. (3) The goldens and the rally demo were
+  rebaselined (their frame-0 scene starts now name the members' modules) and the two member
+  tests that only checked the migration from the old names were removed (the owner,
+  2026-10-28); the engine code that reads and converts recordings made before logical names or
+  before the move stays, with its own stand-in tests, until the owner decides (the FPS metrics
+  report lists it: `replay/driver.py` `modules_not_compared` and `check_recorded_game`'s
+  header-without-`game` branch, `replay/playback.py` `find_scene_class`'s branch without a
+  logical name, `replay/tools/children.py` `recorded_game_module`'s refusal, Brave
+  Adventurer's launcher message).
 - Deferred from the screen-shake spec (see its known follow-ups in
   `plans/2026-10-17-screen-shake-and-synth.md`): the audio probe capture mode and the spin-window
   power idea.
