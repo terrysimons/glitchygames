@@ -232,6 +232,24 @@ def test_the_docs_deploy_after_main_passes_on_macos():
     assert 'serial-group:' in entry
 
 
+def test_the_docs_deploy_publishes_mains_latest_commit_once():
+    """The deploy moves to main's tip first, and stops when gh-pages already holds it.
+
+    The owner (2026-10-29): pull the latest main right before publishing, so a merge that
+    landed meanwhile gets its docs. The move comes before the submodule checkout, so the
+    pygame-ce submodule is main's too.
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    job = configuration[configuration.index('\n  deploy-docs:\n') :]
+    job = job[: job.index('\nworkflows:\n')]
+
+    move = job.index('git checkout --quiet --detach origin/main')
+    assert 'git fetch --quiet origin main gh-pages' in job[:move]
+    assert move < job.index('git submodule update --init third_party/pygame-ce')
+    assert move < job.index('nox -s docs-deploy')
+    assert 'circleci-agent step halt' in job[move : job.index('git submodule update')]
+
+
 def test_the_docs_deploy_job_publishes_without_measuring():
     """The CI deploy measures nothing (its machines vary); people's deploys still do."""
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
