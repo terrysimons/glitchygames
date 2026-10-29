@@ -21,7 +21,7 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 
-from glitchygames.clock import raw_counter_ns, raw_counter_seconds, raw_sleep
+from glitchygames import clock
 from glitchygames.timing import FastTimer
 
 FloatArray = npt.NDArray[np.float64]
@@ -139,9 +139,9 @@ class LockWaitReport:
 
 def busy_python_work(*, seconds: float) -> None:
     """Hold the GIL with pure Python work (what a game's update/draw does) for a duration."""
-    end_time = raw_counter_seconds() + seconds
+    end_time = clock.raw_counter_seconds() + seconds
     counter = 0
-    while raw_counter_seconds() < end_time:
+    while clock.raw_counter_seconds() < end_time:
         counter += 1
 
 
@@ -150,10 +150,10 @@ def _pace_until(*, deadline_ns: int, timer: FastTimer, yield_in_spin: bool) -> N
     if yield_in_spin:
         timer.sleep_until_next(deadline_ns)
         return
-    remaining_seconds = (deadline_ns - raw_counter_ns()) / 1e9
+    remaining_seconds = (deadline_ns - clock.raw_counter_ns()) / 1e9
     if remaining_seconds > SLEEP_MARGIN_SECONDS:
-        raw_sleep(remaining_seconds - SLEEP_MARGIN_SECONDS)
-    while raw_counter_ns() < deadline_ns:
+        clock.raw_sleep(remaining_seconds - SLEEP_MARGIN_SECONDS)
+    while clock.raw_counter_ns() < deadline_ns:
         pass
 
 
@@ -185,9 +185,9 @@ def measure_lock_wait(  # ruff: ignore[too-many-arguments]
 
     def background_listener() -> None:
         while not stop_event.is_set():
-            before_ns = raw_counter_ns()
-            raw_sleep(period_seconds)
-            elapsed_ns = raw_counter_ns() - before_ns
+            before_ns = clock.raw_counter_ns()
+            clock.raw_sleep(period_seconds)
+            elapsed_ns = clock.raw_counter_ns() - before_ns
             late_ns = elapsed_ns - int(period_seconds * 1e9)
             waits_milliseconds.append(max(0.0, late_ns * NANOSECONDS_TO_MILLISECONDS))
 
@@ -196,7 +196,7 @@ def measure_lock_wait(  # ruff: ignore[too-many-arguments]
     period_ns = timer.start_frame(target_fps)
     try:
         listener.start()
-        deadline_ns = raw_counter_ns() + period_ns
+        deadline_ns = clock.raw_counter_ns() + period_ns
         for _ in range(frames):
             busy_python_work(seconds=game_logic_seconds)
             _pace_until(deadline_ns=deadline_ns, timer=timer, yield_in_spin=yield_in_spin)

@@ -24,7 +24,7 @@ import warnings
 
 import pygame
 
-from glitchygames.clock import raw_sleep
+from glitchygames import clock
 
 # The start of pygame-ce's warning when the window did not take the requested size, raised by
 # pg_set_mode in its src_c/display.c
@@ -84,7 +84,7 @@ def set_display_mode(
         for _poll in range(settle_polls):
             if surface.get_size() != previous_size:
                 break
-            raw_sleep(SETTLE_POLL_SECONDS)
+            clock.raw_sleep(SETTLE_POLL_SECONDS)
             pygame.event.pump()
             # Reading the display surface refreshes it to the window's current size
             current_surface = pygame.display.get_surface()

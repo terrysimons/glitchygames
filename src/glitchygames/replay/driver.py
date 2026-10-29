@@ -253,7 +253,7 @@ from typing import TYPE_CHECKING, Any, Final, Literal, Protocol, Self, cast
 import pygame
 from pydantic import BaseModel, ConfigDict, Field
 
-from glitchygames.clock import measured_seconds
+from glitchygames import clock
 from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
 from glitchygames.game_frames import game_frame_clock
@@ -1696,7 +1696,7 @@ class ReplaySources:
             # An onion skin's OLD rebuilds alongside (rule 20), not after this rebuild
             if self.onion_skin is not None:
                 self.onion_skin.begin()
-            now = measured_seconds()
+            now = clock.measured_seconds()
             if not self._rebuild.progress_is_due(frame_index=self._frame_index, now=now):
                 return False
             self._run_control_tick(now=now)
@@ -1916,12 +1916,14 @@ class ReplaySources:
         """
         # Only a frame sink makes a headless replay draw (the engine's _connect_the_frame_stream)
         assert self.frame_sink is not None
-        clock = game_frame_clock()
-        if not clock.is_game_frame:
+        game_frames = game_frame_clock()
+        if not game_frames.is_game_frame:
             return
         # A game frame always shows itself
-        assert clock.shown_game_frame is not None
-        if not self.frame_sink.write_frame(frame_index=clock.shown_game_frame, surface=surface):
+        assert game_frames.shown_game_frame is not None
+        if not self.frame_sink.write_frame(
+            frame_index=game_frames.shown_game_frame, surface=surface
+        ):
             self.frame_sink_closed = True
 
     def finish_run(self: Self) -> None:

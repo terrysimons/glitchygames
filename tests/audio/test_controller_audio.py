@@ -261,7 +261,7 @@ def no_sleep(mocker):
         The mock standing in for the sleep.
 
     """
-    return mocker.patch.object(controller_audio, 'raw_sleep')
+    return mocker.patch('glitchygames.clock.raw_sleep')
 
 
 @pytest.fixture

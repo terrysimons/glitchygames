@@ -24,7 +24,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from glitchygames.clock import raw_sleep
+from glitchygames import clock
 from glitchygames.randomness import random_stream
 
 if TYPE_CHECKING:
@@ -799,7 +799,7 @@ class ControllerAudio:
         device.start(generator)
 
         duration = num_frames / DUALSENSE_SAMPLE_RATE
-        raw_sleep(duration + 0.3)
+        clock.raw_sleep(duration + 0.3)
         device.stop()
         log.info(
             'Played %.2fs through %r (speaker=%s haptic=%s)',

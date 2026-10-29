@@ -199,8 +199,8 @@ class ScriptedEvents:
 
 def measured_clock(mocker, *, step: float) -> None:
     """Make the measured clock read 0, then ``step`` more at each later reading."""
-    mocker.patch.object(
-        crt_power_on, 'measured_seconds', side_effect=itertools.count(start=0.0, step=step)
+    mocker.patch(
+        'glitchygames.clock.measured_seconds', side_effect=itertools.count(start=0.0, step=step)
     )
 
 

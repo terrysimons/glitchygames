@@ -15,9 +15,8 @@ display's pixel format (per-pixel alpha or not) depends on the video driver.
 import pygame
 import pytest
 
-from glitchygames import events
+from glitchygames import clock, events
 from glitchygames.clipboard import ClipboardUnavailableError, install_clipboard
-from glitchygames.clock import frame_clock_milliseconds
 from glitchygames.color import WHITE
 from glitchygames.events.base import HashableEvent
 from glitchygames.fonts import FontManager
@@ -2471,7 +2470,7 @@ class TestMultiLineTextBoxUpdate:
         """Test update when active draws the cursor after the last character."""
         text_box.is_active = True
         text_box.cursor_visible = True
-        text_box.cursor_blink_time = frame_clock_milliseconds()
+        text_box.cursor_blink_time = clock.frame_clock_milliseconds()
         line_height = text_box._get_line_height()
         cursor_x = 5 + text_box._get_text_width('Line 2')
         cursor_column = (cursor_x, 5 + line_height + 2, 1, 16)
@@ -2482,7 +2481,7 @@ class TestMultiLineTextBoxUpdate:
         assert _pixel_count_of(text_box.image, text_box.cursor_color, cursor_column) == 16
 
         text_box.cursor_visible = False
-        text_box.cursor_blink_time = frame_clock_milliseconds()
+        text_box.cursor_blink_time = clock.frame_clock_milliseconds()
         text_box.update()
 
         assert _pixel_count_of(text_box.image, text_box.cursor_color, cursor_column) == 0
@@ -3850,10 +3849,10 @@ class TestMultiLineTextBoxScrolling:
         textbox.cursor_visible = True
         textbox.scroll_offset = 20  # Scrolled far down
         textbox.cursor_pos = 0  # Cursor at top
-        textbox.cursor_blink_time = frame_clock_milliseconds()
+        textbox.cursor_blink_time = clock.frame_clock_milliseconds()
         textbox.image.fill((0, 0, 0, 255))
 
-        textbox._update_cursor_blink(frame_clock_milliseconds(), textbox._get_line_height())
+        textbox._update_cursor_blink(clock.frame_clock_milliseconds(), textbox._get_line_height())
 
         assert _pixel_count_of(textbox.image, textbox.cursor_color) == 0
 
@@ -3864,10 +3863,10 @@ class TestMultiLineTextBoxScrolling:
         textbox.cursor_visible = True
         textbox.scroll_offset = 0
         textbox.cursor_pos = 0
-        textbox.cursor_blink_time = frame_clock_milliseconds()
+        textbox.cursor_blink_time = clock.frame_clock_milliseconds()
         textbox.image.fill((0, 0, 0, 255))
 
-        textbox._update_cursor_blink(frame_clock_milliseconds(), textbox._get_line_height())
+        textbox._update_cursor_blink(clock.frame_clock_milliseconds(), textbox._get_line_height())
 
         # The cursor runs 20 pixels down from (5, 5), two pixels wide
         assert _pixel_count_of(textbox.image, textbox.cursor_color, (3, 5, 4, 21)) >= 21
@@ -3879,11 +3878,11 @@ class TestMultiLineTextBoxScrolling:
         textbox.cursor_visible = True
         textbox.scroll_offset = 0
         textbox.cursor_pos = 0
-        textbox.cursor_blink_time = frame_clock_milliseconds()
+        textbox.cursor_blink_time = clock.frame_clock_milliseconds()
         textbox.image.fill((0, 0, 0, 255))
 
         textbox._update_cursor_blink(
-            frame_clock_milliseconds() + textbox.cursor_blink_rate, textbox._get_line_height()
+            clock.frame_clock_milliseconds() + textbox.cursor_blink_rate, textbox._get_line_height()
         )
 
         assert textbox.cursor_visible is False

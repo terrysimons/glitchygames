@@ -201,7 +201,7 @@ def test_unpaced_frame_steps_never_touch_the_timer_or_the_pacing_clock(monkeypat
     # The stand-in engine has no event managers; every other frame step runs for real
     monkeypatch.setattr(sm, '_process_events', lambda: None)
     # pygame.time.Clock's methods are read-only: wrap the clock to watch its tick
-    sm.clock = mocker.Mock(wraps=sm.clock)
+    sm.pacing_fallback_clock = mocker.Mock(wraps=sm.pacing_fallback_clock)
     scene = PacedScene()
     sm.switch_to_scene(scene)
 
@@ -215,7 +215,7 @@ def test_unpaced_frame_steps_never_touch_the_timer_or_the_pacing_clock(monkeypat
     assert scene.ticks == 3
     assert fake_timer.start_calls == 0
     assert fake_timer.sleep_calls == 0
-    sm.clock.tick.assert_not_called()
+    sm.pacing_fallback_clock.tick.assert_not_called()
     # Each frame's dt is measured start to start, as in the paced loop
     assert sm.dt > 0
 

@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, override
 
 import pytest
 
-from glitchygames.clock import raw_counter_ns, raw_sleep
 from glitchygames.timing import (
     DEFAULT_SLEEP_GRANULARITY_NS,
     FastTimer,
@@ -178,6 +177,24 @@ class TestFastTimer:
         near_deadline = timer.ns_now() + 100_000  # 100 microseconds
         result = timer.sleep_until_next(near_deadline)
         assert result >= near_deadline
+
+    def test_a_default_timer_reads_and_sleeps_through_glitchygames_clock(self, mocker):
+        """A patch on glitchygames.clock reaches a FastTimer built with no counter or sleep.
+
+        Its defaults are looked up on every reading and sleep, not bound when the timer (or
+        FastTimer) was defined, so glitchygames.clock is the one place to patch.
+        """
+        timer = FastTimer()
+        fake_clock = FakeClock(start_ns=0)
+        mocker.patch('glitchygames.clock.raw_counter_ns', new=fake_clock.perf_counter_ns)
+        sleep = mocker.patch('glitchygames.clock.raw_sleep', side_effect=fake_clock.sleep)
+
+        result = timer.sleep_until_next(10_000_000)
+
+        assert result >= 10_000_000
+        # The coarse sleep to 1 ms before the deadline, then the spin's yields
+        assert sleep.call_args_list[0] == mocker.call(0.009)
+        assert all(call == mocker.call(0) for call in sleep.call_args_list[1:])
 
     def test_final_spin_yields_the_gil_each_iteration(self, mocker):
         """Test the final spin calls sleep(0) so audio callbacks can take the GIL."""
@@ -924,14 +941,15 @@ class TestSleepModel:
         assert timer.pacing_timer().sleep_model is None
         measure.assert_not_called()
         # The first paced sleep (or calibrate()) measures, once (a deadline already past: no
-        # sleep), with the timer's own counter and sleep
+        # sleep), with the timer's own counter and sleep: its defaults (None), which resolve to
+        # glitchygames/clock.py's raw ones when called
         timer.sleep_until_next(timer.ns_now() - 1)
         timer.calibrate()
         assert timer.pacing_timer() == PacingTimer(
             backend='fast', sleep_granularity_ns=DEFAULT_SLEEP_GRANULARITY_NS, sleep_model=model
         )
 
-        measure.assert_called_once_with(read_counter_ns=raw_counter_ns, sleep=raw_sleep)
+        measure.assert_called_once_with(read_counter_ns=None, sleep=None)
 
     def test_auto_with_an_explicit_granularity_calibrates_with_that_margin(self, mocker):
         """--sleep-granularity-ns sets the final spin; auto still measures the sleep model."""

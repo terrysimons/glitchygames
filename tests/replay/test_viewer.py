@@ -42,7 +42,7 @@ class FakeTime:
         self.now = 1.0e5
         self._lateness_seconds = lateness_seconds
         self._random = random.Random(seed)
-        mocker.patch.object(viewer_module, 'measured_seconds', side_effect=self.read)
+        mocker.patch('glitchygames.clock.measured_seconds', side_effect=self.read)
         # Which sleep each wait used: 'fine' (sleep then spin) or 'coarse' (no spin)
         self.sleeps: list[str] = []
         mocker.patch.object(viewer_module, 'sleep_for', side_effect=self.sleep)

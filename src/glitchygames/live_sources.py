@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 import pygame
 
-from glitchygames.clock import raw_wall_clock_time
+from glitchygames import clock
 from glitchygames.input.devices import LiveDeviceRegistry
 from glitchygames.input.state import capture_live_snapshot
 from glitchygames.sources import without_discarded_scope_posts
@@ -208,7 +208,7 @@ class LiveSources:
             glitchygames/clock.py's ``raw_wall_clock_time()`` (``datetime.now(tz=UTC)``).
 
         """
-        return raw_wall_clock_time()
+        return clock.raw_wall_clock_time()
 
     def control_events_for_frame(self: Self, *, frame_number: int) -> list[ControlEvent]:
         """Return no control events: live play schedules none.

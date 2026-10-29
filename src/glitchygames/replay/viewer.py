@@ -54,7 +54,7 @@ from typing import TYPE_CHECKING, Self
 
 import pygame
 
-from glitchygames.clock import measured_seconds, raw_sleep
+from glitchygames import clock
 from glitchygames.replay.controls import CONTROL_TICK_SECONDS, ControlCadence, ReplayControls
 from glitchygames.timing import FastTimer
 
@@ -84,16 +84,17 @@ NANOSECONDS_PER_SECOND = 1_000_000_000
 _SLEEP_TIMER = FastTimer()
 
 
-def sleep_coarsely(*, seconds: float, sleep: Callable[[float], None] = raw_sleep) -> None:
+def sleep_coarsely(*, seconds: float, sleep: Callable[[float], None] | None = None) -> None:
     """Sleep ``seconds`` without spinning (one plain sleep): the wait while nothing runs.
 
     Args:
         seconds: How long (nothing happens when not positive).
-        sleep: The sleep (glitchygames/clock.py's raw sleep; tests pass a fake).
+        sleep: The sleep (tests pass a fake); None is glitchygames/clock.py's raw sleep, looked
+            up when called.
 
     """
     if seconds > 0:
-        sleep(seconds)
+        (clock.raw_sleep if sleep is None else sleep)(seconds)
 
 
 def sleep_for(*, seconds: float) -> None:
@@ -218,7 +219,7 @@ class ReplayViewer:
         """
         if self._is_tick_open:
             return None
-        now = measured_seconds()
+        now = clock.measured_seconds()
         if self.ticks_externally:
             return self._open_tick(now=now)
         remaining_seconds = self.cadence.next_tick_seconds(now=now) - now
@@ -227,7 +228,7 @@ class ReplayViewer:
                 sleep_for(seconds=remaining_seconds)
             else:
                 sleep_coarsely(seconds=remaining_seconds)
-            now = measured_seconds()
+            now = clock.measured_seconds()
         self.cadence.tick_is_due(now=now)
         return self._open_tick(now=now)
 
@@ -328,7 +329,7 @@ class ReplayViewer:
             return self._close_tick()
         if (
             self._inner_frames_this_tick >= MAX_INNER_FRAMES_PER_TICK
-            or measured_seconds() - self._tick_start_seconds >= INNER_FRAME_BUDGET_SECONDS
+            or clock.measured_seconds() - self._tick_start_seconds >= INNER_FRAME_BUDGET_SECONDS
         ):
             # Owed but out of frames or time this tick: carried to the next
             if inner_frame_seconds > 0:

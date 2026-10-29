@@ -25,7 +25,6 @@ from pydantic import ValidationError
 
 from glitchygames import logical_names, recording_history
 from glitchygames.build_info import RevisionSource, engine_source_revision
-from glitchygames.clock import raw_counter_ns, raw_sleep
 from glitchygames.debug import DebugPanel
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
@@ -503,9 +502,7 @@ def clocks_paced_by_frames(mocker) -> None:
     at PACED_RECORDING_START plus the frame clock, a session that reads the clocks is replayable
     exactly (elapsed seconds are the frame clock live too, so they need no pacing).
     """
-    mocker.patch.object(
-        game_engine_module, 'raw_wall_clock_time', return_value=PACED_RECORDING_START
-    )
+    mocker.patch('glitchygames.clock.raw_wall_clock_time', return_value=PACED_RECORDING_START)
 
     def paced_wall_clock_time(_sources: LiveSources) -> datetime:
         return PACED_RECORDING_START + timedelta(seconds=frame_clock_seconds())
@@ -603,7 +600,7 @@ class FakeMeasuredClock:
         """
         self.now = 1000.0
         self._on_wait = on_wait
-        mocker.patch.object(viewer_module, 'measured_seconds', side_effect=self.read)
+        mocker.patch('glitchygames.clock.measured_seconds', side_effect=self.read)
         mocker.patch.object(viewer_module, 'sleep_for', side_effect=self.wait)
         mocker.patch.object(viewer_module, 'sleep_coarsely', side_effect=self.wait)
 
@@ -1002,13 +999,14 @@ class TestRoundTrip:
         assert result.frames_replayed == len(read_trace_result(path=recording_path).trace['frames'])
 
     def test_clock_reads_replay_exactly(self, mocker, tmp_path):
-        from glitchygames.clock import elapsed_seconds, wall_clock_epoch_seconds
+        # This file's own `clock` names are fake clocks: the engine's is engine_clock here
+        from glitchygames import clock as engine_clock
 
         def place_marker_from_clocks() -> None:
             scene = SceneManager().active_scene
             marker = scene.marker
-            marker.rect.x = int(wall_clock_epoch_seconds() * 1000) % 1000
-            marker.rect.y = int(elapsed_seconds() * 1000) % 1000
+            marker.rect.x = int(engine_clock.wall_clock_epoch_seconds() * 1000) % 1000
+            marker.rect.y = int(engine_clock.elapsed_seconds() * 1000) % 1000
 
         clocks_paced_by_frames(mocker)
         recording_path = record_session(
@@ -1019,7 +1017,7 @@ class TestRoundTrip:
         )
         mocker.stopall()
         # The replay must not read real time: the live wall clock is a mock from here on
-        mocker.patch('glitchygames.live_sources.raw_wall_clock_time')
+        mocker.patch('glitchygames.clock.raw_wall_clock_time')
         engine = replay_session(
             recording_path=recording_path,
             mocker=mocker,
@@ -3565,9 +3563,8 @@ class TestStepBack:
         )
         install_sources(sources=sources)
         # Each rebuild frame takes 0.025 s of real time
-        mocker.patch.object(
-            driver_module,
-            'measured_seconds',
+        mocker.patch(
+            'glitchygames.clock.measured_seconds',
             side_effect=lambda: sources.controls.current_frame * 0.025,
         )
         assert sources.controls.rebuild_target_frame == 130
@@ -5396,7 +5393,7 @@ class FakeProcessingClock:
 
 def with_processing_step(mocker, *, step: float) -> None:
     """Make every measured processing time a fixed multiple of ``step`` (record and replay)."""
-    mocker.patch('glitchygames.scenes.scene.measured_seconds', new=FakeProcessingClock(step=step))
+    mocker.patch('glitchygames.clock.measured_seconds', new=FakeProcessingClock(step=step))
 
 
 def recorded_processing_times(*, path: Path) -> list[float | None]:
@@ -5474,8 +5471,9 @@ class TestProcessingComparison:
             return_value=SleepModel(constant_ns=0, fraction=0.25),
         )
         record_session(tmp_path=tmp_path, mocker=mocker, extra_arguments=('--target-fps', '60'))
-        # On the engine timer's own counter and sleep: the raw ones (glitchygames/clock.py)
-        measure.assert_called_once_with(read_counter_ns=raw_counter_ns, sleep=raw_sleep)
+        # On the engine timer's own counter and sleep: its defaults (None), the raw ones
+        # (glitchygames/clock.py) looked up when called
+        measure.assert_called_once_with(read_counter_ns=None, sleep=None)
 
     def test_an_uncapped_run_and_a_replay_never_measure_the_sleep_model(self, mocker, tmp_path):
         """Nothing paces them, so calibrating would only delay their start."""

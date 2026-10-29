@@ -32,7 +32,7 @@ import pygame
 import pygame._sdl2.controller
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.clock import measured_seconds, raw_sleep
+from glitchygames import clock
 from glitchygames.input.devices import CONTROLLER_KIND
 
 if TYPE_CHECKING:
@@ -268,7 +268,7 @@ def listen(
     sources: EngineSources,
     started_at: float,
     listen_seconds: float | None,
-    sleep: Callable[[float], None] = raw_sleep,
+    sleep: Callable[[float], None] | None = None,
 ) -> Listening:
     """Pump SDL's queue, keeping its device events, for a time or until a device is added.
 
@@ -279,7 +279,8 @@ def listen(
         started_at: When the listing started (``clock.measured_seconds``); times count from it.
         listen_seconds: How long to listen, from ``started_at``; None listens until a device is
             added (the prompt's wait, which only Ctrl-C ends otherwise).
-        sleep: Pauses between pumps (tests pass one that does not wait).
+        sleep: Pauses between pumps (tests pass one that does not wait); None is
+            glitchygames/clock.py's raw sleep, looked up when called.
 
     Returns:
         The events heard and when listening stopped.
@@ -288,7 +289,7 @@ def listen(
     events: list[DeviceEvent] = []
     while True:
         batch = sources.pump_events()
-        now = measured_seconds() - started_at
+        now = clock.measured_seconds() - started_at
         for event in batch:
             known = DEVICE_EVENT_TYPES.get(event.type)
             if known is None:
@@ -307,7 +308,7 @@ def listen(
                 return Listening(events=tuple(events), seconds=now)
         elif now >= listen_seconds:
             return Listening(events=tuple(events), seconds=now)
-        sleep(PUMP_INTERVAL_SECONDS)
+        (clock.raw_sleep if sleep is None else sleep)(PUMP_INTERVAL_SECONDS)
 
 
 def list_input_devices(
@@ -316,7 +317,7 @@ def list_input_devices(
     input_mode: str,
     listen_seconds: float = LISTEN_SECONDS,
     prompt: Callable[[str], None] | None = None,
-    sleep: Callable[[float], None] = raw_sleep,
+    sleep: Callable[[float], None] | None = None,
 ) -> list[str]:
     """Start the joystick subsystems, listen, open every device and list it (see the docstring).
 
@@ -326,7 +327,7 @@ def list_input_devices(
         listen_seconds: How long to listen before opening.
         prompt: Writes ``NO_DEVICES_PROMPT`` when nothing was found, then the listing waits for
             a device; None never prompts or waits (not at a terminal).
-        sleep: Pauses between pumps.
+        sleep: Pauses between pumps; None is glitchygames/clock.py's raw sleep (``listen``).
 
     Returns:
         The listing's lines.
@@ -336,7 +337,7 @@ def list_input_devices(
     pygame._sdl2.controller.init()
     devices = sources.devices()
     count_before_pumping = devices.joystick_count()
-    started_at = measured_seconds()
+    started_at = clock.measured_seconds()
     listening = listen(
         sources=sources, started_at=started_at, listen_seconds=listen_seconds, sleep=sleep
     )

@@ -6,7 +6,6 @@ import re
 
 import pytest
 
-from glitchygames.performance import adaptive_clamping as adaptive_clamping_module
 from glitchygames.performance.adaptive_clamping import (
     FPS_HISTORY_MAX_SIZE,
     HISTOGRAM_BUCKET_COUNT,
@@ -839,7 +838,7 @@ class TestHistogramBucketing:
         manager = SceneManager()
         # The real pacing clock was never ticked, so its get_fps() reads 0.0: every recorded
         # value matching 1/dt shows the FPS came from dt, not from the clock
-        assert manager.clock.get_fps() == 0.0
+        assert manager.pacing_fallback_clock.get_fps() == 0.0
         expected_fps_values = [400.0 + frame_index * 2.5 for frame_index in range(20)]
 
         for expected_fps in expected_fps_values:
@@ -1199,7 +1198,7 @@ class TestAdaptiveDeltaTime:
     def test_get_adaptive_dt_logging_interval(self, mocker):
         """Test that performance adjustments are logged at the correct interval."""
         # Start with time 0
-        mocker.patch.object(adaptive_clamping_module, 'raw_counter_seconds', return_value=0.0)
+        mocker.patch('glitchygames.clock.raw_counter_seconds', return_value=0.0)
 
         # Add sufficient history with a very large dt to ensure significant adjustment
         for i in range(10):

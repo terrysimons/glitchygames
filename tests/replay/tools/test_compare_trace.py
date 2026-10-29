@@ -445,7 +445,7 @@ def watched_replay(
             )
         )
 
-    mocker.patch.object(viewer_module, 'measured_seconds', side_effect=read_clock)
+    mocker.patch('glitchygames.clock.measured_seconds', side_effect=read_clock)
     mocker.patch.object(viewer_module, 'sleep_for', side_effect=wait)
     mocker.patch.object(viewer_module, 'sleep_coarsely', side_effect=wait)
     mocker.patch.object(pygame.display, 'flip', side_effect=flip)

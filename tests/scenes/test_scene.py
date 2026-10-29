@@ -1755,8 +1755,8 @@ class TestHandleFramePacing:
         manager.target_fps = 60
 
         # The pacing clock is real time: a stand-in records the tick it is asked for
-        manager.clock = mocker.Mock(spec=pygame.time.Clock)
-        mock_clock_tick = manager.clock.tick
+        manager.pacing_fallback_clock = mocker.Mock(spec=pygame.time.Clock)
+        mock_clock_tick = manager.pacing_fallback_clock.tick
 
         manager._handle_frame_pacing(
             timer=None,
@@ -1773,8 +1773,8 @@ class TestHandleFramePacing:
         manager.target_fps = 0
 
         # The pacing clock is real time: a stand-in records the tick it is asked for
-        manager.clock = mocker.Mock(spec=pygame.time.Clock)
-        mock_clock_tick = manager.clock.tick
+        manager.pacing_fallback_clock = mocker.Mock(spec=pygame.time.Clock)
+        mock_clock_tick = manager.pacing_fallback_clock.tick
 
         manager._handle_frame_pacing(
             timer=None,
@@ -1791,8 +1791,8 @@ class TestHandleFramePacing:
         manager.target_fps = 60
         mock_timer = mocker.Mock()
         # The pacing clock is real time: a stand-in records the tick it is asked for
-        manager.clock = mocker.Mock(spec=pygame.time.Clock)
-        mock_clock_tick = manager.clock.tick
+        manager.pacing_fallback_clock = mocker.Mock(spec=pygame.time.Clock)
+        mock_clock_tick = manager.pacing_fallback_clock.tick
 
         manager._handle_frame_pacing(
             timer=mock_timer,
@@ -1814,8 +1814,8 @@ class TestHandleFramePacing:
         manager.target_fps = 60
         mock_timer = mocker.Mock()
         # The pacing clock is real time: a stand-in records the tick it is asked for
-        manager.clock = mocker.Mock(spec=pygame.time.Clock)
-        mock_clock_tick = manager.clock.tick
+        manager.pacing_fallback_clock = mocker.Mock(spec=pygame.time.Clock)
+        mock_clock_tick = manager.pacing_fallback_clock.tick
 
         manager._handle_frame_pacing(
             timer=mock_timer, period_ns=0, prev_deadline_ns=None, paced_seconds=1e-10
@@ -1830,8 +1830,8 @@ class TestHandleFramePacing:
         manager = SceneManager()
         manager.target_fps = 60
         # The pacing clock is real time: a stand-in records the tick it is asked for
-        manager.clock = mocker.Mock(spec=pygame.time.Clock)
-        mock_clock_tick = manager.clock.tick
+        manager.pacing_fallback_clock = mocker.Mock(spec=pygame.time.Clock)
+        mock_clock_tick = manager.pacing_fallback_clock.tick
 
         manager._handle_frame_pacing(
             timer=None, period_ns=0, prev_deadline_ns=None, paced_seconds=0.25
@@ -1859,9 +1859,7 @@ class TestFinishFrameMeasurement:
         manager = SceneManager()
         self._patch_frame_bookkeeping(mocker)
         frame_seconds = 1.0 / 60.0
-        mocker.patch(
-            'glitchygames.scenes.scene.raw_counter_seconds', return_value=10.0 + frame_seconds
-        )
+        mocker.patch('glitchygames.clock.raw_counter_seconds', return_value=10.0 + frame_seconds)
 
         mock_timer = mocker.Mock()
         mock_timer.compute_deadline.return_value = 2_000_000
@@ -1885,7 +1883,7 @@ class TestFinishFrameMeasurement:
         mock_performance_manager = self._patch_frame_bookkeeping(mocker)
         frame_seconds = 1.0 / 60.0
         whole_millisecond_wakes = [17_000_000, 34_000_000, 50_000_000]
-        mock_perf_counter = mocker.patch('glitchygames.scenes.scene.raw_counter_seconds')
+        mock_perf_counter = mocker.patch('glitchygames.clock.raw_counter_seconds')
         mock_timer = mocker.Mock()
         mock_timer.compute_deadline.return_value = 0
 
@@ -1912,7 +1910,7 @@ class TestFinishFrameMeasurement:
         """A paced frame lasting exactly 1/60.5 s records 60.5 FPS."""
         manager = SceneManager()
         self._patch_frame_bookkeeping(mocker)
-        mocker.patch('glitchygames.scenes.scene.raw_counter_seconds', return_value=5.0 + 1.0 / 60.5)
+        mocker.patch('glitchygames.clock.raw_counter_seconds', return_value=5.0 + 1.0 / 60.5)
         mock_timer = mocker.Mock()
         mock_timer.compute_deadline.return_value = 0
         mock_timer.sleep_until_next.return_value = 17_000_000
@@ -1967,8 +1965,8 @@ class TestPostFpsEvent:
         manager = SceneManager()
         manager.dt = 0  # dt is zero: no frame time to measure FPS from
 
-        manager.clock = mocker.Mock(spec=pygame.time.Clock)
-        manager.clock.get_fps.return_value = 60.0
+        manager.pacing_fallback_clock = mocker.Mock(spec=pygame.time.Clock)
+        manager.pacing_fallback_clock.get_fps.return_value = 60.0
         pygame.event.clear()  # the real queue: only this test's posts
 
         manager._post_fps_event()
@@ -1976,7 +1974,7 @@ class TestPostFpsEvent:
         posted = pygame.event.get(eventtype=FPSEVENT)
         assert len(posted) == 1
         assert posted[0].fps == 0.0
-        manager.clock.get_fps.assert_not_called()
+        manager.pacing_fallback_clock.get_fps.assert_not_called()
 
 
 class TestTrackPerformance:
@@ -2024,9 +2022,9 @@ class TestTrackPerformance:
         """Pygame's 10-frame clock counter is never consulted."""
         manager = SceneManager()
         manager.dt = 0.016
-        manager.clock = mocker.Mock(spec=pygame.time.Clock)
-        manager.clock.get_fps.return_value = 999.0
-        mock_get_fps = manager.clock.get_fps
+        manager.pacing_fallback_clock = mocker.Mock(spec=pygame.time.Clock)
+        manager.pacing_fallback_clock.get_fps.return_value = 999.0
+        mock_get_fps = manager.pacing_fallback_clock.get_fps
         mock_performance_manager = self._patch_performance_manager(mocker)
 
         manager._track_performance(processing_time=0.008)
@@ -2345,15 +2343,15 @@ class TestSceneManagerPostFpsEvent:
         """With a zero dt _post_fps_event posts 0 FPS, never pygame's clock.get_fps."""
         manager = SceneManager()
         manager.dt = 0
-        manager.clock = mocker.Mock(spec=pygame.time.Clock)
-        manager.clock.get_fps.return_value = 60.0
+        manager.pacing_fallback_clock = mocker.Mock(spec=pygame.time.Clock)
+        manager.pacing_fallback_clock.get_fps.return_value = 60.0
 
         pygame.event.clear()  # the real queue: only this test's posts
         manager._post_fps_event()
         posted = pygame.event.get(eventtype=FPSEVENT)
         assert len(posted) == 1
         assert posted[0].fps == 0.0
-        manager.clock.get_fps.assert_not_called()
+        manager.pacing_fallback_clock.get_fps.assert_not_called()
 
 
 class TestSceneManagerUpdateDisplay:
