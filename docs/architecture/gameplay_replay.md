@@ -94,7 +94,9 @@ never replayed and are not for game code.
 ### Time
 
 Read time from `src/glitchygames/clock.py` or `Scene.game_time`, never from `time`, `datetime` or
-`pygame.time`:
+`pygame.time`. Import the module and call through it (`from glitchygames import clock`, then
+`clock.elapsed_seconds()`), never a function by name: it is the one clock, so one patch on
+`glitchygames.clock` reaches every reader (the doors guard checks it):
 
 | Use | For |
 |---|---|

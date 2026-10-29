@@ -457,16 +457,26 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   interval, a measurement tool's summary), `raw_sleep(seconds)` (`time.sleep`: pacing, the
   replay viewer, the power-on frames, waits for a window manager, microphone, controller speaker
   or AI retry) and `raw_wall_clock_time()` (`datetime.now(tz=UTC)`: the live doors' wall clock,
-  a recording's `recorded_at` and each run's `measured_at`). A function or class that waits or
-  measures takes the raw function as a parameter where that is clean (`FastTimer`,
-  `play_power_on(sleep=...)`, `listen(sleep=...)`, `sleep_coarsely(sleep=...)`,
-  `VoiceEventManager(sleep=...)`, Bitmappy's `_create_ai_retry_decorator(sleep=...)`, tenacity's
-  `sleep`); otherwise a test patches the caller's binding of the door function
-  (`mocker.patch.object(scene_module, 'raw_counter_seconds', ...)`), never the shared `time`
-  module (ruff's preview rule `shared-clock-mock`)
+  a recording's `recorded_at` and each run's `measured_at`)
+- `glitchygames.clock` is the one clock (the owner, 2026-10-28): every caller, engine and members,
+  imports the module (`from glitchygames import clock`) and calls `clock.elapsed_seconds()`,
+  `clock.raw_sleep(...)` and so on, never a function imported by name
+  (`tests/test_engine_doors.py` `clock_functions_imported_by_name` fails on one). Every read
+  then looks the function up in one place, so one patch on `glitchygames.clock` reaches every
+  reader. A local name never says `clock` where the module is imported (`SceneManager`'s pygame
+  pacing clock is `pacing_fallback_clock`)
+- A function or class that waits or measures takes its sleep or counter as a parameter where
+  that is clean (`FastTimer(read_counter_ns=..., sleep=...)`, `play_power_on(sleep=...)`,
+  `listen(sleep=...)`, `sleep_coarsely(sleep=...)`, `VoiceEventManager(sleep=...)`, Bitmappy's
+  `_create_ai_retry_decorator(sleep=...)`, which hands tenacity its `sleep`). The default is
+  None, resolved to `clock.raw_sleep` (or `clock.raw_counter_ns`) when called: a default of
+  `clock.raw_sleep` would be bound once, when the function is defined, and a patch on
+  `glitchygames.clock` would never reach it. Tests pass a fake; otherwise they patch
+  `glitchygames.clock`'s function (`mocker.patch('glitchygames.clock.raw_sleep')`), never a
+  module's copy and never the shared `time` module (ruff's preview rule `shared-clock-mock`)
 - `clock.py` is the only file in the package (engine and members) that may use the `time` module
   at all or read `datetime`'s now (`tests/test_engine_doors.py`); `pygame.time.set_timer`/`Clock`
-  stay fenced as before (by function: `SceneManager.__init__`'s pacing fallback `Clock`).
+  stay fenced as before (by function: `SceneManager.__init__`'s `pacing_fallback_clock`).
   `PygameTimer` (`--timer-backend pygame`) reads `pygame.time` through its own `self._pg`
 - A recorded run's wall clock (and its replay's) is the header's `recorded_at` plus the frame
   clock (`RecordingSources.wall_clock_time`)

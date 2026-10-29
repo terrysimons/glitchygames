@@ -32,9 +32,17 @@ of the ``time`` module (and of ``datetime``'s now) in the package:
   recording's own stamps (its ``recorded_at``, the replay wall clock's origin, and each run's
   ``measured_at``).
 
-A function or class that waits or measures takes the raw function as a parameter where that is
-clean (``FastTimer(read_counter_ns=..., sleep=...)``, ``play_power_on(sleep=...)``), with the
-raw function as the default, so a test passes a fake instead of patching a clock.
+Callers reach every function here through the module: ``from glitchygames import clock``, then
+``clock.elapsed_seconds()``, ``clock.raw_sleep(...)`` (never ``from glitchygames.clock import
+elapsed_seconds``; tests/test_engine_doors.py fails on one). Then this module is the one clock:
+every reader looks its function up here when it reads, so one patch on ``glitchygames.clock``
+reaches all of them, and no module holds a copy of its own.
+
+A function or class that waits or measures takes its sleep or counter as a parameter where that
+is clean (``FastTimer(read_counter_ns=..., sleep=...)``, ``play_power_on(sleep=...)``), so a
+test passes a fake. The default is None, resolved to the raw function here when called, never
+``sleep=clock.raw_sleep``: a default is bound once, when the function is defined, so a patch on
+this module would never reach it.
 
 Each clock except measured_seconds() reads the active sources (glitchygames/sources.py) or the
 frame clock they drive, so a replay serves them exactly: the frame clock comes from recorded
