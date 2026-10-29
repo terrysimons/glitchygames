@@ -157,8 +157,9 @@ def _pump_batch(recorder: GameplayRecorder) -> None:
 def posts_are_tracked() -> bool:
     """Whether a code post is tracked now: it waits in pending_internal_posts() (decision 1).
 
-    Posts a USEREVENT probe with post_event, then takes it back out of the tracker's pending list
-    and SDL's queue, so the tracker and the queue are as they were.
+    Posts a probe of this module's own event type (PROBE_EVENT_TYPE, from
+    pygame.event.custom_type()) with post_event, then takes it back out of the tracker's pending
+    list and SDL's queue, so the tracker and the queue are as they were.
 
     Returns:
         True when the probe was tracked.
@@ -735,6 +736,7 @@ class TestEventOrigin:
         start_tracking_internal_posts()
         post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
         input_post = pending_internal_posts()[0]
+        assert is_input_post(post=input_post) is True
         forget_pending_posts()
 
         assert pending_internal_posts() == []
@@ -743,10 +745,9 @@ class TestEventOrigin:
 
     def test_input_posts_are_not_tracked_without_a_recorder(self, event_queue):
         """With no recording open, post_input_event only posts."""
-        input_post = (pygame.USEREVENT, {'goal': 1})
         assert post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1})) is True
         assert pending_internal_posts() == []
-        assert is_input_post(post=input_post) is False
+        assert pending_code_post_count() == 0
         assert [event.type for event in pygame.event.get()] == [pygame.USEREVENT]
 
     def test_posts_are_not_tracked_without_a_recorder(self, event_queue):
