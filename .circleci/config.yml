@@ -428,6 +428,26 @@ jobs:
 
     steps:
       - checkout
+      # Publish what main is now, not only the commit this deploy was started for: a merge that
+      # landed while this deploy waited its turn (serial-group) is published here instead of
+      # depending on its own deploy, which may be canceled. A deploy whose main is already on
+      # gh-pages (MkDocs commits "Deployed <short hash> with MkDocs ...") stops, successfully
+      - run:
+          name: "Move to main's latest commit; stop if its docs are already published"
+          command: |
+            set -euo pipefail
+            git fetch --quiet origin main gh-pages
+            git checkout --quiet --detach origin/main
+            latest=$(git rev-parse HEAD)
+            published=$(git log -1 --format=%s origin/gh-pages \
+              | sed -n 's/^Deployed \([0-9a-f]\{7,\}\) with MkDocs.*/\1/p')
+            echo "main is at $latest; gh-pages holds ${published:-an unrecognised deploy}"
+            case "$latest" in
+              "${published:-none}"*)
+                echo "main's docs are already published: nothing to deploy"
+                circleci-agent step halt
+                ;;
+            esac
       - run:
           name: "Check out the pygame-ce submodule (the browser games' wheel is built from it)"
           command: |
