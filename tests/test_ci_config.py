@@ -578,9 +578,10 @@ def tools_on_path(*, mocker, present: set[str]) -> None:
 SECURITY_SCAN_COMMANDS = [
     (
         'python',
-        'scripts/generate_sbom.py',
-        '--venv',
-        '/checkout/.nox/security-scan-3-14',
+        '-m',
+        'scripts.generate_sbom',
+        '--lock',
+        'uv.lock',
         '--output',
         'docs/sbom.cyclonedx.json',
     ),
@@ -598,7 +599,7 @@ SECURITY_SCAN_COMMANDS = [
 
 
 def test_the_security_scan_runs_bandit_then_the_sbom_grype_and_licenses(mocker, monkeypatch):
-    """bandit, then the SBOM from the session's virtualenv, grype on it, its license check."""
+    """bandit, then the SBOM from uv.lock, grype on it, its license check."""
     import noxfile
 
     tools_on_path(mocker=mocker, present={'syft', 'grype'})

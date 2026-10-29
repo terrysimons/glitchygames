@@ -1666,9 +1666,10 @@ def _supply_chain_scan(session: nox.Session) -> None:
     locally, the scan warns and is skipped, so bandit still runs for a contributor without them;
     missing in CI, the session fails, so CI never passes a scan that did not happen.
 
-    The SBOM is generated from this session's own virtualenv, which uv.lock fills with every
-    extra and the dev group (``_install_from_lockfile``), so it inventories exactly what the
-    lock installs on this platform (CI runs this on macOS, as the committed file was written).
+    The SBOM is generated from uv.lock (every package it pins, for every platform and Python
+    version, so it is the same file on every machine); each package's license comes from
+    scripts/check_licenses.py's overrides or from this session's virtualenv, which uv.lock fills
+    with every extra and the dev group (``_install_from_lockfile``; scripts/generate_sbom.py).
     grype fails on a high or critical finding not reviewed in .grype.yaml; the license check
     applies scripts/check_licenses.py's policy. The drift check runs last, so one pass over a
     dependency upgrade reports its CVE and license findings too, rather than stopping at
@@ -1686,12 +1687,7 @@ def _supply_chain_scan(session: nox.Session) -> None:
         session.warn(f'{message}; skipping the SBOM, CVE and license scan')
         return
     session.run(
-        'python',
-        'scripts/generate_sbom.py',
-        '--venv',
-        session.virtualenv.location,
-        '--output',
-        _SBOM_PATH,
+        'python', '-m', 'scripts.generate_sbom', '--lock', 'uv.lock', '--output', _SBOM_PATH
     )
     drift_report = session.run(
         'git', 'status', '--porcelain', '--', _SBOM_PATH, external=True, silent=True

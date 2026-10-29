@@ -111,6 +111,8 @@ dev = [
   "radon>=5.1.0",
   # The complexity graphs' generation lock (scripts/generate_complexity_graphs.py, BUGS.md #214)
   "filelock>=3.32.7",
+  # uv.lock's dependency markers and package names (scripts/generate_sbom.py)
+  "packaging>=26.0",
 ]
 api = []
 # The workspace members by layer (src/<layer>/<member>/, docs/architecture/game_packages.md):

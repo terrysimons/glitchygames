@@ -131,12 +131,17 @@ EXCEPTIONS: dict[str, str] = {
 PACKAGE_LICENSE_OVERRIDES: dict[str, tuple[str, str]] = {
     # Format: 'package-name': ('SPDX id', 'where the license was read')
     #
-    # For packages whose SBOM entry has no license (syft reads the License and
-    # License-Expression metadata fields, not trove classifiers or LICENSE files) though the
-    # installed distribution declares one. Not a bypass: the override goes through the same
-    # allowlist and denylist as a license from the SBOM. Each was read from the distribution
-    # installed from uv.lock (its dist-info METADATA classifier or LICENSE file), 2026-10-28.
-    # Keep it alphabetical.
+    # Two kinds, both written into the SBOM by scripts/generate_sbom.py (an override wins over
+    # installed metadata) and applied again here:
+    # - Packages whose metadata names no license in its License-Expression or a one-line License
+    #   field (the generator reads those, not trove classifiers or LICENSE files) though the
+    #   distribution declares one.
+    # - Packages uv.lock installs on some supported platforms or Python versions only
+    #   (generate_sbom.SUPPORTED_ENVIRONMENTS): one platform's metadata would give an SBOM the
+    #   others cannot write, so the generator refuses them without an entry here.
+    # Not a bypass: the override goes through the same allowlist and denylist as a license from
+    # the SBOM. Each was read from the distribution uv.lock pins (its dist-info METADATA or
+    # LICENSE file), 2026-10-28. Keep it alphabetical.
     'aisuite': ('MIT', 'dist-info licenses/LICENSE: MIT License'),
     'arrow': ('Apache-2.0', 'classifier: License :: OSI Approved :: Apache Software License'),
     'basedpyright': ('MIT', 'classifier: License :: OSI Approved :: MIT License'),
@@ -149,10 +154,14 @@ PACKAGE_LICENSE_OVERRIDES: dict[str, tuple[str, str]] = {
         'GPL-3.0-only OR BSD-3-Clause',
         'dist-info licenses/LICENSE.txt: GPL-3.0, BSD-style or the original license',
     ),
+    # Emscripten only (the browser builds' httpx2 transport)
+    'httpx2-jsfetch': ('BSD-3-Clause', 'METADATA License-Expression: BSD-3-Clause'),
     'jinja2': ('BSD-3-Clause', 'dist-info licenses/LICENSE.txt: the three-clause BSD text'),
     # License: UNKNOWN, no LICENSE file; the classifier names BSD without its variant (both
     # two- and three-clause are allowlisted)
     'lomond': ('BSD-3-Clause', 'classifier: License :: OSI Approved :: BSD License'),
+    # macOS only (PyInstaller's Mach-O support)
+    'macholib': ('MIT', 'METADATA License: MIT; classifier MIT License'),
     'markdown-it-py': ('MIT', 'classifier: License :: OSI Approved :: MIT License'),
     'mergedeep': ('MIT', 'classifier: License :: OSI Approved :: MIT License; License: UNKNOWN'),
     'mistralai': ('Apache-2.0', 'dist-info licenses/LICENSE: Apache License, Version 2.0'),
@@ -160,6 +169,8 @@ PACKAGE_LICENSE_OVERRIDES: dict[str, tuple[str, str]] = {
     # syft reports a sha256 digest in the license slot; METADATA says License: BSD 3-Clause
     'pandas': ('BSD-3-Clause', 'METADATA License: BSD 3-Clause License'),
     'pathspec': ('MPL-2.0', 'classifier: License :: OSI Approved :: Mozilla Public License 2.0'),
+    # Windows only (PyInstaller's PE support)
+    'pefile': ('MIT', 'METADATA License: MIT'),
     # Its hooks are GPL-2.0-or-later (run by PyInstaller at build time), its runtime hooks,
     # which are bundled into a frozen binary, Apache-2.0 (dist-info licenses/LICENSE): both
     # apply, so AND
@@ -173,7 +184,15 @@ PACKAGE_LICENSE_OVERRIDES: dict[str, tuple[str, str]] = {
         'Apache-2.0 OR BSD-3-Clause',
         'classifiers: BSD License, Apache Software License',
     ),
+    # Windows only, at runtime through aisuite's mcp. Its METADATA (License: PSF) and classifier
+    # name the PSF license; the wheel also carries per-component license files, among them
+    # adodbapi/license.txt (LGPL-2.1), a subpackage nothing here imports
+    'pywin32': ('PSF-2.0', 'METADATA License: PSF; classifier Python Software Foundation License'),
+    # Windows only (PyInstaller's Windows API shim)
+    'pywin32-ctypes': ('BSD-3-Clause', 'METADATA License: BSD-3-Clause'),
     'tokenizers': ('Apache-2.0', 'classifier: License :: OSI Approved :: Apache Software License'),
+    # Python 3.14 only (deptry reads TOML with it before 3.15's tomllib)
+    'tomli': ('MIT', 'METADATA License-Expression: MIT'),
     'ty': ('MIT', 'classifier: License :: OSI Approved :: MIT License'),
 }
 """License strings the SBOM should have carried, by package (each from installed metadata)."""
@@ -286,8 +305,8 @@ UNREVIEWED = 'UNREVIEWED'
 def json_object(value: object) -> dict[str, Any] | None:
     """Return a parsed JSON value as an object, or None when it is not one.
 
-    Kept apart from scripts/generate_sbom.py's (as exoneris keeps its two scripts), so neither
-    script depends on the other.
+    Kept apart from scripts/generate_sbom.py's (as exoneris keeps its two scripts): the generator
+    imports only ``PACKAGE_LICENSE_OVERRIDES`` from here, and this script nothing from it.
 
     Returns:
         The value, typed, or None.
