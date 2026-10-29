@@ -17,10 +17,13 @@ import pygame
 import pytest
 
 from glitchygames.events import (
+    ALL_EVENTS,
     EVENT_CLASSES,
     FPSEVENT,
     GAMEEVENT,
+    KEYBOARD_EVENTS,
     MENUEVENT,
+    MOUSE_EVENTS,
     EventInterface,
     EventManager,
     HashableEvent,
@@ -34,6 +37,7 @@ from glitchygames.events import (
     supported_events,
     unhandled_event,
 )
+from glitchygames.events.base import pygame_event_names
 from glitchygames.events.mouse import MouseEventManager
 from glitchygames.process import OutputCapture, run_command
 from glitchygames.tracing import TraceFormatError
@@ -1196,6 +1200,26 @@ class TestEventSystemUtilities:
         events = supported_events()
         assert isinstance(events, list)
 
+    def test_the_event_names_are_scanned_once_per_process(self, mocker):
+        """Every call shares one scan of pygame's event names, and answers as before.
+
+        The module's own calls at import already scanned them: the cache is emptied first, so
+        the count starts at none, and again after, so no later call keeps the spied scan.
+        """
+        pygame_event_names.cache_clear()
+        scan = mocker.spy(pygame.event, 'event_name')
+        try:
+            keyboard_events = supported_events(like='KEY.*?')
+            every_event = supported_events()
+            mouse_events = supported_events(like='MOUSE.*?')
+        finally:
+            pygame_event_names.cache_clear()
+
+        assert scan.call_count == pygame.NUMEVENTS
+        assert sorted(keyboard_events) == sorted(KEYBOARD_EVENTS)
+        assert sorted(every_event) == sorted(ALL_EVENTS)
+        assert sorted(mouse_events) == sorted(MOUSE_EVENTS)
+
     def test_unhandled_event_functionality(self):
         """Test unhandled_event raises when no_unhandled_events is True."""
         game = GameWithOptions(options={'debug_events': True, 'no_unhandled_events': True})
@@ -1335,7 +1359,12 @@ class TestEventSystemEdgeCases:
     """Test event system edge cases including filtering, delegation, and proxy behavior."""
 
     def test_supported_events_filters_and_patches(self, mocker):
-        """supported_events should filter by regex and patch known names."""
+        """supported_events should filter by regex and patch known names.
+
+        The names are scanned once per process (``pygame_event_names``): its cache is emptied
+        so the faked names are scanned, and emptied again after, so no later call keeps them.
+        """
+        pygame_event_names.cache_clear()
 
         # Craft a tiny namespace of pygame constants and event names
         def fake_event_name(idx):
@@ -1358,10 +1387,13 @@ class TestEventSystemEdgeCases:
             CONTROLLERDEVICEREMAPPED=4,
             K_UNKNOWN=0,
         )
-        keys = supported_events(like='KEY.*?')
-        joys = supported_events(like='JOY.*?')
-        wins = supported_events(like='WINDOW.*?')
-        ctrls = supported_events(like='CONTROLLER.*?')
+        try:
+            keys = supported_events(like='KEY.*?')
+            joys = supported_events(like='JOY.*?')
+            wins = supported_events(like='WINDOW.*?')
+            ctrls = supported_events(like='CONTROLLER.*?')
+        finally:
+            pygame_event_names.cache_clear()
 
         # Expect the patched numeric constants returned by supported_events
         assert keys == [1]
@@ -1369,6 +1401,19 @@ class TestEventSystemEdgeCases:
         assert wins == [3]
         # Patched name should map to REMAPPED constant value we provided
         assert ctrls == [4]
+
+    def test_unknown_is_no_event_name_and_no_key_code_is_an_event_type(self):
+        """Ids pygame does not name ('Unknown') are left out: ALL_EVENTS holds no K_UNKNOWN.
+
+        Type 0 is NOEVENT, a name pygame gives (``'NoEvent'``), so it is listed once; it was
+        listed twice while 'Unknown' was patched into K_UNKNOWN, also 0 (BUGS.md #238).
+        """
+        assert 'Unknown' not in pygame_event_names()
+        assert 'NoEvent' in pygame_event_names()
+        # K_UNKNOWN and NOEVENT are both 0: one 0, NOEVENT's, and no type listed twice
+        assert pygame.K_UNKNOWN == pygame.NOEVENT == 0
+        assert ALL_EVENTS.count(0) == 1
+        assert len(ALL_EVENTS) == len(set(ALL_EVENTS))
 
     def test_supported_events_with_real_pygame(self):
         """With the real pygame, the patterns find the real event constants."""

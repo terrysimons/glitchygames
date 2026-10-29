@@ -32,7 +32,9 @@ so the engine's tests import no workspace member and run no member's code:
 - ``use_stand_in_game``: put a stand-in's install directory on ``sys.path`` (for the metadata
   lookups this process makes) and on ``PYTHONPATH`` (for the child processes that start it).
 - ``record_stand_in_game``: record a stand-in game's session in a child process
-  (``--record-trace``), as a player's live run would.
+  (``--record-trace``), as a player's live run would: uncapped, unless the test needs it paced.
+- ``record_stand_in_game_once``: the same, for a module- or session-scoped fixture whose
+  recording many tests read; ``copy_recording`` hands each test its own copy.
 - ``GameThatIsNeverBuilt``: a scene class whose constructor fails, for the in-process tests of
   the tools that run in place of the game (from ``GameEngine.__init__``).
 """
@@ -43,8 +45,11 @@ import dataclasses
 import gzip
 import json
 import os
+import shutil
 import sys
 from typing import TYPE_CHECKING
+
+import pytest
 
 from glitchygames.build_info import BUILD_STAMP_FILE_NAME
 from glitchygames.bundled_demos import BUNDLED_DEMO_DIRECTORY_NAME, CONSOLE_SCRIPTS_GROUP
@@ -56,8 +61,6 @@ from glitchygames.tracing import REPLAY_FIXTURES_PATH_PARTS, TRACE_FORMAT_VERSIO
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pytest
-
     from glitchygames.build_info import SourceRevision
 
 # How many frames a stand-in game runs before it quits itself: enough for a tampered frame 10
@@ -67,8 +70,14 @@ STAND_IN_GAME_FRAMES = 20
 RECORD_TIMEOUT_SECONDS = 120.0
 # The stand-in game's window: small, since nothing in it is looked at
 STAND_IN_GAME_RESOLUTION = '320x240'
-# Live recordings are paced at this rate: a paced live run, as a player's is
+# A paced live recording (``record_stand_in_game(paced=True)``) runs at this rate, as a
+# player's run is
 STAND_IN_GAME_TARGET_FPS = '60'
+# Every other live recording is uncapped (``--target-fps 0``): its frames never wait, and the
+# engine never measures this machine's sleep model (it does as a paced live game starts), so a
+# 20-frame recording takes its child's start-up and no more. Its frame times are whatever the
+# frames took, which only a test of pacing, or of what reads recorded frame times, looks at
+UNPACED_TARGET_FPS = '0'
 # A "game" that never ends (an editor or a server among a project's [project.scripts], given a
 # tool flag it ignores): it writes its process id into never-ending.pid beside itself, then waits
 NEVER_ENDING_GAME_SOURCE = """\
@@ -412,9 +421,13 @@ def use_stand_in_game(*, install_directory: Path, monkeypatch: pytest.MonkeyPatc
 
 
 def record_stand_in_game(
-    *, game: StandInGame, path: Path, extra_arguments: tuple[str, ...] = ()
+    *,
+    game: StandInGame,
+    path: Path,
+    extra_arguments: tuple[str, ...] = (),
+    paced: bool = False,
 ) -> Path:
-    """Record a stand-in game's live session in a child process, paced at 60 FPS, headless.
+    """Record a stand-in game's live session in a child process, headless.
 
     The child starts the game through its package's ``main`` (its console script's entry
     point), with this process's environment (``use_stand_in_game`` must have put its install
@@ -424,6 +437,10 @@ def record_stand_in_game(
         game: The stand-in game.
         path: Where the recording goes.
         extra_arguments: More command-line arguments for the child.
+        paced: Pace the run at ``STAND_IN_GAME_TARGET_FPS`` (60), as a player's is: for a test
+            that reads the recorded frame times (a watched replay presents frames by them) or
+            the run's pacing (``processing_paced``, its live frame times). Otherwise the run is
+            uncapped (``UNPACED_TARGET_FPS``): the same frames and sprites, recorded at once.
 
     Returns:
         The recording's path.
@@ -439,7 +456,7 @@ def record_stand_in_game(
             '--resolution',
             STAND_IN_GAME_RESOLUTION,
             '--target-fps',
-            STAND_IN_GAME_TARGET_FPS,
+            STAND_IN_GAME_TARGET_FPS if paced else UNPACED_TARGET_FPS,
             '--headless',
             '--record-trace',
             str(path),
@@ -450,4 +467,47 @@ def record_stand_in_game(
         capture_output=OutputCapture.TOGETHER,
     )
     assert completed.returncode == ExitCode.SUCCESS, completed.stdout
+    return path
+
+
+def record_stand_in_game_once(
+    *,
+    game: StandInGame,
+    path: Path,
+    extra_arguments: tuple[str, ...] = (),
+    paced: bool = False,
+) -> Path:
+    """Record a stand-in game's live session for many tests to read (``record_stand_in_game``).
+
+    For a module- or session-scoped fixture, which has no test's ``monkeypatch``: the game's
+    install directory is on ``sys.path`` and ``PYTHONPATH`` only while the child records. Each
+    test that reads the recording takes its own copy (``copy_recording``), so one that changes
+    its copy, or writes beside it, changes nothing another test reads.
+
+    Args:
+        game: The stand-in game (installed where no test changes it).
+        path: Where the recording goes.
+        extra_arguments: More command-line arguments for the child.
+        paced: As ``record_stand_in_game``'s.
+
+    Returns:
+        The recording's path.
+
+    """
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        use_stand_in_game(install_directory=game.install_directory, monkeypatch=monkeypatch)
+        return record_stand_in_game(
+            game=game, path=path, extra_arguments=extra_arguments, paced=paced
+        )
+
+
+def copy_recording(*, recording: Path, path: Path) -> Path:
+    """Copy a shared recording (``record_stand_in_game_once``) to a test's own path.
+
+    Returns:
+        The copy's path (its directory made).
+
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(recording, path)
     return path

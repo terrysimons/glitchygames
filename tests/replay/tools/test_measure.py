@@ -75,7 +75,9 @@ from tests.stand_in_games import (
     STAND_IN_GAME_RESOLUTION,
     GameThatIsNeverBuilt,
     StandInGame,
+    copy_recording,
     record_stand_in_game,
+    record_stand_in_game_once,
     stamp_stand_in_game,
     use_stand_in_game,
     write_never_ending_game_project,
@@ -129,9 +131,8 @@ def clean_revision() -> SourceRevision:
     return source_revision().model_copy(update={'uncommitted_changes': False})
 
 
-@pytest.fixture
-def stand_in_game(tmp_path_factory, monkeypatch) -> StandInGame:
-    """Install the stand-in game (tests/stand_in_games.py) for this test and its children.
+def install_stand_in_game(*, install_directory: Path) -> StandInGame:
+    """Write the stand-in game (tests/stand_in_games.py), stamped as a clean game of this checkout.
 
     Its facts that matter here: one console script (``stand-in-rally``), seeded and
     deterministic, so its child rebaseline exits SUCCESS and changes no frame. It is stamped as
@@ -142,10 +143,23 @@ def stand_in_game(tmp_path_factory, monkeypatch) -> StandInGame:
         The stand-in game.
 
     """
-    install_directory = tmp_path_factory.mktemp('site-packages')
     game = write_stand_in_game(directory=install_directory)
     stamp_stand_in_game(game=game, revision=clean_revision())
-    use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
+    return game
+
+
+@pytest.fixture
+def stand_in_game(tmp_path_factory, monkeypatch) -> StandInGame:
+    """Install the stand-in game (``install_stand_in_game``) for this test and its children.
+
+    Its own install: a test may change it (its build stamp).
+
+    Returns:
+        The stand-in game.
+
+    """
+    game = install_stand_in_game(install_directory=tmp_path_factory.mktemp('site-packages'))
+    use_stand_in_game(install_directory=game.install_directory, monkeypatch=monkeypatch)
     return game
 
 
@@ -164,19 +178,42 @@ def mark_runs_from_a_clean_checkout(*, path: Path) -> None:
     rewrite_recording(recording_path=path, change=clean)
 
 
+@pytest.fixture(scope='module')
+def recorded_stand_in_golden(tmp_path_factory) -> Path:
+    """Record the stand-in game's golden once per module (and xdist worker), from its own install.
+
+    A test's own install (``stand_in_game``) is the same game with the same stamp, so it would
+    record the same golden but for its run's measurements. Every test copies it
+    (``stand_in_golden``).
+
+    Returns:
+        Its path.
+
+    """
+    root = tmp_path_factory.mktemp('recorded-golden')
+    # Paced: its run is the golden's paced live run, which the measurement tests check
+    # (``processing_paced``) beside the unpaced rebaseline they measure
+    path = record_stand_in_game_once(
+        game=install_stand_in_game(install_directory=root / 'site-packages'),
+        path=root / 'golden.jsonl.gz',
+        paced=True,
+    )
+    mark_runs_from_a_clean_checkout(path=path)
+    return path
+
+
 @pytest.fixture
-def stand_in_golden(stand_in_game, tmp_path_factory) -> Path:
-    """Return the stand-in game's recording: one paced live run, with its commit.
+def stand_in_golden(stand_in_game, recorded_stand_in_golden, tmp_path_factory) -> Path:
+    """Return this test's copy of the stand-in game's recording: a paced live run, with its commit.
 
     Returns:
         Its path (outside the project tree the tests copy it into).
 
     """
-    path = record_stand_in_game(
-        game=stand_in_game, path=tmp_path_factory.mktemp('recorded') / 'golden.jsonl.gz'
+    return copy_recording(
+        recording=recorded_stand_in_golden,
+        path=tmp_path_factory.mktemp('recorded') / 'golden.jsonl.gz',
     )
-    mark_runs_from_a_clean_checkout(path=path)
-    return path
 
 
 def copied_golden(*, project_root: Path, game: StandInGame, golden: Path) -> list[tuple[str, Path]]:
@@ -1888,7 +1925,6 @@ def test_a_games_revision_is_its_own_else_the_engines():
                 package='no_such_game',
                 package_directory=None,
                 console_script=None,
-                distribution=None,
             )
         )
         == source_revision()
