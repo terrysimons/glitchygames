@@ -903,7 +903,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     def _install_masterhub_mirror(self) -> None:
         """Import and run the browser-only bridge; a no-op off the browser."""
         try:
-            import masterhub_bridge  # pyright: ignore[reportMissingImports]
+            import masterhub_bridge  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
         except ImportError:
             return
         masterhub_bridge.install(self)  # pyright: ignore[reportUnknownMemberType]  # pragma: no cover
