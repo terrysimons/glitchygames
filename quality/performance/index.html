@@ -75,6 +75,20 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" >Playback</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/">Gameplay Playback</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/how-a-frame-runs/">How a Frame Runs</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/speeds-and-timing/">Speeds and Timing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/recording-file/">The Recording File</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/testing/">How We Test Playback</a>
+                </li>
+    </ul>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../architecture/engine_context/">Engine Context</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
@@ -222,17 +236,30 @@ and kind of run is its own line.</p>
   frame (max) of one replay, in milliseconds, by commit (oldest on the left, labelled with the
   short hash). A frame's budget at 60 FPS is 16.7 ms.</li>
 <li><strong>Frames over budget</strong>: frames whose processing alone took longer than the budget.</li>
-<li>
-<p><strong>Live frame time</strong>: for the runs that recorded a session live (paced, in a window), how long
-  each frame really took, start to start: how steady pacing was. Replays have none.</p>
-</li>
-<li>
-<p><strong>Slowest frame across the recording, by commit</strong>: a heatmap per machine. Each column is a
+<li><strong>Live frame time</strong>: for the runs that recorded a session live (paced, in a window), how long
+  each frame really took, start to start: how steady pacing was. Replays have none.</li>
+<li><strong>FPS by commit</strong>: the same runs as frames per second. A live run's line (solid) is the FPS
+  it achieved (1 / its frame time); it is paced, so it never passes the target (the dotted
+  line, 1 / the frame budget). A replay's line (dashed) is its headroom (1 / its processing
+  time): how fast the work alone could run. Each point is the average, with a bar from the
+  "5% low" to the "5% high": the mean of the slowest and of the fastest 5% of frames (at least
+  one frame; pause frames count; a live run's first frame, timed from the clock's start, does
+  not). The axis is logarithmic, as headroom runs to thousands. Paced and unpaced numbers do
+  not compare: the processor slows down between paced frames.</li>
+<li><strong>Machines</strong>: each machine's latest replay, as a bar of its average headroom FPS with the
+  same 5% low and high, so platforms compare at a glance for the same recording. Replays only;
+  machines marked <strong>(CI)</strong> measured on continuous integration's virtual runners, which are
+  noisy.</li>
+</ul>
+<p>The figures are stored in seconds and turned into FPS only for display. Measurements from
+before them (2026-10-28) have no FPS point. <code>glitchygames measure</code> and <code>glitchygames report</code>
+print the same FPS beside the milliseconds.</p>
+<ul>
+<li><strong>Slowest frame across the recording, by commit</strong>: a heatmap per machine. Each column is a
   stretch of the recording (about 1% of it, start to end) and each row a commit; the color is
   the slowest frame of that stretch. Hover a cell for its frames, its scene and the time. It
   shows time only: whether the work itself changed (frames whose content hash differs) is what
-  <code>glitchygames report</code> shows. Measurements from before per-frame profiles have no row.</p>
-</li>
+  <code>glitchygames report</code> shows. Measurements from before per-frame profiles have no row.</li>
 </ul>
 <p>Hover a point for the commit's date and when it was measured.</p>
 <p>Measurements made on a checkout with uncommitted changes (a trial: <code>nox -s replay-metrics --
@@ -311,7 +338,7 @@ CRITICAL record a run): a logger that does has a level set behind the command li
 (BUGS.md #236), which <code>tests/replay/test_replays_log_quietly.py</code>
 and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary test run.</p>
 <p>Until a build generates them, this page has only this text.</p>
-<p>Generated from 94 ledger rows (1015 in the repository, 94 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
+<p>Generated from 94 ledger rows (1050 in the repository, 94 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
 <h2 id="latest-measurements">Latest measurements<a class="headerlink" href="#latest-measurements" title="Permanent link">#</a></h2>
 <table>
 <thead>

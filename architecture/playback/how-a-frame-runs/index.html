@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/architecture/playback/how-a-frame-runs/" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>How a Frame Runs - GlitchyGames</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../../css/full-width.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "How a Frame Runs";
+        var mkdocs_page_input_path = "architecture/playback/how-a-frame-runs.md";
+        var mkdocs_page_url = "/glitchygames/architecture/playback/how-a-frame-runs/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="https://terrysimons.github.io/glitchygames/play/">Play in the Browser</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../game_packages/">Games as Their Own Packages</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../../games/drawing_fire/">Drawing Fire Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Playback</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../">Gameplay Playback</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">How a Frame Runs</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../speeds-and-timing/">Speeds and Timing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../recording-file/">The Recording File</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../testing/">How We Test Playback</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../engine_context/">Engine Context</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../quality/upstream_issues/">Upstream Issues</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../galimore/">Galimore Survey</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+                <ul><li>
+                    <a href="../../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/effects/">glitchygames.effects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/input/">glitchygames.input</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/state/">glitchygames.state</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/transitions/">glitchygames.transitions</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Games API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../mr_muncher/">mr_muncher</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Apps API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../bitmappy/">bitmappy</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+          <li class="breadcrumb-item">Playback</li>
+      <li class="breadcrumb-item active">How a Frame Runs</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/architecture/playback/how-a-frame-runs.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../" class="btn btn-neutral float-left" title="Gameplay Playback"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../speeds-and-timing/" class="btn btn-neutral float-right" title="Speeds and Timing">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="how-a-frame-runs">How a Frame Runs<a class="headerlink" href="#how-a-frame-runs" title="Permanent link">#</a></h1>
+<p>One frame of <code>SceneManager</code>, in the order the code runs it, and where each input comes from.
+Everything here is in <code>src/glitchygames/scenes/scene.py</code> unless another file is named; the doors'
+interface is <code>EngineSources</code> in <code>src/glitchygames/sources.py</code>.</p>
+<h2 id="the-loop">The loop<a class="headerlink" href="#the-loop" title="Permanent link">#</a></h2>
+<p><code>SceneManager.start</code> is the blocking loop: <code>begin_frames</code>, then <code>run_frame_step</code> while
+<code>should_run_frames</code>, then <code>end_frames</code>. A browser host runs the same steps itself, one per tick,
+unpaced (<code>GameHost.run_async</code>, <code>src/glitchygames/host.py</code>).</p>
+<ul>
+<li><code>begin_frames</code> takes the first <code>time.perf_counter()</code> reading. The first frame has no previous
+  frame, so its <code>dt</code> is the short time since that reading (a replay's frame-time door returns the
+  recorded first <code>dt</code> instead).</li>
+<li><code>should_run_frames</code> goes on while a scene is active, no quit was requested and the doors do
+  not ask to stop (<code>stop_requested</code>: a replay reached its end).</li>
+</ul>
+<h2 id="one-frame-step">One frame step<a class="headerlink" href="#one-frame-step" title="Permanent link">#</a></h2>
+<pre class="mermaid"><code>flowchart TD
+    hold{"hold_frame()?&lt;br/&gt;door"}
+    held["present the last frame again&lt;br/&gt;(_present_held_frame)"]
+    pace_q["paced_frame_seconds()&lt;br/&gt;door, asked once"]
+    period["the frame period: timer.start_frame(target_fps)&lt;br/&gt;when the doors answered None, else theirs&lt;br/&gt;src/glitchygames/timing.py"]
+    steps["_run_frame_steps&lt;br/&gt;(the frame's work, below)"]
+    proc["processing time =&lt;br/&gt;work, less presenting"]
+    finish["_finish_frame:&lt;br/&gt;pace, one perf_counter() reading,&lt;br/&gt;dt through frame_seconds() door,&lt;br/&gt;advance frame clock, FPS sample"]
+    next(["next frame starts at&lt;br/&gt;that same reading"])
+
+    hold -- "yes (a paused watched replay)" --&gt; held --&gt; next
+    hold -- no --&gt; pace_q --&gt; period --&gt; steps --&gt; proc --&gt; finish --&gt; next</code></pre>
+<p><code>run_frame_step</code> first asks the doors whether to hold (<code>hold_frame</code>): a paused watched replay
+holds, and the last frame is presented again with the doors' overlay; nothing runs and the frame
+clock stands still. Otherwise it asks <code>paced_frame_seconds</code> once (None: the target FPS; 0.0: no
+pacing; a positive number: that period), runs the frame, measures its processing time and ends it
+in <code>_finish_frame</code>.</p>
+<h2 id="inside-the-frame-_run_frame_steps">Inside the frame: <code>_run_frame_steps</code><a class="headerlink" href="#inside-the-frame-_run_frame_steps" title="Permanent link">#</a></h2>
+<ol>
+<li>Start the processing-time clock (<code>measured_seconds()</code>, <code>src/glitchygames/clock.py</code>).</li>
+<li>Enter a requested in-game playback scope, if any (<code>_enter_requested_playback</code>;
+   <code>src/glitchygames/replay/playback.py</code>), and apply a recorded resume (<code>_apply_resume_bridge</code>).</li>
+<li>Complete the active scene's start on its first logic frame (<code>_begin_scene_logic_frame</code>;
+   <code>src/glitchygames/scene_start.py</code>) and begin the instant-replay journal's frame
+   (<code>_begin_journal_frame</code>; <code>src/glitchygames/instant_replay.py</code>).</li>
+<li>Begin the game-frame clock (<code>src/glitchygames/game_frames.py</code>), which pairs onion-skin frames.</li>
+<li>Run the frame's contents: a transition frame, or a scene frame (<code>_run_scene_frame</code>, below).</li>
+<li>The processing time is the work since step 1, less the time spent presenting
+   (<code>_frame_present_seconds</code>).</li>
+<li>End the frame at the doors (<code>_end_frame_at_doors</code> -&gt; <code>end_frame</code>): a recorder samples the
+   sprites and writes the frame here; a replay compares the frame here. Then the journal takes
+   the frame (<code>_journal_frame</code>).</li>
+</ol>
+<h2 id="a-scene-frame-_run_scene_frame">A scene frame: <code>_run_scene_frame</code><a class="headerlink" href="#a-scene-frame-_run_scene_frame" title="Permanent link">#</a></h2>
+<pre class="mermaid"><code>flowchart TD
+    cam["camera.begin_frame()"]
+    tick["_update_scene:&lt;br/&gt;advance_game_time, Scene.dt_tick(scene_dt)&lt;br/&gt;(dt capped at MAX_FRAME_SECONDS)"]
+    events["_process_events -&gt; GameEngine.process_events:&lt;br/&gt;pump_events() door (the only read of SDL's queue),&lt;br/&gt;then input_snapshot() door,&lt;br/&gt;then dispatch each event"]
+    sup["_run_supervisor_slot:&lt;br/&gt;control_events_for_frame() door"]
+    services["_update_frame_services&lt;br/&gt;(shake, rumble)"]
+    aim["aim the camera,&lt;br/&gt;position world sprites"]
+    render["_render_scene:&lt;br/&gt;Scene.update(), Scene.render(screen)"]
+    shake["advance a still camera's shake"]
+    present["_present_frame:&lt;br/&gt;presents_frames door"]
+    switch["start a pending transition,&lt;br/&gt;or the requested scene switch"]
+
+    cam --&gt; tick --&gt; events --&gt; sup --&gt; services --&gt; aim --&gt; render --&gt; shake --&gt; present --&gt; switch</code></pre>
+<p>Points that matter for replay:</p>
+<ul>
+<li>Logic (<code>dt_tick</code>) runs <strong>before</strong> the event pump, so <code>dt_tick</code> reads the previous frame's
+  polled-input snapshot. <code>GameEngine.process_events</code> (<code>src/glitchygames/engine/game_engine.py</code>)
+  sets the snapshot right after the pump, so it agrees with this frame's events and stays fixed
+  until the next pump.</li>
+<li><code>scene_dt</code> is <code>self.dt</code> capped at the scene's <code>MAX_FRAME_SECONDS</code> when it sets one
+  (<code>_scene_frame_seconds</code>); <code>self.dt</code> keeps the whole frame time for pacing, statistics and
+  services.</li>
+<li>The supervisor slot runs after logic and events, before positioning, so what a supervisor
+  changes is drawn this frame (<code>src/glitchygames/supervision.py</code>).</li>
+<li>Presenting asks the doors (<code>presents_frames</code>): a watched replay's inner frames are not
+  presented; the viewer's outer tick presents the latest one.</li>
+</ul>
+<h2 id="the-end-of-the-frame-_finish_frame">The end of the frame: <code>_finish_frame</code><a class="headerlink" href="#the-end-of-the-frame-_finish_frame" title="Permanent link">#</a></h2>
+<p>In this order: pace (the timer backend's deadline, else the pygame clock; a target of 0 or a
+frame the doors leave unpaced never waits; <code>_handle_frame_pacing</code>); take one <code>perf_counter()</code>
+reading, which ends this frame and starts the next; set <code>self.dt</code> from that start-to-start time
+through the <code>frame_seconds</code> door (<code>_set_frame_time</code>, the one writer of <code>self.dt</code>); add it to the
+frame clock (<code>advance_frame_clock</code>, <code>src/glitchygames/sources.py</code>); record the FPS sample and
+post the FPS event when its interval of frame-clock time has passed.</p>
+<p>So the <code>dt</code> that frame N's logic receives is the time frame N - 1 took, start to start.</p>
+<h2 id="the-doors-read-in-a-frame">The doors read in a frame<a class="headerlink" href="#the-doors-read-in-a-frame" title="Permanent link">#</a></h2>
+<table>
+<thead>
+<tr>
+<th>Door</th>
+<th>Read in</th>
+<th>Module that owns the read</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hold_frame</code>, <code>paced_frame_seconds</code></td>
+<td><code>run_frame_step</code></td>
+<td><code>src/glitchygames/scenes/scene.py</code></td>
+</tr>
+<tr>
+<td><code>pump_events</code></td>
+<td><code>GameEngine._pump_events</code></td>
+<td><code>src/glitchygames/engine/game_engine.py</code></td>
+</tr>
+<tr>
+<td><code>input_snapshot</code></td>
+<td><code>GameEngine.process_events</code></td>
+<td><code>src/glitchygames/input/state.py</code> holds it</td>
+</tr>
+<tr>
+<td><code>devices</code></td>
+<td>controller and joystick handling</td>
+<td><code>src/glitchygames/input/devices.py</code></td>
+</tr>
+<tr>
+<td><code>saves</code></td>
+<td>a game opening its save store</td>
+<td><code>src/glitchygames/state/manager.py</code></td>
+</tr>
+<tr>
+<td><code>wall_clock_time</code>, frame clock</td>
+<td><code>clock.wall_clock_time()</code>, <code>clock.elapsed_seconds()</code></td>
+<td><code>src/glitchygames/clock.py</code></td>
+</tr>
+<tr>
+<td>random seed</td>
+<td>the named streams</td>
+<td><code>src/glitchygames/randomness.py</code></td>
+</tr>
+<tr>
+<td><code>control_events_for_frame</code></td>
+<td><code>_run_supervisor_slot</code></td>
+<td><code>src/glitchygames/supervision.py</code></td>
+</tr>
+<tr>
+<td><code>presents_frames</code></td>
+<td><code>_present_frame</code></td>
+<td><code>src/glitchygames/scenes/scene.py</code></td>
+</tr>
+<tr>
+<td><code>end_frame</code></td>
+<td><code>_end_frame_at_doors</code></td>
+<td>the doors</td>
+</tr>
+<tr>
+<td><code>frame_seconds</code></td>
+<td><code>_set_frame_time</code></td>
+<td>the doors</td>
+</tr>
+</tbody>
+</table>
+<p>Events a game posts go through <code>post_event</code> (<code>src/glitchygames/recording.py</code>), so a recording can
+tell code-posted (<code>internal</code>) events from SDL's (<code>external</code>). Only the files the doors guard
+allows read the raw clock or pygame directly (<code>tests/test_engine_doors.py</code>;
+<a href="../testing/#the-doors-guard">How we test playback</a>).</p>
+<h2 id="the-same-frame-live-and-replayed">The same frame, live and replayed<a class="headerlink" href="#the-same-frame-live-and-replayed" title="Permanent link">#</a></h2>
+<p>The frame's steps are identical; only what each door returns differs. A replay installs
+<code>ReplaySources</code> (<code>src/glitchygames/replay/driver.py</code>) before the first frame.</p>
+<pre class="mermaid"><code>flowchart LR
+    subgraph live ["Live (LiveSources)"]
+        direction TB
+        l1["hold_frame: never"]
+        l2["paced_frame_seconds: None&lt;br/&gt;(the target FPS)"]
+        l3["pump_events: SDL's queue"]
+        l4["input_snapshot: pygame's polled state"]
+        l5["devices: real pads"]
+        l6["saves: files on disk"]
+        l7["wall clock: the real one"]
+        l8["end_frame: discards unclaimed&lt;br/&gt;device answers"]
+        l9["frame_seconds: the measurement"]
+    end
+    subgraph replayed ["Replayed (ReplaySources)"]
+        direction TB
+        r1["hold_frame: the viewer's tick&lt;br/&gt;(watched); never (headless)"]
+        r2["paced_frame_seconds: 0.0"]
+        r3["pump_events: recorded batch N&lt;br/&gt;(external rebuilt, internal matched&lt;br/&gt;to the replayed code's posts)"]
+        r4["input_snapshot: rebuilt from&lt;br/&gt;each frame's input_changes"]
+        r5["devices: ReplayDeviceRegistry&lt;br/&gt;from the header"]
+        r6["saves: MemorySaveManager&lt;br/&gt;seeded from the recording"]
+        r7["wall clock: recorded_at&lt;br/&gt;+ frame clock"]
+        r8["end_frame: compare scene&lt;br/&gt;and sprites with the recording"]
+        r9["frame_seconds: the recorded dt"]
+    end
+    l1 ~~~ r1</code></pre>
+<p>Each replayed door is a rule of <code>src/glitchygames/replay/driver.py</code>'s docstring: the pump is rule
+2, frame time rule 4, input rule 5, devices rule 6, saves rule 7, the end-of-frame comparison
+rule 8, the clocks rule 9, pacing rule 13 and watching rule 14. The random streams are seeded
+with the recorded seed at startup (rule 1). A recording made with <code>--record-trace</code> sits between
+the live doors and the engine (<code>RecordingSources</code>, <code>src/glitchygames/recording.py</code>): it passes
+every answer through and writes it down.</p>
+<p>In-game playback (demos, instant replay, ghosts) uses the same mechanism inside a live game: a
+scope pushes <code>PlaybackSources</code> on top of the live doors for its frames
+(<code>src/glitchygames/replay/playback.py</code>; <a href="../../gameplay_replay/#in-game-playback">In-game playback</a>).</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../" class="btn btn-neutral float-left" title="Gameplay Playback"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../speeds-and-timing/" class="btn btn-neutral float-right" title="Speeds and Timing">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../speeds-and-timing/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      <script src="../../../js/mermaid-init.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

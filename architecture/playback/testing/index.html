@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/architecture/playback/testing/" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>How We Test Playback - GlitchyGames</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../../css/full-width.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "How We Test Playback";
+        var mkdocs_page_input_path = "architecture/playback/testing.md";
+        var mkdocs_page_url = "/glitchygames/architecture/playback/testing/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="https://terrysimons.github.io/glitchygames/play/">Play in the Browser</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../game_packages/">Games as Their Own Packages</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../../games/drawing_fire/">Drawing Fire Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Playback</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../">Gameplay Playback</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../how-a-frame-runs/">How a Frame Runs</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../speeds-and-timing/">Speeds and Timing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../recording-file/">The Recording File</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">How We Test Playback</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../engine_context/">Engine Context</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../quality/upstream_issues/">Upstream Issues</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../galimore/">Galimore Survey</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+                <ul><li>
+                    <a href="../../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/effects/">glitchygames.effects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/input/">glitchygames.input</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/state/">glitchygames.state</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/transitions/">glitchygames.transitions</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Games API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../mr_muncher/">mr_muncher</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Apps API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../bitmappy/">bitmappy</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+          <li class="breadcrumb-item">Playback</li>
+      <li class="breadcrumb-item active">How We Test Playback</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/architecture/playback/testing.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../recording-file/" class="btn btn-neutral float-left" title="The Recording File"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../engine_context/" class="btn btn-neutral float-right" title="Engine Context">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="how-we-test-playback">How We Test Playback<a class="headerlink" href="#how-we-test-playback" title="Permanent link">#</a></h1>
+<p>Each tier checks something the others cannot see. The cheapest checks run on every test run;
+the real games' replays run as test items too, in child processes, so the engine is exercised the
+way a player's run exercises it.</p>
+<pre class="mermaid"><code>flowchart TD
+    subgraph suite ["Every test run (pytest / nox -s test)"]
+        goldens["Golden replays&lt;br/&gt;each fixture is a test item"]
+        traces["Golden traces&lt;br/&gt;tests/world/test_golden_traces.py"]
+        standins["Replay-tool tests&lt;br/&gt;on stand-in games"]
+        doors["Doors guard&lt;br/&gt;tests/test_engine_doors.py"]
+        memory["Memory guard&lt;br/&gt;(CI Linux only)"]
+    end
+    subgraph tools ["On demand, and in the commit hook"]
+        verify["glitchygames verify"]
+        measure["glitchygames measure&lt;br/&gt;(pre-commit replay-metrics)"]
+        rebaseline["--rebaseline&lt;br/&gt;(after an intended change)"]
+        audit["--audit&lt;br/&gt;(determinism)"]
+    end
+    goldens -. "same replay as" .-&gt; verify
+    measure -. "is a rebaseline per recording" .-&gt; rebaseline</code></pre>
+<h2 id="golden-replays">Golden replays<a class="headerlink" href="#golden-replays" title="Permanent link">#</a></h2>
+<p><strong>Intent:</strong> every game still plays its scripted session exactly as recorded, and every control it
+binds still works.</p>
+<ul>
+<li>Each <code>src/&lt;layer&gt;/&lt;member&gt;/tests/fixtures/replays/golden*.jsonl.gz</code> (the <code>golden-globs</code> setting
+  in <code>pyproject.toml</code>) is collected as one test item by the replay plugin
+  (<code>src/glitchygames/testing/replays.py</code>, registered through the engine's pytest11 entry point).</li>
+<li>The item replays the recording <strong>headless</strong> in a child process, through the game's console
+  script entry point (<code>--replay-trace PATH --headless --log-level warning</code>).</li>
+<li>It passes only if the child exits <code>SUCCESS</code>; otherwise it fails with the divergence report.</li>
+<li><code>tests/replay/test_golden_replays.py</code> checks the fixtures themselves. Its controls rule is that
+  every golden pauses and resumes, exercises every keyboard control the game binds, and ends with
+  the game's own quit control (<code>test_every_golden_replay_exercises_every_control</code>), so a control
+  that stops working makes its golden diverge.</li>
+<li>The goldens are recorded through the real engine by <code>scripts/record_scripted_session.py</code>, with
+  <code>scripts/golden_inputs.py</code>.</li>
+</ul>
+<pre class="mermaid"><code>flowchart LR
+    item["pytest collects&lt;br/&gt;golden.jsonl.gz"] --&gt; child["child process:&lt;br/&gt;console script entry point&lt;br/&gt;--replay-trace --headless"]
+    child --&gt; replay["ReplaySources: serve inputs,&lt;br/&gt;compare every frame"]
+    replay -- "every frame matches" --&gt; pass["exit SUCCESS: pass"]
+    replay -- "a frame differs" --&gt; fail["exit REPLAY_DIVERGED:&lt;br/&gt;fail with the report"]</code></pre>
+<h2 id="golden-traces">Golden traces<a class="headerlink" href="#golden-traces" title="Permanent link">#</a></h2>
+<p><strong>Intent:</strong> the games that existed before the world-space change still draw exactly what they drew
+then (<code>tests/world/test_golden_traces.py</code>).</p>
+<ul>
+<li>The baselines in <code>tests/world/golden/</code> were recorded by <code>scripts/record_golden_traces.py</code> before
+  the engine's world-space changes.</li>
+<li>Each test replays the same scripted run in-process, through the golden-trace harness
+  (<code>src/glitchygames/replay/tools/golden_traces.py</code>), and compares every sprite's rect and
+  visibility, frame by frame.</li>
+<li>A difference fails unless an <code>EXPECTED_DIFFERENCES</code> entry explains it, and an entry that
+  explains nothing fails too, so the list cannot go stale.</li>
+<li>Later games are covered by their golden replays instead.</li>
+</ul>
+<h2 id="replay-tool-tests-on-stand-in-games">Replay-tool tests on stand-in games<a class="headerlink" href="#replay-tool-tests-on-stand-in-games" title="Permanent link">#</a></h2>
+<p><strong>Intent:</strong> the engine's replay machinery works for <strong>any</strong> game, not just ours. Every tool, every
+refusal, every exit code.</p>
+<ul>
+<li>Engine tests never import a workspace member (<code>tests/test_workspace_config.py</code>,
+  <code>tests/test_suite_collection.py</code>), so they record and replay small stand-in games
+  (<code>tests/stand_in_games.py</code>, <code>tests/stand_in_harness_games.py</code>).</li>
+<li>The end-to-end proof is <code>tests/replay/tools/test_an_unseen_game.py</code>: a stand-in game in its
+  own git repository, run through every tool on both front ends.</li>
+<li><strong>Paced recordings.</strong> Stand-in live recordings are paced at <code>STAND_IN_GAME_TARGET_FPS</code> = 60
+  (<code>record_stand_in_game</code>, in a headless child). That makes them paced live runs, as a player's
+  are, so the recorded runs carry <code>processing_paced</code> and live frame times like a real recording.
+  Replays of them are unpaced, as every replay is.</li>
+<li><strong>Unpaced engine runs.</strong> Engine tests that need no pacing run uncapped (<code>--target-fps 0</code>, for
+  example <code>tests/engine/test_engine_event_system.py</code>), so they never wait for a frame deadline.</li>
+</ul>
+<h2 id="verify-measure-and-rebaseline">Verify, measure and rebaseline<a class="headerlink" href="#verify-measure-and-rebaseline" title="Permanent link">#</a></h2>
+<ul>
+<li><strong><code>glitchygames verify</code></strong> replays every golden and bundled demo headless, each in a child (the
+  same replay as the plugin's), one line each, then a summary. A replay still running after
+  <code>REPLAY_TIMEOUT_SECONDS</code> = 300 s is stopped (<code>src/glitchygames/replay/tools/verify.py</code>,
+  <code>children.py</code>). It always uses each recording's own seed and refuses <code>--random-seed</code>.</li>
+<li><strong><code>--rebaseline NEW</code></strong> replays OLD's inputs on the current code, runs on past differences, and
+  writes NEW with a summary of what changed (<code>src/glitchygames/replay/rebaseline.py</code>). It is how a
+  golden follows an intended change. NEW replaces OLD only as a deliberate, reviewed step.</li>
+<li><strong><code>glitchygames measure</code></strong> rebaselines each recording headless into a temporary file, in a
+  child, and turns the result into ledger rows (<code>src/glitchygames/replay/tools/measure.py</code>).</li>
+<li>The <code>replay-metrics</code> pre-commit hook (<code>scripts/measure_staged_replays.py</code>) runs it whenever
+    this machine has not measured the staged code tree, so every commit carries its measurements.</li>
+</ul>
+<pre class="mermaid"><code>flowchart LR
+    change["intended change&lt;br/&gt;to a game"] --&gt; rb["--rebaseline OLD NEW&lt;br/&gt;(review the summary)"]
+    rb --&gt; replace["replace OLD with NEW&lt;br/&gt;(deliberate step)"]
+    replace --&gt; commit["git commit"]
+    commit --&gt; hook["replay-metrics hook:&lt;br/&gt;measure = rebaseline each recording&lt;br/&gt;into a temp file"]
+    hook --&gt; rows["ledger rows&lt;br/&gt;staged into the commit"]
+    commit --&gt; suite["test run: golden replays&lt;br/&gt;must match"]</code></pre>
+<p>Flags and exits: <a href="../../gameplay_replay/#rebaselining-rebaseline-new">Rebaselining</a> and
+<a href="../../gameplay_replay/#tools-for-any-game">Tools for any game</a>.</p>
+<h2 id="the-determinism-audit">The determinism audit<a class="headerlink" href="#the-determinism-audit" title="Permanent link">#</a></h2>
+<p><strong>Intent:</strong> catch nondeterminism that slipped past the doors (<code>src/glitchygames/replay/audit.py</code>).</p>
+<ul>
+<li><code>--replay-trace PATH --audit</code> runs the replay as <strong>two fresh child processes</strong>, headless, each
+  with a different <code>PYTHONHASHSEED</code> (<code>AUDIT_HASH_SEEDS</code> = <code>'1'</code>, <code>'2'</code>) and a <code>--replay-digest</code>
+  file: one SHA-256 per replayed frame.</li>
+<li>Fresh processes give fresh engine state, and different hash seeds expose set and dict ordering
+  bugs.</li>
+<li>The audit fails if either run diverged from the recording, or if the two digest streams differ.</li>
+<li>It compares the sampled frame only (scene class, each sprite's rect, visibility and draw order),
+  so nondeterminism that never moves, hides or reorders a sprite goes unnoticed.</li>
+<li>A child running longer than <code>AUDIT_REPLAY_TIMEOUT_SECONDS</code> = 3600 s is an <code>AuditRunError</code>.</li>
+</ul>
+<pre class="mermaid"><code>flowchart LR
+    audit["--audit"] --&gt; a["child 1&lt;br/&gt;PYTHONHASHSEED=1&lt;br/&gt;--headless --replay-digest A"]
+    audit --&gt; b["child 2&lt;br/&gt;PYTHONHASHSEED=2&lt;br/&gt;--headless --replay-digest B"]
+    a --&gt; cmp{"both matched the recording&lt;br/&gt;and digests A == B?"}
+    b --&gt; cmp
+    cmp -- yes --&gt; ok["SUCCESS"]
+    cmp -- no --&gt; bad["AUDIT_NONDETERMINISTIC&lt;br/&gt;(first differing frame)"]</code></pre>
+<p>Flags: <a href="../../gameplay_replay/#the-determinism-audit-audit">The determinism audit</a>.</p>
+<h2 id="the-doors-guard">The doors guard<a class="headerlink" href="#the-doors-guard" title="Permanent link">#</a></h2>
+<p><strong>Intent:</strong> nothing in the engine reads input or time from outside the doors, so a replay reaches
+all of it (<code>tests/test_engine_doors.py</code>).</p>
+<ul>
+<li>The test parses every engine source file and follows imports and aliases of the watched modules
+  (<code>time</code>, <code>datetime</code>, <code>pygame</code> and its event, key, mouse, time and joystick modules, ...;
+  <code>WATCHED_DOOR_MODULES</code>).</li>
+<li>It fails on any direct read outside <code>ALLOWED_BYPASSES</code> and <code>ALLOWED_FUNCTION_BYPASSES</code>, each of
+  which names its reason.</li>
+<li>The allowed paths are those <code>src/glitchygames/clock.py</code> names: <code>measured_seconds()</code>, pacing, the
+  performance statistics, the audio-glitch probe and the recording's own start stamp.</li>
+</ul>
+<h2 id="the-memory-guard">The memory guard<a class="headerlink" href="#the-memory-guard" title="Permanent link">#</a></h2>
+<p><strong>Intent:</strong> a test that runs CI's 2 GB Linux container out of memory stops the run and names the
+test, instead of the kernel killing the job silently (<code>tests/memory_guard.py</code>;
+<code>tests/test_memory_guard.py</code>).</p>
+<ul>
+<li>It is on only when <code>GLITCHYGAMES_TEST_RSS_LIMIT_MB</code> is set; CircleCI's Linux job sets 1600.</li>
+<li>A background thread samples memory every <code>SAMPLE_INTERVAL_SECONDS</code>, and each test's start and
+  end are checked too.</li>
+<li>It reads the container's memory (cgroup v2) where there is one, else this process's resident
+  memory, and does nothing on macOS or Windows.</li>
+<li>It matters for playback because the golden replays and the tools' tests start child processes,
+  and the container's figure counts them.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../recording-file/" class="btn btn-neutral float-left" title="The Recording File"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../engine_context/" class="btn btn-neutral float-right" title="Engine Context">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../recording-file/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../engine_context/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      <script src="../../../js/mermaid-init.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
