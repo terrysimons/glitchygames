@@ -4,6 +4,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 238. `ALL_EVENTS` Listed Type 0 Twice: 'Unknown' Was Patched Into the Key Code K_UNKNOWN
+- **Description**: `supported_events` (`src/glitchygames/events/base.py`) meant to drop the name pygame gives every id it does not name, `'Unknown'`, with `set(names) - set('Unknown')`; that subtracts the set of its letters, so `'Unknown'` stayed, and its patch (`'UNKNOWN': 'K_UNKNOWN'`) turned it into `pygame.K_UNKNOWN`, a key code (0). `ALL_EVENTS` held 0 twice: once as NOEVENT (pygame names id 0 `'NoEvent'`) and once as K_UNKNOWN. `GAME_EVENTS` is built from a set, so it held 0 once either way, and `GameEngine.EVENT_HANDLERS` was the same; the only effect was `SceneManager._log_blocked_events` naming `NoEvent` twice when it was blocked
+- **Status**: Resolved (2026-10-28: `- {'Unknown'}`; no recording holds a type-0 event, and `GAME_EVENTS` and the handler table are unchanged)
+- **Priority**: Low (a duplicate in a list; no dispatch or recording changed)
+- **Reporter**: Found making the event-name scan run once per process (`pygame_event_names`, feature/test-speed)
+- **Date Reported**: 2026-10-28
+- **Details**: Type 0 stays in `ALL_EVENTS` once, as NOEVENT: a name pygame gives, like every other listed type. `test_unknown_is_no_event_name_and_no_key_code_is_an_event_type` (`tests/events/test_events_core.py`) checks that `'Unknown'` is not among the names, that 0 is listed once and that no type is listed twice
+- **Files**: `src/glitchygames/events/base.py`, `tests/events/test_events_core.py`
+
 ### 237. The Serial Suite's Container Peak Ran Past 1600 MiB: Tests' Class Instances, Uncollected Scenes, Replays Holding Whole Recordings
 - **Description**: With the memory guard (`tests/memory_guard.py`) reading the container's memory, page cache left out, a healthy `nox -s test-linux-ci` (CircleCI's Linux job mirrored: serial, 2 GB, 1 CPU) passed 1600 MiB: stopped at 1621 MiB at 63%, during Mr. Muncher's golden replay, and run to the end with a 2000 MiB limit it peaked at 1781 MiB. Four sources, each measured: (1) pytest keeps every test function's class instance for the whole run (pytest 9.1, `Function.instance`), so whatever a `setup_method` put on `self` stayed alive: after Bitmappy's tests 79 `BitmapEditorScene`s and 230 MiB of their surfaces, and the pytest process climbed to about 1.3 GB in the suite's last tests; (2) the garbage collector ran only when the process's peak grew 16 MiB, so later tests' scenes (cycles holding surfaces) piled up to whatever the peak had been; (3) a headless replay (`ReplaySources.from_path`) decoded its recording into independent frames, a copy of every sprite record per frame: Mr. Muncher's 73 KB golden was about 135 MiB of objects, its replay child 322 MiB beside pytest; `golden_recording` in `tests/replay/test_golden_replays.py` did the same in the pytest process; (4) the root-tests import scans (`tests/test_suite_collection.py`) held every parsed file of `tests/` at once (+112 MiB and +51 MiB to the process)
 - **Status**: Resolved (2026-10-28)

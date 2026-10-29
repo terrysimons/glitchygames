@@ -1402,6 +1402,19 @@ class TestEventSystemEdgeCases:
         # Patched name should map to REMAPPED constant value we provided
         assert ctrls == [4]
 
+    def test_unknown_is_no_event_name_and_no_key_code_is_an_event_type(self):
+        """Ids pygame does not name ('Unknown') are left out: ALL_EVENTS holds no K_UNKNOWN.
+
+        Type 0 is NOEVENT, a name pygame gives (``'NoEvent'``), so it is listed once; it was
+        listed twice while 'Unknown' was patched into K_UNKNOWN, also 0 (BUGS.md #238).
+        """
+        assert 'Unknown' not in pygame_event_names()
+        assert 'NoEvent' in pygame_event_names()
+        # K_UNKNOWN and NOEVENT are both 0: one 0, NOEVENT's, and no type listed twice
+        assert pygame.K_UNKNOWN == pygame.NOEVENT == 0
+        assert ALL_EVENTS.count(0) == 1
+        assert len(ALL_EVENTS) == len(set(ALL_EVENTS))
+
     def test_supported_events_with_real_pygame(self):
         """With the real pygame, the patterns find the real event constants."""
         keyboard_events = supported_events(like='KEY.*?')

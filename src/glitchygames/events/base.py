@@ -68,11 +68,14 @@ def pygame_event_names() -> frozenset[str]:
 
     """
     # Get a list of all of the events
-    # by name, but ignore duplicates.
+    # by name, but ignore duplicates, and 'Unknown', the name of every id pygame does not name
+    # (it was ``set('Unknown')``, the set of its letters, so 'Unknown' stayed and the patch below
+    # turned it into K_UNKNOWN, a key code: ALL_EVENTS held 0 twice, as NOEVENT and as K_UNKNOWN,
+    # BUGS.md #238)
     event_name_generator = (
         pygame.event.event_name(event_num) for event_num in range(pygame.NUMEVENTS)
     )
-    return frozenset(set(event_name_generator) - set('Unknown'))
+    return frozenset(set(event_name_generator) - {'Unknown'})
 
 
 def supported_events(like: str = '.*') -> list[int]:
