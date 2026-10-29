@@ -27,6 +27,7 @@ from glitchygames.recording_history import (
     CONTENT_HASH_SCHEME,
     MEASUREMENT_RUNS_HEADER_FIELD,
     PROCESSING_SECONDS_FIELD,
+    FrameTimeSummary,
     MeasurementRun,
     RunSummary,
 )
@@ -336,4 +337,37 @@ def test_a_summary_without_a_budget_or_frame_times_stops_at_its_worst_frame():
 
     assert describe_summary(summary=summary) == (
         '3 frames, processing p50 1.000 ms, p95 1.000 ms, p99 1.000 ms, max 1.000 ms (frame 0)'
+    )
+
+
+def test_a_summary_with_its_slice_means_shows_headroom_and_achieved_fps():
+    """FPS beside the milliseconds: the processing times' headroom, a live run's achieved rate."""
+    summary = RunSummary(
+        measured_frames=4,
+        total_processing_seconds=0.016,
+        p50_processing_seconds=0.004,
+        p95_processing_seconds=0.005,
+        p99_processing_seconds=0.005,
+        max_processing_seconds=0.005,
+        worst_frame=3,
+        worst_frame_scene='Game',
+        budget_seconds=None,
+        frames_over_budget=None,
+        frame_time=FrameTimeSummary(
+            p50_seconds=0.016,
+            p99_seconds=0.02,
+            max_seconds=0.02,
+            late_frames=None,
+            mean_seconds=0.016,
+            slowest_5_percent_mean_seconds=0.02,
+            fastest_5_percent_mean_seconds=0.0125,
+        ),
+        slowest_5_percent_mean_processing_seconds=0.005,
+        fastest_5_percent_mean_processing_seconds=0.002,
+    )
+
+    assert describe_summary(summary=summary) == (
+        '4 frames, processing p50 4.000 ms, p95 5.000 ms, p99 5.000 ms, max 5.000 ms '
+        '(frame 3, scene Game); headroom avg 250 fps (5% low 200, 5% high 500); frame time p50 '
+        '16.000 ms, p99 20.000 ms, max 20.000 ms, achieved avg 62 fps (5% low 50, 5% high 80)'
     )

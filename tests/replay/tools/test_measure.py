@@ -50,6 +50,7 @@ from glitchygames.replay.tools.measure import (
     UnreplayableRecording,
     clear_published,
     combined_exit_code,
+    describe_measurement,
     ensure_directory,
     missing_measurements,
     recording_ledger_name,
@@ -2157,3 +2158,36 @@ def test_a_game_that_never_ends_is_stopped_at_the_projects_timeout_and_fails(tmp
         child_left_running = True
         os.kill(child_pid, signal.SIGKILL)
     assert not child_left_running
+
+
+def test_a_measurement_line_shows_headroom_fps_beside_the_milliseconds():
+    """The replay is unpaced: 1 / its processing times is its headroom."""
+    row = ledger_row(p50=0.004)
+    assert row.summary is not None
+    current = row.model_copy(
+        update={
+            'summary': row.summary.model_copy(
+                update={
+                    'slowest_5_percent_mean_processing_seconds': 0.012,
+                    'fastest_5_percent_mean_processing_seconds': 0.002,
+                }
+            )
+        }
+    )
+
+    assert describe_measurement(row=current, seconds=1.25, pending_rows=2) == (
+        f'{row.recording}: 10 frames in 1.2 s, processing p50 4.000 ms, p99 8.000 ms, max '
+        '12.000 ms, headroom avg 250 fps (5% low 83, 5% high 500), 0 frames changed behaviour, '
+        '2 rows pending'
+    )
+    # A row from before the slice means keeps the line it always had
+    assert describe_measurement(row=row, seconds=1.25, pending_rows=2) == (
+        f'{row.recording}: 10 frames in 1.2 s, processing p50 4.000 ms, p99 8.000 ms, max '
+        '12.000 ms, 0 frames changed behaviour, 2 rows pending'
+    )
+    assert describe_measurement(
+        row=row.model_copy(update={'summary': None}), seconds=1.25, pending_rows=2
+    ) == (
+        f'{row.recording}: 10 frames in 1.2 s, no processing times, 0 frames changed behaviour, '
+        '2 rows pending'
+    )
