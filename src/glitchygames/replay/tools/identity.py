@@ -12,7 +12,9 @@ The game passes itself to the engine (``GameEngine(game=Game)``) and declares no
   in that package and starts the game's module (``children.console_script_for_game_module``);
 - **distribution**: the installed distribution that holds the package
   (``importlib.metadata.packages_distributions``), else the console script's distribution (an
-  editable install's metadata lists no packages, only its ``.pth`` file);
+  editable install's metadata lists no packages, only its ``.pth`` file); looked up when first
+  read, never as the identity is made: the lookup scans every installed file (0.6 s here, and
+  far more on a loaded machine), and no tool reads it;
 - **source revision** (``game_source_revision``): the package directory's commit, looked up as
   the engine's own is; each run records it beside the engine's, and a ledger row names it.
 
@@ -23,6 +25,7 @@ has an identity.
 from __future__ import annotations
 
 import dataclasses
+import functools
 import importlib.metadata
 import importlib.util
 import sys
@@ -37,6 +40,7 @@ from glitchygames.replay.tools.children import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from importlib.machinery import ModuleSpec
     from importlib.metadata import EntryPoint
 
@@ -49,6 +53,10 @@ ENTRY_POINT_SEPARATOR = ':'
 SCRIPT_MODULE = '__main__'
 
 
+def no_distribution() -> None:
+    """Find no distribution: the default of an identity made without a way to find one."""
+
+
 @dataclasses.dataclass(frozen=True)
 class GameIdentity:
     """What the tools know about a game from its scene class.
@@ -57,14 +65,27 @@ class GameIdentity:
         package: The top-level package of the scene class's module.
         package_directory: Where that package is, or None when it can't be found.
         console_script: The installed console script that starts the game, or None.
-        distribution: The installed distribution holding the package, or None.
+        find_distribution: How to find ``distribution`` when it is first read (not compared:
+            two identities of one game are equal however each finds it).
 
     """
 
     package: str
     package_directory: Path | None
     console_script: str | None
-    distribution: str | None
+    find_distribution: Callable[[], str | None] = dataclasses.field(
+        default=no_distribution, compare=False, repr=False, kw_only=True
+    )
+
+    @functools.cached_property
+    def distribution(self) -> str | None:
+        """The installed distribution holding the package, or None (found when first read).
+
+        Returns:
+            What ``find_distribution`` finds, then the same answer for every later read.
+
+        """
+        return self.find_distribution()
 
 
 def _specification(*, package: str) -> ModuleSpec | None:
@@ -136,6 +157,16 @@ def distribution_of(*, package: str, entry_point: EntryPoint | None) -> str | No
     return None if entry_point is None or entry_point.dist is None else entry_point.dist.name
 
 
+def console_script_distribution(*, entry_point: EntryPoint) -> str | None:
+    """Return the distribution that installs a console script's entry point.
+
+    Returns:
+        Its name, or None when the entry point names none.
+
+    """
+    return None if entry_point.dist is None else entry_point.dist.name
+
+
 def game_identity(*, game: type[Scene] | Scene) -> GameIdentity:
     """Return a game's identity from its scene class (or a scene of that class).
 
@@ -144,7 +175,8 @@ def game_identity(*, game: type[Scene] | Scene) -> GameIdentity:
 
     Returns:
         Its package, package directory, console script and distribution (see the module
-        docstring); each of the last three is None when not found.
+        docstring); each of the last three is None when not found. The distribution is looked
+        up when first read (``GameIdentity.distribution``), with the import path as it is then.
 
     """
     scene_class = game if isinstance(game, type) else type(game)
@@ -155,7 +187,9 @@ def game_identity(*, game: type[Scene] | Scene) -> GameIdentity:
         package=package,
         package_directory=package_directory_of(package=package),
         console_script=None if entry_point is None else entry_point.name,
-        distribution=distribution_of(package=package, entry_point=entry_point),
+        find_distribution=functools.partial(
+            distribution_of, package=package, entry_point=entry_point
+        ),
     )
 
 
@@ -185,7 +219,7 @@ def console_script_identity(*, console_script: str) -> GameIdentity:
         package=package,
         package_directory=package_directory_of(package=package),
         console_script=console_script,
-        distribution=None if entry_point.dist is None else entry_point.dist.name,
+        find_distribution=functools.partial(console_script_distribution, entry_point=entry_point),
     )
 
 

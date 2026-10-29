@@ -502,9 +502,7 @@ def test_the_game_flag_finds_this_games_recordings_in_the_current_directory(
     """With no paths, the game's own: ``game_recordings`` of its identity, in the project here."""
     (tmp_path / 'pyproject.toml').write_text('', encoding='utf-8')
     monkeypatch.chdir(tmp_path)
-    identity = GameIdentity(
-        package='a_game', package_directory=None, console_script='a-game', distribution=None
-    )
+    identity = GameIdentity(package='a_game', package_directory=None, console_script='a-game')
     mocker.patch.object(verify, 'game_identity', return_value=identity)
     found = mocker.patch.object(verify, 'game_recordings', return_value=[])
 
@@ -822,9 +820,7 @@ def test_no_project_above_the_current_directory_is_said(tmp_path, mocker, monkey
     """No pyproject.toml here or above: said on both front ends, and the current directory used."""
     mocker.patch.object(verify, 'find_project_root', return_value=None)
     monkeypatch.chdir(tmp_path)
-    identity = GameIdentity(
-        package='a_game', package_directory=None, console_script='a-game', distribution=None
-    )
+    identity = GameIdentity(package='a_game', package_directory=None, console_script='a-game')
     mocker.patch.object(verify, 'game_identity', return_value=identity)
     found = mocker.patch.object(verify, 'game_recordings', return_value=[])
 

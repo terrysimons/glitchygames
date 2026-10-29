@@ -1924,7 +1924,6 @@ def test_a_games_revision_is_its_own_else_the_engines():
                 package='no_such_game',
                 package_directory=None,
                 console_script=None,
-                distribution=None,
             )
         )
         == source_revision()

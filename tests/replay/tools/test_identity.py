@@ -7,6 +7,7 @@ process never imports the stand-in package (its metadata and directory are only 
 
 from __future__ import annotations
 
+import importlib.metadata
 import sys
 import types
 
@@ -49,8 +50,8 @@ def test_a_game_knows_its_package_and_console_script(tmp_path, monkeypatch):
         package='stand_in_rally',
         package_directory=tmp_path / 'stand_in_rally',
         console_script=game.console_script,
-        distribution=game.distribution,
     )
+    assert identity.distribution == game.distribution
     # A scene object is identified by its class
     assert game_identity(game=object.__new__(scene_class)) == identity
 
@@ -65,11 +66,9 @@ def test_a_game_with_no_console_script_still_has_an_identity(tmp_path, monkeypat
     identity = game_identity(game=scene_class_in(module='loose_game'))
 
     assert identity == GameIdentity(
-        package='loose_game',
-        package_directory=package_directory,
-        console_script=None,
-        distribution=None,
+        package='loose_game', package_directory=package_directory, console_script=None
     )
+    assert identity.distribution is None
 
 
 def test_a_game_in_a_single_module_has_that_modules_directory(tmp_path, monkeypatch):
@@ -128,8 +127,9 @@ def test_a_game_run_as_a_script_lives_in_the_scripts_directory(tmp_path, mocker)
     identity = game_identity(game=scene_class_in(module='__main__'))
 
     assert identity == GameIdentity(
-        package='__main__', package_directory=tmp_path, console_script=None, distribution=None
+        package='__main__', package_directory=tmp_path, console_script=None
     )
+    assert identity.distribution is None
 
 
 def test_a_game_whose_module_cannot_be_found_has_no_directory(mocker):
@@ -142,11 +142,9 @@ def test_a_game_whose_module_cannot_be_found_has_no_directory(mocker):
 
     assert identity.package_directory is None
     assert nowhere == GameIdentity(
-        package='not_anywhere_at_all',
-        package_directory=None,
-        console_script=None,
-        distribution=None,
+        package='not_anywhere_at_all', package_directory=None, console_script=None
     )
+    assert nowhere.distribution is None
 
 
 def test_a_console_scripts_game_is_known_without_importing_it(tmp_path, monkeypatch):
@@ -161,6 +159,27 @@ def test_a_console_scripts_game_is_known_without_importing_it(tmp_path, monkeypa
     identity = console_script_identity(console_script=game.console_script)
 
     assert identity == game_identity(game=scene_class_in(module='stand_in_rally.game'))
+    assert identity.distribution == game.distribution
     assert 'stand_in_rally' not in sys.modules
     with pytest.raises(KeyError):
         console_script_identity(console_script='glitchygames-no-such-game')
+
+
+def test_the_distribution_is_looked_up_only_when_read_and_once(tmp_path, monkeypatch, mocker):
+    """Making an identity scans no installed files; reading its distribution does, once.
+
+    The scan (``importlib.metadata.packages_distributions``) reads every installed
+    distribution's files, and no tool reads the distribution.
+    """
+    game = write_stand_in_game(directory=tmp_path, package='stand_in_rally')
+    use_stand_in_game(install_directory=tmp_path, monkeypatch=monkeypatch)
+    scan = mocker.spy(importlib.metadata, 'packages_distributions')
+
+    identity = game_identity(game=scene_class_in(module='stand_in_rally.game'))
+    scanned_on_making = scan.call_count
+    first = identity.distribution
+    second = identity.distribution
+
+    assert scanned_on_making == 0
+    assert scan.call_count == 1
+    assert first == second == game.distribution
