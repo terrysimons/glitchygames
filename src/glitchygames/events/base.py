@@ -53,6 +53,31 @@ NO_PROXIES_MSG = 'No proxies for {cls}.{attr}'
 MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 
 
+@functools.cache
+def pygame_event_names() -> frozenset[str]:
+    """Return the names pygame gives its event ids, scanned once per process.
+
+    The scan asks ``pygame.event.event_name`` for every id below ``pygame.NUMEVENTS`` (65,536
+    calls, about 4 ms), and ``supported_events`` runs a dozen times as this module is imported:
+    every process the engine starts paid for it a dozen times. The names are the installed
+    pygame's own (a table compiled into it, the same before and after ``pygame.init()`` and
+    ``pygame.event.custom_type()``), so one scan answers every call.
+
+    Returns:
+        The names, duplicates dropped (as ``supported_events`` always read them).
+
+    """
+    # Get a list of all of the events
+    # by name, but ignore duplicates, and 'Unknown', the name of every id pygame does not name
+    # (it was ``set('Unknown')``, the set of its letters, so 'Unknown' stayed and the patch below
+    # turned it into K_UNKNOWN, a key code: ALL_EVENTS held 0 twice, as NOEVENT and as K_UNKNOWN,
+    # BUGS.md #238)
+    event_name_generator = (
+        pygame.event.event_name(event_num) for event_num in range(pygame.NUMEVENTS)
+    )
+    return frozenset(set(event_name_generator) - {'Unknown'})
+
+
 def supported_events(like: str = '.*') -> list[int]:
     """Return a list of supported events.
 
@@ -66,7 +91,8 @@ def supported_events(like: str = '.*') -> list[int]:
 
     We enumerate all pygame event IDs and then use the pygame.event.event_name()
     method to get the event name.  We then use a regular expression to
-    match the event name against the like parameter.
+    match the event name against the like parameter. The names are scanned once per process
+    (``pygame_event_names``).
 
     Args:
         like: A regular expression to match against the event names.
@@ -75,12 +101,7 @@ def supported_events(like: str = '.*') -> list[int]:
         A list of pygame events whose names match the regular expression.
 
     """
-    # Get a list of all of the events
-    # by name, but ignore duplicates.
-    event_name_generator = (
-        pygame.event.event_name(event_num) for event_num in range(pygame.NUMEVENTS)
-    )
-    event_names: set[str] = set(event_name_generator) - set('Unknown')
+    event_names = pygame_event_names()
 
     # Pygame 2.5.1 and maybe others have a bug where the event name lookup
     # is wrong.

@@ -33,7 +33,9 @@ from tests.replay.tools.test_golden_trace_harness import SeededWanderScene
 from tests.stand_in_games import (
     RECORD_TIMEOUT_SECONDS,
     StandInGame,
+    copy_recording,
     record_stand_in_game,
+    record_stand_in_game_once,
     use_stand_in_game,
     write_stand_in_game,
 )
@@ -71,6 +73,42 @@ def stand_in_game(tmp_path_factory, monkeypatch) -> StandInGame:
     game = write_stand_in_game(directory=install_directory)
     use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
     return game
+
+
+@pytest.fixture(scope='module')
+def recorded_without_a_seed(tmp_path_factory) -> Path:
+    """Record the stand-in game once per module (and xdist worker), no seed given: one rolled.
+
+    From the stand-in installed for it alone (a test's own install is the same game). Each test
+    copies it before reading it.
+
+    Returns:
+        The recording.
+
+    """
+    root = tmp_path_factory.mktemp('recorded-without-a-seed')
+    return record_stand_in_game_once(
+        game=write_stand_in_game(directory=root / 'site-packages'),
+        path=root / 'recorded.jsonl.gz',
+    )
+
+
+@pytest.fixture(scope='module')
+def recorded_under_the_given_seed(tmp_path_factory) -> Path:
+    """Record the stand-in game once per module (and xdist worker) under GIVEN_RECORDING_SEED.
+
+    As ``recorded_without_a_seed``, but given the seed.
+
+    Returns:
+        The recording.
+
+    """
+    root = tmp_path_factory.mktemp('recorded-under-the-given-seed')
+    return record_stand_in_game_once(
+        game=write_stand_in_game(directory=root / 'site-packages'),
+        path=root / 'recorded.jsonl.gz',
+        extra_arguments=('--random-seed', str(GIVEN_RECORDING_SEED)),
+    )
 
 
 def recorded_seed(*, path: Path) -> int:
@@ -154,20 +192,18 @@ def test_a_recording_without_a_seed_rolls_one_each_time(stand_in_game, tmp_path)
     assert recorded_seed(path=first) != recorded_seed(path=second)
 
 
-def test_a_recording_given_a_seed_records_it(stand_in_game, tmp_path):
+def test_a_recording_given_a_seed_records_it(recorded_under_the_given_seed, tmp_path):
     """Record, given: the seed is used as is, and the header names it."""
-    path = record_stand_in_game(
-        game=stand_in_game,
-        path=tmp_path / 'given.jsonl.gz',
-        extra_arguments=('--random-seed', str(GIVEN_RECORDING_SEED)),
-    )
+    path = copy_recording(recording=recorded_under_the_given_seed, path=tmp_path / 'given.jsonl.gz')
 
     assert recorded_seed(path=path) == GIVEN_RECORDING_SEED
 
 
-def test_a_replay_without_a_seed_uses_the_recordings_and_matches(stand_in_game, tmp_path):
+def test_a_replay_without_a_seed_uses_the_recordings_and_matches(
+    stand_in_game, recorded_without_a_seed, tmp_path
+):
     """Replay, None: the recording's seed, so the seeded mover replays exactly."""
-    path = record_stand_in_game(game=stand_in_game, path=tmp_path / 'recorded.jsonl.gz')
+    path = copy_recording(recording=recorded_without_a_seed, path=tmp_path / 'recorded.jsonl.gz')
 
     status, output = replay_stand_in_game(game=stand_in_game, path=path)
 
@@ -176,12 +212,12 @@ def test_a_replay_without_a_seed_uses_the_recordings_and_matches(stand_in_game, 
     assert_the_replay_compares(game=stand_in_game, path=path, extra_arguments=())
 
 
-def test_a_replay_given_the_recordings_own_seed_matches(stand_in_game, tmp_path):
+def test_a_replay_given_the_recordings_own_seed_matches(
+    stand_in_game, recorded_under_the_given_seed, tmp_path
+):
     """Replay, given the recorded seed: allowed, and it replays exactly."""
-    path = record_stand_in_game(
-        game=stand_in_game,
-        path=tmp_path / 'recorded.jsonl.gz',
-        extra_arguments=('--random-seed', str(GIVEN_RECORDING_SEED)),
+    path = copy_recording(
+        recording=recorded_under_the_given_seed, path=tmp_path / 'recorded.jsonl.gz'
     )
 
     status, output = replay_stand_in_game(
@@ -198,7 +234,9 @@ def test_a_replay_given_the_recordings_own_seed_matches(stand_in_game, tmp_path)
     )
 
 
-def test_a_replay_given_another_seed_plays_out_under_it_and_writes_nothing(stand_in_game, tmp_path):
+def test_a_replay_given_another_seed_plays_out_under_it_and_writes_nothing(
+    stand_in_game, recorded_under_the_given_seed, tmp_path
+):
     """Replay, given another seed: played out under it, not compared, nothing written.
 
     Headless it prints what differed from the recording (as a rebaseline does), says nothing was
@@ -207,10 +245,8 @@ def test_a_replay_given_another_seed_plays_out_under_it_and_writes_nothing(stand
     """
     recording_directory = tmp_path / 'recording'
     recording_directory.mkdir()
-    path = record_stand_in_game(
-        game=stand_in_game,
-        path=recording_directory / 'recorded.jsonl.gz',
-        extra_arguments=('--random-seed', str(GIVEN_RECORDING_SEED)),
+    path = copy_recording(
+        recording=recorded_under_the_given_seed, path=recording_directory / 'recorded.jsonl.gz'
     )
     recording_bytes = path.read_bytes()
     working_directory = tmp_path / 'working'
@@ -237,12 +273,12 @@ def test_a_replay_given_another_seed_plays_out_under_it_and_writes_nothing(stand
     assert list(working_directory.iterdir()) == []
 
 
-def test_an_audit_given_another_seed_is_refused_before_it_runs(stand_in_game, tmp_path):
+def test_an_audit_given_another_seed_is_refused_before_it_runs(
+    stand_in_game, recorded_under_the_given_seed, tmp_path
+):
     """``--audit`` under another seed: refused, naming both seeds, the replay and rebaseline."""
-    path = record_stand_in_game(
-        game=stand_in_game,
-        path=tmp_path / 'recorded.jsonl.gz',
-        extra_arguments=('--random-seed', str(GIVEN_RECORDING_SEED)),
+    path = copy_recording(
+        recording=recorded_under_the_given_seed, path=tmp_path / 'recorded.jsonl.gz'
     )
 
     status, output = replay_stand_in_game(
@@ -258,12 +294,12 @@ def test_an_audit_given_another_seed_is_refused_before_it_runs(stand_in_game, tm
     assert 'Auditing ' not in output
 
 
-def test_a_rebaseline_given_a_seed_replays_under_it_and_records_it(stand_in_game, tmp_path):
+def test_a_rebaseline_given_a_seed_replays_under_it_and_records_it(
+    stand_in_game, recorded_under_the_given_seed, tmp_path
+):
     """``--rebaseline NEW --random-seed N``: the engine uses N, NEW names it, OLD is untouched."""
-    path = record_stand_in_game(
-        game=stand_in_game,
-        path=tmp_path / 'recorded.jsonl.gz',
-        extra_arguments=('--random-seed', str(GIVEN_RECORDING_SEED)),
+    path = copy_recording(
+        recording=recorded_under_the_given_seed, path=tmp_path / 'recorded.jsonl.gz'
     )
     recording_bytes = path.read_bytes()
     rebaselined = tmp_path / 'rebaselined.jsonl.gz'
@@ -283,9 +319,11 @@ def test_a_rebaseline_given_a_seed_replays_under_it_and_records_it(stand_in_game
     assert path.read_bytes() == recording_bytes
 
 
-def test_a_rebaseline_without_a_seed_keeps_the_recordings(stand_in_game, tmp_path):
+def test_a_rebaseline_without_a_seed_keeps_the_recordings(
+    stand_in_game, recorded_without_a_seed, tmp_path
+):
     """``--rebaseline NEW`` alone replays under OLD's seed, and NEW names it."""
-    path = record_stand_in_game(game=stand_in_game, path=tmp_path / 'recorded.jsonl.gz')
+    path = copy_recording(recording=recorded_without_a_seed, path=tmp_path / 'recorded.jsonl.gz')
     rebaselined = tmp_path / 'rebaselined.jsonl.gz'
 
     status, output = replay_stand_in_game(
