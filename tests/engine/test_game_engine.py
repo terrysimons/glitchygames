@@ -273,7 +273,15 @@ class TestGameEngineInitializeArguments:
         assert result['update_type'] == 'flip'
         assert result['target_fps'] == 30.0
         assert result['log_level'] == 'warning'
-        assert EngineTestGame.options is result
+
+    def test_parsing_the_options_leaves_the_game_class_alone(self, mocker):
+        """Two contexts running one game class never share its options (new audit row C20)."""
+        mocker.patch.object(sys, 'argv', ['test_game_engine', *ENGINE_TEST_ARGUMENTS])
+        options_before = vars(EngineTestGame).get('options')
+
+        GameEngine.initialize_arguments(EngineTestGame)
+
+        assert vars(EngineTestGame).get('options') is options_before
 
     def test_initialize_arguments_adds_the_game_options(self, mocker):
         """A game's args() class method adds its options to the engine's command line."""

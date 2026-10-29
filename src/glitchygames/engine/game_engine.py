@@ -1307,7 +1307,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             game: The game instance.
 
         Returns:
-            options (dict[str, Any]): The game arguments.
+            options (dict[str, Any]): The game arguments. They are returned, never stored on
+                the game: the game's class is shared by every context, so each engine keeps its
+                own (``self.options``) and the scene gets them at construction.
 
         """
         parser: argparse.ArgumentParser = argparse.ArgumentParser(
@@ -1356,9 +1358,6 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             command_line_target_fps=options.get('target_fps'),
             game=game,
         )
-
-        # Back propagate the options
-        game.options = options
 
         return options
 
