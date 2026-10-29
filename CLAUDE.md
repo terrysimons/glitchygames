@@ -1056,7 +1056,10 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   saves), `GhostSprite(track=..., image_for=images_from_animated_sprite(sprite))` with
   `ghost.scene = scene` (a WORLD sprite following `scene.game_time`; no hitbox)
 - Part 2 and Part 3 are done; follow-ups (state snapshots, cheat device) are in
-  `plans/future-work.md`. User docs: `docs/architecture/gameplay_replay.md`
+  `plans/future-work.md`. User docs: `docs/architecture/gameplay_replay.md` (the command
+  reference) and `docs/architecture/playback/` (how it fits together, with diagrams: the overview,
+  how a frame runs, speeds and timing, the recording file with its stored and derived fields, and
+  how playback is tested)
 
 **Engine Context** (`src/glitchygames/engine_context.py`; design `plans/2026-10-25-engine-context.md`)
 - The state one running game owns, so several games can run in one process (the Arcade's demo
