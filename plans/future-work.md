@@ -600,8 +600,9 @@ only replays; Part 2 Task 1).
   Adventurer frame, ~20 us of ~2 ms, and need their defaults for foreign sprites.
 - **FPS figures follow-ups (2026-10-28, feature/fps-metrics).** (1) The goldens and the rally
   demo were not rebaselined to carry the new figures in their headers: every rebaseline
-  rewrites frame 0's `scene_start.scene_module` (and the header's `game_module`) from the old
-  `glitchygames.examples.*` module to the member's (`paddleslap`, `clockwork_keep.game`, ...),
+  rewrites frame 0's `scene_start.scene_module` (and the header's `game_module`) from the
+  module the game had before the workspace-packages move to the member's (`paddleslap`,
+  `clockwork_keep.game`, ...),
   which changes each recording's content hash, and the members' tests pin the old module
   (`test_paddleslap_recording_history.py` and its siblings). The owner decides whether to
   rebaseline (and update those tests) or keep the goldens. Until then `report` computes run 0's

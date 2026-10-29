@@ -371,3 +371,27 @@ def test_a_summary_with_its_slice_means_shows_headroom_and_achieved_fps():
         '(frame 3, scene Game); headroom avg 250 fps (5% low 200, 5% high 500); frame time p50 '
         '16.000 ms, p99 20.000 ms, max 20.000 ms, achieved avg 62 fps (5% low 50, 5% high 80)'
     )
+
+
+def test_frame_times_from_before_the_mean_show_no_achieved_fps():
+    """A live run's stored frame times from before the slice means keep their old clause."""
+    summary = RunSummary(
+        measured_frames=1,
+        total_processing_seconds=0.001,
+        p50_processing_seconds=0.001,
+        p95_processing_seconds=0.001,
+        p99_processing_seconds=0.001,
+        max_processing_seconds=0.001,
+        worst_frame=0,
+        worst_frame_scene=None,
+        budget_seconds=None,
+        frames_over_budget=None,
+        frame_time=FrameTimeSummary(
+            p50_seconds=0.016, p99_seconds=0.016, max_seconds=0.016, late_frames=None
+        ),
+    )
+
+    assert describe_summary(summary=summary) == (
+        '1 frames, processing p50 1.000 ms, p95 1.000 ms, p99 1.000 ms, max 1.000 ms (frame 0); '
+        'frame time p50 16.000 ms, p99 16.000 ms, max 16.000 ms'
+    )
