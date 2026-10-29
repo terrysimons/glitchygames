@@ -172,7 +172,7 @@ arc was lost. What follows is left.
   (`plans/2026-10-27-engine-context-2-engine-state.md`, C7) names the scene manager's copy of the
   engine's options `engine_options`, not `options`, because the event managers are built with the
   scene manager as their `game` and `unhandled_event` reads `getattr(game, 'options', None)`
-  (`src/glitchygames/events/base.py:229`): an `options` attribute there would switch on
+  (`src/glitchygames/events/base.py:249`): an `options` attribute there would switch on
   unhandled-event checks that are off today. Decide whether that `getattr` duck-typing is the
   right contract (what should `game` be for an event manager, and where should it find the
   run's options?), and whether the two names should become one.
@@ -188,6 +188,10 @@ arc was lost. What follows is left.
   (`src/apps/bitmappy/src/bitmappy/onion_skinning.py:162`) and `ai_training_state`
   (`src/apps/bitmappy/src/bitmappy/constants.py:100`), are not the roster's and have no owning
   plan yet: each needs one before a Bitmappy runs in more than one engine context.
+- **The performance gate could compare the FPS slice summaries too** (the controller,
+  2026-10-29). Sub-plan 2's Task 17 gate (a) compares each recording's p50 and p99 processing
+  times, base against branch; it could later also compare the mean and the "5% low"/"5% high"
+  slice means #116 added to `RunSummary` (`src/glitchygames/recording_history.py`).
 
 ## Engine tools after Stage D (2026-10-27, workspace packages part 3)
 

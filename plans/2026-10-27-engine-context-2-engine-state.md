@@ -23,7 +23,8 @@ class body (`ReadOnlyView`, `ClassOnlyView`) whose overloaded `__get__` answers 
 context's value when read on the class and the object's own state when read on an instance; a
 write-refusing metaclass (`ReadOnlyViews`, or `ReadOnlyViewsABC` for `Sprite`, whose metaclass is
 `ABCMeta`) makes class-level writes raise; and `glitchygames.performance.performance_manager` is
-a module `__getattr__` (PEP 562). Writing to a
+a module `__getattr__` (PEP 562), marked as a view by its module's `READ_ONLY_MODULE_VIEWS`
+(a module `__getattr__` alone is never a view). Writing to a
 view raises an `AttributeError` naming where to write; engine code never reads a view (a guard).
 `current_engine()` answers with the context's engine. Then three guards:
 `tests/test_process_state_guard.py` (every module- and class-level mutable, rebound name,
@@ -147,7 +148,7 @@ option; this plan replaces it, it does not port it.
   a context's posts go (SDL's one queue, S5) stays sub-plan 6's. The fix holds for the
   `forget_pending_posts` path the spike measured; it does not cover an engine callback run in
   another context's switch (review M-3: `pygame.register_quit(self.quit_game)`,
-  `game_engine.py:1058`, piles one callback per engine, and `pygame.quit()` runs them all in the
+  `game_engine.py:1243`, piles one callback per engine, and `pygame.quit()` runs them all in the
   caller's context, where `quit_game`'s posted QUIT is tracked): that is sub-plan 7's (S8).
 - **C14 per context**, not keyed by context inside one manager (the spike's open question 3): the
   audit row says per context, and a keyed manager would be a second mechanism. `AdaptiveClamping()`
@@ -156,7 +157,8 @@ option; this plan replaces it, it does not port it.
   `MultiControllerManager` is Bitmappy's (`src/apps/bitmappy/src/bitmappy/controllers/manager.py:69`),
   the engine must not import an app, and `ContextSlot` is internal to the engine (decision 3).
   Its test-isolation symptom, BUGS.md #234, is fixed by the test-only fixture
-  `fresh_controller_manager` (`src/apps/bitmappy/tests/conftest.py`, commit dfb569b9).
+  `fresh_controller_manager` (`src/apps/bitmappy/tests/conftest.py`, commit dfb569b9 on PR #111's
+  branch, squash-merged to main as 3f1999a9).
 - **Different options in the isolation tests** (the spike's open question 1): every engine-level
   test here starts its two engines with different options, and Task 15 runs two engines with
   different options side by side.
@@ -169,7 +171,12 @@ option; this plan replaces it, it does not port it.
 - **New, unaudited state the guard finds** is classified in Task 13's table and added to the master
   plan's audit in Task 16: `Sprite.SPRITE_COUNT` (moves with C18), `RendererService.
   pygame_initialized` (new S16), the engine's event-type tables (new R15), the Bitmappy pieces
-  (under C16), and `<GameClass>.options` (new C20, found by the review: Task 6 removes it).
+  (under C16), and `<GameClass>.options` (new C20, found by the review: Task 6 removes it). The
+  re-check on main (3f916b97, 2026-10-29) found two more, ruled by the controller the same day,
+  neither put in a context: `GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS` (S8, process
+  services: whether this process's pygame started with SDL's signal handlers) and
+  `glitchygames.events.base.pygame_event_names` (R15: pygame's compiled event names, an
+  immutable table scanned once per process, the same in every context).
 - **Slots and views stay off the engine's hot paths.** Measured per read on the owner's machine
   (2026-10-28): a class or instance attribute about 12 ns, an instance property about 19 ns, a
   slot read about 73 ns, a context switch about 430 ns; a class-level view read over
@@ -177,51 +184,58 @@ option; this plan replaces it, it does not port it.
   `_running_engine_attribute`, a slot read and the read itself, in a `try`) about 181 ns (the
   review's re-check, a timeit emulation; the owner's 80–110 ns was the earlier metaclass-property
   design). Task 1 measures the real one. So engine code reads its own state from the object (`self.options`,
-  `self.event_handlers`: the dispatch at `game_engine.py:3404` runs per event), reads a slot once
+  `self.event_handlers`: the dispatch at `game_engine.py:3620` runs per event), reads a slot once
   per function into a local, and never reads a view (Task 1's guard); the views exist for games,
   tools, tests and the REPL. Task 17's gate measures the result against the base.
 - **Views in the class body; one shared write-refusing metaclass (review I-1, I-4).** The first
   version put class-level views on a metaclass per class beside instance views in the class body;
   basedpyright strict cannot type that (Task 1 records the prototype), and `Sprite`'s metaclass is
-  `abc.ABCMeta`, not `type` (its MRO has `EventInterface(abc.ABC)`, `src/glitchygames/events/base.py:1394`,
+  `abc.ABCMeta`, not `type` (its MRO has `EventInterface(abc.ABC)`, `src/glitchygames/events/base.py:1415`,
   through `MouseEvents`, `events/input_event_interfaces.py:139`; all 25 engine subclasses of
   `Sprite` inherit it), so a `type`-based metaclass would conflict. `GameEngine`, `SceneManager`
   and `FontManager` (metaclass `type`) take `ReadOnlyViews(type)`; `Sprite` takes
   `ReadOnlyViewsABC(ReadOnlyViews, abc.ABCMeta)`. A member class mixing a `Sprite` with a
-  `Protocol` (metaclass `_ProtocolMeta`) would conflict; none does at b5f16688 (`src`, `tests` and
+  `Protocol` (metaclass `_ProtocolMeta`) would conflict; none does at b5f16688 or at 3f916b97 (`src`, `tests` and
   `scripts` searched), and collecting the suite catches one (Task 1).
 - **The scene manager's own copy is `engine_options`, not `options`.** The event managers are
-  built with `game=self.scene_manager` (`game_engine.py:1591-1623`) and `unhandled_event` reads
-  `getattr(game, 'options', None)` (`events/base.py:229`): a scene manager with an `options`
+  built with `game=self.scene_manager` (`game_engine.py:1771-1803`) and `unhandled_event` reads
+  `getattr(game, 'options', None)` (`events/base.py:249`): a scene manager with an `options`
   attribute would switch on unhandled-event checks that are off today. The engine's own is
   `options`: no `unhandled_event` call is given the engine (checked in Task 5).
 - **`current_engine()` is the engine constructed last in the context**, held in a slot
   (`CURRENT_ENGINE_SLOT`), never a process-wide variable: what the class attributes answered
   with before (each `GameEngine.__init__` overwrote them), now per context.
 
-## Where each row is now (verified at b5f16688; the audit's lines are as of 53869ac4)
+## Where each row is now (verified at b5f16688; rechecked on main at 3f916b97, 2026-10-29, after #112–#116; the audit's lines are as of 53869ac4)
 
 | Row | State, declared at | Writers | Readers | Audit's location still right? |
 |---|---|---|---|---|
-| C7 | `SceneManager.OPTIONS`, `src/glitchygames/scenes/scene.py:232` | `scene.py:378` (the `game_engine` setter), `src/glitchygames/engine/game_engine.py:3106` (`_build_game`), `src/glitchygames/replay/tools/golden_traces.py:476` (`install_game`) | `scene.py:379-384, 1636, 2138, 2608`; `src/glitchygames/replay/playback.py:1239` (`manager.OPTIONS`) | no: audit says `scene.py:193` |
-| C8 | `GameEngine.OPTIONS`, `game_engine.py:544` | `game_engine.py:953, 957` (`initialize_arguments`, a classmethod) | `game_engine.py:958, 962, 1598, 1608, 1704, 1751, 1842, 2783-2816, 2846, 2967, 3057-3080, 3103, 3264`; `golden_traces.py:474` | no: audit says `:407` |
-| C9 | `GameEngine.game`, `game_engine.py:535` | `game_engine.py:1151` (class), `:3103` (instance, `_build_game`) | `self.game` in `initialize_event_handlers` (`:1275`), `initialize_system_icons` (`:1555`), `trace_recording_header` (`:1723`), `_begin_start` (`:2949`), `_build_game` (`:3094`) | no: audit says `:398` |
-| C10 | `GameEngine.EVENT_HANDLERS`, `game_engine.py:557` | `game_engine.py:1293-1305` (`initialize_event_handlers`), `:1351-1369` (`initialize_input_event_handlers`) | `game_engine.py:3404-3405` (`process_events`) | no: audit says `:420` |
-| C11 | `LAST_EVENT_MISS`, `MISSING_EVENTS`, `UNIMPLEMENTED_EVENTS`, `game_engine.py:546-548` | `:3990` (`process_unimplemented_event`), `:4115` (`missing_event`), `:4150` (`__getattr__`) | `:3984, 4114-4120` | no: audit says `:409-411` |
-| C12 | `ResourceManager.__instances__`, `src/glitchygames/events/base.py:344` | `base.py:374-375` (`__new__`), `:398` (`release_shared_instances`, called at `game_engine.py:1588`) | `base.py:374-378` | yes |
+| C7 | `SceneManager.OPTIONS`, `src/glitchygames/scenes/scene.py:231` | `scene.py:377` (the `game_engine` setter), `src/glitchygames/engine/game_engine.py:3322` (`_build_game`), `src/glitchygames/replay/tools/golden_traces.py:476` (`install_game`) | `scene.py:378-383, 1635, 2143, 2613`; `src/glitchygames/replay/playback.py:1239` (`manager.OPTIONS`) | no: audit says `scene.py:193` |
+| C8 | `GameEngine.OPTIONS`, `game_engine.py:702` | `game_engine.py:1117, 1121` (`initialize_arguments`, a classmethod) | `game_engine.py:1122, 1126, 1778, 1788, 1884, 1931, 2022, 2964-2997, 3029, 3145 (_log_the_startup_options, new since b5f16688: the startup options block), 3181, 3273-3296, 3319, 3480`; `golden_traces.py:474` | no: audit says `:407` |
+| C9 | `GameEngine.game`, `game_engine.py:693` | `game_engine.py:1331` (class), `:3319` (instance, `_build_game`) | `self.game` in `initialize_event_handlers` (`:1455`), `initialize_system_icons` (`:1735`), `trace_recording_header` (`:1903`), `_game_name` (`:3150-3160`, new since b5f16688), `_begin_start` (`:3162`), `_build_game` (`:3310`) | no: audit says `:398` |
+| C10 | `GameEngine.EVENT_HANDLERS`, `game_engine.py:718` | `game_engine.py:1473-1485` (`initialize_event_handlers`), `:1531-1549` (`initialize_input_event_handlers`) | `game_engine.py:3620-3621` (`process_events`) | no: audit says `:420` |
+| C11 | `LAST_EVENT_MISS`, `MISSING_EVENTS`, `UNIMPLEMENTED_EVENTS`, `game_engine.py:704-706` | `:4206` (`process_unimplemented_event`), `:4331` (`missing_event`), `:4366` (`__getattr__`) | `:4200, 4330-4336` | no: audit says `:409-411` |
+| C12 | `ResourceManager.__instances__`, `src/glitchygames/events/base.py:365` | `base.py:395-396` (`__new__`), `:419` (`release_shared_instances`, called at `game_engine.py:1768`) | `base.py:395-399` | yes (lines moved) |
 | C13 | `FontManager.OPTIONS`, `src/glitchygames/fonts/font_manager.py:137` | `font_manager.py:187-196` (`__init__`), `:324, 326, 394, 396` (`font`/`pygame_font` fill defaults in place), `:469` (`set_font_system`) | `:199, 320, 390, 447, 480` | yes |
-| C14 | `AdaptiveClamping._instance` `src/glitchygames/performance/adaptive_clamping.py:78`; `performance_manager` `:925` | `adaptive_clamping.py:83-85` | `scene.py:390-393, 1492-1495, 1658-1671`; `game_engine.py:2750-2760, 2806-2816`; `src/glitchygames/performance/__init__.py:3,5`; `src/glitchygames/performance/example_usage.py:5, 22, 35` | yes |
+| C14 | `AdaptiveClamping._instance` `src/glitchygames/performance/adaptive_clamping.py:79`; `performance_manager` `:926` | `adaptive_clamping.py:84-86` | `scene.py:389-392, 1491-1494, 1657-1670`; `game_engine.py:2931-2941, 2987-2997`; `src/glitchygames/performance/__init__.py:3,5`; `src/glitchygames/performance/example_usage.py:5, 22, 35` | yes (lines moved) |
 | C15 | `__instance__` of `Singleton`, `SingletonBitmappySprite`, `FocusableSingletonBitmappySprite`, `src/glitchygames/sprites/bitmappy_sprite.py:1019, 1053, 1101` | `bitmappy_sprite.py:1042, 1066, 1114` | `:1039, 1063, 1111`; users: `MenuBar` (`src/glitchygames/ui/menus.py:34`) | yes |
 | C16 | `MultiControllerManager._instance`, `src/apps/bitmappy/src/bitmappy/controllers/manager.py:69` | `manager.py:75, 104` | `manager.py:74, 103`; `get_instance()` callers `src/apps/bitmappy/src/bitmappy/film_strip_events.py:374`, `controllers/film_strip_operations.py:164` | no: audit says `src/glitchygames/bitmappy/controllers/manager.py:69` (Bitmappy moved, #110) |
-| C17 | `_unhandled_event_types`, `src/glitchygames/events/base.py:200` | `base.py:254` | `base.py:253` | yes |
-| C18 | `Sprite.SPRITE_BREAKPOINTS` `src/glitchygames/sprites/sprite.py:45`, `SPRITE_COUNTERS` `:46-48`; also `SPRITE_COUNT` `:49` (not in the audit) | `sprite.py:62-69` (`break_when`), `:145-157` (`__init__`) | `sprite.py:160-170`; `game_engine.py:4049-4052` (`_log_sprite_count_report`) | partly: `SPRITE_COUNT` is missing from the row |
-| C19 | `_INTERNAL_POSTS` (`InternalEventPosts`, `src/glitchygames/recording.py:384-411`), `recording.py:414` | `recording.py:417-451, 477-487, 585-603`; callers `game_engine.py:1124-1125, 3446`, `src/glitchygames/replay/driver.py:1545, 1552, 1583` | `recording.py:454-542` | yes |
-| C20 (new, review I-6) | `<GameClass>.options`: `initialize_arguments` sets the game's options on the game's Scene **class** | `game_engine.py:965` | no reader in the engine or the members; tests `tests/engine/test_game_engine.py:255`, `tests/engine/test_engine_properties.py:86` | not in the audit |
+| C17 | `_unhandled_event_types`, `src/glitchygames/events/base.py:221` | `base.py:275` | `base.py:274` | yes (lines moved) |
+| C18 | `Sprite.SPRITE_BREAKPOINTS` `src/glitchygames/sprites/sprite.py:45`, `SPRITE_COUNTERS` `:46-48`; also `SPRITE_COUNT` `:49` (not in the audit) | `sprite.py:62-69` (`break_when`), `:145-157` (`__init__`) | `sprite.py:160-170`; `game_engine.py:4265-4268` (`_log_sprite_count_report`) | partly: `SPRITE_COUNT` is missing from the row |
+| C19 | `_INTERNAL_POSTS` (`InternalEventPosts`, `src/glitchygames/recording.py:384-411`), `recording.py:414` | `recording.py:417-451, 477-487, 585-603`; callers `game_engine.py:1304-1305, 3662`, `src/glitchygames/replay/driver.py:1551, 1558, 1589` | `recording.py:454-542` | yes |
+| C20 (new, review I-6) | `<GameClass>.options`: `initialize_arguments` sets the game's options on the game's Scene **class** | `game_engine.py:1129` | no reader in the engine or the members; tests `tests/engine/test_game_engine.py:255`, `tests/engine/test_engine_properties.py:86` | not in the audit |
 | R9 | `FontManager.RENDER_CACHE`, `_font_cache`, `font_manager.py:138-139` | `font_manager.py:345, 375, 412, 426` (`RENDER_CACHE` is declared and never used) | `:332-333, 402-403` | yes |
+
+Two more pieces of process state, found by the re-check on main and ruled by the controller
+(2026-10-29), are not rows of this sub-plan and go in no context: `GameEngine.
+PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS` (`game_engine.py:710`, rebound at `:1142, 1147` in
+`_warn_about_a_pygame_that_may_own_the_signals`) under S8, and `events/base.py`
+`pygame_event_names` (`@functools.cache`, #114, behind `supported_events`) under R15. Task 13
+lists both; Task 16 adds them to the master plan's audit.
 
 Test lines that reach C17 and C19 (decision 1), verified: `tests/test_recording.py:144, 525, 591,
 597, 598, 604, 623, 873, 877, 933, 937, 945, 954, 956, 964` (15) and
-`tests/engine/test_game_engine.py:2839`, `tests/events/test_events_core.py:1244, 1256, 1310` (4):
+`tests/engine/test_game_engine.py:2863`, `tests/events/test_events_core.py:1268, 1280, 1334` (4):
 the counts in the audit are right.
 
 ## Not in this sub-plan
@@ -263,8 +277,8 @@ What the spike found that belongs to later sub-plans; nothing here touches it.
 ## Global Constraints
 
 - Work on `feature/engine-context-2-engine-state` in the worktree
-  `/Users/terry/Dropbox/dev.glitchygames/glitchygames-engine-context-2`. The branch is stacked on
-  PR #111's branch (unmerged); Task 0 checks the base. Never touch the main checkout or another
+  `/Users/terry/Dropbox/dev.glitchygames/glitchygames-engine-context-2`. The branch is on `main`
+  (3f916b97; PR #111 merged 2026-10-28); Task 0 checks the base. Never touch the main checkout or another
   branch.
 - Python 3.14. Holders of per-context state are `@dataclasses.dataclass` (like
   `InternalEventPosts`, `EngineRandomState`). Test value types are pydantic models with
@@ -273,8 +287,8 @@ What the spike found that belongs to later sub-plans; nothing here touches it.
   full names (no abbreviations).
 - No `# noqa`, no `# ruff: ignore`, no new `# type: ignore` / `# ty: ignore` / `# pyright:
   ignore`, no lint or type-checker configuration loosened. The suppressions on the class-attribute
-  rebindings this plan removes go with them (`scene.py:378`, `game_engine.py:953, 4150`,
-  `sprite.py:63, 157`) and `adaptive_clamping.py:85`'s `# type: ignore[return-value]` is replaced
+  rebindings this plan removes go with them (`scene.py:377`, `game_engine.py:1117, 4366`,
+  `sprite.py:63, 157`) and `adaptive_clamping.py:86`'s `# type: ignore[return-value]` is replaced
   by `cast`, as Task 7 of sub-plan 1 did for `SceneManager`.
 - Coverage stays at 100% (`--cov-fail-under=100`).
 - Lint before tests: `ruff format`, `ruff check`, `basedpyright`, `ty check` on the touched files,
@@ -394,9 +408,10 @@ git -C /Users/terry/Dropbox/dev.glitchygames/glitchygames-engine-context-2 log -
 gh pr view 111 --json state,headRefName,mergedAt
 ```
 Expected: a clean tree on `feature/engine-context-2-engine-state`; this plan was verified at
-b5f16688. If PR #111 has merged, rebase onto `main` first (ask the controller; never force-push).
-Record the commit you start from (`git rev-parse --short HEAD`) as `<base>`: Task 17 diffs against
-it.
+b5f16688 and rechecked on `main` at 3f916b97 (2026-10-29: PR #111 merged, the branch rebased;
+`.superpowers/sdd/2026-10-27-engine-context-2-engine-state/task-0-rerun-report.md`). `<base>` is
+the plan-corrections commit, the last commit before Task 1's code (the plan cannot hold its own
+hash: the ledger, `progress.md`, records it): Task 17 diffs against it.
 
 - [ ] **Step 2: Every citation in "Where each row is now" still holds**
 
@@ -413,7 +428,7 @@ grep -n '^_INTERNAL_POSTS' src/glitchygames/recording.py
 grep -c '_INTERNAL_POSTS' tests/test_recording.py
 grep -rn '_unhandled_event_types' tests | wc -l
 ```
-Expected: the lines in the table (232; 544; 137; 557, 547, 535; 344, 200; 78, 925; 1019, 1053,
+Expected: the lines in the table (231; 702; 137; 718, 705, 693; 365, 221; 79, 926; 1019, 1053,
 1101; 45, 46, 49; 414), `15` and `4`. Where a line moved, correct the citations in this plan
 before Task 2 (the controller reviews the change); where a row's state is gone or renamed, stop
 and report.
@@ -439,7 +454,7 @@ for cls in (GameEngine, SceneManager, FontManager, Sprite):
 "
 ```
 Expected: `GameEngine type`, `SceneManager type`, `FontManager type` (each base `type`), and
-`Sprite ABCMeta ['ABCMeta', 'type']` (`EventInterface(abc.ABC)`, `events/base.py:1394`). So
+`Sprite ABCMeta ['ABCMeta', 'type']` (`EventInterface(abc.ABC)`, `events/base.py:1415`). So
 `GameEngine`, `SceneManager` and `FontManager` take `ReadOnlyViews(type)` and `Sprite` takes
 `ReadOnlyViewsABC(ReadOnlyViews, abc.ABCMeta)`: each views metaclass subclasses the class's current
 metaclass. Any other metaclass (a `Protocol`'s `_ProtocolMeta`, a pydantic one) means a conflict:
@@ -523,6 +538,15 @@ and `Sprite.SPRITE_COUNTERS = {}` (an `ABCMeta` class) each raised with the view
   metaclass only refuses writes, which is the same for every class; `ReadOnlyViewsABC` exists
   because `Sprite`'s metaclass is `ABCMeta`. My call; the owner's per-class metaclass existed to
   hold the views, which now live in the class bodies.
+- Produces, the module-view mark (the controller's ruling, 2026-10-29): a module view is a name
+  listed in that module's module-level `READ_ONLY_MODULE_VIEWS: frozenset[str] =
+  frozenset({...})` (string literals only), answered by the module's module-level
+  `def __getattr__(name)`. A module `__getattr__` alone is never a view: `glitchygames.audio`'s
+  lazy `VoiceAssistant` import (PEP 562, #114) carries no mark and is not one. The check, in
+  `declared_views`: the module defines both, and every marked name is a string the
+  `__getattr__` compares `name` against (a marked name it never compares is reported as a scan
+  error). Task 4 declares the first mark (`glitchygames.performance`), and its write-refusing
+  module class refuses exactly the marked names.
 - Produces, in `game_engine.py`:
   ```python
   class NoRunningEngineError(RuntimeError): ...   # "No game engine is running in the engine context '<name>'"
@@ -531,16 +555,16 @@ and `Sprite.SPRITE_COUNTERS = {}` (an `ABCMeta` class) each raised with the view
   ```
   `_CurrentEngine` is a dataclass with `engine: GameEngine | None = None`. `GameEngine.__init__`
   sets the current context's `engine` to itself immediately after `options =
-  self.initialize_arguments(game=game)` (`:988`). Tasks 2, 5 and 7 put every piece of the
-  engine's own state above that line (`self.game` included, which moves from `:1151` to the top),
-  so no view finds a half-made engine. The first statement of `_shutdown` (`:2696`, before its
-  `try`, so before `_shut_down_the_run`'s early return on a replay restart at `:2741-2746`) sets
+  self.initialize_arguments(game=game)` (`:1173`). Tasks 2, 5 and 7 put every piece of the
+  engine's own state above that line (`self.game` included, which moves from `:1331` to the top),
+  so no view finds a half-made engine. The first statement of `_shutdown` (`:2877`, before its
+  `try`, so before `_shut_down_the_run`'s early return on a replay restart at `:2922-2927`) sets
   it back to `None` when it holds this engine: every teardown path clears it, so after a game ends
   its views read `None` and the finished engine is not kept alive (review M-1, re-check m-6).
 - Produces, in `tests/test_read_only_views.py`: `VIEW_CHECKS: dict[str, Callable[..., None]]`
   (view name, as `'GameEngine.OPTIONS'` or `'glitchygames.performance.performance_manager'`, to
   its check; empty here), `declared_views(*, source_paths: Sequence[Path]) -> dict[str,
-  frozenset[str]]` (owner class name, or module name for a module `__getattr__`, to its view
+  frozenset[str]]` (owner class name, or module name for a marked module `__getattr__`, to its view
   names), `engine_view_reads(*, source_path: Path, views: Mapping[str, frozenset[str]]) ->
   list[str]`, and `make_stand_in_engine(*, mocker: MockerFixture, target_fps: int) -> GameEngine`
   (a `GoldenTraceEngine` of a stand-in scene, `sys.argv` patched as
@@ -670,19 +694,23 @@ module `__getattr__` answering `'manager'`, and a second class `Other` with no v
 `Owner.OPTIONS`, `owner.OPTIONS`, `self.game.OPTIONS`, `Owner.game` and `from planted import
 manager`: the scan reports those five reads (by line) and not the views' own definitions, nor
 `owner.game` (an instance's own attribute), nor `Other.OPTIONS` (a class that owns no such
-view). `engine_source_files()` is every `*.py` under `tests.engine_source.ENGINE_DIRECTORY`.
+view). The planted module marks its view (`READ_ONLY_MODULE_VIEWS = frozenset({'manager'})`); a second
+planted module, `lazy.py`, has a module `__getattr__` answering `'Helper'` (a lazy import, as
+`glitchygames.audio`'s) and no mark, and `from lazy import Helper` is not reported: `declared_views`
+returns no entry for `lazy`. `engine_source_files()` is every `*.py` under `tests.engine_source.ENGINE_DIRECTORY`.
 
 **The scan's rules** (`declared_views`, `engine_view_reads`): a view is a class-body assignment
 `NAME = ReadOnlyView[...](...)` or `NAME = ClassOnlyView[...](...)` (subscripted or not), owned by
-that class and its subclasses (resolved by name within the engine), or a name compared against in
-a module-level `def __getattr__(name)` (owner: the module's dotted name). A read is:
+that class and its subclasses (resolved by name within the engine), or a name the module marks in
+its `READ_ONLY_MODULE_VIEWS` and its module-level `def __getattr__(name)` answers (owner: the
+module's dotted name; the mark above: a `__getattr__` without it is never a view). A read is:
 - an attribute load `<Name>.<view>` where `<Name>` is an owner class or a subclass of one;
 - an attribute load `.<view>` of a `ReadOnlyView` name on any other receiver (`self`,
   `manager`, `self.game`, ...), except a bare capitalized name of a class that owns no view of
   that name (`FontManager.OPTIONS` before Task 9 makes it one; review I-3, M-11);
 - an import or attribute load of a module view.
 The view definitions themselves (`read_only_views.py`, the class-body assignments, the lambdas and
-helpers passed to them, the module `__getattr__`) are allowed. Documented false positive: an
+helpers passed to them, the marked module `__getattr__` and its mark) are allowed. Documented false positive: an
 unrelated engine attribute that happens to be called like a view (`OPTIONS`) is reported; rename
 it.
 
@@ -794,8 +822,8 @@ methods, so PaddleSlap's keys were dispatched to Mr. Muncher's managers (`--unsw
 VerticalPaddle#0 rect expected [0, 197, 20, 100], got [0, 190, 20, 100]" at frame 2).
 
 **Files:**
-- Modify: `src/glitchygames/engine/game_engine.py:550-557` (the declaration), `:1293-1369`,
-  `:3404-3405`, `__init__` (the dict, above the engine's registration); add
+- Modify: `src/glitchygames/engine/game_engine.py:711-718` (the declaration), `:1473-1549`,
+  `:3620-3621`, `__init__` (the dict, above the engine's registration); add
   `_running_engine_attribute` (moved here from Task 1, which has no caller for it: review I-5)
 - Test: `tests/events/test_events_integration.py`, `tests/test_read_only_views.py`
 - Rewrite (22 lines): the declaration read with no engine running,
@@ -803,8 +831,8 @@ VerticalPaddle#0 rect expected [0, 197, 20, 100], got [0, 190, 20, 100]" at fram
   view as a dict, which basedpyright strict refuses on a `dict | None` (review I-4; each test
   holds its engine, so they read `engine.event_handlers`):
   `tests/events/test_events_integration.py:253-256, 259, 261`,
-  `tests/engine/test_game_engine.py:489, 499, 500, 503-505, 1290, 1315, 1335, 1370, 1378, 1398,
-  1411, 1423, 1444`. Instance readers (`engine.EVENT_HANDLERS`,
+  `tests/engine/test_game_engine.py:513, 523, 524, 527-529, 1314, 1339, 1359, 1394, 1402, 1422,
+  1435, 1447, 1468`. Instance readers (`engine.EVENT_HANDLERS`,
   `tests/engine/test_engine_event_system.py:235-249`) stay.
 
 **Interfaces:**
@@ -928,7 +956,7 @@ frame, `--unswap C19`).
 
 **Files:**
 - Modify: `src/glitchygames/recording.py:384-603`
-- Modify: `tests/harness.py` (docstring of `reset_engine_sources`, `:356-372`: "per engine
+- Modify: `tests/harness.py` (docstring of `reset_engine_sources`, `:376-392`: "per engine
   context"; its calls stay)
 - Test: `tests/test_recording.py`, `tests/test_engine_context.py`
 - Rewrite: the 15 lines of `tests/test_recording.py` (above)
@@ -1086,45 +1114,49 @@ frames); the statistics and the shutdown report were wrong.
   being timed in its own context.
 
 **Files:**
-- Modify: `src/glitchygames/performance/adaptive_clamping.py:72-86, 924-925`,
+- Modify: `src/glitchygames/performance/adaptive_clamping.py:73-87, 925-926`,
   `src/glitchygames/performance/__init__.py`, `src/glitchygames/performance/example_usage.py:5,
-  22, 35`, `src/glitchygames/scenes/scene.py:390-393, 1492-1495, 1651-1671`,
-  `src/glitchygames/engine/game_engine.py:2750-2760, 2806-2816`
-- Modify: `tests/harness.py` (`_reset_all_singleton_instances`, `:253-278`)
+  22, 35`, `src/glitchygames/scenes/scene.py:389-392, 1491-1494, 1650-1670`,
+  `src/glitchygames/engine/game_engine.py:2931-2941, 2987-2997`
+- Modify: `tests/harness.py` (`_reset_all_singleton_instances`, `:265-290`)
 - Test: `tests/performance/test_adaptive_clamping.py`, `tests/world/test_finish_frame.py`,
   `tests/test_engine_context.py`, `tests/test_read_only_views.py`
 - Modify: `tests/test_engine_context_source_guards.py` (the module view in the import-time scan)
-- Rewrite (writers only, 39 lines): the 19 `AdaptiveClamping._instance = None` resets in
+- Rewrite (writers only, 38 lines): the 18 `AdaptiveClamping._instance = None` resets in
   `tests/performance/test_adaptive_clamping.py`, its `:33`
   (`assert AdaptiveClamping._instance is instance1`); `tests/test_hypothesis_properties.py:452, 456,
   516, 520, 554, 558`; the module patches, which now raise: `tests/scenes/test_scene.py:1852-1853,
-  1992-1995`, `tests/world/test_finish_frame.py:264-266`, `tests/engine/test_game_engine.py:2657,
-  2962, 3022`, `tests/performance/test_adaptive_clamping.py:837`. Readers stay: `from glitchygames.performance import performance_manager` in
-  `test_game_engine.py:1120, 1147, 2984` and the `mocker.patch.object(performance_manager, ...)`
+  1985-1988`, `tests/world/test_finish_frame.py:263-265`, `tests/engine/test_game_engine.py:2681,
+  2986, 3046`, `tests/performance/test_adaptive_clamping.py:837`. Readers stay: `from glitchygames.performance import performance_manager` in
+  `test_game_engine.py:1144, 1171, 3008` and the `mocker.patch.object(performance_manager, ...)`
   calls on the manager's own attributes.
 
 **Interfaces:**
 - Consumes: `ContextSlot`, `current_context`, `default_context`, `EngineContext`;
   `ReadOnlyViewError` (Task 1); `FakeClock` and `FPS_LOG_INTERVAL_MS`
-  (`tests/world/test_finish_frame.py:41-81`).
+  (`tests/world/test_finish_frame.py:42-82`).
 - Produces: `PERFORMANCE_MANAGERS_SLOT: ContextSlot[dict[type[AdaptiveClamping],
   AdaptiveClamping]]`, name `'glitchygames.performance.adaptive_clamping.managers'`, factory
   `dict`. `AdaptiveClamping()` returns the current context's manager of that class, made on first
-  use (the `SceneManager.__new__` pattern, `scene.py:236-242`); `AdaptiveClamping._instance` and
-  the module-level instance at `adaptive_clamping.py:925` are removed (a module-level instance
+  use (the `SceneManager.__new__` pattern, `scene.py:235-241`); `AdaptiveClamping._instance` and
+  the module-level instance at `adaptive_clamping.py:926` are removed (a module-level instance
   would be the default context's for every context: rule 2).
   `glitchygames.performance.performance_manager` becomes a module view: `__getattr__(name)` in
   `performance/__init__.py` answers `AdaptiveClamping()` for `'performance_manager'` (and raises
-  `AttributeError` for any other name), and the package module's class becomes a
-  `types.ModuleType` subclass whose `__setattr__`/`__delattr__` raise `ReadOnlyViewError` for
-  `'performance_manager'` (`write_instead='nothing: AdaptiveClamping() is the current context\'s
+  `AttributeError` for any other name), the package declares Task 1's mark,
+  `READ_ONLY_MODULE_VIEWS = frozenset({'performance_manager'})`, and the package module's class
+  becomes a `types.ModuleType` subclass whose `__setattr__`/`__delattr__` raise
+  `ReadOnlyViewError` for each name in `READ_ONLY_MODULE_VIEWS` (`write_instead='nothing: AdaptiveClamping() is the current context\'s
   manager; patch its methods'`). `__all__` keeps the name, and a module `__dir__` lists it
   (review M-4). A module-level `from glitchygames.performance import performance_manager` would
   bind the importing module to the default context's manager for good, so the import-time scan
   (`test_no_module_reads_a_context_as_it_is_imported`,
   `tests/test_engine_context_source_guards.py:29`) also reports a module-level import or
   attribute read of a module view, in the engine and every member, with a planted case
-  (`example_usage.py:5` does it today; this task fixes it).
+  (`example_usage.py:5` does it today; this task fixes it). A module view is a marked name only
+  (Task 1's rule, `declared_views`): Brave Adventurer's module-level `from glitchygames.audio
+  import VoiceAssistant` (`src/games/brave-adventurer/src/brave_adventurer/game.py:15`) reads a
+  lazy import, not a view, and is not reported; the planted case includes such an import.
   Test helper in `tests/world/test_finish_frame.py`: `StandInFrameStepper` (a small class) with `__init__(self, *, mocker, clock: FakeClock, context:
   EngineContext, scene_name: str, work_seconds: float = 0.0, frame_body: Callable[[], None] | None
   = None)`, `step(self) -> None` and the attribute `performance_manager: AdaptiveClamping` (the
@@ -1177,9 +1209,8 @@ def test_an_outer_games_report_covers_the_inner_games_it_steps(mocker):
     contains every inner game's ticks, so its report is the whole system's aggregate.
     """
     clock = FakeClock()
-    mocker.patch(
-        'glitchygames.scenes.scene.time', SimpleNamespace(perf_counter=clock.perf_counter)
-    )
+    # The one clock (glitchygames.clock): patched on the module, as FrameDriver does
+    mocker.patch('glitchygames.clock.raw_counter_seconds', new=clock.perf_counter)
     mocker.patch('glitchygames.scenes.scene.post_event')
     recorded = mocker.spy(AdaptiveClamping, 'track_fps_from_event')
     inner_steppers = [
@@ -1232,7 +1263,7 @@ resets the default context's per test), an active `Scene(options={})`, the manag
 to `{'fps_log_interval_ms': FPS_LOG_INTERVAL_MS, 'log_timer_jitter': False}` (through
 `manager.OPTIONS = ...` until Task 5, which rewrites that one line to `manager.engine_options`),
 the manager's `_run_scene_frame` patched (`mocker.patch.object(manager, '_run_scene_frame',
-side_effect=...)`, as `FrameDriver.run` does at `:300-317`) to advance the clock by
+side_effect=...)`, as `FrameDriver.run` does at `:299-316`) to advance the clock by
 `work_seconds` and call `frame_body`, `AdaptiveClamping().set_current_scene(scene_name)`,
 `self.performance_manager = AdaptiveClamping()`, and `begin_frames()`; `step()` runs
 `run_frame_step(frame_start_seconds=..., paced=False)` inside its context and keeps the returned
@@ -1267,14 +1298,14 @@ own report, and an outer game's frames, which contain the inner games' steps, ma
 the aggregate. In `tests/harness.py`, `_reset_all_singleton_instances` gains
 `default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)`.
 
-Rewrite the 39 lines (decision 1): a reset of `_instance` becomes
+Rewrite the 38 lines (decision 1): a reset of `_instance` becomes
 `default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)` (the paired
 `AdaptiveClamping._initialized = False` lines stay: an immutable class default, harmless); `:33`
 is deleted (identity is asserted on the line before it); a
 `mocker.patch('glitchygames.performance.performance_manager', ...)` becomes
 `mocker.patch.object(AdaptiveClamping, '<method>', autospec=True)` for **every** method the test
-asserts on or whose real effect the old whole-manager mock suppressed (`test_game_engine.py:2962,
-3022` watch the trim percent and histogram mode and the reports: each of those methods is patched;
+asserts on or whose real effect the old whole-manager mock suppressed (`test_game_engine.py:2986,
+3046` watch the trim percent and histogram mode and the reports: each of those methods is patched;
 review M-7), and the test asserts on those mocks' calls (with `autospec` the manager is
 `call.args[0]`).
 Check: `grep -rn 'AdaptiveClamping._instance\|performance_manager' src/glitchygames` shows only
@@ -1299,36 +1330,37 @@ engine options (800x480, 60.01 FPS, update, the same seed), so a mix-up cannot s
 different options would diverge." These tests start their engines with different options.
 
 **Files:**
-- Modify: `src/glitchygames/engine/game_engine.py:544, 904-967, 988` and every `GameEngine.OPTIONS`
-  in it; `:3103-3106`; `src/glitchygames/scenes/scene.py:232, 244-260, 378` and every
-  `self.OPTIONS` in it (`:379-384, 1636, 2138, 2608`);
+- Modify: `src/glitchygames/engine/game_engine.py:702, 1065-1131, 1173` and every
+  `GameEngine.OPTIONS` in it (`_log_the_startup_options`'s `{**GameEngine.OPTIONS, ...}`, `:3145`,
+  new since b5f16688, included); `:3319-3322`; `src/glitchygames/scenes/scene.py:231, 243-259,
+  377` and every `self.OPTIONS` in it (`:378-383, 1635, 2143, 2613`);
   `src/glitchygames/fonts/font_manager.py:187-195` (`FontManager.__init__` reads its game's
   options: the scene manager's `engine_options` now, review I-3);
   `src/glitchygames/replay/tools/golden_traces.py:474-476`; `src/glitchygames/replay/playback.py:1239`;
-  the docstrings naming `GameEngine.OPTIONS` (`src/glitchygames/replay/driver.py:3041`,
+  the docstrings naming `GameEngine.OPTIONS` (`src/glitchygames/replay/driver.py:3049`,
   `src/glitchygames/replay/tools/registry.py:642, 688, 727`,
-  `src/glitchygames/replay/tools/traces.py:378, 445`) and the comments at
-  `scripts/cached_fonts.py:70`, `scripts/compound_sprite.py:153`: "the engine's ``options``"
-- Modify: `tests/harness.py:326-340` (`restore_game_engine_class_state` drops `'OPTIONS'` from
+  `src/glitchygames/replay/tools/traces.py:379, 446`) and the comments at
+  `scripts/cached_fonts.py:71`, `scripts/compound_sprite.py:154`: "the engine's ``options``"
+- Modify: `tests/harness.py:337-359` (`restore_game_engine_class_state` drops `'OPTIONS'` from
   its tuple and docstring: it is a view now, and setting a view raises; Task 7 drops `'game'`)
 - Test: `tests/engine/test_game_engine.py`, `tests/test_engine_context.py`,
   `tests/test_read_only_views.py`
 - Rewrite (writers, stand-ins and readers the type checker refuses, 67 lines):
   - `mocker.patch.object(SceneManager, 'OPTIONS', ...)`: `tests/test_host.py:474`,
     `tests/game_objects/test_game_over_scene.py:149`, `tests/scenes/test_scene_manager.py:25`,
-    `tests/scenes/test_scene_events.py:218`, `tests/scenes/test_scene.py:1847-1848, 1938`,
+    `tests/scenes/test_scene_events.py:218`, `tests/scenes/test_scene.py:1847-1848, 1931`,
     `tests/scenes/test_scene_timer_pacing.py:20`, `tests/scenes/builtin_scenes/test_pause_screen.py:86`,
-    `tests/engine/test_game_engine.py:1156, 1584, 1619, 2092`, `tests/world/test_finish_frame.py:258-262`
+    `tests/engine/test_game_engine.py:1180, 1608, 1643, 2116`, `tests/world/test_finish_frame.py:257-261`
     and Task 4's `StandInFrameStepper` line (19 lines);
-  - assignments `type(manager).OPTIONS = ...` (`tests/scenes/test_scene.py:1713, 1733, 2202,
-    2211, 2319, 2328, 2787`) and `scene_manager.OPTIONS = ...`
+  - assignments `type(manager).OPTIONS = ...` (`tests/scenes/test_scene.py:1713, 1733, 2195,
+    2204, 2312, 2321, 2780`) and `scene_manager.OPTIONS = ...`
     (`tests/scenes/test_scene_manager.py:352`) (8);
-  - `mocker.patch.object(GameEngine, 'OPTIONS', ...)`: `tests/engine/test_game_engine.py:2659-2661,
-    2964-2966, 2995-2997, 3025-3027`, and `GameEngine.OPTIONS = {` at `:2705` (13);
+  - `mocker.patch.object(GameEngine, 'OPTIONS', ...)`: `tests/engine/test_game_engine.py:2683-2685,
+    2988-2990, 3019-3021, 3049-3051`, and `GameEngine.OPTIONS = {` at `:2729` (13);
   - stand-in engines given `.OPTIONS`, which the setter no longer reads (it reads
     `new_engine.options`): `mocker.Mock()` engines at `tests/test_host.py:479`,
     `tests/debug/test_manager_overlay.py:174, 186`, `tests/scenes/test_scene_manager.py:92, 225,
-    244, 494, 571`, `tests/scenes/test_scene.py:2782`, `tests/scenes/test_scene_timer_pacing.py:100,
+    244, 494, 571`, `tests/scenes/test_scene.py:2775`, `tests/scenes/test_scene_timer_pacing.py:100,
     146, 157, 192, 227`; `mocker.Mock(OPTIONS=...)` at `tests/debug/test_manager_overlay.py:453`;
     `types.SimpleNamespace(OPTIONS=...)` at `tests/game_objects/test_game_over_scene.py:153` and
     `tests/scenes/builtin_scenes/test_pause_screen.py:104`; the `EngineWithoutGameEvents` stand-in's
@@ -1338,12 +1370,12 @@ different options would diverge." These tests start their engines with different
     `tests/fonts/test_font_manager.py:191, 404` (`types.SimpleNamespace(OPTIONS=...)`) (4; review
     I-3);
   - class-level readers that subscript a `dict | None` view (basedpyright strict refuses them;
-    each test holds its engine): `tests/engine/test_engine_lifecycle.py:897`,
-    `tests/engine/test_game_engine.py:1603, 2098` (3; review I-4);
+    each test holds its engine): `tests/engine/test_engine_lifecycle.py:921`,
+    `tests/engine/test_game_engine.py:1627, 2122` (3; review I-4);
   - declaration reads with no engine running: `tests/engine/test_engine_initialization.py:156, 255`
     (2).
   Readers that type-check stay (`manager.OPTIONS`, `manager.OPTIONS.update(...)`, `engine.OPTIONS`,
-  `test_engine_lifecycle.py:244`'s `SceneManager.OPTIONS is GameEngine.OPTIONS`).
+  `test_engine_lifecycle.py:262`'s `SceneManager.OPTIONS is GameEngine.OPTIONS`).
 
 **Interfaces:**
 - Consumes: `ReadOnlyView` (Task 1), `_running_engine_attribute` (Task 2), `make_stand_in_engine`
@@ -1415,8 +1447,9 @@ Expected: fails: `SceneManager` has no attribute `engine_options`.
 
 `initialize_arguments` builds `options = vars(args)`, resolves `options['target_fps']`, sets
 `game.options = options` and returns it; `__init__` does `self.options = options` right after
-`:988`, above the registration. Every `GameEngine.OPTIONS` in `game_engine.py` becomes
-`self.options` (all are in instance methods, `initialize_arguments` aside); `:3106`
+`:1173`, above the registration. Every `GameEngine.OPTIONS` in `game_engine.py` becomes
+`self.options` (all are in instance methods, `initialize_arguments` aside; `_log_the_startup_options`'s
+at `:3145` too); `:3322`
 (`SceneManager.OPTIONS = ...`) is deleted, because the setter on the next line sets it. In
 `golden_traces.py` `install_game`, `scene_class(options=self.options)` and its `SceneManager.OPTIONS`
 line deleted likewise; `playback.py:1239` reads `manager.engine_options`. In `scene.py`, the setter
@@ -1425,7 +1458,7 @@ writes `self.engine_options` and every `self.OPTIONS` reads `self.engine_options
 becomes the `ReadOnlyView`; `FontManager.__init__`'s seven reads become
 `self.game.engine_options[...]`. Check that the engine's attribute name changes no unhandled-event
 behaviour: `grep -n "getattr(game, 'options'" src/glitchygames/events/base.py` is the one reader
-(`:229`), and every manager is built with `game=self.scene_manager` (`game_engine.py:1591-1623`).
+(`:249`), and every manager is built with `game=self.scene_manager` (`game_engine.py:1771-1803`).
 
 Rewrite the 67 lines: a `mocker.patch.object(SceneManager | GameEngine, 'OPTIONS', value)` that
 only put a class attribute back is deleted (the harness gives every test a fresh scene manager
@@ -1456,16 +1489,16 @@ scene manager keeps its own options (C8, C7)` with the trailer.
 ### Task 6: The game class's options are no longer set on the class (new audit row C20)
 
 Found by the review (I-6), confirmed at b5f16688: `GameEngine.initialize_arguments` ends with
-`game.options = options` (`src/glitchygames/engine/game_engine.py:965`). `game` is the game's
-Scene **class** (`GameEngine(game=Game)`; `_build_game` calls it, `:3103`), so this sets a class
+`game.options = options` (`src/glitchygames/engine/game_engine.py:1129`). `game` is the game's
+Scene **class** (`GameEngine(game=Game)`; `_build_game` calls it, `:3319`), so this sets a class
 attribute every context shares: the Arcade's demo tile and a launched copy of the same game
 overwrite each other's. It is latent: each scene instance sets its own `self.options`
-(`scenes/scene.py:2919`), and nothing in the engine or the members reads the class-level value
+(`scenes/scene.py:2924`), and nothing in the engine or the members reads the class-level value
 (`grep -rn '\.options\b' src/glitchygames` finds no reader of it). Only two tests do. Neither the
 audit nor Task 13's rule 4 saw it (the receiver is a lowercase parameter).
 
 **Files:**
-- Modify: `src/glitchygames/engine/game_engine.py:962-967` (`initialize_arguments`)
+- Modify: `src/glitchygames/engine/game_engine.py:1126-1131` (`initialize_arguments`)
 - Test: `tests/engine/test_game_engine.py`
 - Rewrite (2 lines): `tests/engine/test_game_engine.py:255` (`assert EngineTestGame.options is
   result`) and `tests/engine/test_engine_properties.py:86` (`assert PropertiesTestGame.options is
@@ -1506,27 +1539,28 @@ Latent in the spike (no divergence unswapped): its engines each ran `_build_game
 was built. Built first and used after, the class attribute answers with the last engine's game.
 
 **Files:**
-- Modify: `src/glitchygames/engine/game_engine.py:535, 546-548, 1151, 3984-3990, 4114-4120, 4150`
-- Modify: `tests/harness.py:326-340` (`restore_game_engine_class_state` drops `'game'`: a view now;
-  it keeps `'icon'` and `'USE_FASTEVENTS'`)
+- Modify: `src/glitchygames/engine/game_engine.py:693, 704-706, 1331, 4200-4206, 4330-4336, 4366`
+- Modify: `tests/harness.py:337-359` (`restore_game_engine_class_state` drops `'game'`: a view now;
+  it keeps `'icon'`, `'USE_FASTEVENTS'` and `'PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS'`, the last
+  process state under S8: the controller's ruling, 2026-10-29)
 - Test: `tests/engine/test_game_engine.py`, `tests/engine/test_engine_initialization.py`,
   `tests/test_read_only_views.py`
 - Rewrite (writers, declaration reads and readers the type checker refuses, 29 lines):
   `GameEngine.LAST_EVENT_MISS = ...` at
-  `tests/engine/test_game_engine.py:1211, 1220`; `mocker.patch.object(GameEngine,
-  'LAST_EVENT_MISS' | 'MISSING_EVENTS', ...)` at `:1233, 1234`; `GameEngine.game = ...` at
-  `:1635, 2704`; `mocker.patch.object(GameEngine, 'game', ...)` at `:2658, 2963, 2994, 3024`;
+  `tests/engine/test_game_engine.py:1235, 1244`; `mocker.patch.object(GameEngine,
+  'LAST_EVENT_MISS' | 'MISSING_EVENTS', ...)` at `:1257, 1258`; `GameEngine.game = ...` at
+  `:1659, 2728`; `mocker.patch.object(GameEngine, 'game', ...)` at `:2682, 2987, 3018, 3048`;
   declaration reads with no engine running at `tests/engine/test_engine_initialization.py:157-159,
   273-274`; class-level readers that call or test membership on a `list | None` view (review
-  I-4; each test holds its engine): `tests/engine/test_game_engine.py:941, 946, 954, 960, 965, 974,
-  984, 994, 1210, 1214, 1219, 1224, 1312, 1321`. Readers that type-check stay (the equality
-  checks at `:1240-1241`, the `hasattr` lines at `test_engine_initialization.py:268-270`).
+  I-4; each test holds its engine): `tests/engine/test_game_engine.py:965, 970, 978, 984, 989, 998,
+  1008, 1018, 1234, 1238, 1243, 1248, 1336, 1345`. Readers that type-check stay (the equality
+  checks at `:1264-1265`, the `hasattr` lines at `test_engine_initialization.py:268-270`).
 
 **Interfaces:**
 - Consumes: `_make_engine`, `EngineTestGame`, `NoIconGame` (`tests/engine/test_game_engine.py:94,
   112`); `ReadOnlyView`, `ClassOnlyView` (Task 1), `_running_engine_attribute` (Task 2).
 - Produces: `self.game` set at the top of `__init__`, above the registration (it moves from
-  `:1151`, so no view sees the engine before its game: review M-1); `engine.missing_events:
+  `:1331`, so no view sees the engine before its game: review M-1); `engine.missing_events:
   list[str]`, `engine.unimplemented_events: list[int]` and `engine.last_event_miss: str` set
   there too, declared `self.game: Any = game`. Views in the class body: `game =
   ClassOnlyView[Any](...)` (it replaces the class default `game: Any = None`: `GameEngine.game` is
@@ -1534,8 +1568,8 @@ was built. Built first and used after, the class attribute answers with the last
   instance whose `__init__` never set one reads `None`, as the class default answered). `Any`, not
   `type[Scene] | Scene | None` (review re-check N-1, reversing M-10): the narrower view type makes
   every instance read of `self.game` that union, which basedpyright strict refuses at
-  `game_engine.py:3103` (`self.game(options=...)`: "Object of type Scene is not callable", and
-  `None` cannot be called), `:1734` (`game: Scene = self.game`) and `:1314`, `scene.py:625`,
+  `game_engine.py:3319` (`self.game(options=...)`: "Object of type Scene is not callable", and
+  `None` cannot be called), `:1914` (`game: Scene = self.game`) and `:1494`, `scene.py:624`,
   `pause_scene.py:94`. Re-probed (scratchpad, this repository's basedpyright settings):
   `ClassOnlyView[Any]` with the instance attribute declared `self.game: Any` in `__init__` gives 0
   errors for `self.game = self.game(options=self.options)`, `game: Scene = self.game`, a class
@@ -1602,7 +1636,7 @@ never logs: the class-wide list already holds the name).
 
 - [ ] **Step 3: Implement**
 
-`GameEngine.game = game` (`:1151`) is deleted and `self.game: Any = game` set at the top of
+`GameEngine.game = game` (`:1331`) is deleted and `self.game: Any = game` set at the top of
 `__init__` with the three lists and the string; `__getattr__` writes `self.last_event_miss = attr` (setting an instance attribute
 never re-enters `__getattr__`); `missing_event` and `process_unimplemented_event` use the instance
 names. The class body's four names become the views above.
@@ -1629,11 +1663,11 @@ divergence"), but "any `SomeManager()` lookup made later (by a scene's proxies, 
 get the other context's", and each engine's build released every context's managers.
 
 **Files:**
-- Modify: `src/glitchygames/events/base.py:313-398` (docstring `:325-335`, `__instances__` `:344`,
+- Modify: `src/glitchygames/events/base.py:334-419` (docstring `:346-356`, `__instances__` `:365`,
   `__new__`, `release_shared_instances`)
-- Modify: `tests/harness.py:266`
+- Modify: `tests/harness.py:278`
 - Test: `tests/events/test_events_core.py` (the class holding
-  `test_releasing_the_shared_managers_lets_a_new_run_build_new_ones`, `:1102`),
+  `test_releasing_the_shared_managers_lets_a_new_run_build_new_ones`, `:1106`),
   `tests/test_engine_context.py`
 
 **Interfaces:**
@@ -1673,7 +1707,7 @@ is not <MouseEventManager>`.
 
 - [ ] **Step 3: Implement.** `__new__` reads `current_context().value(slot=SHARED_INSTANCES_SLOT)`;
 `release_shared_instances` clears the current context's dict; the class docstring says "one per
-class per engine context" and "releases this context's". `tests/harness.py:266` becomes
+class per engine context" and "releases this context's". `tests/harness.py:278` becomes
 `default_context().reset_value(slot=SHARED_INSTANCES_SLOT)`.
 Check: `grep -rn '__instances__' src tests` prints nothing.
 
@@ -1696,7 +1730,7 @@ options).
   `tests/events/test_events_font_events.py:439, 462, 474, 487`. Readers stay, including the ones
   that change the dict the view returns in place (`FontManager.OPTIONS.clear()`, item
   assignments, `mocker.patch.dict(FontManager.OPTIONS, ...)` in the engine's and Bitmappy's
-  tests, and `tests/harness.py:270`): the dict is the current context's options, as before.
+  tests, and `tests/harness.py:282`): the dict is the current context's options, as before.
 
 **Interfaces:**
 - Produces: `FONT_OPTIONS_SLOT: ContextSlot[dict[str, Any]]`, name
@@ -1755,7 +1789,7 @@ Not swapped by the spike (no tile game uses them); proven directly.
 
 **Files:**
 - Modify: `src/glitchygames/sprites/bitmappy_sprite.py:1016-1120`
-- Modify: `tests/harness.py:255-278` (the `__instance__` loop)
+- Modify: `tests/harness.py:267-290` (the `__instance__` loop)
 - Test: `tests/sprites/test_sprite_core.py`, `tests/test_engine_context.py`
 - Rewrite: `tests/sprites/test_sprite_core.py:1620, 2027, 2054`
 
@@ -1815,13 +1849,13 @@ sprites belong to the context (C15)` with the trailer.
 Latent in the spike. Its four test lines are rewritten here (decision 1).
 
 **Files:**
-- Modify: `src/glitchygames/events/base.py:200, 249-262`
+- Modify: `src/glitchygames/events/base.py:221, 270-283`
 - Modify: `tests/harness.py`: a new autouse fixture `reset_engine_bookkeeping`, listed in
-  `per_context_state_resets` (`:572-590`), resetting `UNHANDLED_EVENT_TYPES_SLOT` in the default
+  `per_context_state_resets` (`:592-610`), resetting `UNHANDLED_EVENT_TYPES_SLOT` in the default
   context before and after each test (Task 12 adds its own slot to it)
 - Test: `tests/events/test_events_core.py`, `tests/test_engine_context.py`
-- Rewrite: `tests/engine/test_game_engine.py:2839`, `tests/events/test_events_core.py:1244, 1256,
-  1310`
+- Rewrite: `tests/engine/test_game_engine.py:2863`, `tests/events/test_events_core.py:1268, 1280,
+  1334`
 
 **Interfaces:**
 - Produces: `UNHANDLED_EVENT_TYPES_SLOT: ContextSlot[set[int]]`, name
@@ -1855,9 +1889,9 @@ Latent in the spike. Its four test lines are rewritten here (decision 1).
 - [ ] **Step 2: Run** `-k logs_an_unhandled_event_type_once`. Expected: `1 failed`: `assert 1 == 2`.
 
 - [ ] **Step 3: Implement** the slot; `unhandled_event` reads it once into a local. Rewrite
-(decision 1): `test_game_engine.py:2839` and `test_events_core.py:1244, 1310` are deleted (the
-harness starts every test with none logged; the comment at `:2838` goes with its line);
-`test_events_core.py:1256` is deleted, the next lines asserting the behaviour (no second warning).
+(decision 1): `test_game_engine.py:2863` and `test_events_core.py:1268, 1334` are deleted (the
+harness starts every test with none logged; the comment at `:2862` goes with its line);
+`test_events_core.py:1280` is deleted, the next lines asserting the behaviour (no second warning).
 Check: `grep -rn '_unhandled_event_types' src tests` prints nothing.
 
 - [ ] **Step 4–6:** lint; run; the leak-check guard
@@ -1870,19 +1904,19 @@ context (C17)` with the trailer.
 ### Task 12: The sprite counters per context (audit C18, with `SPRITE_COUNT`)
 
 Latent in the spike; confirmed per game by the owner (2026-10-28). `Sprite.SPRITE_COUNT`
-(`sprite.py:49`, rebound at `:157`, logged at `game_engine.py:4049`) is the same report's total
+(`sprite.py:49`, rebound at `:157`, logged at `game_engine.py:4265`) is the same report's total
 and was missing from the audit; it moves here.
 
 **Files:**
 - Modify: `src/glitchygames/sprites/sprite.py:38-170`;
-  `src/glitchygames/engine/game_engine.py:4041-4052`
+  `src/glitchygames/engine/game_engine.py:4257-4268`
 - Modify: `tests/harness.py` (`reset_engine_bookkeeping` also resets `SPRITE_COUNTERS_SLOT`)
 - Test: `tests/sprites/test_sprite_core.py`, `tests/test_engine_context.py`,
   `tests/test_read_only_views.py`
 - Rewrite (writers only, 9 lines): `Sprite.SPRITE_BREAKPOINTS = ...` at
   `tests/sprites/test_sprite_core.py:752, 756, 762, 1707, 1711, 1717`;
   `mocker.patch.object(Sprite, 'SPRITE_COUNT' | 'SPRITE_COUNTERS', ...)` at
-  `tests/engine/test_game_engine.py:2598-2600`. Readers stay (`:182-200`, `:758, 764-765, 1713,
+  `tests/engine/test_game_engine.py:2622-2624`. Readers stay (`:182-200`, `:758, 764-765, 1713,
   1720`; `'SPRITE_COUNT' not in vars(first_sprite)` still holds: a view is not an instance
   attribute).
 
@@ -1937,7 +1971,7 @@ process-wide count, not the context's.
 and update its fields; the comment at `:155-156` (BUGS.md #201) now says the count is the
 context's, never the sprite's. `_log_sprite_count_report` reads `sprite_counters()`.
 Rewrite the 9 lines: `Sprite.SPRITE_BREAKPOINTS = None` resets are deleted (the harness resets)
-and assignments of `[]` become `sprite_counters().breakpoints = []`; `test_game_engine.py:2598-2600`
+and assignments of `[]` become `sprite_counters().breakpoints = []`; `test_game_engine.py:2622-2624`
 make the sprites the report should count (three `Sprite`s of a test type) instead of patching,
 and assert the logged lines.
 Check: `test_the_engine_never_reads_a_view` passes.
@@ -1951,7 +1985,7 @@ belong to the context (C18)` with the trailer.
 
 **Files:**
 - Create: `tests/test_process_state_guard.py`
-- Modify: `tests/test_suite_collection.py:1170-1203` (`REPOSITORY_TEST_FILES` gains
+- Modify: `tests/test_suite_collection.py:1180-1220` (`REPOSITORY_TEST_FILES` gains
   `'tests/test_process_state_guard.py': SOURCE_GUARD_REASON`)
 
 **Interfaces:**
@@ -2034,6 +2068,7 @@ the repository:
 | `replay/viewer.py` | `_SLEEP_TIMER` | S12 |
 | `events/base.py` | `HashableEvent._hashing_ids`, `HashableEvent._comparing_ids` | S13 |
 | `events/base.py` | `AUDIO_EVENTS` … `GAME_EVENTS` (the event-type lists the scan reports) | R15 (new: the engine's tables computed at import, never written) |
+| `events/base.py` | `pygame_event_names` (`@functools.cache`, #114, behind `supported_events`) | R15 (pygame's compiled event names, an immutable table scanned once per process, the same in every context; the controller's ruling, 2026-10-29) |
 | `world.py` | `_scenes_warned_about_double_update` | S14 |
 | `replay/silence.py` | `_MUSIC_FOLLOWING`, `setattr(pygame.mixer.music)` (`:144`) | S4 |
 | `replay/tools/scripted_sessions.py` | `setattr(live_sources)` (`:182, 186`, `polled_input_follows`) | S17 (new, review re-check N-2: a recording tool's temporary swap of a module function, `glitchygames.live_sources.capture_live_snapshot`, process-wide while held and restored in a `finally`; `record-session` records one game in its own process, never inside a game or an inner context) |
@@ -2044,6 +2079,7 @@ the repository:
 | `input/state.py` | `_SCANCODE_OF_KEY_CODE` | R3 |
 | `engine_context.py` | `_DECLARED_SLOTS`, `_DEFAULT_CONTEXT` | R13 (the default context is the mechanism itself) |
 | `engine/game_engine.py` | `GameEngine.icon` | S2 |
+| `engine/game_engine.py` | `GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS` (`:710`, rebound at `:1142, 1147`) | S8 (process services: whether this process's pygame started with SDL's signal handlers; one pygame per process; the controller's ruling, 2026-10-29) |
 | `engine/game_engine.py` | `GameEngine.USE_FASTEVENTS` | R12 (decided by the pygame version) |
 | `services/renderer_service.py` | `RendererService.pygame_initialized` | S16 (new: the API server's renderer started pygame; the process's) |
 | `sprites/bitmappy_sprite.py` | `BitmappySprite.DEFAULT_SURFACE` | R12 (a class default nothing draws on) |
@@ -2065,7 +2101,8 @@ write-refusing metaclasses hold no state.
 
 The table was checked against a prototype of these rules over `scanned_source_files` at
 b5f16688 (this plan's author's, and the review's: its rules 3–5 output matched the table
-exactly). Before writing `PROCESS_STATE`, run the scan and compare: a finding that fits no row
+exactly), and again on main at 3f916b97 (2026-10-29): the same findings plus the two rows marked
+2026-10-29 (`GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS`, `pygame_event_names`). Before writing `PROCESS_STATE`, run the scan and compare: a finding that fits no row
 above is newly found state: stop and report it to the controller (the owner decides its row);
 never add a row on your own. A C7–C15 or C17–C20 name in the findings means a task above missed
 it: fix that task. `REBUILD_KEYS` (`replay/controls.py:99`) is an unwritten constant table under
@@ -2231,7 +2268,11 @@ Run: `uv run pytest --dummy-only --no-cov -q tests/test_process_state_guard.py`
 Expected: fails at import (the functions do not exist yet).
 
 - [ ] **Step 3: Implement the scan** in the test module (as `tests/test_engine_doors.py` keeps its
-scan), with the module docstring stating the five rules and the limits. Run the file: the two
+scan), with the module docstring stating the five rules and the limits. It parses one file at a
+time and keeps no tree past its file (CI's 1600 MiB memory limit; #112 made
+`tests/test_suite_collection.py`'s `_root_test_modules` yield one tree at a time for the same
+reason): a first pass over the files collects only names (`frozen_class_names`, the written
+tables), then a second pass parses each file again and runs `process_state_in_source` on it. Run the file: the two
 planted tests pass and `test_every_piece_of_process_state_is_in_the_audit` lists the findings.
 
 - [ ] **Step 4: Fill `PROCESS_STATE` from the table**, every reason a full sentence after its row
@@ -2271,7 +2312,7 @@ attribute names are generic (`self.strength` is the gravity behaviour's accelera
 `physics/behaviors.py:57`; `rect.size` is a `Rect`'s), hence the receiver condition. There is no
 allowlist: fonts come from `FontManager`'s one cache per process (`font_manager.py:138-139`), so
 a font is restyled per render call (`render(..., style=...)`), never in place. Checked at
-b5f16688 with these rules (a grep of the setters and of font-named receivers): the engine and
+b5f16688, and again at 3f916b97 (2026-10-29), with these rules (a grep of the setters and of font-named receivers): the engine and
 every member have no finding.
 
 - [ ] **Step 1: Write the tests**
@@ -2424,31 +2465,33 @@ relies on the process-wide names, or on one game per process, now says what is p
 documents the views as "read-only; the current game's; None outside a game", and tells code to
 write the instance (or the slot's owner function) instead.
 
-**Files** (found with `grep -rnE 'GameEngine\.(OPTIONS|EVENT_HANDLERS|MISSING_EVENTS|UNIMPLEMENTED_EVENTS|LAST_EVENT_MISS|game)|SceneManager\.OPTIONS|FontManager\.OPTIONS|performance_manager|SPRITE_COUNT|SPRITE_BREAKPOINTS|__instances__|_INTERNAL_POSTS|_unhandled_event_types|EVENT_HANDLERS|shutdown report' docs CLAUDE.md README.md BUGS.md plans/future-features.md plans/future-work.md plans/2026-10-23-arcade-showcase.md plans/2026-10-24-workspace-packages.md plans/2026-10-25-engine-context.md src --include='*.md' --include='*.py'` at b5f16688; rerun it in Step 1 and add any new hit):
+**Files** (found with `grep -rnE 'GameEngine\.(OPTIONS|EVENT_HANDLERS|MISSING_EVENTS|UNIMPLEMENTED_EVENTS|LAST_EVENT_MISS|game)|SceneManager\.OPTIONS|FontManager\.OPTIONS|performance_manager|SPRITE_COUNT|SPRITE_BREAKPOINTS|__instances__|_INTERNAL_POSTS|_unhandled_event_types|EVENT_HANDLERS|shutdown report' docs CLAUDE.md README.md BUGS.md plans/future-features.md plans/future-work.md plans/2026-10-23-arcade-showcase.md plans/2026-10-24-workspace-packages.md plans/2026-10-25-engine-context.md src --include='*.md' --include='*.py'` at b5f16688, rechecked at 3f916b97: one new code hit,
+`game_engine.py:3145`, Task 5's, and BUGS.md #238, a resolved entry left as it is; rerun it in
+Step 1 and add any new hit):
 - `docs/architecture/engine_context.md` (`:5-10` intro, the slot table, a new "Read-only views"
   section, the guards)
 - `docs/architecture/event_system.md:339, 586, 2553, 2663-2716`
-- `docs/architecture/argument_system.md:38, 135, 139, 148, 200-201` (`:38` also shows
+- `docs/architecture/argument_system.md:38, 136, 140, 149, 232-233` (`:38` also shows
   `game.options = OPTIONS`, which Task 6 removes)
 - `docs/architecture/bitmappy.md:84, 191, 247, 256, 388` (`EVENT_HANDLERS`: "the engine's")
 - `docs/quality/performance.md` (one game per process; per-game reports)
-- `README.md:236-237` and the `--perf-trim-percent` / `--fps-histogram` help in
+- `README.md:238-239` and the `--perf-trim-percent` / `--fps-histogram` help in
   `src/glitchygames/engine/game_engine.py` with its copy in `docs/glitchygames/index.md:87-141`
   ("the game's shutdown report")
-- `CLAUDE.md:234, 1021-1043, 1128, 1258`, the Design Patterns Singleton line
-- `BUGS.md:591` (#210, active: "`FontManager.OPTIONS`" becomes "the context's font options
+- `CLAUDE.md:254, 1093-1115, 1200, 1330`, the Design Patterns Singleton line
+- `BUGS.md:627` (#210, active: "`FontManager.OPTIONS`" becomes "the context's font options
   (`FontManager.OPTIONS`, a read-only view)")
 - `plans/2026-10-25-engine-context.md`, `plans/future-features.md`
-- docstrings that tell readers to use a view: `src/glitchygames/replay/driver.py:3041`,
+- docstrings that tell readers to use a view: `src/glitchygames/replay/driver.py:3049`,
   `src/glitchygames/replay/tools/registry.py:642, 688, 727`,
-  `src/glitchygames/replay/tools/traces.py:378, 445` (already "the engine's ``options``" from
+  `src/glitchygames/replay/tools/traces.py:379, 446` (already "the engine's ``options``" from
   Task 5: check), and the module docstrings of `read_only_views.py`, `performance/__init__.py`,
   `adaptive_clamping.py`
 - `tests/test_suite_collection.py` (the living-docs guard), `tests/test_read_only_views.py`
   (the engine context page's views section, and the documented read costs against the gate),
   `tests/benchmarks/test_engine_context_benchmarks.py` (created with `READ_RATIO_LIMITS` only)
 
-No game's own docs or docstrings name a view (checked at b5f16688: the members' `*.md` and source
+No game's own docs or docstrings name a view (checked at b5f16688 and 3f916b97: the members' `*.md` and source
 have no hit); rerun the grep over `src/games`, `src/demos`, `src/apps` in Step 1.
 
 **Interfaces:**
@@ -2463,7 +2506,7 @@ have no hit); rerun the grep over `src/games`, `src/demos`, `src/apps` in Step 1
 
 - [ ] **Step 1: Write the two guard tests and run them.** `test_no_living_documentation_writes_to_a_read_only_view`
   fails on `docs/architecture/argument_system.md:38` (`GameEngine.OPTIONS = the options`) and
-  `:139` (`SceneManager.OPTIONS = OPTIONS`); the page test fails (no views section yet).
+  `:140` (`SceneManager.OPTIONS = OPTIONS`); the page test fails (no views section yet).
   Rerun the Files grep; any new hit joins this task's list.
 - [ ] **Step 2: `docs/architecture/engine_context.md`.** The intro says what is per context now
   (the slots, the engine's and scene manager's own attributes) and what is shared (the master
@@ -2471,7 +2514,8 @@ have no hit); rerun the grep over `src/games`, `src/demos`, `src/apps` in Step 1
   `glitchygames.game_frames.clock` row (`src/glitchygames/game_frames.py:67`,
   `game_frame_clock()`); a "Read-only views" section lists every view as a table (view, what it
   reads, outside a game, where to write: the `write_instead` text), states the rules (a view
-  stores nothing; a class-level read costs about 180 ns, Task 1's measurement says exactly, so
+  stores nothing; a module view is a name its module marks in `READ_ONLY_MODULE_VIEWS`, never a
+  module `__getattr__` alone; a class-level read costs about 180 ns, Task 1's measurement says exactly, so
   engine code reads its objects; writing it
   raises `ReadOnlyViewError`), and names `current_engine()`; a paragraph names the guards
   (`tests/test_process_state_guard.py`, `tests/test_shared_font_cache_guard.py`,
@@ -2518,7 +2562,7 @@ have no hit); rerun the grep over `src/games`, `src/demos`, `src/apps` in Step 1
 - [ ] **Step 4: `CLAUDE.md`**: the Engine Context section's "Only the slots below ..." sentence
   and "Slots today" list follow Step 2; a bullet on the views (read-only, the current game's,
   `None` outside a game, engine code uses the instance, `current_engine()`); a bullet naming the
-  guards; `:234` "Pre-computes `EVENT_HANDLERS` dict (per engine)"; `:1258` the performance
+  guards; `:254` "Pre-computes `EVENT_HANDLERS` dict (per engine)"; `:1330` the performance
   manager is per engine context; the Singleton line: "`SceneManager`, `AdaptiveClamping`, the
   shared event managers and `FontManager` (one per engine context)".
 - [ ] **Step 5: `plans/2026-10-25-engine-context.md`**: the Status paragraph records sub-plan 2
@@ -2530,9 +2574,11 @@ have no hit); rerun the grep over `src/games`, `src/demos`, `src/apps` in Step 1
   2026-10-28)", and a note that Bitmappy's onion-skinning manager and AI training state are listed
   beside it with no owning plan yet; C18
   gains `SPRITE_COUNT`; a new row C20 (`<GameClass>.options`, written by
-  `initialize_arguments` at `game_engine.py:965`, removed by Task 6: found by the review); new S16,
+  `initialize_arguments` at `game_engine.py:1129`, removed by Task 6: found by the review); new S16,
   S17 (the recording tools' temporary module-function swaps: `scripted_sessions.py:182, 186` and
-  `golden_traces.py:386-396`) and R15 rows as in Task 13's table; totals updated; the "Risks"
+  `golden_traces.py:386-396`) and R15 rows as in Task 13's table; S8 gains
+  `GameEngine.PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS` and R15 gains `pygame_event_names` (the
+  controller's ruling, 2026-10-29: process-wide, in no context); totals updated; the "Risks"
   bullet on state nobody listed points at `tests/test_process_state_guard.py`.
   `plans/future-features.md` entry 43: sub-plan 2 (the engine's own state) done.
 - [ ] **Step 6:** Run the two guard tests (pass),
@@ -2569,7 +2615,9 @@ prints nothing; `test_the_engine_never_reads_a_view` passes.
 The base and the branch are measured on the same machine, the same day, interleaved, so drift
 between sessions (heat, power, background load) hits both alike. Three measurements:
 
-*Setup.* With `$PERFORMANCE` a scratch directory outside the repository:
+*Setup.* `<base>` is the plan-corrections commit, the last before Task 1's code (its hash is in
+the ledger, `.superpowers/sdd/2026-10-27-engine-context-2-engine-state/progress.md`). With
+`$PERFORMANCE` a scratch directory outside the repository:
 ```bash
 git -C /Users/terry/Dropbox/dev.glitchygames/glitchygames-engine-context-2 worktree add --detach "$PERFORMANCE/base-tree" <base>
 cp tests/benchmarks/test_engine_context_benchmarks.py "$PERFORMANCE/base-tree/tests/benchmarks/"
@@ -2587,11 +2635,11 @@ uv run glitchygames measure --force --allow-dirty --rows-directory "$PERFORMANCE
 (`--allow-dirty`: the rows are trial rows in a scratch directory, never the ledger; the base tree
 holds the copied benchmark file, the branch may hold the owner's uncommitted note.) Each row file
 names its recording and holds `summary.p50_processing_seconds` and
-`summary.p99_processing_seconds` (`RunSummary`, `src/glitchygames/recording_history.py:258`).
+`summary.p99_processing_seconds` (`RunSummary`, `src/glitchygames/recording_history.py:276`).
 **Noise rule:** for each recording and each of p50 and p99, the base's run-to-run noise is the
 spread of its three runs; the branch regresses when the **median of its three runs exceeds the
 largest of the base's three by more than 0.2 ms**, the report tool's own "smaller changes are
-timer noise" minimum (`DEFAULT_MINIMUM_CHANGE_SECONDS`, `src/glitchygames/recording_metrics.py:74`,
+timer noise" minimum (`DEFAULT_MINIMUM_CHANGE_SECONDS`, `src/glitchygames/recording_metrics.py:75`,
 `--minimum-ms 0.2`). The command that applies it:
 ```bash
 uv run python -I -c '
@@ -2626,7 +2674,8 @@ else:
 sys.exit(1 if failures else 0)
 ' "$PERFORMANCE"
 ```
-Expected: `gate (a) passed`, exit 0.
+Expected: `gate (a) passed`, exit 0. Gate (a) compares p50 and p99 only, not #116's mean and 5%
+slice summaries (the controller's ruling, 2026-10-29; `plans/future-work.md` notes it could).
 
 *(b) Behaviour unchanged.* For each recording (from a row file), rebaseline a scratch copy on the
 base, then that copy on the branch, and read the report with the tool's thresholds passed
@@ -2686,7 +2735,7 @@ suite under xdist, as `tests/benchmarks/test_benchmarks.py`'s do):
   `current_engine`, the views and the slots **inside** the per-read test functions, because the
   file is copied into the `<base>` tree, where those names do not exist and a top-level import
   would fail collection even with `-k per_call` (re-check m-4; ruff allows it: `PLC0415` is
-  ignored, `pyproject.toml:442`).
+  ignored, `pyproject.toml:453`).
 
 **On a regression:** never relax the gate, its margins or its limits. Profile the regressed
 recording on both trees (`uv run <console_script> --replay-trace <recording> --headless
