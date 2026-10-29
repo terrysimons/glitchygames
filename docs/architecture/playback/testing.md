@@ -73,10 +73,17 @@ refusal, every exit code.
   (`tests/stand_in_games.py`, `tests/stand_in_harness_games.py`).
 - The end-to-end proof is `tests/replay/tools/test_an_unseen_game.py`: a stand-in game in its
   own git repository, run through every tool on both front ends.
-- **Paced recordings.** Stand-in live recordings are paced at `STAND_IN_GAME_TARGET_FPS` = 60
-  (`record_stand_in_game`, in a headless child). That makes them paced live runs, as a player's
-  are, so the recorded runs carry `processing_paced` and live frame times like a real recording.
-  Replays of them are unpaced, as every replay is.
+- **Uncapped recordings, unless pacing is the point.** Stand-in live recordings
+  (`record_stand_in_game`, in a headless child) are uncapped by default (`UNPACED_TARGET_FPS` =
+  `'0'`): their frames never wait, and the engine skips measuring the machine's sleep model, so a
+  20-frame recording costs its child's start-up and no more. The same frames and sprites are
+  recorded either way. A test that reads the recorded frame times (a watched replay presents
+  frames by them) or the run's pacing (`processing_paced`, its live frame times) asks for
+  `paced=True`, which paces at `STAND_IN_GAME_TARGET_FPS` = `'60'` as a player's run is; each such
+  call says why. Replays of either are unpaced, as every replay is
+  (`tests/stand_in_games.py`).
+- **Shared recordings.** A recording that tests only read is made once per test module
+  (`record_stand_in_game_once`), and each test is handed its own copy of the file.
 - **Unpaced engine runs.** Engine tests that need no pacing run uncapped (`--target-fps 0`, for
   example `tests/engine/test_engine_event_system.py`), so they never wait for a frame deadline.
 
