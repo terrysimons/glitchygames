@@ -21,6 +21,7 @@ import itertools
 import logging
 import os
 import socket
+import struct
 import sys
 import threading
 import time
@@ -445,7 +446,7 @@ def watched_replay(
             )
         )
 
-    mocker.patch.object(viewer_module, 'measured_seconds', side_effect=read_clock)
+    mocker.patch('glitchygames.clock.measured_seconds', side_effect=read_clock)
     mocker.patch.object(viewer_module, 'sleep_for', side_effect=wait)
     mocker.patch.object(viewer_module, 'sleep_coarsely', side_effect=wait)
     mocker.patch.object(pygame.display, 'flip', side_effect=flip)
@@ -579,6 +580,7 @@ class FrameStreamListener:
     Attributes:
         address: Its ``PORT:TOKEN`` (``--replay-frame-stream``); a connection is read only
             after it sends the token.
+        closed: Set once a ``closes_at_once`` listener has closed its connection.
 
     """
 
@@ -586,22 +588,29 @@ class FrameStreamListener:
         """Listen, and read on a thread from the first connection.
 
         Args:
-            closes_at_once: Close the connection as soon as it is made, reading nothing.
+            closes_at_once: Close the connection as soon as it is made, reading nothing, and
+                abortively (a reset, not a graceful close), so a send after it fails at once.
 
         """
         self._listener = socket.create_server((compare.FRAME_STREAM_HOST, 0))
         self._token = 'a' * compare.FRAME_STREAM_TOKEN_LENGTH
         self.address = f'{self._listener.getsockname()[1]}:{self._token}'
         self._closes_at_once = closes_at_once
+        self.closed = threading.Event()
         self._frames: list[StreamedFrame] = []
         self._thread = threading.Thread(target=self._read, daemon=True)
         self._thread.start()
 
     def _read(self) -> None:
         connection, _ = self._listener.accept()
+        if self._closes_at_once:
+            # Linger on, for 0 seconds: close resets the connection rather than closing it
+            # gracefully, which Windows' loopback lets sends succeed against into its buffers
+            connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+            connection.close()
+            self.closed.set()
+            return
         with connection:
-            if self._closes_at_once:
-                return
             token = receive_exactly(connection=connection, count=len(self._token))
             assert token == self._token.encode('ascii')
             while (
@@ -668,8 +677,25 @@ def test_the_child_streams_one_frame_per_frame_in_order(
 
 
 def test_a_stream_nobody_reads_any_more_ends_the_replay(color_game, mocker):
-    """When the parent is gone, the child stops replaying instead of running on unseen."""
+    """When the parent is gone, the child stops replaying instead of running on unseen.
+
+    The child writes its first frame only once the listener has reset the connection: left to
+    the threads, a slow listener on a loaded Windows runner closed after the child had sent
+    every frame into loopback's buffers, so the replay ended at the end of the recording.
+    """
     listener = FrameStreamListener(closes_at_once=True)
+    connect = compare.FrameStream.connect
+
+    def connect_once_the_listener_is_gone(
+        *, address: compare.FrameStreamAddress, first_frame: int
+    ) -> compare.FrameStream:
+        stream = connect(address=address, first_frame=first_frame)
+        assert listener.closed.wait(timeout=CHILD_TIMEOUT_SECONDS)
+        return stream
+
+    mocker.patch.object(
+        compare.FrameStream, 'connect', side_effect=connect_once_the_listener_is_gone
+    )
 
     replay = replay_through_engine(
         mocker=mocker,
@@ -1712,7 +1738,7 @@ def test_a_stranger_refused_past_the_deadline_ends_the_wait_for_the_child(
     again, times out and ends there instead; this one pins the refusal's own ending.
     """
     readings = itertools.chain([0.0, 0.0], itertools.repeat(compare.CHILD_CONNECT_TIMEOUT_SECONDS))
-    mocker.patch.object(compare, 'measured_seconds', side_effect=lambda: next(readings))
+    mocker.patch('glitchygames.clock.measured_seconds', side_effect=lambda: next(readings))
     mocker.patch.object(compare, 'TOKEN_TIMEOUT_SECONDS', 0.2)
     onion_skin = OnionSkin(
         old_path=color_game.old,

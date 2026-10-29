@@ -724,7 +724,7 @@ class TestSliderModeIndicatorsInTheRealEditor:
         """Connect a yellow controller and switch it to the red slider mode, as L2/R2 do."""
         from bitmappy.controllers.manager import ControllerInfo, ControllerStatus
         from bitmappy.controllers.modes import ControllerMode
-        from glitchygames.clock import elapsed_seconds
+        from glitchygames import clock
 
         manager = editor.multi_controller_manager
         manager.controllers[self.CONTROLLER_ID] = ControllerInfo(
@@ -734,11 +734,11 @@ class TestSliderModeIndicatorsInTheRealEditor:
             color=self.CONTROLLER_YELLOW,
         )
         # Just scanned: no joystick is plugged in, so a scan now would disconnect it
-        manager.last_scan_time = elapsed_seconds()
+        manager.last_scan_time = clock.elapsed_seconds()
         editor.controller_handler.render_visual_indicators()
         editor.mode_switcher.controller_modes[self.CONTROLLER_ID].switch_to_mode(
             ControllerMode.R_SLIDER,
-            elapsed_seconds(),
+            clock.elapsed_seconds(),
         )
         editor.controller_handler.update_controller_visual_indicator_for_mode(
             self.CONTROLLER_ID,

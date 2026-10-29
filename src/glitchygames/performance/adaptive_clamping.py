@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 import math
 import statistics
-import time
 from bisect import bisect_right
 from collections import deque
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar, Self
+
+from glitchygames import clock
 
 if TYPE_CHECKING:
     from collections.abc import Collection
@@ -144,7 +145,7 @@ class AdaptiveClamping:
             adjusted_dt = dt * (1 - smoothing_factor) + target_dt * smoothing_factor
 
             # Only log significant adjustments at the configured interval
-            current_time = time.perf_counter()
+            current_time = clock.raw_counter_seconds()
             # Be robust if tests or external code set interval to None
             interval_ms = (
                 self._fps_log_interval_ms if self._fps_log_interval_ms is not None else 1000.0

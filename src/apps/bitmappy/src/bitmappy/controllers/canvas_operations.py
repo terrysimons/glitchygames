@@ -15,7 +15,7 @@ from bitmappy.constants import (
     CONTROLLER_ACCEL_LEVEL2_TIME,
     CONTROLLER_ACCEL_LEVEL3_TIME,
 )
-from glitchygames.clock import elapsed_seconds, wall_clock_epoch_seconds
+from glitchygames import clock
 
 if TYPE_CHECKING:
     from bitmappy.controllers.event_handler import ControllerEventHandler
@@ -62,7 +62,7 @@ class CanvasOperations:
 
         # End the drag operation
         drag_info['active'] = False
-        drag_info['end_time'] = elapsed_seconds()
+        drag_info['end_time'] = clock.elapsed_seconds()
         drag_info['end_position'] = self.handler.editor.mode_switcher.get_controller_position(
             controller_id,
         )
@@ -386,7 +386,7 @@ class CanvasOperations:
             'position': position,
             'color': current_color,
             'old_color': old_color,  # Store the original color for undo
-            'timestamp': wall_clock_epoch_seconds(),
+            'timestamp': clock.wall_clock_epoch_seconds(),
         }
         drag_info['pixels_drawn'].append(pixel_info)
         self.handler.log.debug(
@@ -552,7 +552,7 @@ class CanvasOperations:
         start_x, start_y = start_position.position if start_position else (0, 0)
 
         # Initialize continuous movement for this controller
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
         self.handler.canvas_continuous_movements[controller_id] = {
             'dx': dx,
             'dy': dy,
@@ -617,7 +617,7 @@ class CanvasOperations:
         if not hasattr(self.handler, 'canvas_continuous_movements'):
             return
 
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
 
         for controller_id, movement_data in list(self.handler.canvas_continuous_movements.items()):
             # Calculate time since start and since last movement

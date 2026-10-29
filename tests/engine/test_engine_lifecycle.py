@@ -546,8 +546,8 @@ class TestListInputDevices:
         )
         install_stand_in_devices(descriptors=[STAND_IN_STICK, STAND_IN_PAD])
         # A clock past the settling time at its second reading: one pump, no wait
-        mocker.patch.object(
-            device_listing, 'measured_seconds', side_effect=itertools.count(start=0.0, step=5.0)
+        mocker.patch(
+            'glitchygames.clock.measured_seconds', side_effect=itertools.count(start=0.0, step=5.0)
         )
 
         frames_started = mocker.spy(engine.scene_manager, 'start')
@@ -566,8 +566,8 @@ class TestListInputDevices:
             mocker, game=GameWhoseConstructorRaises, extra_arguments=('--list-input-devices',)
         )
         install_stand_in_devices(descriptors=[STAND_IN_STICK, STAND_IN_PAD])
-        mocker.patch.object(
-            device_listing, 'measured_seconds', side_effect=itertools.count(start=0.0, step=5.0)
+        mocker.patch(
+            'glitchygames.clock.measured_seconds', side_effect=itertools.count(start=0.0, step=5.0)
         )
         ticks, wait_for_tick = async_ticks()
 
@@ -1098,6 +1098,25 @@ def option_shown(*, record: logging.LogRecord, name: str) -> str:
 @pytest.mark.usefixtures('engine_run_environment')
 class TestStartupOptions:
     """Every engine start logs the run's options once, at CRITICAL (the owner, 2026-10-28)."""
+
+    def test_the_start_line_names_the_game_not_the_engine(self, mocker, caplog):
+        """'Starting game engine for game: <the game's NAME>', as the options block names it.
+
+        D18's report: it named the engine class's NAME ("Boilerplate Adventures") instead.
+        """
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class)
+
+        with caplog.at_level(logging.INFO, logger='game.engine'):
+            engine.start()
+
+        start_lines = [
+            record.getMessage()
+            for record in caplog.records
+            if record.getMessage().startswith('Starting game engine for game: ')
+        ]
+        assert start_lines == [f'Starting game engine for game: {game_class.NAME}']
+        assert game_class.NAME != type(engine).NAME
 
     @pytest.mark.parametrize('level', ['debug', 'info', 'warning', 'error', 'critical'])
     def test_the_options_show_once_at_every_level(self, mocker, caplog, level):

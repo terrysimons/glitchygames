@@ -29,8 +29,8 @@ uv sync --all-packages
 # Install with dev extras (for testing/linting)
 uv sync --extra dev --all-packages
 
-# Install with all extras: the engine, every game, every app and the dev tools (what development
-# uses)
+# Install with all extras: the engine, every game, every app, the templates' cookiecutter and
+# the dev tools (what development uses)
 uv sync --all-extras --all-groups --all-packages
 
 # Outside the repository: the engine alone, or with every game or app (the `games` and `apps`
@@ -42,6 +42,10 @@ uv build --all-packages
 pip install --find-links dist glitchygames
 pip install --find-links dist "glitchygames[games]"
 pip install --find-links dist "glitchygames[apps]"      # Bitmappy
+# cookiecutter is the `templates` extra, not a core dependency: only glitchygames.templates
+# (building a new game project, scripts/create.py) uses it; without it build() raises
+# TemplatesUnavailableError and scripts/create.py exits 1 naming the extra
+pip install --find-links dist "glitchygames[templates]"
 
 # Optional: trust the project's .envrc (direnv); on entering the repo it runs
 # `uv sync --all-extras --all-groups --all-packages` (the locked versions) and, on macOS,
@@ -345,8 +349,11 @@ games.
 **Frame Pacing** (`src/glitchygames/timing.py`)
 - Two timer backends (`--timer-backend auto`, the default, is `FastTimer` with a measured sleep
   model, below):
-  - `FastTimer`: High-resolution `time.perf_counter_ns()` with sleep+spin hybrid: it
-    sleeps so it wakes `sleep_granularity_ns` (1 ms) before the deadline, then spins the rest
+  - `FastTimer`: High-resolution `clock.raw_counter_ns()` (`time.perf_counter_ns()`) with
+    sleep+spin hybrid (`clock.raw_sleep`): it sleeps so it wakes `sleep_granularity_ns` (1 ms)
+    before the deadline, then spins the rest. It takes its counter and sleep as parameters
+    (`FastTimer(read_counter_ns=..., sleep=...)`, also `measure_sleep_model` and
+    `sleep_overshoot_ns`), so tests pass a fake clock instead of patching one
   - `PygameTimer`: Legacy pygame-based timing (whole milliseconds); select with `--timer-backend=pygame`
 - A sleep's delay is modelled as a constant plus a fraction of its length (`SleepModel`): macOS
   lets a normal-priority sleep run late by 25% of its length, so `--timer-backend fast` (which
@@ -365,7 +372,8 @@ games.
   null when it never measured; the committed recordings from before it were backfilled with
   `fast`, 1 ms, no model). `nox -s timer-report` shows a
   machine's sleep accuracy
-- Paced frame time (`dt`, FPS tracking) is always measured with `time.perf_counter()`, and
+- Paced frame time (`dt`, FPS tracking) is always measured with `clock.raw_counter_seconds()`
+  (`time.perf_counter()`), and
   `target_fps` may be fractional (the period is `round(1e9 / target_fps)` ns)
 - Default target 60.01 FPS (`DEFAULT_TARGET_FPS` in `src/glitchygames/timing.py`, re-exported by
   `glitchygames.engine`); `--target-fps 0` is uncapped for every game
@@ -376,7 +384,7 @@ games.
   The manager's `self.dt` stays the raw frame time (pacing, FPS statistics, overlay, shake), and
   recordings hold the raw dt (Clockwork Keep caps at 0.05 s)
 - `_finish_frame(*, frame_start_seconds, ...)` ends every frame: pace, then read
-  `time.perf_counter()` once; that reading ends this frame and starts the next, and `self.dt` is
+  `clock.raw_counter_seconds()` once; that reading ends this frame and starts the next, and `self.dt` is
   set only there (start to start, through the doors' `frame_seconds(measured=...)`, which a
   replay answers with the recorded dt), so recorded frames sum exactly to wall-clock time and logic,
   the overlay and the FPS statistics all see the same value. Processing time excludes the
@@ -447,13 +455,33 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - `measured_seconds()`: real `time.monotonic()` for logs, metrics and diagnostics only. It is never
   replayed, so its readings must never change what is drawn, played or recorded (the one
   exception: each frame's diagnostic `processing_seconds`, recorded but never compared or served)
-- Only `ALLOWED_BYPASSES` in `tests/test_engine_doors.py` may read the raw clock (or use
-  `pygame.time.set_timer`/`Clock`): pacing (`timing.py`), `performance/`, `debug/`,
-  `audio/diagnostics.py` and the live doors' wall clock (`live_sources.py`); by function
-  (`ALLOWED_FUNCTION_BYPASSES`): `SceneManager.begin_frames`/`run_frame_step`/`_finish_frame`
-  (and its pacing `Clock`),
-  the recording's start stamp (`GameEngine.trace_recording_header`), each run's `measured_at`
-  (`GameEngine.measurement_run`) and `clock.measured_seconds`
+- Raw time (the engine's own, never replayed, not for game code): `raw_counter_ns()` /
+  `raw_counter_seconds()` (`time.perf_counter_ns()` / `perf_counter()`: frame pacing, the frame
+  loop's measurement of each frame, the audio-glitch probe, the performance statistics' log
+  interval, a measurement tool's summary), `raw_sleep(seconds)` (`time.sleep`: pacing, the
+  replay viewer, the power-on frames, waits for a window manager, microphone, controller speaker
+  or AI retry) and `raw_wall_clock_time()` (`datetime.now(tz=UTC)`: the live doors' wall clock,
+  a recording's `recorded_at` and each run's `measured_at`)
+- `glitchygames.clock` is the one clock (the owner, 2026-10-28): every caller, engine and members,
+  imports the module (`from glitchygames import clock`) and calls `clock.elapsed_seconds()`,
+  `clock.raw_sleep(...)` and so on, never a function imported by name
+  (`tests/test_engine_doors.py` `clock_functions_imported_by_name` fails on one). Every read
+  then looks the function up in one place, so one patch on `glitchygames.clock` reaches every
+  reader. A local name never says `clock` where the module is imported (`SceneManager`'s pygame
+  pacing clock is `pacing_fallback_clock`)
+- A function or class that waits or measures takes its sleep or counter as a parameter where
+  that is clean (`FastTimer(read_counter_ns=..., sleep=...)`, `play_power_on(sleep=...)`,
+  `listen(sleep=...)`, `sleep_coarsely(sleep=...)`, `VoiceEventManager(sleep=...)`, Bitmappy's
+  `_create_ai_retry_decorator(sleep=...)`, which hands tenacity its `sleep`). The default is
+  None, resolved to `clock.raw_sleep` (or `clock.raw_counter_ns`) when called: a default of
+  `clock.raw_sleep` would be bound once, when the function is defined, and a patch on
+  `glitchygames.clock` would never reach it. Tests pass a fake; otherwise they patch
+  `glitchygames.clock`'s function (`mocker.patch('glitchygames.clock.raw_sleep')`), never a
+  module's copy and never the shared `time` module (ruff's preview rule `shared-clock-mock`)
+- `clock.py` is the only file in the package (engine and members) that may use the `time` module
+  at all or read `datetime`'s now (`tests/test_engine_doors.py`); `pygame.time.set_timer`/`Clock`
+  stay fenced as before (by function: `SceneManager.__init__`'s `pacing_fallback_clock`).
+  `PygameTimer` (`--timer-backend pygame`) reads `pygame.time` through its own `self._pg`
 - A recorded run's wall clock (and its replay's) is the header's `recorded_at` plus the frame
   clock (`RecordingSources.wall_clock_time`)
 
@@ -471,8 +499,8 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   the game host's forwarding layer around the live doors), `RecordingSources`
   (`src/glitchygames/recording.py`: wraps the host's doors under `--record-trace` and records what
   passes through) and `ReplaySources` (`src/glitchygames/replay/driver.py`: serves the recording)
-- Guard: `tests/test_engine_doors.py` AST-scans the package. Raw clock reads, pygame key/mouse
-  polling, `pygame.event.get`/`post` and joystick/controller enumeration or construction outside
+- Guard: `tests/test_engine_doors.py` AST-scans the package. Any use of the `time` module or a
+  `datetime` read of now outside `clock.py`, pygame key/mouse polling, `pygame.event.get`/`post` and joystick/controller enumeration or construction outside
   the doors fail. The only exceptions are `ALLOWED_BYPASSES` (by file) and
   `ALLOWED_FUNCTION_BYPASSES`, each with its reason. No directory is exempt, Bitmappy included
 - Polled input: `glitchygames.input.state.current_input()` (or `GameEngine.input`) returns the

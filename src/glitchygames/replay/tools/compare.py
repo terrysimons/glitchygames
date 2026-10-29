@@ -134,7 +134,7 @@ from typing import IO, TYPE_CHECKING, Any, Self, override
 import numpy as np
 import pygame
 
-from glitchygames.clock import measured_seconds
+from glitchygames import clock
 from glitchygames.debug.overlay import load_debug_font
 from glitchygames.debug.panels import HUD_MARGIN, HUD_TEXT_COLOR, blit_text
 from glitchygames.exit_codes import ExitCode
@@ -767,16 +767,16 @@ class OnionSkin:
         """
         assert self._listener is not None
         assert self.process is not None
-        deadline = measured_seconds() + CHILD_CONNECT_TIMEOUT_SECONDS
+        deadline = clock.measured_seconds() + CHILD_CONNECT_TIMEOUT_SECONDS
         while True:
             try:
                 connection, _ = self._listener.accept()
             except TimeoutError:
-                if self.process.poll() is None and measured_seconds() < deadline:
+                if self.process.poll() is None and clock.measured_seconds() < deadline:
                     continue
                 return self._never_connected()
             token_wait_seconds = max(
-                min(TOKEN_TIMEOUT_SECONDS, deadline - measured_seconds()), ACCEPT_POLL_SECONDS
+                min(TOKEN_TIMEOUT_SECONDS, deadline - clock.measured_seconds()), ACCEPT_POLL_SECONDS
             )
             if not self._sends_the_token(connection=connection, timeout_seconds=token_wait_seconds):
                 connection.close()
@@ -784,7 +784,7 @@ class OnionSkin:
                     'Comparing with %s: refused a frame stream connection without the token',
                     self.old_path,
                 )
-                if measured_seconds() < deadline:
+                if clock.measured_seconds() < deadline:
                     continue
                 return self._never_connected()
             connection.settimeout(CHILD_READ_TIMEOUT_SECONDS)

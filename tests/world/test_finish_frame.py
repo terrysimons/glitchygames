@@ -1,7 +1,8 @@
 """SceneManager._finish_frame(): one start-to-start frame time per frame (engine audit #15).
 
 Every frame ends in ``_finish_frame``: it paces with the timer backend (or the pygame clock),
-then reads ``time.perf_counter()`` once. That reading ends this frame and starts the next, and
+then reads the raw performance counter (glitchygames/clock.py ``raw_counter_seconds``) once.
+That reading ends this frame and starts the next, and
 ``self.dt`` is set once, to the full start-to-start period. Logic in the next frame, the FPS
 statistics and the debug overlay all see that one value.
 
@@ -252,9 +253,7 @@ class FrameDriver:
         """
         self.clock = FakeClock()
         self.timer = timer_class(clock=self.clock)
-        mocker.patch(
-            'glitchygames.scenes.scene.time', SimpleNamespace(perf_counter=self.clock.perf_counter)
-        )
+        mocker.patch('glitchygames.clock.raw_counter_seconds', new=self.clock.perf_counter)
         mocker.patch.object(
             SceneManager,
             'OPTIONS',
@@ -274,7 +273,7 @@ class FrameDriver:
         )
         # A plain scene: its identity camera follows nothing, so the camera steps move nothing
         self.manager.active_scene = Scene(options={})
-        self.manager.clock = mocker.Mock()
+        self.manager.pacing_fallback_clock = mocker.Mock()
         # terminate() switches to no scene, which resets dt after the loop; only the loop counts
         mocker.patch.object(self.manager, 'terminate')
         self.logic_dts: list[float] = []
@@ -478,7 +477,7 @@ class TestOneFrameTime:
         With the frame clock frozen, none is posted even though a second of wall time passes.
         """
         driver = driver_factory(target_fps=EXACT_TARGET_FPS)
-        mocker.patch('glitchygames.scenes.scene.frame_clock_seconds', return_value=0.0)
+        mocker.patch('glitchygames.clock.frame_clock_seconds', return_value=0.0)
 
         driver.run(frame_count=round(EXACT_TARGET_FPS))
 
@@ -545,8 +544,8 @@ class TestPacing:
 
         assert driver.timer.sleep_deadlines == []
         assert driver.timer.compute_deadline_calls == []
-        assert driver.manager.clock.tick.call_count == FRAMES_TO_RUN
-        for tick_call in driver.manager.clock.tick.call_args_list:
+        assert driver.manager.pacing_fallback_clock.tick.call_count == FRAMES_TO_RUN
+        for tick_call in driver.manager.pacing_fallback_clock.tick.call_args_list:
             assert tick_call.args == ()
         # Uncapped frames are still measured start to start: the start reading, the work and
         # the processing reading (the first frame also spans start()'s second reading)
@@ -560,9 +559,9 @@ class TestPacing:
 
         driver.run(frame_count=3)
 
-        assert [tick_call.args for tick_call in driver.manager.clock.tick.call_args_list] == [
-            (60.01,)
-        ] * 3
+        assert [
+            tick_call.args for tick_call in driver.manager.pacing_fallback_clock.tick.call_args_list
+        ] == [(60.01,)] * 3
         assert len(_closing_samples(driver)) == 3
 
     def test_sources_pacing_override_replaces_the_target(self, driver_factory, mocker):
@@ -574,7 +573,7 @@ class TestPacing:
 
         assert driver.timer.sleep_deadlines == []
         assert driver.timer.compute_deadline_calls == []
-        driver.manager.clock.tick.assert_not_called()
+        driver.manager.pacing_fallback_clock.tick.assert_not_called()
 
     def test_unpaced_frames_without_a_timer_never_tick_the_clock(self, driver_factory, mocker):
         """Without a timer backend, an unpaced frame skips the pygame clock (it would sleep)."""
@@ -583,7 +582,7 @@ class TestPacing:
 
         driver.run(frame_count=FRAMES_TO_RUN)
 
-        driver.manager.clock.tick.assert_not_called()
+        driver.manager.pacing_fallback_clock.tick.assert_not_called()
 
     def test_a_positive_paced_period_replaces_the_target(self, driver_factory, mocker):
         """Without a timer backend, a paced period of 0.05 s ticks the pygame clock at 20 FPS."""
@@ -592,8 +591,8 @@ class TestPacing:
 
         driver.run(frame_count=FRAMES_TO_RUN)
 
-        assert driver.manager.clock.tick.call_count == FRAMES_TO_RUN
-        driver.manager.clock.tick.assert_called_with(pytest.approx(20.0))
+        assert driver.manager.pacing_fallback_clock.tick.call_count == FRAMES_TO_RUN
+        driver.manager.pacing_fallback_clock.tick.assert_called_with(pytest.approx(20.0))
 
     def test_a_positive_paced_period_sets_the_timer_deadlines(self, driver_factory, mocker):
         """With a timer backend, a paced period of 1/32 s is the deadline period (not 1/64 s)."""

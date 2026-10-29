@@ -110,7 +110,8 @@ EXCEPTIONS: dict[str, str] = {
     ),
     'text-unidecode': (
         'GPL-2.0-or-later OR Artistic-1.0 (its LICENSE: "either GPL or GPLv2+ ... or Artistic '
-        'License"), at runtime through cookiecutter and python-slugify. The Artistic License is '
+        'License"), at runtime through cookiecutter and python-slugify (the templates extra '
+        'since 2026-10-28, no longer a core dependency). The Artistic License is '
         'elected: bundled unmodified, it asks only that its notice be kept, and the GPL arm never '
         'applies (the owner: "Artistic"; Terry Simons, 2026-10-28)'
     ),

@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from typing import cast
 
 import pytest
-from tenacity import nap as tenacity_nap
 
 from bitmappy.ai_worker import (
     _create_ai_retry_decorator,
@@ -55,7 +54,6 @@ from bitmappy.toml_processing import (
     parse_toml_robustly,
 )
 from glitchygames.sprites.file_format import detect_file_format
-from tests.stand_in_time import patch_module_time
 
 EXPECTED_CALLS_AFTER_ONE_RETRY = 2
 
@@ -1246,12 +1244,11 @@ class TestCreateAiRetryDecorator:
 
     def test_does_not_retry_client_errors(self, logger, mocker):
         """Test that 4xx errors like billing/auth failures are not retried."""
-        # tenacity waits between attempts with tenacity.nap.sleep, a call to its module's time.sleep
+        # The retry waits between attempts with the sleep it is given (the engine's raw sleep)
         sleep = mocker.Mock()
-        patch_module_time(mocker=mocker, module=tenacity_nap, sleep=sleep)
         call_count = 0
 
-        @_create_ai_retry_decorator(logger)
+        @_create_ai_retry_decorator(logger, sleep=sleep)
         def failing_call():
             nonlocal call_count
             call_count += 1
@@ -1266,10 +1263,10 @@ class TestCreateAiRetryDecorator:
 
     def test_retries_rate_limit_errors(self, logger, mocker):
         """Test that 429 rate-limit errors are still retried."""
-        patch_module_time(mocker=mocker, module=tenacity_nap, sleep=mocker.Mock())
+        sleep = mocker.Mock()
         call_count = 0
 
-        @_create_ai_retry_decorator(logger)
+        @_create_ai_retry_decorator(logger, sleep=sleep)
         def flaky_call():
             nonlocal call_count
             call_count += 1
@@ -1280,6 +1277,8 @@ class TestCreateAiRetryDecorator:
 
         assert flaky_call() == 'ok'
         assert call_count == EXPECTED_CALLS_AFTER_ONE_RETRY
+        # The one wait went through the sleep given, never tenacity's own time.sleep
+        sleep.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

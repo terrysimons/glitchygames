@@ -2839,7 +2839,9 @@ class TestSceneLifecycleAndUpdate:
 
     def test_animated_canvas_update_tracks_frames_and_log_time(self, mock_editor, mocker):
         """Each update counts, advances the canvas animation and remembers the shown frame."""
-        clock = mocker.patch.object(bitmappy, 'frame_clock_seconds', side_effect=[10.0, 10.0, 11.5])
+        clock = mocker.patch(
+            'glitchygames.clock.frame_clock_seconds', side_effect=[10.0, 10.0, 11.5]
+        )
         mocker.patch.object(
             mock_editor.film_strip_coordinator, 'update_film_strip_animation_timing'
         )

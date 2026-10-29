@@ -77,7 +77,7 @@ def configured_background(request) -> BackgroundPattern:
 
 
 def never_wait(_seconds: float) -> None:
-    """Stand in for time.sleep: the frames run back to back."""
+    """Stand in for the raw sleep (glitchygames/clock.py): the frames run back to back."""
 
 
 def settled_picture(*, size: tuple[int, int] = SIZE) -> pygame.Surface:
@@ -199,8 +199,8 @@ class ScriptedEvents:
 
 def measured_clock(mocker, *, step: float) -> None:
     """Make the measured clock read 0, then ``step`` more at each later reading."""
-    mocker.patch.object(
-        crt_power_on, 'measured_seconds', side_effect=itertools.count(start=0.0, step=step)
+    mocker.patch(
+        'glitchygames.clock.measured_seconds', side_effect=itertools.count(start=0.0, step=step)
     )
 
 

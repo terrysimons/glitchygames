@@ -40,8 +40,8 @@ def listing(*, input_mode: str = 'auto') -> list[str]:
 
 def measured_clock(mocker, *, step: float, start: float = 0.0) -> None:
     """Make the measured clock read ``start``, then ``step`` more at each later reading."""
-    mocker.patch.object(
-        device_listing, 'measured_seconds', side_effect=itertools.count(start=start, step=step)
+    mocker.patch(
+        'glitchygames.clock.measured_seconds', side_effect=itertools.count(start=start, step=step)
     )
 
 

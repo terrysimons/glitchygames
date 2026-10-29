@@ -468,6 +468,26 @@ class TestMain:
             assert (output / game / 'index.html').is_file()
             assert f'<a href="{game}/">{specification.title}</a>' in index
 
+    def test_the_index_lists_the_games_then_the_tools_each_sorted_by_title(self):
+        """Games first, then Tools (Bitmappy); each section's links in alphabetical order.
+
+        The owner (2026-10-28): sort them alphabetically, and put Bitmappy below in its own
+        "Tools" section.
+        """
+        page = build_browser_bundle.site_index_page()
+        games_heading = page.index('<h2>Games</h2>')
+        tools_heading = page.index('<h2>Tools</h2>')
+        links = re.findall(r'<a href="([^"]+)/">([^<]+)</a>', page)
+        listed = [(game, title) for game, title in links if game in GAMES]
+        games = [title for game, title in listed if GAMES[game].section == 'Games']
+        tools = [title for game, title in listed if GAMES[game].section == 'Tools']
+
+        assert games_heading < tools_heading
+        assert games == sorted(games, key=str.casefold)
+        assert tools == ['Bitmappy']
+        assert page.index('>Bitmappy</a>') > tools_heading
+        assert all(page.index(f'>{title}</a>') < tools_heading for title in games)
+
     def test_all_takes_no_game_arguments(self, tmp_path, capsys):
         wheel = tmp_path / WHEEL_NAME
         wheel.write_bytes(b'wheel')

@@ -74,7 +74,6 @@ local branches are deleted. The decisions made on the way, for the record:
 | Papyrus sprites keep their unscaled native rect size | BUGS.md #59 | Latent; fixing it needs its own golden expected-difference class. |
 | Brave Adventurer's ground and walls stay drawn only because the parallax layers dirty the whole screen | BUGS.md #60 | Fragile; make the terrain `dirty = 2` or document the dependency. |
 | Brave Adventurer's and Papyrus's enemies (Cobra, Scarab, Scorpion) still draw in `update()` | `src/games/brave-adventurer/src/brave_adventurer/enemies.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | Harmless while their hitboxes do not depend on the pose (the scarab's bounds are the same at every roll angle); move drawing into `dt_tick` (the pose rule) if they ever do. |
-| The memory guard counts about 290 MiB of reclaimable kernel slab (file metadata from the checkout and the installs), flat from before the first test; the kernel reclaims it before it kills, so the guard's figure overstates the run by that much | `tests/memory_guard.py` (`memory.current` less page cache) | Found 2026-10-28 by the test-memory-reduction work (BUGS.md #237: a serial run now peaks at 1409 MiB against the 1600 limit). The owner (2026-10-28): report it, change nothing yet; the guard's summary line and its stop message now name the slab (`memory guard: peak N MiB ... (S MiB of it reclaimable kernel slab)`). With CircleCI's real figures, choose: keep counting it, subtract it at 1600, or subtract it and lower the limit to about 1300. The `uvx` wrapper's 47 MiB is under Developer environment. |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
@@ -614,6 +613,17 @@ only replays; Part 2 Task 1).
 - Deferred from the screen-shake spec (see its known follow-ups in
   `plans/2026-10-17-screen-shake-and-synth.md`): the audio probe capture mode and the spin-window
   power idea.
+- **pygame's clock through the door too** (left from `feature/clock-door`, 2026-10-28: "move the
+  calls behind the door"; the `time` module and `datetime`'s now are read only in
+  `src/glitchygames/clock.py` now). `pygame.time` stays outside it: `SceneManager.__init__`'s
+  pacing fallback `pygame.time.Clock` (allowed by function in `tests/test_engine_doors.py`) and
+  `PygameTimer` (`--timer-backend pygame`), which calls `pygame.time.get_ticks`/`delay` through
+  its own `self._pg`, a path the doors scan cannot follow. Moving them means raw
+  `clock.raw_ticks_milliseconds()`/`raw_delay()` functions and a `PygameTimer` that takes them as
+  parameters, as `FastTimer` takes `read_counter_ns`/`sleep`. Not fenced: `asyncio.sleep` (the
+  package has none today; its async loops wait for the host's tick) and third-party code's own
+  clock reads (tenacity stamps each retry's start with `time.monotonic()`; only its sleep is
+  ours, through `sleep=`).
 
 ## Assets and art
 
@@ -656,16 +666,6 @@ only replays; Part 2 Task 1).
   ships. A runtime-only SBOM for the policy is the other option. (Its platform half is done:
   since the cleanup branch, 2026-10-28, syft scans `uv.lock`, so the SBOM is the same on every
   platform; `scripts/generate_sbom.py`'s docstring.)
-- **Run nox without the `uvx` wrapper in CI** (found 2026-10-28 by the test-memory-reduction
-  work, `feature/test-memory-reduction`; the owner asked to look at it later).
-  - Every CircleCI step runs `uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox
-    -s ...` (`.circleci/config.yml`). The `uvx` process stays alive as nox's parent, holding about
-    47 MiB of anonymous memory, which the Linux job's memory guard (`tests/memory_guard.py`,
-    `GLITCHYGAMES_TEST_RSS_LIMIT_MB`) counts.
-  - Option: install nox once per job (`uv tool install "nox[uv]==<pinned version>"`) and run
-    `nox -s ...` directly, so no wrapper process waits on it.
-  - It changes the test step of both the Linux and macOS jobs (and the shared commands), so check
-    the Windows job and the cache keys too; measure the guard's peak before and after.
 - **Stamp each game's build with its own revision** (found 2026-10-26, Part 3 Stage D, Task D3
   review).
   - Since D3, every recorded run names its game's source revision

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 import pygame
 
 from bitmappy.film_strip_layout import render_label_text
-from glitchygames.clock import frame_clock_milliseconds
+from glitchygames import clock
 
 if TYPE_CHECKING:
     from bitmappy.film_strip import FilmStripWidget
@@ -595,7 +595,7 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         from bitmappy.film_strip import CURSOR_BLINK_INTERVAL_MS
 
         # Update cursor blink state
-        current_time = frame_clock_milliseconds()
+        current_time = clock.frame_clock_milliseconds()
         if current_time - self.widget.cursor_blink_time > CURSOR_BLINK_INTERVAL_MS:
             self.widget.cursor_visible = not self.widget.cursor_visible
             self.widget.cursor_blink_time = current_time

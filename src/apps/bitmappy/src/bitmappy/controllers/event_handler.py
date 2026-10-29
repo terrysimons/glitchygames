@@ -34,8 +34,10 @@ from bitmappy.controllers.selection import (
 )
 from bitmappy.controllers.slider_operations import SliderOperations
 from bitmappy.controllers.visual_indicators import VisualIndicators
-from glitchygames import events  # ruff: ignore[typing-only-first-party-import] - used at runtime
-from glitchygames.clock import elapsed_seconds
+from glitchygames import (
+    clock,
+    events,
+)
 from glitchygames.input.state import current_input
 
 if TYPE_CHECKING:
@@ -464,7 +466,7 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             self.log.debug('DEBUG: Controller selection not active, ignoring analog stick input')
             return
 
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
 
         if event.axis == pygame.CONTROLLER_AXIS_LEFTX:
             self._handle_left_stick_x_axis(event, current_time)
@@ -571,7 +573,7 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
             self.editor.mode_switcher.register_controller(controller_id, ControllerMode.FILM_STRIP)
             self.log.debug('DEBUG: Registered controller %s with mode switcher', controller_id)
 
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
 
         l2_value, r2_value = self._read_trigger_values(event, controller_id)
 

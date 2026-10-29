@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 from pygame import Rect
 
+from glitchygames import clock
 from glitchygames.clipboard import ClipboardUnavailableError, system_clipboard
-from glitchygames.clock import frame_clock_milliseconds
 from glitchygames.color import WHITE
 from glitchygames.fonts import FontManager, GameFont
 from glitchygames.input.state import current_input
@@ -716,10 +716,10 @@ class MultiLineTextBox(BitmappySprite):
         self.text = text
         self.is_active = False
         self.cursor_visible = True
-        self.cursor_blink_time = frame_clock_milliseconds()
+        self.cursor_blink_time = clock.frame_clock_milliseconds()
         self.cursor_blink_rate = 530
         self.cursor_pos = len(text)
-        self._last_update_time = frame_clock_milliseconds()
+        self._last_update_time = clock.frame_clock_milliseconds()
         self._frame_count = 0
 
         # Initialize selection attributes
@@ -1085,7 +1085,7 @@ class MultiLineTextBox(BitmappySprite):
     def update(self) -> None:
         """Update the multi-line text box."""
         self._frame_count += 1
-        current_time = frame_clock_milliseconds()
+        current_time = clock.frame_clock_milliseconds()
         line_height = self._get_line_height()
 
         # update() runs every frame (dirty = 2), so skip the whole frame dump unless it is logged
@@ -1149,7 +1149,7 @@ class MultiLineTextBox(BitmappySprite):
         if self.rect.collidepoint(event.pos):
             self.is_active = True
             self.cursor_visible = True
-            self.cursor_blink_time = frame_clock_milliseconds()
+            self.cursor_blink_time = clock.frame_clock_milliseconds()
             pygame.key.start_text_input()
             # Enable key repeat for backspace
             pygame.key.set_repeat(500, 50)  # 500ms delay, 50ms interval
@@ -1252,7 +1252,7 @@ class MultiLineTextBox(BitmappySprite):
         self._handle_regular_key(event)
 
         self.cursor_visible = True
-        self.cursor_blink_time = frame_clock_milliseconds()
+        self.cursor_blink_time = clock.frame_clock_milliseconds()
         self.dirty = 1
 
     def _handle_ctrl_enter_submit(self) -> None:

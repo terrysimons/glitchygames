@@ -6,12 +6,12 @@ on disk and the real wall clock.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Self
 
 import pygame
 
+from glitchygames import clock
 from glitchygames.input.devices import LiveDeviceRegistry
 from glitchygames.input.state import capture_live_snapshot
 from glitchygames.sources import without_discarded_scope_posts
@@ -20,6 +20,7 @@ from glitchygames.state.sandbox import save_namespace_snapshot
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from datetime import datetime
 
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
@@ -204,10 +205,10 @@ class LiveSources:
         """Return now, in UTC (the live wall-clock provider).
 
         Returns:
-            ``datetime.now(tz=UTC)``.
+            glitchygames/clock.py's ``raw_wall_clock_time()`` (``datetime.now(tz=UTC)``).
 
         """
-        return datetime.now(tz=UTC)
+        return clock.raw_wall_clock_time()
 
     def control_events_for_frame(self: Self, *, frame_number: int) -> list[ControlEvent]:
         """Return no control events: live play schedules none.
