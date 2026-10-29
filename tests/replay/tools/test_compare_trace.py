@@ -71,7 +71,9 @@ from tests.demo_runs import engine_run_environment
 from tests.replay.replay_helpers import replay_through_engine, rewrite_recording
 from tests.stand_in_games import (
     StandInGame,
+    copy_recording,
     record_stand_in_game,
+    record_stand_in_game_once,
     use_stand_in_game,
     write_stand_in_distribution,
 )
@@ -239,15 +241,13 @@ def recorded_frame_count(*, path: Path) -> int:
     return len(read_trace_result(path=path).trace['frames'])
 
 
-@pytest.fixture
-def color_game(tmp_path, monkeypatch, mocker) -> ColorGame:
-    """Install the color game for this test and its children, and record OLD.
+def install_color_game(*, install_directory: Path) -> StandInGame:
+    """Install the color game (its package and its distribution's console script).
 
     Returns:
-        The color game.
+        The installed stand-in.
 
     """
-    install_directory = tmp_path / 'site-packages'
     package_directory = install_directory / PACKAGE
     package_directory.mkdir(parents=True)
     (package_directory / '__init__.py').write_text(COLOR_GAME_SOURCE, encoding='utf-8')
@@ -256,11 +256,7 @@ def color_game(tmp_path, monkeypatch, mocker) -> ColorGame:
         distribution=CONSOLE_SCRIPT,
         console_scripts={CONSOLE_SCRIPT: f'{PACKAGE}:main'},
     )
-    use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
-    # Imported here for the watched replays; gone from sys.modules after the test
-    mocker.patch.dict(sys.modules)
-    module = importlib.import_module(PACKAGE)
-    game = StandInGame(
+    return StandInGame(
         package=PACKAGE,
         distribution=CONSOLE_SCRIPT,
         console_script=CONSOLE_SCRIPT,
@@ -268,15 +264,45 @@ def color_game(tmp_path, monkeypatch, mocker) -> ColorGame:
         install_directory=install_directory,
         layer=None,
     )
+
+
+@pytest.fixture(scope='module')
+def recorded_old(tmp_path_factory) -> Path:
+    """Record OLD once per module (and xdist worker), from a color game installed for it alone.
+
+    Every test copies it (``color_game``): the color game is deterministic under its seed, so
+    a test's own install would record the same frames.
+
+    Returns:
+        The recording.
+
+    """
+    root = tmp_path_factory.mktemp('recorded-old')
     # Paced: a watched replay presents OLD's frames by their recorded frame times (its viewer
     # runs as many recorded frames per 60 Hz tick as their times fill, up to 32), so an
     # uncapped OLD's frames would all go by in one tick
-    old = record_stand_in_game(
-        game=game,
-        path=tmp_path / 'old.jsonl.gz',
+    return record_stand_in_game_once(
+        game=install_color_game(install_directory=root / 'site-packages'),
+        path=root / 'old.jsonl.gz',
         extra_arguments=('--random-seed', str(OLD_SEED)),
         paced=True,
     )
+
+
+@pytest.fixture
+def color_game(tmp_path, monkeypatch, mocker, recorded_old) -> ColorGame:
+    """Install the color game for this test and its children, with its own copy of OLD.
+
+    Returns:
+        The color game.
+
+    """
+    game = install_color_game(install_directory=tmp_path / 'site-packages')
+    use_stand_in_game(install_directory=game.install_directory, monkeypatch=monkeypatch)
+    # Imported here for the watched replays; gone from sys.modules after the test
+    mocker.patch.dict(sys.modules)
+    module = importlib.import_module(PACKAGE)
+    old = copy_recording(recording=recorded_old, path=tmp_path / 'old.jsonl.gz')
     return ColorGame(
         game=game,
         scene_class=getattr(module, SCENE_NAME),
