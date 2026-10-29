@@ -6,7 +6,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 238. `ALL_EVENTS` Listed Type 0 Twice: 'Unknown' Was Patched Into the Key Code K_UNKNOWN
 - **Description**: `supported_events` (`src/glitchygames/events/base.py`) meant to drop the name pygame gives every id it does not name, `'Unknown'`, with `set(names) - set('Unknown')`; that subtracts the set of its letters, so `'Unknown'` stayed, and its patch (`'UNKNOWN': 'K_UNKNOWN'`) turned it into `pygame.K_UNKNOWN`, a key code (0). `ALL_EVENTS` held 0 twice: once as NOEVENT (pygame names id 0 `'NoEvent'`) and once as K_UNKNOWN. `GAME_EVENTS` is built from a set, so it held 0 once either way, and `GameEngine.EVENT_HANDLERS` was the same; the only effect was `SceneManager._log_blocked_events` naming `NoEvent` twice when it was blocked
-- **Status**: Resolved (2026-10-28: `- {'Unknown'}`; no recording holds a type-0 event, and `GAME_EVENTS` and the handler table are unchanged)
+- **Status**: Resolved (2026-10-28, commit 7075a4cd: `- {'Unknown'}`; no recording holds a type-0 event, and `GAME_EVENTS` and the handler table are unchanged)
 - **Priority**: Low (a duplicate in a list; no dispatch or recording changed)
 - **Reporter**: Found making the event-name scan run once per process (`pygame_event_names`, feature/test-speed)
 - **Date Reported**: 2026-10-28
