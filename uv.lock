@@ -1039,7 +1039,6 @@ dependencies = [
     { name = "aisuite", extra = ["anthropic", "aws", "cerebras", "cohere", "deepgram", "deepseek", "gemini", "groq", "lmstudio", "mcp", "mistral", "ollama", "openai", "watsonx"] },
     { name = "apng" },
     { name = "bokeh" },
-    { name = "cookiecutter" },
     { name = "fastapi" },
     { name = "hidapi" },
     { name = "httpx" },
@@ -1106,6 +1105,9 @@ games = [
     { name = "mr-muncher" },
     { name = "paddleslap" },
 ]
+templates = [
+    { name = "cookiecutter" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -1130,7 +1132,7 @@ requires-dist = [
     { name = "bokeh" },
     { name = "brave-adventurer", marker = "extra == 'games'", editable = "src/games/brave-adventurer" },
     { name = "clockwork-keep", marker = "extra == 'games'", editable = "src/games/clockwork-keep" },
-    { name = "cookiecutter" },
+    { name = "cookiecutter", marker = "extra == 'templates'" },
     { name = "deptry", marker = "extra == 'dev'", specifier = ">=0.25.1" },
     { name = "drawing-fire", marker = "extra == 'games'", editable = "src/games/drawing-fire" },
     { name = "dt-demo", marker = "extra == 'demos'", editable = "src/demos/dt-demo" },
@@ -1180,7 +1182,7 @@ requires-dist = [
     { name = "wily", marker = "extra == 'dev'", specifier = ">=1.25.0,<2" },
     { name = "yamllint", marker = "extra == 'dev'", specifier = ">=1.38.0" },
 ]
-provides-extras = ["docs", "dev", "api", "games", "demos", "apps"]
+provides-extras = ["docs", "dev", "api", "templates", "games", "demos", "apps"]
 
 [package.metadata.requires-dev]
 dev = [

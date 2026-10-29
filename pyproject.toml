@@ -22,7 +22,6 @@ keywords = ["pygame", "game-engine", "pixel-art", "sprite-editor"]
 dependencies = [
   "tomli-w",
   "pygame-ce",
-  "cookiecutter",
   "pyperclip",
   # Every aisuite provider but `google` (its Vertex AI shim, vertexai 1.71.1, is no longer
   # published and pins google-cloud-aiplatform to 1.71.1[all], an extra that release lacks).
@@ -115,6 +114,10 @@ dev = [
   "packaging>=26.0",
 ]
 api = []
+# Building a new game project from a template (glitchygames.templates, scripts/create.py):
+# `pip install glitchygames[templates]`. Optional, as only the templates use it; without it
+# templates.build() raises TemplatesUnavailableError naming this extra
+templates = ["cookiecutter"]
 # The workspace members by layer (src/<layer>/<member>/, docs/architecture/game_packages.md):
 # `pip install glitchygames[games]` installs the engine and every game. Each member depends on
 # glitchygames, so these are a cycle through an extra, which pip and uv both resolve. Kept equal

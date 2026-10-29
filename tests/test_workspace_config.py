@@ -188,7 +188,7 @@ def test_dependency_dead_code_security_and_complexity_scans_cover_every_member(m
 def test_nox_installs_and_reinstalls_every_member():
     """noxfile._MEMBER_DISTRIBUTIONS is the workspace (pre-flight C3).
 
-    nox reinstalls each listed member in a reused venv; CI runs nox through uvx, which cannot
+    nox reinstalls each listed member in a reused venv; CI runs nox as a uv tool, which cannot
     import scripts/workspace_packages.py, so the noxfile lists them and this keeps the list equal.
     """
     assert [member.distribution for member in MEMBERS] == noxfile._MEMBER_DISTRIBUTIONS
