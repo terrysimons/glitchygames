@@ -1712,7 +1712,7 @@ def test_a_stranger_refused_past_the_deadline_ends_the_wait_for_the_child(
     again, times out and ends there instead; this one pins the refusal's own ending.
     """
     readings = itertools.chain([0.0, 0.0], itertools.repeat(compare.CHILD_CONNECT_TIMEOUT_SECONDS))
-    mocker.patch.object(compare, 'measured_seconds', side_effect=lambda: next(readings))
+    mocker.patch('glitchygames.clock.measured_seconds', side_effect=lambda: next(readings))
     mocker.patch.object(compare, 'TOKEN_TIMEOUT_SECONDS', 0.2)
     onion_skin = OnionSkin(
         old_path=color_game.old,
