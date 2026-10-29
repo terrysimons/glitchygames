@@ -322,14 +322,20 @@ talking to, so a replay runs the real engine and the real game code again.</p>
   <code>--record-trace</code> and records what passes through them.</li>
 <li><code>src/glitchygames/replay/driver.py</code>: <code>ReplaySources</code>, the comparison and the divergence report.</li>
 </ul>
-<p><code>tests/test_engine_doors.py</code> scans the package and fails if anything outside the doors reads
-the raw clock, polls pygame's keyboard or mouse, reads or posts pygame events directly, or
-enumerates or opens joysticks and controllers. Its <code>ALLOWED_BYPASSES</code> lists the few exceptions,
-each with its reason.</p>
+<p><code>tests/test_engine_doors.py</code> scans the package and fails if any file but
+<code>src/glitchygames/clock.py</code> uses the <code>time</code> module (a read, <code>time.sleep</code>, anything) or reads
+<code>datetime</code>'s now, or if anything outside the doors polls pygame's keyboard or mouse, reads or
+posts pygame events directly, uses pygame's timers, or enumerates or opens joysticks and
+controllers. Its <code>ALLOWED_BYPASSES</code> lists the few exceptions, each with its reason. The engine's
+own pacing, measurement and diagnostics read real time through the clock module's raw functions
+(<code>raw_counter_ns()</code>, <code>raw_counter_seconds()</code>, <code>raw_sleep()</code>, <code>raw_wall_clock_time()</code>), which are
+never replayed and are not for game code.</p>
 <h2 id="rules-for-game-code">Rules for game code<a class="headerlink" href="#rules-for-game-code" title="Permanent link">#</a></h2>
 <h3 id="time">Time<a class="headerlink" href="#time" title="Permanent link">#</a></h3>
 <p>Read time from <code>src/glitchygames/clock.py</code> or <code>Scene.game_time</code>, never from <code>time</code>, <code>datetime</code> or
-<code>pygame.time</code>:</p>
+<code>pygame.time</code>. Import the module and call through it (<code>from glitchygames import clock</code>, then
+<code>clock.elapsed_seconds()</code>), never a function by name: it is the one clock, so one patch on
+<code>glitchygames.clock</code> reaches every reader (the doors guard checks it):</p>
 <table>
 <thead>
 <tr>

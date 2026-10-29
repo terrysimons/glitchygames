@@ -1227,7 +1227,7 @@ with speaker on channel 1 and haptic motors on channels 2-3.</p>
 <a id="glitchygames.audio.ControllerAudio--source--__codelineno-0-799" name="glitchygames.audio.ControllerAudio--source--__codelineno-0-799"></a>        <span class="n">device</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="n">generator</span><span class="p">)</span>
 <a id="glitchygames.audio.ControllerAudio--source--__codelineno-0-800" name="glitchygames.audio.ControllerAudio--source--__codelineno-0-800"></a>
 <a id="glitchygames.audio.ControllerAudio--source--__codelineno-0-801" name="glitchygames.audio.ControllerAudio--source--__codelineno-0-801"></a>        <span class="n">duration</span> <span class="o">=</span> <span class="n">num_frames</span> <span class="o">/</span> <span class="n">DUALSENSE_SAMPLE_RATE</span>
-<a id="glitchygames.audio.ControllerAudio--source--__codelineno-0-802" name="glitchygames.audio.ControllerAudio--source--__codelineno-0-802"></a>        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">duration</span> <span class="o">+</span> <span class="mf">0.3</span><span class="p">)</span>
+<a id="glitchygames.audio.ControllerAudio--source--__codelineno-0-802" name="glitchygames.audio.ControllerAudio--source--__codelineno-0-802"></a>        <span class="n">clock</span><span class="o">.</span><span class="n">raw_sleep</span><span class="p">(</span><span class="n">duration</span> <span class="o">+</span> <span class="mf">0.3</span><span class="p">)</span>
 <a id="glitchygames.audio.ControllerAudio--source--__codelineno-0-803" name="glitchygames.audio.ControllerAudio--source--__codelineno-0-803"></a>        <span class="n">device</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
 <a id="glitchygames.audio.ControllerAudio--source--__codelineno-0-804" name="glitchygames.audio.ControllerAudio--source--__codelineno-0-804"></a>        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
 <a id="glitchygames.audio.ControllerAudio--source--__codelineno-0-805" name="glitchygames.audio.ControllerAudio--source--__codelineno-0-805"></a>            <span class="s1">'Played </span><span class="si">%.2f</span><span class="s1">s through </span><span class="si">%r</span><span class="s1"> (speaker=</span><span class="si">%s</span><span class="s1"> haptic=</span><span class="si">%s</span><span class="s1">)'</span><span class="p">,</span>
@@ -7883,6 +7883,149 @@ the main thread.</p>
 <div class="doc doc-object doc-function">
 
 
+<h2 id="glitchygames.audio.__getattr__" class="doc doc-heading">
+            <code class="highlight language-python"><span class="fm">__getattr__</span><span class="p">(</span><span class="n">name</span><span class="p">)</span></code>
+
+<a href="#glitchygames.audio.__getattr__" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Import <code>VoiceAssistant</code> when it is first asked for (a module <code>__getattr__</code>, PEP 562).</p>
+<p>Its module imports aisuite (about 150 ms, with the AI providers' clients), and every engine
+run imports this package (<code>glitchygames.audio.live</code>, its live voices), every child process
+the tools start included: a run that never asks for the voice assistant no longer imports it.
+<code>from glitchygames.audio import VoiceAssistant</code> works as it always did.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>name</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The attribute asked for.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="object">object</span></code>
+              –
+              <div class="doc-md-description">
+                <p><code>VoiceAssistant</code>, for that name.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Raises:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="AttributeError">AttributeError</span></code>
+              –
+              <div class="doc-md-description">
+                <p>For any other name, as for any module.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/glitchygames/audio/__init__.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-51">51</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-52">52</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-53">53</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-54">54</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-55">55</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-56">56</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-57">57</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-58">58</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-59">59</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-60">60</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-61">61</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-62">62</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-63">63</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-64">64</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-66">66</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-67">67</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-68">68</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-69">69</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-70">70</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-71">71</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-72">72</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-73">73</a></span>
+<span class="normal"><a href="#glitchygames.audio.__getattr__--source--__codelineno-0-74">74</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.audio.__getattr__--source--__codelineno-0-51" name="glitchygames.audio.__getattr__--source--__codelineno-0-51"></a><span class="k">def</span><span class="w"> </span><span class="fm">__getattr__</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">object</span><span class="p">:</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-52" name="glitchygames.audio.__getattr__--source--__codelineno-0-52"></a><span class="w">    </span><span class="sd">"""Import ``VoiceAssistant`` when it is first asked for (a module ``__getattr__``, PEP 562).</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-53" name="glitchygames.audio.__getattr__--source--__codelineno-0-53"></a>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-54" name="glitchygames.audio.__getattr__--source--__codelineno-0-54"></a><span class="sd">    Its module imports aisuite (about 150 ms, with the AI providers' clients), and every engine</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-55" name="glitchygames.audio.__getattr__--source--__codelineno-0-55"></a><span class="sd">    run imports this package (``glitchygames.audio.live``, its live voices), every child process</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-56" name="glitchygames.audio.__getattr__--source--__codelineno-0-56"></a><span class="sd">    the tools start included: a run that never asks for the voice assistant no longer imports it.</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-57" name="glitchygames.audio.__getattr__--source--__codelineno-0-57"></a><span class="sd">    ``from glitchygames.audio import VoiceAssistant`` works as it always did.</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-58" name="glitchygames.audio.__getattr__--source--__codelineno-0-58"></a>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-59" name="glitchygames.audio.__getattr__--source--__codelineno-0-59"></a><span class="sd">    Args:</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-60" name="glitchygames.audio.__getattr__--source--__codelineno-0-60"></a><span class="sd">        name: The attribute asked for.</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-61" name="glitchygames.audio.__getattr__--source--__codelineno-0-61"></a>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-62" name="glitchygames.audio.__getattr__--source--__codelineno-0-62"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-63" name="glitchygames.audio.__getattr__--source--__codelineno-0-63"></a><span class="sd">        ``VoiceAssistant``, for that name.</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-64" name="glitchygames.audio.__getattr__--source--__codelineno-0-64"></a>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-65" name="glitchygames.audio.__getattr__--source--__codelineno-0-65"></a><span class="sd">    Raises:</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-66" name="glitchygames.audio.__getattr__--source--__codelineno-0-66"></a><span class="sd">        AttributeError: For any other name, as for any module.</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-67" name="glitchygames.audio.__getattr__--source--__codelineno-0-67"></a>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-68" name="glitchygames.audio.__getattr__--source--__codelineno-0-68"></a><span class="sd">    """</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-69" name="glitchygames.audio.__getattr__--source--__codelineno-0-69"></a>    <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">'VoiceAssistant'</span><span class="p">:</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-70" name="glitchygames.audio.__getattr__--source--__codelineno-0-70"></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.audio.voice_assistant</span><span class="w"> </span><span class="kn">import</span> <span class="n">VoiceAssistant</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-71" name="glitchygames.audio.__getattr__--source--__codelineno-0-71"></a>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-72" name="glitchygames.audio.__getattr__--source--__codelineno-0-72"></a>        <span class="k">return</span> <span class="n">VoiceAssistant</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-73" name="glitchygames.audio.__getattr__--source--__codelineno-0-73"></a>    <span class="n">message</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'module </span><span class="si">{</span><span class="vm">__name__</span><span class="si">!r}</span><span class="s1"> has no attribute </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s1">'</span>
+<a id="glitchygames.audio.__getattr__--source--__codelineno-0-74" name="glitchygames.audio.__getattr__--source--__codelineno-0-74"></a>    <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h2 id="glitchygames.audio.get_tts_backend" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">get_tts_backend</span><span class="p">()</span></code>
 
@@ -9022,7 +9165,7 @@ with speaker on channel 1 and haptic motors on channels 2-3.</p>
 <a id="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-799" name="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-799"></a>        <span class="n">device</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="n">generator</span><span class="p">)</span>
 <a id="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-800" name="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-800"></a>
 <a id="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-801" name="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-801"></a>        <span class="n">duration</span> <span class="o">=</span> <span class="n">num_frames</span> <span class="o">/</span> <span class="n">DUALSENSE_SAMPLE_RATE</span>
-<a id="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-802" name="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-802"></a>        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">duration</span> <span class="o">+</span> <span class="mf">0.3</span><span class="p">)</span>
+<a id="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-802" name="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-802"></a>        <span class="n">clock</span><span class="o">.</span><span class="n">raw_sleep</span><span class="p">(</span><span class="n">duration</span> <span class="o">+</span> <span class="mf">0.3</span><span class="p">)</span>
 <a id="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-803" name="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-803"></a>        <span class="n">device</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
 <a id="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-804" name="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-804"></a>        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
 <a id="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-805" name="glitchygames.audio.controller_audio.ControllerAudio--source--__codelineno-0-805"></a>            <span class="s1">'Played </span><span class="si">%.2f</span><span class="s1">s through </span><span class="si">%r</span><span class="s1"> (speaker=</span><span class="si">%s</span><span class="s1"> haptic=</span><span class="si">%s</span><span class="s1">)'</span><span class="p">,</span>
@@ -11187,9 +11330,9 @@ driver sends to route audio to the speaker.</p>
 <span class="normal"><a href="#glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-144">144</a></span>
 <span class="normal"><a href="#glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-145">145</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-140" name="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-140"></a><span class="k">def</span><span class="w"> </span><span class="nf">busy_python_work</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">seconds</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <a id="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-141" name="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-141"></a><span class="w">    </span><span class="sd">"""Hold the GIL with pure Python work (what a game's update/draw does) for a duration."""</span>
-<a id="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-142" name="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-142"></a>    <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">+</span> <span class="n">seconds</span>
+<a id="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-142" name="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-142"></a>    <span class="n">end_time</span> <span class="o">=</span> <span class="n">clock</span><span class="o">.</span><span class="n">raw_counter_seconds</span><span class="p">()</span> <span class="o">+</span> <span class="n">seconds</span>
 <a id="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-143" name="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-143"></a>    <span class="n">counter</span> <span class="o">=</span> <span class="mi">0</span>
-<a id="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-144" name="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-144"></a>    <span class="k">while</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">end_time</span><span class="p">:</span>
+<a id="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-144" name="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-144"></a>    <span class="k">while</span> <span class="n">clock</span><span class="o">.</span><span class="n">raw_counter_seconds</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">end_time</span><span class="p">:</span>
 <a id="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-145" name="glitchygames.audio.diagnostics.busy_python_work--source--__codelineno-0-145"></a>        <span class="n">counter</span> <span class="o">+=</span> <span class="mi">1</span>
 </code></pre></div></td></tr></table></div>
             </details>
@@ -11701,9 +11844,9 @@ coarse sleep plus final spin up to the frame deadline. The previous switch inter
 <a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-185" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-185"></a>
 <a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-186" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-186"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">background_listener</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-187" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-187"></a>        <span class="k">while</span> <span class="ow">not</span> <span class="n">stop_event</span><span class="o">.</span><span class="n">is_set</span><span class="p">():</span>
-<a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-188" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-188"></a>            <span class="n">before_ns</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter_ns</span><span class="p">()</span>
-<a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-189" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-189"></a>            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">period_seconds</span><span class="p">)</span>
-<a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-190" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-190"></a>            <span class="n">elapsed_ns</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter_ns</span><span class="p">()</span> <span class="o">-</span> <span class="n">before_ns</span>
+<a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-188" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-188"></a>            <span class="n">before_ns</span> <span class="o">=</span> <span class="n">clock</span><span class="o">.</span><span class="n">raw_counter_ns</span><span class="p">()</span>
+<a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-189" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-189"></a>            <span class="n">clock</span><span class="o">.</span><span class="n">raw_sleep</span><span class="p">(</span><span class="n">period_seconds</span><span class="p">)</span>
+<a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-190" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-190"></a>            <span class="n">elapsed_ns</span> <span class="o">=</span> <span class="n">clock</span><span class="o">.</span><span class="n">raw_counter_ns</span><span class="p">()</span> <span class="o">-</span> <span class="n">before_ns</span>
 <a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-191" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-191"></a>            <span class="n">late_ns</span> <span class="o">=</span> <span class="n">elapsed_ns</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">period_seconds</span> <span class="o">*</span> <span class="mf">1e9</span><span class="p">)</span>
 <a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-192" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-192"></a>            <span class="n">waits_milliseconds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">late_ns</span> <span class="o">*</span> <span class="n">NANOSECONDS_TO_MILLISECONDS</span><span class="p">))</span>
 <a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-193" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-193"></a>
@@ -11712,7 +11855,7 @@ coarse sleep plus final spin up to the frame deadline. The previous switch inter
 <a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-196" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-196"></a>    <span class="n">period_ns</span> <span class="o">=</span> <span class="n">timer</span><span class="o">.</span><span class="n">start_frame</span><span class="p">(</span><span class="n">target_fps</span><span class="p">)</span>
 <a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-197" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-197"></a>    <span class="k">try</span><span class="p">:</span>
 <a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-198" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-198"></a>        <span class="n">listener</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
-<a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-199" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-199"></a>        <span class="n">deadline_ns</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter_ns</span><span class="p">()</span> <span class="o">+</span> <span class="n">period_ns</span>
+<a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-199" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-199"></a>        <span class="n">deadline_ns</span> <span class="o">=</span> <span class="n">clock</span><span class="o">.</span><span class="n">raw_counter_ns</span><span class="p">()</span> <span class="o">+</span> <span class="n">period_ns</span>
 <a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-200" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-200"></a>        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">frames</span><span class="p">):</span>
 <a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-201" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-201"></a>            <span class="n">busy_python_work</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">game_logic_seconds</span><span class="p">)</span>
 <a id="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-202" name="glitchygames.audio.diagnostics.measure_lock_wait--source--__codelineno-0-202"></a>            <span class="n">_pace_until</span><span class="p">(</span><span class="n">deadline_ns</span><span class="o">=</span><span class="n">deadline_ns</span><span class="p">,</span> <span class="n">timer</span><span class="o">=</span><span class="n">timer</span><span class="p">,</span> <span class="n">yield_in_spin</span><span class="o">=</span><span class="n">yield_in_spin</span><span class="p">)</span>
