@@ -1100,8 +1100,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                         f'{reserved_flag_refusal(game_name=game.NAME, error=error)}\n'
                     ),
                 )
-        else:
-            cls.log.info('Game does not implement arguments.  Add a def args(parser) class method.')
 
         args: argparse.Namespace = parser.parse_args()
 
@@ -1110,6 +1108,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             format=LOG_FORMAT,
             level=args.log_level.upper(),
         )
+        if game_args_method is None:
+            # A hint for the game's author, at INFO (--log-level info shows it). Logged once the
+            # level is set: before basicConfig only Python's last-resort handler saw it, which
+            # drops INFO, so it never showed at any level (D18's report)
+            cls.log.info('Game does not implement arguments.  Add a def args(parser) class method.')
 
         GameEngine.OPTIONS = vars(args)  # type: ignore[reportConstantRedefinition]
 
