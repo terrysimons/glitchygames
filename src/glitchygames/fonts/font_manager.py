@@ -29,6 +29,8 @@ if TYPE_CHECKING:
 import pygame
 import pygame.freetype
 
+from glitchygames.read_only_views import ReadOnlyViews
+
 
 @runtime_checkable
 class GameFont(Protocol):
@@ -80,7 +82,6 @@ class GameFont(Protocol):
 
 
 from glitchygames.events import FontEvents, ResourceManager  # ruff: ignore[module-import-not-at-top-of-file]
-from glitchygames.read_only_views import ReadOnlyViews  # ruff: ignore[module-import-not-at-top-of-file]
 
 log = logging.getLogger('game.fonts')
 log.addHandler(logging.NullHandler())

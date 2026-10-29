@@ -174,7 +174,8 @@ class ClassOnlyView[ClassReadT](ViewBase):
     """A non-data descriptor: the current context's value on the class; instances keep their own.
 
     An instance's own attribute of the same name hides the view; an instance without one reads
-    ``None``, as the class default the view replaces did.
+    ``None``, as the class default the view replaces did. So ``ClassReadT`` must include
+    ``None`` (``ClassOnlyView[Scene | None]``), as every class read where no game runs does.
     """
 
     def __init__(

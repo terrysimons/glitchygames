@@ -3423,6 +3423,20 @@ def test_an_engine_that_shut_down_is_no_longer_current(mocker):
         current_engine()
 
 
+class HalfMadeEngineError(RuntimeError):
+    """Raised by a stand-in display open, after the engine made itself current."""
+
+
+def test_an_engine_whose_init_fails_after_registering_is_not_left_current(mocker):
+    """A failure after __init__ registers the engine clears it again, and propagates."""
+    mocker.patch.object(PlainWindowEngine, 'initialize_display', side_effect=HalfMadeEngineError)
+
+    with pytest.raises(HalfMadeEngineError):
+        _make_engine(mocker, '--target-fps', '30')
+    with pytest.raises(NoRunningEngineError):
+        current_engine()
+
+
 def test_an_engine_that_is_not_current_shuts_down_leaving_the_current_one(mocker):
     """Only the engine the context holds is cleared: a newer engine stays current."""
     earlier_engine = _make_engine(mocker, '--target-fps', '30')

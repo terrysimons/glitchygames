@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from glitchygames.engine import current_engine
+from glitchygames.engine_context import EngineContext
 from glitchygames.read_only_views import (
     ClassOnlyView,
     ReadOnlyView,
@@ -28,7 +30,8 @@ from glitchygames.read_only_views import (
     ViewReadError,
 )
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
-from glitchygames.scenes import Scene
+from glitchygames.scenes import Scene, SceneManager
+from glitchygames.sources import reset_sources
 from tests.ast_scanning import PROJECT_ROOT, qualified_name
 from tests.engine_source import ENGINE_DIRECTORY
 
@@ -52,6 +55,9 @@ MODULE_GETATTR = '__getattr__'
 # The module the views are defined in: allowed to name every view
 READ_ONLY_VIEWS_SOURCE = PROJECT_ROOT / ENGINE_DIRECTORY / 'read_only_views.py'
 STAND_IN_GAME_NAME = 'Read-only views stand-in'
+# What make_stand_in_engine's command line gives (its smoke test checks them)
+STAND_IN_RESOLUTION = (800, 600)
+STAND_IN_TARGET_FPS = 30
 
 # Every view, as 'GameEngine.OPTIONS' or 'glitchygames.performance.performance_manager', with
 # the check that it answers per context: (*, first, second, mocker) -> None
@@ -114,7 +120,7 @@ def make_stand_in_engine(*, mocker: MockerFixture, target_fps: int) -> GameEngin
             'test_read_only_views',
             '--windowed',
             '--resolution',
-            '800x600',
+            'x'.join(str(length) for length in STAND_IN_RESOLUTION),
             '--log-level',
             'warning',
             '--target-fps',
@@ -251,8 +257,8 @@ def marked_module_views(*, tree: ast.Module, source_path: Path) -> list[ast.stmt
 
     Raises:
         ViewScanError: If the mark is not a ``frozenset({...})`` of string literals, the module
-            has no module-level ``__getattr__``, or the ``__getattr__`` never compares its
-            argument with a marked name.
+            has no module-level ``__getattr__``, the ``__getattr__`` takes no positional name
+            parameter, or it never compares its argument with a marked name.
 
     """
     marks = [
@@ -274,7 +280,16 @@ def marked_module_views(*, tree: ast.Module, source_path: Path) -> list[ast.stmt
         message = f'{source_path}: {MODULE_VIEWS_MARK} without a module-level {MODULE_GETATTR}'
         raise ViewScanError(message)
     (getattr_definition,) = getattr_definitions
-    unanswered = marked_names - compared_names(function=getattr_definition)
+    positional_parameters = [*getattr_definition.args.posonlyargs, *getattr_definition.args.args]
+    if not positional_parameters:
+        message = (
+            f'{source_path}:{getattr_definition.lineno}: {MODULE_GETATTR} takes no positional '
+            'name parameter, so the scan cannot see which names it answers'
+        )
+        raise ViewScanError(message)
+    unanswered = marked_names - compared_names(
+        function=getattr_definition, argument=positional_parameters[0].arg
+    )
     if unanswered:
         message = (
             f'{source_path}:{mark.lineno}: {MODULE_VIEWS_MARK} marks {sorted(unanswered)}, '
@@ -323,17 +338,17 @@ def marked_view_names(*, mark: ast.stmt, source_path: Path) -> frozenset[str]:
     return frozenset(names)
 
 
-def compared_names(*, function: ast.FunctionDef) -> frozenset[str]:
-    """Return the strings a function compares its first argument with (``==`` or ``in``).
+def compared_names(*, function: ast.FunctionDef, argument: str) -> frozenset[str]:
+    """Return the strings a function compares its argument with (``==`` or ``in``).
 
     Args:
         function: A module ``__getattr__(name)``.
+        argument: Its parameter's name (``name``).
 
     Returns:
         The strings.
 
     """
-    argument = function.args.args[0].arg
     names: set[str] = set()
     for node in ast.walk(function):
         if not (
@@ -678,22 +693,43 @@ def test_the_metaclass_lets_every_other_class_attribute_be_written():
 
 
 def test_a_read_that_fails_is_never_mistaken_for_a_missing_attribute():
-    """An AttributeError a read raises becomes ViewReadError; any other error propagates."""
+    """An AttributeError a read raises becomes ViewReadError, which no __getattr__ swallows.
+
+    Python calls an instance's __getattr__ when a descriptor's __get__ raises AttributeError:
+    unwrapped, the read's failure would quietly answer the fallback (GameEngine.__getattr__,
+    ResourceManager.__getattr__). Any other error propagates unchanged.
+    """
+    missing_attribute_answer = object()
+    original_errors: list[AttributeError] = []
+
+    def failing_read(_read_through: object) -> int:
+        original_errors.append(AttributeError('never_set'))
+        raise original_errors[-1]
 
     class Broken(metaclass=ReadOnlyViews):
         SHOWN = ReadOnlyView[int, int](
             read_current=lambda _owner: {}['missing'],
-            read_own=lambda broken: broken.never_set,
+            read_own=failing_read,
             write_instead='nowhere',
         )
-        kept = ClassOnlyView[int](read_current=lambda owner: owner.never_set, write_instead='x')
+        kept = ClassOnlyView[int | None](read_current=failing_read, write_instead='nowhere')
 
-    with pytest.raises(ViewReadError):
-        Broken().SHOWN  # ruff: ignore[useless-expression]
-    with pytest.raises(ViewReadError):
-        Broken.kept  # ruff: ignore[useless-expression]
+        def __getattr__(self, name: str) -> object:
+            """Answer every missing attribute, as GameEngine.__getattr__ answers some."""
+            del name
+            return missing_attribute_answer
+
+    broken = Broken()
+    with pytest.raises(ViewReadError) as instance_read:
+        _ = broken.SHOWN
+    with pytest.raises(ViewReadError) as class_read:
+        _ = Broken.kept
     with pytest.raises(KeyError):
-        Broken.SHOWN  # ruff: ignore[useless-expression]
+        _ = Broken.SHOWN
+
+    assert broken.anything_missing is missing_attribute_answer
+    assert instance_read.value.__cause__ is original_errors[0]
+    assert class_read.value.__cause__ is original_errors[1]
 
 
 def test_an_abc_class_takes_the_abc_views_metaclass():
@@ -850,3 +886,54 @@ def test_a_marked_name_the_module_getattr_never_answers_is_a_scan_error(tmp_path
 
     with pytest.raises(ViewScanError, match=re.escape("marks ['missing']")):
         declared_views(source_paths=[planted_path])
+
+
+def test_a_mark_of_anything_but_string_literals_is_a_scan_error(tmp_path):
+    """A mark names its views by string literals only."""
+    planted_path = tmp_path / 'marked.py'
+    planted_path.write_text(
+        PLANTED_VIEWS.replace("frozenset({'manager'})", 'frozenset({MANAGER_NAME})'),
+        encoding='utf-8',
+    )
+
+    with pytest.raises(ViewScanError, match=re.escape('of string literals')):
+        declared_views(source_paths=[planted_path])
+
+
+def test_a_mark_in_a_module_without_a_getattr_is_a_scan_error(tmp_path):
+    """A mark names what the module __getattr__ answers: without one it names nothing."""
+    planted_path = tmp_path / 'marked.py'
+    planted_path.write_text(
+        PLANTED_VIEWS.replace('def __getattr__(name):', 'def answer(name):'), encoding='utf-8'
+    )
+
+    with pytest.raises(ViewScanError, match=re.escape('without a module-level __getattr__')):
+        declared_views(source_paths=[planted_path])
+
+
+def test_a_marked_getattr_without_a_name_parameter_is_a_scan_error(tmp_path):
+    """A __getattr__(*args) hides which names it answers: refused, never an IndexError."""
+    planted_path = tmp_path / 'marked.py'
+    planted_path.write_text(
+        PLANTED_VIEWS.replace('def __getattr__(name):', 'def __getattr__(*names):'),
+        encoding='utf-8',
+    )
+
+    with pytest.raises(ViewScanError, match=re.escape('takes no positional name parameter')):
+        declared_views(source_paths=[planted_path])
+
+
+def test_a_stand_in_engine_is_made_and_current_in_its_context(mocker):
+    """make_stand_in_engine (the view checks' engine): a real engine, current where it is made."""
+    context = EngineContext(name='stand-in')
+    with context.active():
+        engine = make_stand_in_engine(mocker=mocker, target_fps=STAND_IN_TARGET_FPS)
+        answer = current_engine()
+        manager = SceneManager()
+        reset_sources()
+
+    assert isinstance(engine, GoldenTraceEngine)
+    assert answer is engine
+    assert engine.fps == STAND_IN_TARGET_FPS
+    assert engine.scene_manager is manager
+    assert engine.screen.get_size() == STAND_IN_RESOLUTION

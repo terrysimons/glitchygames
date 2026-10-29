@@ -18,7 +18,17 @@ import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, override
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Concatenate,
+    Literal,
+    NoReturn,
+    Self,
+    cast,
+    override,
+)
 
 import pygame
 
@@ -760,6 +770,49 @@ def current_engine() -> GameEngine:
     return engine
 
 
+def _stop_being_the_current_engine(*, engine: GameEngine) -> None:
+    """Clear the current context's engine when it is ``engine`` (``current_engine()``).
+
+    Args:
+        engine: The engine that shut down, or failed to finish ``__init__``.
+
+    """
+    current = current_context().value(slot=CURRENT_ENGINE_SLOT)
+    if current.engine is engine:
+        current.engine = None
+
+
+def _clear_a_half_made_engine[EngineT: GameEngine, **InitParameters](
+    initialize: Callable[Concatenate[EngineT, InitParameters], None],
+) -> Callable[Concatenate[EngineT, InitParameters], None]:
+    """Wrap ``GameEngine.__init__``: if it raises, the half-made engine stops being current.
+
+    ``__init__`` makes the engine current part way through (once its own state is set); a
+    failure after that (SystemExit from a game flag tool included) must not leave it current.
+    A decorator, not a ``try`` in ``__init__``: basedpyright then still sees the instance
+    variables the methods ``__init__`` calls set.
+
+    Args:
+        initialize: ``GameEngine.__init__``.
+
+    Returns:
+        The wrapped ``__init__``, of the same signature.
+
+    """
+
+    @functools.wraps(initialize)
+    def initialize_or_clear(
+        engine: EngineT, *args: InitParameters.args, **kwargs: InitParameters.kwargs
+    ) -> None:
+        try:
+            initialize(engine, *args, **kwargs)
+        except BaseException:
+            _stop_being_the_current_engine(engine=engine)
+            raise
+
+    return initialize_or_clear
+
+
 class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[too-many-public-methods]
     """Glitchy Games' Game engine.
 
@@ -1298,6 +1351,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 "when it starts, which replace SDL's"
             )
 
+    @_clear_a_half_made_engine
     def __init__(  # ruff: ignore[too-many-statements]
         self: Self,
         game: type[Scene] | Scene,
@@ -1319,7 +1373,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         options = self.initialize_arguments(game=game)
         # The current context's engine from here on (current_engine()): every piece of the
-        # engine's own state is set above this line, so no view finds a half-made engine
+        # engine's own state is set above this line, so no view finds a half-made engine (if
+        # the rest raises, _clear_a_half_made_engine clears it again)
         current_context().value(slot=CURRENT_ENGINE_SLOT).engine = self
         # The SDL driver variables as they were before --headless or --video-driver set them
         # (by name; None: the variable was not set), put back when the run ends
@@ -3280,9 +3335,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         """
         # First, so every teardown path (a replay restart's early return included) leaves no
         # finished engine current: its views then read None, and it is not kept alive
-        current = current_context().value(slot=CURRENT_ENGINE_SLOT)
-        if current.engine is self:
-            current.engine = None
+        _stop_being_the_current_engine(engine=self)
         try:
             self._end_the_comparison()
         finally:
