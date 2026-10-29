@@ -9,7 +9,9 @@ headless runs, the determinism audit, golden replays and rebaselining them, the 
 gets (as its own flags and as the `glitchygames` command), in-game playback (demos, instant
 replay, ghosts), and the rules game code follows so its sessions replay. See
 `plans/2026-10-19-gameplay-replay.md` for the design and `plans/future-work.md` for the
-follow-ups.
+follow-ups. For how it works (a frame's steps and doors, speeds and timing, the
+file's fields, stored versus derived, and how playback is tested), see the overview,
+[Gameplay Playback](playback/index.md); this page is the command reference.
 
 ## Quick start
 
