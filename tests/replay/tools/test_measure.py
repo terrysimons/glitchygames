@@ -171,8 +171,12 @@ def stand_in_golden(stand_in_game, tmp_path_factory) -> Path:
         Its path (outside the project tree the tests copy it into).
 
     """
+    # Paced: its run is the golden's paced live run, which the measurement tests check
+    # (``processing_paced``) beside the unpaced rebaseline they measure
     path = record_stand_in_game(
-        game=stand_in_game, path=tmp_path_factory.mktemp('recorded') / 'golden.jsonl.gz'
+        game=stand_in_game,
+        path=tmp_path_factory.mktemp('recorded') / 'golden.jsonl.gz',
+        paced=True,
     )
     mark_runs_from_a_clean_checkout(path=path)
     return path

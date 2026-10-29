@@ -268,10 +268,14 @@ def color_game(tmp_path, monkeypatch, mocker) -> ColorGame:
         install_directory=install_directory,
         layer=None,
     )
+    # Paced: a watched replay presents OLD's frames by their recorded frame times (its viewer
+    # runs as many recorded frames per 60 Hz tick as their times fill, up to 32), so an
+    # uncapped OLD's frames would all go by in one tick
     old = record_stand_in_game(
         game=game,
         path=tmp_path / 'old.jsonl.gz',
         extra_arguments=('--random-seed', str(OLD_SEED)),
+        paced=True,
     )
     return ColorGame(
         game=game,
@@ -2520,10 +2524,13 @@ def record_a_pausing_run(*, color_game: ColorGame, path: Path) -> Path:
         The recording.
 
     """
+    # Paced, as OLD is (color_game): the watched replays present its frames by their recorded
+    # frame times
     recording = record_stand_in_game(
         game=color_game.game,
         path=path,
         extra_arguments=('--random-seed', str(PAUSING_SEED)),
+        paced=True,
     )
     assert recorded_frame_count(path=recording) == len(GAME_FRAME_OF_A_PAUSING_RUN)
     return recording

@@ -89,7 +89,8 @@ def test_a_real_recording_reports_every_run_and_no_behaviour_change(tmp_path, ca
     # A game of this checkout, as ours are: its runs name the engine's commit as the game's
     stamp_stand_in_game(game=game, revision=source_revision())
     use_stand_in_game(install_directory=install_directory, monkeypatch=monkeypatch)
-    recording = record_stand_in_game(game=game, path=tmp_path / 'recorded.jsonl.gz')
+    # Paced: the report names its run a paced live run and gives its live frame times
+    recording = record_stand_in_game(game=game, path=tmp_path / 'recorded.jsonl.gz', paced=True)
     recorded_header = read_trace(path=recording)[MEASUREMENT_RUNS_HEADER_FIELD]
     recorded_runs = len(recorded_header)
     recorded_rebaselines = sum(

@@ -34,6 +34,7 @@ from tests.stand_in_games import (
     RECORD_TIMEOUT_SECONDS,
     STAND_IN_GAME_FRAMES,
     STAND_IN_GAME_RESOLUTION,
+    UNPACED_TARGET_FPS,
     GameThatIsNeverBuilt,
     StandInGame,
     record_stand_in_game,
@@ -323,8 +324,17 @@ def test_a_game_run_as_a_script_verifies_the_paths_it_is_given(tmp_path):
     script = write_script_game(directory=tmp_path)
     recording = tmp_path / 'script.jsonl.gz'
     arguments = ['--headless', '--resolution', STAND_IN_GAME_RESOLUTION, '--log-level', 'error']
+    # Uncapped, as record_stand_in_game records: only the replays below read the recording
     recorded = run_command(
-        command=[sys.executable, str(script), *arguments, '--record-trace', str(recording)],
+        command=[
+            sys.executable,
+            str(script),
+            *arguments,
+            '--target-fps',
+            UNPACED_TARGET_FPS,
+            '--record-trace',
+            str(recording),
+        ],
         environment=os.environ,
         timeout_seconds=RECORD_TIMEOUT_SECONDS,
         capture_output=OutputCapture.TOGETHER,
