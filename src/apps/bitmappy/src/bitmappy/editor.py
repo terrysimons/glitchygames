@@ -71,6 +71,7 @@ if TYPE_CHECKING:
         FilmStripOperationTracker,
     )
     from .history.undo_redo import UndoRedoManager
+    from .masterhub_push import MasterHubPush
     from .scroll_arrow import ScrollArrowSprite
 
 
@@ -110,6 +111,11 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     pixel_change_timer: float | None
     applying_undo_redo: bool
     _initialized: bool
+
+    # The MasterHUB display mirror (browser only): wired lazily on the first frame, then fed the
+    # canvas each frame. None/False off the browser (there is no sibling hub to push to).
+    _masterhub_push: MasterHubPush | None = None
+    _masterhub_configured: bool = False
 
     # Set your game name/version here.
     NAME = 'Bitmappy'
@@ -877,6 +883,31 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
             # Note: Live preview functionality is now integrated into the film strip
 
+    def set_masterhub_push(self, push: MasterHubPush) -> None:
+        """Attach the display mirror's push (idempotent; the browser bridge calls this)."""
+        if self._masterhub_push is None:
+            self._masterhub_push = push
+
+    def _mirror_canvas_to_masterhub(self) -> None:
+        """In the browser, post the canvas to a MasterHUB web hub when it changes (else a no-op).
+
+        Wires the browser bridge once (lazily, on the first frame), then feeds it the canvas each
+        frame. Off the browser the bridge is absent, so nothing is wired and nothing is pushed.
+        """
+        if not self._masterhub_configured:
+            self._masterhub_configured = True
+            self._install_masterhub_mirror()
+        if self._masterhub_push is not None:
+            self._masterhub_push.push_if_changed()
+
+    def _install_masterhub_mirror(self) -> None:
+        """Import and run the browser-only bridge; a no-op off the browser."""
+        try:
+            import masterhub_bridge  # pyright: ignore[reportMissingImports]
+        except ImportError:
+            return
+        masterhub_bridge.install(self)  # pyright: ignore[reportUnknownMemberType]  # pragma: no cover
+
     @override
     def update(self) -> None:
         """Update scene state."""
@@ -888,6 +919,7 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             and self.canvas.animated_sprite
         ):
             self._update_animated_canvas()
+            self._mirror_canvas_to_masterhub()  # browser only: push the canvas to the hub
 
         super().update()  # Call the base Scene.update() method
 
