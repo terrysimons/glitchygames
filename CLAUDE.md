@@ -137,8 +137,11 @@ nox -s code-complexity     # wily: the working tree's changes against HEAD (hist
 nox -s security-scan       # Run ALL security scans: bandit, then the syft SBOM, grype CVEs, the license check
 nox -s bandit-scan         # Run bandit only
 # security-scan (adapted from exoneris): scripts/generate_sbom.py writes docs/sbom.cyclonedx.json
-# with syft from the session's venv (uv.lock, every extra; deterministic: timestamps and UUIDs
-# stripped, committed), grype scans it (--fail-on high; reviewed exceptions only in .grype.yaml,
+# with syft from uv.lock (every package it pins, for every platform, Python version, extra and
+# group, so the same file on macOS, Linux and Windows; deterministic: timestamps, UUIDs and paths
+# stripped, committed; licenses from check_licenses.py's PACKAGE_LICENSE_OVERRIDES, else the
+# installed metadata at the locked version, and a package the lock installs only on some
+# platforms or Pythons must have an override), grype scans it (--fail-on high; reviewed exceptions only in .grype.yaml,
 # each naming its package, why, who and when), scripts/check_licenses.py checks it (BSD-3-Clause
 # with a frozen Bitmappy binary: permissive allowed, GPL/AGPL denied, LGPL, MPL and anything
 # unreviewed fail; EXCEPTIONS are the owner's), and last a regenerated SBOM that differs from the
