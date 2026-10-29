@@ -924,12 +924,12 @@ class TestProcessUnimplementedEvent:
         """Test first occurrence of an unimplemented event is logged."""
         engine = _make_engine(mocker)
         # Clear prior state
-        GameEngine.UNIMPLEMENTED_EVENTS.clear()
+        engine.unimplemented_events.clear()
 
         event = events.HashableEvent(55555)  # An arbitrary unused event type
 
         engine.process_unimplemented_event(event)
-        assert 55555 in GameEngine.UNIMPLEMENTED_EVENTS
+        assert 55555 in engine.unimplemented_events
 
     def test_duplicate_unimplemented_event_not_added_twice(
         self,
@@ -937,18 +937,18 @@ class TestProcessUnimplementedEvent:
     ):
         """Test duplicate unimplemented events are not appended again."""
         engine = _make_engine(mocker)
-        GameEngine.UNIMPLEMENTED_EVENTS.clear()
+        engine.unimplemented_events.clear()
 
         event = events.HashableEvent(55556)
 
         engine.process_unimplemented_event(event)
         engine.process_unimplemented_event(event)
-        assert GameEngine.UNIMPLEMENTED_EVENTS.count(55556) == 1
+        assert engine.unimplemented_events.count(55556) == 1
 
     def test_event_type_1543_debug_logging(self, mocker, caplog):
         """Event type 1543 is logged in detail: its contents, the controller count, its ids."""
         engine = _make_engine(mocker)
-        GameEngine.UNIMPLEMENTED_EVENTS.clear()
+        engine.unimplemented_events.clear()
         event = events.HashableEvent(1543, device_index=2)  # UNKNOWN_SDL2_EVENT_TYPE_1543
 
         with (
@@ -957,7 +957,7 @@ class TestProcessUnimplementedEvent:
         ):
             engine.process_unimplemented_event(event)
 
-        assert 1543 in GameEngine.UNIMPLEMENTED_EVENTS
+        assert 1543 in engine.unimplemented_events
         assert "'device_index': 2" in caplog.text
         assert 'Current controller count when event 1543 received: ' in caplog.text
         assert 'Controller system not initialized' not in caplog.text
@@ -967,7 +967,7 @@ class TestProcessUnimplementedEvent:
     def test_event_type_1543_when_the_controller_system_cannot_answer(self, mocker, caplog):
         """SDL cannot count controllers (subsystem not initialized): logged, never raised."""
         engine = _make_engine(mocker)
-        GameEngine.UNIMPLEMENTED_EVENTS.clear()
+        engine.unimplemented_events.clear()
         event = events.HashableEvent(1543)
 
         with (
@@ -977,7 +977,7 @@ class TestProcessUnimplementedEvent:
             engine.process_unimplemented_event(event)
 
         assert 'Controller system not initialized' in caplog.text
-        assert 1543 in GameEngine.UNIMPLEMENTED_EVENTS
+        assert 1543 in engine.unimplemented_events
 
 
 class TestUnhandledEventTracking:
@@ -1190,21 +1190,21 @@ class TestMissingEvent:
     def test_missing_event_logs_once(self, mocker):
         """Test missing_event logs the method name once."""
         engine = _make_engine(mocker)
-        GameEngine.MISSING_EVENTS.clear()
-        GameEngine.LAST_EVENT_MISS = 'on_some_unknown_event'
+        engine.missing_events.clear()
+        engine.last_event_miss = 'on_some_unknown_event'
 
         engine.missing_event('arg1', kwarg1='val')
-        assert 'on_some_unknown_event' in GameEngine.MISSING_EVENTS
+        assert 'on_some_unknown_event' in engine.missing_events
 
     def test_missing_event_not_duplicated(self, mocker):
         """Test missing_event does not duplicate entries."""
         engine = _make_engine(mocker)
-        GameEngine.MISSING_EVENTS.clear()
-        GameEngine.LAST_EVENT_MISS = 'on_duplicate_event'
+        engine.missing_events.clear()
+        engine.last_event_miss = 'on_duplicate_event'
 
         engine.missing_event()
         engine.missing_event()
-        assert GameEngine.MISSING_EVENTS.count('on_duplicate_event') == 1
+        assert engine.missing_events.count('on_duplicate_event') == 1
 
     def test_an_event_handler_nobody_has_reaches_missing_event(self, mocker):
         """A handler the engine does not have resolves to missing_event, which notes it once.
@@ -1213,8 +1213,6 @@ class TestMissingEvent:
         (SceneManager.__getattr__), and the engine's __getattr__ answers it.
         """
         engine = _make_engine(mocker)
-        mocker.patch.object(GameEngine, 'LAST_EVENT_MISS', GameEngine.LAST_EVENT_MISS)
-        mocker.patch.object(GameEngine, 'MISSING_EVENTS', [])
 
         handler = engine.on_never_defined_event
         handler(events.HashableEvent(pygame.USEREVENT))
@@ -1292,7 +1290,7 @@ class TestProcessEvents:
         """Test process_events routes unhandled events to process_unimplemented_event."""
         engine = _make_engine(mocker)
         engine._active_scene = mocker.Mock(spec=[])  # No process_event
-        GameEngine.UNIMPLEMENTED_EVENTS.clear()
+        engine.unimplemented_events.clear()
 
         mocker.patch('pygame.event.get', return_value=[_raw_event(UNMAPPED_EVENT_TYPE)])
         assert UNMAPPED_EVENT_TYPE not in engine.event_handlers
@@ -1301,7 +1299,7 @@ class TestProcessEvents:
 
         assert result is False
         assert engine.unhandled_events[UNMAPPED_EVENT_TYPE].count == 1
-        assert UNMAPPED_EVENT_TYPE in GameEngine.UNIMPLEMENTED_EVENTS
+        assert UNMAPPED_EVENT_TYPE in engine.unimplemented_events
 
     def test_process_events_unhandled_event_does_not_drop_rest_of_batch(self, mocker):
         """An unhandled event must not drop the key-down queued after it in the same batch."""
@@ -1613,7 +1611,7 @@ class TestStartMethod:
     def test_start_with_no_game_raises(self, mocker):
         """Test start raises RuntimeError when game is None."""
         engine = _make_engine(mocker)
-        GameEngine.game = None
+        engine.game = None
 
         with pytest.raises(RuntimeError, match='Game not initialized'):
             engine.start()
@@ -2951,7 +2949,7 @@ class TestGameEngineTimerCalibration:
         # The methods start() calls on the current context's performance manager
         for method_name in ('set_trim_percent', 'set_histogram_mode'):
             mocker.patch.object(AdaptiveClamping, method_name, autospec=True)
-        mocker.patch.object(GameEngine, 'game', mocker.Mock())
+        engine.game = mocker.Mock()
         engine.options = {
             'profile': False,
             'timer_backend': 'auto',
@@ -2993,7 +2991,7 @@ class TestGameEngineTimerBackendError:
         mock_game_class = mocker.Mock()
         mock_game_instance = mocker.Mock()
         mock_game_class.return_value = mock_game_instance
-        GameEngine.game = mock_game_class
+        engine.game = mock_game_class
         engine.options = {
             'profile': False,
             'timer_backend': 'invalid',
@@ -3256,7 +3254,7 @@ class TestFpsHistogramArgument:
         set_histogram_mode = mocker.patch.object(
             AdaptiveClamping, 'set_histogram_mode', autospec=True
         )
-        mocker.patch.object(GameEngine, 'game', mocker.Mock())
+        engine.game = mocker.Mock()
         engine.options = {
             'profile': False,
             'timer_backend': 'fast',
@@ -3284,7 +3282,7 @@ class TestFpsHistogramArgument:
             performance_manager, '_histogram_mode', performance_manager._histogram_mode
         )
         histogram_mode_before = performance_manager._histogram_mode
-        mocker.patch.object(GameEngine, 'game', mocker.Mock())
+        engine.game = mocker.Mock()
         engine.options = {
             'profile': False,
             'timer_backend': 'fast',
@@ -3315,7 +3313,7 @@ class TestFpsHistogramArgument:
         set_histogram_mode = mocker.patch.object(
             AdaptiveClamping, 'set_histogram_mode', autospec=True
         )
-        mocker.patch.object(GameEngine, 'game', mocker.Mock())
+        engine.game = mocker.Mock()
         engine.options = {
             'profile': False,
             'timer_backend': 'fast',
@@ -3474,3 +3472,41 @@ def test_an_engine_that_is_not_current_shuts_down_leaving_the_current_one(mocker
     earlier_engine._shutdown()
 
     assert current_engine() is later_engine
+
+
+def test_each_engine_keeps_its_own_game(mocker):
+    """An engine built before another keeps its own game (audit C9)."""
+    first_context = EngineContext(name='first')
+    second_context = EngineContext(name='second')
+    with first_context.active():
+        first_engine = _make_engine(mocker, '--target-fps', '30', game=EngineTestGame)
+    with second_context.active():
+        _make_engine(mocker, '--target-fps', '50', game=NoIconGame)
+    for context in (first_context, second_context):
+        with context.active():
+            reset_sources()
+
+    assert first_engine.game is EngineTestGame
+
+
+def test_each_engine_notes_its_own_missing_and_unimplemented_events(mocker, caplog):
+    """One engine's missing handlers and unimplemented events are never another's (C11)."""
+    first_context = EngineContext(name='first')
+    second_context = EngineContext(name='second')
+    with first_context.active():
+        first_engine = _make_engine(mocker, '--target-fps', '30')
+    with second_context.active():
+        second_engine = _make_engine(mocker, '--target-fps', '50')
+    first_engine.on_never_defined_event(events.HashableEvent(pygame.USEREVENT))
+    first_engine.process_unimplemented_event(events.HashableEvent(UNMAPPED_EVENT_TYPE))
+    with caplog.at_level(logging.INFO, logger='game.engine'):
+        second_engine.on_never_defined_event(events.HashableEvent(pygame.USEREVENT))
+    for context in (first_context, second_context):
+        with context.active():
+            reset_sources()
+
+    assert any(
+        record.getMessage().startswith('Unimplemented method called: on_never_defined_event')
+        for record in caplog.records
+    )
+    assert UNMAPPED_EVENT_TYPE not in second_engine.unimplemented_events

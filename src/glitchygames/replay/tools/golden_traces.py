@@ -472,7 +472,9 @@ class GoldenTraceEngine(GameEngine):
 
         """
         game = scene_class(options=self.options)
-        self.game = game
+        # Declared as GameEngine.__init__ declares it: ty takes an undeclared write in a subclass
+        # for a write of the class body's GameEngine.game view (a ClassOnlyView)
+        self.game: Any = game
         self.scene_manager.game_engine = self
         self._initialize_event_managers()
         self.scene_manager.switch_to_scene(game)

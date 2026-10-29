@@ -17,9 +17,11 @@ from glitchygames import engine as engine_package
 from glitchygames import timing
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
+from glitchygames.engine_context import EngineContext
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene
+from glitchygames.sources import reset_sources
 from glitchygames.timing import GIL_SWITCH_INTERVAL_SECONDS, FastTimer
 
 EXPECTED_DEFAULT_TARGET_FPS = 60.01
@@ -155,9 +157,10 @@ class TestEngineInitialization:
         assert GameEngine.VERSION == '1.0'
         # A view of the running engine's options: None outside a game
         assert GameEngine.OPTIONS is None
-        assert isinstance(GameEngine.LAST_EVENT_MISS, str)
-        assert isinstance(GameEngine.MISSING_EVENTS, list)
-        assert isinstance(GameEngine.UNIMPLEMENTED_EVENTS, list)
+        # Views of the running engine's event bookkeeping: None outside a game
+        assert GameEngine.LAST_EVENT_MISS is None
+        assert GameEngine.MISSING_EVENTS is None
+        assert GameEngine.UNIMPLEMENTED_EVENTS is None
         assert isinstance(GameEngine.USE_FASTEVENTS, bool)
         assert GameEngine.EVENT_HANDLERS is None
 
@@ -270,9 +273,9 @@ class TestEngineInitialization:
         assert hasattr(GameEngine, 'MISSING_EVENTS')
         assert hasattr(GameEngine, 'UNIMPLEMENTED_EVENTS')
 
-        # Test that they are properly initialized
-        assert isinstance(GameEngine.MISSING_EVENTS, list)
-        assert isinstance(GameEngine.UNIMPLEMENTED_EVENTS, list)
+        # Views of the running engine's lists: None outside a game
+        assert GameEngine.MISSING_EVENTS is None
+        assert GameEngine.UNIMPLEMENTED_EVENTS is None
 
 
 class TestTargetFpsArguments:
@@ -462,3 +465,30 @@ class TestPackageAndAssetPaths:
         assert icon_path == engine_package.ASSET_PATH / 'glitch.png'
         assert icon_path.is_file()
         assert pygame.image.load(icon_path).get_size() != (32, 32)
+
+
+def test_each_engine_starts_with_its_own_empty_event_bookkeeping(mocker):
+    """Two engines: each starts with empty, its own, event bookkeeping (audit C10, C11, C8)."""
+    mocker.patch.object(sys, 'argv', ['test_engine_initialization', *ENGINE_ARGUMENTS])
+    # The engine writes SDL hints to the environment; the test's own values come back after
+    mocker.patch.dict(os.environ)
+    first_context = EngineContext(name='first')
+    second_context = EngineContext(name='second')
+    with first_context.active():
+        first_engine = GoldenTraceEngine(game=InitializationTestGame)
+    with second_context.active():
+        second_engine = GoldenTraceEngine(game=InitializationTestGame)
+    for context in (first_context, second_context):
+        with context.active():
+            reset_sources()
+
+    for engine in (first_engine, second_engine):
+        assert (engine.missing_events, engine.unimplemented_events, engine.last_event_miss) == (
+            [],
+            [],
+            '',
+        )
+    assert first_engine.missing_events is not second_engine.missing_events
+    assert first_engine.unimplemented_events is not second_engine.unimplemented_events
+    assert first_engine.event_handlers is not second_engine.event_handlers
+    assert first_engine.options is not second_engine.options

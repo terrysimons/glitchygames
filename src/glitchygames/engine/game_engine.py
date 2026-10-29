@@ -82,7 +82,7 @@ from glitchygames.logical_names import logical_name
 from glitchygames.machine_state import current_machine_state
 from glitchygames.output_files import output_refusal, partial_path
 from glitchygames.randomness import seed_engine_random
-from glitchygames.read_only_views import ReadOnlyView, ReadOnlyViews
+from glitchygames.read_only_views import ClassOnlyView, ReadOnlyView, ReadOnlyViews
 from glitchygames.recording import (
     CUSTOM_EVENT_TYPES_HEADER_FIELD,
     DEVICE_ENUMERATION_FIELD,
@@ -844,7 +844,14 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
     """
 
     log: ClassVar[logging.Logger] = LOG
-    game: Any = None
+    # The game scene class (an instance once start() builds it), one per engine (audit C9: set
+    # by __init__, so a second engine's game never replaces the first's); a class-only view:
+    # GameEngine.game is the current engine's, an engine's game its own attribute (an engine
+    # whose __init__ never ran reads None)
+    game = ClassOnlyView[Any](
+        read_current=lambda _owner: _running_engine_attribute(read=lambda engine: engine.game),
+        write_instead="the engine's own: engine.game",
+    )
 
     _icon_path = Path(ASSET_PATH) / 'glitch.png'
     icon: pygame.Surface = (
@@ -862,9 +869,31 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         write_instead="the engine's own: engine.options",
     )
 
-    LAST_EVENT_MISS: ClassVar[str] = ''
-    MISSING_EVENTS: ClassVar[list[str]] = []
-    UNIMPLEMENTED_EVENTS: ClassVar[list[int]] = []
+    # The on_*_event name last looked up and missed, the names missed (each logged once) and
+    # the event types no handler took (each logged once), one set per engine (audit C11: so
+    # one engine's misses never silence another's); read-only views of last_event_miss,
+    # missing_events and unimplemented_events
+    LAST_EVENT_MISS = ReadOnlyView[str | None, str](
+        read_current=lambda _owner: _running_engine_attribute(
+            read=lambda engine: engine.last_event_miss
+        ),
+        read_own=lambda engine: engine.last_event_miss,
+        write_instead="the engine's own: engine.last_event_miss",
+    )
+    MISSING_EVENTS = ReadOnlyView[list[str] | None, list[str]](
+        read_current=lambda _owner: _running_engine_attribute(
+            read=lambda engine: engine.missing_events
+        ),
+        read_own=lambda engine: engine.missing_events,
+        write_instead="the engine's own: engine.missing_events",
+    )
+    UNIMPLEMENTED_EVENTS = ReadOnlyView[list[int] | None, list[int]](
+        read_current=lambda _owner: _running_engine_attribute(
+            read=lambda engine: engine.unimplemented_events
+        ),
+        read_own=lambda engine: engine.unimplemented_events,
+        write_instead="the engine's own: engine.unimplemented_events",
+    )
     USE_FASTEVENTS: ClassVar[bool] = False
     # pygame was found running without SDL_NO_SIGNAL_HANDLERS (SDL owns the signals): every
     # engine warns until pygame is found stopped, even after the first engine set the hint
@@ -1396,8 +1425,17 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         """
         super().__init__()
+        # The game scene class, until start() builds it (audit C9: this engine's own;
+        # GameEngine.game is a class-only view of it), set first so no view finds the engine
+        # without its game
+        self.game: Any = game
+        # The on_*_event names this engine missed (each logged once), the last one looked up,
+        # and the event types no handler took (each logged once): audit C11, one set per engine
+        self.missing_events: list[str] = []
+        self.last_event_miss: str = ''
+        self.unimplemented_events: list[int] = []
         # The frame-pacing timer, created as the run starts (_configure_timer_and_performance);
-        # declared first, as a rebaseline names its run (measurement_run) before then
+        # declared early, as a rebaseline names its run (measurement_run) before then
         self.timer: Any = None
         # Event type -> this engine's handler, filled by initialize_event_handlers (audit C10:
         # one map per engine, so a second engine's handlers never replace the first's)
@@ -1566,11 +1604,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         else:
             install_sources(sources=self.replay_sources)
 
-        # We are fully initialized now, so we can set up the scene.
-        #
-        # The scene will start once .start() is called on the GameEngine
-        # object
-        GameEngine.game = game
+        # We are fully initialized now; the scene (self.game, set at the top) starts once
+        # .start() is called on the GameEngine object
 
         # SceneManager is a singleton.
         self.scene_manager: SceneManager = SceneManager()
@@ -2234,8 +2269,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         commit is the game's, so a game outside this repository names its own.
 
         Args:
-            game: The game scene class or instance (a rebaseline names its run before
-                ``GameEngine.game`` is set).
+            game: The game scene class or instance (a rebaseline names its run from
+                ``__init__``, given the game it was constructed with).
             processing_paced: Whether the run paces its frames (a live run with a target FPS; a
                 rebaseline, a headless replay, is not paced).
             rebaselined_from: The recording this run rebaselines, or None for a fresh recording.
@@ -4726,13 +4761,13 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 pygame.event.event_name(event.type),
             )
 
-        if event.type not in self.UNIMPLEMENTED_EVENTS:
+        if event.type not in self.unimplemented_events:
             self.log.debug(
                 '(UNIMPLEMENTED) %s: %s',
                 pygame.event.event_name(event.type).upper(),
                 event,
             )
-            self.UNIMPLEMENTED_EVENTS.append(event.type)
+            self.unimplemented_events.append(event.type)
 
     def _record_unhandled_event(self: Self, event: events.HashableEvent) -> None:
         """Count an unhandled event under its type, keeping the first one's time and names.
@@ -4856,13 +4891,13 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         """
         # NOTE: Consider adding an engine option to raise an exception
         #       when an unimplemented event is called.
-        if self.LAST_EVENT_MISS not in self.MISSING_EVENTS:
-            self.MISSING_EVENTS.append(self.LAST_EVENT_MISS)
+        if self.last_event_miss not in self.missing_events:
+            self.missing_events.append(self.last_event_miss)
 
             self.log.info(
-                'Unimplemented method called: %s%s, %s', self.LAST_EVENT_MISS, args, kwargs
+                'Unimplemented method called: %s%s, %s', self.last_event_miss, args, kwargs
             )
-            self.suppress_event(*args, attr=self.LAST_EVENT_MISS, **kwargs)
+            self.suppress_event(*args, attr=self.last_event_miss, **kwargs)
 
         # Ensures we can always ctrl-c in cases where event spam occurs.
         clock.raw_sleep(0)
@@ -4892,7 +4927,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         """
         if attr.startswith('on_') and attr.endswith('_event'):
-            GameEngine.LAST_EVENT_MISS = attr  # type: ignore[reportConstantRedefinition]
+            # An instance attribute's write never re-enters __getattr__
+            self.last_event_miss = attr
 
             return self.missing_event
 

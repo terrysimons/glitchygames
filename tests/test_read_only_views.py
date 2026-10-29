@@ -17,8 +17,10 @@ import sys
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+import pygame
 import pytest
 
+from glitchygames import events
 from glitchygames.engine import GameEngine, current_engine
 from glitchygames.engine_context import EngineContext
 from glitchygames.performance import AdaptiveClamping
@@ -60,6 +62,10 @@ STAND_IN_RESOLUTION = (800, 600)
 STAND_IN_TARGET_FPS = 30
 # The second engine's --target-fps in a view check (two engines told apart)
 SECOND_STAND_IN_TARGET_FPS = 50
+# Event types no engine handler maps (pygame refuses types past NUMEVENTS), one per engine in the
+# UNIMPLEMENTED_EVENTS check
+FIRST_UNIMPLEMENTED_EVENT_TYPE = pygame.NUMEVENTS - 1
+SECOND_UNIMPLEMENTED_EVENT_TYPE = pygame.NUMEVENTS - 2
 
 # Every view, as 'GameEngine.OPTIONS' or 'glitchygames.performance.performance_manager', with
 # the check that it answers per context: (*, first, second, mocker) -> None
@@ -571,11 +577,64 @@ def nodes_outside(*, tree: ast.AST, excluded: Sequence[ast.stmt]) -> Iterator[as
         waiting.extend(ast.iter_child_nodes(node))
 
 
+def enclosing_class_names(*, tree: ast.Module) -> dict[int, str]:
+    """Map each node inside a class to the innermost enclosing class's name, by ``id``.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        ``id(node)`` -> the name of the innermost class whose body holds it.
+
+    """
+    enclosing: dict[int, str] = {}
+    # ast.walk is breadth first: an outer class is visited before the classes inside it, so an
+    # inner class's name replaces the outer one's for the nodes it holds
+    for class_definition in ast.walk(tree):
+        if isinstance(class_definition, ast.ClassDef):
+            for node in ast.walk(class_definition):
+                enclosing[id(node)] = class_definition.name
+    return enclosing
+
+
+def names_its_own_class(receiver: ast.expr) -> bool:
+    """Return whether a receiver names the class its method is defined in.
+
+    ``cls`` (a classmethod's class), ``type(self)`` and ``self.__class__``.
+
+    Args:
+        receiver: The expression an attribute is read from.
+
+    Returns:
+        Whether it is one of those.
+
+    """
+    if isinstance(receiver, ast.Name):
+        return receiver.id == 'cls'
+    if isinstance(receiver, ast.Call):
+        return (
+            isinstance(receiver.func, ast.Name)
+            and receiver.func.id == 'type'
+            and not receiver.keywords
+            and len(receiver.args) == 1
+            and isinstance(receiver.args[0], ast.Name)
+            and receiver.args[0].id == 'self'
+        )
+    return (
+        isinstance(receiver, ast.Attribute)
+        and receiver.attr == '__class__'
+        and isinstance(receiver.value, ast.Name)
+        and receiver.value.id == 'self'
+    )
+
+
 def engine_view_reads(*, source_path: Path, views: Mapping[str, frozenset[str]]) -> list[str]:
     """Return ``'<line>: <read>'`` for each read of a view in a file.
 
     A read is an attribute load ``<Name>.<view>`` of an owner class or a subclass (resolved by
-    name through the engine's classes and the file's); an attribute load ``.<view>`` of a
+    name through the engine's classes and the file's); an attribute load ``.<view>`` through
+    ``cls``, ``type(self)`` or ``self.__class__`` inside an owner class or a subclass (a
+    ``ClassOnlyView`` included); an attribute load ``.<view>`` of a
     ``ReadOnlyView``'s name on any other receiver (``self``, ``manager``, ``self.game``), except
     a bare capitalized name of a class that owns no view of that name; or an import or attribute
     load of a module view. The view definitions (read_only_views.py, the class-body
@@ -612,6 +671,7 @@ def engine_view_reads(*, source_path: Path, views: Mapping[str, frozenset[str]])
         module_name=scanned.module_name,
         is_package=source_path.stem == '__init__',
     )
+    enclosing = enclosing_class_names(tree=scanned.tree)
     reads: list[tuple[int, str]] = []
     for node in nodes_outside(tree=scanned.tree, excluded=scanned.definitions):
         if isinstance(node, ast.ImportFrom):
@@ -641,6 +701,13 @@ def engine_view_reads(*, source_path: Path, views: Mapping[str, frozenset[str]])
                 for name in class_owners.get(ancestor, frozenset())
             }
             is_read = node.attr in owned_names
+        elif names_its_own_class(receiver) and id(node) in enclosing:
+            owned_names = {
+                name
+                for ancestor in class_and_ancestors(class_name=enclosing[id(node)], classes=classes)
+                for name in class_owners.get(ancestor, frozenset())
+            }
+            is_read = node.attr in owned_names or node.attr in read_only_view_names
         else:
             is_read = node.attr in read_only_view_names
         if is_read:
@@ -878,6 +945,54 @@ def test_the_view_read_scan_follows_subclasses_and_module_attributes(tmp_path):
     ]
 
 
+# Appended to PLANTED_VIEWS: reads through the class a method is defined in (lines 47, 50 and 54:
+# the innermost class, so Inner's type(self).game is no read; type(self).OPTIONS is, as a
+# ReadOnlyView's name on any receiver), and the same reads in a class owning no view (none
+# reported) and outside any class (only the ReadOnlyView's name, line 66)
+PLANTED_OWN_CLASS_READS = """\
+
+class Derived(Owner):
+    @classmethod
+    def class_reads(cls):
+        return cls.game, cls.OPTIONS
+
+    def instance_reads(self):
+        return type(self).game, self.__class__.game, self.game
+
+    class Inner:
+        def inner_reads(self):
+            return type(self).game, type(self).OPTIONS
+
+
+class Unowned:
+    game = None
+
+    @classmethod
+    def class_reads(cls):
+        return cls.game, type(cls).game
+
+
+def outside_any_class(cls, self):
+    return cls.game, type(self).game, cls.OPTIONS
+"""
+
+
+def test_the_view_read_scan_finds_reads_through_the_methods_own_class(tmp_path):
+    """cls, type(self) and self.__class__ inside an owner or subclass read its class-only views."""
+    planted_path = tmp_path / 'planted.py'
+    planted_path.write_text(PLANTED_VIEWS + PLANTED_OWN_CLASS_READS, encoding='utf-8')
+    views = declared_views(source_paths=[planted_path])
+
+    assert engine_view_reads(source_path=planted_path, views=views)[5:] == [
+        '47: cls.OPTIONS',
+        '47: cls.game',
+        '50: self.__class__.game',
+        '50: type(self).game',
+        '54: type(self).OPTIONS',
+        '66: cls.OPTIONS',
+    ]
+
+
 def test_a_marked_name_the_module_getattr_never_answers_is_a_scan_error(tmp_path):
     """A mark must name only what the module __getattr__ answers."""
     planted_path = tmp_path / 'marked.py'
@@ -1031,6 +1146,195 @@ def check_engine_options_view(
 
 
 VIEW_CHECKS['GameEngine.OPTIONS'] = check_engine_options_view
+
+
+def check_engine_game_view(
+    *, first: EngineContext, second: EngineContext, mocker: MockerFixture
+) -> None:
+    """GameEngine.game: each context's engine's own game (audit C9).
+
+    A class-only view: read on the class, the current context's engine's ``game`` (``None``
+    where no engine runs); an engine's ``game`` is its own attribute, which the engine writes
+    (the scene class, then the scene start() builds). Writing it on the class raises, naming
+    ``engine.game``. The second engine installs its game (a scene instance), so the two
+    engines' games differ.
+    """
+    engines: list[GameEngine] = []
+    class_reads: list[object] = []
+    for context, target_fps in (
+        (first, STAND_IN_TARGET_FPS),
+        (second, SECOND_STAND_IN_TARGET_FPS),
+    ):
+        with context.active():
+            engine = make_stand_in_engine(mocker=mocker, target_fps=target_fps)
+            if context is second:
+                assert isinstance(engine, GoldenTraceEngine)
+                engine.install_game(scene_class=StandInScene)
+            engines.append(engine)
+            class_reads.append(GameEngine.game)
+            reset_sources()
+    with EngineContext(name='fresh').active():
+        fresh_read = GameEngine.game
+
+    assert engines[0].game is StandInScene
+    assert isinstance(engines[1].game, StandInScene)
+    assert class_reads == [engines[0].game, engines[1].game]
+    assert fresh_read is None
+    where_to_write = re.escape("write the engine's own: engine.game")
+    for write in (
+        lambda: setattr(GameEngine, 'game', StandInScene),
+        lambda: mocker.patch.object(GameEngine, 'game', StandInScene),
+    ):
+        with pytest.raises(ReadOnlyViewError, match=where_to_write):
+            write()
+
+
+VIEW_CHECKS['GameEngine.game'] = check_engine_game_view
+
+
+def check_last_event_miss_view(
+    *, first: EngineContext, second: EngineContext, mocker: MockerFixture
+) -> None:
+    """GameEngine.LAST_EVENT_MISS: each context's engine's own last missed handler (audit C11).
+
+    Read on the class, the current context's engine's ``last_event_miss`` (``None`` where no
+    engine runs); on an engine, its own. Writing it raises, naming ``engine.last_event_miss``.
+    """
+    engines: list[GameEngine] = []
+    class_reads: list[str | None] = []
+    instance_reads: list[str] = []
+    for context, target_fps, missed_handler_name in (
+        (first, STAND_IN_TARGET_FPS, 'on_first_missed_event'),
+        (second, SECOND_STAND_IN_TARGET_FPS, 'on_second_missed_event'),
+    ):
+        with context.active():
+            engine = make_stand_in_engine(mocker=mocker, target_fps=target_fps)
+            engines.append(engine)
+            # Looking a missing handler up notes its name (GameEngine.__getattr__)
+            getattr(engine, missed_handler_name)
+            class_reads.append(GameEngine.LAST_EVENT_MISS)
+            instance_reads.append(engine.LAST_EVENT_MISS)
+            reset_sources()
+    with EngineContext(name='fresh').active():
+        fresh_read = GameEngine.LAST_EVENT_MISS
+
+    assert [engine.last_event_miss for engine in engines] == [
+        'on_first_missed_event',
+        'on_second_missed_event',
+    ]
+    assert class_reads == ['on_first_missed_event', 'on_second_missed_event']
+    assert instance_reads == ['on_first_missed_event', 'on_second_missed_event']
+    assert fresh_read is None
+    where_to_write = re.escape("write the engine's own: engine.last_event_miss")
+    for write in (
+        lambda: setattr(GameEngine, 'LAST_EVENT_MISS', ''),
+        lambda: setattr(engines[0], 'LAST_EVENT_MISS', ''),
+        lambda: mocker.patch.object(GameEngine, 'LAST_EVENT_MISS', ''),
+    ):
+        with pytest.raises(ReadOnlyViewError, match=where_to_write):
+            write()
+
+
+VIEW_CHECKS['GameEngine.LAST_EVENT_MISS'] = check_last_event_miss_view
+
+
+def check_missing_events_view(
+    *, first: EngineContext, second: EngineContext, mocker: MockerFixture
+) -> None:
+    """GameEngine.MISSING_EVENTS: each context's engine's own missed handlers (audit C11).
+
+    Read on the class, the current context's engine's ``missing_events`` (``None`` where no
+    engine runs); on an engine, its own. Writing it raises, naming ``engine.missing_events``.
+    """
+    engines: list[GameEngine] = []
+    class_reads_answer_their_engine: list[bool] = []
+    instance_reads_answer_their_engine: list[bool] = []
+    for context, target_fps, missed_handler_name in (
+        (first, STAND_IN_TARGET_FPS, 'on_first_missed_event'),
+        (second, SECOND_STAND_IN_TARGET_FPS, 'on_second_missed_event'),
+    ):
+        with context.active():
+            engine = make_stand_in_engine(mocker=mocker, target_fps=target_fps)
+            engines.append(engine)
+            getattr(engine, missed_handler_name)()
+            class_reads_answer_their_engine.append(
+                GameEngine.MISSING_EVENTS is engine.missing_events
+            )
+            instance_reads_answer_their_engine.append(
+                engine.MISSING_EVENTS is engine.missing_events
+            )
+            reset_sources()
+    with EngineContext(name='fresh').active():
+        fresh_read = GameEngine.MISSING_EVENTS
+
+    assert class_reads_answer_their_engine == [True, True]
+    assert instance_reads_answer_their_engine == [True, True]
+    assert [engine.missing_events for engine in engines] == [
+        ['on_first_missed_event'],
+        ['on_second_missed_event'],
+    ]
+    assert fresh_read is None
+    where_to_write = re.escape("write the engine's own: engine.missing_events")
+    for write in (
+        lambda: setattr(GameEngine, 'MISSING_EVENTS', []),
+        lambda: setattr(engines[0], 'MISSING_EVENTS', []),
+        lambda: mocker.patch.object(GameEngine, 'MISSING_EVENTS', []),
+    ):
+        with pytest.raises(ReadOnlyViewError, match=where_to_write):
+            write()
+
+
+VIEW_CHECKS['GameEngine.MISSING_EVENTS'] = check_missing_events_view
+
+
+def check_unimplemented_events_view(
+    *, first: EngineContext, second: EngineContext, mocker: MockerFixture
+) -> None:
+    """GameEngine.UNIMPLEMENTED_EVENTS: each context's engine's own unhandled types (audit C11).
+
+    Read on the class, the current context's engine's ``unimplemented_events`` (``None`` where
+    no engine runs); on an engine, its own. Writing it raises, naming
+    ``engine.unimplemented_events``.
+    """
+    engines: list[GameEngine] = []
+    class_reads_answer_their_engine: list[bool] = []
+    instance_reads_answer_their_engine: list[bool] = []
+    for context, target_fps, event_type in (
+        (first, STAND_IN_TARGET_FPS, FIRST_UNIMPLEMENTED_EVENT_TYPE),
+        (second, SECOND_STAND_IN_TARGET_FPS, SECOND_UNIMPLEMENTED_EVENT_TYPE),
+    ):
+        with context.active():
+            engine = make_stand_in_engine(mocker=mocker, target_fps=target_fps)
+            engines.append(engine)
+            engine.process_unimplemented_event(events.HashableEvent(event_type))
+            class_reads_answer_their_engine.append(
+                GameEngine.UNIMPLEMENTED_EVENTS is engine.unimplemented_events
+            )
+            instance_reads_answer_their_engine.append(
+                engine.UNIMPLEMENTED_EVENTS is engine.unimplemented_events
+            )
+            reset_sources()
+    with EngineContext(name='fresh').active():
+        fresh_read = GameEngine.UNIMPLEMENTED_EVENTS
+
+    assert class_reads_answer_their_engine == [True, True]
+    assert instance_reads_answer_their_engine == [True, True]
+    assert [engine.unimplemented_events for engine in engines] == [
+        [FIRST_UNIMPLEMENTED_EVENT_TYPE],
+        [SECOND_UNIMPLEMENTED_EVENT_TYPE],
+    ]
+    assert fresh_read is None
+    where_to_write = re.escape("write the engine's own: engine.unimplemented_events")
+    for write in (
+        lambda: setattr(GameEngine, 'UNIMPLEMENTED_EVENTS', []),
+        lambda: setattr(engines[0], 'UNIMPLEMENTED_EVENTS', []),
+        lambda: mocker.patch.object(GameEngine, 'UNIMPLEMENTED_EVENTS', []),
+    ):
+        with pytest.raises(ReadOnlyViewError, match=where_to_write):
+            write()
+
+
+VIEW_CHECKS['GameEngine.UNIMPLEMENTED_EVENTS'] = check_unimplemented_events_view
 
 
 def check_scene_manager_options_view(
