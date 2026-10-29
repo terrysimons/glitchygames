@@ -245,7 +245,8 @@ class FontManager(ResourceManager, metaclass=ReadOnlyViews):
         """Initialize the font manager.
 
         Args:
-            game (object): The game object.
+            game (object): The game object (the scene manager): its ``engine_options`` give
+                the default font options.
 
         """
         super().__init__(game=game)
@@ -260,15 +261,17 @@ class FontManager(ResourceManager, metaclass=ReadOnlyViews):
         )
 
         # Set up the default options.
-        FontManager.OPTIONS['font_name'] = self.game.OPTIONS['font_name']
-        FontManager.OPTIONS['font_size'] = self.game.OPTIONS['font_size']
+        FontManager.OPTIONS['font_name'] = self.game.engine_options['font_name']
+        FontManager.OPTIONS['font_size'] = self.game.engine_options['font_size']
         # A style option the game's options leave out gets the engine's default (antialiasing
         # on), so options not built by the engine's parser still load fonts
         for style_option, default_value in FONT_STYLE_DEFAULTS.items():
-            FontManager.OPTIONS[style_option] = self.game.OPTIONS.get(style_option, default_value)
+            FontManager.OPTIONS[style_option] = self.game.engine_options.get(
+                style_option, default_value
+            )
 
         # Set font system based on command line argument
-        font_system: str = self.game.OPTIONS.get('font_system', 'freetype')
+        font_system: str = self.game.engine_options.get('font_system', 'freetype')
         FontManager.OPTIONS['use_freetype'] = font_system == 'freetype'
         log.info('Font system initialized: %s', font_system)
 

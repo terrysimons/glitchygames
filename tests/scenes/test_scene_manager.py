@@ -15,16 +15,6 @@ from glitchygames.transitions import FadeTransition
 FPS_REFRESH_RATE = 1000
 
 
-@pytest.fixture(autouse=True)
-def restore_scene_manager_options(mocker):
-    """Put SceneManager.OPTIONS back after each test.
-
-    Setting a scene manager's game_engine copies the engine's OPTIONS onto the SceneManager
-    class; without this, the stand-in engines below would leave their options for later tests.
-    """
-    mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
-
-
 def _take_events(event_type: int) -> list[pygame.event.Event]:
     """Remove and return the events of one type waiting in pygame's real event queue.
 
@@ -89,7 +79,7 @@ class TestSceneManager:
 
         # Test setting game_engine with proper OPTIONS structure
         mock_engine = mocker.Mock()
-        mock_engine.OPTIONS = {
+        mock_engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': FPS_REFRESH_RATE,
             'target_fps': 60,
@@ -222,7 +212,7 @@ class TestSceneManager:
         # Set up a mock game engine with registered_events and OPTIONS
         mock_engine = mocker.Mock()
         mock_engine.registered_events = {'test_event': mocker.Mock()}
-        mock_engine.OPTIONS = {
+        mock_engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': FPS_REFRESH_RATE,
             'target_fps': 60,
@@ -241,7 +231,7 @@ class TestSceneManager:
 
         # register_game_event asserts game_engine is not None, so provide one
         mock_engine = mocker.Mock()
-        mock_engine.OPTIONS = {
+        mock_engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': FPS_REFRESH_RATE,
             'target_fps': 60,
@@ -349,7 +339,7 @@ class TestSceneManagerInternals:
         scene_manager = self.scene_manager
 
         # Set up proper OPTIONS structure
-        scene_manager.OPTIONS = {'fps_log_interval_ms': FPS_REFRESH_RATE}  # type: ignore[invalid-assignment]
+        scene_manager.engine_options = {'fps_log_interval_ms': FPS_REFRESH_RATE}
 
         # Test FPS event posting logic
         current_time = 1.0
@@ -493,7 +483,7 @@ class TestSceneManagerInternals:
     def test_game_engine_options_set_shake_intensity(self, mocker):
         """Test the game engine setter applies the screen shake intensity option."""
         engine = mocker.Mock()
-        engine.OPTIONS = {
+        engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': 1000,
             'screen_shake_intensity': 0.25,
@@ -591,7 +581,7 @@ class TestSceneManagerEngineAndQuit:
     def test_detaching_the_game_engine_keeps_its_settings(self, mocker):
         """Setting game_engine to None forgets the engine; the settings it gave stay."""
         engine = mocker.Mock()
-        engine.OPTIONS = {
+        engine.options = {
             'update_type': 'flip',
             'fps_log_interval_ms': 250,
             'target_fps': 30.0,

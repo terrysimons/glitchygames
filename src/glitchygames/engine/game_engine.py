@@ -853,7 +853,14 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
     NAME: Literal['Boilerplate Adventures'] = 'Boilerplate Adventures'
     VERSION: Literal['1.0'] = '1.0'
-    OPTIONS: ClassVar[dict[str, Any]] = {}
+    # The parsed command line, one per engine (audit C8: set by __init__ from
+    # initialize_arguments, so a second engine's options never replace the first's); a
+    # read-only view of options
+    OPTIONS = ReadOnlyView[dict[str, Any] | None, dict[str, Any]](
+        read_current=lambda _owner: _running_engine_attribute(read=lambda engine: engine.options),
+        read_own=lambda engine: engine.options,
+        write_instead="the engine's own: engine.options",
+    )
 
     LAST_EVENT_MISS: ClassVar[str] = ''
     MISSING_EVENTS: ClassVar[list[str]] = []
@@ -1340,16 +1347,15 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             # drops INFO, so it never showed at any level (D18's report)
             cls.log.info('Game does not implement arguments.  Add a def args(parser) class method.')
 
-        GameEngine.OPTIONS = vars(args)  # type: ignore[reportConstantRedefinition]
+        # Stored on nothing here: __init__ keeps them as the engine's own (self.options)
+        options: dict[str, Any] = vars(args)
 
         # Resolve the effective target FPS; --target-fps defaults to None so that an explicit
         # value (including 0 = uncapped) can be told apart from "not passed".
-        GameEngine.OPTIONS['target_fps'] = cls.resolve_target_fps(
-            command_line_target_fps=GameEngine.OPTIONS.get('target_fps'),
+        options['target_fps'] = cls.resolve_target_fps(
+            command_line_target_fps=options.get('target_fps'),
             game=game,
         )
-
-        options: dict[str, Any] = GameEngine.OPTIONS
 
         # Back propagate the options
         game.options = options
@@ -1401,6 +1407,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         self.initialize_icon(icon=icon)
 
         options = self.initialize_arguments(game=game)
+        # This engine's parsed command line (audit C8: its own; GameEngine.OPTIONS is a
+        # read-only view of it), set before the engine is current below
+        self.options: dict[str, Any] = options
         # The current context's engine from here on (current_engine()): every piece of the
         # engine's own state is set above this line, so no view finds a half-made engine (if
         # the rest raises, _clear_a_half_made_engine clears it again)
@@ -2037,7 +2046,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # any other device its joystick events; joystick the joystick layer only; controller
         # mapped pads only. Joystick events are never blocked at SDL: blocking them interferes
         # with CONTROLLERDEVICEADDED/REMOVED on macOS (they are dropped at dispatch instead)
-        input_mode = InputMode(GameEngine.OPTIONS.get('input_mode', InputMode.AUTO))
+        input_mode = InputMode(self.options.get('input_mode', InputMode.AUTO))
 
         if input_mode is InputMode.JOYSTICK:
             self.controller_manager = None
@@ -2240,7 +2249,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # while the engine starts, before any timer exists; a timer that failed to start) the
         # one its options make, uncalibrated
         pacing_timer = (
-            pacing_timer_for_options(options=GameEngine.OPTIONS)
+            pacing_timer_for_options(options=self.options)
             if self.timer is None
             else self.timer.pacing_timer()
         )
@@ -2287,7 +2296,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             # Path options relative to the project root (stored_options)
             'options': {
                 str(name): json_safe_value(value)
-                for name, value in stored_options(options=GameEngine.OPTIONS).items()
+                for name, value in stored_options(options=self.options).items()
             },
             # The origin of the run's wall clock from here on, recorded and replayed alike:
             # recorded_at plus the frame clock (RecordingSources.wall_clock_time; rule 9 of
@@ -2381,7 +2390,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         if self.rebaseline is not None:
             self.trace_recorder = self.rebaseline.start_recording()
             return
-        record_trace_path = GameEngine.OPTIONS.get('record_trace')
+        record_trace_path = self.options.get('record_trace')
         if record_trace_path is not None:
             self.start_trace_recording(path=Path(record_trace_path))
 
@@ -2818,10 +2827,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         from glitchygames.audio.voices import reserve_channels
 
         partition = reserve_channels(
-            live_pool=int(GameEngine.OPTIONS.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL)),
-            library_channels=int(
-                GameEngine.OPTIONS.get('sound_channels', DEFAULT_LIBRARY_CHANNELS)
-            ),
+            live_pool=int(self.options.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL)),
+            library_channels=int(self.options.get('sound_channels', DEFAULT_LIBRARY_CHANNELS)),
             legacy_channels=LEGACY_CHANNELS,
         )
         self.live_voice_channels = partition.live
@@ -3466,17 +3473,17 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # Initialize timer backend for draw-loop pacing (after options exist)
         try:
             self.timer = create_timer(
-                GameEngine.OPTIONS.get('timer_backend'),
-                GameEngine.OPTIONS,
+                self.options.get('timer_backend'),
+                self.options,
             )
-            self.log.info('Timer backend: %s', GameEngine.OPTIONS.get('timer_backend'))
+            self.log.info('Timer backend: %s', self.options.get('timer_backend'))
             # auto measures this machine's sleep model now for a paced live game, so no frame
             # pays for it (and logs what it chose); a replay and an async run never pace with
             # the timer, and an uncapped run calibrates only if it starts pacing (at its first
             # paced frame)
             if (
                 paced_by_timer
-                and GameEngine.OPTIONS.get('target_fps', 0) > 0
+                and self.options.get('target_fps', 0) > 0
                 and self.replay_sources is None
             ):
                 self.timer.calibrate()
@@ -3491,16 +3498,14 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         try:
             from glitchygames.performance import AdaptiveClamping
 
-            trim = float(GameEngine.OPTIONS.get('perf_trim_percent', 5.0))
+            trim = float(self.options.get('perf_trim_percent', 5.0))
             AdaptiveClamping().set_trim_percent(trim)
         except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
             LOG.debug('Performance trim percent configuration failed: %s', perf_error)
         try:
             from glitchygames.performance import AdaptiveClamping
 
-            AdaptiveClamping().set_histogram_mode(
-                GameEngine.OPTIONS.get('fps_histogram', 'equal-range')
-            )
+            AdaptiveClamping().set_histogram_mode(self.options.get('fps_histogram', 'equal-range'))
         except (ImportError, ValueError, TypeError, AttributeError) as perf_error:
             LOG.debug('Performance FPS histogram mode configuration failed: %s', perf_error)
 
@@ -3531,7 +3536,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             self._restore_signal_handlers()
             # After _shutdown quit pygame: whatever starts it next does so on these drivers
             self._restore_sdl_driver_variables()
-        if GameEngine.OPTIONS['profile'] and profiler is not None:
+        if self.options['profile'] and profiler is not None:
             profiler.disable()
             profiler.print_stats()
         return teardown_error
@@ -3650,7 +3655,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         owner, 2026-10-28: "The seed should definitely be in the options"); rolled or given is
         on the INFO line (``_log_the_runs_seed``), hidden at the default WARNING.
         """
-        shown_options = {**GameEngine.OPTIONS, 'random_seed': self.random_seed}
+        shown_options = {**self.options, 'random_seed': self.random_seed}
         self.log.critical(
             '%s', startup_options_block(game_name=self._game_name(), options=shown_options)
         )
@@ -3686,7 +3691,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             raise RuntimeError(GAME_NOT_INITIALIZED_MSG)
 
         profiler = None
-        if GameEngine.OPTIONS['profile']:
+        if self.options['profile']:
             # Enabled before the crash boundary, so the teardown prints only a profiler that ran
             profiler = cProfile.Profile()
             profiler.enable()
@@ -3782,11 +3787,11 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # For the whole run, so a signal always ends it through start()'s teardown
         self._install_signal_handlers()
 
-        if GameEngine.OPTIONS.get('list_input_devices'):
+        if self.options.get('list_input_devices'):
             # In place of the game: its scene is never built, nothing is recorded
             lines = list_input_devices(
                 sources=active_sources(),
-                input_mode=InputMode(GameEngine.OPTIONS.get('input_mode', InputMode.AUTO)).value,
+                input_mode=InputMode(self.options.get('input_mode', InputMode.AUTO)).value,
                 prompt=input_device_prompt(),
             )
             sys.stdout.write('\n'.join(lines) + '\n')
@@ -3801,11 +3806,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         """
         return should_play(
-            mode=resolve_mode(
-                option=GameEngine.OPTIONS.get('crt_power_on'), environment=os.environ
-            ),
+            mode=resolve_mode(option=self.options.get('crt_power_on'), environment=os.environ),
             video_driver=pygame.display.get_driver(),
-            options=GameEngine.OPTIONS,
+            options=self.options,
         )
 
     def _power_on_sound_cues(self: Self) -> CrtPowerOnSound | None:
@@ -3822,7 +3825,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             The cues (glitchygames/crt_power_on_sound.py), or None to play the picture silently.
 
         """
-        sound_choice = GameEngine.OPTIONS.get('crt_power_on_sound', DEFAULT_CRT_POWER_ON_SOUND)
+        sound_choice = self.options.get('crt_power_on_sound', DEFAULT_CRT_POWER_ON_SOUND)
         if sound_choice == CRT_POWER_ON_SOUND_OFF:
             return None
         from glitchygames.crt_power_on_sound import CrtPowerOnSound
@@ -3884,10 +3887,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             self.ai_link.start()
 
         # Initialize the game instance
-        self.game = self.game(options=GameEngine.OPTIONS)
+        self.game = self.game(options=self.options)
 
-        # Set the scene manager's OPTIONS class variable for managers that expect it
-        SceneManager.OPTIONS = GameEngine.OPTIONS
+        # The setter gives the scene manager this engine's options (manager.engine_options)
         self.scene_manager.game_engine = self
 
         self._initialize_event_managers()
@@ -4045,7 +4047,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         self.log.info('Restarting the replay at frame %s', restart_frame)
         debug_overlay = self.scene_manager.debug_overlay
         controls = replay_sources.controls
-        recording_path = Path(GameEngine.OPTIONS['replay_trace'])
+        recording_path = Path(self.options['replay_trace'])
         if controls.bookmarks:
             bookmarked_copy = replay_sources.bookmarks.save()
             if bookmarked_copy is None:

@@ -44,7 +44,7 @@ from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.opacity import OPAQUE, make_opaque
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.randomness import restore_stream_states
-from glitchygames.read_only_views import ReadOnlyViews
+from glitchygames.read_only_views import ReadOnlyView, ReadOnlyViews
 from glitchygames.recording import (
     SCENE_START_DEVICES_HEADER_FIELD,
     is_input_post,
@@ -247,6 +247,26 @@ def _scene_manager_for_class(*, scene_manager_class: type[SceneManager]) -> Scen
     return None
 
 
+def _current_engine_options(owner: type) -> dict[str, Any] | None:
+    """Return the current context's manager's engine options (``SceneManager.OPTIONS`` on a class).
+
+    Looked up along the class's MRO (``_scene_manager_for_class``), so reading never makes a
+    manager.
+
+    Args:
+        owner: The class read through: SceneManager or a subclass, as the view is declared in
+            SceneManager's body.
+
+    Returns:
+        The manager's ``engine_options``, or None when the context has no manager of the class.
+
+    """
+    manager = _scene_manager_for_class(scene_manager_class=cast('type[SceneManager]', owner))
+    if manager is None:
+        return None
+    return manager.engine_options
+
+
 class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews):
     """Glitchy Games Scene Manager.
 
@@ -255,7 +275,15 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
     """
 
     log: ClassVar[logging.Logger] = LOG
-    OPTIONS: ClassVar[dict[str, Any]] = {}
+    # The engine's options, one per manager (audit C7: the game_engine setter sets
+    # engine_options, so a second context's engine never replaces the first's); a read-only
+    # view of engine_options. Read on the class, the current context's manager of the class
+    # read through, never making one (None when there is none)
+    OPTIONS = ReadOnlyView[dict[str, Any] | None, dict[str, Any]](
+        read_current=_current_engine_options,
+        read_own=lambda manager: manager.engine_options,
+        write_instead="the manager's own: manager.engine_options (the game_engine setter sets it)",
+    )
     # True once __init__ ran: SceneManager() returns the singleton, whose __init__ runs again
     _initialized: bool = False
 
@@ -280,6 +308,9 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         # None until the display is initialized (set later); get_surface() never raises
         self.screen = pygame.display.get_surface()
         self.update_type: str = 'update'
+        # The engine's options (the game_engine setter sets them: the engine's own dict);
+        # empty until an engine is set
+        self.engine_options: dict[str, Any] = {}
         self.fps_log_interval_ms: int = 1000
         self.target_fps: float = 0.0
         self.dt: float = 0.0
@@ -401,16 +432,16 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
     def game_engine(self: Self, new_engine: GameEngine | None) -> None:
         self._game_engine = new_engine
         if self._game_engine:
-            SceneManager.OPTIONS = self._game_engine.OPTIONS  # pyright: ignore[reportConstantRedefinition]
-            self.update_type = self.OPTIONS['update_type']
-            self.fps_log_interval_ms = self.OPTIONS['fps_log_interval_ms']
-            self.target_fps = self.OPTIONS.get('target_fps', DEFAULT_TARGET_FPS)
-            self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
-            self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
+            self.engine_options = self._game_engine.options
+            self.update_type = self.engine_options['update_type']
+            self.fps_log_interval_ms = self.engine_options['fps_log_interval_ms']
+            self.target_fps = self.engine_options.get('target_fps', DEFAULT_TARGET_FPS)
+            self.screen_shake.intensity = self.engine_options.get('screen_shake_intensity', 1.0)
+            self.rumble.intensity = self.engine_options.get('rumble_intensity', 1.0)
             # --sound-diagnostics opens the overlay too (its Audio panel: sound engine impl 10.5)
-            sound_diagnostics = bool(self.OPTIONS.get('sound_diagnostics', False))
+            sound_diagnostics = bool(self.engine_options.get('sound_diagnostics', False))
             self.debug_overlay.is_visible = bool(
-                self.OPTIONS.get('debug_overlay', False) or sound_diagnostics
+                self.engine_options.get('debug_overlay', False) or sound_diagnostics
             )
             if sound_diagnostics:
                 self.debug_overlay.panel = DebugPanel.AUDIO
@@ -1355,7 +1386,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             if game_engine is None
             else game_engine.reserved_channel_partition()
         )
-        options: Mapping[str, Any] = {} if game_engine is None else game_engine.OPTIONS
+        options: Mapping[str, Any] = {} if game_engine is None else game_engine.options
         return install_audio_engine(
             engine=AudioEngine(
                 partition=partition,
@@ -1756,7 +1787,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             # 16.67 ms cadence would be measured as 17, 17, 16 ms (58.8, 58.8, 62.5 FPS).
             # _finish_frame measures with raw_counter_seconds() instead (BUGS.md #26).
             # Optional jitter logging
-            if self.OPTIONS.get('log_timer_jitter', False):
+            if self.engine_options.get('log_timer_jitter', False):
                 self._log_jitter_stats(timer, wake_ns, deadline_ns)
         elif timer is not None and paced_seconds is not None:
             # A positive paced period shorter than half a nanosecond rounds to a 0 ns period:
@@ -2309,7 +2340,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             kind=PLAYBACK_KIND, data={'source': request.kind, 'frames': request.frame_count}
         )
         scene = rebuild_scene(
-            start=request.start, scene_class=request.scene_class, options=self.OPTIONS
+            start=request.start, scene_class=request.scene_class, options=self.engine_options
         )
         self._clear_frame_effects()
         # Made active by the steps a switch takes (the live scene is stashed, not cleaned up)
@@ -2783,7 +2814,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         """
         # Update FPS measurements at half the log interval for better accuracy
         # but still log at the specified interval
-        update_interval_ms = float(self.OPTIONS['fps_log_interval_ms']) / 2.0
+        update_interval_ms = float(self.engine_options['fps_log_interval_ms']) / 2.0
         return (current_time - previous_fps_time) * 1000 >= update_interval_ms
 
     def _post_fps_event(self) -> None:
@@ -2982,7 +3013,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         assert self.active_scene is not None
         # Command line FPS takes precedence over scene FPS
         # Set the scene's target_fps to match the scene manager's target_fps
-        # (which comes from OPTIONS)
+        # (which comes from the engine's options)
         self.active_scene.target_fps = self.target_fps
 
     def _log_scene_rendering_info(self) -> None:
@@ -3020,7 +3051,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
     def _apply_scene_fps(self) -> None:
         """Apply scene-specific FPS configuration."""
         # Don't override the scene manager's target_fps with the scene's target_fps
-        # The scene manager's target_fps comes from OPTIONS and should be maintained
+        # The scene manager's target_fps comes from the engine's options and should be maintained
         # The scene's target_fps is already set by _configure_scene_fps()
 
 

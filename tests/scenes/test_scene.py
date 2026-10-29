@@ -1756,7 +1756,7 @@ class TestHandleFramePacing:
     def test_handle_frame_pacing_with_timer(self, mocker):
         """Test frame pacing delegates to timer when available."""
         manager = SceneManager()
-        type(manager).OPTIONS = {'log_timer_jitter': False}
+        manager.engine_options = {'log_timer_jitter': False}
 
         mock_timer = mocker.Mock()
         mock_timer.compute_deadline.return_value = 2_000_000
@@ -1776,7 +1776,7 @@ class TestHandleFramePacing:
     def test_handle_frame_pacing_with_timer_and_jitter_logging(self, mocker):
         """Test frame pacing calls jitter logging when enabled."""
         manager = SceneManager()
-        type(manager).OPTIONS = {'log_timer_jitter': True}
+        manager.engine_options = {'log_timer_jitter': True}
         manager.fps_log_interval_ms = 100_000
 
         mock_timer = mocker.Mock()
@@ -1890,9 +1890,8 @@ class TestFinishFrameMeasurement:
     """SceneManager._finish_frame() measures frames with perf_counter, never the timer's clock."""
 
     def _patch_frame_bookkeeping(self, mocker):
-        mocker.patch.object(
-            SceneManager, 'OPTIONS', {'log_timer_jitter': False, 'fps_log_interval_ms': 1000}
-        )
+        # The current context's manager: the one each caller holds
+        SceneManager().engine_options = {'log_timer_jitter': False, 'fps_log_interval_ms': 1000}
         mocker.patch('glitchygames.scenes.scene.post_event')
         # The current context's manager records each frame: its one method the frame calls
         return mocker.patch.object(AdaptiveClamping, 'track_fps_from_event', autospec=True)
@@ -1969,7 +1968,7 @@ class TestFinishFrameMeasurement:
     def test_handle_frame_pacing_does_not_write_dt(self, mocker):
         """Pacing only paces: the frame time is set once, by _finish_frame."""
         manager = SceneManager()
-        mocker.patch.object(SceneManager, 'OPTIONS', {'log_timer_jitter': False})
+        manager.engine_options = {'log_timer_jitter': False}
         manager.dt = 0.25
         mock_timer = mocker.Mock()
         mock_timer.compute_deadline.return_value = 2_000_000
@@ -2227,7 +2226,7 @@ class TestSceneManagerShouldPostFpsEvent:
     def test_should_post_fps_event_true(self, mocker):
         """Test returns True when time exceeds half the log interval."""
         manager = SceneManager()
-        type(manager).OPTIONS = {'fps_log_interval_ms': 1000}
+        manager.engine_options = {'fps_log_interval_ms': 1000}
 
         # 600ms has passed, half of 1000ms = 500ms
         result = manager._should_post_fps_event(current_time=1.0, previous_fps_time=0.4)
@@ -2236,7 +2235,7 @@ class TestSceneManagerShouldPostFpsEvent:
     def test_should_post_fps_event_false(self, mocker):
         """Test returns False when time does not exceed half the log interval."""
         manager = SceneManager()
-        type(manager).OPTIONS = {'fps_log_interval_ms': 1000}
+        manager.engine_options = {'fps_log_interval_ms': 1000}
 
         # Only 100ms has passed, half of 1000ms = 500ms
         result = manager._should_post_fps_event(current_time=1.0, previous_fps_time=0.9)
@@ -2344,7 +2343,7 @@ class TestSceneManagerShouldPostFpsEventDeeper:
     def test_should_post_fps_event_true(self, mocker):
         """Test returns True when enough time has elapsed."""
         manager = SceneManager()
-        type(manager).OPTIONS = {'fps_log_interval_ms': 1000}
+        manager.engine_options = {'fps_log_interval_ms': 1000}
 
         # 1 second elapsed, interval is 500ms (half of 1000)
         result = manager._should_post_fps_event(current_time=2.0, previous_fps_time=1.0)
@@ -2353,7 +2352,7 @@ class TestSceneManagerShouldPostFpsEventDeeper:
     def test_should_post_fps_event_false(self, mocker):
         """Test returns False when not enough time has elapsed."""
         manager = SceneManager()
-        type(manager).OPTIONS = {'fps_log_interval_ms': 1000}
+        manager.engine_options = {'fps_log_interval_ms': 1000}
 
         # 0.1 second elapsed, interval is 500ms
         result = manager._should_post_fps_event(current_time=1.1, previous_fps_time=1.0)
@@ -2807,12 +2806,12 @@ class TestSceneManagerSwitchToScene:
 
         # Mock sub-methods to prevent side effects
         manager._game_engine = mocker.Mock()
-        manager._game_engine.OPTIONS = {
+        manager._game_engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': 1000,
             'target_fps': 60,
         }
-        type(manager).OPTIONS = manager._game_engine.OPTIONS
+        manager.engine_options = manager._game_engine.options
         manager.target_fps = 60
 
         manager.switch_to_scene(second_scene)

@@ -258,11 +258,6 @@ class FrameDriver:
         self.clock = FakeClock()
         self.timer = timer_class(clock=self.clock)
         mocker.patch('glitchygames.clock.raw_counter_seconds', new=self.clock.perf_counter)
-        mocker.patch.object(
-            SceneManager,
-            'OPTIONS',
-            {'fps_log_interval_ms': FPS_LOG_INTERVAL_MS, 'log_timer_jitter': log_timer_jitter},
-        )
         # The current context's manager records each frame: its one method the loop calls
         self.track_fps_from_event = mocker.patch.object(
             AdaptiveClamping, 'track_fps_from_event', autospec=True
@@ -271,6 +266,11 @@ class FrameDriver:
 
         self.mocker = mocker
         self.manager = DtWriteRecordingSceneManager()
+        # The options an engine would give (the game_engine setter sets them)
+        self.manager.engine_options = {
+            'fps_log_interval_ms': FPS_LOG_INTERVAL_MS,
+            'log_timer_jitter': log_timer_jitter,
+        }
         self.manager.target_fps = target_fps
         self.manager._game_engine = mocker.Mock(
             timer=self.timer if use_timer else None, controller_manager=None
@@ -355,13 +355,9 @@ def driver_factory(mocker: MockerFixture) -> Generator[Callable[..., FrameDriver
 class SteppedSceneManager(SceneManager):
     """A SceneManager whose scene frame is fake work on the fake clock, then an optional body.
 
-    Its options are the ones an engine would give (FrameDriver patches SceneManager's instead).
+    StandInFrameStepper gives it the options an engine would give (its engine_options).
     """
 
-    OPTIONS: ClassVar[dict[str, Any]] = {
-        'fps_log_interval_ms': FPS_LOG_INTERVAL_MS,
-        'log_timer_jitter': False,
-    }
     fake_clock: FakeClock
     work_seconds: float
     frame_body: Callable[[], None] | None
@@ -422,6 +418,12 @@ class StandInFrameStepper:
         with context.active():
             # The context's own (fresh_stepped_scene_manager resets the default context's)
             self.manager = SteppedSceneManager()
+            # The options an engine would give: the manager's own (the game_engine setter sets
+            # them), as SceneManager.OPTIONS is a read-only view of them
+            self.manager.engine_options = {
+                'fps_log_interval_ms': FPS_LOG_INTERVAL_MS,
+                'log_timer_jitter': False,
+            }
             self.manager.fake_clock = clock
             self.manager.work_seconds = work_seconds
             self.manager.frame_body = frame_body
@@ -989,14 +991,10 @@ def test_an_unpaced_steps_processing_leaves_out_the_wait_before_it(mocker):
     clock = FakeClock()
     # The one clock (glitchygames.clock): patched on the module, as FrameDriver does
     mocker.patch('glitchygames.clock.raw_counter_seconds', new=clock.perf_counter)
-    mocker.patch.object(
-        SceneManager,
-        'OPTIONS',
-        {'fps_log_interval_ms': FPS_LOG_INTERVAL_MS, 'log_timer_jitter': False},
-    )
     mocker.patch('glitchygames.scenes.scene.post_event')
     recorded = mocker.spy(AdaptiveClamping, 'track_fps_from_event')
     manager = SceneManager()
+    manager.engine_options = {'fps_log_interval_ms': FPS_LOG_INTERVAL_MS, 'log_timer_jitter': False}
     manager.active_scene = Scene(options={})
     mocker.patch.object(
         manager,

@@ -433,8 +433,8 @@ def empty_engine_sound_cache():
 def restore_game_engine_class_state(mocker):
     """Restore the GameEngine class attributes that engine code writes, after each test.
 
-    GameEngine.__init__ stores its game in the class attribute `game` and its parsed options
-    in `OPTIONS`, and GameEngine.initialize_icon stores the icon in `icon`. A test that runs
+    GameEngine.__init__ stores its game in the class attribute `game`, and
+    GameEngine.initialize_icon stores the icon in `icon`. A test that runs
     them with mocks (a Mock game, a mocked pygame.image.load) would otherwise leave the mocks
     there for every later test on the worker: a real GameEngine then fails in
     initialize_system_icons with "Argument to set_icon must be a Surface". GameEngine.__init__
@@ -446,7 +446,6 @@ def restore_game_engine_class_state(mocker):
     for attribute_name in (
         'game',
         'icon',
-        'OPTIONS',
         'USE_FASTEVENTS',
         'PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS',
     ):

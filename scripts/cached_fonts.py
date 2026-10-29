@@ -68,7 +68,7 @@ class Game(Scene):
         """
         super().__init__(options=options)
 
-        # GameEngine.OPTIONS is set on initialization.
+        # the engine's ``options`` is set on initialization.
         self.log.info('Game Options: %s', options)
 
         self.next_scene = GameScene()

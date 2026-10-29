@@ -965,6 +965,7 @@ def check_scene_managers(*, first: EngineContext, second: EngineContext) -> None
     with second.active():
         second_manager = SceneManager()
         assert second_manager is not first_manager
+        assert second_manager.engine_options is not first_manager.engine_options
         assert second_manager.frame_number == 0
     with first.active():
         assert SceneManager() is first_manager
@@ -972,6 +973,7 @@ def check_scene_managers(*, first: EngineContext, second: EngineContext) -> None
     assert SceneManager() is default_manager
     assert default_manager is not first_manager
     assert default_manager is not second_manager
+    assert default_manager.engine_options is not first_manager.engine_options
 
 
 def current_engine_or_none() -> GameEngine | None:

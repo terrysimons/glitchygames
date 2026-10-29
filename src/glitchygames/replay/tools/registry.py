@@ -647,7 +647,7 @@ def given_tools(*, options: dict[str, Any], tools: Sequence[Tool] | None = None)
     """Return the tools a game's parsed options give as flags, in the table's order.
 
     Args:
-        options: The game's parsed options (``GameEngine.OPTIONS``).
+        options: The game's parsed options (the engine's ``options``).
         tools: The tools (``TOOLS`` unless given).
 
     Returns:
@@ -693,7 +693,7 @@ def run_game_flag_tool(
     together are refused, so neither is silently skipped.
 
     Args:
-        options: The game's parsed options (``GameEngine.OPTIONS``).
+        options: The game's parsed options (the engine's ``options``).
         game: The game (its class, or a scene the game passed in).
         tools: The tools (``TOOLS`` unless given).
 
@@ -732,7 +732,7 @@ def missing_required_options(*, tool: Tool, values: Mapping[str, Any]) -> str | 
 
     Args:
         tool: The tool.
-        values: The parsed options, by destination (a game's ``GameEngine.OPTIONS``, or the
+        values: The parsed options, by destination (a game's engine's ``options``, or the
             subcommand's parsed arguments as a dict).
 
     Returns:

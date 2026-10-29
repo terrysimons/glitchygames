@@ -48,8 +48,8 @@ class FontRecordingScene(Scene):
             options=options if options is not None else dict(EVENT_TEST_OPTIONS),
             groups=groups,
         )
-        # FontManager reads the game's font options from OPTIONS
-        self.OPTIONS = dict(FONT_OPTIONS)
+        # FontManager reads the game's font options from engine_options
+        self.engine_options = dict(FONT_OPTIONS)
         self.font_events_received: list[tuple[str, HashableEvent]] = []
 
     def on_font_changed_event(self, event):
@@ -66,7 +66,7 @@ class SceneWithoutFontHandler(Scene):
             options=options if options is not None else dict(EVENT_TEST_OPTIONS),
             groups=groups,
         )
-        self.OPTIONS = dict(FONT_OPTIONS)
+        self.engine_options = dict(FONT_OPTIONS)
 
 
 def font_scene_and_manager():

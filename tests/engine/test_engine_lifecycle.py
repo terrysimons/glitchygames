@@ -35,7 +35,7 @@ from glitchygames.recording import RecordingWriteError
 from glitchygames.replay.tools import registry
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.replay.tools.registry import Tool
-from glitchygames.scenes import Scene, SceneManager
+from glitchygames.scenes import Scene
 from glitchygames.sources import active_sources
 from glitchygames.timing import FastTimer
 from tests.input.stand_in_devices import STAND_IN_PAD, STAND_IN_STICK, install_stand_in_devices
@@ -260,7 +260,8 @@ class TestEngineLifecycle:
         engine.start()
 
         assert isinstance(engine.game, game_class)
-        assert SceneManager.OPTIONS is GameEngine.OPTIONS
+        # Read on the objects: start() returns after the shutdown, when no engine is current
+        assert engine.scene_manager.OPTIONS is engine.OPTIONS
         assert engine.scene_manager.game_engine is engine
         for manager, manager_class in (
             (engine.audio_manager, AudioEventManager),
@@ -917,9 +918,9 @@ class TestCrtPowerOnOption:
 
     def test_the_option_is_unset_by_default(self, mocker):
         """Unset, the environment then auto decide (crt_power_on.resolve_mode)."""
-        build_engine(mocker, game=first_frame_game())
+        engine = build_engine(mocker, game=first_frame_game())
 
-        assert GameEngine.OPTIONS['crt_power_on'] is None
+        assert engine.options['crt_power_on'] is None
 
     @pytest.mark.parametrize('flag', ['--replay-trace', '--record-trace'])
     def test_forcing_it_on_is_refused_with_a_replay_or_a_recording(

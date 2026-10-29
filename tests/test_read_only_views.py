@@ -32,6 +32,7 @@ from glitchygames.read_only_views import (
 )
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene, SceneManager
+from glitchygames.scenes.scene import SCENE_MANAGERS_SLOT
 from glitchygames.sources import reset_sources
 from tests.ast_scanning import PROJECT_ROOT, qualified_name
 from tests.engine_source import ENGINE_DIRECTORY
@@ -985,6 +986,100 @@ def check_event_handlers_view(
 
 
 VIEW_CHECKS['GameEngine.EVENT_HANDLERS'] = check_event_handlers_view
+
+
+def check_engine_options_view(
+    *, first: EngineContext, second: EngineContext, mocker: MockerFixture
+) -> None:
+    """GameEngine.OPTIONS: each context's engine's own options (audit C8).
+
+    Read on the class, the current context's engine's ``options`` (``None`` where no engine
+    runs); on an engine, its own. Writing or patching it raises, naming ``engine.options``.
+    """
+    engines: list[GameEngine] = []
+    class_reads_answer_their_engine: list[bool] = []
+    instance_reads_answer_their_engine: list[bool] = []
+    for context, target_fps in (
+        (first, STAND_IN_TARGET_FPS),
+        (second, SECOND_STAND_IN_TARGET_FPS),
+    ):
+        with context.active():
+            engine = make_stand_in_engine(mocker=mocker, target_fps=target_fps)
+            engines.append(engine)
+            class_reads_answer_their_engine.append(GameEngine.OPTIONS is engine.options)
+            instance_reads_answer_their_engine.append(engine.OPTIONS is engine.options)
+            reset_sources()
+    with EngineContext(name='fresh').active():
+        fresh_read = GameEngine.OPTIONS
+
+    assert class_reads_answer_their_engine == [True, True]
+    assert instance_reads_answer_their_engine == [True, True]
+    assert engines[0].options is not engines[1].options
+    assert [engine.options['target_fps'] for engine in engines] == [
+        STAND_IN_TARGET_FPS,
+        SECOND_STAND_IN_TARGET_FPS,
+    ]
+    assert fresh_read is None
+    where_to_write = re.escape("write the engine's own: engine.options")
+    for write in (
+        lambda: setattr(GameEngine, 'OPTIONS', {}),
+        lambda: setattr(engines[0], 'OPTIONS', {}),
+        lambda: mocker.patch.object(GameEngine, 'OPTIONS', {}),
+    ):
+        with pytest.raises(ReadOnlyViewError, match=where_to_write):
+            write()
+
+
+VIEW_CHECKS['GameEngine.OPTIONS'] = check_engine_options_view
+
+
+def check_scene_manager_options_view(
+    *, first: EngineContext, second: EngineContext, mocker: MockerFixture
+) -> None:
+    """SceneManager.OPTIONS: each context's manager's own engine options (audit C7).
+
+    Read on the class, the current context's manager's ``engine_options`` (``None`` where no
+    manager was made, and the read makes none); on a manager, its own. Writing or patching it
+    raises, naming ``manager.engine_options``.
+    """
+    engines: list[GameEngine] = []
+    class_reads_answer_their_manager: list[bool] = []
+    instance_reads_answer_their_manager: list[bool] = []
+    for context, target_fps in (
+        (first, STAND_IN_TARGET_FPS),
+        (second, SECOND_STAND_IN_TARGET_FPS),
+    ):
+        with context.active():
+            engine = make_stand_in_engine(mocker=mocker, target_fps=target_fps)
+            engine.scene_manager.game_engine = engine
+            engines.append(engine)
+            class_reads_answer_their_manager.append(SceneManager.OPTIONS is engine.options)
+            instance_reads_answer_their_manager.append(
+                engine.scene_manager.OPTIONS is engine.options
+            )
+            reset_sources()
+    fresh_context = EngineContext(name='fresh')
+    with fresh_context.active():
+        fresh_read = SceneManager.OPTIONS
+
+    assert class_reads_answer_their_manager == [True, True]
+    assert instance_reads_answer_their_manager == [True, True]
+    assert engines[0].scene_manager.engine_options is not engines[1].scene_manager.engine_options
+    assert fresh_read is None
+    assert fresh_context.value(slot=SCENE_MANAGERS_SLOT) == {}
+    where_to_write = re.escape(
+        "write the manager's own: manager.engine_options (the game_engine setter sets it)"
+    )
+    for write in (
+        lambda: setattr(SceneManager, 'OPTIONS', {}),
+        lambda: setattr(engines[0].scene_manager, 'OPTIONS', {}),
+        lambda: mocker.patch.object(SceneManager, 'OPTIONS', {}),
+    ):
+        with pytest.raises(ReadOnlyViewError, match=where_to_write):
+            write()
+
+
+VIEW_CHECKS['SceneManager.OPTIONS'] = check_scene_manager_options_view
 
 
 def check_performance_manager_view(

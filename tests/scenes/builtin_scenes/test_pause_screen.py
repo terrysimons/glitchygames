@@ -73,17 +73,14 @@ ENGINE_OPTIONS = {
 
 @pytest.fixture(autouse=True)
 def isolated_scene_manager(mocker, tmp_path):
-    """Give each test a fresh SceneManager, its own save directory and restored options.
+    """Give each test a fresh SceneManager and its own save directory.
 
-    Setting a scene manager's game_engine copies the engine's OPTIONS onto the SceneManager
-    class, so the class attribute is put back afterwards. Any save store a scene opens goes to a
-    temporary directory, never the user's.
+    Any save store a scene opens goes to a temporary directory, never the user's.
 
     Yields:
         SceneManager: The fresh scene manager.
 
     """
-    mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
     mocker.patch(
         'glitchygames.state.manager.get_save_directory',
         side_effect=lambda app_name: tmp_path / app_name,
@@ -101,7 +98,7 @@ def _engine_for(game: Scene) -> types.SimpleNamespace:
         types.SimpleNamespace: The engine stand-in.
 
     """
-    return types.SimpleNamespace(OPTIONS=dict(ENGINE_OPTIONS), game=game)
+    return types.SimpleNamespace(options=dict(ENGINE_OPTIONS), game=game)
 
 
 def _key_event(*, event_type: int, key: int) -> events.HashableEvent:

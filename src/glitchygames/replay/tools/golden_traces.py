@@ -471,9 +471,8 @@ class GoldenTraceEngine(GameEngine):
             scene_class: The game's scene class.
 
         """
-        game = scene_class(options=GameEngine.OPTIONS)
+        game = scene_class(options=self.options)
         self.game = game
-        SceneManager.OPTIONS = GameEngine.OPTIONS
         self.scene_manager.game_engine = self
         self._initialize_event_managers()
         self.scene_manager.switch_to_scene(game)

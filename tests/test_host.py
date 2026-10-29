@@ -481,12 +481,11 @@ def hosted_scene_manager(mocker):
         The scene manager and its host.
 
     """
-    mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
     host = GameHost(sources=HostSources(inner=LiveSources(random_seed=7)))
     install_sources(sources=host.sources)
     manager = SceneManager()
     engine = mocker.Mock()
-    engine.OPTIONS = {'update_type': 'update', 'fps_log_interval_ms': 1000, 'target_fps': 60}
+    engine.options = {'update_type': 'update', 'fps_log_interval_ms': 1000, 'target_fps': 60}
     engine.timer = None
     manager.game_engine = engine
     manager.target_fps = 60

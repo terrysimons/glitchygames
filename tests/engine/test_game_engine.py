@@ -1123,15 +1123,12 @@ class TestSceneManagerGameEngineSetter:
         edit that moved this configuration out of the setter: the setter is tested alone here.
         """
         from glitchygames.performance import performance_manager
-        from glitchygames.scenes import SceneManager
 
         # The real manager is process-wide: put its settings back after the test
         mocker.patch.object(
             performance_manager, '_fps_log_interval_ms', performance_manager._fps_log_interval_ms
         )
         mocker.patch.object(performance_manager, '_target_fps', performance_manager._target_fps)
-        # The setter copies the engine's options onto the SceneManager class
-        mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
         engine = _make_engine(mocker, '--target-fps', '30', '--fps-log-interval-ms', '250')
         performance_manager.set_fps_log_interval(interval_ms=1000.0)
         performance_manager.set_target_fps(target_fps=0.0)
@@ -1556,8 +1553,8 @@ class TestInitializeEventManagers:
         from glitchygames.events.window import WindowEventManager
 
         engine = _make_engine(mocker)
-        # As GameEngine.start() does before it builds the managers (put back after the test)
-        mocker.patch.object(SceneManager, 'OPTIONS', GameEngine.OPTIONS)
+        # As GameEngine.start() does before it builds the managers (the game_engine setter)
+        engine.scene_manager.engine_options = engine.options
         install_stand_in_devices(descriptors=[STAND_IN_STICK, STAND_IN_PAD])
 
         engine._initialize_event_managers()
@@ -1576,7 +1573,7 @@ class TestInitializeEventManagers:
             engine.midi_manager,
         ):
             assert manager is not None
-        assert GameEngine.OPTIONS['input_mode'] == 'auto'
+        assert engine.options['input_mode'] == 'auto'
         assert engine.controller_manager is not None
         assert not any(
             pygame.event.get_blocked(event_type) for event_type in events.CONTROLLER_EVENTS
@@ -1592,7 +1589,7 @@ class TestInitializeEventManagers:
     def test_joystick_mode_blocks_controller_events_and_builds_no_controller_manager(self, mocker):
         """--input-mode joystick: no controller manager, and SDL drops controller events."""
         engine = _make_engine(mocker, '--input-mode', 'joystick')
-        mocker.patch.object(SceneManager, 'OPTIONS', GameEngine.OPTIONS)
+        engine.scene_manager.engine_options = engine.options
         install_stand_in_devices(descriptors=[STAND_IN_PAD])
 
         engine._initialize_event_managers()
@@ -2064,14 +2061,13 @@ def _engine_with_devices(mocker, *, input_mode='auto', plugged_in_at_start=True)
 
     """
     engine = _make_engine(mocker, '--input-mode', input_mode)
-    # As GameEngine.start() does before it builds the managers (put back after the test)
-    mocker.patch.object(SceneManager, 'OPTIONS', GameEngine.OPTIONS)
+    # As GameEngine.start() does before it builds the managers
     engine.scene_manager.game_engine = engine
     install_stand_in_devices(
         descriptors=[STAND_IN_STICK, STAND_IN_PAD], plugged_in_at_start=plugged_in_at_start
     )
     engine._initialize_event_managers()
-    scene = DeviceRecordingGame(options=GameEngine.OPTIONS)
+    scene = DeviceRecordingGame(options=engine.options)
     engine.scene_manager.switch_to_scene(scene)
     return engine, scene
 
@@ -2948,16 +2944,12 @@ class TestGameEngineTimerCalibration:
         for method_name in ('set_trim_percent', 'set_histogram_mode'):
             mocker.patch.object(AdaptiveClamping, method_name, autospec=True)
         mocker.patch.object(GameEngine, 'game', mocker.Mock())
-        mocker.patch.object(
-            GameEngine,
-            'OPTIONS',
-            {
-                'profile': False,
-                'timer_backend': 'auto',
-                'target_fps': target_fps,
-                'perf_trim_percent': 5.0,
-            },
-        )
+        engine.options = {
+            'profile': False,
+            'timer_backend': 'auto',
+            'target_fps': target_fps,
+            'perf_trim_percent': 5.0,
+        }
         engine.scene_manager = mocker.Mock()
         engine.scene_manager.start.side_effect = lambda: calls.append('first frame')
         engine._initialize_event_managers = mocker.Mock()
@@ -2994,7 +2986,7 @@ class TestGameEngineTimerBackendError:
         mock_game_instance = mocker.Mock()
         mock_game_class.return_value = mock_game_instance
         GameEngine.game = mock_game_class
-        GameEngine.OPTIONS = {
+        engine.options = {
             'profile': False,
             'timer_backend': 'invalid',
             'perf_trim_percent': 5.0,
@@ -3257,16 +3249,12 @@ class TestFpsHistogramArgument:
             AdaptiveClamping, 'set_histogram_mode', autospec=True
         )
         mocker.patch.object(GameEngine, 'game', mocker.Mock())
-        mocker.patch.object(
-            GameEngine,
-            'OPTIONS',
-            {
-                'profile': False,
-                'timer_backend': 'fast',
-                'perf_trim_percent': 5.0,
-                'fps_histogram': 'target-relative',
-            },
-        )
+        engine.options = {
+            'profile': False,
+            'timer_backend': 'fast',
+            'perf_trim_percent': 5.0,
+            'fps_histogram': 'target-relative',
+        }
         engine.scene_manager = mocker.Mock()
         engine._initialize_event_managers = mocker.Mock()
         engine._shutdown = mocker.Mock()
@@ -3277,7 +3265,7 @@ class TestFpsHistogramArgument:
         set_trim_percent.assert_called_once_with(AdaptiveClamping(), 5.0)
 
     def test_an_unknown_histogram_mode_is_logged_and_the_run_goes_on(self, mocker, caplog):
-        """A mode the performance manager refuses (set in OPTIONS, not parsed) never ends a run."""
+        """A mode the performance manager refuses (set in options, not parsed) never ends a run."""
         from glitchygames.performance import performance_manager
 
         engine = _make_engine(mocker)
@@ -3289,16 +3277,12 @@ class TestFpsHistogramArgument:
         )
         histogram_mode_before = performance_manager._histogram_mode
         mocker.patch.object(GameEngine, 'game', mocker.Mock())
-        mocker.patch.object(
-            GameEngine,
-            'OPTIONS',
-            {
-                'profile': False,
-                'timer_backend': 'fast',
-                'perf_trim_percent': 7.5,
-                'fps_histogram': 'sideways',
-            },
-        )
+        engine.options = {
+            'profile': False,
+            'timer_backend': 'fast',
+            'perf_trim_percent': 7.5,
+            'fps_histogram': 'sideways',
+        }
         engine.scene_manager = mocker.Mock()
         engine._initialize_event_managers = mocker.Mock()
         engine._shutdown = mocker.Mock()
@@ -3324,16 +3308,12 @@ class TestFpsHistogramArgument:
             AdaptiveClamping, 'set_histogram_mode', autospec=True
         )
         mocker.patch.object(GameEngine, 'game', mocker.Mock())
-        mocker.patch.object(
-            GameEngine,
-            'OPTIONS',
-            {
-                'profile': False,
-                'timer_backend': 'fast',
-                'perf_trim_percent': 5.0,
-                'fps_histogram': 'target-relative',
-            },
-        )
+        engine.options = {
+            'profile': False,
+            'timer_backend': 'fast',
+            'perf_trim_percent': 5.0,
+            'fps_histogram': 'target-relative',
+        }
         engine.scene_manager = mocker.Mock()
         engine._initialize_event_managers = mocker.Mock()
         engine._shutdown = mocker.Mock()
@@ -3410,6 +3390,34 @@ def test_current_engine_answers_with_each_contexts_own_engine(mocker):
 
     assert first_answer is first_engine
     assert second_answer is second_engine
+
+
+def test_each_engine_keeps_the_options_it_was_started_with(mocker):
+    """Two engines started with different options in two contexts keep their own (C8, C7).
+
+    The spike's goldens recorded the same options, so a mix-up could not show there.
+    """
+    first_context = EngineContext(name='first')
+    second_context = EngineContext(name='second')
+    with first_context.active():
+        first_engine = _make_engine(mocker, '--target-fps', '30')
+        first_engine.scene_manager.game_engine = first_engine
+    with second_context.active():
+        second_engine = _make_engine(mocker, '--target-fps', '50')
+        second_engine.scene_manager.game_engine = second_engine
+    with first_context.active():
+        first_manager_target = SceneManager().OPTIONS['target_fps']
+        first_view_options = GameEngine.OPTIONS
+    for context in (first_context, second_context):
+        with context.active():
+            reset_sources()
+
+    assert first_engine.OPTIONS['target_fps'] == 30.0
+    assert second_engine.OPTIONS['target_fps'] == 50.0
+    assert first_manager_target == 30.0
+    # Read on the class, the view is None where no engine runs (here one does)
+    assert first_view_options is not None
+    assert first_view_options['target_fps'] == 30.0
 
 
 def test_current_engine_refuses_when_no_engine_runs_in_the_context():

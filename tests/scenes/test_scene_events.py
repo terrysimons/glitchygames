@@ -214,8 +214,6 @@ class TestSceneEvents:
 
     def test_scene_event_handling_with_exceptions(self, caplog, mocker):
         """A game event of an unregistered subtype is logged as an error, not raised."""
-        # Setting the manager's engine copies the engine's OPTIONS onto the SceneManager class
-        mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
         manager = self.scene_manager
 
         class EngineWithoutGameEvents:
@@ -223,7 +221,7 @@ class TestSceneEvents:
 
             def __init__(self):
                 """Hold the options a scene manager reads and no game events."""
-                self.OPTIONS = {
+                self.options = {
                     'update_type': 'update',
                     'fps_log_interval_ms': 1000,
                     'target_fps': 60,

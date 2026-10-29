@@ -212,7 +212,7 @@ class TestDefaultFontWithoutFontconfig:
     def test_the_engine_options_default_font_is_the_bundled_vera(self, fontconfig_unavailable):
         parser = FontManager.args(argparse.ArgumentParser())
         engine_options = vars(parser.parse_args([]))
-        FontManager(game=types.SimpleNamespace(OPTIONS=engine_options))
+        FontManager(game=types.SimpleNamespace(engine_options=engine_options))
 
         with warnings.catch_warnings():
             warnings.simplefilter('error')
@@ -432,7 +432,7 @@ class TestFontManagerInit:
             parser.parse_args(['--font-name', 'courier', '--font-system', font_system])
         )
 
-        manager = FontManager(game=types.SimpleNamespace(OPTIONS=engine_options))
+        manager = FontManager(game=types.SimpleNamespace(engine_options=engine_options))
 
         assert FontManager.OPTIONS['font_name'] == 'courier'
         assert FontManager.OPTIONS['font_size'] == 14

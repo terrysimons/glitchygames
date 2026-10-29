@@ -153,7 +153,8 @@ class TestEngineInitialization:
         # Test that class variables are properly set
         assert GameEngine.NAME == 'Boilerplate Adventures'
         assert GameEngine.VERSION == '1.0'
-        assert isinstance(GameEngine.OPTIONS, dict)
+        # A view of the running engine's options: None outside a game
+        assert GameEngine.OPTIONS is None
         assert isinstance(GameEngine.LAST_EVENT_MISS, str)
         assert isinstance(GameEngine.MISSING_EVENTS, list)
         assert isinstance(GameEngine.UNIMPLEMENTED_EVENTS, list)
@@ -249,10 +250,10 @@ class TestEngineInitialization:
 
     def test_engine_options_initialization(self):
         """Test that engine options are properly initialized."""
-        # Test that OPTIONS class variable exists and is a dict.
-        # OPTIONS starts empty and is populated during GameEngine.__init__().
+        # OPTIONS is a read-only view of the running engine's options (engine.options, set
+        # during GameEngine.__init__()): None outside a game
         assert hasattr(GameEngine, 'OPTIONS')
-        assert isinstance(GameEngine.OPTIONS, dict)
+        assert GameEngine.OPTIONS is None
 
     def test_engine_constants(self):
         """Test that engine constants are properly set."""
