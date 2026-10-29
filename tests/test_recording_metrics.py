@@ -21,6 +21,7 @@ from glitchygames.recording_history import (
     CONTENT_HASH_SCHEME,
     MEASUREMENT_RUNS_HEADER_FIELD,
     PROCESSING_SECONDS_FIELD,
+    FrameTimeSummary,
     MeasurementRun,
     RunSummary,
     recorded_measurement_runs,
@@ -35,6 +36,10 @@ from glitchygames.recording_metrics import (
     LedgerRow,
     SpeedChange,
     behaviour_changes,
+    describe_fps,
+    describe_frame_time_fps,
+    describe_processing_fps,
+    fps_from_seconds,
     frame_profile,
     frame_spans,
     is_measured,
@@ -751,3 +756,67 @@ class TestLandedRows:
         row = ledger_row()
 
         assert landed_rows(rows=[row], landed=self.landed(), keep_unlanded=False) == [row]
+
+
+class TestFramesPerSecond:
+    """Seconds are stored; FPS is one division away, for display (fps_from_seconds)."""
+
+    @pytest.mark.parametrize(('seconds', 'expected'), [(0.004, 250.0), (1 / 60, 60.0), (2.0, 0.5)])
+    def test_fps_is_one_over_the_seconds(self, seconds, expected):
+        assert fps_from_seconds(seconds=seconds) == pytest.approx(expected)
+
+    @pytest.mark.parametrize('seconds', [None, 0.0, -0.001])
+    def test_no_time_has_no_rate(self, seconds):
+        """Never a division by zero."""
+        assert fps_from_seconds(seconds=seconds) is None
+
+    def test_the_line_names_the_average_and_both_slices_in_whole_fps(self):
+        assert describe_fps(
+            mean_seconds=0.0045, slowest_seconds=0.00595, fastest_seconds=0.00398
+        ) == ('avg 222 fps (5% low 168, 5% high 251)')
+
+    def test_without_a_slice_the_line_names_the_average_alone(self):
+        assert describe_fps(mean_seconds=0.004, slowest_seconds=None, fastest_seconds=0.002) == (
+            'avg 250 fps'
+        )
+        assert describe_fps(mean_seconds=0.004, slowest_seconds=0.005, fastest_seconds=0.0) == (
+            'avg 250 fps'
+        )
+
+    def test_without_a_mean_there_is_no_line(self):
+        assert describe_fps(mean_seconds=None, slowest_seconds=0.1, fastest_seconds=0.1) is None
+        assert describe_fps(mean_seconds=0.0, slowest_seconds=0.1, fastest_seconds=0.1) is None
+
+    def test_processing_fps_needs_the_slice_means(self):
+        summary = ledger_row(p50=0.004).summary
+        assert summary is not None
+
+        # A summary from before the slice means has none: its line would be the mean alone
+        assert describe_processing_fps(summary=summary) is None
+        # 10 frames of 0.04 s in all: 4 ms each, 250 fps
+        current = summary.model_copy(
+            update={
+                'slowest_5_percent_mean_processing_seconds': 0.005,
+                'fastest_5_percent_mean_processing_seconds': 0.002,
+            }
+        )
+        assert describe_processing_fps(summary=current) == 'avg 250 fps (5% low 200, 5% high 500)'
+
+    def test_frame_time_fps_is_the_achieved_rate(self):
+        frame_time = FrameTimeSummary(
+            p50_seconds=1 / 60,
+            p99_seconds=0.02,
+            max_seconds=0.03,
+            late_frames=0,
+            mean_seconds=1 / 60,
+            slowest_5_percent_mean_seconds=0.02,
+            fastest_5_percent_mean_seconds=1 / 61,
+        )
+
+        assert describe_frame_time_fps(frame_time=frame_time) == (
+            'avg 60 fps (5% low 50, 5% high 61)'
+        )
+        older = FrameTimeSummary(
+            p50_seconds=0.016, p99_seconds=0.02, max_seconds=0.03, late_frames=0
+        )
+        assert describe_frame_time_fps(frame_time=older) is None
