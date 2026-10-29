@@ -27,6 +27,7 @@ import pytest
 from glitchygames.__main__ import PYGAME_BANNER_VARIABLE
 from glitchygames.code_tree import staged_code_tree
 from glitchygames.exit_codes import ExitCode
+from glitchygames.machine_state import MachineState, PowerSource
 from glitchygames.process import OutputCapture, run_command
 from glitchygames.recording_history import FrameTimeSummary
 from glitchygames.recording_metrics import (
@@ -42,7 +43,10 @@ from glitchygames.replay.tools import command, performance_pages
 from glitchygames.replay.tools.performance_pages import (
     DEFAULT_LEDGER_NAME,
     PLOTLY_JS_URL,
+    FpsPoint,
+    fps_point,
     graph_page_name,
+    machine_name,
     merged_ledger,
     recording_charts,
     write_performance_pages,
@@ -702,3 +706,201 @@ def test_an_unreadable_pending_ledger_is_unusable_input_naming_it(
     errors = capsys.readouterr().err
     assert f'{pending}: the ledger cannot be read' in errors
     assert not (tmp_path / 'pages').exists()
+
+
+def with_slices(row: LedgerRow, *, slowest: float = 0.0002, fastest: float = 0.00005) -> LedgerRow:
+    """Return a replay row whose summary has its slice means (stand_in_row's mean: 0.1 ms).
+
+    Returns:
+        The row.
+
+    """
+    assert row.summary is not None
+    return row.model_copy(
+        update={
+            'summary': row.summary.model_copy(
+                update={
+                    'slowest_5_percent_mean_processing_seconds': slowest,
+                    'fastest_5_percent_mean_processing_seconds': fastest,
+                }
+            )
+        }
+    )
+
+
+def live_row_with_slices() -> LedgerRow:
+    """Return live_row's paced run with its frame times' mean and slices.
+
+    Returns:
+        The row.
+
+    """
+    row = live_row()
+    assert row.summary is not None
+    assert row.summary.frame_time is not None
+    frame_time = row.summary.frame_time.model_copy(
+        update={
+            'mean_seconds': 0.0166,
+            'slowest_5_percent_mean_seconds': 0.02,
+            'fastest_5_percent_mean_seconds': 0.016,
+        }
+    )
+    return row.model_copy(
+        update={'summary': row.summary.model_copy(update={'frame_time': frame_time})}
+    )
+
+
+def in_continuous_integration(row: LedgerRow, *, cpu_model: str) -> LedgerRow:
+    """Return the row as measured on a CI runner with another CPU.
+
+    Returns:
+        The row.
+
+    """
+    state = MachineState(
+        cpu_model=cpu_model,
+        logical_cpu_count=4,
+        memory_bytes=1 << 30,
+        power_source=PowerSource.MAINS,
+        thermal_report=None,
+        continuous_integration=True,
+    )
+    return row.model_copy(
+        update={
+            'run': row.run.model_copy(
+                update={'machine_state': state, 'measured_at': '2026-10-23T21:00:00+00:00'}
+            )
+        }
+    )
+
+
+class TestFpsCharts:
+    """FPS by commit and the machines view: read from the rows' seconds (fps_from_seconds)."""
+
+    def test_a_replay_row_gives_its_headroom_fps(self):
+        # 0.1 ms a frame on average; slowest 5% 0.2 ms, fastest 0.05 ms
+        assert fps_point(row=with_slices(stand_in_row()), paced=False) == FpsPoint(
+            average=10000.0, low=5000.0, high=20000.0
+        )
+
+    def test_a_paced_row_gives_its_achieved_fps_from_its_frame_times(self):
+        assert fps_point(row=live_row_with_slices(), paced=True) == FpsPoint(
+            average=60.2, low=50.0, high=62.5
+        )
+
+    def test_rows_without_the_figures_have_no_point(self):
+        assert fps_point(row=stand_in_row(), paced=False) is None
+        assert fps_point(row=live_row(), paced=True) is None
+        assert fps_point(row=with_slices(stand_in_row()), paced=True) is None
+        no_summary = stand_in_row().model_copy(update={'summary': None})
+        assert fps_point(row=no_summary, paced=False) is None
+        zero = with_slices(stand_in_row(), fastest=0.0)
+        assert fps_point(row=zero, paced=False) is None
+
+    def test_live_runs_are_solid_replays_dashed_each_point_with_its_slices(self):
+        older_replay = with_slices(
+            stand_in_row(
+                commit=OLDER_COMMIT,
+                committed_at=OLDER_COMMITTED_AT,
+                measured_at='2026-10-22T21:00:00+00:00',
+            )
+        )
+        newer_replay = with_slices(stand_in_row(p50=0.0002), slowest=0.0004, fastest=0.0001)
+        rows = [live_row_with_slices(), older_replay, newer_replay]
+
+        charts = recording_charts(series_list=performance_series(rows=rows, recording_renames={}))
+
+        # Series sort by recording, machine, then pacing: the replay first
+        replay, live = charts['fps']
+        assert live['name'] == 'Apple M4 Max, paced live run: achieved FPS'
+        assert live['line']['dash'] == 'solid'
+        assert live['x'] == ['abc1234']
+        assert live['y'] == [60.2]
+        assert replay['name'] == 'Apple M4 Max, unpaced replay: headroom FPS'
+        assert replay['line']['dash'] == 'dash'
+        assert replay['x'] == ['abc1234', 'def5678']
+        assert replay['y'] == [10000.0, 5000.0]
+        # Error bars from the 5% low up to the 5% high
+        assert replay['error_y']['arrayminus'] == [5000.0, 2500.0]
+        assert replay['error_y']['array'] == [10000.0, 5000.0]
+        assert replay['customdata'][1].startswith('5% low 2500, 5% high 10000 fps<br>committed')
+        # The target is the latest row's budget: 60 FPS
+        assert charts['target_fps'] == 60.0
+
+    def test_rows_without_the_figures_do_not_appear_on_the_new_lines(self):
+        """Older rows keep their place on the millisecond charts only."""
+        rows = [stand_in_row(commit=OLDER_COMMIT, committed_at=OLDER_COMMITTED_AT), live_row()]
+
+        charts = recording_charts(series_list=performance_series(rows=rows, recording_renames={}))
+
+        assert charts['fps'] == []
+        assert charts['machines'] is None
+        assert charts['processing']
+
+    def test_an_uncapped_recording_has_no_target(self):
+        row = stand_in_row()
+        assert row.summary is not None
+        uncapped = row.model_copy(
+            update={'summary': row.summary.model_copy(update={'budget_seconds': None})}
+        )
+
+        charts = recording_charts(
+            series_list=performance_series(rows=[uncapped], recording_renames={})
+        )
+
+        assert charts['target_fps'] is None
+
+    def test_the_machines_view_is_each_machines_latest_replay_ci_marked(self):
+        older = with_slices(
+            stand_in_row(
+                commit=OLDER_COMMIT,
+                committed_at=OLDER_COMMITTED_AT,
+                measured_at='2026-10-22T21:00:00+00:00',
+            ),
+            slowest=0.001,
+        )
+        newer = with_slices(stand_in_row())
+        # The newest row of a third machine lacks the figures: its older row stands for it
+        runner_older = in_continuous_integration(
+            with_slices(stand_in_row(commit=OLDER_COMMIT, committed_at=OLDER_COMMITTED_AT)),
+            cpu_model='EPYC',
+        )
+        runner_newer = in_continuous_integration(stand_in_row(), cpu_model='EPYC')
+        rows = [live_row_with_slices(), older, newer, runner_older, runner_newer]
+
+        charts = recording_charts(series_list=performance_series(rows=rows, recording_renames={}))
+
+        machines = charts['machines']
+        assert machines is not None
+        assert machines['type'] == 'bar'
+        # Never the paced live run; the CI machine marked
+        assert machines['x'] == ['Apple M4 Max', 'EPYC (CI)']
+        assert machines['y'] == [10000.0, 10000.0]
+        assert machines['error_y']['arrayminus'] == [5000.0, 5000.0]
+        assert machines['customdata'][0].startswith(
+            '5% low 5000, 5% high 20000 fps<br>commit def5678'
+        )
+        assert machines['customdata'][1].startswith(
+            '5% low 5000, 5% high 20000 fps<br>commit abc1234'
+        )
+        # Each bar keeps its series' color slot (the M4's live run is slot 1)
+        assert machines['meta'] == [0, 2]
+
+    def test_a_machine_without_a_state_is_named_by_its_platform(self):
+        row = stand_in_row()
+        bare = row.model_copy(update={'run': row.run.model_copy(update={'machine_state': None})})
+
+        assert machine_name(row=bare) == 'macOS-27.0-arm64-arm-64bit'
+
+    def test_the_page_draws_both_new_charts(self, tmp_path):
+        rows = [live_row_with_slices(), with_slices(stand_in_row())]
+
+        written = write_performance_pages(rows=rows, directory=tmp_path, settings=STAND_IN_SETTINGS)
+
+        page = tmp_path / written.pages[GOLDEN]
+        charts = page_charts(path=page)
+        assert len(charts['fps']) == 2
+        assert charts['machines']['x'] == ['Apple M4 Max']
+        html = page.read_text(encoding='utf-8')
+        assert 'id="fps"' in html
+        assert 'id="machines"' in html
