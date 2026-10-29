@@ -69,6 +69,12 @@ from glitchygames.randomness import (
     seed_engine_random,
     stream_seed,
 )
+from glitchygames.recording import (
+    live_game_code_running,
+    reset_internal_post_tracking,
+    set_live_game_code_running,
+    start_tracking_internal_posts,
+)
 from glitchygames.scenes import SceneManager
 from glitchygames.sources import (
     SourcesAlreadyRunningError,
@@ -992,6 +998,21 @@ def check_current_engine(*, first: EngineContext, second: EngineContext) -> None
     assert current_engine_or_none() is default_answer
 
 
+def check_internal_post_tracker(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own internal-post tracker, and the default context its own."""
+    default_running = live_game_code_running()
+    with first.active():
+        start_tracking_internal_posts()
+        set_live_game_code_running(running=True)
+    with second.active():
+        assert live_game_code_running() is False
+        reset_internal_post_tracking()
+    with first.active():
+        assert live_game_code_running() is True
+        reset_internal_post_tracking()
+    assert live_game_code_running() is default_running
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1005,6 +1026,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.sources.registry': check_sources_registry,
     'glitchygames.scenes.scene.scene_managers': check_scene_managers,
     'glitchygames.engine.game_engine.current_engine': check_current_engine,
+    'glitchygames.recording.internal_posts': check_internal_post_tracker,
 }
 
 

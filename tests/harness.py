@@ -471,8 +471,8 @@ def reset_engine_sources():
     reset_sources() tells the installed sources (on_uninstalled), which is where a replay stops
     tracking code-posted events (Task 12), so no tracking leaks into the next test. The frame's
     polled input (glitchygames/input/state.py) is reset too: reset_sources() leaves it alone.
-    So is the internal-post tracker (glitchygames/recording.py: no owners, nothing pending),
-    so a recorder a test left open cannot keep tracking into the next test.
+    So is the internal-post tracker, per engine context (glitchygames.recording: no owners,
+    nothing pending), so a recorder a test left open cannot keep tracking into the next test.
     """
     sources.reset_sources()
     reset_current_input()
