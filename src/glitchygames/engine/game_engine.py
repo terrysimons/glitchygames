@@ -3142,11 +3142,22 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         owner, 2026-10-28: "The seed should definitely be in the options"); rolled or given is
         on the INFO line (``_log_the_runs_seed``), hidden at the default WARNING.
         """
-        # The game's (the engine's own NAME names no game); the engine's only when no game was
-        # given, which _begin_start refuses next
-        game_name = getattr(self.game, 'NAME', type(self).NAME)
         shown_options = {**GameEngine.OPTIONS, 'random_seed': self.random_seed}
-        self.log.critical('%s', startup_options_block(game_name=game_name, options=shown_options))
+        self.log.critical(
+            '%s', startup_options_block(game_name=self._game_name(), options=shown_options)
+        )
+
+    def _game_name(self: Self) -> str:
+        """Return the game's NAME, which the start line and the options block name.
+
+        The engine's own NAME names no game ("Boilerplate Adventures", D18's report); it is
+        used only when no game was given, which ``_begin_start`` refuses.
+
+        Returns:
+            The name.
+
+        """
+        return str(getattr(self.game, 'NAME', type(self).NAME))
 
     def _begin_start(self: Self) -> cProfile.Profile | None:
         """Log the start and the options, check there is a game, start the profiler (``--profile``).
@@ -3161,7 +3172,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # This ensures that logging is enabled as soon as the game object is created.
         logging.getLogger('game')
 
-        self.log.info('Starting game engine for game: %s', type(self).NAME)
+        self.log.info('Starting game engine for game: %s', self._game_name())
         self._log_the_startup_options()
         if self.game is None:
             raise RuntimeError(GAME_NOT_INITIALIZED_MSG)

@@ -1099,6 +1099,25 @@ def option_shown(*, record: logging.LogRecord, name: str) -> str:
 class TestStartupOptions:
     """Every engine start logs the run's options once, at CRITICAL (the owner, 2026-10-28)."""
 
+    def test_the_start_line_names_the_game_not_the_engine(self, mocker, caplog):
+        """'Starting game engine for game: <the game's NAME>', as the options block names it.
+
+        D18's report: it named the engine class's NAME ("Boilerplate Adventures") instead.
+        """
+        game_class = first_frame_game()
+        engine = build_engine(mocker, game=game_class)
+
+        with caplog.at_level(logging.INFO, logger='game.engine'):
+            engine.start()
+
+        start_lines = [
+            record.getMessage()
+            for record in caplog.records
+            if record.getMessage().startswith('Starting game engine for game: ')
+        ]
+        assert start_lines == [f'Starting game engine for game: {game_class.NAME}']
+        assert game_class.NAME != type(engine).NAME
+
     @pytest.mark.parametrize('level', ['debug', 'info', 'warning', 'error', 'critical'])
     def test_the_options_show_once_at_every_level(self, mocker, caplog, level):
         """At any --log-level, the default warning included, one CRITICAL block per start."""
