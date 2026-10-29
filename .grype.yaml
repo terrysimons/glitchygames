@@ -1,0 +1,28 @@
+# Grype vulnerability-scan policy for glitchygames (adapted from exoneris .grype.yaml).
+#
+# nox -s security-scan runs `grype sbom:docs/sbom.cyclonedx.json --fail-on high --config
+# .grype.yaml`: a high or critical finding fails the session unless this file lists it.
+#
+# Reviewed exceptions follow the same convention as the license EXCEPTIONS in
+# scripts/check_licenses.py: every entry records WHAT is ignored, WHY it is safe in this project,
+# and WHO reviewed it WHEN, so an auditor can trace the decision. Exceptions are opt-in and
+# reviewed, never silent; a blanket ignore is never an acceptable way to make the gate pass. Only
+# the owner adds entries.
+#
+# Every entry MUST name the `package` it applies to. A bare `- vulnerability:` with no package
+# qualifier suppresses that advisory across the WHOLE SBOM, which is almost never what a reviewer
+# intends.
+#
+# Re-check every entry when the dependencies are upgraded, and delete it once the fix can be
+# taken; grype says nothing about an entry that no longer matches.
+#
+# NOTE ON GOOGLE-CLOUD-AIPLATFORM (2026-10-28): pip-audit, which grype replaced, ignored
+# CVE-2026-2473 (PYSEC-2026-2500, GHSA-wh2j-26j7-9728; predictable bucket names in Vertex AI
+# Experiments) in google-cloud-aiplatform 1.71.1, pinned by vertexai through aisuite's google
+# provider. That ignore was stale: the provider was dropped from the aisuite extras, so nothing in
+# uv.lock installs google-cloud-aiplatform and grype reports nothing for it. It is not carried
+# here. If the package returns, review the finding on its merits rather than restoring the entry.
+
+# No reviewed exceptions are in force. Explicitly an empty LIST rather than a bare `ignore:` key,
+# which YAML parses as null.
+ignore: []

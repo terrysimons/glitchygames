@@ -103,12 +103,13 @@ def test_every_game_powers_on_through_its_own_main(mocker, console_script, backg
     mocker.patch.object(
         crt_power_on, 'measured_seconds', side_effect=itertools.count(start=0.0, step=0.05)
     )
-    mocker.patch.object(crt_power_on.time, 'sleep')
     played: list[tuple[PowerOnOutcome, bool]] = []
     real_player = game_engine_module.play_power_on
 
     def play_then_stop(**arguments: Any) -> PowerOnOutcome:
-        outcome = real_player(**arguments)
+        # Its frames do not wait (the patch on time.sleep this replaced never reached them:
+        # play_power_on's sleep default is bound to the real time.sleep when it is defined)
+        outcome = real_player(**arguments, sleep=lambda _seconds: None)
         settled = pygame.Surface(arguments['screen'].get_size())
         paint_default_background(surface=settled)
         shows_settled = pygame.image.tobytes(arguments['screen'], 'RGB') == pygame.image.tobytes(

@@ -44,7 +44,7 @@ from tests.display_canvas import (
     show_canvas_on_new_display,
 )
 from tests.engine_source import ENGINE_DIRECTORY
-from tests.garbage_collection import process_peak_memory_collector
+from tests.garbage_collection import process_peak_memory_collector, release_test_instance
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import (
     SdlDriverState,
@@ -230,13 +230,25 @@ settings.load_profile('glitchygames')
 _PEAK_MEMORY_COLLECTOR = process_peak_memory_collector()
 
 
-def pytest_runtest_logfinish(nodeid, location):
-    """Free the finished test's garbage when memory climbs (tests/garbage_collection.py).
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_protocol(item, nextitem):
+    """Free the finished test's memory: its class instance's state, then its garbage.
 
-    By now pytest has dropped the test's fixture values, so its scene and sprites are garbage.
+    Once the test's reports are made and logged, pytest has dropped its fixture values, and
+    ``release_test_instance`` empties the test class's instance, which pytest itself keeps for
+    the rest of the run; so its scene and sprites are garbage, which the collector frees when
+    memory climbs (tests/garbage_collection.py).
+
+    Returns:
+        object: The wrapped hook's result.
+
     """
-    if _PEAK_MEMORY_COLLECTOR is not None:
-        _PEAK_MEMORY_COLLECTOR.after_test()
+    try:
+        return (yield)
+    finally:
+        release_test_instance(item=item)
+        if _PEAK_MEMORY_COLLECTOR is not None:
+            _PEAK_MEMORY_COLLECTOR.after_test()
 
 
 def pytest_configure(config):

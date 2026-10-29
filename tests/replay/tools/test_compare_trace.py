@@ -17,6 +17,7 @@ import asyncio
 import contextlib
 import dataclasses
 import importlib
+import itertools
 import logging
 import os
 import socket
@@ -1668,6 +1669,41 @@ def test_a_silent_stranger_does_not_stretch_the_wait_for_the_child(color_game, m
     assert 'refused a frame stream connection without the token' in caplog.text
     # The deadline (0.5 s), not the stranger's whole token wait (TOKEN_TIMEOUT_SECONDS)
     assert waited < compare.TOKEN_TIMEOUT_SECONDS / 2
+
+
+def test_a_stranger_refused_past_the_deadline_ends_the_wait_for_the_child(
+    color_game, mocker, caplog
+):
+    """A stranger refused once the connect deadline has passed ends the wait there.
+
+    The clock is a stand-in: before the stranger's token wait it reads 0, after it the deadline
+    has passed. The real-time test above can end the other way on Windows, whose socket
+    timeouts may wake a little early on a coarse clock, so the loop sees time left, accepts
+    again, times out and ends there instead; this one pins the refusal's own ending.
+    """
+    readings = itertools.chain([0.0, 0.0], itertools.repeat(compare.CHILD_CONNECT_TIMEOUT_SECONDS))
+    mocker.patch.object(compare, 'measured_seconds', side_effect=lambda: next(readings))
+    mocker.patch.object(compare, 'TOKEN_TIMEOUT_SECONDS', 0.2)
+    onion_skin = OnionSkin(
+        old_path=color_game.old,
+        alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        # A child that never connects
+        game_command=[sys.executable, '-c', 'import time; time.sleep(60)'],
+        pause_at_frame=None,
+    )
+    never_connected = mocker.spy(onion_skin, '_never_connected')
+    try:
+        onion_skin.begin()
+        address = onion_skin.command[onion_skin.command.index('--replay-frame-stream') + 1]
+        port, _ = address.split(':')
+        with socket.create_connection((compare.FRAME_STREAM_HOST, int(port))):
+            onion_skin.draw(surface=surface_of(color=NEW_RED), frame_index=0)
+    finally:
+        onion_skin.stop()
+
+    assert onion_skin.label == OLD_NOT_REPLAYED_LABEL
+    assert 'refused a frame stream connection without the token' in caplog.text
+    never_connected.assert_called_once_with()
 
 
 def test_a_frame_stream_whose_token_cannot_be_sent_closes_its_socket(mocker):

@@ -3,7 +3,7 @@
 CircleCI's Linux job (``resource_class: small``, 2 GB, serial) was killed with signal 9 when a
 test ran the process out of memory (BUGS.md #235): the job log ended mid-test, with no test named
 and no hint of what grew. This plugin is on only when ``GLITCHYGAMES_TEST_RSS_LIMIT_MB`` is set
-(the Linux job sets 1750; mebibytes, so 1750 is 1835 MB). A background thread samples the memory
+(the Linux job sets 1600; mebibytes, so 1600 is 1678 MB). A background thread samples the memory
 every ``SAMPLE_INTERVAL_SECONDS``, and each test's start and end are checked too. Past the limit it
 stops the run (``os._exit``, ``LIMIT_EXIT_STATUS``) after writing, straight to the original
 standard error, which memory passed it, the test running then (with how much it grew since it
@@ -19,6 +19,12 @@ What it measures, the first that works:
    (replays, import probes) included.
 2. **This process's resident memory** (``/proc/self/statm``), where there is no such cgroup (a
    Linux machine outside a container): children are not counted.
+
+In the container, the guard also reads the cgroup's reclaimable kernel slab (``memory.stat``'s
+``slab_reclaimable``: the kernel's cache of file names and inodes, from the checkout, the installs
+and the imports). It is counted in the figure above, but the kernel reclaims it before it kills, so
+the run's summary and a stop's message name it beside the reading (the owner, 2026-10-28: report
+it, change nothing yet; plans/future-work.md). About 290 MiB in a container emulated on macOS.
 
 Neither exists on macOS or Windows, so there the plugin does nothing, even with the variable set.
 Under pytest-xdist the workers make no guard (each would hold the whole limit for itself): the
@@ -61,6 +67,8 @@ BYTES_PER_MEBIBYTE = 1024 * 1024
 # What each source measures, as the stop message names it
 CGROUP_SOURCE = "the container's memory (cgroup memory.current, page cache left out)"
 STATM_SOURCE = "this process's resident memory (/proc/self/statm)"
+# memory.stat's reclaimable kernel slab (dentries and inodes), named beside a container's reading
+SLAB_RECLAIMABLE_FIELD = 'slab_reclaimable'
 # The per-test increases named in the message
 LARGEST_INCREASES_SHOWN = 5
 # The run was stopped, as pytest's own status for an interrupted run
@@ -75,10 +83,15 @@ def _mebibytes(byte_count: int) -> str:
     return f'{byte_count / BYTES_PER_MEBIBYTE:.0f} MiB'
 
 
+def _slab_note(slab_bytes: int) -> str:
+    return f'{_mebibytes(slab_bytes)} of it reclaimable kernel slab'
+
+
 class ResidentMemoryGuard:
     """Watches the resident memory and stops the run past a limit, naming the test."""
 
-    def __init__(
+    # Keyword-only, each injected so the tests can stand in for it (readers, stop, interval)
+    def __init__(  # ruff: ignore[too-many-arguments]
         self: Self,
         *,
         limit_bytes: int,
@@ -86,6 +99,7 @@ class ResidentMemoryGuard:
         stop: Callable[[str], None],
         source: str = STATM_SOURCE,
         interval_seconds: float = SAMPLE_INTERVAL_SECONDS,
+        read_reclaimable_slab_bytes: Callable[[], int] | None = None,
     ) -> None:
         """Watch nothing yet: ``start`` starts the sampling thread.
 
@@ -96,9 +110,12 @@ class ResidentMemoryGuard:
             stop: Ends the run with the message (``stop_the_run`` in a real run; it does not
                 return there).
             interval_seconds: How long the thread waits between samples.
+            read_reclaimable_slab_bytes: Returns the reclaimable kernel slab counted in the
+                reading, in bytes (the container's), or None where there is none to name.
 
         """
         self._limit_bytes = limit_bytes
+        self._read_reclaimable_slab_bytes = read_reclaimable_slab_bytes
         self._read_resident_bytes = read_resident_bytes
         self._stop = stop
         self._source = source
@@ -111,6 +128,8 @@ class ResidentMemoryGuard:
         self._stopped = False
         # The highest reading so far (the run's summary names it)
         self._peak_bytes = 0
+        # The reclaimable kernel slab at the peak, when there is a reader for it
+        self._peak_slab_bytes: int | None = None
         self._finished = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -151,7 +170,15 @@ class ResidentMemoryGuard:
 
     def _check_resident(self: Self, *, resident: int) -> bool:
         with self._lock:
-            self._peak_bytes = max(self._peak_bytes, resident)
+            new_peak = resident > self._peak_bytes
+            if new_peak:
+                self._peak_bytes = resident
+        if new_peak and self._read_reclaimable_slab_bytes is not None:
+            slab = self._read_reclaimable_slab_bytes()
+            with self._lock:
+                # Unless another reading passed this one meanwhile
+                if self._peak_bytes == resident:
+                    self._peak_slab_bytes = slab
         if resident <= self._limit_bytes:
             return False
         with self._lock:
@@ -167,7 +194,8 @@ class ResidentMemoryGuard:
         """Describe the run past its limit (called holding the lock).
 
         Returns:
-            The message: the limit, the test running then, the largest increases so far.
+            The message: the limit, the test running then, the reclaimable kernel slab in the
+            reading (when there is a reader), the largest increases so far.
 
         """
         if self._current_test is None:
@@ -181,6 +209,9 @@ class ResidentMemoryGuard:
                 f'limit of {_mebibytes(self._limit_bytes)}, {running}; the run was stopped'
             ),
         ]
+        if self._read_reclaimable_slab_bytes is not None:
+            slab = _mebibytes(self._read_reclaimable_slab_bytes())
+            lines.append(f'Of that reading, {slab} is reclaimable kernel slab')
         largest = sorted(self._increases.items(), key=lambda item: (-item[1], item[0]))
         if largest:
             lines.append('Largest increases by a finished test so far:')
@@ -194,14 +225,17 @@ class ResidentMemoryGuard:
         """Describe the highest reading so far, for the run's summary.
 
         Returns:
-            ``memory guard: peak N MiB of <source>, limit M MiB``.
+            ``memory guard: peak N MiB of <source>, limit M MiB``, then ``(S MiB of it reclaimable
+            kernel slab)`` when the slab at the peak was read.
 
         """
         with self._lock:
             peak = self._peak_bytes
+            peak_slab = self._peak_slab_bytes
+        slab = '' if peak_slab is None else f' ({_slab_note(peak_slab)})'
         return (
             f'memory guard: peak {_mebibytes(peak)} of {self._source}, limit '
-            f'{_mebibytes(self._limit_bytes)}'
+            f'{_mebibytes(self._limit_bytes)}{slab}'
         )
 
     def start(self: Self) -> None:
@@ -265,6 +299,22 @@ def statm_resident_reader(
     return read_resident_bytes
 
 
+def _cgroup_statistics(*, directory: Path) -> dict[str, int]:
+    """Return a cgroup's ``memory.stat``, by name.
+
+    Returns:
+        Each line's value (bytes, or a count), by its name.
+
+    """
+    return {
+        name: int(value)
+        for name, value in (
+            line.split()
+            for line in (directory / 'memory.stat').read_text(encoding='ascii').splitlines()
+        )
+    }
+
+
 def _cgroup_unreclaimable_bytes(*, directory: Path) -> int:
     """Return a cgroup's memory less the page cache the kernel can reclaim.
 
@@ -274,14 +324,32 @@ def _cgroup_unreclaimable_bytes(*, directory: Path) -> int:
 
     """
     current = int((directory / 'memory.current').read_text(encoding='ascii'))
-    statistics = {
-        name: int(value)
-        for name, value in (
-            line.split()
-            for line in (directory / 'memory.stat').read_text(encoding='ascii').splitlines()
-        )
-    }
+    statistics = _cgroup_statistics(directory=directory)
     return current - statistics['file'] + statistics['shmem']
+
+
+def _cgroup_reclaimable_slab_bytes(*, directory: Path) -> int:
+    return _cgroup_statistics(directory=directory)[SLAB_RECLAIMABLE_FIELD]
+
+
+def cgroup_reclaimable_slab_reader(
+    *, directory: Path = CGROUP_DIRECTORY
+) -> Callable[[], int] | None:
+    """Return a reader of the cgroup's reclaimable kernel slab (``memory.stat``'s field).
+
+    Args:
+        directory: The cgroup's directory.
+
+    Returns:
+        The reader (bytes), or None where ``memory.stat`` or its ``slab_reclaimable`` cannot be
+        read (an older kernel names no slab).
+
+    """
+    try:
+        _cgroup_reclaimable_slab_bytes(directory=directory)
+    except OSError, KeyError, ValueError:
+        return None
+    return functools.partial(_cgroup_reclaimable_slab_bytes, directory=directory)
 
 
 def cgroup_memory_reader(*, directory: Path = CGROUP_DIRECTORY) -> Callable[[], int] | None:
@@ -334,6 +402,7 @@ def guard_from_environment(
     read_resident_bytes: Callable[[], int] | None,
     stop: Callable[[str], None],
     source: str = STATM_SOURCE,
+    read_reclaimable_slab_bytes: Callable[[], int] | None = None,
 ) -> ResidentMemoryGuard | None:
     """Return the guard ``GLITCHYGAMES_TEST_RSS_LIMIT_MB`` asks for, or None when it is off.
 
@@ -342,6 +411,7 @@ def guard_from_environment(
         read_resident_bytes: The memory reader, or None where none works.
         stop: Ends the run with a message.
         source: What the reader measures.
+        read_reclaimable_slab_bytes: The reclaimable kernel slab reader, or None.
 
     Returns:
         The guard (not started), or None when the variable is unset or empty, or there is no
@@ -362,6 +432,7 @@ def guard_from_environment(
         read_resident_bytes=read_resident_bytes,
         stop=stop,
         source=source,
+        read_reclaimable_slab_bytes=read_reclaimable_slab_bytes,
     )
 
 
@@ -422,8 +493,18 @@ def pytest_configure(config: pytest.Config) -> None:
     def stop(message: str) -> None:
         stop_function(error_descriptor=error_descriptors[0], message=message)
 
+    # The slab is named only beside the container's reading, which counts it
+    slab_reader = (
+        cgroup_reclaimable_slab_reader(directory=CGROUP_DIRECTORY)
+        if source == CGROUP_SOURCE
+        else None
+    )
     guard = guard_from_environment(
-        environment=os.environ, read_resident_bytes=environment_reader, stop=stop, source=source
+        environment=os.environ,
+        read_resident_bytes=environment_reader,
+        stop=stop,
+        source=source,
+        read_reclaimable_slab_bytes=slab_reader,
     )
     if guard is None:
         return

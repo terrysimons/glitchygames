@@ -18,6 +18,7 @@ from glitchygames.audio.diagnostics import (
     measure_lock_wait,
 )
 from glitchygames.timing import FastTimer
+from tests.stand_in_time import patch_module_time
 
 SAMPLE_RATE = 44100
 BUFFER_SAMPLES = 512
@@ -222,7 +223,8 @@ class TestPaceUntil:
         its length on macOS, often past the deadline, which left the spin unrun and its line
         uncovered in some runs.
         """
-        coarse_sleep = mocker.patch.object(diagnostics.time, 'sleep')
+        coarse_sleep = mocker.Mock()
+        patch_module_time(mocker=mocker, module=diagnostics, sleep=coarse_sleep)
         wait_seconds = 0.02
         deadline_ns = diagnostics.time.perf_counter_ns() + int(wait_seconds * 1e9)
 

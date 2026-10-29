@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, override
 
 import pytest
 
+from glitchygames import timing as timing_module
 from glitchygames.timing import (
     DEFAULT_SLEEP_GRANULARITY_NS,
     FastTimer,
@@ -24,6 +25,7 @@ from glitchygames.timing import (
     s_to_ns,
     sleep_overshoot_ns,
 )
+from tests.stand_in_time import patch_module_time
 
 if TYPE_CHECKING:
     from collections.abc import Buffer, Callable
@@ -184,11 +186,13 @@ class TestFastTimer:
         deadline_ns = 10_000_000
         # Calls: coarse loop reads 9_999_000 (inside the spin window, so no coarse sleep),
         # then the spin reads 9_999_100, 9_999_500 (both short) and 10_000_001 (past).
-        mocker.patch(
-            'glitchygames.timing.time.perf_counter_ns',
-            side_effect=[9_999_000, 9_999_100, 9_999_500, 10_000_001],
+        mock_sleep = mocker.Mock()
+        patch_module_time(
+            mocker=mocker,
+            module=timing_module,
+            perf_counter_ns=mocker.Mock(side_effect=[9_999_000, 9_999_100, 9_999_500, 10_000_001]),
+            sleep=mock_sleep,
         )
-        mock_sleep = mocker.patch('glitchygames.timing.time.sleep')
 
         result = timer.sleep_until_next(deadline_ns)
 
@@ -634,8 +638,12 @@ def make_timer_on_fake_clock(*, backend: str, clock: FakeClock, mocker) -> FastT
     # (the final spin reads the clock every fake microsecond), and a mock keeping each call held
     # about 2 GB in the 1,000-frame test (BUGS.md #85)
     if backend == 'fast':
-        mocker.patch('glitchygames.timing.time.perf_counter_ns', new=clock.perf_counter_ns)
-        mocker.patch('glitchygames.timing.time.sleep', new=clock.sleep)
+        patch_module_time(
+            mocker=mocker,
+            module=timing_module,
+            perf_counter_ns=clock.perf_counter_ns,
+            sleep=clock.sleep,
+        )
         return FastTimer()
     timer = PygameTimer()
     timer._pg = SimpleNamespace(time=SimpleNamespace(get_ticks=clock.get_ticks, delay=clock.delay))
@@ -818,11 +826,13 @@ class TestSleepGranularityEndsTheSleep:
         """A 16 ms granularity sleeps 4 ms of a 20 ms wait, then spins the last 16 ms."""
         timer = FastTimer(sleep_granularity_ns=16_000_000)
         # Reads: 0 (sleep 4 ms), 4 ms (inside the granularity: spin), then past the deadline
-        mocker.patch(
-            'glitchygames.timing.time.perf_counter_ns',
-            side_effect=[0, 4_000_000, 20_000_001],
+        mock_sleep = mocker.Mock()
+        patch_module_time(
+            mocker=mocker,
+            module=timing_module,
+            perf_counter_ns=mocker.Mock(side_effect=[0, 4_000_000, 20_000_001]),
+            sleep=mock_sleep,
         )
-        mock_sleep = mocker.patch('glitchygames.timing.time.sleep')
 
         result = timer.sleep_until_next(20_000_000)
 
@@ -832,11 +842,13 @@ class TestSleepGranularityEndsTheSleep:
     def test_the_default_still_spins_only_the_last_millisecond(self, mocker):
         """The 1 ms default sleeps to 1 ms before the deadline, as the fixed spin window did."""
         timer = FastTimer()
-        mocker.patch(
-            'glitchygames.timing.time.perf_counter_ns',
-            side_effect=[0, 9_000_000, 10_000_001],
+        mock_sleep = mocker.Mock()
+        patch_module_time(
+            mocker=mocker,
+            module=timing_module,
+            perf_counter_ns=mocker.Mock(side_effect=[0, 9_000_000, 10_000_001]),
+            sleep=mock_sleep,
         )
-        mock_sleep = mocker.patch('glitchygames.timing.time.sleep')
 
         timer.sleep_until_next(10_000_000)
 
@@ -879,8 +891,12 @@ class TestSleepModel:
         clock_reads = []
         for overshoot in overshoots:
             clock_reads.extend([0, 1_000_000 + overshoot])
-        mocker.patch('glitchygames.timing.time.perf_counter_ns', side_effect=clock_reads)
-        mocker.patch('glitchygames.timing.time.sleep')
+        patch_module_time(
+            mocker=mocker,
+            module=timing_module,
+            perf_counter_ns=mocker.Mock(side_effect=clock_reads),
+            sleep=mocker.Mock(),
+        )
 
         measured = sleep_overshoot_ns(probe_ns=1_000_000, samples=samples)
 
@@ -890,11 +906,13 @@ class TestSleepModel:
     def test_a_sleep_is_sized_to_wake_the_granularity_before_the_deadline(self, mocker):
         """25% delay, 12.7 ms to wait: sleep 9.36 ms (wakes 11.7 ms in), spin the rest."""
         timer = FastTimer(sleep_model=SleepModel(constant_ns=0, fraction=0.25))
-        mocker.patch(
-            'glitchygames.timing.time.perf_counter_ns',
-            side_effect=[0, 11_700_000, 12_700_001],
+        mock_sleep = mocker.Mock()
+        patch_module_time(
+            mocker=mocker,
+            module=timing_module,
+            perf_counter_ns=mocker.Mock(side_effect=[0, 11_700_000, 12_700_001]),
+            sleep=mock_sleep,
         )
-        mock_sleep = mocker.patch('glitchygames.timing.time.sleep')
 
         timer.sleep_until_next(12_700_000)
 
@@ -905,11 +923,13 @@ class TestSleepModel:
     def test_a_delay_longer_than_the_wait_spins_the_whole_wait(self, mocker):
         """A 90 ms constant delay and a 16.7 ms frame: sleeping can only be late, so spin."""
         timer = FastTimer(sleep_model=SleepModel(constant_ns=90_000_000, fraction=0.0))
-        mocker.patch(
-            'glitchygames.timing.time.perf_counter_ns',
-            side_effect=[0, 8_000_000, 16_700_001],
+        mock_sleep = mocker.Mock()
+        patch_module_time(
+            mocker=mocker,
+            module=timing_module,
+            perf_counter_ns=mocker.Mock(side_effect=[0, 8_000_000, 16_700_001]),
+            sleep=mock_sleep,
         )
-        mock_sleep = mocker.patch('glitchygames.timing.time.sleep')
 
         timer.sleep_until_next(16_700_000)
 
@@ -925,7 +945,7 @@ class TestSleepModel:
         assert timer.pacing_timer().sleep_model is None
         measure.assert_not_called()
         # The first paced sleep (or calibrate()) measures, once
-        mocker.patch('glitchygames.timing.time.sleep')
+        patch_module_time(mocker=mocker, module=timing_module, sleep=mocker.Mock())
         timer.sleep_until_next(timer.ns_now() - 1)
         timer.calibrate()
         assert timer.pacing_timer() == PacingTimer(

@@ -25,7 +25,26 @@ parameters:
   # trusts a compromised CA (GHSA-hq85-5cpj-mr62)
   UV_VERSION:
     type: string
-    default: "0.13.5"
+    default: "0.13.6"
+  # syft and grype (nox -s security-scan: the SBOM, its CVE scan and license check), system
+  # binaries rather than Python packages, so uv.lock cannot pin them. SYFT_VERSION is the syft that
+  # wrote docs/sbom.cyclonedx.json (its metadata.tools, which tests/test_ci_config.py checks): a
+  # different syft writes a different SBOM, and the drift check fails. Each release tarball is
+  # checked against its SHA-256 below (the darwin_arm64 lines of the release's checksums.txt,
+  # https://github.com/anchore/syft/releases, https://github.com/anchore/grype/releases); the scan
+  # runs on the macOS job only, Apple silicon
+  SYFT_VERSION:
+    type: string
+    default: "1.55.0"
+  SYFT_DARWIN_ARM64_SHA256:
+    type: string
+    default: "1217c258bd5eb91ef3189cf22a82e02f9cac07e4ce934350f428e93aff674625"
+  GRYPE_VERSION:
+    type: string
+    default: "0.121.0"
+  GRYPE_DARWIN_ARM64_SHA256:
+    type: string
+    default: "7be39d3a0428c664ce0183e4aba31ed9accffce9eda7e7f6fa84e9c512285f27"
   # The fingerprint of the deploy key that may push gh-pages (a GitHub deploy key with write
   # access to this repository, its private half in this CircleCI project's SSH keys): the
   # deploy-docs job loads it with add_ssh_keys
@@ -155,10 +174,40 @@ commands:
           destination: coverage-html
           when: always
 
+  # syft and grype at their pinned versions, each release tarball checked against its pinned
+  # SHA-256 before anything is extracted (macOS, Apple silicon: the checksums are darwin_arm64's)
+  install-supply-chain-tools-macos:
+    steps:
+      - run:
+          name: "Install syft and grype (pinned, checksummed)"
+          command: |
+            set -euo pipefail
+            if [ "$(uname -s) $(uname -m)" != "Darwin arm64" ]; then
+              echo "The pinned syft and grype checksums are darwin_arm64's; this is $(uname -s) $(uname -m)" >&2
+              exit 1
+            fi
+            mkdir -p "$HOME/.local/bin"
+            download_directory=$(mktemp -d)
+            install_release() {
+              local tool="$1" version="$2" sha256="$3"
+              local archive="${tool}_${version}_darwin_arm64.tar.gz"
+              curl -fsSL -o "$download_directory/$archive" \
+                "https://github.com/anchore/${tool}/releases/download/v${version}/${archive}"
+              echo "$sha256  $download_directory/$archive" | shasum -a 256 -c -
+              tar -xzf "$download_directory/$archive" -C "$download_directory" "$tool"
+              install -m 0755 "$download_directory/$tool" "$HOME/.local/bin/$tool"
+            }
+            install_release syft "<< pipeline.parameters.SYFT_VERSION >>" "<< pipeline.parameters.SYFT_DARWIN_ARM64_SHA256 >>"
+            install_release grype "<< pipeline.parameters.GRYPE_VERSION >>" "<< pipeline.parameters.GRYPE_DARWIN_ARM64_SHA256 >>"
+            rm -rf "$download_directory"
+            export PATH="$HOME/.local/bin:$PATH"
+            syft version
+            grype version
+
   nox-security-scan:
     steps:
       - run:
-          name: "Security scan (bandit + safety)"
+          name: "Security scan (bandit, syft SBOM, grype CVEs, licenses)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
             uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s security-scan
@@ -226,12 +275,12 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
       PYTEST_WORKERS: "0"
-      # Stop the run past 1750 MiB of the container's memory (its page cache left out), naming the
+      # Stop the run past 1600 MiB of the container's memory (its page cache left out), naming the
       # test (tests/memory_guard.py), before the 2 GB executor's kernel kills it with signal 9 and
-      # no test named (BUGS.md #235). 1750 is the owner's choice (2026-10-28: "compromise, let's
-      # set it to 1750"); a healthy run reached 1621 MiB, and reducing that is in
-      # plans/future-work.md
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
+      # no test named (BUGS.md #235). 1600 is the owner's choice (2026-10-28: "Let's stay at 1600
+      # for a bit and see if we can reduce it further"); after BUGS.md #237's fixes a serial run
+      # peaked at 1409 MiB (amd64 emulated in Docker; CircleCI's summary line is the real figure)
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
 
     steps:
       - checkout
@@ -246,7 +295,8 @@ jobs:
       - restore-uv-cache-posix
       - install-deps-posix
       # Only what differs by platform; format, lint, type checks, docs, security scans and
-      # benchmarks give the same answer on every OS and run on macOS (the fastest runner)
+      # benchmarks give the same answer on every OS and run on macOS (the fastest runner; the
+      # committed SBOM is macOS's, so its drift check runs there)
       - nox-timer-report
       - nox-test
       - nox-build
@@ -275,6 +325,7 @@ jobs:
       - nox-lint-docs
       - nox-timer-report
       - nox-test
+      - install-supply-chain-tools-macos
       - nox-security-scan
       - nox-performance-test
       - nox-build
@@ -418,15 +469,9 @@ jobs:
 workflows:
   build-and-test:
     jobs:
-      - build-and-test-linux:
-          context:
-            - SAFETY_API_KEY
-      - build-and-test-macos:
-          context:
-            - SAFETY_API_KEY
-      - build-and-test-windows:
-          context:
-            - SAFETY_API_KEY
+      - build-and-test-linux
+      - build-and-test-macos
+      - build-and-test-windows
       # After a merge to main: as soon as the macOS job passes (the same tree passed all three in
       # its pull request), one deploy at a time so two quick merges cannot race gh-pages
       - deploy-docs:

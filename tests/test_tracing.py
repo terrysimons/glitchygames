@@ -509,6 +509,44 @@ class TestTraceReader:
             sprite['rect'] for sprite in (frame['sprites'][0] for frame in trace['frames'])
         ]
 
+    def test_shared_records_give_the_same_frames(self, tmp_path):
+        """Sharing records changes no frame: the same values as independent copies."""
+        trace = self._moving_trace(frame_count=50)
+        path = tmp_path / 'trace.jsonl.gz'
+        write_trace(trace=trace, path=path)
+        with TraceReader(path=path, share_records=True) as reader:
+            assert reader.share_records is True
+            frames = list(reader)
+        assert frames == trace['frames']
+        assert read_trace_result(path=path, share_records=True).trace == trace
+
+    def test_shared_records_hold_an_unchanged_sprite_once(self, tmp_path):
+        """With shared records, an unchanged sprite is one record; a moved one gets a new one."""
+        trace = self._moving_trace(frame_count=3)
+        path = tmp_path / 'trace.jsonl.gz'
+        write_trace(trace=trace, path=path)
+        with TraceReader(path=path, share_records=True) as reader:
+            frames = list(reader)
+        walls = [frame['sprites'][1] for frame in frames]
+        balls = [frame['sprites'][0] for frame in frames]
+        assert walls[0] is walls[1]
+        assert walls[1] is walls[2]
+        assert balls[0] is not balls[1]
+        assert balls[1] is not balls[2]
+        # Each frame's list of records is still its own
+        assert frames[0]['sprites'] is not frames[1]['sprites']
+
+    def test_frames_are_independent_copies_unless_records_are_shared(self, tmp_path):
+        """By default an unchanged sprite is a new record in every frame."""
+        trace = self._moving_trace(frame_count=2)
+        path = tmp_path / 'trace.jsonl.gz'
+        write_trace(trace=trace, path=path)
+        with TraceReader(path=path) as reader:
+            assert reader.share_records is False
+            frames = list(reader)
+        assert frames[0]['sprites'][1] == frames[1]['sprites'][1]
+        assert frames[0]['sprites'][1] is not frames[1]['sprites'][1]
+
     def test_truncated_file_reports_the_partial_line_after_iteration(self, tmp_path):
         trace = self._moving_trace(frame_count=5)
         path = tmp_path / 'cut.jsonl.gz'

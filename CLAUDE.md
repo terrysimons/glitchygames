@@ -46,6 +46,7 @@ pip install --find-links dist "glitchygames[apps]"      # Bitmappy
 # Optional: trust the project's .envrc (direnv); on entering the repo it runs
 # `uv sync --all-extras --all-groups --all-packages` (the locked versions) and, on macOS,
 # installs PulseAudio with Homebrew (sound from the Linux test container, nox -s test-linux-x11)
+# and syft and grype (nox -s security-scan)
 direnv allow
 
 # Upgrade dependencies deliberately, then review the uv.lock change
@@ -95,7 +96,7 @@ basedpyright
 ```bash
 # --- Aggregate sessions ---
 nox -s format              # Run ALL formatters (code + TOML)
-nox -s lint                # Run ALL linters (code, docs, YAML, TOML, CI, deps, dead code, CVEs)
+nox -s lint                # Run ALL linters (code, docs, YAML, TOML, CI, deps, dead code)
 
 # --- Individual format sessions ---
 nox -s format-code         # Format Python code (ruff format + import sorting)
@@ -111,7 +112,6 @@ nox -s lint-github-actions # Lint GitHub Actions workflows only
 nox -s lint-toml           # Lint TOML files (taplo)
 nox -s lint-dependencies   # Check dependency issues (deptry)
 nox -s lint-dead-code      # Detect dead code (vulture)
-nox -s lint-cves           # Audit dependencies for known CVEs (pip-audit)
 
 # --- Static type analysis ---
 nox -s static-analysis              # Run ALL type checkers (basedpyright + ty)
@@ -134,9 +134,21 @@ nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/C
 nox -s code-complexity     # wily: the working tree's changes against HEAD (history measured in a temporary worktree, never in yours); `-- --graphs` generates docs/quality/graphs/ (gitignored), `-- --rank` ranks files
 
 # --- Security ---
-nox -s security-scan       # Run ALL security scans (bandit + safety)
+nox -s security-scan       # Run ALL security scans: bandit, then the syft SBOM, grype CVEs, the license check
 nox -s bandit-scan         # Run bandit only
-nox -s safety-scan         # Run safety only
+# security-scan (adapted from exoneris): scripts/generate_sbom.py writes docs/sbom.cyclonedx.json
+# with syft from uv.lock (every package it pins, for every platform, Python version, extra and
+# group, so the same file on macOS, Linux and Windows; deterministic: timestamps, UUIDs and paths
+# stripped, committed; licenses from check_licenses.py's PACKAGE_LICENSE_OVERRIDES, else the
+# installed metadata at the locked version, and a package the lock installs only on some
+# platforms or Pythons must have an override), grype scans it (--fail-on high; reviewed exceptions only in .grype.yaml,
+# each naming its package, why, who and when), scripts/check_licenses.py checks it (BSD-3-Clause
+# with a frozen Bitmappy binary: permissive allowed, GPL/AGPL denied, LGPL, MPL and anything
+# unreviewed fail; EXCEPTIONS are the owner's), and last a regenerated SBOM that differs from the
+# committed one fails (commit it with the uv.lock change). syft and grype are system binaries
+# (.envrc installs them with Homebrew; CircleCI's macOS job installs the pinned, checksummed
+# SYFT_VERSION/GRYPE_VERSION): missing locally, warned and skipped; missing in CI, a failure.
+# safety and pip-audit were dropped for them (the owner, 2026-10-28)
 
 # --- Build / Package ---
 nox -s build               # Build binary (PyInstaller) + wheel
