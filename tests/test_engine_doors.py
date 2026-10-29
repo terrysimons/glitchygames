@@ -11,6 +11,10 @@ The engine provides time, and nothing else touches the ``time`` module: any use 
 ``time.sleep``, a constant) and every ``datetime`` read of now are allowed in glitchygames/clock.py
 alone, whose raw functions (``raw_counter_ns``, ``raw_sleep``, ...) pacing, measurement and
 diagnostics call instead.
+
+Every caller reaches the clock through the module (``from glitchygames import clock``, then
+``clock.elapsed_seconds()``), never a function imported by name: then ``glitchygames.clock`` is
+the one clock, and one patch on it reaches every reader (the owner's decision, 2026-10-28).
 """
 
 from __future__ import annotations
@@ -239,6 +243,105 @@ def test_package_reads_input_and_time_only_through_the_doors():
         )
     }
     assert offenders == {}
+
+
+CLOCK_MODULE = 'glitchygames.clock'
+
+
+def _imported_module(*, node: ast.ImportFrom, allowlist_key: str, is_engine_file: bool) -> str:
+    """Return the module a ``from ... import`` names, a relative one resolved in the engine.
+
+    Returns:
+        The absolute module name (a member's relative import keeps its bare name).
+
+    """
+    module = node.module or ''
+    if node.level == 0 or not is_engine_file:
+        return module
+    package_parts = ['glitchygames', *allowlist_key.split('/')[:-1]]
+    base = package_parts[: len(package_parts) - (node.level - 1)]
+    return '.'.join([*base, module] if module else base)
+
+
+def clock_functions_imported_by_name(
+    *, source_path: Path, allowlist_key: str = '', is_engine_file: bool = False
+) -> list[str]:
+    """Return 'line: from glitchygames.clock import name' for each by-name import of the clock.
+
+    Args:
+        source_path: The Python file to scan.
+        allowlist_key: Its key (an engine file's path under ``src/glitchygames/``), to resolve
+            a relative import.
+        is_engine_file: Whether it is an engine file (a relative import can reach the clock).
+
+    Returns:
+        Each name imported from ``glitchygames.clock``, at any level, sorted by line.
+
+    """
+    tree = ast.parse(source_path.read_text(encoding='utf-8'))
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.ImportFrom)
+            and _imported_module(
+                node=node, allowlist_key=allowlist_key, is_engine_file=is_engine_file
+            )
+            == CLOCK_MODULE
+        ):
+            found.extend(
+                (node.lineno, f'{node.lineno}: from {CLOCK_MODULE} import {alias.name}')
+                for alias in node.names
+            )
+    return [entry for _line, entry in sorted(found)]
+
+
+def test_every_caller_reaches_the_clock_through_the_module():
+    """No module imports a clock function by name: callers write ``clock.<function>()``."""
+    engine_directory = PROJECT_ROOT / ENGINE_DIRECTORY
+    offenders = {
+        allowlist_key: imports
+        for allowlist_key, path in scanned_source_files(project_root=PROJECT_ROOT)
+        if (
+            imports := clock_functions_imported_by_name(
+                source_path=path,
+                allowlist_key=allowlist_key,
+                is_engine_file=path.is_relative_to(engine_directory),
+            )
+        )
+    }
+    assert offenders == {}
+
+
+BY_NAME_CLOCK_SOURCE = """\
+from glitchygames import clock
+from glitchygames.clock import elapsed_seconds
+
+def cooldown_ready(last_seconds):
+    from glitchygames.clock import raw_sleep as pause
+    pause(0)
+    return elapsed_seconds() - last_seconds > 1.0 and clock.measured_seconds() > 0
+"""
+
+
+def test_a_clock_function_imported_by_name_is_reported(tmp_path):
+    """A by-name import is reported, aliased or function-local; the module import is not."""
+    path = tmp_path / 'by_name.py'
+    path.write_text(BY_NAME_CLOCK_SOURCE, encoding='utf-8')
+    assert clock_functions_imported_by_name(source_path=path) == [
+        '2: from glitchygames.clock import elapsed_seconds',
+        '5: from glitchygames.clock import raw_sleep',
+    ]
+
+
+def test_a_relative_import_of_a_clock_function_in_the_engine_is_reported(tmp_path):
+    """Inside the engine, ``from ..clock import`` names glitchygames.clock too."""
+    path = tmp_path / 'relative.py'
+    path.write_text('from ..clock import frame_clock_seconds\nfrom . import clock\n')
+    assert clock_functions_imported_by_name(
+        source_path=path, allowlist_key='ui/inputs.py', is_engine_file=True
+    ) == ['1: from glitchygames.clock import frame_clock_seconds']
+    # A member's relative import never reaches the engine
+    assert clock_functions_imported_by_name(source_path=path, allowlist_key='game.py') == []
 
 
 def test_a_bypass_in_a_member_package_is_reported_under_its_repository_path(tmp_path):
