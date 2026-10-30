@@ -388,6 +388,35 @@ class TestGivenClock:
         assert frames_run == MAX_INNER_FRAMES_PER_TICK
 
 
+def test_above_normal_speed_a_tick_runs_at_most_the_frame_cap():
+    """Above 1x MAX_INNER_FRAMES_PER_TICK still ends a tick (up to 1x only the budget does).
+
+    One 100 ms frame, then 1 ms frames, at 8x on a clock that stands still (no budget spent):
+    the short frames' owed limit (32.5 of them) leaves more than the cap's worth, so the tick
+    stops at the cap, not for want of owed time.
+    """
+    controls = ReplayControls(total_frames=10**9)
+    controls.speed = ReplayControls.MAX_SPEED
+    viewer = ReplayViewer(controls=controls, measured_seconds=lambda: 0.0)
+    viewer.ticks_externally = True
+    now = viewer.begin_tick(is_inner_running=True)
+    assert now is not None
+    viewer.accrue(now=now, is_inner_running=True)
+    long_frame_seconds = 0.1
+    short_frame_seconds = 0.001
+    viewer.accumulated_seconds = 3.2
+    frames_run = 0
+    while viewer.should_run_inner_frame(
+        inner_frame_seconds=long_frame_seconds if frames_run == 0 else short_frame_seconds,
+        is_inner_over=False,
+        is_first_inner_frame=False,
+    ):
+        frames_run += 1
+    assert frames_run == MAX_INNER_FRAMES_PER_TICK
+    # Owed time was left: the cap, not the accumulator, closed the tick
+    assert viewer.accumulated_seconds >= short_frame_seconds
+
+
 # A steady 60 FPS recording's frame, for the schedules below
 STEADY_FRAME_SECONDS = 1 / 60
 # Committed recordings whose live run stuttered and whose pacing caught up with a short next
