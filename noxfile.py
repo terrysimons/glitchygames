@@ -36,6 +36,9 @@ _CODE_DIRS = [
     'src/apps/bitmappy',
     'scripts',
     'tests',
+    # The website's CDK app and publisher: its own uv project (docs/specs/2026-10-27-glitchy-games-
+    # website-design.md), formatted and linted by the same ruff rules
+    'infra',
 ]
 # The source packages vulture and bandit scan: the engine's and each workspace member's
 _SOURCE_PACKAGE_DIRS = [
@@ -1851,3 +1854,120 @@ def code_complexity(session: nox.Session) -> None:
     # Optional: generate graphs for documentation
     if '--graphs' in session.posargs:
         session.run('python', 'scripts/generate_complexity_graphs.py')
+
+
+# ---------------------------------------------------------------------------
+# Website (infra/: docs/specs/2026-10-27-glitchy-games-website-design.md)
+# ---------------------------------------------------------------------------
+
+# infra/ is its own uv project with its own lock (not a workspace member), so these sessions
+# run its locked environment with `uv run --project infra` instead of a nox venv
+_INFRA_PROJECT = 'infra'
+# The CDK CLI, run with npx (Node is already needed: the CDK's Python library runs on it). npm's
+# `latest` on 2026-10-28; it must be at least as new as the cloud assembly aws-cdk-lib writes
+# (infra/uv.lock), or the CLI refuses the app
+_AWS_CDK_CLI_VERSION = '2.1146.1'
+# Where infra-diff and infra-deploy read the budget alert's address: it is never written in this
+# public repository (glitchy_site/settings.py, BUDGET_EMAIL_ENVIRONMENT_VARIABLE)
+_BUDGET_EMAIL_ENVIRONMENT_VARIABLE = 'GLITCHY_SITE_BUDGET_EMAIL'
+
+
+def _run_cdk(session: nox.Session, *cdk_arguments: str) -> None:
+    """Run the CDK CLI on infra/'s app, passing the budget email from the environment.
+
+    Args:
+        session: The nox session.
+        *cdk_arguments: The CLI's command and options (``diff``, ``deploy --all``, ...).
+
+    """
+    budget_email = os.environ.get(_BUDGET_EMAIL_ENVIRONMENT_VARIABLE, '')
+    if not budget_email:
+        session.error(
+            f'Set {_BUDGET_EMAIL_ENVIRONMENT_VARIABLE} to the address AWS Budgets alerts '
+            '(it is never written in the repository)'
+        )
+    with session.chdir(_INFRA_PROJECT):
+        session.run(
+            'npx',
+            '--yes',
+            f'aws-cdk@{_AWS_CDK_CLI_VERSION}',
+            *cdk_arguments,
+            '--context',
+            f'budget_alert_email={budget_email}',
+            external=True,
+        )
+
+
+@nox.session(venv_backend='none', name='infra-test', default=False)
+def infra_test(session: nox.Session) -> None:
+    """Test the website's CDK app and publisher (pytest), and its CloudFront Function (node).
+
+    Usage:
+        nox -s infra-test
+    """
+    session.run(
+        'uv', 'run', '--project', _INFRA_PROJECT, '--frozen', 'pytest', 'infra/tests', external=True
+    )
+    # The CloudFront Function is JavaScript: Node's own test runner, no packages to install
+    session.run('node', '--test', 'infra/tests/functions', external=True)
+
+
+@nox.session(venv_backend='none', name='infra-diff', default=False)
+def infra_diff(session: nox.Session) -> None:
+    """Show what infra-deploy would change in AWS (cdk diff); needs AWS credentials.
+
+    Usage:
+        GLITCHY_SITE_BUDGET_EMAIL=... nox -s infra-diff
+        GLITCHY_SITE_BUDGET_EMAIL=... nox -s infra-diff -- GlitchyGamesSite   # One stack
+    """
+    _run_cdk(session, 'diff', *session.posargs)
+
+
+@nox.session(venv_backend='none', name='infra-deploy', default=False)
+def infra_deploy(session: nox.Session) -> None:
+    """Deploy the website's stacks (cdk deploy) from the owner's Mac, with admin credentials.
+
+    Deploy GlitchyGamesDnsZones first and set its name servers at Namecheap: the other stacks'
+    certificates validate through those zones (docs/specs/2026-10-27-glitchy-games-website-
+    design.md, Manual steps). A change that widens IAM permissions asks for approval first.
+
+    Usage:
+        GLITCHY_SITE_BUDGET_EMAIL=... nox -s infra-deploy -- GlitchyGamesDnsZones
+        GLITCHY_SITE_BUDGET_EMAIL=... nox -s infra-deploy              # Every stack
+    """
+    stacks = session.posargs or ['--all']
+    _run_cdk(session, 'deploy', *stacks, '--require-approval', 'broadening')
+
+
+# What site-publish publishes when given nothing: the website (for now its page and the mockup)
+# (docs/specs/2026-10-27-glitchy-games-website-design.md, What gets published at launch)
+_SITE_DEFAULT_SOURCE = 'src/website'
+
+
+@nox.session(venv_backend='none', name='site-publish', default=False)
+def site_publish(session: nox.Session) -> None:
+    """Publish a directory to play.glitchy.games (glitchy_site.publish); needs AWS credentials.
+
+    CircleCI's deploy-site job runs it after a merge to main (OIDC credentials); the owner can
+    run it from the Mac with their own profile.
+
+    Usage:
+        nox -s site-publish                                   # src/website
+        nox -s site-publish -- --source build/browser/site    # Another directory
+        nox -s site-publish -- --dry-run                      # Print the plan, change nothing
+    """
+    arguments = list(session.posargs)
+    if '--source' not in arguments:
+        arguments = ['--source', _SITE_DEFAULT_SOURCE, *arguments]
+    session.run(
+        'uv',
+        'run',
+        '--project',
+        _INFRA_PROJECT,
+        '--frozen',
+        'python',
+        '-m',
+        'glitchy_site.publish',
+        *arguments,
+        external=True,
+    )

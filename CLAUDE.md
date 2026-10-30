@@ -175,6 +175,32 @@ nox -s docs-serve          # Serve the docs locally (same strict build, graphs i
 # `mkdocs serve` rebuild alive (about 330 MB each; BUGS.md #213)
 ```
 
+### Website (`infra/`: https://play.glitchy.games)
+Design `docs/specs/2026-10-27-glitchy-games-website-design.md`, plan
+`plans/2026-10-28-glitchy-games-website-implementation.md`. `infra/` is its own uv project with
+its own `uv.lock` (its own workspace root, not a member: the engine's lock never holds the CDK):
+the CDK app (`glitchy_site.app`: stacks `GlitchyGamesDnsZones`, `GlitchyGamesSite`,
+`GlitchyGamesAiRedirect`, `GlitchyGamesSiteDeployRole`, `GlitchyGamesBudget`, all us-east-1), the
+viewer-request CloudFront Function both distributions run
+(`glitchy_site/functions/redirect_to_play.js`: every host but play.glitchy.games gets a 301
+there, path and query kept; directory URLs fetch their `index.html`) and the publisher
+(`glitchy_site.publish`). Each distribution has its own Function and WAF web ACL
+(`glitchy_site.hosting`): CloudFront's Free flat-rate plan requires both to be unshared, and
+the web ACL can't be detached while the plan lasts. The deploy role trusts only CircleCI jobs
+of this project on `main` (the OIDC token's `vcs-ref`). The site itself is `src/website/`
+(for now its `index.html` and the Arcade mockup; listed in `unmeasured-paths`, so editing it
+measures no replay).
+```bash
+nox -s infra-test          # pytest infra/tests (CDK templates built with infra/cdk.json's feature flags) + node --test infra/tests/functions
+nox -s infra-diff          # cdk diff (needs AWS credentials and GLITCHY_SITE_BUDGET_EMAIL, never written in the repo)
+nox -s infra-deploy        # cdk deploy --all (or `-- GlitchyGamesDnsZones` first); the owner's Mac only
+nox -s site-publish        # Upload src/website (or `-- --source DIR`) and invalidate; `-- --dry-run` changes nothing
+# CircleCI: test-infra on every branch (cimg/python -node image); deploy-site after a merge to main
+# (requires deploy-docs and test-infra: it publishes after the docs), signing in with the job's OIDC token
+# (the role's ARN is the CircleCI project environment variable SITE_DEPLOY_ROLE_ARN, kept out of the
+# public config because it names the AWS account; no AWS keys are stored)
+```
+
 ### Running Bitmappy (Pixel Art Editor)
 ```bash
 # Run with default settings

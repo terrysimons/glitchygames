@@ -496,6 +496,61 @@ jobs:
             - third_party/pygame-ce/dist-pyodide
       - save-uv-cache-posix
 
+  # Tests the website's CDK app, publisher and CloudFront Function (infra/; nox -s infra-test).
+  # The -node image: the CDK's Python library runs on Node, and the function's tests use node
+  test-infra:
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>-node
+    resource_class: small
+
+    steps:
+      - checkout
+      - restore-uv-cache-posix
+      - install-deps-posix
+      - run:
+          name: "Test the website's infrastructure (nox -s infra-test)"
+          command: |
+            set -euo pipefail
+            export PATH="$HOME/.local/bin:$PATH"
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s infra-test
+      - save-uv-cache-posix
+
+  # Publishes play.glitchy.games after a merge to main: the website (src/website) to the
+  # site's bucket, then a CloudFront invalidation (nox -s site-publish; docs/specs/
+  # 2026-10-27-glitchy-games-website-design.md, Publishing). It signs in to AWS with this job's
+  # OIDC token: boto3 assumes AWS_ROLE_ARN with the token in AWS_WEB_IDENTITY_TOKEN_FILE. The
+  # role's ARN names the AWS account, so it is the project environment variable
+  # SITE_DEPLOY_ROLE_ARN (CircleCI Project Settings), never written in this public file (the
+  # owner, 2026-10-28): the GlitchyGamesSiteDeployRole stack's DeployRoleArn output
+  deploy-site:
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>
+    resource_class: small
+
+    environment:
+      AWS_REGION: us-east-1
+
+    steps:
+      - checkout
+      - restore-uv-cache-posix
+      - install-deps-posix
+      - run:
+          name: "Publish the site (nox -s site-publish)"
+          command: |
+            set -euo pipefail
+            export PATH="$HOME/.local/bin:$PATH"
+            role_arn="${SITE_DEPLOY_ROLE_ARN:-}"
+            if [ -z "$role_arn" ]; then
+              echo "SITE_DEPLOY_ROLE_ARN is not set: add it in CircleCI's Project Settings > Environment Variables, set to the GlitchyGamesSiteDeployRole stack's DeployRoleArn output" >&2
+              exit 1
+            fi
+            token_file="$(mktemp)"
+            printf '%s' "$CIRCLE_OIDC_TOKEN_V2" > "$token_file"
+            export AWS_ROLE_ARN="$role_arn"
+            export AWS_WEB_IDENTITY_TOKEN_FILE="$token_file"
+            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s site-publish
+      - save-uv-cache-posix
+
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
 workflows:
@@ -513,3 +568,17 @@ workflows:
             branches:
               only: main
           serial-group: << pipeline.project.slug >>/deploy-docs
+      - test-infra
+      # After a merge to main, once the docs have published (deploy-docs, which waits for macOS)
+      # and the infra tests pass (the owner, 2026-10-28: "it should run on main after docs
+      # publish"); one deploy at a time. The deploy role itself trusts only main's jobs (the
+      # OIDC token's vcs-ref; infra/src/glitchy_site/deploy_role_stack.py): this filter just
+      # skips running it elsewhere
+      - deploy-site:
+          requires:
+            - deploy-docs
+            - test-infra
+          filters:
+            branches:
+              only: main
+          serial-group: << pipeline.project.slug >>/deploy-site

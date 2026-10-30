@@ -559,6 +559,38 @@ The doors, deterministic simulation, recordings, the supervisor hook, the input-
 (`src/glitchygames/replay/input_blocking.py`), the golden fixtures and `--headless` (any run, not
 only replays; Part 2 Task 1).
 
+## Website (glitchy.games)
+
+Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
+
+- **Build and host PyScript and Pyodide ourselves** (the owner, 2026-10-28; needs a brainstorm
+  first).
+  - Today `browser/index.html` loads PyScript's `core.js` / `core.css` from `pyscript.net` (and
+    Pyodide comes from its CDN), so `play.glitchy.games` depends on third-party CDNs being up
+    and unchanged, and can't send cross-origin isolation headers (COOP/COEP): COEP would block
+    those CDN files.
+  - Self-hosting them (built or vendored, served from our own S3/CloudFront) removes that
+    dependency and makes COOP/COEP (SharedArrayBuffer, threads) and a strict
+    Content-Security-Policy possible.
+  - To brainstorm: build from source or vendor release files; where the build runs (CircleCI
+    beside the pygame-ce WebAssembly wheel); version pinning; the bundle size it adds to the site.
+- **Website follow-ups from the build's final review** (2026-10-28; minors, deferred):
+  - Missing files answer with S3's 403 XML: add a CloudFront error response (403 → a 404 page).
+  - `glitchy_site.publish`: upload non-HTML files before HTML (a page could land before its
+    assets mid-deploy); raise on `delete_objects` `Errors` (now ignored); skip unchanged files
+    (compare MD5 with the ETag) and expire delete markers, before the Arcade's ~30 MB bundle is
+    published on every merge (noncurrent versions count toward the plan's 5 GB S3 credit);
+    allow `.well-known/` (dot-directories are skipped and deleted).
+  - The redirect regroups repeated query keys and drops `=` on empty values (harmless today).
+  - Weak cross-stack references: after replacing the site's bucket or distribution, deploy
+    `GlitchyGamesSiteDeployRole` with `--force` or its role keeps the old ARNs.
+  - CircleCI: give `test-infra`/`deploy-site` a uv cache key with `infra/uv.lock`; a missing
+    `CIRCLE_OIDC_TOKEN_V2` should fail with a clear message, not "unbound variable".
+  - Plan Task 8 Step 7: AWS Budgets email subscribers need no confirmation.
+- **Email at the domains** (the owner, 2026-10-28: "a later task"; needs a plan). The Route 53
+  move drops Namecheap's email forwarding (unused today); a provider (e.g. Amazon SES) would
+  add MX, SPF, DKIM and DMARC records to the zones.
+
 ## Trace format ideas (pending a user decision)
 
 - **A later trace format version (v4; v3 is the replay format):** record each world sprite's world position and snap mode, and the camera
