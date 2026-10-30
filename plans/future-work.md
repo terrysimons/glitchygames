@@ -57,6 +57,30 @@ local branches are deleted. The decisions made on the way, for the record:
   re-recorded, and `ScriptedInputSupervisor` posts with `post_input_event`. Later: a rebind
   screen saving `ActionMap.to_dict()` (it already round-trips scancodes).
 
+## Sprite QuickLook (`src/quicklook`, 2026-10-29)
+
+- Check the real QuickLook panel and Finder by eye: the automated checks rendered the preview
+  offscreen and asked for thumbnails through QLThumbnailGenerator, but no screenshot of the real
+  panel was possible from the agent session.
+- Film strip preview (spec goal 6) ~~Done~~ 2026-10-29: every frame of every animation, with
+  the live animation beside each strip. Check it by eye in the real panel with the rest.
+- Idea, brainstormed 2026-10-29, not decided: give sprites their own extension so macOS can tell
+  them from other `.toml` files. macOS types a file by its last extension only, so
+  `sparkle.gg.toml` is still `public.toml`; `sparkle.toml.ggsprite` (or `.ggsprite`) would work,
+  with an exported "GlitchyGames Sprite" type conforming to `public.toml`. Then the extensions
+  would see only sprites, other `.toml` files would get Apple's own preview back, and sprites could
+  have their own Finder kind, icon and default app (Bitmappy). Costs: every `*.toml` glob in the
+  engine, Bitmappy and tools; `Path.stem` becomes `sparkle.toml`; editors and taplo need an
+  association. Still open: one extension for static and animated sprites, or two.
+- Finder thumbnails can't animate (Finder shows still images only). Options if the thumbnail
+  should say more: a better-chosen frame, a small grid of frames, or an "animated" corner badge.
+  Not checked yet: whether Finder's preview pane plays the full animated preview.
+- Later ideas, not built: hitbox and frame-anchor overlays in the preview; a swatch (palette-swap)
+  picker; `[[transition]]` playback; syntax highlighting in the plain-text fallback for
+  non-sprite `.toml` files.
+- When the engine's row-normalization or `frame_index` bugs (below) are fixed, update
+  `Sources/SpriteCore` and regenerate the golden frames in the same change.
+
 ## Bugs found and not fixed yet
 
 | Item | Where | Notes |
@@ -74,6 +98,9 @@ local branches are deleted. The decisions made on the way, for the record:
 | Papyrus sprites keep their unscaled native rect size | BUGS.md #59 | Latent; fixing it needs its own golden expected-difference class. |
 | Brave Adventurer's ground and walls stay drawn only because the parallax layers dirty the whole screen | BUGS.md #60 | Fragile; make the terrain `dirty = 2` or document the dependency. |
 | Brave Adventurer's and Papyrus's enemies (Cobra, Scarab, Scorpion) still draw in `update()` | `src/games/brave-adventurer/src/brave_adventurer/enemies.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | Harmless while their hitboxes do not depend on the pose (the scarab's bounds are the same at every roll angle); move drawing into `dt_tick` (the pose rule) if they ever do. |
+| Static and animated sprites normalize ragged pixel rows differently: static (`_convert_static_sprite`) strips only the whole string, pads to the longest row with the sprite's most common glyph and never truncates; animated frames (`parse_toml_pixel_lines` + `_validate_toml_frame_dimensions`) strip each line, drop empty lines, use the most common row length, truncate longer rows and pad shorter ones with their own last glyph. Unify on one rule (do it **on its own branch**, the owner, 2026-10-29) | `src/glitchygames/sprites/animated.py` | Found 2026-10-29 while writing the sprite QuickLook design (`docs/specs/2026-10-29-sprite-quicklook-design.md`), which copies both behaviors; update the QuickLook parser and its golden frames in the same change. |
+| TOML frames are never ordered by `frame_index`: `_process_toml_animation` sorts with `frames.sort(key=lambda f: getattr(f, 'frame_index', 0))`, but `SpriteFrame` never gets a `frame_index` attribute, so every key is 0 and frames play in file order | `src/glitchygames/sprites/animated.py` (`_process_toml_animation`, `_create_toml_frame`) | Found 2026-10-29 by the sprite QuickLook golden tests (`src/quicklook`), which copy the file-order behavior. Decide whether `frame_index` should order frames (set it on the frame) or be dropped from the format; update the QuickLook loader and golden frames in the same change. |
+| ~~`qlmanage -t -s 256 -o <dir> <sprite.toml>...` hangs with no output and the sprite thumbnail extension never launches~~ | `src/quicklook/tools/make_thumbnails.swift` | Found 2026-10-29 (`feat/sprite-quicklook`, plan Task 7). **Done** (explained, not an extension bug): on this macOS `qlmanage -t` only uses old generator plug-ins (its log says "missing or invalid generator for thumbnail" and its `com.apple.quicklook.thumbnail` discovery finds 0 extensions), and it hangs on any type without one (an unknown `.qqqzz` file hangs too). Through `QLThumbnailGenerator`, the API Finder uses, the extension draws sprites and declines other `.toml` files, which keep the plain document icon they had before (checked with the extension switched off). Check thumbnails with `swift tools/make_thumbnails.swift`. |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)

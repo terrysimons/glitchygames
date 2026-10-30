@@ -204,3 +204,8 @@ bandit-report.json
 
 # Build stamp: written by nox -s build-wheel / build-binary, removed after (glitchygames/build_info.py)
 src/glitchygames/_build_info.json
+
+# Sprite QuickLook (src/quicklook): SwiftPM build products and the XcodeGen-generated project
+src/quicklook/.build/
+src/quicklook/.swiftpm/
+src/quicklook/App/SpritePreview.xcodeproj/
