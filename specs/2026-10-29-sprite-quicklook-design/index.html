@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/specs/2026-10-29-sprite-quicklook-design/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Sprite QuickLook for macOS - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Sprite QuickLook for macOS";
+        var mkdocs_page_input_path = "specs/2026-10-29-sprite-quicklook-design.md";
+        var mkdocs_page_url = "/glitchygames/specs/2026-10-29-sprite-quicklook-design/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="https://terrysimons.github.io/glitchygames/play/">Play in the Browser</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/game_packages/">Games as Their Own Packages</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/drawing_fire/">Drawing Fire Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Playback</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/">Gameplay Playback</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/how-a-frame-runs/">How a Frame Runs</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/speeds-and-timing/">Speeds and Timing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/recording-file/">The Recording File</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/testing/">How We Test Playback</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/engine_context/">Engine Context</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/upstream_issues/">Upstream Issues</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Designs</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">Sprite QuickLook for macOS</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/effects/">glitchygames.effects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/input/">glitchygames.input</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/state/">glitchygames.state</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/transitions/">glitchygames.transitions</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Games API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Apps API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+          <li class="breadcrumb-item">Designs</li>
+      <li class="breadcrumb-item active">Sprite QuickLook for macOS</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/specs/2026-10-29-sprite-quicklook-design.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../2026-10-27-glitchy-games-website-design/" class="btn btn-neutral float-left" title="glitchy.games Website on AWS"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../glitchygames/" class="btn btn-neutral float-right" title="glitchygames API Reference">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="sprite-quicklook-preview-for-macos-design">Sprite QuickLook preview for macOS — Design<a class="headerlink" href="#sprite-quicklook-preview-for-macos-design" title="Permanent link">#</a></h1>
+<ul>
+<li><strong>Date:</strong> 2026-10-29</li>
+<li><strong>Status:</strong> BUILT on <code>feat/sprite-quicklook</code> (2026-10-29); the owner checked it in the real QuickLook panel and opened a PR.
+  Plan: <code>plans/2026-10-29-sprite-quicklook-implementation.md</code>. How to build and install: <code>src/quicklook/README.md</code>.</li>
+<li><strong>Repo / location:</strong> <code>glitchygames</code> (this repo), under <code>src/quicklook/</code> (the owner, 2026-10-29).</li>
+</ul>
+<h2 id="intent">Intent<a class="headerlink" href="#intent" title="Permanent link">#</a></h2>
+<p>When the owner selects a GlitchyGames sprite <code>.toml</code> in Finder and presses space, QuickLook shows
+the sprite itself — rendered as the sprite, not the TOML text (the owner: "I want to see what the
+file contents are - rendered as the sprite"). Animated sprites play; static sprites show as one
+image.</p>
+<h2 id="goals">Goals<a class="headerlink" href="#goals" title="Permanent link">#</a></h2>
+<ol>
+<li><strong>Static sprites</strong> (<code>[sprite] pixels = """…"""</code>, no <code>[[animation]]</code>, e.g.
+   <code>src/apps/bitmappy/src/bitmappy/resources/sprites/small_heart.toml</code>) render as a single image.</li>
+<li><strong>Animated sprites</strong> (<code>[[animation]]</code> + <code>[[animation.frame]]</code>, e.g. <code>slime-jump.toml</code> at the repo
+   root) <strong>auto-play as soon as the preview opens</strong> (the owner, 2026-10-29), honoring each
+   animation's <code>frame_interval</code>, each frame's own <code>frame_interval</code> override, and <code>loop</code>.</li>
+<li><strong>Pixel art stays crisp</strong>: scaled up with nearest-neighbor to fill the preview, integer scale
+   factors only, centered.</li>
+<li><strong>Matches what the engine draws</strong> (rules below, taken from
+   <code>src/glitchygames/sprites/animated.py</code> and <code>pixel_utils.py</code>). If the preview and the game
+   disagree, the preview is wrong.</li>
+<li><strong>Transparency is visible</strong>: transparent pixels show a checkerboard behind them; partial alpha
+   blends over it.</li>
+<li><strong>Every frame is visible: a film strip per animation</strong> (the owner, 2026-10-29: "we need to show
+   all of the frames of the sprite"). Any sprite with more than one frame or more than one
+   animation previews as one row per animation, in file order:</li>
+<li>the animation's name on the left; every frame left to right, each with its number above it
+     and its duration below it ("0.50s"), wrapping onto more lines rather than scrolling sideways
+     (the owner chose the annotated layout, number on top and timing on the bottom);</li>
+<li>the live animation playing at the right end of the row on a checkerboard, labeled "playing",
+     "playing (once)" for a non-looping animation, or "still" for a one-frame one; the frame on
+     screen is outlined in blue in its strip;</li>
+<li>every row plays at once from the moment the preview opens, which replaces the old picker.
+   <em>Claude's calls (the owner agreed 2026-10-29):</em> strip frames fit a 64 pt cell and the live view
+   a 192 pt box, both at a whole-number scale unless the sprite is bigger than that; the panel
+   scrolls vertically when the rows don't fit; a static sprite (one animation, one frame) keeps
+   the single large view, since a one-frame strip would only repeat it.</li>
+<li><strong>Non-sprite <code>.toml</code> files</strong> (<code>pyproject.toml</code>, <code>.taplo.toml</code>, …) still preview as plain text.
+   macOS gives every <code>.toml</code> the single type <code>public.toml</code>, so the extension is asked for all of
+   them; it must fall back gracefully. An extension can't hand a file back to Apple's built-in
+   text preview, so the fallback is the extension's own scrollable, monospaced, read-only text
+   view with no highlighting. The owner accepted that it will look slightly different from
+   Apple's (2026-10-29).</li>
+<li><strong>No Python needed</strong> at preview time: parsing and rendering are native Swift.</li>
+<li><strong>Finder thumbnails</strong> (the owner, 2026-10-29): icon view, column view, Get Info and the like
+   show the sprite instead of a generic TOML icon. A QuickLook <em>Thumbnail Extension</em> sits in the
+   same host app as the preview extension, and both use one shared parser/renderer.</li>
+<li>The thumbnail is the first frame of the first animation in file order (the frame that plays
+     first in the preview). For a static sprite it is the single image.</li>
+<li>It is scaled nearest-neighbor to fit the requested size, centered, and transparent pixels stay
+     transparent (no checkerboard), so it sits on Finder's own background.</li>
+<li>A sprite smaller than the requested size is scaled up by a whole-number factor. A sprite that
+     doesn't divide evenly may be scaled down nearest-neighbor; it must never be smoothed.</li>
+<li><strong>Non-sprite <code>.toml</code> files get no custom thumbnail.</strong> The extension fails the request, so Finder
+     keeps the normal TOML icon. The builder must confirm that a failed thumbnail request really
+     does fall back to the default icon (not a blank one) on this macOS.</li>
+</ol>
+<h2 id="non-goals-v1">Non-goals (v1)<a class="headerlink" href="#non-goals-v1" title="Permanent link">#</a></h2>
+<ul>
+<li>No editing; preview only.</li>
+<li>No hitbox / frame-anchor overlays, no <code>[[transition]]</code> state-machine playback.</li>
+<li>No swatch (palette-swap) variants: the <code>[colors]</code> palette as written is what renders.</li>
+<li>No distribution: no notarization, App Store, or Homebrew cask. It runs on the owner's Mac.</li>
+</ul>
+<h2 id="anti-goals-would-make-it-a-failure-even-if-it-works">Anti-goals (would make it a failure even if it works)<a class="headerlink" href="#anti-goals-would-make-it-a-failure-even-if-it-works" title="Permanent link">#</a></h2>
+<ul>
+<li>Rendering that disagrees with the engine (wrong colors, transparency, frame order or timing).</li>
+<li>Blurry / smoothed pixels.</li>
+<li>Breaking QuickLook for ordinary <code>.toml</code> files.</li>
+<li>Touching the engine or <code>third_party/</code> (see the owner's "leave third_party alone" rule).</li>
+</ul>
+<h2 id="the-format-as-the-engine-reads-it">The format, as the engine reads it<a class="headerlink" href="#the-format-as-the-engine-reads-it" title="Permanent link">#</a></h2>
+<p>Source of truth: <code>AnimatedSprite._load_toml</code> and helpers in
+<code>src/glitchygames/sprites/animated.py</code>, plus <code>src/glitchygames/sprites/pixel_utils.py</code>.</p>
+<p><strong>Is it a sprite?</strong> It is if the parsed TOML has either a non-empty <code>animation</code> array of tables, or
+<code>sprite.pixels</code>. Anything else → plain-text fallback. A file that <em>is</em> a sprite but fails to render
+(bad TOML, no frames) shows a short error plus the text, never a blank pane.</p>
+<p><strong>Colors</strong> — <code>[colors]</code>, keyed by a one-glyph string. Both forms appear in the repo:
+<code>[colors."a"]</code> sub-tables and inline tables (<code>"█" = { red = 255, green = 0, blue = 255 }</code>).
+Missing <code>red</code>/<code>green</code>/<code>blue</code> default to 0. <code>alpha</code> is optional:
+- absent → opaque RGB;
+- 0–254 → that alpha;
+- 255 → opaque.</p>
+<p><strong>Glyphs are Unicode code points</strong>, not bytes and not grapheme clusters. Python iterates a <code>str</code> by
+code point; Swift must iterate <code>unicodeScalars</code> to match (e.g. <code>█</code> U+2588 is one pixel).</p>
+<p><strong>Transparency</strong> (<code>is_color_transparent</code>): a pixel is transparent when its color is magenta
+<code>(255, 0, 255)</code> with no alpha or alpha 255, or when its alpha is 0. Glyphs missing from <code>[colors]</code>
+render as magenta, i.e. transparent.</p>
+<p><strong>Pixel rows</strong> (animated frames, <code>parse_toml_pixel_lines</code>): split on <code>\n</code>, strip each line, drop
+empty lines. Width is the most common line length; longer lines are truncated, shorter ones padded
+with their own last glyph.</p>
+<p><strong>Pixel rows</strong> (static sprite, <code>_convert_static_sprite</code>): the whole string is stripped, then split on
+<code>\n</code> (lines are <em>not</em> individually stripped). Width is the longest row; shorter rows are padded with
+the most common glyph in the sprite. (This differs from the animated path — see "Engine quirks
+noticed".)</p>
+<p><strong>Animations</strong>: each <code>[[animation]]</code> has <code>namespace</code> (default <code>"default"</code>), <code>frame_interval</code>
+(seconds, default 0.5), <code>loop</code> (default true), and <code>frame</code> entries. Frames play in <strong>file order</strong>: the engine means to sort by <code>frame_index</code>, but its sort
+key is never set, so it changes nothing (found by the golden tests while building, 2026-10-29;
+tracked in <code>plans/future-work.md</code>). Frames whose pixels are empty are skipped. A frame's own <code>frame_interval</code> overrides the animation's. A non-looping animation stops on
+its last frame.</p>
+<p><strong>Static sprite name</strong>: the single animation is named after <code>sprite.name</code> (default <code>"idle"</code>).</p>
+<h2 id="decided-how-the-owner-agreed-in-conversation-marked-where-it-was-claudes-call">Decided "how" (the owner agreed in conversation; marked where it was Claude's call)<a class="headerlink" href="#decided-how-the-owner-agreed-in-conversation-marked-where-it-was-claudes-call" title="Permanent link">#</a></h2>
+<ul>
+<li><strong>A QuickLook Preview Extension inside a tiny host app</strong> — the only mechanism current macOS
+  loads (the old <code>.qlgenerator</code> plugins are gone). Swift, AppKit/SwiftUI, Xcode 27.1 (installed).
+  <em>(Claude's call, agreed.)</em></li>
+<li><strong>Location:</strong> <code>src/quicklook/</code> in this repo (the owner).</li>
+<li><strong>Auto-play</strong> on open (the owner).</li>
+<li><strong>Signing:</strong> this Mac has no code-signing identity, so the build uses ad-hoc "Sign to Run
+  Locally". Install = copy the app to <code>/Applications</code>, open it once, enable the extension in
+  System Settings if macOS asks. If macOS refuses an ad-hoc-signed extension, the fallback is the
+  owner adding a free Apple ID team in Xcode — that is a step the owner does, not the builder.</li>
+</ul>
+<h2 id="claudes-calls-from-the-builder-check-the-owner-can-override">Claude's calls (from the builder check; the owner can override)<a class="headerlink" href="#claudes-calls-from-the-builder-check-the-owner-can-override" title="Permanent link">#</a></h2>
+<ul>
+<li><strong>Timing is wall-clock</strong>: each frame shows for exactly its <code>frame_interval</code>. The engine's
+  per-tick rounding is not simulated.</li>
+<li><strong>Engine-exact for well-formed files.</strong> Malformed files may differ from the engine but must
+  still render something sensible. Ragged rows are common in AI-generated sprites, so the preview
+  copies both row-normalization rules. Duplicate <code>namespace</code> values show one label per distinct
+  name, using the later table (which is where the engine reads its frames from).</li>
+<li><strong>No other <code>.toml</code> QuickLook extension is installed</strong> (checked with <code>pluginkit</code>, 2026-10-29), so
+  there is nothing to compete with.</li>
+</ul>
+<h2 id="left-to-the-builder">Left to the builder<a class="headerlink" href="#left-to-the-builder" title="Permanent link">#</a></h2>
+<ul>
+<li>TOML parsing: a vetted TOML 1.0 Swift package via SwiftPM (preferred, must handle inline tables,
+  multi-line basic strings, quoted keys like <code>"."</code>) or a hand-written parser with tests. Results
+  must match <code>tomllib</code> on every sprite in the repo.</li>
+<li>How the Xcode project is generated/checked in (plain <code>.xcodeproj</code>, or XcodeGen if installed).</li>
+<li>Preview UI details: label row styling, background, checkerboard size, maximum scale, dark mode.</li>
+<li>A <code>Makefile</code>/script for build + install, and a short <code>src/quicklook/README.md</code> on installing,
+  enabling, and resetting QuickLook (<code>qlmanage -r</code>, <code>qlmanage -p &lt;file&gt;</code> to test).</li>
+<li>Animation timing mechanism (timer / display link), as long as per-frame durations are honored.</li>
+</ul>
+<h2 id="how-we-know-it-works">How we know it works<a class="headerlink" href="#how-we-know-it-works" title="Permanent link">#</a></h2>
+<ul>
+<li>Swift unit tests for the parser + renderer: color forms, alpha rules, Unicode glyphs, both row
+  normalization rules, frame sort order, per-frame intervals, static vs animated detection,
+  non-sprite fallback.</li>
+<li>A golden check: for a set of repo sprites (at least <code>small_heart.toml</code>, <code>slime-jump.toml</code>,
+  <code>slime-jump-alpha.toml</code>, <code>drawing_fire/sprites/soldier.toml</code>, and one with <code>[[transition]]</code>),
+  the frames the Swift renderer produces match RGBA frames dumped by the engine's own loader
+  (a small Python script in <code>src/quicklook/</code> that loads with <code>AnimatedSprite</code> and writes the
+  frames out).</li>
+<li>Manual: <code>qlmanage -p</code> on a static sprite, an animated one, and <code>pyproject.toml</code>; then space-bar
+  in Finder.</li>
+<li>Thumbnails: a unit test that the thumbnail image equals frame 0 scaled; then manually
+  <code>qlmanage -t -s 256 &lt;file&gt;</code> on a static sprite, an animated one and <code>pyproject.toml</code>, and a look at
+  a sprite folder in Finder icon view. Finder caches thumbnails, so reset first (<code>qlmanage -r cache</code>).</li>
+</ul>
+<h2 id="engine-quirks-noticed-reported-not-fixed-here">Engine quirks noticed (reported, not fixed here)<a class="headerlink" href="#engine-quirks-noticed-reported-not-fixed-here" title="Permanent link">#</a></h2>
+<ul>
+<li>
+<p><code>frame_index</code> never orders frames: the engine's sort key reads an attribute no frame has, so frames
+  play in file order. The preview copies that; tracked in <code>plans/future-work.md</code>.</p>
+</li>
+<li>
+<p>Static and animated sprites normalize ragged rows differently (longest row + most-common-glyph
+  pad vs most-common length + last-glyph pad + truncation), and static rows are not stripped per
+  line. The preview copies both behaviors so it matches the engine. The owner wants the engine
+  unified later, on its own branch. That is tracked in <code>plans/future-work.md</code> under "Bugs found and
+  not fixed yet"; when it lands, the QuickLook parser and its golden frames change with it.</p>
+</li>
+</ul>
+<h2 id="changed-while-building-2026-10-29">Changed while building (2026-10-29)<a class="headerlink" href="#changed-while-building-2026-10-29" title="Permanent link">#</a></h2>
+<ul>
+<li>Frames play in file order, not <code>frame_index</code> order: the engine's sort is a no-op (see above).</li>
+<li>CRLF files: <code>tomllib</code> turns CRLF into LF inside multi-line strings and TOMLDecoder doesn't, so
+  SpriteCore turns every CRLF into LF before decoding.</li>
+<li>The preview pre-scales each frame with nearest neighbor (offscreen renders blurred without it),
+  capped at 512 px on the long side so a full-screen preview stays small; the layer's
+  nearest-neighbor filter scales the rest. A sprite bigger than the preview shrinks to fit.</li>
+<li>Thumbnails fit the pixels a Retina display really gives them (<code>request.scale</code>), and are drawn
+  as a canvas of the whole requested size with the sprite centered on both axes (the owner,
+  2026-10-29: they were bottom-left anchored). QuickLook's thumbnail context is in pixels, so
+  the image is drawn over the context's real bounds, not its point size.</li>
+<li>Float color channels (<code>red = 255.0</code>) draw, truncated like pygame-ce does, instead of failing.</li>
+<li>Film strip (goal 6, the owner, 2026-10-29) replaced the animation picker: every animation shows
+  every frame at once. Layout is <code>Sources/SpriteCore/FilmStripLayout.swift</code> (unit-tested); the
+  view is <code>App/PreviewExtension/FilmStripView.swift</code>. Checked offscreen with the render harness
+  on <code>player.toml</code> (4 animations), <code>slime-jump.toml</code> (20 frames, wraps) and <code>small_heart.toml</code>
+  (static, single view unchanged).</li>
+<li>The app is named "GlitchyGames Sprite Preview" (the owner, 2026-10-29); the extensions are
+  "GlitchyGames Sprite Preview" and "GlitchyGames Sprite Thumbnails". Bundle identifiers keep
+  <code>games.glitchy.SpritePreview</code>. <code>make install</code> deletes the build copy after installing, because
+  left on disk it registered again and showed in System Settings as a second app with no
+  extensions.</li>
+<li>App icon: <code>shroom4.toml</code> (the owner's pick), drawn by <code>src/quicklook/tools/make_app_icon.py</code>
+  with the engine's loader, nearest neighbor on the preview's checkerboard in Apple's rounded
+  square. macOS shows it as is (no gray backing plate).</li>
+<li><code>qlmanage -t</code> can't check thumbnail extensions on this macOS: it only uses old generators and
+  hangs. Thumbnails are checked with <code>src/quicklook/tools/make_thumbnails.swift</code>, which uses
+  Finder's API. Non-sprite <code>.toml</code> files keep the plain document icon they had before (checked
+  with the extension switched off).</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../2026-10-27-glitchy-games-website-design/" class="btn btn-neutral float-left" title="glitchy.games Website on AWS"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../glitchygames/" class="btn btn-neutral float-right" title="glitchygames API Reference">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../2026-10-27-glitchy-games-website-design/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../glitchygames/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
