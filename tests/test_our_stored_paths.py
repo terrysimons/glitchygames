@@ -167,8 +167,18 @@ def test_the_absolute_path_scan_finds_one_at_any_depth():
 
 
 def test_every_recording_rename_ends_at_a_committed_recording():
-    """Each new path in our renames table exists (and the table's shape was checked as read)."""
+    """Each new path in our renames table is a committed recording; no old path is committed.
+
+    The table's shape was checked as read (no new path is also an old one: lookups take one
+    hop), and ``recording_renames_problems`` checks the files on disk; this checks what git
+    holds, so a new path that exists only in this checkout, or an old one still committed, fails.
+    """
     settings = load_project_settings(project_root=PROJECT_ROOT)
+    tracked = set(tracked_files())
 
     assert settings.recording_renames
     assert recording_renames_problems(settings=settings, project_root=PROJECT_ROOT) == []
+    assert not set(settings.recording_renames.values()) & set(settings.recording_renames)
+    assert sorted(set(settings.recording_renames.values()) - tracked) == []
+    assert all(target.endswith(RECORDING_SUFFIX) for target in settings.recording_renames.values())
+    assert sorted(set(settings.recording_renames) & tracked) == []
