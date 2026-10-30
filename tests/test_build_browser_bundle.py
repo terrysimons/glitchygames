@@ -219,6 +219,24 @@ class TestGeneratedFiles:
             './mr_muncher.zip' not in tomllib.loads(pyscript_config(wheel_name=WHEEL_NAME))['files']
         )
 
+    def test_a_games_browser_modules_are_served_beside_the_engines(self):
+        """A game's own page modules are listed next to the engine's BROWSER_MODULES."""
+        files = tomllib.loads(
+            pyscript_config(wheel_name=WHEEL_NAME, browser_modules=('masterhub_bridge.py',))
+        )['files']
+
+        assert files['./masterhub_bridge.py'] == './masterhub_bridge.py'
+        assert './browser_storage.py' in files  # the engine's own page modules are still there
+        assert (
+            './masterhub_bridge.py'
+            not in tomllib.loads(pyscript_config(wheel_name=WHEEL_NAME))['files']
+        )  # a bundle that names none does not list it
+
+    def test_only_bitmappy_names_a_browser_module(self):
+        """The MasterHUB bridge ships only in bitmappy's bundle; no other game names one."""
+        assert GAMES['bitmappy'].browser_modules == ('masterhub_bridge.py',)
+        assert [name for name, game in GAMES.items() if game.browser_modules] == ['bitmappy']
+
     def test_the_engine_archive_holds_no_examples(self):
         """The engine's examples package is gone: no game, demo or sound is under examples/."""
         files = bundled_package_files(package_directory=PACKAGE_DIRECTORY)

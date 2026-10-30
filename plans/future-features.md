@@ -1285,6 +1285,16 @@ This document tracks planned future features for the GlitchyGames project. Featu
   whose commits are pure renames.
 - **Priority**: Low
 
+### 61. Bitmappy: White Outline on the Color-Slider Knob — TODO
+- **Description**: Give each color slider's draggable knob (`SliderSprite.slider_knob`,
+  `src/glitchygames/ui/sliders.py`, created around line 150 and filled `(200, 200, 200)`) a white
+  outline, so it contrasts the dark-gray slider track and reads clearly at a glance.
+- **Use Case**: The user (2026-10-29): "Wrap the slider knob in a white outline (to contrast the
+  dark gray)."
+- **Status**: TODO (requested 2026-10-29); not started
+- **Priority**: Low
+- **Files**: `src/glitchygames/ui/sliders.py`
+
 ### 28. Sprite Format Linter
 - **Description**: Comprehensive validation and linting tool for TOML sprite files to ensure format compliance and catch common errors
 - **Use Case**: Essential for maintaining sprite file quality, catching format errors early, and ensuring compatibility across different sprite formats

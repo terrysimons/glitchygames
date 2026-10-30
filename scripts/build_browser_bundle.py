@@ -126,6 +126,11 @@ class GameSpecification:
             ``<package>.zip``, apart from the engine's archive. Empty for a game inside the
             engine package.
         section: The play/ index's section listing it (``SECTION_GAMES`` or ``SECTION_TOOLS``).
+        browser_modules: Page-side modules this game needs served beside it (and listed in
+            pyscript.toml's ``[files]``), on top of the engine's own ``BROWSER_MODULES``. Each is
+            a file in ``browser/`` that only this game's page loads -- bitmappy's
+            ``masterhub_bridge.py`` (the MasterHUB web-hub bridge), say -- so other games' bundles
+            never ship it. Empty for a game that needs only the engine's page modules.
 
     """
 
@@ -134,6 +139,7 @@ class GameSpecification:
     title: str
     member_packages: tuple[str, ...] = ()
     section: str = SECTION_GAMES
+    browser_modules: tuple[str, ...] = ()
 
 
 # The keys a touch button can press, by DOM KeyboardEvent.code: the event's key, its legacy
@@ -303,6 +309,7 @@ GAMES: dict[str, GameSpecification] = {
         title='Bitmappy',
         member_packages=('bitmappy',),
         section=SECTION_TOOLS,
+        browser_modules=('masterhub_bridge.py',),  # the MasterHUB web-hub bridge (bitmappy only)
     ),
 }
 
@@ -403,13 +410,20 @@ def installed_engine_version() -> str | None:
         return None
 
 
-def pyscript_config(*, wheel_name: str, member_packages: tuple[str, ...] = ()) -> str:
+def pyscript_config(
+    *,
+    wheel_name: str,
+    member_packages: tuple[str, ...] = (),
+    browser_modules: tuple[str, ...] = (),
+) -> str:
     """Return pyscript.toml: our pygame-ce wheel, the engine's packages and its archive.
 
     Args:
         wheel_name: The pygame-ce wheel's file name.
         member_packages: The import packages of a workspace member game, each listed as its
             own archive beside the engine's, in the order given (dependencies first).
+        browser_modules: The game's own page modules (``GameSpecification.browser_modules``),
+            served and listed beside the engine's ``BROWSER_MODULES``.
 
     Returns:
         The TOML text.
@@ -418,7 +432,9 @@ def pyscript_config(*, wheel_name: str, member_packages: tuple[str, ...] = ()) -
     packages = [f'./wheels/{wheel_name}', *PYODIDE_PACKAGES]
     package_lines = ''.join(f'  "{package}",\n' for package in packages)
     member_lines = ''.join(f'"./{package}.zip" = "./*"\n' for package in member_packages)
-    module_lines = ''.join(f'"./{module}" = "./{module}"\n' for module in BROWSER_MODULES)
+    module_lines = ''.join(
+        f'"./{module}" = "./{module}"\n' for module in (*BROWSER_MODULES, *browser_modules)
+    )
     return (
         '# Written by scripts/build_browser_bundle.py\n'
         f'packages = [\n{package_lines}]\n'
@@ -552,14 +568,18 @@ def write_bundle(
     (output_directory / 'wheels').mkdir(parents=True)
     shutil.copy2(wheel_path, output_directory / 'wheels' / wheel_path.name)
     shutil.copy2(BROWSER_DIRECTORY / 'boot.py', output_directory / 'boot.py')
-    for file_name in (*BROWSER_MODULES, *BROWSER_PAGE_SCRIPTS):
+    for file_name in (*BROWSER_MODULES, *GAMES[game].browser_modules, *BROWSER_PAGE_SCRIPTS):
         shutil.copy2(BROWSER_DIRECTORY / file_name, output_directory / file_name)
     template = (BROWSER_DIRECTORY / 'index.html').read_text(encoding='utf-8')
     (output_directory / 'index.html').write_text(
         render_page(template=template, game=game), encoding='utf-8'
     )
     (output_directory / 'pyscript.toml').write_text(
-        pyscript_config(wheel_name=wheel_path.name, member_packages=GAMES[game].member_packages),
+        pyscript_config(
+            wheel_name=wheel_path.name,
+            member_packages=GAMES[game].member_packages,
+            browser_modules=GAMES[game].browser_modules,
+        ),
         encoding='utf-8',
     )
     (output_directory / 'boot_config.json').write_text(
