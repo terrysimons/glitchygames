@@ -833,7 +833,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   presents the latest frame with a status bar (`EngineSources.draws_overlay`/`draw_overlay`,
   never in screenshots or traces); the INNER recorded game runs N full frames per tick from an
   accumulator (real time x speed, consumed by recorded dt, at most `MAX_INNER_FRAMES_PER_TICK`
-  and `INNER_FRAME_BUDGET_SECONDS` per tick, never owing more than one tick's worth; the status
+  and `INNER_FRAME_BUDGET_SECONDS` per tick, never owing more than one tick's worth; up to 1x a
+  tick runs at most one unless behind, owing that frame plus a whole tick, so a long live frame
+  and its short catch-up frame are each presented (rule 2 of `viewer.py`); the status
   bar shows the real speed when it cannot keep up),
   unpresented (`EngineSources.presents_frames` False). It drives the loop through
   `EngineSources.hold_frame` (held = present an outer frame, run nothing, consume no recorded

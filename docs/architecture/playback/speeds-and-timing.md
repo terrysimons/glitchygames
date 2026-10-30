@@ -87,9 +87,14 @@ Before each inner frame the scene manager asks `hold_frame`:
 2. **Tick open.** Run another inner frame while the accumulator holds that frame's recorded
    duration, and consume it. There are two limits per tick: at most `MAX_INNER_FRAMES_PER_TICK`
    = 32 frames, and only within `INNER_FRAME_BUDGET_SECONDS` = 0.011 s of real time, so keys and
-   presenting stay at 60 Hz. The accumulator never owes more than one tick's worth: the excess is
-   dropped, and the status bar shows the real speed while the viewer is behind
-   (`BEHIND_SPEED_FRACTION` = 0.95).
+   presenting stay at 60 Hz. Up to 1x a tick runs at most one inner frame unless the replay is
+   genuinely behind: a second frame in the same tick runs only when the accumulator holds its
+   duration plus a whole tick of inner time (the speed times the tick period); otherwise it
+   runs next tick, the owed time carried (at most one tick behind real time). So a frame the
+   live game ran long and the short frame its pacing caught up with are each presented. Above
+   1x a tick runs several frames and presents the last. The accumulator never owes more than
+   one tick's worth: the excess is dropped, and the status bar shows the real speed while the
+   viewer is behind (`BEHIND_SPEED_FRACTION` = 0.95).
 3. **Otherwise** the tick closes and the frame is presented.
 
 So at 1x a 60 FPS recording runs one inner frame per tick, at 8x eight, and at 1/4x one every

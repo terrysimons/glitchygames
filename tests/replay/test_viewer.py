@@ -162,14 +162,19 @@ def test_the_owed_time_is_bounded_when_inner_frames_cannot_keep_up(mocker):
 
 
 def test_a_stall_runs_at_most_one_bounded_burst(mocker):
-    """A two-second stall runs one tick of MAX_INNER_FRAMES_PER_TICK, then the normal pace."""
+    """A two-second stall runs one bounded burst, then the normal pace.
+
+    The owed time is capped at MAX_INNER_FRAMES_PER_TICK and a half frames; up to 1x the burst
+    stops once the replay owes less than a frame plus a tick (rule 2), so it runs one frame
+    fewer than the cap and the replay carries one tick behind.
+    """
     time = FakeTime(mocker=mocker)
     viewer = new_viewer()
     run_ticks(viewer=viewer, time=time, tick_count=10)
     time.now += 2.0  # a two-second stall: 120 frames owed, at most one tick's worth are kept
     frames_per_tick = run_ticks(viewer=viewer, time=time, tick_count=30)
-    assert frames_per_tick[MAX_INNER_FRAMES_PER_TICK] == 1
-    assert max(frames_per_tick) == MAX_INNER_FRAMES_PER_TICK
+    assert frames_per_tick[MAX_INNER_FRAMES_PER_TICK - 1] == 1
+    assert max(frames_per_tick) == MAX_INNER_FRAMES_PER_TICK - 1
     assert sum(count for frames, count in frames_per_tick.items() if frames > 2) == 1
 
 
@@ -373,3 +378,176 @@ class TestGivenClock:
         ):
             frames_run += 1
         assert frames_run == MAX_INNER_FRAMES_PER_TICK
+
+
+# A steady 60 FPS recording's frame, for the schedules below
+STEADY_FRAME_SECONDS = 1 / 60
+# Committed recordings whose live run stuttered and whose pacing caught up with a short next
+# frame (scripts/replay_schedule.py found them): each pair is (the long frame, the short one)
+STUTTER_PAIRS = {
+    'brave_adventurer_golden_classic_frame_460': (0.03402, 0.00744),
+    'paddleslap_rally_frame_286': (0.02863, 0.00151),
+}
+
+
+def run_schedule(
+    *, inner_frame_seconds: list[float], speed: float = 1.0, stall_before_tick: int | None = None
+) -> tuple[list[list[int]], list[float]]:
+    """Run the viewer's accumulator over inner frames on an ideal clock, ticked externally.
+
+    Each tick is exactly ``CONTROL_TICK_SECONDS`` after the last and inner frames cost no time,
+    as scripts/replay_schedule.py runs it (the replay starts running, no start screen).
+
+    Args:
+        inner_frame_seconds: Each inner frame's recorded duration, in order.
+        speed: The replay speed.
+        stall_before_tick: The tick that opens half a second late (a stall), or None.
+
+    Returns:
+        The frames each tick ran (it presents the last), and the accumulator after each tick.
+
+    """
+    given = {'seconds': 0.0}
+    controls = ReplayControls(total_frames=len(inner_frame_seconds))
+    controls.speed = speed
+    viewer = ReplayViewer(controls=controls, measured_seconds=lambda: given['seconds'])
+    viewer.ticks_externally = True
+    frames_by_tick: list[list[int]] = []
+    accumulated_by_tick: list[float] = []
+    frame_index = 0
+    while frame_index < len(inner_frame_seconds):
+        if stall_before_tick == len(frames_by_tick):
+            given['seconds'] += 0.5
+        now = viewer.begin_tick(is_inner_running=True)
+        assert now is not None
+        viewer.accrue(now=now, is_inner_running=True)
+        frames_run: list[int] = []
+        while frame_index < len(inner_frame_seconds) and viewer.should_run_inner_frame(
+            inner_frame_seconds=inner_frame_seconds[frame_index],
+            is_inner_over=False,
+            is_first_inner_frame=frame_index == 0,
+        ):
+            frames_run.append(frame_index)
+            frame_index += 1
+        frames_by_tick.append(frames_run)
+        accumulated_by_tick.append(viewer.accumulated_seconds)
+        given['seconds'] += CONTROL_TICK_SECONDS
+    return frames_by_tick, accumulated_by_tick
+
+
+def never_presented(*, frames_by_tick: list[list[int]]) -> list[int]:
+    """Return the frames that ran in a tick where a later frame ran too.
+
+    Returns:
+        The frames, in order.
+
+    """
+    return [frame for frames_run in frames_by_tick for frame in frames_run[:-1]]
+
+
+def stuttered_recording(*, long_seconds: float, short_seconds: float) -> list[float]:
+    """Return steady frames with one long frame and its short catch-up frame in the middle.
+
+    Returns:
+        Inner frame durations.
+
+    """
+    return [STEADY_FRAME_SECONDS] * 30 + [long_seconds, short_seconds] + [STEADY_FRAME_SECONDS] * 30
+
+
+# At 2x (measured on the accumulator before rule 2's one-frame limit, which applies only up to
+# 1x): the first tick owes the half-frame phase, then two frames a tick, the long frame (30)
+# and its short catch-up frame (31) sharing one
+TWO_TIMES_SCHEDULE = [[]] + [[2 * tick, 2 * tick + 1] for tick in range(31)]
+EXPECTED_TWO_TIMES_SCHEDULES = dict.fromkeys(STUTTER_PAIRS.values(), TWO_TIMES_SCHEDULE)
+
+
+class TestEveryFrameIsShownUpToNormalSpeed:
+    """Up to 1x a tick runs one inner frame unless the replay is genuinely behind (rule 2).
+
+    A live run that stuttered (a long frame) and caught up with a short next frame showed both;
+    a watched replay at 1x must not run the two in one tick and present only the short one.
+    """
+
+    @pytest.mark.parametrize(
+        ('long_seconds', 'short_seconds'), STUTTER_PAIRS.values(), ids=STUTTER_PAIRS.keys()
+    )
+    def test_a_long_frame_followed_by_a_short_one_is_presented(self, long_seconds, short_seconds):
+        frames_by_tick, _ = run_schedule(
+            inner_frame_seconds=stuttered_recording(
+                long_seconds=long_seconds, short_seconds=short_seconds
+            )
+        )
+        assert never_presented(frames_by_tick=frames_by_tick) == []
+
+    @pytest.mark.parametrize('speed', [0.25, 0.5])
+    @pytest.mark.parametrize(
+        ('long_seconds', 'short_seconds'), STUTTER_PAIRS.values(), ids=STUTTER_PAIRS.keys()
+    )
+    def test_slower_speeds_present_every_frame_too(self, long_seconds, short_seconds, speed):
+        frames_by_tick, _ = run_schedule(
+            inner_frame_seconds=stuttered_recording(
+                long_seconds=long_seconds, short_seconds=short_seconds
+            ),
+            speed=speed,
+        )
+        assert never_presented(frames_by_tick=frames_by_tick) == []
+
+    def test_a_steady_recording_runs_one_frame_a_tick(self):
+        frames_by_tick, _ = run_schedule(inner_frame_seconds=[STEADY_FRAME_SECONDS] * 120)
+        # The first tick owes only the half-frame phase; then exactly one frame a tick
+        assert frames_by_tick[0] == []
+        assert [len(frames_run) for frames_run in frames_by_tick[1:]] == [1] * 120
+
+    @pytest.mark.parametrize(
+        ('long_seconds', 'short_seconds'), STUTTER_PAIRS.values(), ids=STUTTER_PAIRS.keys()
+    )
+    def test_the_replay_falls_at_most_one_tick_behind_after_a_catch_up_frame(
+        self, long_seconds, short_seconds
+    ):
+        """The short frame waits for its own tick: the owed time carries, at most one tick more."""
+        inner_frame_seconds = stuttered_recording(
+            long_seconds=long_seconds, short_seconds=short_seconds
+        )
+        frames_by_tick, accumulated_by_tick = run_schedule(inner_frame_seconds=inner_frame_seconds)
+        frames_run = 0
+        for frames_this_tick, accumulated_seconds in zip(
+            frames_by_tick, accumulated_by_tick, strict=True
+        ):
+            frames_run += len(frames_this_tick)
+            next_frame_seconds = (
+                inner_frame_seconds[frames_run]
+                if frames_run < len(inner_frame_seconds)
+                else STEADY_FRAME_SECONDS
+            )
+            # Owed after the tick: less than the next frame plus one tick
+            assert accumulated_seconds < next_frame_seconds + CONTROL_TICK_SECONDS
+        # The replay ends no more than one tick later than real time would end it
+        recording_seconds = sum(inner_frame_seconds)
+        replay_seconds = (len(frames_by_tick) - 1) * CONTROL_TICK_SECONDS
+        assert replay_seconds - recording_seconds <= CONTROL_TICK_SECONDS + STEADY_FRAME_SECONDS
+
+    def test_a_genuine_stall_still_catches_up_in_one_bounded_burst(self):
+        frames_by_tick, _ = run_schedule(
+            inner_frame_seconds=[STEADY_FRAME_SECONDS] * 200, stall_before_tick=20
+        )
+        frames_per_tick = [len(frames_run) for frames_run in frames_by_tick]
+        # Half a second owed (30 frames) runs in the stall's tick, within the per-tick cap
+        assert 25 <= frames_per_tick[20] <= MAX_INNER_FRAMES_PER_TICK
+        # Then one frame a tick again
+        assert set(frames_per_tick[21:]) == {1}
+
+    @pytest.mark.parametrize(
+        ('long_seconds', 'short_seconds'), STUTTER_PAIRS.values(), ids=STUTTER_PAIRS.keys()
+    )
+    def test_above_normal_speed_the_frames_run_per_tick_are_unchanged(
+        self, long_seconds, short_seconds
+    ):
+        """At 2x a tick runs several frames and presents the last, as it always did."""
+        frames_by_tick, _ = run_schedule(
+            inner_frame_seconds=stuttered_recording(
+                long_seconds=long_seconds, short_seconds=short_seconds
+            ),
+            speed=2.0,
+        )
+        assert frames_by_tick == EXPECTED_TWO_TIMES_SCHEDULES[long_seconds, short_seconds]

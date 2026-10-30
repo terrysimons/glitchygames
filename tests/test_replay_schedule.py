@@ -1,8 +1,10 @@
 """scripts/replay_schedule.py: a watched replay's schedule, simulated on the viewer's accumulator.
 
 Synthetic recordings (written with the project's trace writer) whose frame times are chosen:
-steady frames present every frame; a slow frame 0 whose catch-up frames are short runs two
-frames in one tick, so the earlier is never presented.
+steady frames present every frame, and so do short catch-up frames after a slow one (up to 1x a
+tick runs one frame unless the replay is genuinely behind: glitchygames/replay/viewer.py, rule
+2); a recording made faster than the viewer's 60 Hz runs several frames a tick, so all but the
+last of each tick are never presented.
 """
 
 from __future__ import annotations
@@ -38,6 +40,8 @@ LONG_MIDDLE_FRAME_SECONDS = (
     *([STEADY_SECONDS] * 3),
 )
 STEADY_FRAME_SECONDS = (0.0, *([STEADY_SECONDS] * 7))
+# A recording made at 240 FPS: four frames to each 60 Hz tick, so a 1x replay is behind
+FAST_FRAME_SECONDS = (0.0, *([1 / 240] * 12))
 
 
 def write_recording(*, path: Path, frame_seconds: tuple[float, ...]) -> Path:
@@ -80,20 +84,34 @@ def test_steady_frames_are_each_presented():
     assert schedule.ticks[-1].accumulated_seconds == pytest.approx(STEADY_SECONDS / 2)
 
 
-def test_a_slow_frame_0_with_short_catch_up_frames_never_presents_frame_1():
-    """Frames 1 and 2 last 5 ms each: the first running tick owes both, presenting only 2."""
+def test_a_slow_frame_0_with_short_catch_up_frames_presents_every_frame():
+    """Frames 1 and 2 last 5 ms each: the first running tick owes both but runs one."""
     schedule = simulate_schedule(frame_seconds=SLOW_START_FRAME_SECONDS, speed=1.0)
 
-    assert frames_per_tick(schedule=schedule)[:3] == [(0,), (1, 2), (3,)]
-    assert schedule.never_presented == (1,)
+    assert frames_per_tick(schedule=schedule)[:3] == [(0,), (1,), (2,)]
+    assert schedule.never_presented == ()
 
 
-def test_a_long_middle_frame_followed_by_a_short_one_never_presents_the_long_one():
-    """Frame 2 lasts 40 ms: its tick's leftover pays for 1 ms frame 3 too, hiding frame 2."""
+def test_a_long_middle_frame_followed_by_a_short_one_presents_the_long_one():
+    """Frame 2 lasts 40 ms: 1 ms frame 3 waits for the next tick, so frame 2 is shown."""
     schedule = simulate_schedule(frame_seconds=LONG_MIDDLE_FRAME_SECONDS, speed=1.0)
 
-    assert frames_per_tick(schedule=schedule)[:5] == [(0,), (1,), (), (2, 3), (4,)]
-    assert schedule.never_presented == (2,)
+    assert frames_per_tick(schedule=schedule)[:5] == [(0,), (1,), (), (2,), (3,)]
+    assert schedule.never_presented == ()
+
+
+def test_a_recording_faster_than_the_viewer_runs_several_frames_a_tick():
+    """240 FPS at 1x is genuinely behind: four frames a tick, the last of each presented."""
+    schedule = simulate_schedule(frame_seconds=FAST_FRAME_SECONDS, speed=1.0)
+
+    assert frames_per_tick(schedule=schedule) == [
+        (0,),
+        (1,),
+        (2, 3, 4),
+        (5, 6, 7, 8),
+        (9, 10, 11, 12),
+    ]
+    assert schedule.never_presented == (2, 3, 5, 6, 7, 9, 10, 11)
 
 
 def test_twice_the_speed_runs_two_frames_a_tick():
@@ -136,29 +154,32 @@ def test_a_recording_presenting_every_frame_succeeds(tmp_path, capsys):
 
 def test_a_recording_hiding_a_frame_fails_naming_it(tmp_path, capsys):
     """A frame never presented exits REPLAY_DIVERGED: the watched sequence differs."""
-    path = write_recording(path=tmp_path / 'slow.jsonl.gz', frame_seconds=SLOW_START_FRAME_SECONDS)
+    path = write_recording(path=tmp_path / 'fast.jsonl.gz', frame_seconds=FAST_FRAME_SECONDS)
 
     exit_code = main(arguments=[str(path)])
 
     output = capsys.readouterr().out
     assert exit_code == ExitCode.REPLAY_DIVERGED
-    assert 'tick 1 (16.67 ms): ran 1, 2; accumulator 9.17 ms' in output
-    assert 'never presented: 1' in output
-    assert 'frame 1: 50.00 ms' in output
+    assert 'tick 2 (33.33 ms): ran 2, 3, 4; accumulator 18.75 ms' in output
+    assert 'never presented: 2, 3, 5, 6, 7, 9, 10, 11' in output
+    assert 'frame 1: 4.17 ms' in output
 
 
 def test_the_summary_is_one_line_per_recording(tmp_path, capsys):
     """--summary: name, frame count, the frames never presented, the shortest and longest dt."""
     steady = write_recording(path=tmp_path / 'steady.jsonl.gz', frame_seconds=STEADY_FRAME_SECONDS)
-    slow = write_recording(path=tmp_path / 'slow.jsonl.gz', frame_seconds=SLOW_START_FRAME_SECONDS)
+    fast = write_recording(path=tmp_path / 'fast.jsonl.gz', frame_seconds=FAST_FRAME_SECONDS)
 
-    exit_code = main(arguments=[str(steady), str(slow), '--summary'])
+    exit_code = main(arguments=[str(steady), str(fast), '--summary'])
 
     lines = capsys.readouterr().out.splitlines()
     assert exit_code == ExitCode.REPLAY_DIVERGED
     assert lines == [
         f'{steady.as_posix()}: 8 frames, never presented: none, dt min 0.00 ms max 16.67 ms',
-        f'{slow.as_posix()}: 8 frames, never presented: 1, dt min 0.00 ms max 50.00 ms',
+        (
+            f'{fast.as_posix()}: 13 frames, never presented: 2, 3, 5, 6, 7, 9, 10, 11, '
+            'dt min 0.00 ms max 4.17 ms'
+        ),
     ]
 
 
@@ -220,14 +241,14 @@ def test_an_unreadable_recording_is_unusable_input(tmp_path, capsys, kind):
 
 def test_the_first_failure_decides_the_exit_code(tmp_path, capsys):
     """Every recording is reported; the exit code is the first failure's."""
-    slow = write_recording(path=tmp_path / 'slow.jsonl.gz', frame_seconds=SLOW_START_FRAME_SECONDS)
+    fast = write_recording(path=tmp_path / 'fast.jsonl.gz', frame_seconds=FAST_FRAME_SECONDS)
     absent = tmp_path / 'absent.jsonl.gz'
 
-    exit_code = main(arguments=[str(slow), str(absent), '--summary'])
+    exit_code = main(arguments=[str(fast), str(absent), '--summary'])
 
     captured = capsys.readouterr()
     assert exit_code == ExitCode.REPLAY_DIVERGED
-    assert slow.as_posix() in captured.out
+    assert fast.as_posix() in captured.out
     assert absent.as_posix() in captured.err
 
 

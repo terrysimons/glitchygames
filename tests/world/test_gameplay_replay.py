@@ -3036,8 +3036,10 @@ class TestWatched:
         frames_per_tick = inner_frames_per_tick(
             sources=sources, clock=clock, status_spy=status_spy, seconds=0.5
         )
-        # One tick's worth is kept and run at once; the rest is dropped
-        assert frames_per_tick[0] == MAX_INNER_FRAMES_PER_TICK
+        # One tick's worth (32.5 frames of 10 ms) is kept and the rest dropped. Up to 1x the
+        # burst stops once the replay owes less than a frame plus a tick (rule 2 of
+        # glitchygames/replay/viewer.py): 30 frames run at once, 25 ms carried
+        assert frames_per_tick[0] == MAX_INNER_FRAMES_PER_TICK - 2
         assert max(frames_per_tick[1:]) <= 2
         assert abs(sum(frames_per_tick) - (MAX_INNER_FRAMES_PER_TICK + 0.5 / 0.01)) <= 3
         assert sources.viewer.is_behind
