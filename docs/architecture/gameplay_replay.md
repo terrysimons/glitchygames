@@ -366,9 +366,10 @@ times: each tick runs as many as the real time since the last tick, times the sp
 (at most `MAX_INNER_FRAMES_PER_TICK`, and only within an 11 ms real-time budget per tick, so
 keys and drawing keep their 60 Hz). Up to 1x a tick runs at most one recorded frame unless the
 replay is genuinely behind (it owes that frame plus a whole tick): a frame the live game ran
-long and the short frame its pacing caught up with then get a tick each, so every frame the
-live run showed is presented, and the replay runs at most one tick behind real time. Above 1x
-a tick runs several and presents the last. It never owes more than one tick's worth: after a
+long and the short frame its pacing caught up with then get a tick each, so both are
+presented, and the replay then stays about a tick behind real time (a constant lag, not a
+drift; a pause resets it). A recording faster than 60 FPS is behind by that measure every
+tick, so a tick runs several of its frames and presents the last, as above 1x. It never owes more than one tick's worth: after a
 stall it runs one bounded burst and drops the rest, and when the recorded game cannot keep up
 with the speed the status bar says so and shows the real speed (`can't keep up: ×3.2`). So 1x
 shows about one recorded frame per tick, 8x about eight, 1/4x one every fourth tick. Which

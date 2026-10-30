@@ -32,12 +32,16 @@ The contract between them, asked through ``EngineSources.hold_frame`` before eac
    unless the replay is genuinely behind: a second (or later) frame in the same tick runs only
    when the accumulator holds its recorded duration plus a whole tick of inner time (the speed
    times the tick period); otherwise the tick closes and the frame runs next tick, the owed
-   time carried (the replay then runs at most one tick behind real time). So every frame a
-   live run showed is presented: a live frame that ran long and the short frame its pacing
-   caught up with never share a tick, which would show only the short one. Above 1x a tick
-   runs several frames and presents the last. The accumulator never owes more than one tick's
-   worth of frames: the excess is dropped (a long stall runs one bounded burst), and while
-   frames are dropped or the budget cuts ticks short the viewer is behind (``is_behind``): the
+   time carried. So a live frame that ran long and the short frame its pacing caught up with
+   never share a tick (which would show only the short one): each is presented. After such a
+   catch-up the replay stays about a tick behind real time: a constant lag, not a drift (it
+   never grows), which a pause resets. A recording faster than 60 FPS (frames shorter than a
+   tick) owes more than that every tick, so a tick still runs several of its frames and
+   presents the last, as every tick above 1x does. The accumulator never owes more than one
+   tick's worth of frames (``MAX_INNER_FRAMES_PER_TICK`` and a half; up to 1x never less than
+   a frame plus two ticks of inner time, so a recording of very short frames keeps its rate):
+   the excess is dropped (a long stall runs one bounded burst), and while frames are dropped
+   or the budget cuts ticks short the viewer is behind (``is_behind``): the
    status bar then shows the real speed (``effective_speed``). So 1x runs one inner frame a
    tick for a 60 FPS recording (but for the true rate mismatch), 8x eight, 1/4x one every
    fourth tick, paused none. While paused a step (``.``) runs exactly one inner frame. The
@@ -349,7 +353,7 @@ class ReplayViewer:
             self.accumulated_seconds += inner_frame_seconds / 2
         # Never owe more than one tick's worth (keeping the half-frame phase): drop the excess
         # (frames recorded with no duration owe nothing and never fall behind)
-        owed_limit_seconds = (MAX_INNER_FRAMES_PER_TICK + 0.5) * inner_frame_seconds
+        owed_limit_seconds = self._owed_limit_seconds(inner_frame_seconds=inner_frame_seconds)
         if inner_frame_seconds > 0 and self.accumulated_seconds > owed_limit_seconds:
             self.accumulated_seconds = owed_limit_seconds
             self._fall_behind()
@@ -372,6 +376,28 @@ class ReplayViewer:
         self._inner_frames_this_tick += 1
         self._inner_seconds_this_tick += inner_frame_seconds
         return True
+
+    def _owed_limit_seconds(self: Self, *, inner_frame_seconds: float) -> float:
+        """Return the most inner time the accumulator may owe; the excess is dropped (rule 2).
+
+        ``MAX_INNER_FRAMES_PER_TICK`` and a half frames. Up to 1x it is never less than the
+        frame plus two ticks of inner time (the speed times the tick period): what rule 2's
+        one-frame limit carries (a frame plus a tick) plus the tick's own time. Below that, a
+        recording whose frames are shorter than about 1.1 ms (an uncapped game) would be capped
+        every tick, fall behind every tick and play in slow motion.
+
+        Args:
+            inner_frame_seconds: The recorded duration of the inner frame that would run.
+
+        Returns:
+            Seconds.
+
+        """
+        frames_limit_seconds = (MAX_INNER_FRAMES_PER_TICK + 0.5) * inner_frame_seconds
+        speed = self.controls.speed
+        if speed > 1:
+            return frames_limit_seconds
+        return max(frames_limit_seconds, inner_frame_seconds + 2 * speed * CONTROL_TICK_SECONDS)
 
     def _defers_to_the_next_tick(self: Self, *, inner_frame_seconds: float) -> bool:
         """Decide whether a later inner frame in the open tick waits for the next tick (rule 2).

@@ -10,11 +10,15 @@ from __future__ import annotations
 import collections
 import random
 from time import perf_counter_ns
+from typing import TYPE_CHECKING, Any, Self
 
 import pytest
+from pydantic import BaseModel, ConfigDict
 
+from glitchygames.recording import DT_FIELD
 from glitchygames.replay import viewer as viewer_module
 from glitchygames.replay.controls import CONTROL_TICK_SECONDS, ReplayControls
+from glitchygames.replay.driver import OPTIONS_HEADER_FIELD, RecordedFrames
 from glitchygames.replay.viewer import (
     BEHIND_SPEED_FRACTION,
     EFFECTIVE_SPEED_WINDOW_TICKS,
@@ -22,6 +26,10 @@ from glitchygames.replay.viewer import (
     MAX_INNER_FRAMES_PER_TICK,
     ReplayViewer,
 )
+from glitchygames.tracing import FRAMES_FIELD, read_trace_result, write_trace
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # A recording made at the engine's default target, 60.01 FPS: a hair off the 60 Hz viewer tick
 RECORDED_FRAME_SECONDS = 1 / 60.01
@@ -390,9 +398,39 @@ STUTTER_PAIRS = {
 }
 
 
+class ScheduleRun(BaseModel):
+    """The viewer's schedule over a run of inner frames (``run_schedule``).
+
+    Attributes:
+        frames_by_tick: The frames each tick ran (it presents the last).
+        accumulated_by_tick: The accumulator after each tick.
+        behind_by_tick: Whether the viewer was behind (``is_behind``) after each tick.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    frames_by_tick: list[list[int]]
+    accumulated_by_tick: list[float]
+    behind_by_tick: list[bool]
+
+    def replay_lag_seconds(self: Self, *, inner_frame_seconds: list[float], speed: float) -> float:
+        """Return how much later than real time the replay ended (negative: earlier).
+
+        The first tick, at time 0, owes nothing but the half-frame phase; the recording's
+        frames last ``sum(inner_frame_seconds) / speed`` of real time.
+
+        Returns:
+            Seconds.
+
+        """
+        replay_seconds = (len(self.frames_by_tick) - 1) * CONTROL_TICK_SECONDS
+        return replay_seconds - sum(inner_frame_seconds) / speed
+
+
 def run_schedule(
     *, inner_frame_seconds: list[float], speed: float = 1.0, stall_before_tick: int | None = None
-) -> tuple[list[list[int]], list[float]]:
+) -> ScheduleRun:
     """Run the viewer's accumulator over inner frames on an ideal clock, ticked externally.
 
     Each tick is exactly ``CONTROL_TICK_SECONDS`` after the last and inner frames cost no time,
@@ -404,7 +442,7 @@ def run_schedule(
         stall_before_tick: The tick that opens half a second late (a stall), or None.
 
     Returns:
-        The frames each tick ran (it presents the last), and the accumulator after each tick.
+        The schedule.
 
     """
     given = {'seconds': 0.0}
@@ -414,6 +452,7 @@ def run_schedule(
     viewer.ticks_externally = True
     frames_by_tick: list[list[int]] = []
     accumulated_by_tick: list[float] = []
+    behind_by_tick: list[bool] = []
     frame_index = 0
     while frame_index < len(inner_frame_seconds):
         if stall_before_tick == len(frames_by_tick):
@@ -431,8 +470,13 @@ def run_schedule(
             frame_index += 1
         frames_by_tick.append(frames_run)
         accumulated_by_tick.append(viewer.accumulated_seconds)
+        behind_by_tick.append(viewer.is_behind)
         given['seconds'] += CONTROL_TICK_SECONDS
-    return frames_by_tick, accumulated_by_tick
+    return ScheduleRun(
+        frames_by_tick=frames_by_tick,
+        accumulated_by_tick=accumulated_by_tick,
+        behind_by_tick=behind_by_tick,
+    )
 
 
 def never_presented(*, frames_by_tick: list[list[int]]) -> list[int]:
@@ -473,11 +517,11 @@ class TestEveryFrameIsShownUpToNormalSpeed:
         ('long_seconds', 'short_seconds'), STUTTER_PAIRS.values(), ids=STUTTER_PAIRS.keys()
     )
     def test_a_long_frame_followed_by_a_short_one_is_presented(self, long_seconds, short_seconds):
-        frames_by_tick, _ = run_schedule(
+        frames_by_tick = run_schedule(
             inner_frame_seconds=stuttered_recording(
                 long_seconds=long_seconds, short_seconds=short_seconds
             )
-        )
+        ).frames_by_tick
         assert never_presented(frames_by_tick=frames_by_tick) == []
 
     @pytest.mark.parametrize('speed', [0.25, 0.5])
@@ -485,16 +529,18 @@ class TestEveryFrameIsShownUpToNormalSpeed:
         ('long_seconds', 'short_seconds'), STUTTER_PAIRS.values(), ids=STUTTER_PAIRS.keys()
     )
     def test_slower_speeds_present_every_frame_too(self, long_seconds, short_seconds, speed):
-        frames_by_tick, _ = run_schedule(
+        frames_by_tick = run_schedule(
             inner_frame_seconds=stuttered_recording(
                 long_seconds=long_seconds, short_seconds=short_seconds
             ),
             speed=speed,
-        )
+        ).frames_by_tick
         assert never_presented(frames_by_tick=frames_by_tick) == []
 
     def test_a_steady_recording_runs_one_frame_a_tick(self):
-        frames_by_tick, _ = run_schedule(inner_frame_seconds=[STEADY_FRAME_SECONDS] * 120)
+        frames_by_tick = run_schedule(
+            inner_frame_seconds=[STEADY_FRAME_SECONDS] * 120
+        ).frames_by_tick
         # The first tick owes only the half-frame phase; then exactly one frame a tick
         assert frames_by_tick[0] == []
         assert [len(frames_run) for frames_run in frames_by_tick[1:]] == [1] * 120
@@ -509,7 +555,9 @@ class TestEveryFrameIsShownUpToNormalSpeed:
         inner_frame_seconds = stuttered_recording(
             long_seconds=long_seconds, short_seconds=short_seconds
         )
-        frames_by_tick, accumulated_by_tick = run_schedule(inner_frame_seconds=inner_frame_seconds)
+        schedule = run_schedule(inner_frame_seconds=inner_frame_seconds)
+        frames_by_tick = schedule.frames_by_tick
+        accumulated_by_tick = schedule.accumulated_by_tick
         frames_run = 0
         for frames_this_tick, accumulated_seconds in zip(
             frames_by_tick, accumulated_by_tick, strict=True
@@ -528,12 +576,15 @@ class TestEveryFrameIsShownUpToNormalSpeed:
         assert replay_seconds - recording_seconds <= CONTROL_TICK_SECONDS + STEADY_FRAME_SECONDS
 
     def test_a_genuine_stall_still_catches_up_in_one_bounded_burst(self):
-        frames_by_tick, _ = run_schedule(
+        schedule = run_schedule(
             inner_frame_seconds=[STEADY_FRAME_SECONDS] * 200, stall_before_tick=20
         )
-        frames_per_tick = [len(frames_run) for frames_run in frames_by_tick]
-        # Half a second owed (30 frames) runs in the stall's tick, within the per-tick cap
-        assert 25 <= frames_per_tick[20] <= MAX_INNER_FRAMES_PER_TICK
+        frames_per_tick = [len(frames_run) for frames_run in schedule.frames_by_tick]
+        # The stall's tick owes the half second and its own tick plus the 8.3 ms phase (525 ms,
+        # under the owed limit's 32.5 frames): it runs frames until less than a frame plus a
+        # tick (33.3 ms) is owed, so 30 of them, 25 ms carried
+        assert frames_per_tick[20] == 30
+        assert schedule.accumulated_by_tick[20] == pytest.approx(0.025)
         # Then one frame a tick again
         assert set(frames_per_tick[21:]) == {1}
 
@@ -544,10 +595,231 @@ class TestEveryFrameIsShownUpToNormalSpeed:
         self, long_seconds, short_seconds
     ):
         """At 2x a tick runs several frames and presents the last, as it always did."""
-        frames_by_tick, _ = run_schedule(
+        frames_by_tick = run_schedule(
             inner_frame_seconds=stuttered_recording(
                 long_seconds=long_seconds, short_seconds=short_seconds
             ),
             speed=2.0,
-        )
+        ).frames_by_tick
         assert frames_by_tick == EXPECTED_TWO_TIMES_SCHEDULES[long_seconds, short_seconds]
+
+
+def uniform_frames(
+    *, shortest_seconds: float, longest_seconds: float, frame_count: int
+) -> list[float]:
+    """Return frame times drawn uniformly between two lengths (seeded, the same every run).
+
+    Returns:
+        Recorded dts.
+
+    """
+    frame_times = random.Random(1)
+    return [frame_times.uniform(shortest_seconds, longest_seconds) for _ in range(frame_count)]
+
+
+class FastRecording(BaseModel):
+    """A recording far faster than the viewer's tick, and the speed it is watched at.
+
+    Attributes:
+        target_fps: The ``--target-fps`` it was recorded with (its header's ``target_fps``
+            option; 0.0 is uncapped).
+        frame_seconds: Every frame's recorded dt (frame 0's is 0.0, as a live recording's).
+        speed: The replay speed.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    target_fps: float
+    frame_seconds: list[float]
+    speed: float
+
+
+# Recordings of games far faster than the viewer's 60 Hz tick (--target-fps N, or uncapped): a
+# tick runs several of their frames and presents the last, and the replay must keep their rate
+FAST_RECORDINGS = {
+    'hit_its_1000_fps_target_at_1x': FastRecording(
+        target_fps=1000.0, frame_seconds=[0.0] + [1 / 1000] * 10_000, speed=1.0
+    ),
+    'hit_its_1500_fps_target_at_1x': FastRecording(
+        target_fps=1500.0, frame_seconds=[0.0] + [1 / 1500] * 15_000, speed=1.0
+    ),
+    'ran_at_1200_fps_under_its_1500_fps_target_at_1x': FastRecording(
+        target_fps=1500.0, frame_seconds=[0.0] + [1 / 1200] * 12_000, speed=1.0
+    ),
+    'uncapped_0.3_to_2_ms_frames_at_1x': FastRecording(
+        target_fps=0.0,
+        frame_seconds=[
+            0.0,
+            *uniform_frames(shortest_seconds=0.0003, longest_seconds=0.002, frame_count=10_000),
+        ],
+        speed=1.0,
+    ),
+    'hit_its_2000_fps_target_at_half_speed': FastRecording(
+        target_fps=2000.0, frame_seconds=[0.0] + [1 / 2000] * 10_000, speed=0.5
+    ),
+}
+
+
+def write_fast_recording(*, recording: FastRecording, path: Path) -> Path:
+    """Write the recording with its target FPS in the header's options, as a live one holds it.
+
+    Returns:
+        ``path``.
+
+    """
+    write_trace(
+        trace={
+            'game': 'stand_in',
+            OPTIONS_HEADER_FIELD: {'target_fps': recording.target_fps},
+            FRAMES_FIELD: [
+                {'frame': frame_index, DT_FIELD: dt, 'scene': 'StandInScene', 'sprites': []}
+                for frame_index, dt in enumerate(recording.frame_seconds)
+            ],
+        },
+        path=path,
+    )
+    return path
+
+
+def inner_frame_seconds_of(*, recorded: RecordedFrames) -> list[float]:
+    """Return each frame's duration as a watched replay gives it to the viewer.
+
+    The rule of ``ReplaySources._inner_frame_seconds`` (glitchygames/replay/driver.py, rule 4):
+    a frame lasts its next frame's dt, the last frame its own.
+
+    Returns:
+        Seconds, one per frame.
+
+    """
+    last_frame = recorded.frame_count - 1
+    return [
+        recorded.recorded_dt(frame_index=min(frame_index + 1, last_frame))
+        for frame_index in range(recorded.frame_count)
+    ]
+
+
+def required_inner_frames_per_second(*, header: dict[str, Any], recorded: RecordedFrames) -> float:
+    """Return the rate a watched replay at 1x must run a recording's frames at.
+
+    The rate the recording achieved (its frames over the sum of their recorded dts), capped by
+    its target FPS (the header's ``target_fps`` option; 0 is uncapped).
+
+    Returns:
+        Inner frames per recorded second.
+
+    """
+    recorded_seconds = sum(
+        recorded.recorded_dt(frame_index=frame_index) for frame_index in range(recorded.frame_count)
+    )
+    achieved_fps = recorded.frame_count / recorded_seconds
+    target_fps = float(header[OPTIONS_HEADER_FIELD]['target_fps'])
+    return min(target_fps, achieved_fps) if target_fps > 0 else achieved_fps
+
+
+class RateCheck(BaseModel):
+    """Whether a watched replay kept a recording's rate (``check_watched_rate``).
+
+    Attributes:
+        required_frames_per_second: Inner frames per real second the replay must run: the
+            recording's achieved rate capped by its target FPS, times the speed it is watched at.
+        real_seconds: The real time the replay took to run every frame.
+        allowed_seconds: The most real time that rate allows, with the tolerance: two ticks and
+            one recorded frame over the run (rule 2 lets the replay owe under a frame plus a
+            tick when a tick closes, a constant lag of up to a tick, and the run's end is read
+            at a tick, so up to one more).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    required_frames_per_second: float
+    real_seconds: float
+    allowed_seconds: float
+
+    @property
+    def keeps_rate(self: Self) -> bool:
+        """True when the replay ran its frames at least at the required rate (tolerance kept)."""
+        return self.real_seconds <= self.allowed_seconds
+
+
+def check_watched_rate(
+    *, recording: FastRecording, path: Path, replayed_at_speed: float | None = None
+) -> RateCheck:
+    """Write a recording, replay it watched (the viewer's schedule) and check its rate.
+
+    Args:
+        recording: The recording and the speed it must keep its rate at.
+        path: Where to write it.
+        replayed_at_speed: The speed the replay actually runs at (a slower one stands for a
+            replay that cannot keep up); None is the recording's speed.
+
+    Returns:
+        The check.
+
+    """
+    write_fast_recording(recording=recording, path=path)
+    trace = read_trace_result(path=path).trace
+    recorded = RecordedFrames(frames=trace[FRAMES_FIELD], is_truncated=False)
+    inner_frame_seconds = inner_frame_seconds_of(recorded=recorded)
+    schedule = run_schedule(
+        inner_frame_seconds=inner_frame_seconds,
+        speed=recording.speed if replayed_at_speed is None else replayed_at_speed,
+    )
+    required_frames_per_second = (
+        required_inner_frames_per_second(header=trace, recorded=recorded) * recording.speed
+    )
+    tolerance_seconds = 2 * CONTROL_TICK_SECONDS + max(inner_frame_seconds) / recording.speed
+    return RateCheck(
+        required_frames_per_second=required_frames_per_second,
+        real_seconds=(len(schedule.frames_by_tick) - 1) * CONTROL_TICK_SECONDS,
+        allowed_seconds=recorded.frame_count / required_frames_per_second + tolerance_seconds,
+    )
+
+
+class TestRecordingsFasterThanTheTickKeepTheirRate:
+    """Up to 1x the owed limit never stops a tick short of what rule 2 lets it run.
+
+    With frames shorter than about 1.1 ms, 32.5 frames' worth fell below a frame plus two ticks
+    of inner time: every tick was capped, fell behind and the replay ran in slow motion.
+    """
+
+    @pytest.mark.parametrize('recording', FAST_RECORDINGS.values(), ids=FAST_RECORDINGS.keys())
+    def test_it_runs_at_least_its_recorded_rate_capped_by_its_target(self, recording, tmp_path):
+        """Inner frames per real second: at least min(target, achieved) times the speed."""
+        check = check_watched_rate(recording=recording, path=tmp_path / 'fast.jsonl.gz')
+        assert check.keeps_rate, check
+
+    def test_a_1500_fps_recording_keeps_1500(self, tmp_path):
+        """Recorded at --target-fps 1500 and achieving it: watched at 1x, 1500 frames a second."""
+        check = check_watched_rate(
+            recording=FAST_RECORDINGS['hit_its_1500_fps_target_at_1x'],
+            path=tmp_path / 'fast.jsonl.gz',
+        )
+        assert check.required_frames_per_second == pytest.approx(1500)
+        assert check.keeps_rate, check
+
+    def test_a_1500_fps_recording_replayed_at_1200_fails(self, tmp_path):
+        """A replay of it managing only 1200 frames a second (0.8x) fails the check."""
+        check = check_watched_rate(
+            recording=FAST_RECORDINGS['hit_its_1500_fps_target_at_1x'],
+            path=tmp_path / 'fast.jsonl.gz',
+            replayed_at_speed=0.8,
+        )
+        assert check.required_frames_per_second == pytest.approx(1500)
+        assert not check.keeps_rate, check
+
+    def test_a_1500_fps_target_recording_that_ran_at_1200_keeps_1200(self, tmp_path):
+        """Under its target, the rate it achieved is the one to keep: 1200 frames a second."""
+        check = check_watched_rate(
+            recording=FAST_RECORDINGS['ran_at_1200_fps_under_its_1500_fps_target_at_1x'],
+            path=tmp_path / 'fast.jsonl.gz',
+        )
+        assert check.required_frames_per_second == pytest.approx(1200, rel=0.001)
+        assert check.keeps_rate, check
+
+    @pytest.mark.parametrize('recording', FAST_RECORDINGS.values(), ids=FAST_RECORDINGS.keys())
+    def test_it_never_falls_behind(self, recording):
+        inner_frame_seconds = [*recording.frame_seconds[1:], recording.frame_seconds[-1]]
+        schedule = run_schedule(inner_frame_seconds=inner_frame_seconds, speed=recording.speed)
+        assert not any(schedule.behind_by_tick)
