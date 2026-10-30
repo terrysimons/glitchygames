@@ -2250,7 +2250,10 @@ class TestConvertStaticSpriteInconsistentWidths:
     """Test AnimatedSprite._convert_static_sprite with inconsistent row widths."""
 
     def test_inconsistent_widths_pads_rows(self, tmp_path):
-        """Test loading a static sprite with inconsistent row widths pads them."""
+        """A short row in a static sprite is padded with transparent pixels, not a color.
+
+        The old rule filled with the most common glyph, so this sprite drew solid black.
+        """
         toml_content = """[sprite]
 name = "inconsistent"
 pixels = \"\"\"
@@ -2269,7 +2272,9 @@ blue = 0
         sprite = AnimatedSprite()
         sprite.load(str(toml_file))
         assert sprite.name == 'inconsistent'
-        assert sprite.animation_count >= 1
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        assert frame.pixels == [(0, 0, 0), (0, 0, 0), (0, 0, 0), (255, 0, 255)]
 
 
 class TestAnimatedSpriteLoadEdgeCases:
@@ -3843,21 +3848,26 @@ class TestTomlLoadingFallbacks:
         assert len(sprite.animation_data['walk']) == 1
         assert sprite.animation_data['walk'][0].pixels == [(0, 0, 0)]
 
-    def test_ragged_rows_are_normalized_to_the_most_common_width(self, tmp_path, caplog):
-        """Short rows are padded with their last glyph and long rows are cut, with a warning."""
+    def test_ragged_rows_widen_to_the_longest_with_transparent_padding(self, tmp_path, caplog):
+        """Short rows are padded with transparent pixels to the longest, and nothing is cut.
+
+        The repair is logged. The old rule cut the long row and padded with each row's last
+        glyph.
+        """
         with caplog.at_level(logging.WARNING):
             sprite = self._load(tmp_path, RAGGED_FRAME_TOML)
         frame = sprite.get_current_frame()
         assert frame is not None
-        assert frame.image.get_size() == (3, 4)
-        black, white = (0, 0, 0), (255, 255, 255)
-        assert frame.pixels == [
-            black, white, white,
-            black, white, white,
-            black, white, white,
-            black, white, white,
+        assert frame.image.get_size() == (4, 4)
+        black, white, clear = (0, 0, 0), (255, 255, 255), (255, 0, 255)
+        # A frame with a transparent pixel stores RGBA (needs_alpha_channel), so compare colors
+        assert [pixel[:3] for pixel in frame.pixels] == [
+            black, white, white, clear,
+            black, white, clear, clear,
+            black, white, white, clear,
+            black, white, white, black,
         ]  # fmt: skip
-        assert 'Inconsistent line lengths' in caplog.text
+        assert 'pixel rows repaired' in caplog.text
 
 
 EXPLICIT_OPAQUE_ALPHA_TOML = """[sprite]
@@ -4169,3 +4179,170 @@ class TestFrameDumpOnlyWithDebugLogging:
 
         assert not sprite.is_playing
         assert 'Animation ended, stopped at frame 1' in caplog.text
+
+
+# The palette of the "Before and after" table in the pixel-rows design, found at
+# docs/specs/2026-10-30-unified-pixel-rows-design.md
+TABLE_PALETTE = {
+    'x': (200, 10, 10),
+    'a': (10, 200, 10),
+    'b': (10, 10, 200),
+    'c': (200, 200, 10),
+    'd': (10, 200, 200),
+}
+TABLE_COLORS_TOML = ''.join(
+    f'[colors."{glyph}"]\nred = {red}\ngreen = {green}\nblue = {blue}\n\n'
+    for glyph, (red, green, blue) in TABLE_PALETTE.items()
+)
+
+
+def _static_sprite_toml(pixels: str, colors_toml: str = TABLE_COLORS_TOML) -> str:
+    return f'[sprite]\nname = "rows"\npixels = """\n{pixels}\n"""\n\n{colors_toml}'
+
+
+def _animated_sprite_toml(pixels: str, colors_toml: str = TABLE_COLORS_TOML) -> str:
+    return (
+        '[sprite]\nname = "rows"\n\n[[animation]]\nnamespace = "walk"\nframe_interval = 1\n\n'
+        f'[[animation.frame]]\nframe_index = 0\npixels = """\n{pixels}\n"""\n\n{colors_toml}'
+    )
+
+
+def _drawn_rows(sprite: AnimatedSprite) -> list[str]:
+    """Read the first frame back as glyphs of TABLE_PALETTE, '·' for a transparent pixel.
+
+    Returns:
+        list[str]: One string per row.
+
+    """
+    frame = sprite.get_current_frame()
+    assert frame is not None
+    width, height = frame.image.get_size()
+    glyphs_by_color = {color: glyph for glyph, color in TABLE_PALETTE.items()}
+    return [
+        ''.join(
+            glyphs_by_color.get(tuple(frame.pixels[row * width + column][:3]), '·')
+            for column in range(width)
+        )
+        for row in range(height)
+    ]
+
+
+class TestOnePixelRowRule:
+    """Static sprites and animation frames load through normalize_pixel_rows."""
+
+    @staticmethod
+    def _load(tmp_path: Path, toml_content: str, name: str = 'rows.toml') -> AnimatedSprite:
+        toml_file = tmp_path / name
+        toml_file.write_text(toml_content, encoding='utf-8')
+        return AnimatedSprite(str(toml_file))
+
+    # Each case is the pixel text and what both layers now draw, from the spec's "Before and
+    # after" table
+    @pytest.mark.parametrize(
+        ('pixels', 'drawn'),
+        [
+            ('x\nxxxx\nx\nx', ['x···', 'xxxx', 'x···', 'x···']),
+            ('abcd\nab\nab', ['abcd', 'ab··', 'ab··']),
+            ('xxxx\nxxx\nxxxx', ['xxxx', 'xxx·', 'xxxx']),
+            ('ab\n\nab', ['ab', '··', 'ab']),
+            ('  ab\nab\nab', ['··ab', 'ab··', 'ab··']),
+            ('  x\n xxx\nxxxxx', ['··x··', '·xxx·', 'xxxxx']),
+            ('ab\nabc', ['ab·', 'abc']),
+        ],
+        ids=[
+            'sword',
+            'one long row',
+            'short row in a tile',
+            'blank line between rows',
+            'one indented row',
+            'space pyramid',
+            'tie in widths',
+        ],
+    )
+    def test_before_and_after_table(self, tmp_path, pixels, drawn):
+        """Each case draws the table's "New" column as a static sprite and as an animation."""
+        static_sprite = self._load(tmp_path, _static_sprite_toml(pixels), 'static.toml')
+        animated_sprite = self._load(tmp_path, _animated_sprite_toml(pixels), 'animated.toml')
+        assert _drawn_rows(static_sprite) == drawn
+        assert _drawn_rows(animated_sprite) == drawn
+
+    def test_static_short_row_pads_transparent(self, tmp_path):
+        """A static sprite's short row ends in magenta, and the repair is recorded."""
+        sprite = self._load(tmp_path, _static_sprite_toml('ab\na'))
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        assert frame.pixels[3] == (255, 0, 255)
+        assert len(sprite.pixel_row_repairs) == 1
+        assert sprite.pixel_row_repairs[0].startswith('sprite: row widths differ')
+
+    def test_animated_sword_keeps_its_crossguard(self, tmp_path):
+        """The crossguard row widens the frame instead of being cut to the shaft's width."""
+        sprite = self._load(tmp_path, _animated_sprite_toml('x\nxxxx\nx\nx'))
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        assert frame.image.get_size() == (4, 4)
+        assert _drawn_rows(sprite)[1] == 'xxxx'
+        assert sprite.pixel_row_repairs[0].startswith('walk frame 0: row widths differ')
+
+    def test_animated_blank_interior_line_is_kept(self, tmp_path):
+        """A blank line between rows stays, as a transparent row."""
+        sprite = self._load(tmp_path, _animated_sprite_toml('ab\n\nab'))
+        assert _drawn_rows(sprite) == ['ab', '··', 'ab']
+
+    def test_static_and_animated_agree(self, tmp_path):
+        """The same ragged text draws the same pixels as a static sprite and as a frame."""
+        pixels = '  ab\nabcd\n\na'
+        static_sprite = self._load(tmp_path, _static_sprite_toml(pixels), 'static.toml')
+        animated_sprite = self._load(tmp_path, _animated_sprite_toml(pixels), 'animated.toml')
+        static_frame = static_sprite.get_current_frame()
+        animated_frame = animated_sprite.get_current_frame()
+        assert static_frame is not None
+        assert animated_frame is not None
+        # A static sprite stores RGB and a frame with a transparent pixel RGBA (a storage
+        # difference older than this rule), so compare the colors drawn
+        assert [pixel[:3] for pixel in static_frame.pixels] == [
+            pixel[:3] for pixel in animated_frame.pixels
+        ]
+
+    def test_blank_frame_is_skipped(self, tmp_path):
+        """A frame whose pixels are only blank lines has nothing to draw and is left out."""
+        toml_content = _animated_sprite_toml('ab').replace(
+            '[[animation.frame]]',
+            '[[animation.frame]]\nframe_index = 0\npixels = """\n\n  \n"""\n\n[[animation.frame]]',
+            1,
+        )
+        sprite = self._load(tmp_path, toml_content)
+        assert len(sprite.animation_data['walk']) == 1
+        assert sprite.pixel_row_repairs == []
+
+    def test_palette_key_u0000_is_dropped_and_reported(self, tmp_path):
+        """A palette key U+0000 can't color the padding: it is dropped and reported."""
+        colors_toml = TABLE_COLORS_TOML + '[colors."\\u0000"]\nred = 255\ngreen = 0\nblue = 0\n'
+        sprite = self._load(tmp_path, _animated_sprite_toml('a\naa', colors_toml))
+        frame = sprite.get_current_frame()
+        assert frame is not None
+        assert frame.pixels[1][:3] == (255, 0, 255)
+        assert any(repair.startswith('palette: ') for repair in sprite.pixel_row_repairs)
+
+    def test_repairs_are_logged_once_per_block(self, tmp_path, caplog):
+        """Each repaired block logs one warning naming the file; clean blocks log nothing."""
+        toml_content = (
+            '[sprite]\nname = "rows"\n\n[[animation]]\nnamespace = "walk"\nframe_interval = 1\n\n'
+            '[[animation.frame]]\nframe_index = 0\npixels = """\nab\na\n"""\n\n'
+            '[[animation.frame]]\nframe_index = 1\npixels = """\nab\nab\n"""\n\n'
+            '[[animation.frame]]\nframe_index = 2\npixels = """\nab\n\nab\n"""\n\n'
+            f'{TABLE_COLORS_TOML}'
+        )
+        with caplog.at_level(logging.WARNING):
+            self._load(tmp_path, toml_content, 'logged.toml')
+        warnings = [record for record in caplog.records if 'pixel rows repaired' in record.message]
+        assert len(warnings) == 2
+        assert all('logged.toml' in record.message for record in warnings)
+
+    def test_clean_sprite_has_no_repairs(self):
+        """A repo sprite loads with nothing repaired."""
+        sprite_file = (
+            Path(__file__).parents[2]
+            / 'src/apps/bitmappy/src/bitmappy/resources/sprites/small_heart.toml'
+        )
+        assert AnimatedSprite(str(sprite_file)).pixel_row_repairs == []

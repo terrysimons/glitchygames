@@ -36,6 +36,7 @@ from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 from .file_format import detect_file_format
 from .frame import FrameManager, SpriteFrame
 from .pixel_utils import (
+    PADDING_GLYPH,
     convert_pixels_to_rgb_if_possible,
     convert_pixels_to_rgba_if_needed,
     create_alpha_surface,
@@ -45,6 +46,8 @@ from .pixel_utils import (
     lookup_pixel_char,
     needs_alpha_channel,
     normalize_pixel_for_color_map,
+    normalize_pixel_rows,
+    palette_key_problems,
 )
 
 # Characters TOML basic strings must escape with a short escape sequence
@@ -590,6 +593,12 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # save writes the animation state machine back; transitions games add in code are not
         # part of it
         self.transition_data: list[dict[str, Any]] = []
+        # What the last load had to repair in its pixel rows, one entry per repair, each
+        # '<label>: <repair>' (label 'sprite', '<namespace> frame <frame_index>' or 'palette');
+        # see normalize_pixel_rows. Bitmappy shows a notice when it isn't empty
+        self.pixel_row_repairs: list[str] = []
+        # Names the source in the repair warnings: the file being loaded
+        self._pixel_rows_source = '<data>'
         self._is_playing: bool = False
         self._is_looping: bool = False
         self._frame_timer: float = 0.0
@@ -1334,8 +1343,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self._animation_frame_intervals = {}
         self._loop_flags = {}
         self.transition_data = [dict(transition) for transition in data.get('transition', [])]
+        self.pixel_row_repairs = []
+        self._pixel_rows_source = filename
 
         color_map, color_order, colors_with_per_pixel_alpha = self.build_color_map(data)
+        self._record_pixel_row_repairs('palette', palette_key_problems(data.get('colors', {})))
         self._color_map = color_map  # Store color map for later use
         self._color_order = color_order  # Store color order for preserving file format
         # Store which colors originally had alpha=0-254 (per-pixel
@@ -1400,35 +1412,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         sprite_data = data['sprite']
         pixels = sprite_data['pixels']
 
-        # Parse pixel rows
-        pixel_rows = pixels.strip().split('\n')
-        height = len(pixel_rows)
-
-        # Calculate maximum width across all rows to handle inconsistent widths
-        row_widths = [len(row) for row in pixel_rows]
-        width = max(row_widths) if row_widths else 0
-
-        # Check for inconsistent row widths and pad if needed
-        if len(set(row_widths)) > 1:
-            self.log.warning(
-                'Inconsistent row widths detected in static sprite: '
-                'min=%s, max=%s. '
-                'Padding shorter rows to %s characters.',
-                min(row_widths),
-                max(row_widths),
-                width,
-            )
-            # Pad shorter rows with first character (usually transparency)
-            # Find the most common character to use as padding (likely transparency)
-            from collections import Counter
-
-            all_chars = ''.join(pixel_rows)
-            char_counts = Counter(all_chars)
-            pad_char = char_counts.most_common(1)[0][0] if char_counts else ' '
-
-            # Pad rows to consistent width
-            pixel_rows = [row.ljust(width, pad_char) for row in pixel_rows]
-            self.log.debug("Using '%s' as padding character", pad_char)
+        # The one pixel-row rule, shared with animation frames (normalize_pixel_rows)
+        normalized = normalize_pixel_rows(pixels, color_map.keys())
+        self._record_pixel_row_repairs('sprite', normalized.repairs)
+        pixel_rows = normalized.rows
+        width, height = normalized.width, normalized.height
 
         # Create a surface from the pixel data
         surface = pygame.Surface((width, height))
@@ -1501,6 +1489,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         original_alpha_values: dict[str, int] = {}
         colors_section: dict[str, Any] = data.get('colors', {})
         for char, color_data in colors_section.items():
+            if char == PADDING_GLYPH:
+                # normalize_pixel_rows pads with it, so it can't be a color (the load reports
+                # it through palette_key_problems)
+                continue
             r = color_data.get('red', 0)
             g = color_data.get('green', 0)
             b = color_data.get('blue', 0)
@@ -1551,7 +1543,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         frames: list[SpriteFrame] = []
         for frame_idx, frame_data in enumerate(frames_data):
-            frame = self._create_toml_frame(frame_data, frame_idx, color_map, frame_interval)
+            frame = self._create_toml_frame(
+                frame_data, frame_idx, color_map, frame_interval, animation_name=anim_name
+            )
             if frame:
                 frames.append(frame)
 
@@ -1576,8 +1570,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         frame_idx: int,
         color_map: dict[str, tuple[int, ...]],
         frame_interval: float = 0.5,
+        animation_name: str = 'default',
     ) -> SpriteFrame | None:
         """Create a SpriteFrame from TOML frame data.
+
+        animation_name names the frame in pixel-row repair reports.
 
         Returns:
             SpriteFrame: The result.
@@ -1587,16 +1584,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self.log.debug('  Processing frame %s (data index %s)', frame_index, frame_idx)
 
         pixel_data = frame_data.get('pixels', '')
-        pixel_lines = AnimatedSprite.parse_toml_pixel_lines(pixel_data)
-
-        if not pixel_lines:
+        # The one pixel-row rule, shared with static sprites (normalize_pixel_rows)
+        normalized = normalize_pixel_rows(pixel_data, color_map.keys())
+        if not normalized.rows:
             self.log.debug('    Skipping empty frame %s', frame_index)
             return None
-
-        width, height, normalized_lines = self._validate_toml_frame_dimensions(
-            pixel_lines,
-            frame_index,
-        )
+        self._record_pixel_row_repairs(f'{animation_name} frame {frame_index}', normalized.repairs)
+        width, height = normalized.width, normalized.height
+        normalized_lines = list(normalized.rows)
         # Extract the frame's colors once: they decide the surface type and are the frame's
         # pixel data
         raw_pixels = extract_pixel_colors(normalized_lines, width, height, color_map)
@@ -1626,8 +1621,25 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         else:
             frame.pixels = convert_pixels_to_rgb_if_possible(raw_pixels)
 
-        self._log_frame_debug_info(frame_index, pixel_lines, frame_data)
+        self._log_frame_debug_info(frame_index, normalized_lines, frame_data)
         return frame
+
+    def _record_pixel_row_repairs(self: Self, label: str, repairs: tuple[str, ...]) -> None:
+        """Keep a block's pixel-row repairs and log them in one warning.
+
+        Args:
+            label: Names the block: 'sprite', '<namespace> frame <frame_index>' or 'palette'.
+            repairs: What normalize_pixel_rows (or palette_key_problems) reported; may be empty.
+
+        """
+        if not repairs:
+            return
+        self.pixel_row_repairs.extend(f'{label}: {repair}' for repair in repairs)
+        self.log.warning(
+            '%s: pixel rows repaired: %s',
+            self._pixel_rows_source,
+            '; '.join(f'{label}: {repair}' for repair in repairs),
+        )
 
     @staticmethod
     def _parse_hitbox_data(
