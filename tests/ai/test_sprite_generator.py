@@ -1,5 +1,7 @@
 """Tests for AI sprite generation functionality."""
 
+import tomllib
+
 from glitchygames.ai.sprite_generator import (
     SpriteGenerationPrompt,
     _check_mixed_format,
@@ -747,6 +749,30 @@ class TestReconstructStaticSprite:
         }
         result = _reconstruct_static_sprite(example)
         assert 'alpha = 128' in result
+
+    def test_prompt_examples_are_valid_toml(self):
+        """Examples with TOML's own characters as glyphs, in both pixel forms, parse back."""
+        colors = {
+            '\\': {'red': 1, 'green': 2, 'blue': 3},
+            '"': {'red': 4, 'green': 5, 'blue': 6},
+        }
+        for pixels in ('\\"\n"\\', '\\"'):
+            example = {'name': 'a "b"', 'pixels': pixels, 'colors': colors}
+            reparsed = tomllib.loads(_reconstruct_static_sprite(example))
+            assert reparsed['sprite']['pixels'].removesuffix('\n') == pixels
+            assert reparsed['sprite']['name'] == 'a "b"'
+            assert reparsed['colors'] == colors
+
+        animated_example = {
+            'name': 'x',
+            'animations': [
+                {'namespace': 'walk', 'frame': [{'frame_index': 0, 'pixels': '\\"\n"\\'}]}
+            ],
+            'colors': colors,
+        }
+        reparsed = tomllib.loads(_reconstruct_animated_sprite(animated_example))
+        assert reparsed['animation'][0]['frame'][0]['pixels'].removesuffix('\n') == '\\"\n"\\'
+        assert reparsed['colors'] == colors
 
 
 class TestReconstructAnimatedSprite:

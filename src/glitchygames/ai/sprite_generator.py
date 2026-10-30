@@ -9,6 +9,7 @@ import re
 from typing import Any, cast
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE
+from glitchygames.sprites.animated import toml_basic_string, toml_pixel_block
 
 LOG = logging.getLogger('game.ai.sprite_generator')
 
@@ -199,6 +200,18 @@ def _training_example_body(example: dict[str, Any], *, include_raw: bool) -> str
     return '# (Format unavailable)'
 
 
+def _pixels_line(pixels: str) -> str:
+    """Write a pixels key: a multi-line block for rows, a basic string for one line.
+
+    Returns:
+        str: The ``pixels = ...`` line(s), escaped so any glyph is valid TOML.
+
+    """
+    if '\n' in pixels:
+        return f'pixels = {toml_pixel_block(pixels)}'
+    return f'pixels = {toml_basic_string(pixels)}'
+
+
 def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
     """Reconstruct static sprite TOML from example data.
 
@@ -207,20 +220,16 @@ def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
 
     """
     lines = ['[sprite]']
-    lines.append(f'name = "{example.get("name", "unknown")}"')
+    lines.append(f'name = {toml_basic_string(example.get("name", "unknown"))}')
 
-    # Handle pixels
+    # Handle pixels (escaped, so any glyph is valid TOML)
     pixels = example.get('pixels', '')
-    if '\n' in pixels:
-        lines.append(f'pixels = """\n{pixels}\n"""')
-    else:
-        lines.append(f'pixels = "{pixels}"')
-    lines.append('')
+    lines.extend((_pixels_line(pixels), ''))
 
     # Add colors
     colors: dict[str, Any] = example.get('colors', {})
     for char, color_data in sorted(colors.items()):
-        lines.append(f'[colors."{char}"]')
+        lines.append(f'[colors.{toml_basic_string(char)}]')
         if isinstance(color_data, dict):
             color_dict = cast('dict[str, int]', color_data)
             lines.extend((
@@ -244,7 +253,7 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
     """
     lines = ['[sprite]']
     lines.extend((
-        f'name = "{example.get("name", "unknown")}"',
+        f'name = {toml_basic_string(example.get("name", "unknown"))}',
         '',
     ))
 
@@ -276,12 +285,9 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
                 f'frame_index = {frame_dict.get("frame_index", 0)}',
             ))
 
-            # Handle pixels
+            # Handle pixels (escaped, so any glyph is valid TOML)
             pixels: str = frame_dict.get('pixels', '')
-            if '\n' in pixels:
-                lines.append(f'pixels = """\n{pixels}\n"""')
-            else:
-                lines.append(f'pixels = "{pixels}"')
+            lines.append(_pixels_line(pixels))
 
             if 'frame_interval' in frame_dict:
                 lines.append(f'frame_interval = {frame_dict["frame_interval"]}')
@@ -290,7 +296,7 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
     # Add colors
     colors: dict[str, Any] = example.get('colors', {})
     for char, color_data in sorted(colors.items()):
-        lines.append(f'[colors."{char}"]')
+        lines.append(f'[colors.{toml_basic_string(char)}]')
         if isinstance(color_data, dict):
             anim_color_dict = cast('dict[str, int]', color_data)
             lines.extend((

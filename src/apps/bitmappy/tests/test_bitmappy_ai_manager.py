@@ -1055,6 +1055,46 @@ class TestConstructTomlWithPreservedFormatting:
 
         assert content == '[sprite]\n'
 
+    def test_ai_rewrite_keeps_alpha(self):
+        """A color's alpha is written back, so a see-through color stays see-through."""
+        data = tomllib.loads(STATIC_SPRITE_TOML)
+        first_glyph = next(iter(data['colors']))
+        data['colors'][first_glyph]['alpha'] = 128
+
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(data)  # type: ignore[arg-type]
+
+        assert tomllib.loads(content)['colors'][first_glyph]['alpha'] == 128
+
+    def test_ai_rewrite_escapes_name_description_and_rows(self):
+        """Text and rows with TOML's own characters parse back to the same values."""
+        data = {
+            'sprite': {
+                'name': 'a "quoted" \\ name',
+                'description': 'draw """ a \\ thing',
+                'pixels': 'b\\\nbb\n',
+            },
+            'animation': [
+                {
+                    'namespace': 'walk',
+                    'frame_interval': 0.5,
+                    'loop': True,
+                    'frame': [{'frame_index': 0, 'pixels': '"b\nb\\\n'}],
+                }
+            ],
+            'colors': {
+                '\\': {'red': 1, 'green': 2, 'blue': 3},
+                '"': {'red': 4, 'green': 5, 'blue': 6},
+                'b': {'red': 7, 'green': 8, 'blue': 9},
+            },
+        }
+
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(data)  # type: ignore[arg-type]
+
+        reparsed = tomllib.loads(content)
+        assert reparsed['sprite'] == data['sprite']
+        assert reparsed['animation'][0]['frame'][0]['pixels'] == '"b\nb\\\n'
+        assert reparsed['colors'] == data['colors']
+
 
 class TestTemporaryFilesAndStaticLoad:
     """Test temp file creation and the static sprite load path."""

@@ -36,6 +36,11 @@ from glitchygames.sprites import (
     SPRITE_GLYPHS,
     SpriteFactory,
 )
+from glitchygames.sprites.animated import (
+    toml_basic_string,
+    toml_multiline_basic_string,
+    toml_pixel_block,
+)
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
 
 from .ai_worker import (
@@ -647,12 +652,10 @@ class AIManager:
                     '[[animation.frame]]',
                     f'namespace = "{animation["namespace"]}"',
                     f'frame_index = {frame["frame_index"]}',
-                    'pixels = """',
-                    # The closing quotes go on their own line, which ends the last pixel row:
-                    # keeping the parsed trailing newline too would add a blank line per
-                    # rewrite (BUGS.md #110 item 7)
-                    frame['pixels'].removesuffix('\n'),
-                    '"""',
+                    # toml_pixel_block escapes each row and drops the parsed trailing newline:
+                    # the closing quotes' line ends the last row, and keeping it too would add a
+                    # blank line per rewrite (BUGS.md #110 item 7)
+                    f'pixels = {toml_pixel_block(frame["pixels"])}',
                     '',
                 ])
         return lines
@@ -674,16 +677,15 @@ class AIManager:
             lines.append('[sprite]')
             sprite_data = data['sprite']
             if 'name' in sprite_data:
-                lines.append(f'name = "{sprite_data["name"]}"')
+                lines.append(f'name = {toml_basic_string(sprite_data["name"])}')
             if 'description' in sprite_data:
-                lines.append(f'description = """{sprite_data["description"]}"""')
+                lines.append(
+                    f'description = {toml_multiline_basic_string(sprite_data["description"])}'
+                )
             if 'pixels' in sprite_data:
-                lines.extend((
-                    'pixels = """',
-                    # The closing quotes' line ends the last row (see _format_animation_sections)
-                    sprite_data['pixels'].removesuffix('\n'),
-                    '"""',
-                ))
+                # Escaped rows, the closing quotes' line ending the last (see
+                # _format_animation_sections)
+                lines.append(f'pixels = {toml_pixel_block(sprite_data["pixels"])}')
             lines.append('')
 
         # Add animation sections
@@ -696,12 +698,15 @@ class AIManager:
             # Dict keys are unique, so each color is written once
             for color_key, color_data in data['colors'].items():
                 lines.extend([
-                    f'[colors."{color_key}"]',
+                    f'[colors.{toml_basic_string(color_key)}]',
                     f'red = {color_data["red"]}',
                     f'green = {color_data["green"]}',
                     f'blue = {color_data["blue"]}',
-                    '',
                 ])
+                # A see-through color keeps its alpha (it used to be dropped, so it loaded opaque)
+                if 'alpha' in color_data:
+                    lines.append(f'alpha = {color_data["alpha"]}')
+                lines.append('')
 
         return '\n'.join(lines)
 

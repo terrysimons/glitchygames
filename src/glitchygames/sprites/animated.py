@@ -91,6 +91,25 @@ def toml_basic_string(value: str) -> str:
     return '"' + ''.join(escaped_characters) + '"'
 
 
+def toml_pixel_block(pixel_text: str) -> str:
+    """Write pixel rows as a TOML multi-line basic string, one row per line.
+
+    Each row is escaped as toml_basic_string escapes (a backslash, a quote and control
+    characters), so any glyph survives: unescaped, a row ending in a backslash glyph joins the
+    next row (TOML's line-ending backslash), and three quote glyphs end the string. The line
+    breaks between rows stay real so the rows stay readable. A trailing line break of the input
+    is dropped: the closing quotes' line ends the last row.
+
+    Returns:
+        str: The rows wrapped in triple quotes, the opening quotes on their own line.
+
+    """
+    rows = pixel_text.removesuffix('\n').split('\n')
+    # toml_basic_string quotes a row; the quotes are dropped, the escapes kept
+    escaped_rows = [toml_basic_string(row)[1:-1] for row in rows]
+    return '"""\n' + '\n'.join(escaped_rows) + '\n"""'
+
+
 def toml_multiline_basic_string(value: str) -> str:
     """Quote a string as a TOML multi-line basic string (triple quotes), escaping as needed.
 
@@ -1844,9 +1863,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 f.write(f'description = {toml_multiline_basic_string(self.description)}\n')
             if self.frame_anchor is not FrameAnchor.NONE:
                 f.write(f'frame_anchor = "{self.frame_anchor.value}"\n')
-            f.write('pixels = """\n')
-            f.write('\n'.join(pixel_rows))
-            f.write('\n"""\n\n')
+            f.write(f'pixels = {toml_pixel_block("\n".join(pixel_rows))}\n\n')
 
             hitbox_data = self._get_effective_static_hitbox(frame)
             if hitbox_data is not None:
@@ -2276,9 +2293,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 f.write(f'frame_index = {frame["frame_index"]}\n')
                 if 'frame_interval' in frame:
                     f.write(f'frame_interval = {frame["frame_interval"]}\n')
-                f.write('pixels = """\n')
-                f.write(frame['pixels'])
-                f.write('\n"""\n\n')
+                f.write(f'pixels = {toml_pixel_block(frame["pixels"])}\n\n')
 
                 # Write per-frame hitbox if present
                 if 'hitbox' in frame:
@@ -2364,7 +2379,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
             for char in chars_to_write:
                 color = data['colors'][char]
-                f.write(f'[colors."{char}"]\n')
+                # Quoted and escaped, so a backslash or quote glyph is a valid key
+                f.write(f'[colors.{toml_basic_string(char)}]\n')
                 f.write(f'red = {color["red"]}\n')
                 f.write(f'green = {color["green"]}\n')
                 f.write(f'blue = {color["blue"]}\n')
