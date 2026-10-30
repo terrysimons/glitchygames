@@ -7,6 +7,7 @@ or listed in ``RECORDINGS_NOT_REPLAYED`` with what reads it.
 from __future__ import annotations
 
 import importlib
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -54,8 +55,9 @@ def recordings_no_test_replays(*, project_root: Path, demo_install_names: set[st
     """Return the repository's recordings that no test replays, by repository path.
 
     A recording is replayed when the golden-replay plugin collects it (under
-    ``fixtures/replays/``, not a bookmarked copy: glitchygames/testing/replays.py) or when it is
-    a bundled demo of a member package (tests/replay/test_bundled_demos.py replays each).
+    ``fixtures/replays/``, not a bookmarked copy: glitchygames/testing/replays.py, and inside
+    one of pytest's ``testpaths``, the only directories pytest walks) or when it is a bundled
+    demo of a member package (tests/replay/test_bundled_demos.py replays each).
 
     Args:
         project_root: The repository.
@@ -71,6 +73,10 @@ def recordings_no_test_replays(*, project_root: Path, demo_install_names: set[st
         for member in workspace_members(project_root=project_root)
         for package_directory in member.package_directories
     ]
+    pyproject = tomllib.loads((project_root / 'pyproject.toml').read_text(encoding='utf-8'))
+    testpaths = [
+        Path(testpath) for testpath in pyproject['tool']['pytest']['ini_options']['testpaths']
+    ]
     searched = [
         project_root / relative_path
         for relative_path in files_not_ignored(directory=project_root)
@@ -81,8 +87,10 @@ def recordings_no_test_replays(*, project_root: Path, demo_install_names: set[st
         relative_path = path.relative_to(project_root)
         if relative_path.is_relative_to(GOLDEN_TRACES_DIRECTORY):
             continue
-        collected = is_under_replay_fixtures(directory=relative_path.parent) and not (
-            is_bookmarked_copy(path=path)
+        collected = (
+            any(relative_path.is_relative_to(testpath) for testpath in testpaths)
+            and is_under_replay_fixtures(directory=relative_path.parent)
+            and not is_bookmarked_copy(path=path)
         )
         bundled = any(
             path.is_relative_to(package_directory)
@@ -171,18 +179,59 @@ def test_every_committed_recording_is_replayed_by_a_test():
     demo_install_names = {demo.install_name for demo in bundled_demos(packages=MEMBER_PACKAGES)}
 
     assert demo_install_names, 'no bundled demo found: this check would pass on zero'
-    assert recordings_no_test_replays(
+    unreplayed = recordings_no_test_replays(
         project_root=PROJECT_ROOT, demo_install_names=demo_install_names
-    ) == sorted(RECORDINGS_NOT_REPLAYED)
+    )
+    assert unreplayed == sorted(RECORDINGS_NOT_REPLAYED), stray_recordings_message(
+        unreplayed=unreplayed
+    )
+
+
+def stray_recordings_message(*, unreplayed: list[str]) -> str:
+    """Tell a developer what to do with recordings no test replays.
+
+    Args:
+        unreplayed: The recordings no test replays, by repository path.
+
+    Returns:
+        The failure message: the strays, the listed ones gone, and the three ways out.
+
+    """
+    strays = sorted(set(unreplayed) - set(RECORDINGS_NOT_REPLAYED))
+    gone = sorted(set(RECORDINGS_NOT_REPLAYED) - set(unreplayed))
+    return (
+        f'Recordings no test replays: {strays or "none"}; listed in RECORDINGS_NOT_REPLAYED but '
+        f"replayed or gone: {gone or 'none'}. For each stray: commit it as a golden (a member's "
+        'tests/fixtures/replays/) or a bundled demo (<package>/demos/), list it in '
+        'RECORDINGS_NOT_REPLAYED with what reads it, or move it into test-results/, which git '
+        'ignores. Take a listed one that is gone or now replayed out of RECORDINGS_NOT_REPLAYED'
+    )
+
+
+def test_the_stray_recordings_message_says_what_to_do():
+    """The failure names each stray and the three ways out."""
+    message = stray_recordings_message(
+        unreplayed=[*RECORDINGS_NOT_REPLAYED, 'docs/fixtures/replays/a/stray.jsonl.gz']
+    )
+
+    assert "Recordings no test replays: ['docs/fixtures/replays/a/stray.jsonl.gz']" in message
+    assert 'replayed or gone: none' in message
+    for way_out in ('as a golden', 'list it in RECORDINGS_NOT_REPLAYED', 'test-results/'):
+        assert way_out in message
 
 
 def test_a_recording_kept_elsewhere_is_one_no_test_replays(tmp_path):
-    """A planted workspace: its golden and demo are replayed, a stray recording is not."""
+    """A planted workspace: its golden and demo are replayed; stray recordings are not.
+
+    A stray is one outside fixtures/replays/, or inside one that no pytest testpath holds (the
+    plugin collects only what pytest walks).
+    """
     returncode, output = run_git(arguments=['init', '--quiet'], directory=tmp_path)
     assert returncode == 0, output
     (tmp_path / 'pyproject.toml').write_text(
         '[project]\nname = "glitchygames"\n\n'
-        '[tool.uv.workspace]\nmembers = ["src/games/space-game"]\n',
+        '[tool.uv.workspace]\nmembers = ["src/games/space-game"]\n\n'
+        '[tool.pytest.ini_options]\ntestpaths = ["tests", "src/games/space-game/tests"]\n',
         encoding='utf-8',
     )
     member = tmp_path / 'src' / 'games' / 'space-game'
@@ -197,6 +246,9 @@ def test_a_recording_kept_elsewhere_is_one_no_test_replays(tmp_path):
         'demo': member / 'src' / 'space_game' / 'demos' / 'attract.jsonl.gz',
         'stray': member / 'tests' / 'fixtures' / 'recordings' / 'stray.jsonl.gz',
         'trace': tmp_path / GOLDEN_TRACES_DIRECTORY / 'space_game.jsonl.gz',
+        # Under fixtures/replays/, but outside every testpath: pytest never collects them
+        'docs': tmp_path / 'docs' / 'fixtures' / 'replays' / 'space-game' / 'doc.jsonl.gz',
+        'package': member / 'src' / 'space_game' / 'fixtures' / 'replays' / 'kept.jsonl.gz',
     }
     for path in planted.values():
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -204,4 +256,8 @@ def test_a_recording_kept_elsewhere_is_one_no_test_replays(tmp_path):
 
     assert recordings_no_test_replays(
         project_root=tmp_path, demo_install_names={'space_game/demos/attract.jsonl.gz'}
-    ) == ['src/games/space-game/tests/fixtures/recordings/stray.jsonl.gz']
+    ) == [
+        'docs/fixtures/replays/space-game/doc.jsonl.gz',
+        'src/games/space-game/src/space_game/fixtures/replays/kept.jsonl.gz',
+        'src/games/space-game/tests/fixtures/recordings/stray.jsonl.gz',
+    ]
