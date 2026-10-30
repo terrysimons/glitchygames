@@ -1,0 +1,19 @@
+# Hand-written fixture: CRLF line endings in an animated sprite
+[[animation]]
+namespace = "blink"
+
+[[animation.frame]]
+pixels = """
+ab
+ba
+"""
+
+[colors."a"]
+red = 1
+green = 2
+blue = 3
+
+[colors."b"]
+red = 4
+green = 5
+blue = 6
