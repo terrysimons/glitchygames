@@ -244,6 +244,35 @@ def recorded_frame_count(*, path: Path) -> int:
     return len(read_trace_result(path=path).trace['frames'])
 
 
+def recorded_frame_milliseconds(*, path: Path) -> list[float]:
+    """Return every frame's recorded dt in milliseconds, rounded to hundredths.
+
+    Returns:
+        One per frame.
+
+    """
+    return [round(frame['dt'] * 1000, 2) for frame in read_trace_result(path=path).trace['frames']]
+
+
+def presented_frames_evidence(*, recording: Path, run: WatchedRun) -> str:
+    """Return a watched replay's frame times and what it presented, for a failure message.
+
+    Args:
+        recording: The watched recording.
+        run: How its watched replay went.
+
+    Returns:
+        The recording's frame times (ms) and the presented frames' indexes, in order (None:
+        no frame of its own, such as the start screen).
+
+    """
+    return (
+        f'recorded frame times (ms) of {recording.name}: '
+        f'{recorded_frame_milliseconds(path=recording)}; '
+        f'presented frames: {[frame.frame_index for frame in run.presented]}'
+    )
+
+
 def install_color_game(*, install_directory: Path) -> StandInGame:
     """Install the color game (its package and its distribution's console script).
 
@@ -767,8 +796,13 @@ def test_a_shorter_old_holds_its_last_frame_with_the_label(color_game, mocker, t
 
     assert run.exit_status == ExitCode.SUCCESS
     shown = [frame for frame in run.presented if frame.frame_index is not None]
-    # The recorded game quits in its last frame, so the replay ends without presenting it
-    assert {frame.frame_index for frame in shown} == set(range(1, color_game.old_frame_count - 1))
+    # The recorded game quits in its last frame, so the replay ends without presenting it.
+    # OLD is recorded paced on this machine, and the viewer runs every frame its 60 Hz tick
+    # owes but presents only the last: the frame times and the presented sequence are the
+    # evidence when a frame is missing (scripts/replay_schedule.py simulates the schedule)
+    assert {frame.frame_index for frame in shown} == set(
+        range(1, color_game.old_frame_count - 1)
+    ), presented_frames_evidence(recording=color_game.old, run=run)
     for frame in shown:
         assert frame.frame_index is not None
         # OLD's last frame, its own green, stays over NEW's later ones
