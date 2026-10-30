@@ -70,6 +70,20 @@ class TestBitmappySprite:
         assert tuple(image.get_at((1, 0)))[:3] == (255, 0, 255)
         assert tuple(image.get_at((1, 1)))[:3] == (255, 0, 0)
 
+    def test_bitmappy_sprite_fallback_drops_a_u0000_palette_key(self):
+        """A palette key U+0000 can't color the padding: the padded pixel stays transparent."""
+        data = {
+            'sprite': {'name': 'short', 'pixels': 'R\nRR\n'},
+            'colors': {
+                'R': {'red': 255, 'green': 0, 'blue': 0},
+                '\x00': {'red': 0, 'green': 255, 'blue': 0},
+            },
+        }
+
+        image, _rect, _name = BitmappySprite()._static_sprite_from_toml_data(data)
+
+        assert tuple(image.get_at((1, 0)))[:3] == (255, 0, 255)
+
     def test_bitmappy_sprite_initialization_without_filename(self):
         """Test BitmappySprite initialization without filename."""
         sprite = BitmappySprite()

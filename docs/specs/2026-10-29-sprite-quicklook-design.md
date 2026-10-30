@@ -97,14 +97,12 @@ code point; Swift must iterate `unicodeScalars` to match (e.g. `█` U+2588 is o
 `(255, 0, 255)` with no alpha or alpha 255, or when its alpha is 0. Glyphs missing from `[colors]`
 render as magenta, i.e. transparent.
 
-**Pixel rows** (animated frames, `parse_toml_pixel_lines`): split on `\n`, strip each line, drop
-empty lines. Width is the most common line length; longer lines are truncated, shorter ones padded
-with their own last glyph.
-
-**Pixel rows** (static sprite, `_convert_static_sprite`): the whole string is stripped, then split on
-`\n` (lines are *not* individually stripped). Width is the longest row; shorter rows are padded with
-the most common glyph in the sprite. (This differs from the animated path — see "Engine quirks
-noticed".)
+**Pixel rows** (static sprites and animation frames alike, `normalize_pixel_rows`): one rule since
+2026-10-30, described in `docs/specs/2026-10-30-unified-pixel-rows-design.md`. Nothing is cut off;
+short rows are padded with transparent pixels to the longest. That design's "Before and after"
+table records the two rules this preview first copied (R4, animated: per-line strip, most common
+length, truncate, pad with the row's last glyph; R5, static: whole-string strip, longest row, pad
+with the most common glyph).
 
 **Animations**: each `[[animation]]` has `namespace` (default `"default"`), `frame_interval`
 (seconds, default 0.5), `loop` (default true), and `frame` entries. Frames play in **file order**: the engine means to sort by `frame_index`, but its sort
@@ -169,10 +167,11 @@ its last frame.
 - `frame_index` never orders frames: the engine's sort key reads an attribute no frame has, so frames
   play in file order. The preview copies that; tracked in `plans/future-work.md`.
 
-- Static and animated sprites normalize ragged rows differently (longest row + most-common-glyph
+- ~~Static and animated sprites normalize ragged rows differently (longest row + most-common-glyph
   pad vs most-common length + last-glyph pad + truncation), and static rows are not stripped per
   line. The preview copies both behaviors so it matches the engine. The owner wants the engine
-  unified later, on its own branch. That is tracked in `plans/future-work.md` under "Bugs found and
+  unified later, on its own branch.~~ Done 2026-10-30 (`feat/unified-pixel-rows`,
+  `docs/specs/2026-10-30-unified-pixel-rows-design.md`); the preview follows the one rule. That is tracked in `plans/future-work.md` under "Bugs found and
   not fixed yet"; when it lands, the QuickLook parser and its golden frames change with it.
 
 ## Changed while building (2026-10-29)

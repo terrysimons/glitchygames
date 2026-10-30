@@ -16,6 +16,7 @@ from glitchygames.ai.sprite_generator import (
     detect_refinement_request,
     format_training_example,
     get_sprite_size_hint,
+    pixel_row_problems,
     validate_ai_response,
 )
 
@@ -1170,6 +1171,11 @@ class TestValidateAiResponsePixelRows:
             '[colors."A"]\nred = 255\ngreen = 0\nblue = 0\n'
         )
         assert validate_ai_response(content) == (True, '')
+
+    def test_frame_without_pixels_has_nothing_to_check(self):
+        """A frame with no pixels key is left to the loader, which skips it."""
+        data = {'animation': [{'namespace': 'walk', 'frame': [{'frame_index': 0}]}]}
+        assert not pixel_row_problems(data)
 
     def test_row_check_can_be_turned_off(self):
         """Bitmappy runs the row check itself, on what it loads."""

@@ -4,6 +4,57 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 244. `scripts/foo.toml` Has Pixels and No Palette, So It Draws Nothing
+- **Description**: `scripts/foo.toml` (a "Bitmap Canvas" static sprite from #54) uses glyphs `.`, `O` and `X` with no `[colors]` table, so every pixel draws transparent. Nothing checks `scripts/`, so CI never saw it.
+- **Status**: Open (the owner decides whether it is kept, with a palette, or deleted; `plans/future-work.md`)
+- **Priority**: Low
+- **Reporter**: Found by the pixel-rows audit of every repo sprite (`feat/unified-pixel-rows`)
+- **Date Reported**: 2026-10-30
+- **Files**: `scripts/foo.toml`
+
+### 243. Bitmappy's AI Clean-Up Turns a `\` Glyph Followed by an `n` Glyph Into a Line Break
+- **Description**: `_normalize_escaped_newlines` (`src/apps/bitmappy/src/bitmappy/toml_processing.py`, used by the alpha path and `ai_manager`) replaces the two characters `\n` with a line break, so a row containing a backslash glyph followed by an `n` glyph is split in two.
+- **Status**: Open (its own branch, the owner, 2026-10-30; `plans/future-work.md`)
+- **Priority**: Low (needs both glyphs, adjacent)
+- **Reporter**: Found by the pixel-rows adversarial review
+- **Date Reported**: 2026-10-30
+- **Files**: `src/apps/bitmappy/src/bitmappy/toml_processing.py`
+
+### 242. Bitmappy's AI Rewrite Dropped Every Color's Alpha and Wrote Text Unescaped
+- **Description**: `AIManager._construct_toml_with_preserved_formatting` rewrites a generated sprite before loading it. It wrote each color's red, green and blue but not `alpha`, so a see-through color loaded opaque; and it wrote `name`, `description`, palette keys and pixel rows unescaped, so a prompt containing `\` or `"""` broke the file.
+- **Status**: Resolved (2026-10-30, `feat/unified-pixel-rows`: `alpha` is written when present; text goes through `toml_basic_string`/`toml_multiline_basic_string` and rows through `toml_pixel_block`)
+- **Priority**: Medium
+- **Reporter**: Found planning the pixel-rows writer fix
+- **Date Reported**: 2026-10-30
+- **Details**: `test_ai_rewrite_keeps_alpha`, `test_ai_rewrite_escapes_name_description_and_rows` (`src/apps/bitmappy/tests/test_bitmappy_ai_manager.py`).
+- **Files**: `src/apps/bitmappy/src/bitmappy/ai_manager.py`
+
+### 241. `cobra.toml`'s Second Eye Had No Color
+- **Description**: The cobra's eye rows read `GEeG`, but its palette had `E` and no `e`, so one eye of each pair drew transparent.
+- **Status**: Resolved (2026-10-30, `feat/unified-pixel-rows`: `e` = (180, 30, 30), a darker shade of `E` as `g` is of `G`; the owner: "You go ahead and patch it")
+- **Priority**: Low
+- **Reporter**: Found by the pixel-rows audit; the strict repo check now catches any glyph missing from a palette
+- **Date Reported**: 2026-10-30
+- **Details**: `test_cobra_eye_has_a_color` (`src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus_sprite_files.py`).
+- **Files**: `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprites/cobra.toml`
+
+### 240. The AI Path Accepted Sprites Whose Rows Needed Repair
+- **Description**: `validate_ai_response` never checked pixel rows, so a generated sprite with ragged rows loaded silently repaired (by the old rules, which could cut art off) and was then saved that way.
+- **Status**: Resolved (2026-10-30, `feat/unified-pixel-rows`: `validate_ai_response` runs `pixel_row_problems`; Bitmappy checks the rows it will load, retries with an equal-widths correction, and loads the last attempt repaired, with a notice)
+- **Priority**: Medium
+- **Reporter**: Found by the pixel-rows adversarial review
+- **Date Reported**: 2026-10-30
+- **Files**: `src/glitchygames/ai/sprite_generator.py`, `src/apps/bitmappy/src/bitmappy/ai_manager.py`, `src/apps/bitmappy/src/bitmappy/ai_worker.py`
+
+### 239. Ragged Pixel Rows: Two Rules, One Cut Art Off, Neither Said So, and Saving Corrupted Rows
+- **Description**: Static sprites padded short rows with the sprite's most common glyph (a sword became a solid block); animation frames took the most common row length and cut longer rows (a sword lost its crossguard). Both only logged it, and Bitmappy saved the result. Separately, the writers put pixel rows into TOML unescaped: a row ending in a `\` glyph joined the next row, `a\bc` loaded as a backspace and `a\a` didn't load; palette keys were unescaped too.
+- **Status**: Resolved (2026-10-30, `feat/unified-pixel-rows`)
+- **Priority**: High (silent art loss)
+- **Reporter**: The owner asked to unify the two rules (2026-10-29); the adversarial review (2026-10-30) found the truncation loss and the writer bug
+- **Date Reported**: 2026-10-30
+- **Details**: One rule, `normalize_pixel_rows` (`src/glitchygames/sprites/pixel_utils.py`), for every loader and the QuickLook preview: nothing is cut off, short rows pad with transparent pixels, every repair is reported, and the repo check runs it strictly. `toml_pixel_block` escapes rows in every writer. The design's "Before and after" table records what each old rule drew (`docs/specs/2026-10-30-unified-pixel-rows-design.md`).
+- **Files**: `src/glitchygames/sprites/pixel_utils.py`, `src/glitchygames/sprites/animated.py`, `src/glitchygames/testing/sprite_files.py`, `src/quicklook/Sources/SpriteCore/PixelRows.swift`
+
 ### 238. `ALL_EVENTS` Listed Type 0 Twice: 'Unknown' Was Patched Into the Key Code K_UNKNOWN
 - **Description**: `supported_events` (`src/glitchygames/events/base.py`) meant to drop the name pygame gives every id it does not name, `'Unknown'`, with `set(names) - set('Unknown')`; that subtracts the set of its letters, so `'Unknown'` stayed, and its patch (`'UNKNOWN': 'K_UNKNOWN'`) turned it into `pygame.K_UNKNOWN`, a key code (0). `ALL_EVENTS` held 0 twice: once as NOEVENT (pygame names id 0 `'NoEvent'`) and once as K_UNKNOWN. `GAME_EVENTS` is built from a set, so it held 0 once either way, and `GameEngine.EVENT_HANDLERS` was the same; the only effect was `SceneManager._log_blocked_events` naming `NoEvent` twice when it was blocked
 - **Status**: Resolved (2026-10-28, commit 7075a4cd: `- {'Unknown'}`; no recording holds a type-0 event, and `GAME_EVENTS` and the handler table are unchanged)

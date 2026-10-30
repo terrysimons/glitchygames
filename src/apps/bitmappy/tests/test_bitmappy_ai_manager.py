@@ -933,6 +933,12 @@ class TestProcessAiResponse:
             'log). Saving writes the repaired rows.'
         )
 
+    def test_row_check_skips_a_response_that_is_not_toml(self):
+        """Content that isn't TOML has no rows to check; loading reports what's wrong with it."""
+        manager = _manager_with_queues(_editor())
+
+        assert not manager._ai_pixel_row_problems('request-1', '[sprite]\nname = = "x"\n')
+
     def test_bitmappy_still_discards_other_failures(self):
         """Out of retries, any other failure is still not loaded."""
         canvas = FakeCanvas()

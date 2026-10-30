@@ -1,7 +1,8 @@
 # One rule for sprite pixel rows — Design
 
 - **Date:** 2026-10-30
-- **Status:** DESIGN, approved (the owner, 2026-10-30: "Go for it"; the builder check's open
+- **Status:** BUILT on `feat/unified-pixel-rows` (2026-10-30), from
+  `plans/2026-10-30-unified-pixel-rows-implementation.md`. Was: DESIGN, approved (the owner, 2026-10-30: "Go for it"; the builder check's open
   questions were settled the same day, "You go ahead and patch it").
 - **Branch:** `feat/unified-pixel-rows`, on its own (the owner, 2026-10-29). Replaces the row in
   `plans/future-work.md` that tracks the two rules.
