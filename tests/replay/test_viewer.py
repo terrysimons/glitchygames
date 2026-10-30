@@ -322,3 +322,54 @@ class TestExternalTicks:
         real_seconds = (tick_count - 1) / display_hertz
         assert abs(frames_run - real_seconds / RECORDED_FRAME_SECONDS) <= 1
         assert not time.sleeps
+
+
+class TestGivenClock:
+    """A viewer given its own measured clock reads only that clock (scripts/replay_schedule.py).
+
+    The schedule tool drives the viewer's real accumulator on an ideal clock: every tick exactly
+    one period, inner frames costing no time.
+    """
+
+    def test_it_never_reads_the_engine_clock(self, mocker):
+        engine_clock = mocker.patch('glitchygames.clock.measured_seconds', return_value=0.0)
+        given = {'seconds': 5.0}
+        viewer = ReplayViewer(
+            controls=ReplayControls(total_frames=10**9), measured_seconds=lambda: given['seconds']
+        )
+        viewer.ticks_externally = True
+        frames_run = 0
+        for _ in range(10):
+            now = viewer.begin_tick(is_inner_running=True)
+            assert now == given['seconds']
+            viewer.accrue(now=now, is_inner_running=True)
+            while viewer.should_run_inner_frame(
+                inner_frame_seconds=CONTROL_TICK_SECONDS,
+                is_inner_over=False,
+                is_first_inner_frame=False,
+            ):
+                frames_run += 1
+            given['seconds'] += CONTROL_TICK_SECONDS
+
+        # The first tick owes nothing but the half-frame phase; then one frame a tick
+        assert frames_run == 9
+        engine_clock.assert_not_called()
+
+    def test_inner_frames_on_a_clock_that_stands_still_never_spend_the_budget(self):
+        """The tick's budget is read on the given clock: frames costing nothing never end it."""
+        controls = ReplayControls(total_frames=10**9)
+        controls.speed = ReplayControls.MAX_SPEED
+        viewer = ReplayViewer(controls=controls, measured_seconds=lambda: 0.0)
+        viewer.ticks_externally = True
+        now = viewer.begin_tick(is_inner_running=True)
+        assert now is not None
+        viewer.accrue(now=now, is_inner_running=True)
+        viewer.accumulated_seconds = MAX_INNER_FRAMES_PER_TICK * RECORDED_FRAME_SECONDS
+        frames_run = 0
+        while viewer.should_run_inner_frame(
+            inner_frame_seconds=RECORDED_FRAME_SECONDS,
+            is_inner_over=False,
+            is_first_inner_frame=False,
+        ):
+            frames_run += 1
+        assert frames_run == MAX_INNER_FRAMES_PER_TICK

@@ -127,14 +127,24 @@ class ReplayViewer:
 
     """
 
-    def __init__(self: Self, *, controls: ReplayControls) -> None:
+    def __init__(
+        self: Self,
+        *,
+        controls: ReplayControls,
+        measured_seconds: Callable[[], float] | None = None,
+    ) -> None:
         """Start with no tick open; the first tick is due at once.
 
         Args:
             controls: The viewer's controls.
+            measured_seconds: The viewer's real-time clock; None is
+                ``glitchygames.clock.measured_seconds``, looked up when read. The schedule tool
+                (scripts/replay_schedule.py) gives an ideal clock, so the real accumulator runs
+                without a display or real time.
 
         """
         self.controls = controls
+        self._measured_seconds = measured_seconds
         self.cadence = ControlCadence()
         self.accumulated_seconds = 0.0
         self.ticks_externally = False
@@ -219,7 +229,7 @@ class ReplayViewer:
         """
         if self._is_tick_open:
             return None
-        now = clock.measured_seconds()
+        now = self._read_measured_seconds()
         if self.ticks_externally:
             return self._open_tick(now=now)
         remaining_seconds = self.cadence.next_tick_seconds(now=now) - now
@@ -228,9 +238,20 @@ class ReplayViewer:
                 sleep_for(seconds=remaining_seconds)
             else:
                 sleep_coarsely(seconds=remaining_seconds)
-            now = clock.measured_seconds()
+            now = self._read_measured_seconds()
         self.cadence.tick_is_due(now=now)
         return self._open_tick(now=now)
+
+    def _read_measured_seconds(self: Self) -> float:
+        """Read the viewer's real-time clock (the one given, else the engine's).
+
+        Returns:
+            Seconds (only differences mean anything).
+
+        """
+        if self._measured_seconds is None:
+            return clock.measured_seconds()
+        return self._measured_seconds()
 
     def _open_tick(self: Self, *, now: float) -> float:
         """Open a tick at ``now``.
@@ -329,7 +350,8 @@ class ReplayViewer:
             return self._close_tick()
         if (
             self._inner_frames_this_tick >= MAX_INNER_FRAMES_PER_TICK
-            or clock.measured_seconds() - self._tick_start_seconds >= INNER_FRAME_BUDGET_SECONDS
+            or self._read_measured_seconds() - self._tick_start_seconds
+            >= INNER_FRAME_BUDGET_SECONDS
         ):
             # Owed but out of frames or time this tick: carried to the next
             if inner_frame_seconds > 0:
