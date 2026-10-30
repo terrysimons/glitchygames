@@ -740,13 +740,15 @@ extend_exclude = [
 ]
 # The engine's own package, under src/ (deptry guesses first-party modules from the root's direct
 # children only). The members' packages are not first party: the root's extras (games, demos,
-# apps) declare their distributions, and scripts/ imports the games, which deptry ties together
-# through package_module_name_map
+# apps) declare their distributions, and scripts/ imports the games, so deptry checks each import
+# against them (a game dropped from its extra is reported, DEP004; first party, it never was)
 known_first_party = ["glitchygames"]
 
-# pygame-ce installs as the 'pygame' module; each workspace member as its import packages (its
-# editable install records a .pth file, not its packages, so deptry cannot read them; kept equal to
-# the workspace by tests/test_workspace_config.py)
+# pygame-ce installs as the 'pygame' module; each workspace member as its import packages. nox
+# (`uv sync --no-editable`) installs the members as wheels, whose metadata names their packages;
+# the editable dev venv (`uv run deptry .`) records only a .pth file, so without this map deptry
+# could not tie the imports to the members there. Kept equal to the workspace by
+# tests/test_workspace_config.py
 [tool.deptry.package_module_name_map]
 "pygame-ce" = "pygame"
 "mr-muncher" = ["mr_muncher"]
