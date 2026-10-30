@@ -1,7 +1,7 @@
 """Test suite for pixel utility functions.
 
 Tests bounding box computation, pixel transparency detection,
-and envelope bounding box calculation.
+envelope bounding box calculation, and the pixel-row rule (normalize_pixel_rows).
 """
 
 import pytest
@@ -18,6 +18,8 @@ from glitchygames.sprites.pixel_utils import (
     is_pixel_transparent,
     lookup_rgba_pixel_char,
     needs_alpha_channel,
+    normalize_pixel_rows,
+    palette_key_problems,
 )
 
 
@@ -454,3 +456,106 @@ class TestSurfaceCreationClipsToTheFrame:
 
         assert surface.get_size() == (1, 1)
         assert tuple(surface.get_at((0, 0)))[:3] == (10, 20, 30)
+
+
+class TestNormalizePixelRows:
+    """The one rule for pixel rows (docs/specs/2026-10-30-unified-pixel-rows-design.md)."""
+
+    def test_rectangle_is_unchanged_and_unreported(self):
+        """Rows that already form a rectangle come back as they are, with no repairs."""
+        result = normalize_pixel_rows('ab\nab', 'ab')
+        assert result.rows == ('ab', 'ab')
+        assert (result.width, result.height) == (2, 2)
+        assert result.repairs == ()
+
+    def test_long_row_widens_never_truncates(self):
+        """A sword's crossguard widens the frame instead of being cut off."""
+        result = normalize_pixel_rows('x\nxxxx\nx\nx', 'x')
+        assert result.rows == ('x\0\0\0', 'xxxx', 'x\0\0\0', 'x\0\0\0')
+        assert result.repairs == (
+            'row widths differ (1, 4); short rows padded with transparent pixels to 4',
+        )
+
+    def test_mode_cannot_cut_a_row(self):
+        """Two short rows don't outvote the long one: nothing is cut."""
+        result = normalize_pixel_rows('abcd\nab\nab', 'abcd')
+        assert result.rows[0] == 'abcd'
+
+    def test_blank_interior_line_is_a_transparent_row(self):
+        """A blank line between rows stays, as a transparent row, and is reported."""
+        result = normalize_pixel_rows('ab\n\nab', 'ab')
+        assert result.rows == ('ab', '\0\0', 'ab')
+        assert result.repairs == (
+            'blank line between rows (line 2); drawn as transparent rows',
+        )
+
+    def test_outer_blank_lines_and_trailing_whitespace_are_tidied(self):
+        """Outer blank lines and trailing whitespace go without a report.
+
+        'ab' is not short: before its trailing spaces were trimmed it was 'ab  ', length 4,
+        at least the width of 3.
+        """
+        result = normalize_pixel_rows('\n\nab  \n ab\t\n\n', 'ab')
+        assert result.rows == ('ab\0', ' ab')
+        assert result.repairs == ()
+
+    def test_shared_indentation_is_removed(self):
+        """Indentation every row shares is TOML layout, not art."""
+        result = normalize_pixel_rows('    ab\n    ab', 'ab')
+        assert result.rows == ('ab', 'ab')
+        assert result.repairs == ()
+
+    def test_shared_tab_indentation_is_removed(self):
+        """A shared tab prefix is removed like spaces."""
+        result = normalize_pixel_rows('\tab\n\tab', 'ab')
+        assert result.rows == ('ab', 'ab')
+        assert result.repairs == ()
+
+    def test_unshared_indentation_stays_and_is_not_reported(self):
+        """A pyramid drawn with spaces as its transparent pixels stays a pyramid."""
+        result = normalize_pixel_rows('  x  \n xxx \nxxxxx', 'x')
+        assert result.rows == ('  x\0\0', ' xxx\0', 'xxxxx')
+        assert result.repairs == ()
+
+    def test_mixed_prefix_characters_are_not_shared(self):
+        """A prefix is shared character for character; a tab is not a space."""
+        result = normalize_pixel_rows(' \tab\n\t ab', 'ab')
+        assert result.rows == (' \tab', '\t ab')
+        assert result.repairs == ("glyphs not in the palette: '\\t'; drawn transparent",)
+
+    def test_crlf_is_tidied_not_reported(self):
+        """Windows line endings load like Unix ones."""
+        result = normalize_pixel_rows('ab\r\nab\r\n', 'ab')
+        assert result.rows == ('ab', 'ab')
+        assert result.repairs == ()
+
+    def test_unknown_glyph_is_reported_space_is_not(self):
+        """A glyph missing from the palette is reported; a space never is."""
+        result = normalize_pixel_rows('aq a\na  a', 'a')
+        assert result.repairs == ("glyphs not in the palette: 'q'; drawn transparent",)
+
+    @pytest.mark.parametrize('pixels', ['', '\n  \n'])
+    def test_blank_text_has_no_rows(self, pixels):
+        """Blank pixel text has no rows and nothing to report."""
+        result = normalize_pixel_rows(pixels, 'a')
+        assert result.rows == ()
+        assert (result.width, result.height) == (0, 0)
+        assert result.repairs == ()
+
+    def test_each_code_point_is_one_pixel(self):
+        """A combining mark and an emoji's variation selector are pixels of their own."""
+        assert normalize_pixel_rows('ée', 'é').width == 3
+        assert normalize_pixel_rows('❤️', '❤️').width == 2
+
+    def test_strict_raises_with_every_repair(self):
+        """Strict mode raises one error naming the block and every repair."""
+        with pytest.raises(ValueError, match=r'^walk frame 0: row widths differ .*; blank line'):
+            normalize_pixel_rows('ab\n\na', 'ab', strict=True, label='walk frame 0')
+
+    def test_palette_key_problems(self):
+        """Keys that aren't one code point, and U+0000 (the padding glyph), are reported."""
+        expected = 'palette keys that are not one code point: ' + ', '.join(
+            sorted([repr('\x00'), repr('❤️')])
+        )
+        assert palette_key_problems(['a', '❤️', '\x00', 'b']) == (expected,)
+        assert palette_key_problems(['a']) == ()

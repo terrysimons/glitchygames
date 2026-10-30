@@ -6,10 +6,12 @@ detection, and color map lookups used by the animation system.
 
 from __future__ import annotations
 
+import os
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Collection, Iterable, Sequence
 
 import pygame
 
@@ -22,6 +24,17 @@ from glitchygames.color import (
 
 # Constants
 PIXEL_ARRAY_SHAPE_DIMENSIONS = 3
+
+# A padded pixel in normalize_pixel_rows' rows: no palette glyph, so it draws as the magenta
+# transparency key. A palette key U+0000 is reported and dropped so it can't collide.
+PADDING_GLYPH = '\x00'
+
+# Trimmed from the end of every pixel line: trailing spaces, tabs and Windows line endings' \r
+PIXEL_LINE_TRAILING_WHITESPACE = ' \t\r'
+# Indentation that normalize_pixel_rows removes when every non-blank line shares it
+PIXEL_LINE_INDENTATION = ' \t'
+# The format's "no pixel here" glyph: it draws transparent and is never reported as missing
+TRANSPARENT_SPACE_GLYPH = ' '
 
 # Error message templates
 ERR_COLOR_NOT_FOUND = 'Color {} not found in color map. Available colors: {}'
@@ -510,3 +523,167 @@ def create_indexed_surface(
                 else:
                     surface.set_at((x, y), color)
     return surface
+
+
+@dataclass(frozen=True)
+class NormalizedPixelRows:
+    """A pixel block made rectangular by normalize_pixel_rows.
+
+    Attributes:
+        rows: The rows, every one ``width`` glyphs long; padded pixels are PADDING_GLYPH.
+        width: The glyphs per row (0 when there are no rows).
+        height: The number of rows.
+        repairs: What changed, or might have changed, the picture; empty when nothing did.
+
+    """
+
+    rows: tuple[str, ...]
+    width: int
+    height: int
+    repairs: tuple[str, ...]
+
+
+def normalize_pixel_rows(
+    pixels: str,
+    palette_glyphs: Collection[str],
+    *,
+    strict: bool = False,
+    label: str = 'pixels',
+) -> NormalizedPixelRows:
+    """Turn a pixels block into rectangular rows: the one rule every loader uses.
+
+    The rule (docs/specs/2026-10-30-unified-pixel-rows-design.md, "The rule"): split on U+000A;
+    trim trailing spaces, tabs and carriage returns from each line; drop blank lines at the top
+    and bottom; remove the leading spaces and tabs that every non-blank line shares, character
+    for character; then pad every row at the end with transparent pixels (PADDING_GLYPH) to the
+    longest. A blank line between rows becomes a transparent row. Nothing is ever cut off.
+
+    Tidying (trimming, outer blank lines, shared indentation) is not reported. Ragged rows,
+    blank lines between rows and glyphs missing from the palette are: each is one entry in
+    ``repairs``. A row counts as short only if it is shorter than the width even with its
+    trimmed trailing whitespace, and a space is never a missing glyph (it is the format's
+    transparent pixel).
+
+    Lengths are counted in code points, as Python iterates a str.
+
+    Args:
+        pixels: The block's text, as TOML gives it.
+        palette_glyphs: The glyphs the sprite's palette defines.
+        strict: Raise instead of repairing.
+        label: Names the block in strict mode's error (e.g. 'walk frame 0').
+
+    Returns:
+        NormalizedPixelRows: The rows, their size and the repairs made.
+
+    Raises:
+        ValueError: In strict mode, when the block needed a repair; the message is the label
+            followed by every repair.
+
+    """
+    raw_lines = pixels.split('\n')
+    trimmed_lines = [line.rstrip(PIXEL_LINE_TRAILING_WHITESPACE) for line in raw_lines]
+
+    # Drop blank lines at the top and bottom, keeping each line's untrimmed length
+    first = next((index for index, line in enumerate(trimmed_lines) if line), None)
+    if first is None:
+        return NormalizedPixelRows(rows=(), width=0, height=0, repairs=())
+    last = max(index for index, line in enumerate(trimmed_lines) if line)
+    lines = trimmed_lines[first : last + 1]
+    untrimmed_lengths = [len(line) for line in raw_lines[first : last + 1]]
+
+    prefix_length = _shared_indentation_length([line for line in lines if line])
+    rows = [line[prefix_length:] if line else line for line in lines]
+    width = max(len(row) for row in rows)
+
+    repairs = _pixel_row_repairs(
+        rows,
+        short_rows=[
+            bool(row) and untrimmed_length - prefix_length < width
+            for row, untrimmed_length in zip(rows, untrimmed_lengths, strict=True)
+        ],
+        palette_glyphs=palette_glyphs,
+    )
+    if strict and repairs:
+        raise ValueError(f'{label}: ' + '; '.join(repairs))
+
+    padded_rows = tuple(row + PADDING_GLYPH * (width - len(row)) for row in rows)
+    return NormalizedPixelRows(
+        rows=padded_rows, width=width, height=len(padded_rows), repairs=repairs
+    )
+
+
+def _pixel_row_repairs(
+    rows: Sequence[str],
+    *,
+    short_rows: Sequence[bool],
+    palette_glyphs: Collection[str],
+) -> tuple[str, ...]:
+    """Describe what normalize_pixel_rows has to repair in rows (tidied, not yet padded).
+
+    Args:
+        rows: The tidied rows; a blank line between rows is ''.
+        short_rows: For each row, whether it is short even with its trimmed trailing whitespace.
+        palette_glyphs: The glyphs the sprite's palette defines.
+
+    Returns:
+        tuple[str, ...]: The repairs, in the order ragged rows, blank lines, missing glyphs.
+
+    """
+    width = max(len(row) for row in rows)
+    repairs: list[str] = []
+    if any(short_rows):
+        row_widths = sorted({len(row) for row in rows if row})
+        repairs.append(
+            f'row widths differ ({", ".join(str(row_width) for row_width in row_widths)}); '
+            f'short rows padded with transparent pixels to {width}'
+        )
+    blank_line_numbers = [str(number) for number, row in enumerate(rows, start=1) if not row]
+    if blank_line_numbers:
+        repairs.append(
+            f'blank line between rows (line {", ".join(blank_line_numbers)}); '
+            'drawn as transparent rows'
+        )
+    known_glyphs = set(palette_glyphs) - {PADDING_GLYPH}
+    missing_glyphs = sorted(
+        {glyph for row in rows for glyph in row} - known_glyphs - {TRANSPARENT_SPACE_GLYPH}
+    )
+    if missing_glyphs:
+        repairs.append(
+            f'glyphs not in the palette: {", ".join(repr(glyph) for glyph in missing_glyphs)}; '
+            'drawn transparent'
+        )
+    return tuple(repairs)
+
+
+def _shared_indentation_length(lines: Sequence[str]) -> int:
+    """Return how many leading spaces and tabs every line shares, character for character.
+
+    Returns:
+        int: The length of the shared prefix (0 when lines is empty).
+
+    """
+    # os.path.commonprefix compares character by character, whatever the strings are
+    shared_prefix = os.path.commonprefix(list(lines))  # ruff: ignore[os-path-commonprefix] - character by character is the point
+    return len(shared_prefix) - len(shared_prefix.lstrip(PIXEL_LINE_INDENTATION))
+
+
+def palette_key_problems(palette_glyphs: Iterable[str]) -> tuple[str, ...]:
+    """Report palette keys that can never match a pixel.
+
+    A pixel is one code point, so a key of any other length (e.g. '\u2764\ufe0f', a heart and
+    its variation selector) never matches; U+0000 is PADDING_GLYPH, so it is reported too and
+    loaders drop it.
+
+    Args:
+        palette_glyphs: The palette's keys.
+
+    Returns:
+        tuple[str, ...]: One problem naming every bad key (sorted by repr), or nothing.
+
+    """
+    bad_keys = sorted(
+        repr(glyph) for glyph in palette_glyphs if len(glyph) != 1 or glyph == PADDING_GLYPH
+    )
+    if not bad_keys:
+        return ()
+    return (f'palette keys that are not one code point: {", ".join(bad_keys)}',)
