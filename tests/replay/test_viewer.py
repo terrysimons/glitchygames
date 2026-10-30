@@ -890,3 +890,84 @@ class TestRecordingsFasterThanTheTickKeepTheirRate:
         inner_frame_seconds = [*recording.frame_seconds[1:], recording.frame_seconds[-1]]
         schedule = run_schedule(inner_frame_seconds=inner_frame_seconds, speed=recording.speed)
         assert not any(schedule.behind_by_tick)
+
+
+def viewer_owing_for_a_first_frame(*, speed: float, owed_seconds: float) -> ReplayViewer:
+    """Return a viewer whose open tick has run no frame yet and owes exactly ``owed_seconds``.
+
+    The half-frame phase is spent first, on a zero-length frame in an earlier tick, so the
+    accumulator holds only what is set.
+
+    Returns:
+        The viewer.
+
+    """
+    controls = ReplayControls(total_frames=10**9)
+    controls.speed = speed
+    viewer = ReplayViewer(controls=controls, measured_seconds=lambda: 0.0)
+    viewer.ticks_externally = True
+    for _ in range(2):
+        now = viewer.begin_tick(is_inner_running=True)
+        assert now is not None
+        viewer.accrue(now=now, is_inner_running=True)
+        while viewer.should_run_inner_frame(
+            inner_frame_seconds=0.0, is_inner_over=False, is_first_inner_frame=False
+        ):
+            pass
+    now = viewer.begin_tick(is_inner_running=True)
+    assert now is not None
+    viewer.accrue(now=now, is_inner_running=True)
+    viewer.accumulated_seconds = owed_seconds
+    return viewer
+
+
+class TestEachInnerFrameSaysWhetherItRanBehind:
+    """``last_inner_frame_ran_behind``: the accumulator owed the frame plus a tick of inner time.
+
+    The viewer's own condition, at every speed: owed >= the frame's recorded duration plus the
+    speed times the tick period (``CONTROL_TICK_SECONDS``). The schedule tool and its guard read
+    it to tell a frame a tick skipped because the replay was behind from one it hid.
+    """
+
+    @pytest.mark.parametrize('speed', [0.5, 1.0, 2.0])
+    def test_owing_the_frame_plus_a_tick_of_inner_time_is_behind(self, speed):
+        viewer = viewer_owing_for_a_first_frame(
+            speed=speed, owed_seconds=STEADY_FRAME_SECONDS + speed * CONTROL_TICK_SECONDS
+        )
+        assert viewer.should_run_inner_frame(
+            inner_frame_seconds=STEADY_FRAME_SECONDS,
+            is_inner_over=False,
+            is_first_inner_frame=False,
+        )
+        assert viewer.last_inner_frame_ran_behind
+
+    @pytest.mark.parametrize('speed', [0.5, 1.0, 2.0])
+    def test_owing_a_little_less_is_not_behind(self, speed):
+        viewer = viewer_owing_for_a_first_frame(
+            speed=speed,
+            owed_seconds=(STEADY_FRAME_SECONDS + speed * CONTROL_TICK_SECONDS) * 0.999,
+        )
+        assert viewer.should_run_inner_frame(
+            inner_frame_seconds=STEADY_FRAME_SECONDS,
+            is_inner_over=False,
+            is_first_inner_frame=False,
+        )
+        assert not viewer.last_inner_frame_ran_behind
+
+    def test_a_frame_run_without_the_accumulator_is_not_behind(self):
+        """A paused step runs one frame whatever is owed: never behind, after a frame that was."""
+        viewer = viewer_owing_for_a_first_frame(speed=1.0, owed_seconds=0.1)
+        assert viewer.should_run_inner_frame(
+            inner_frame_seconds=STEADY_FRAME_SECONDS,
+            is_inner_over=False,
+            is_first_inner_frame=False,
+        )
+        assert viewer.last_inner_frame_ran_behind
+        viewer.controls.paused = True
+        viewer.controls.step_requested = True
+        assert viewer.should_run_inner_frame(
+            inner_frame_seconds=STEADY_FRAME_SECONDS,
+            is_inner_over=False,
+            is_first_inner_frame=False,
+        )
+        assert not viewer.last_inner_frame_ran_behind

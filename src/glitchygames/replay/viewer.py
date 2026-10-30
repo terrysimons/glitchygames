@@ -138,6 +138,13 @@ class ReplayViewer:
             animation frames, ``run_watched_replay_async``): a tick then opens at once, never
             sleeping or following ``cadence``, and owes the real time since the last, so the
             replay keeps its speed at any display rate.
+        last_inner_frame_ran_behind: Whether the inner frame ``should_run_inner_frame`` last
+            allowed ran while the replay was behind: the accumulator owed the frame's recorded
+            duration plus a whole tick of inner time (the speed times ``CONTROL_TICK_SECONDS``),
+            read before the frame consumed it; False for a frame run without the accumulator (a
+            paused step, frame 0 at the start screen). Rule 2's one-frame limit uses the same
+            condition; the schedule tool (scripts/replay_schedule.py) reads this to tell a frame
+            a tick skipped because the replay was behind from one it hid.
 
     """
 
@@ -162,6 +169,7 @@ class ReplayViewer:
         self.cadence = ControlCadence()
         self.accumulated_seconds = 0.0
         self.ticks_externally = False
+        self.last_inner_frame_ran_behind = False
         self._is_tick_open = False
         self._inner_frames_this_tick = 0
         self._tick_start_seconds = 0.0
@@ -343,6 +351,7 @@ class ReplayViewer:
 
         """
         controls = self.controls
+        self.last_inner_frame_ran_behind = False
         if is_inner_over:
             controls.take_step()
             return self._close_tick()
@@ -371,6 +380,9 @@ class ReplayViewer:
             if inner_frame_seconds > 0:
                 self._fall_behind()
             return self._close_tick()
+        self.last_inner_frame_ran_behind = self._owes_beyond_a_tick(
+            inner_frame_seconds=inner_frame_seconds
+        )
         self.accumulated_seconds -= inner_frame_seconds
         self._inner_frames_this_tick += 1
         self._inner_seconds_this_tick += inner_frame_seconds
@@ -433,11 +445,26 @@ class ReplayViewer:
             True when the frame waits for the next tick.
 
         """
-        speed = self.controls.speed
         return (
-            speed <= 1
+            self.controls.speed <= 1
             and self._inner_frames_this_tick > 0
-            and self.accumulated_seconds < inner_frame_seconds + speed * CONTROL_TICK_SECONDS
+            and not self._owes_beyond_a_tick(inner_frame_seconds=inner_frame_seconds)
+        )
+
+    def _owes_beyond_a_tick(self: Self, *, inner_frame_seconds: float) -> bool:
+        """Whether the replay is behind: it owes the frame plus a whole tick of inner time.
+
+        Args:
+            inner_frame_seconds: The recorded duration of the inner frame that would run.
+
+        Returns:
+            True when the accumulator holds at least the frame's duration plus the speed times
+            ``CONTROL_TICK_SECONDS``.
+
+        """
+        return (
+            self.accumulated_seconds
+            >= inner_frame_seconds + self.controls.speed * CONTROL_TICK_SECONDS
         )
 
     def _fall_behind(self: Self) -> None:
