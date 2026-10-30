@@ -1,7 +1,9 @@
 """The engine's wheel holds the engine alone: its package, its resources, nothing of a member.
 
 It also carries the golden-replay pytest plugin's ``pytest11`` entry point, so any project with
-the wheel installed gets its recordings collected (glitchygames/testing/replays.py).
+the wheel installed gets its recordings collected (glitchygames/testing/replays.py). The build of
+every workspace package (``nox -s build-wheel``: ``uv build --all-packages``) gives each member a
+wheel of its own packages, their data files included, and the engine's still holds no member.
 """
 
 import os
@@ -9,6 +11,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
+from scripts.git_checkout import files_not_ignored
 from scripts.workspace_packages import ENGINE_PACKAGE, workspace_members
 
 from glitchygames.process import OutputCapture, run_command
@@ -27,6 +30,15 @@ ENTRY_POINTS_FILE_NAME = 'entry_points.txt'
 PYTEST_PLUGIN_GROUP = 'pytest11'
 # The golden-replay plugin, registered under its module's name (pyproject.toml says why)
 REPLAY_PLUGIN_MODULE = 'glitchygames.testing.replays'
+# A wheel's metadata directory ends with this; everything else in it is a package's files
+DIST_INFO_SUFFIX = '.dist-info'
+# Data files members ship that their games read at run time, by distribution: the checks below
+# would pass on a wheel missing them only if the source tree lost them too
+MEMBER_DATA_WHEEL_PATHS = {
+    'brave-adventurer': 'brave_adventurer_papyrus/sprites/cobra.toml',
+    'paddleslap': 'paddleslap/demos/rally.jsonl.gz',
+    'drawing-fire': 'drawing_fire/sprites/soldier.toml',
+}
 
 
 def entry_points_in_group(*, text: str, group: str) -> dict[str, str]:
@@ -116,3 +128,63 @@ def test_the_engine_wheel_holds_the_engine_alone(tmp_path):
     assert entry_points_in_group(text=entry_points_text, group=PYTEST_PLUGIN_GROUP) == {
         REPLAY_PLUGIN_MODULE: REPLAY_PLUGIN_MODULE
     }
+
+
+def build_every_workspace_wheel(*, directory: Path) -> dict[str, list[str]]:
+    """Build every workspace package's wheel as ``nox -s build-wheel`` does, and read them.
+
+    Args:
+        directory: Where the wheels are written.
+
+    Returns:
+        Each wheel's distribution name (the file name's first part, ``drawing_fire``) -> the
+        paths it holds outside its metadata directory.
+
+    """
+    uv = shutil.which('uv')
+    assert uv is not None, 'uv is not on PATH: it builds the wheels'
+    completed = run_command(
+        command=[uv, 'build', '--all-packages', '--wheel', '--out-dir', str(directory)],
+        environment=os.environ,
+        timeout_seconds=WHEEL_BUILD_TIMEOUT_SECONDS,
+        capture_output=OutputCapture.TOGETHER,
+        working_directory=PROJECT_ROOT,
+    )
+    assert completed.returncode == 0, completed.stdout
+    contents: dict[str, list[str]] = {}
+    for wheel in sorted(directory.glob('*.whl')):
+        with zipfile.ZipFile(wheel) as archive:
+            contents[wheel.name.split('-', maxsplit=1)[0]] = sorted(
+                name
+                for name in archive.namelist()
+                if not name.split('/', maxsplit=1)[0].endswith(DIST_INFO_SUFFIX)
+            )
+    return contents
+
+
+def test_every_member_wheel_holds_exactly_its_own_packages(tmp_path):
+    """Each member's wheel holds its packages' files, data files included, and nothing else.
+
+    A package's files are what git does not ignore in its directory (hatch builds from the
+    files, leaving out what .gitignore covers), so a sprite, sound or demo a game reads at run
+    time ships with it. The engine's wheel from the same build holds the engine alone.
+    """
+    members = workspace_members(project_root=PROJECT_ROOT)
+    contents = build_every_workspace_wheel(directory=tmp_path)
+
+    assert sorted(contents) == sorted([
+        ENGINE_PACKAGE,
+        *(member.distribution.replace('-', '_') for member in members),
+    ])
+    assert {name.split('/', maxsplit=1)[0] for name in contents[ENGINE_PACKAGE]} == {ENGINE_PACKAGE}
+    for member in members:
+        expected = sorted(
+            f'{package}/{relative_path.as_posix()}'
+            for package, package_directory in zip(
+                member.import_packages, member.package_directories, strict=True
+            )
+            for relative_path in files_not_ignored(directory=package_directory)
+        )
+        assert contents[member.distribution.replace('-', '_')] == expected, member.distribution
+    for distribution, data_path in MEMBER_DATA_WHEEL_PATHS.items():
+        assert data_path in contents[distribution.replace('-', '_')]
