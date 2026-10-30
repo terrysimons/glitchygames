@@ -71,6 +71,7 @@ from glitchygames.tracing import read_trace_result
 from tests.demo_runs import engine_run_environment
 from tests.replay.replay_helpers import replay_through_engine, rewrite_recording
 from tests.stand_in_games import (
+    STAND_IN_GAME_TARGET_FPS,
     StandInGame,
     copy_recording,
     record_stand_in_game,
@@ -121,6 +122,11 @@ STAND_IN_SIZE = (320, 240)
 FRAME_STREAM_TOKEN_LENGTH_FOR_TESTS = 32
 # How long the end-to-end children may run
 CHILD_TIMEOUT_SECONDS = 120.0
+# Every frame time of a recording the watched replays present: exactly one paced frame. A watched
+# replay runs as many recorded frames per 60 Hz tick as their times fill, so the times a busy
+# machine recorded (a late frame, then a short one catching up) would run two frames in one tick
+# and present only the second
+STEADY_FRAME_SECONDS = 1 / float(STAND_IN_GAME_TARGET_FPS)
 
 COLOR_GAME_SOURCE = f'''\
 """A stand-in game: a plain floor with one marker on it, the seed's red and the frame's green."""
@@ -281,13 +287,30 @@ def recorded_old(tmp_path_factory) -> Path:
     root = tmp_path_factory.mktemp('recorded-old')
     # Paced: a watched replay presents OLD's frames by their recorded frame times (its viewer
     # runs as many recorded frames per 60 Hz tick as their times fill, up to 32), so an
-    # uncapped OLD's frames would all go by in one tick
-    return record_stand_in_game_once(
+    # uncapped OLD's frames would all go by in one tick; then steadied (steady_frame_times), so
+    # the frames presented never depend on this machine's timing
+    recording = record_stand_in_game_once(
         game=install_color_game(install_directory=root / 'site-packages'),
         path=root / 'old.jsonl.gz',
         extra_arguments=('--random-seed', str(OLD_SEED)),
         paced=True,
     )
+    steady_frame_times(recording=recording)
+    return recording
+
+
+def steady_frame_times(*, recording: Path) -> None:
+    """Give every frame of a paced recording exactly one frame period (``STEADY_FRAME_SECONDS``).
+
+    Pacing is still what the recording ran under; only the jitter of the machine that recorded
+    it goes, so a watched replay presents the same frames on every machine.
+    """
+
+    def steady(trace: dict[str, Any]) -> None:
+        for frame in trace['frames']:
+            frame['dt'] = STEADY_FRAME_SECONDS
+
+    rewrite_recording(recording_path=recording, change=steady)
 
 
 @pytest.fixture
@@ -363,6 +386,15 @@ def rgb_at(*, surface: pygame.Surface) -> tuple[int, int, int]:
     """
     color = surface.get_at(SAMPLE_POINT)
     return (color.r, color.g, color.b)
+
+
+def test_watched_recordings_have_steady_frame_times(color_game, tmp_path):
+    """OLD and the pausing run hold one frame period per frame, whatever the machine managed."""
+    pausing = record_a_pausing_run(color_game=color_game, path=tmp_path / 'pausing.jsonl.gz')
+
+    for recording in (color_game.old, pausing):
+        frames = read_trace_result(path=recording).trace['frames']
+        assert {frame['dt'] for frame in frames} == {STEADY_FRAME_SECONDS}, recording
 
 
 def presented_frame_index(*, sources: ReplaySources) -> int | None:
@@ -2576,14 +2608,15 @@ def record_a_pausing_run(*, color_game: ColorGame, path: Path) -> Path:
         The recording.
 
     """
-    # Paced, as OLD is (color_game): the watched replays present its frames by their recorded
-    # frame times
+    # Paced, as OLD is (color_game), with the same steady frame times: the watched replays
+    # present its frames by their recorded frame times
     recording = record_stand_in_game(
         game=color_game.game,
         path=path,
         extra_arguments=('--random-seed', str(PAUSING_SEED)),
         paced=True,
     )
+    steady_frame_times(recording=recording)
     assert recorded_frame_count(path=recording) == len(GAME_FRAME_OF_A_PAUSING_RUN)
     return recording
 
