@@ -19,18 +19,21 @@ waits), and the inner game runs on to the end of the recording. Each inner frame
 next frame's recorded dt (the last frame its own), as ``ReplaySources._inner_frame_seconds``
 gives them (glitchygames/replay/driver.py, rule 4).
 
-A frame is never presented when a later frame ran in the same tick. The last frame is presented
-by the tick that runs it; a recording that quits in its last frame ends the real run there, so
-that frame is not shown in a real replay, which this does not model. Frame 0 runs behind the
-start screen's message.
+A frame is never presented when a later frame ran in the same tick. Such a frame is hidden (a
+failure) when its recorded duration is at least one tick of inner time at the speed
+(``speed * CONTROL_TICK_SECONDS``: the live game showed it for a whole 60 Hz refresh or more);
+shorter ones are skipped by design (a recording faster than the tick, or a replay above 1x, has
+more frames than ticks). The last frame is presented by the tick that runs it; a recording
+that quits in its last frame ends the real run there, so that frame is not shown in a real
+replay, which this does not model. Frame 0 runs behind the start screen's message.
 
 Output per recording: each tick's time, the frames it ran and the accumulator after it; the
-frames never presented; every frame's recorded dt in milliseconds. ``--summary`` prints one line
-per recording instead: its name, frame count, never-presented frames and shortest and longest
-dt.
+hidden frames and the ones skipped by design; every frame's recorded dt in milliseconds.
+``--summary`` prints one line per recording instead: its name, frame count, hidden and skipped
+frames and shortest and longest dt.
 
-Exit codes (glitchygames/exit_codes.py): ``SUCCESS`` when every recording presents every frame;
-``REPLAY_DIVERGED`` when some frame is never presented (the watched replay's sequence of shown
+Exit codes (glitchygames/exit_codes.py): ``SUCCESS`` when no recording hides a frame;
+``REPLAY_DIVERGED`` when some frame is hidden (the watched replay's sequence of shown
 frames differs from the recording's: the replay check's failure, not an engine error, and no
 other member names a failed check of a recording); ``MISSING_INPUT`` for a recording that does
 not exist; ``UNUSABLE_INPUT`` for one that cannot be read (not a trace, a directory, no frames,
@@ -103,6 +106,35 @@ class RecordingSchedule(BaseModel):
     def never_presented(self: Self) -> tuple[int, ...]:
         """The frames that ran in a tick where a later frame ran too, in order."""
         return tuple(frame for tick in self.ticks for frame in tick.frames_run[:-1])
+
+    @property
+    def hidden(self: Self) -> tuple[int, ...]:
+        """The frames never presented that lasted at least one tick at the speed (a failure).
+
+        The threshold: a frame whose recorded duration (``inner_frame_seconds``: its next
+        frame's dt) is at least ``speed * CONTROL_TICK_SECONDS`` of inner time, so the live game
+        showed it for a whole 60 Hz refresh or more, and so would the replay at that speed.
+        """
+        return tuple(frame for frame in self.never_presented if self._lasts_a_tick(frame=frame))
+
+    @property
+    def skipped_by_design(self: Self) -> tuple[int, ...]:
+        """The frames never presented that lasted less than a tick at the speed (expected).
+
+        A recording faster than the viewer's tick, or one replayed above 1x, has more frames
+        than ticks: a tick runs several and presents the last.
+        """
+        return tuple(frame for frame in self.never_presented if not self._lasts_a_tick(frame=frame))
+
+    def _lasts_a_tick(self: Self, *, frame: int) -> bool:
+        """Whether a frame's recorded duration is at least one tick of inner time at the speed.
+
+        Returns:
+            True from ``speed * CONTROL_TICK_SECONDS`` on.
+
+        """
+        duration_seconds = inner_frame_seconds(frame_seconds=self.frame_seconds, frame_index=frame)
+        return duration_seconds >= self.speed * CONTROL_TICK_SECONDS
 
 
 class IdealClock:
@@ -255,7 +287,8 @@ def summary_line(*, name: str, schedule: RecordingSchedule) -> str:
     """
     return (
         f'{name}: {len(schedule.frame_seconds)} frames, '
-        f'never presented: {frame_list(frames=schedule.never_presented)}, '
+        f'hidden: {frame_list(frames=schedule.hidden)}, '
+        f'skipped by design: {frame_list(frames=schedule.skipped_by_design)}, '
         f'dt min {milliseconds(seconds=min(schedule.frame_seconds))} '
         f'max {milliseconds(seconds=max(schedule.frame_seconds))}'
     )
@@ -276,7 +309,11 @@ def detail_lines(*, name: str, schedule: RecordingSchedule) -> list[str]:
         for tick in schedule.ticks
     )
     lines.extend((
-        f'  never presented: {frame_list(frames=schedule.never_presented)}',
+        f'  hidden: {frame_list(frames=schedule.hidden)}',
+        (
+            '  skipped by design (shorter than a tick at this speed): '
+            f'{frame_list(frames=schedule.skipped_by_design)}'
+        ),
         '  recorded dt:',
     ))
     lines.extend(
@@ -314,7 +351,7 @@ def schedule_recording(*, path: Path, speed: float, summary: bool) -> ExitCode:
         else detail_lines(name=name, schedule=schedule)
     )
     sys.stdout.write('\n'.join(lines) + '\n')
-    return ExitCode.REPLAY_DIVERGED if schedule.never_presented else ExitCode.SUCCESS
+    return ExitCode.REPLAY_DIVERGED if schedule.hidden else ExitCode.SUCCESS
 
 
 def viewer_speed(value: str) -> float:

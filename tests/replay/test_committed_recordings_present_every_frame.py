@@ -6,8 +6,9 @@ most one frame unless the replay is genuinely behind (rule 2), so a frame the li
 long and the short frame its pacing caught up with are each presented. This runs the schedule
 tool's simulation (scripts/replay_schedule.py: the viewer's real accumulator on an ideal clock)
 over every tracked recording but the golden traces' baselines (tests/world/golden, which no
-viewer replays), and fails naming each recording and frame a watched 1x replay would never
-present.
+viewer replays), and fails naming each recording and frame a watched 1x replay hides: never
+presented though it lasted at least one tick (``RecordingSchedule.hidden``, the tool's rule;
+shorter frames a tick skips by design are not failures).
 """
 
 from __future__ import annotations
@@ -51,8 +52,8 @@ def test_every_committed_recording_presents_every_frame_at_normal_speed():
         hidden.extend(
             f'{recording.relative_to(PROJECT_ROOT).as_posix()}: frame {frame} '
             # A frame lasts its next frame's dt; a hidden frame always has a next frame
-            f'({milliseconds(seconds=schedule.frame_seconds[frame + 1])}) is never presented'
-            for frame in schedule.never_presented
+            f'({milliseconds(seconds=schedule.frame_seconds[frame + 1])}) is hidden'
+            for frame in schedule.hidden
         )
 
     assert hidden == []
