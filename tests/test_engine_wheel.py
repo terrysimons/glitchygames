@@ -162,12 +162,53 @@ def build_every_workspace_wheel(*, directory: Path) -> dict[str, list[str]]:
     return contents
 
 
+def wheel_mismatch(*, distribution: str, wheel_files: list[str], expected_files: list[str]) -> str:
+    """Describe how a member's wheel differs from its packages' files, and what to do.
+
+    Args:
+        distribution: The member's distribution name.
+        wheel_files: The files its wheel holds, outside its metadata directory.
+        expected_files: The files git does not ignore in its packages.
+
+    Returns:
+        The failure message.
+
+    """
+    only_in_wheel = sorted(set(wheel_files) - set(expected_files))
+    only_in_packages = sorted(set(expected_files) - set(wheel_files))
+    return (
+        f'The {distribution} wheel differs from its packages. In the wheel only: '
+        f'{only_in_wheel or "none"}; in the packages only: {only_in_packages or "none"}. A file '
+        'in the wheel only is ignored by .git/info/exclude or your global git excludes but not '
+        'by a .gitignore, which is all hatch reads: delete it, or ignore it in .gitignore. A file '
+        "in the packages only is one the member's [tool.hatch.build] settings leave out: ship "
+        "it, or ignore it in .gitignore if it is not the package's"
+    )
+
+
+def test_a_wheel_mismatch_names_each_differing_file_and_what_to_do():
+    """The failure names the files on each side and the fixes."""
+    message = wheel_mismatch(
+        distribution='space-game',
+        wheel_files=['space_game/.game.py.swp', 'space_game/game.py'],
+        expected_files=['space_game/game.py', 'space_game/sprites/ship.toml'],
+    )
+
+    assert "In the wheel only: ['space_game/.game.py.swp']" in message
+    assert "in the packages only: ['space_game/sprites/ship.toml']" in message
+    assert '.git/info/exclude' in message
+    assert 'ignore it in .gitignore' in message
+
+
 def test_every_member_wheel_holds_exactly_its_own_packages(tmp_path):
     """Each member's wheel holds its packages' files, data files included, and nothing else.
 
-    A package's files are what git does not ignore in its directory (hatch builds from the
-    files, leaving out what .gitignore covers), so a sprite, sound or demo a game reads at run
-    time ships with it. The engine's wheel from the same build holds the engine alone.
+    A package's files are what git does not ignore in its directory, tracked or not, so a
+    sprite, sound or demo a game reads at run time ships with it. hatch ships the same files,
+    an untracked one included (a stray editor swap file ships too, and passes here). They differ
+    only for a file ignored by .git/info/exclude or the user's global excludes alone: git leaves
+    it out, hatch, which reads only the nearest .gitignore, ships it, and this fails naming it.
+    The engine's wheel from the same build holds the engine alone.
     """
     members = workspace_members(project_root=PROJECT_ROOT)
     contents = build_every_workspace_wheel(directory=tmp_path)
@@ -185,6 +226,9 @@ def test_every_member_wheel_holds_exactly_its_own_packages(tmp_path):
             )
             for relative_path in files_not_ignored(directory=package_directory)
         )
-        assert contents[member.distribution.replace('-', '_')] == expected, member.distribution
+        wheel_files = contents[member.distribution.replace('-', '_')]
+        assert wheel_files == expected, wheel_mismatch(
+            distribution=member.distribution, wheel_files=wheel_files, expected_files=expected
+        )
     for distribution, data_path in MEMBER_DATA_WHEEL_PATHS.items():
         assert data_path in contents[distribution.replace('-', '_')]
