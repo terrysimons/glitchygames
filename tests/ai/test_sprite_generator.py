@@ -2,6 +2,8 @@
 
 import tomllib
 
+import pytest
+
 from glitchygames.ai.sprite_generator import (
     PIXEL_ROWS_ERROR_PREFIX,
     SpriteGenerationPrompt,
@@ -1176,6 +1178,30 @@ class TestValidateAiResponsePixelRows:
         """A frame with no pixels key is left to the loader, which skips it."""
         data = {'animation': [{'namespace': 'walk', 'frame': [{'frame_index': 0}]}]}
         assert not pixel_row_problems(data)
+
+    @pytest.mark.parametrize(
+        'content',
+        [
+            '[sprite]\nname = "x"\n[animation]\nnamespace = "walk"\n',
+            (
+                '[sprite]\nname = "x"\n[[animation]]\nnamespace = "walk"\n[animation.frame]\n'
+                'pixels = "A"\n'
+            ),
+            '[[sprite]]\nname = "x"\n',
+            'animation = ["walk"]\n',
+            '[[animation]]\nnamespace = "walk"\nframe = ["AA"]\n',
+        ],
+        ids=[
+            'animation table',
+            'frame table',
+            'sprite array',
+            'animation strings',
+            'frame strings',
+        ],
+    )
+    def test_wrong_shaped_toml_is_left_to_the_other_checks(self, content):
+        """Tables where arrays belong (and the reverse) don't crash the row check."""
+        assert not pixel_row_problems(tomllib.loads(content))
 
     def test_row_check_can_be_turned_off(self):
         """Bitmappy runs the row check itself, on what it loads."""

@@ -1489,6 +1489,11 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         # Create a new animated sprite and load it
         loaded_sprite = AnimatedSprite()
         loaded_sprite.load(filename)
+        if not loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
+            # Nothing to draw (no pixels, or only blank ones): keep the canvas's sprite rather
+            # than resize to 0x0, which divides by zero
+            msg = f'{filename} has no pixels to draw'
+            raise ValueError(msg)
 
         # Debug: Check what was loaded
         self.log.debug('Loaded sprite has _animations: %s', hasattr(loaded_sprite, '_animations'))

@@ -1375,18 +1375,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         self.log.debug('Found %s animation(s) in TOML file', len(animations))
 
-        # Check if this is a static sprite (has sprite.pixels but no animations)
-        if not animations and 'sprite' in data and 'pixels' in data['sprite']:
-            self.log.debug('Detected static sprite, converting to single-frame animation')
-            self._animation_order.append(self._convert_static_sprite(data, color_map))
-        else:
-            # Process normal animated sprite
-            for anim_data in animations:
-                anim_name = anim_data.get('namespace', 'default')
-                frames = self._process_toml_animation(anim_data, color_map)
-                if frames:
-                    self._animations[anim_name] = frames
-                    self._animation_order.append(anim_name)  # Track order
+        self._animation_order.extend(self._load_toml_animations(data, color_map, animations))
 
         # Auto-create animation state machine if [[transition]] sections exist
         self.state_machine: AnimationStateMachine | None = None
@@ -1416,15 +1405,45 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             self._last_drawn_frame = None  # Force update regardless of previous state
             self._update_surface_and_mark_dirty()
 
+    def _load_toml_animations(
+        self: Self,
+        data: dict[str, Any],
+        color_map: dict[str, tuple[int, ...]],
+        animations: list[dict[str, Any]],
+    ) -> list[str]:
+        """Load the [[animation]] tables, or the static sprite as a one-frame animation.
+
+        An animation (or static sprite) with nothing to draw is left out.
+
+        Returns:
+            list[str]: The loaded animations' names, in file order (the animation order).
+
+        """
+        # Check if this is a static sprite (has sprite.pixels but no animations)
+        if not animations and 'sprite' in data and 'pixels' in data['sprite']:
+            self.log.debug('Detected static sprite, converting to single-frame animation')
+            static_animation_name = self._convert_static_sprite(data, color_map)
+            return [] if static_animation_name is None else [static_animation_name]
+        # Process normal animated sprite
+        animation_names: list[str] = []
+        for anim_data in animations:
+            anim_name = anim_data.get('namespace', 'default')
+            frames = self._process_toml_animation(anim_data, color_map)
+            if frames:
+                self._animations[anim_name] = frames
+                animation_names.append(anim_name)  # Track order
+        return animation_names
+
     def _convert_static_sprite(
         self: Self,
         data: dict[str, Any],
         color_map: dict[str, tuple[int, ...]],
-    ) -> str:
+    ) -> str | None:
         """Convert a static sprite to a single-frame animation.
 
         Returns:
-            str: The animation's name (the caller adds it to the animation order).
+            str | None: The animation's name (the caller adds it to the animation order), or
+                None when the pixels are blank and there is nothing to draw.
 
         """
         sprite_data = data['sprite']
@@ -1432,6 +1451,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         # The one pixel-row rule, shared with animation frames (normalize_pixel_rows)
         normalized = normalize_pixel_rows(pixels, color_map.keys())
+        if not normalized.rows:
+            # Nothing to draw: no animation, as a blank animation frame is skipped
+            self.log.debug('Skipping empty static sprite')
+            return None
         self._record_pixel_row_repairs('sprite', normalized.repairs)
         pixel_rows = normalized.rows
         width, height = normalized.width, normalized.height

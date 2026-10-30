@@ -1135,6 +1135,14 @@ class TestConstructTomlWithPreservedFormatting:
 
         assert content == '[sprite]\n'
 
+    def test_ai_rewrite_accepts_a_non_string_name(self):
+        """An AI that writes name = 5 still gets a rewrite, as it did before escaping."""
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(  # type: ignore[arg-type]
+            {'sprite': {'name': 5}},
+        )
+
+        assert tomllib.loads(content)['sprite']['name'] == '5'
+
     def test_ai_rewrite_keeps_alpha(self):
         """A color's alpha is written back, so a see-through color stays see-through."""
         data = tomllib.loads(STATIC_SPRITE_TOML)

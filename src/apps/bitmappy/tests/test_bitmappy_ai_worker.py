@@ -496,6 +496,11 @@ class TestProcessAiRequest:
 class TestExtractExampleSizeBranches:
     """Branches of _extract_example_size for animated examples."""
 
+    def test_blank_example_has_no_size_and_scores_zero(self):
+        """Blank pixel text has no rows, so no size: scoring it must not divide by zero."""
+        assert ai_worker._extract_example_size({'pixels': '\n\n'}) is None
+        assert ai_worker._score_size_match((16, 16), {'pixels': '\n\n'}) == 0
+
     def test_example_size_uses_the_widest_row(self):
         """The size is the loader's: the widest row, not the first one."""
         assert ai_worker._extract_example_size({'pixels': 'a\naaa'}) == (3, 2)

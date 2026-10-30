@@ -454,17 +454,34 @@ def pixel_row_problems(data: dict[str, Any]) -> str:
         str: '' when nothing needs repair; otherwise PIXEL_ROWS_ERROR_PREFIX, then every repair.
 
     """
-    palette_glyphs = [str(glyph) for glyph in data.get('colors', {})]
+    # A response can put a table where an array belongs (or the reverse); those parts have no
+    # rows to check here, and the loader reports them
+    colors: object = data.get('colors', {})
+    palette_glyphs = (
+        [str(glyph) for glyph in cast('dict[str, Any]', colors)] if isinstance(colors, dict) else []
+    )
     problems = [f'palette: {problem}' for problem in palette_key_problems(palette_glyphs)]
     blocks: list[tuple[str, str]] = []
-    sprite_pixels = data.get('sprite', {}).get('pixels')
-    if isinstance(sprite_pixels, str):
-        blocks.append(('sprite', sprite_pixels))
-    for animation in data.get('animation', []):
-        namespace = animation.get('namespace', 'default')
-        for frame_number, frame in enumerate(animation.get('frame', [])):
-            frame_index = frame.get('frame_index', frame_number)
-            pixels = frame.get('pixels')
+    sprite: object = data.get('sprite', {})
+    if isinstance(sprite, dict):
+        sprite_pixels: object = cast('dict[str, Any]', sprite).get('pixels')
+        if isinstance(sprite_pixels, str):
+            blocks.append(('sprite', sprite_pixels))
+    animations: object = data.get('animation', [])
+    for animation in cast('list[object]', animations) if isinstance(animations, list) else []:
+        if not isinstance(animation, dict):
+            continue
+        animation_table = cast('dict[str, Any]', animation)
+        namespace = str(animation_table.get('namespace', 'default'))
+        frames: object = animation_table.get('frame', [])
+        for frame_number, frame in enumerate(
+            cast('list[object]', frames) if isinstance(frames, list) else []
+        ):
+            if not isinstance(frame, dict):
+                continue
+            frame_table = cast('dict[str, Any]', frame)
+            frame_index = frame_table.get('frame_index', frame_number)
+            pixels: object = frame_table.get('pixels')
             if isinstance(pixels, str):
                 blocks.append((f'{namespace} frame {frame_index}', pixels))
     for label, pixels in blocks:

@@ -721,7 +721,7 @@ class TestExtractExampleSize:
         """An empty pixels string has no rows, as the loader sees it (normalize_pixel_rows)."""
         example = {'pixels': '\n'}
         result = _extract_example_size(example)
-        assert result == (0, 0)
+        assert result is None
 
 
 class TestBuildColorToGlyphMap:

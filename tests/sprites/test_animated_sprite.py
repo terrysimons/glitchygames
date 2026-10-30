@@ -4315,6 +4315,12 @@ class TestOnePixelRowRule:
         assert len(sprite.animation_data['walk']) == 1
         assert sprite.pixel_row_repairs == []
 
+    def test_blank_static_sprite_has_no_frame(self, tmp_path):
+        """A static sprite whose pixels are only blank lines has no animation, as a blank frame."""
+        sprite = self._load(tmp_path, _static_sprite_toml('\n  \n'))
+        assert sprite.animation_data == {}
+        assert sprite.pixel_row_repairs == []
+
     def test_palette_key_u0000_is_dropped_and_reported(self, tmp_path):
         """A palette key U+0000 can't color the padding: it is dropped and reported."""
         colors_toml = TABLE_COLORS_TOML + '[colors."\\u0000"]\nred = 255\ngreen = 0\nblue = 0\n'

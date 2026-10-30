@@ -714,7 +714,8 @@ class AIManager:
             lines.append('[sprite]')
             sprite_data = data['sprite']
             if 'name' in sprite_data:
-                lines.append(f'name = {toml_basic_string(sprite_data["name"])}')
+                # str(): an AI can write a non-string name, which the rewrite used to accept
+                lines.append(f'name = {toml_basic_string(str(sprite_data["name"]))}')
             if 'description' in sprite_data:
                 lines.append(
                     f'description = {toml_multiline_basic_string(sprite_data["description"])}'
