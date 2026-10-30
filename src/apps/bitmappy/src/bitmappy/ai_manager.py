@@ -49,6 +49,7 @@ from .ai_worker import (
     run_ai_worker_process,
     select_relevant_training_examples,
 )
+from .animated_canvas import pixel_row_repair_notice
 from .constants import (
     AI_FEATURES_ENABLED,
     AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT,
@@ -826,7 +827,9 @@ class AIManager:
             else:
                 original_prompt = 'Enter a description of the sprite you want to create:'
 
-            self.editor.debug_text.text = original_prompt
+            # The canvas's own load notice is replaced along with its text, so it goes back too
+            canvas_sprite = getattr(getattr(self.editor, 'canvas', None), 'animated_sprite', None)
+            self.editor.debug_text.text = original_prompt + pixel_row_repair_notice(canvas_sprite)
 
     def _cleanup_ai_request(self, request_id: str) -> None:
         """Clean up pending AI request."""

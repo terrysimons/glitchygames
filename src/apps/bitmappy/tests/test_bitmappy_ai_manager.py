@@ -916,6 +916,23 @@ class TestProcessAiResponse:
         assert canvas.animated_sprite.pixel_row_repairs
         assert manager.pending_ai_requests == {}
 
+    def test_ai_load_with_repairs_shows_the_notice(self):
+        """After the AI manager puts the prompt back, the repair notice is still below it."""
+        canvas = FakeCanvas()
+        editor = _editor(canvas=canvas)
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(
+            original_prompt='a red ball',
+            retry_count=AI_VALIDATION_MAX_RETRIES,
+        )
+
+        manager._process_ai_response('request-1', AIResponse(content=RAGGED_SPRITE_TOML))
+
+        assert editor.debug_text.text == (
+            'a red ball\nRepaired the pixel rows of 1 block(s) while loading (details in the '
+            'log). Saving writes the repaired rows.'
+        )
+
     def test_bitmappy_still_discards_other_failures(self):
         """Out of retries, any other failure is still not loaded."""
         canvas = FakeCanvas()
