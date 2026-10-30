@@ -91,7 +91,7 @@ agree.
   - Covers keys with `len(key) != 1`, and the key `'\x00'`.
   - Keys are `repr`, sorted.
 
-- [ ] **Step 1: Write the failing tests** in a new `TestNormalizePixelRows` class:
+- [x] **Step 1: Write the failing tests** in a new `TestNormalizePixelRows` class:
   - `test_rectangle_is_unchanged_and_unreported`: `'ab\nab'` → rows `('ab', 'ab')`, width 2,
     height 2, repairs `()`.
   - `test_long_row_widens_never_truncates`: `'x\nxxxx\nx\nx'`, palette `'x'` → rows
@@ -124,18 +124,18 @@ agree.
     `("palette keys that are not one code point: '\\x00', '\u2764\ufe0f'",)`. Write the expected value
     with `repr` in the test; `palette_key_problems(['a'])` == `()`.
 
-- [ ] **Step 2: Run them and watch them fail.**
+- [x] **Step 2: Run them and watch them fail.**
   Run: `uv run pytest tests/sprites/test_pixel_utils.py -q -k "NormalizePixelRows or palette_key"`.
   Expected: FAIL with an ImportError for `normalize_pixel_rows`.
 
-- [ ] **Step 3: Implement** the function, the dataclass, the constant and `palette_key_problems`
+- [x] **Step 3: Implement** the function, the dataclass, the constant and `palette_key_problems`
   in `pixel_utils.py`, in the module's style. The docstring explains the rule and cites the
   spec. No logging here: callers log.
 
-- [ ] **Step 4: Run them and watch them pass.** Run the same command. Expected: all pass, no
+- [x] **Step 4: Run them and watch them pass.** Run the same command. Expected: all pass, no
   warnings.
 
-- [ ] **Step 5: Commit**: "Sprites: one rule for pixel rows, normalize_pixel_rows (never
+- [x] **Step 5: Commit**: "Sprites: one rule for pixel rows, normalize_pixel_rows (never
   truncates, reports repairs)".
 
 ### Task 2: The engine loader uses it
@@ -158,7 +158,7 @@ agree.
     per repaired block. Use the file name when known, else `'<data>'`.
   - The palette's problems are logged once per load.
 
-- [ ] **Step 1: Write the failing tests**, as full loads from TOML text written to `tmp_path`:
+- [x] **Step 1: Write the failing tests**, as full loads from TOML text written to `tmp_path`:
   - `test_static_short_row_pads_transparent`: the static `'ab\na'` → `frame.pixels[3]` is
     magenta (255, 0, 255), and `pixel_row_repairs` has one `'sprite: row widths differ'` entry.
   - `test_animated_sword_keeps_its_crossguard`: the animated frame `'x\nxxxx\nx\nx'` → surface
@@ -176,21 +176,21 @@ agree.
     after" table. Each case loads as a static sprite and as a one-frame animation, and both
     draw the spec's "New" column (`·` = transparent; palette `x a b c d` as in the table).
 
-- [ ] **Step 2: Run them and watch them fail.**
+- [x] **Step 2: Run them and watch them fail.**
   Run: `uv run pytest tests/sprites/test_animated_sprite.py -q -k "before_and_after or pads_transparent or crossguard or interior_line or agree or blank_frame or u0000 or once_per_block or no_repairs"`.
   Expected: FAIL. The sword test fails with a 1-wide surface, and the others fail on the
   missing attribute.
 
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
   - Both paths call `normalize_pixel_rows(pixels, color_map.keys(), label=...)`.
   - `build_color_map` drops a `'\x00'` key. The load reports `palette_key_problems`.
   - The static path's unknown-glyph handling already draws magenta; keep it.
   - Delete the two old functions. Task 3 moves their callers.
 
-- [ ] **Step 4: Run the file**, `uv run pytest tests/sprites -q`. Expected: all pass. Read
+- [x] **Step 4: Run the file**, `uv run pytest tests/sprites -q`. Expected: all pass. Read
   every failure in the old tests, and rewrite only those that pin the old rule.
 
-- [ ] **Step 5: Commit**: "Sprites: static sprites and animation frames load through
+- [x] **Step 5: Commit**: "Sprites: static sprites and animation frames load through
   normalize_pixel_rows".
 
 ### Task 3: The other parsers, the strict repo check, and cobra
@@ -215,7 +215,7 @@ agree.
   which now raises `AssertionError(f'{sprite_file} {label}: {repairs}')` on any repair in strict
   mode, palette problems included.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_check_fails_on_glyph_missing_from_palette`, `test_check_fails_on_blank_interior_line`,
     `test_check_fails_on_bad_palette_key`: hand-written files in `tmp_path`, each
     `pytest.raises(AssertionError, match=...)`.
@@ -229,20 +229,20 @@ agree.
     rows have.
   - `test_cobra_eye_has_a_color`: the cobra's `e` resolves to (180, 30, 30).
 
-- [ ] **Step 2: Run them and watch them fail.**
+- [x] **Step 2: Run them and watch them fail.**
   Run: `uv run pytest tests/testing/test_sprite_files.py tests/sprites/test_sprite_bitmappy.py src/apps/bitmappy/tests/test_bitmappy_ai_worker.py tests/tools/test_ascii_renderer.py -q`.
   Expected: the new tests fail.
 
-- [ ] **Step 3: Implement.** Each caller uses `normalize_pixel_rows`. Add to cobra.toml:
+- [x] **Step 3: Implement.** Each caller uses `normalize_pixel_rows`. Add to cobra.toml:
   `"e" = { red = 180, green = 30, blue = 30 }` after `"E"`, with a comment:
   `# Second eye: a darker shade of E, like g is of G`.
 
-- [ ] **Step 4: Run** the four files, then the workspace checks:
+- [x] **Step 4: Run** the four files, then the workspace checks:
   `uv run pytest tests/test_workspace_sprite_files.py tests/sprites/test_engine_sprite_files.py src/games/brave-adventurer/tests -q`.
   Expected: all pass. If a repo sprite fails strict, stop and report it (spec: no art changes
   except cobra).
 
-- [ ] **Step 5: Commit**: "Sprites: every row parser uses normalize_pixel_rows; the repo check
+- [x] **Step 5: Commit**: "Sprites: every row parser uses normalize_pixel_rows; the repo check
   runs strict; cobra's second eye gets a color".
 
 ### Task 4: Writers escape pixel rows (and the AI rewrite keeps alpha)
@@ -268,7 +268,7 @@ agree.
   - The newlines between rows stay real. A trailing `'\n'` of the input is removed first.
   - The single-line prompt form uses `toml_basic_string`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_backslash_glyph_round_trips`: palette glyph `'\\'`, rows `'a\\\nbbb'` → save,
     reload, and the rows are still `['a\\', 'bbb']`, not merged.
   - `test_quote_glyph_round_trips`: rows of `'"""'` survive a save and reload.
@@ -281,17 +281,17 @@ agree.
     text that `tomllib.loads` parses to the same pixels.
   - `test_png_import_glyphs_need_no_escaping`: `'\\' not in SPRITE_GLYPHS and '"' not in SPRITE_GLYPHS`.
 
-- [ ] **Step 2: Run them and watch them fail.** Expected: the round trips fail
+- [x] **Step 2: Run them and watch them fail.** Expected: the round trips fail
   (`'a\\bbb'`-style merge, or a TOMLDecodeError), and so does the alpha test.
 
-- [ ] **Step 3: Implement.** The AI rewrite uses `toml_pixel_block`, `toml_basic_string` and
+- [x] **Step 3: Implement.** The AI rewrite uses `toml_pixel_block`, `toml_basic_string` and
   `toml_multiline_basic_string`, and writes `alpha` when present.
   - Ruling (from the spec's writer list): `ascii_renderer.py`'s output is a colorized terminal
     view with ANSI codes, not TOML anything reads back, so it isn't escaped. Ledger this.
 
-- [ ] **Step 4: Run** the four files. Expected: all pass.
+- [x] **Step 4: Run** the four files. Expected: all pass.
 
-- [ ] **Step 5: Commit**: "Sprites: writers escape pixel rows; Bitmappy's AI rewrite keeps
+- [x] **Step 5: Commit**: "Sprites: writers escape pixel rows; Bitmappy's AI rewrite keeps
   alpha and escapes text".
 
 ### Task 5: The AI path checks rows strictly
@@ -317,7 +317,7 @@ agree.
   - `validate_ai_response(content: str, *, check_pixel_rows: bool = True) -> tuple[bool, str]`.
     The row check runs last, on `tomllib.loads(content)`, and a parse error skips it.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_ragged_rows_fail_validation`: the error starts with `PIXEL_ROWS_ERROR_PREFIX` and
     names the frame.
   - `test_unparseable_response_skips_the_row_check`: a response with a TOML syntax error gives
@@ -332,9 +332,9 @@ agree.
   - `test_bitmappy_still_discards_other_failures`: a missing-`[colors]` response after the last
     retry is not loaded, as today.
 
-- [ ] **Step 2: Run them and watch them fail.**
+- [x] **Step 2: Run them and watch them fail.**
 
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
   - `build_retry_prompt` gets a first branch for `PIXEL_ROWS_ERROR_PREFIX.lower()` with the text:
     `'CRITICAL: every row of a frame must have the same number of characters, one palette glyph per pixel. Count each row.'`
   - Bitmappy's `_validate_ai_content` calls `validate_ai_response(..., check_pixel_rows=False)`,
@@ -343,9 +343,9 @@ agree.
     `parse_toml_robustly` and `normalize_toml_data` of the cleaned response.
   - It retries while retries remain. On the last attempt it calls `_load_ai_sprite`.
 
-- [ ] **Step 4: Run** the three files. Expected: all pass.
+- [x] **Step 4: Run** the three files. Expected: all pass.
 
-- [ ] **Step 5: Commit**: "AI: ragged pixel rows fail validation; Bitmappy retries them, then
+- [x] **Step 5: Commit**: "AI: ragged pixel rows fail validation; Bitmappy retries them, then
   loads repaired".
 
 ### Task 6: Bitmappy's repair notice
@@ -362,21 +362,21 @@ agree.
   Here `count` is the number of distinct labels other than `'palette'`, and a palette problem
   counts as one.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `test_load_with_repairs_shows_the_notice`.
   - `test_clean_load_shows_no_notice`.
   - `test_ai_load_with_repairs_shows_the_notice`: it goes through `_load_ai_sprite`, and the
     notice is still there after `_update_ui_after_ai_load`.
 
-- [ ] **Step 2: Run them and watch them fail.**
+- [x] **Step 2: Run them and watch them fail.**
 
-- [ ] **Step 3: Implement.** Append the notice after the success message is set. If the AI
+- [x] **Step 3: Implement.** Append the notice after the success message is set. If the AI
   manager overwrites `debug_text`, add the notice there too, from the canvas sprite's
   `pixel_row_repairs`.
 
-- [ ] **Step 4: Run** `uv run pytest src/apps/bitmappy/tests -q`. Expected: all pass.
+- [x] **Step 4: Run** `uv run pytest src/apps/bitmappy/tests -q`. Expected: all pass.
 
-- [ ] **Step 5: Commit**: "Bitmappy: say when a loaded file's pixel rows were repaired".
+- [x] **Step 5: Commit**: "Bitmappy: say when a loaded file's pixel rows were repaired".
 
 ### Task 7: QuickLook follows the rule
 
@@ -406,20 +406,20 @@ agree.
   pads with `Unicode.Scalar(0)`. `staticSpriteRows`, `animatedFrameRows` and `mostCommon` are
   removed; `pythonStrip` is removed if unused.
 
-- [ ] **Step 1: Rewrite `PixelRowsTests.swift`** to mirror Task 1's rule tests: the same inputs
+- [x] **Step 1: Rewrite `PixelRowsTests.swift`** to mirror Task 1's rule tests: the same inputs
   and the same expected rows, written with `"\u{0}"`.
 
-- [ ] **Step 2: Watch them fail.** Run `swift test`. Expected: compile errors, then failures.
+- [x] **Step 2: Watch them fail.** Run `swift test`. Expected: compile errors, then failures.
 
-- [ ] **Step 3: Implement `rows(_:)`** and switch both loader call sites to it.
+- [x] **Step 3: Implement `rows(_:)`** and switch both loader call sites to it.
 
-- [ ] **Step 4: Regenerate the goldens** with the README command, plus the two new fixtures. The
+- [x] **Step 4: Regenerate the goldens** with the README command, plus the two new fixtures. The
   slime-jump sprites are `/Users/terry/Dropbox/dev.glitchygames/glitchygames/slime-jump.toml`
   and `slime-jump-alpha.toml`. Then run `swift test`. Expected: all pass.
   - `git diff --stat src/quicklook/Tests/SpriteCoreTests/Golden` shows only the ragged and new
     fixtures changed. Any other golden that changed is a finding: stop.
 
-- [ ] **Step 5: Commit**: "QuickLook: one pixel-row rule, matching the engine".
+- [x] **Step 5: Commit**: "QuickLook: one pixel-row rule, matching the engine".
 
 ### Task 8: Docs and tracking
 
@@ -435,7 +435,7 @@ agree.
   - `plans/future-features.md` #28: a note that the core check exists.
 - Test: `nox -s lint` (mkdocs strict, yamllint) and `nox -s static-analysis`.
 
-- [ ] **Step 1: Make the edits.**
-- [ ] **Step 2: Run** `nox -s lint` and `nox -s static-analysis`, then the full suite
+- [x] **Step 1: Make the edits.**
+- [x] **Step 2: Run** `nox -s lint` and `nox -s static-analysis`, then the full suite
   `uv run pytest -n auto -q` and `swift test`. Expected: all green and no new warnings.
-- [ ] **Step 3: Commit**: "Docs: one rule for sprite pixel rows; bugs found on the way".
+- [x] **Step 3: Commit**: "Docs: one rule for sprite pixel rows; bugs found on the way".
