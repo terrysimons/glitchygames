@@ -7,8 +7,9 @@ long and the short frame its pacing caught up with are each presented. This runs
 tool's simulation (scripts/replay_schedule.py: the viewer's real accumulator on an ideal clock)
 over every tracked recording but the golden traces' baselines (tests/world/golden, which no
 viewer replays), and fails naming each recording and frame a watched 1x replay hides: never
-presented though it lasted at least 3/4 of a tick (``RecordingSchedule.hidden``, the tool's
-rule; shorter frames a tick skips by design are not failures).
+presented because a later frame ran in its tick while the replay was not behind
+(``RecordingSchedule.hidden``, the tool's rule, on the viewer's own behind condition; frames a
+tick skipped while the replay was behind are not failures).
 """
 
 from __future__ import annotations

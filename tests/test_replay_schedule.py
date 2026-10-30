@@ -24,6 +24,7 @@ from scripts.replay_schedule import (
 
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.controls import CONTROL_TICK_SECONDS
+from glitchygames.replay.viewer import ReplayViewer
 from glitchygames.tracing import write_trace
 
 if TYPE_CHECKING:
@@ -44,10 +45,27 @@ LONG_MIDDLE_FRAME_SECONDS = (
 STEADY_FRAME_SECONDS = (0.0, *([STEADY_SECONDS] * 7))
 # A recording made at 240 FPS: four frames to each 60 Hz tick, so a 1x replay is behind
 FAST_FRAME_SECONDS = (0.0, *([1 / 240] * 12))
-# A recording made at about 67 FPS (15 ms frames), watched at 1x: the replay owes 1.7 ms more
-# each tick, so every so often a tick runs two frames (frames 15 and 16 first) and hides the
-# first, which lasted more than 3/4 of a tick
-FIFTEEN_MILLISECOND_FRAME_SECONDS = (0.0, *([0.015] * 20))
+# Brave Adventurer golden-classic's stutter (frame 2 lasts 34.02 ms, frame 3 7.44 ms): with rule
+# 2's one-frame limit off (the viewer as it was before it), tick 3 runs both while the replay is
+# not behind and hides frame 2
+STUTTER_FRAME_SECONDS = (
+    0.0,
+    STEADY_SECONDS,
+    STEADY_SECONDS,
+    0.03402,
+    0.00744,
+    *([STEADY_SECONDS] * 3),
+)
+
+
+@pytest.fixture
+def without_rule_two(mocker):
+    """Turn rule 2's one-frame limit off (glitchygames/replay/viewer.py), as before it existed.
+
+    The behind condition the viewer reports stays; only the deferral that uses it goes, so the
+    tool must still find the frames that limit protects.
+    """
+    mocker.patch.object(ReplayViewer, '_defers_to_the_next_tick', return_value=False)
 
 
 def write_recording(*, path: Path, frame_seconds: tuple[float, ...]) -> Path:
@@ -158,45 +176,43 @@ def test_a_recording_presenting_every_frame_succeeds(tmp_path, capsys):
     assert f'{path.as_posix()}: 8 frames at 1x' in output
     assert 'tick 1 (16.67 ms): ran 1; accumulator 8.33 ms' in output
     assert '  hidden: none' in output
-    assert '  skipped by design (under 3/4 of a tick, or above 1x): none' in output
+    assert '  skipped by design (the replay was behind, or above 1x): none' in output
     assert 'frame 1: 16.67 ms' in output
 
 
-def test_a_recording_hiding_a_frame_fails_naming_it(tmp_path, capsys):
+def test_a_recording_hiding_a_frame_fails_naming_it(tmp_path, capsys, without_rule_two):
     """A hidden frame exits REPLAY_DIVERGED: the watched sequence differs."""
-    path = write_recording(
-        path=tmp_path / 'behind.jsonl.gz', frame_seconds=FIFTEEN_MILLISECOND_FRAME_SECONDS
-    )
+    path = write_recording(path=tmp_path / 'stutter.jsonl.gz', frame_seconds=STUTTER_FRAME_SECONDS)
 
     exit_code = main(arguments=[str(path)])
 
     output = capsys.readouterr().out
     assert exit_code == ExitCode.REPLAY_DIVERGED
-    assert 'tick 15 (250.00 ms): ran 15, 16; accumulator 17.50 ms' in output
-    assert '  hidden: 15' in output
-    assert '  skipped by design (under 3/4 of a tick, or above 1x): none' in output
-    assert 'frame 16: 15.00 ms' in output
+    assert 'tick 3 (50.00 ms): ran 2, 3; accumulator 0.21 ms' in output
+    assert '  hidden: 2' in output
+    assert '  skipped by design (the replay was behind, or above 1x): none' in output
+    assert 'frame 3: 34.02 ms' in output
 
 
-def test_the_summary_is_one_line_per_recording(tmp_path, capsys):
+def test_the_summary_is_one_line_per_recording(tmp_path, capsys, without_rule_two):
     """--summary: name, frame count, hidden and skipped frames, the shortest and longest dt."""
-    fast = write_recording(path=tmp_path / 'fast.jsonl.gz', frame_seconds=FAST_FRAME_SECONDS)
-    behind = write_recording(
-        path=tmp_path / 'behind.jsonl.gz', frame_seconds=FIFTEEN_MILLISECOND_FRAME_SECONDS
+    steady = write_recording(path=tmp_path / 'steady.jsonl.gz', frame_seconds=STEADY_FRAME_SECONDS)
+    stutter = write_recording(
+        path=tmp_path / 'stutter.jsonl.gz', frame_seconds=STUTTER_FRAME_SECONDS
     )
 
-    exit_code = main(arguments=[str(fast), str(behind), '--summary'])
+    exit_code = main(arguments=[str(steady), str(stutter), '--summary'])
 
     lines = capsys.readouterr().out.splitlines()
     assert exit_code == ExitCode.REPLAY_DIVERGED
     assert lines == [
         (
-            f'{fast.as_posix()}: 13 frames, hidden: none, '
-            'skipped by design: 2, 3, 5, 6, 7, 9, 10, 11, dt min 0.00 ms max 4.17 ms'
+            f'{steady.as_posix()}: 8 frames, hidden: none, skipped by design: none, '
+            'dt min 0.00 ms max 16.67 ms'
         ),
         (
-            f'{behind.as_posix()}: 21 frames, hidden: 15, skipped by design: none, '
-            'dt min 0.00 ms max 15.00 ms'
+            f'{stutter.as_posix()}: 8 frames, hidden: 2, skipped by design: none, '
+            'dt min 0.00 ms max 34.02 ms'
         ),
     ]
 
@@ -257,18 +273,18 @@ def test_an_unreadable_recording_is_unusable_input(tmp_path, capsys, kind):
     assert path.as_posix() in capsys.readouterr().err
 
 
-def test_the_first_failure_decides_the_exit_code(tmp_path, capsys):
+def test_the_first_failure_decides_the_exit_code(tmp_path, capsys, without_rule_two):
     """Every recording is reported; the exit code is the first failure's."""
-    behind = write_recording(
-        path=tmp_path / 'behind.jsonl.gz', frame_seconds=FIFTEEN_MILLISECOND_FRAME_SECONDS
+    stutter = write_recording(
+        path=tmp_path / 'stutter.jsonl.gz', frame_seconds=STUTTER_FRAME_SECONDS
     )
     absent = tmp_path / 'absent.jsonl.gz'
 
-    exit_code = main(arguments=[str(behind), str(absent), '--summary'])
+    exit_code = main(arguments=[str(stutter), str(absent), '--summary'])
 
     captured = capsys.readouterr()
     assert exit_code == ExitCode.REPLAY_DIVERGED
-    assert behind.as_posix() in captured.out
+    assert stutter.as_posix() in captured.out
     assert absent.as_posix() in captured.err
 
 
@@ -293,9 +309,19 @@ STUTTER_PAIRS = {
 
 
 def schedule_from_ticks(
-    *, frame_seconds: tuple[float, ...], speed: float, frames_by_tick: list[tuple[int, ...]]
+    *,
+    frame_seconds: tuple[float, ...],
+    speed: float,
+    frames_by_tick: list[tuple[int, ...]],
+    behind_frames: frozenset[int] = frozenset(),
 ) -> RecordingSchedule:
     """Return a schedule with the given ticks (a rule other than the viewer's, by hand).
+
+    Args:
+        frame_seconds: Every frame's recorded dt.
+        speed: The replay speed.
+        frames_by_tick: The frames each tick ran.
+        behind_frames: The frames that ran while the replay was behind.
 
     Returns:
         The schedule.
@@ -309,6 +335,7 @@ def schedule_from_ticks(
                 tick_index=tick_index,
                 seconds=tick_index * CONTROL_TICK_SECONDS,
                 frames_run=frames_run,
+                frames_ran_behind=tuple(frame in behind_frames for frame in frames_run),
                 accumulated_seconds=0.0,
             )
             for tick_index, frames_run in enumerate(frames_by_tick)
@@ -327,14 +354,14 @@ def test_a_120_fps_recording_skips_frames_by_design_and_passes(tmp_path, capsys)
     output = capsys.readouterr().out
     assert exit_code == ExitCode.SUCCESS
     assert '  hidden: none' in output
-    assert '  skipped by design (under 3/4 of a tick, or above 1x): ' in output
+    assert '  skipped by design (the replay was behind, or above 1x): ' in output
 
 
 @pytest.mark.parametrize(
     ('long_seconds', 'short_seconds'), STUTTER_PAIRS.values(), ids=STUTTER_PAIRS.keys()
 )
 def test_a_stutter_pair_sharing_a_tick_hides_the_long_frame(long_seconds, short_seconds):
-    """The old rule ran the long frame (2) and its catch-up frame (3) in one tick: hidden."""
+    """The old rule ran the long frame (2) and its catch-up frame (3), not behind: hidden."""
     schedule = schedule_from_ticks(
         frame_seconds=(0.0, STEADY_SECONDS, STEADY_SECONDS, long_seconds, short_seconds),
         speed=1.0,
@@ -345,39 +372,104 @@ def test_a_stutter_pair_sharing_a_tick_hides_the_long_frame(long_seconds, short_
     assert schedule.skipped_by_design == ()
 
 
-# The hidden threshold: three quarters of a tick of inner time at 1x
-THREE_QUARTERS_OF_A_TICK_SECONDS = CONTROL_TICK_SECONDS * 3 / 4
+def test_a_frame_hidden_by_an_extra_frame_that_ran_behind_is_skipped_by_design():
+    """The same tick, but frame 3 ran while the replay was behind: frame 2 is not a failure."""
+    schedule = schedule_from_ticks(
+        frame_seconds=(0.0, STEADY_SECONDS, STEADY_SECONDS, 0.03402, 0.00744),
+        speed=1.0,
+        frames_by_tick=[(0,), (1,), (), (2, 3), (4,)],
+        behind_frames=frozenset({3}),
+    )
+
+    assert schedule.hidden == ()
+    assert schedule.skipped_by_design == (2,)
 
 
 @pytest.mark.parametrize(
-    ('frame_two_seconds', 'expected_hidden'),
-    [
-        (THREE_QUARTERS_OF_A_TICK_SECONDS, (2,)),
-        (THREE_QUARTERS_OF_A_TICK_SECONDS * 0.999, ()),
-        (1 / 60.01, (2,)),
-        (1 / 60, (2,)),
-        (1 / 120, ()),
-        (1 / 144, ()),
-    ],
-    ids=[
-        'three_quarters_of_a_tick_is_hidden',
-        'just_under_three_quarters_is_skipped',
-        'a_default_60_01_fps_frame_is_hidden',
-        'a_60_fps_frame_is_hidden',
-        'a_120_fps_frame_is_skipped',
-        'a_144_fps_frame_is_skipped',
-    ],
+    ('long_seconds', 'short_seconds'), STUTTER_PAIRS.values(), ids=STUTTER_PAIRS.keys()
 )
-def test_a_frame_counts_as_hidden_from_three_quarters_of_a_tick(frame_two_seconds, expected_hidden):
-    """The threshold: a frame lasting at least 3/4 of a tick at the speed (speed x 12.5 ms)."""
-    schedule = schedule_from_ticks(
-        frame_seconds=(0.0, STEADY_SECONDS, STEADY_SECONDS, frame_two_seconds, 0.001),
+def test_without_rule_two_the_viewer_hides_the_long_frame(
+    long_seconds, short_seconds, without_rule_two
+):
+    """Trap 1: the viewer's own behind condition, not the limit built on it, finds the frame."""
+    schedule = simulate_schedule(
+        frame_seconds=(
+            0.0,
+            STEADY_SECONDS,
+            STEADY_SECONDS,
+            long_seconds,
+            short_seconds,
+            *([STEADY_SECONDS] * 3),
+        ),
         speed=1.0,
-        frames_by_tick=[(0,), (1,), (2, 3), (4,)],
     )
 
-    assert schedule.hidden == expected_hidden
-    assert schedule.never_presented == (2,)
+    assert schedule.hidden == (2,)
+
+
+def every_extra_frame_ran_behind(*, schedule: RecordingSchedule) -> bool:
+    """Whether every frame a tick ran after its first ran while the replay was behind.
+
+    Returns:
+        True when so (vacuously for a schedule with no such frame).
+
+    """
+    return all(all(tick.frames_ran_behind[1:]) for tick in schedule.ticks)
+
+
+def test_a_long_60_01_fps_recording_passes_its_unshown_frames_behind():
+    """Trap 2: 200 s at the default 60.01 FPS on the 60 Hz tick: its extra frame ran behind."""
+    schedule = simulate_schedule(frame_seconds=(0.0, *([1 / 60.01] * 12_002)), speed=1.0)
+
+    assert schedule.hidden == ()
+    assert schedule.never_presented
+    assert every_extra_frame_ran_behind(schedule=schedule)
+
+
+def test_a_70_fps_recording_passes_its_unshown_frames_behind():
+    """Trap 3: 70 FPS frames, more than the 60 Hz tick shows; each extra frame ran behind."""
+    schedule = simulate_schedule(frame_seconds=(0.0, *([1 / 70] * 700)), speed=1.0)
+
+    assert schedule.hidden == ()
+    assert schedule.never_presented
+    assert every_extra_frame_ran_behind(schedule=schedule)
+
+
+def test_a_genuine_stall_presents_its_long_frame_and_bursts_behind():
+    """Trap 4: a 100 ms frame (10), then the live pacing's backlog of 1 ms frames.
+
+    The long frame is presented in its own tick; the short frames that follow run several to a
+    tick, each extra one while the replay is behind; the recording passes.
+    """
+    frame_seconds = (
+        0.0,
+        *([STEADY_SECONDS] * 10),
+        0.100,
+        *([0.001] * 100),
+        *([STEADY_SECONDS] * 20),
+    )
+
+    schedule = simulate_schedule(frame_seconds=frame_seconds, speed=1.0)
+
+    assert 10 not in schedule.never_presented
+    assert any(len(tick.frames_run) > 1 for tick in schedule.ticks)
+    assert every_extra_frame_ran_behind(schedule=schedule)
+    assert schedule.hidden == ()
+
+
+@pytest.mark.parametrize('speed', [0.25, 0.5, 1.0, 2.0])
+def test_zero_length_frames_never_fail(speed):
+    """Trap 5: frames recorded with no duration, singly and in runs, at any speed."""
+    frame_seconds = (
+        0.0,
+        *([0.0 if frame % 10 == 0 else STEADY_SECONDS for frame in range(300)]),
+        *([0.0] * 20),
+        *([STEADY_SECONDS] * 20),
+    )
+
+    schedule = simulate_schedule(frame_seconds=frame_seconds, speed=speed)
+
+    assert schedule.hidden == ()
 
 
 @pytest.mark.parametrize(
