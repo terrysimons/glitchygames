@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from glitchygames import clock
 from glitchygames.ai import get_sprite_size_hint
+from glitchygames.sprites.pixel_utils import normalize_pixel_rows
 
 from .constants import (
     AI_BASE_DELAY,
@@ -817,11 +818,7 @@ def _extract_example_size(example: dict[str, Any]) -> tuple[int, int] | None:
     if 'pixels' in example:
         pixels = example['pixels']
         if isinstance(pixels, str) and '\n' in pixels:
-            # str.split always returns at least one line
-            lines = pixels.strip().split('\n')
-            height = len(lines)
-            width = len(lines[0])
-            return (width, height)
+            return _pixel_grid_size(pixels)
 
     # Try to get size from first animation frame
     if example.get('animations'):
@@ -831,13 +828,22 @@ def _extract_example_size(example: dict[str, Any]) -> tuple[int, int] | None:
             if 'pixels' in first_frame:
                 pixels = first_frame['pixels']
                 if isinstance(pixels, str) and '\n' in pixels:
-                    # str.split always returns at least one line
-                    lines = pixels.strip().split('\n')
-                    height = len(lines)
-                    width = len(lines[0])
-                    return (width, height)
+                    return _pixel_grid_size(pixels)
 
     return None
+
+
+def _pixel_grid_size(pixels: str) -> tuple[int, int]:
+    """Return the (width, height) the loader gives a pixels block (normalize_pixel_rows).
+
+    The palette doesn't change the size, so none is passed.
+
+    Returns:
+        tuple[int, int]: The block's width and height.
+
+    """
+    normalized = normalize_pixel_rows(pixels, ())
+    return (normalized.width, normalized.height)
 
 
 def build_retry_prompt(original_prompt: str, validation_error: str) -> str:

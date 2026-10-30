@@ -496,6 +496,10 @@ class TestProcessAiRequest:
 class TestExtractExampleSizeBranches:
     """Branches of _extract_example_size for animated examples."""
 
+    def test_example_size_uses_the_widest_row(self):
+        """The size is the loader's: the widest row, not the first one."""
+        assert ai_worker._extract_example_size({'pixels': 'a\naaa'}) == (3, 2)
+
     def test_first_frame_without_pixels_has_no_size(self):
         """An animation whose first frame has no pixels gives no size."""
         example = {'animations': [{'frame': [{'frame_index': 0}]}]}

@@ -28,7 +28,10 @@ if TYPE_CHECKING:
 import pygame
 import tomli_w
 
+from glitchygames.color import MAGENTA_TRANSPARENCY_KEY
+
 from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
+from .pixel_utils import PADDING_GLYPH, normalize_pixel_rows
 from .sprite import Sprite
 
 LOG = logging.getLogger('game.sprites')
@@ -259,14 +262,13 @@ class BitmappySprite(Sprite):
         pixel_text = str(data['sprite']['pixels'])
         self.log.debug('Raw pixel text (%s bytes):\n%s', len(pixel_text), pixel_text)
 
-        # Split into rows and process each row
-        rows: list[str] = []
-        for i, raw_row in enumerate(pixel_text.split('\n')):
-            row = raw_row.strip()
-            if row:  # Only add non-empty rows
-                rows.append(row)
-                self.log.debug("Row %s: '%s' (len=%s)", i, row, len(row))
-
+        # The engine's one pixel-row rule (normalize_pixel_rows), so this fallback draws what
+        # AnimatedSprite draws: rows padded with transparent pixels to the longest
+        palette_glyphs = [str(color_key) for color_key in data.get('colors', {})]
+        normalized = normalize_pixel_rows(pixel_text, palette_glyphs)
+        if normalized.repairs:
+            self.log.warning('%s: pixel rows repaired: %s', name, '; '.join(normalized.repairs))
+        rows = list(normalized.rows)
         self.log.debug('Total rows processed: %s', len(rows))
 
         # Get color definitions
@@ -276,6 +278,9 @@ class BitmappySprite(Sprite):
                 red = color_data['red']
                 green = color_data['green']
                 blue = color_data['blue']
+                if color_key == PADDING_GLYPH:
+                    # normalize_pixel_rows pads with it, so it can't be a color
+                    continue
                 color_map[str(color_key)] = (red, green, blue)
                 self.log.debug(
                     "Color map entry: '%s' -> RGB(%s, %s, %s)",
@@ -285,6 +290,8 @@ class BitmappySprite(Sprite):
                     blue,
                 )
 
+        # A padded pixel draws as the transparency key, as in AnimatedSprite
+        color_map[PADDING_GLYPH] = MAGENTA_TRANSPARENCY_KEY
         self.log.debug('Total colors in map: %s', len(color_map))
         return (str(name), rows, color_map)
 

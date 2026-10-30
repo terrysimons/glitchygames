@@ -54,6 +54,22 @@ class TestBitmappySprite:
             [red, green],
         ]
 
+    def test_bitmappy_sprite_fallback_pads_like_the_engine(self):
+        """The fallback static loader pads a short row with transparent pixels to the longest.
+
+        It used to take the width from the first row, so a longer later row was cut.
+        """
+        data = {
+            'sprite': {'name': 'short', 'pixels': 'R\nRR\n'},
+            'colors': {'R': {'red': 255, 'green': 0, 'blue': 0}},
+        }
+
+        image, _rect, _name = BitmappySprite()._static_sprite_from_toml_data(data)
+
+        assert image.get_size() == (2, 2)
+        assert tuple(image.get_at((1, 0)))[:3] == (255, 0, 255)
+        assert tuple(image.get_at((1, 1)))[:3] == (255, 0, 0)
+
     def test_bitmappy_sprite_initialization_without_filename(self):
         """Test BitmappySprite initialization without filename."""
         sprite = BitmappySprite()

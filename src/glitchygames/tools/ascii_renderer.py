@@ -8,6 +8,7 @@ BitmappySprite objects with colorized terminal output.
 from typing import Any, cast
 
 from glitchygames.color import ALPHA_TRANSPARENCY_THRESHOLD, MAX_COLOR_CHANNEL_VALUE
+from glitchygames.sprites.pixel_utils import PADDING_GLYPH, normalize_pixel_rows
 
 from .terminal_utils import ColorMapper, TerminalDetector
 
@@ -124,7 +125,12 @@ class ASCIIRenderer:
         if not self.detector.has_color_support():
             return pixels
 
-        lines = pixels.strip().split('\n')
+        # The loader's rows (normalize_pixel_rows); a padded pixel shows as a space, the
+        # format's transparent pixel
+        lines = [
+            row.replace(PADDING_GLYPH, ' ')
+            for row in normalize_pixel_rows(pixels, colors.keys()).rows
+        ]
         colorized_lines: list[str] = []
 
         for line in lines:

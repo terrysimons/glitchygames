@@ -485,9 +485,7 @@ class TestNormalizePixelRows:
         """A blank line between rows stays, as a transparent row, and is reported."""
         result = normalize_pixel_rows('ab\n\nab', 'ab')
         assert result.rows == ('ab', '\0\0', 'ab')
-        assert result.repairs == (
-            'blank line between rows (line 2); drawn as transparent rows',
-        )
+        assert result.repairs == ('blank line between rows (line 2); drawn as transparent rows',)
 
     def test_outer_blank_lines_and_trailing_whitespace_are_tidied(self):
         """Outer blank lines and trailing whitespace go without a report.

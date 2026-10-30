@@ -1304,12 +1304,10 @@ class TestExtractExampleSize:
         assert result is None
 
     def test_empty_pixels_string_with_newline(self):
-        """Test that pixels with only newlines returns correct dimensions."""
+        """Pixels with only newlines have no rows, as the loader sees them."""
         example = {'pixels': '\n\n'}
         result = _extract_example_size(example)
-        # strip().split('\n') on '\n\n' -> [''] after strip -> '' -> split gives ['']
-        # height=1, width=0
-        assert result == (0, 1)
+        assert result == (0, 0)
 
     def test_empty_animations_list(self):
         """Test that empty animations list returns None."""

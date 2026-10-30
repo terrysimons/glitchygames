@@ -12,7 +12,6 @@ import logging
 import math
 import operator
 import tomllib
-from collections import Counter
 from enum import Enum
 from pathlib import Path
 from typing import IO, Any, Self, cast, override
@@ -1661,76 +1660,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             hitbox_data.get('width', 0),
             hitbox_data.get('height', 0),
         )
-
-    @staticmethod
-    def parse_toml_pixel_lines(pixel_data: str) -> list[str]:
-        """Parse pixel data string into lines.
-
-        Returns:
-            list: The result.
-
-        """
-        raw_lines = pixel_data.split('\n')
-        return [line.strip() for line in raw_lines if line.strip()]
-
-    def _validate_toml_frame_dimensions(
-        self: Self,
-        pixel_lines: list[str],
-        frame_index: int,
-    ) -> tuple[int, int, list[str]]:
-        """Validate and return frame dimensions and normalized lines.
-
-        The lines come from parse_toml_pixel_lines, so they are already stripped and none is
-        empty.
-
-        Returns:
-            tuple[int, int, list]: The result.
-
-        """
-        # Normalize line lengths for consistency
-        # This helps handle AI-generated content with inconsistent formatting
-        normalized_lines: list[str] = list(pixel_lines)
-
-        # Find the most common line length (mode) to handle AI inconsistencies
-        line_lengths = [len(line) for line in normalized_lines]
-        length_counts = Counter(line_lengths)
-        most_common_length = length_counts.most_common(1)[0][0]
-
-        # If there are inconsistencies, try to normalize to the most common length
-        if len(set(line_lengths)) > 1:
-            self.log.warning(
-                '    Frame %s: Inconsistent line lengths detected. '
-                'Most common length: %s, lengths found: %s',
-                frame_index,
-                most_common_length,
-                set(line_lengths),
-            )
-
-            # Normalize lines to the most common length
-            normalized_lines = []
-            for line in pixel_lines:
-                normalized_line = line
-                if len(normalized_line) > most_common_length:
-                    # Truncate if too long
-                    normalized_line = normalized_line[:most_common_length]
-                elif len(normalized_line) < most_common_length:
-                    # Pad with the last character if too short (no line is empty)
-                    padding_length = most_common_length - len(normalized_line)
-                    normalized_line += normalized_line[-1] * padding_length
-                normalized_lines.append(normalized_line)
-
-            self.log.info(
-                '    Frame %s: Normalized to %s characters per line',
-                frame_index,
-                most_common_length,
-            )
-
-        # Every line now has the most common length
-        height = len(normalized_lines)
-        width = most_common_length
-        self.log.debug('    Frame %s: %sx%s pixels', frame_index, width, height)
-        self.log.debug('    Processed: %s lines of %s pixels each', len(normalized_lines), width)
-        return width, height, normalized_lines
 
     @staticmethod
     def _create_toml_surface(
