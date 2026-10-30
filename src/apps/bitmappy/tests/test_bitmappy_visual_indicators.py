@@ -22,7 +22,7 @@ from bitmappy.indicators.collision import (
     VisualCollisionManager,
     VisualIndicator,
 )
-from glitchygames.clock import elapsed_seconds
+from glitchygames import clock
 
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
@@ -396,7 +396,7 @@ class TestRenderVisualIndicators:
             MultiControllerManager: The manager.
 
         """
-        manager.last_scan_time = elapsed_seconds()
+        manager.last_scan_time = clock.elapsed_seconds()
         return manager
 
     def test_creates_missing_services(self, mocker, handler, editor, manager):

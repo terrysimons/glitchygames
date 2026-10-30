@@ -77,13 +77,13 @@ import os
 import re
 import sys
 import tempfile
-import time
 from itertools import groupby
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames import clock
 from glitchygames.__main__ import PYGAME_BANNER_VARIABLE
 from glitchygames.build_info import SourceRevision, package_source_revision, source_revision
 from glitchygames.bundled_demos import BUNDLED_DEMO_DIRECTORY_NAME, DEMO_SUFFIX, bundled_demos
@@ -92,6 +92,7 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.machine_state import current_machine_state
 from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 from glitchygames.recording_metrics import (
+    describe_processing_fps,
     is_measured,
     ledger_rows_from_rebaseline,
     ledger_text,
@@ -456,20 +457,24 @@ def describe_measurement(*, row: LedgerRow, seconds: float, pending_rows: int) -
         pending_rows: How many rows it added to the pending ledger.
 
     Returns:
-        ``RECORDING: N frames in S s, processing p50 ..., p99 ..., max ..., K frames changed
-        behaviour, R rows pending``.
+        ``RECORDING: N frames in S s, processing p50 ..., p99 ..., max ..., headroom avg ...
+        fps (5% low ..., 5% high ...), K frames changed behaviour, R rows pending`` (the
+        headroom FPS of the unpaced replay's processing times:
+        ``recording_metrics.describe_processing_fps``; left out for a summary without its
+        slice means).
 
     """
     summary = row.summary
-    timing = (
-        'no processing times'
-        if summary is None
-        else (
+    timing = 'no processing times'
+    if summary is not None:
+        timing = (
             f'processing p50 {_milliseconds(summary.p50_processing_seconds)}, p99 '
             f'{_milliseconds(summary.p99_processing_seconds)}, max '
             f'{_milliseconds(summary.max_processing_seconds)}'
         )
-    )
+        headroom = describe_processing_fps(summary=summary)
+        if headroom is not None:
+            timing = f'{timing}, headroom {headroom}'
     return (
         f'{row.recording}: {row.frame_count} frames in {seconds:.1f} s, {timing}, '
         f'{row.frames_changed} frames changed behaviour, {pending_rows} rows pending'
@@ -795,7 +800,7 @@ def measure(
                 sys.stdout.write(f'{recording}: already measured at {measured_code} on {machine}\n')
                 skipped.append(recording)
                 continue
-            started = time.perf_counter()
+            started = clock.raw_counter_seconds()
             rows = measure_recording(
                 settings=settings,
                 console_script=console_script,
@@ -822,7 +827,9 @@ def measure(
             measured.append(recording)
             sys.stdout.write(
                 describe_measurement(
-                    row=rows[0], seconds=time.perf_counter() - started, pending_rows=len(new_rows)
+                    row=rows[0],
+                    seconds=clock.raw_counter_seconds() - started,
+                    pending_rows=len(new_rows),
                 )
                 + '\n'
             )

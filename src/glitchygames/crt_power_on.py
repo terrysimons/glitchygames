@@ -28,13 +28,12 @@ from __future__ import annotations
 
 import enum
 import logging
-import time
 from typing import TYPE_CHECKING, Any, Protocol
 
 import pygame
 
+from glitchygames import clock
 from glitchygames.backgrounds import active_default_background_pattern, background_pattern_surface
-from glitchygames.clock import measured_seconds
 from glitchygames.opacity import make_opaque
 
 if TYPE_CHECKING:
@@ -321,7 +320,7 @@ class _PowerOnFrames:
         self.picture = background_pattern_surface(
             pattern=active_default_background_pattern(), size=screen.get_size()
         )
-        self.started = measured_seconds()
+        self.started = clock.measured_seconds()
 
     def next_frame(self) -> PowerOnOutcome | None:
         """Pump the events and present the next frame.
@@ -331,7 +330,7 @@ class _PowerOnFrames:
 
         """
         ending = _ending(events=self.sources.pump_events())
-        elapsed = measured_seconds() - self.started
+        elapsed = clock.measured_seconds() - self.started
         if ending is None and elapsed >= SEQUENCE_SECONDS:
             ending = PowerOnOutcome.FINISHED
         progress = 1.0 if ending is not None else elapsed / SEQUENCE_SECONDS
@@ -341,22 +340,24 @@ class _PowerOnFrames:
 
 
 def play_power_on(
-    *, screen: pygame.Surface, sources: EventPump, sleep: Callable[[float], None] = time.sleep
+    *, screen: pygame.Surface, sources: EventPump, sleep: Callable[[float], None] | None = None
 ) -> PowerOnOutcome:
     """Play the sequence on the game's canvas, blocking (``GameEngine.start``).
 
     Args:
         screen: The game's display surface.
         sources: The installed doors (their event pump).
-        sleep: Waits a frame (tests pass one that does not wait).
+        sleep: Waits a frame (tests pass one that does not wait); None is glitchygames/clock.py's
+            raw sleep, looked up when called so a patch on ``glitchygames.clock`` reaches it.
 
     Returns:
         How it ended; the settled picture is on screen either way.
 
     """
+    frame_sleep = clock.raw_sleep if sleep is None else sleep
     frames = _PowerOnFrames(screen=screen, sources=sources)
     while (ending := frames.next_frame()) is None:
-        sleep(FRAME_SECONDS)
+        frame_sleep(FRAME_SECONDS)
     return ending
 
 

@@ -23,8 +23,9 @@ What it measures, the first that works:
 In the container, the guard also reads the cgroup's reclaimable kernel slab (``memory.stat``'s
 ``slab_reclaimable``: the kernel's cache of file names and inodes, from the checkout, the installs
 and the imports). It is counted in the figure above, but the kernel reclaims it before it kills, so
-the run's summary and a stop's message name it beside the reading (the owner, 2026-10-28: report
-it, change nothing yet; plans/future-work.md). About 290 MiB in a container emulated on macOS.
+the run's summary and a stop's message name it beside the reading. It stays counted, and named
+(the owner, 2026-10-28, with CircleCI's figures: "Keep counting the slab and keep reporting it"):
+CircleCI's Linux job peaked at 1121 MiB, 367 MiB of it slab, against the 1600 MiB limit.
 
 Neither exists on macOS or Windows, so there the plugin does nothing, even with the variable set.
 Under pytest-xdist the workers make no guard (each would hold the whole limit for itself): the

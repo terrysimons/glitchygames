@@ -57,7 +57,7 @@ _SOURCE_PACKAGE_DIRS = [
     'src/apps/bitmappy/src/bitmappy',
 ]
 # The workspace members' distributions (pyproject.toml [tool.uv.workspace]). Listed here, not read
-# through scripts/workspace_packages.py: CI runs nox through uvx, whose interpreter has neither
+# through scripts/workspace_packages.py: CI runs nox as a uv tool, whose interpreter has neither
 # pydantic nor the engine; tests/test_workspace_config.py keeps the list equal to the workspace
 _MEMBER_DISTRIBUTIONS = [
     'mr-muncher',
@@ -1014,10 +1014,12 @@ def _linux_ci_script(
         'export PATH="$HOME/.local/bin:$PATH"',
         'uv --version',
         f'uv python install "{python_version}"',
+        # install-deps-posix installs nox as a uv tool, run directly (no uvx parent process)
+        f'uv tool install "nox[uv]=={nox_version}"',
         # nox-test, then the job's store_test_results (to this checkout's test-results/linux-ci),
         # writable by the host's user whatever its id (a Linux host's is not the container's)
         'status=0',
-        f'uvx --from "nox[uv]=={nox_version}" nox -s test || status=$?',
+        'nox -s test || status=$?',
         (
             'if [ -d test-results ]; then cp -r test-results/. /results/; '
             'else echo "test-linux-ci: the session wrote no test-results/"; fi'
@@ -1048,8 +1050,9 @@ def test_linux_ci(session: nox.Session) -> None:
     directory, mounted read-only at its own path, so it runs from a worktree too. Its HEAD is this
     checkout's, on its branch, and its remote branches are this checkout's, as fresh as its last
     fetch (CircleCI fetches its own). Then it installs fontconfig, uv and Python at the job's
-    versions and runs ``uvx nox -s test``, as the job does. The test results come back to
-    test-results/linux-ci/ (junit.xml). The uv cache is kept in a Docker volume between runs.
+    versions, then nox as a uv tool, and runs ``nox -s test``, as the job does. The test results
+    come back to test-results/linux-ci/ (junit.xml). The uv cache is kept in a Docker volume
+    between runs.
     The image is amd64, as CircleCI's machines are (the same wheels; emulated on Apple silicon, so
     slower than CI). Made on macOS; on a Linux host the results are made writable for any user.
     """

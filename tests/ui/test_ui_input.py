@@ -243,7 +243,7 @@ class TestInputBoxDrawing:
     def test_active_box_draws_its_cursor_in_the_second_half_of_each_second(self, input_box, mocker):
         """The cursor is drawn in the box colour only while frame clock % 1 > 0.5."""
         input_box.activate()
-        clock = mocker.patch('glitchygames.ui.inputs.frame_clock_seconds', return_value=0.25)
+        clock = mocker.patch('glitchygames.clock.frame_clock_seconds', return_value=0.25)
         input_box.update()
         without_cursor = pygame.surfarray.array3d(input_box.image)
 
@@ -269,7 +269,7 @@ class TestInputBoxDrawing:
         assert _interior_text_pixel_count(input_box) > 0
 
     def test_inactive_box_draws_no_cursor(self, input_box, mocker):
-        mocker.patch('glitchygames.ui.inputs.frame_clock_seconds', return_value=0.75)
+        mocker.patch('glitchygames.clock.frame_clock_seconds', return_value=0.75)
 
         input_box.update()
 

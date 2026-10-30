@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import json
 import re
 import shlex
@@ -57,7 +58,7 @@ def locked_version(*, package: str) -> str:
 @pytest.mark.parametrize(
     ('parameter', 'package'),
     [
-        # CI runs nox through uvx, outside the project's environment
+        # CI installs nox as a uv tool, outside the project's environment
         ('NOX_VERSION', 'nox'),
         # CI installs uv itself before anything reads uv.lock (GHSA-hq85-5cpj-mr62: < 0.13.4)
         ('UV_VERSION', 'uv'),
@@ -66,6 +67,38 @@ def locked_version(*, package: str) -> str:
 def test_circleci_pins_the_locked_version(parameter, package):
     """Each tool CI installs itself is the version uv.lock pins."""
     assert pipeline_parameter_default(name=parameter) == locked_version(package=package)
+
+
+def test_circleci_runs_an_installed_nox_never_through_uvx():
+    """Each job installs nox once, as a uv tool, and runs it directly: no uvx parent waits on it.
+
+    Under ``uvx`` the uvx process stayed alive as nox's parent, about 47 MiB the Linux job's
+    memory guard counted (plans/future-work.md, 2026-10-28). Each installation (the POSIX jobs'
+    install-deps-posix, the Windows job's own step) pins NOX_VERSION and comes before the job's
+    first nox session.
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    install = 'uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"'
+    jobs = configuration[configuration.index('\njobs:\n') : configuration.index('\nworkflows:\n')]
+    windows_job = jobs[
+        jobs.index('\n  build-and-test-windows:\n') : jobs.index('\n  deploy-docs:\n')
+    ]
+    install_deps_posix = configuration[
+        configuration.index('\n  install-deps-posix:\n') : configuration.index('\n  nox-format:\n')
+    ]
+
+    assert re.search(r'^\s+uvx ', configuration, flags=re.MULTILINE) is None
+    assert configuration.count(install) == 2
+    assert install in install_deps_posix
+    assert windows_job.index(install) < windows_job.index('nox -s ')
+    job_starts = [match.start() for match in re.finditer(r'^  [a-z-]+:$', jobs, re.MULTILINE)]
+    for start, end in itertools.pairwise([*job_starts, len(jobs)]):
+        job = jobs[start:end]
+        first_nox = re.search(r'^\s+(- nox-|nox -s )', job, flags=re.MULTILINE)
+        if first_nox is not None and not job.startswith('  build-and-test-windows:'):
+            assert '      - install-deps-posix\n' in job[: first_nox.start()], job.split(':')[0]
+    # The tool is never restored from a cache: the uv caches name uv's Python, not all its data
+    assert '- ~/.local/share/uv\n' not in configuration
 
 
 def test_circleci_installs_uv_at_its_pinned_version():
@@ -199,12 +232,30 @@ def test_the_docs_deploy_after_main_passes_on_macos():
     assert 'serial-group:' in entry
 
 
+def test_the_docs_deploy_publishes_mains_latest_commit_once():
+    """The deploy moves to main's tip first, and stops when gh-pages already holds it.
+
+    The owner (2026-10-29): pull the latest main right before publishing, so a merge that
+    landed meanwhile gets its docs. The move comes before the submodule checkout, so the
+    pygame-ce submodule is main's too.
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    job = configuration[configuration.index('\n  deploy-docs:\n') :]
+    job = job[: job.index('\nworkflows:\n')]
+
+    move = job.index('git checkout --quiet --detach origin/main')
+    assert 'git fetch --quiet origin main gh-pages' in job[:move]
+    assert move < job.index('git submodule update --init third_party/pygame-ce')
+    assert move < job.index('nox -s docs-deploy')
+    assert 'circleci-agent step halt' in job[move : job.index('git submodule update')]
+
+
 def test_the_docs_deploy_job_publishes_without_measuring():
     """The CI deploy measures nothing (its machines vary); people's deploys still do."""
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
 
     deploys = re.findall(
-        r'^\s+uvx .* nox -s docs-deploy(?P<arguments>.*)$', configuration, flags=re.MULTILINE
+        r'^\s+nox -s docs-deploy(?P<arguments>.*)$', configuration, flags=re.MULTILINE
     )
 
     assert deploys == [' -- --no-measure']
@@ -418,7 +469,10 @@ def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monke
     nox_version = pipeline_parameter_default(name='NOX_VERSION')
     assert f'https://astral.sh/uv/{uv_version}/install.sh' in script
     assert f'uv python install "{python_version}"' in script
-    assert f'uvx --from "nox[uv]=={nox_version}" nox -s test || status=$?' in script
+    assert script.index(f'uv tool install "nox[uv]=={nox_version}"') < script.index(
+        'nox -s test || status=$?'
+    )
+    assert 'uvx' not in script
     assert (tmp_path / 'linux-ci').is_dir()
 
 

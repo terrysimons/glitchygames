@@ -6,6 +6,8 @@ ignore:
   - .venv/
   # Submodules: other projects' files, linted by their own rules
   - third_party/
+  # SwiftPM's checkouts for the QuickLook build (git-ignored): other projects' files
+  - src/quicklook/.build/
 
 rules:
   # CircleCI config uses long lines for cache keys with template expressions

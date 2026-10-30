@@ -230,13 +230,21 @@ def add_frame_histories(
 # A frame took longer than its budget times this to count as late (a missed frame at 60 FPS)
 LATE_FRAME_BUDGET_FACTOR = 1.5
 RUN_SUMMARY_FIELD = 'summary'
+FRAME_TIME_FIELD = 'frame_time'
+# The gaming convention's "5% low" and "5% high": the mean of a run's slowest and of its
+# fastest 5% of frames (``slice_frame_count`` says exactly which frames)
+SLICE_PERCENT = 5
+PERCENT = 100
 
 
 class FrameTimeSummary(BaseModel):
     """How steady a live run's frame times (its frames' recorded ``dt``) were.
 
     Only the run that recorded the frames live measured them: a rebaseline replays the recorded
-    ``dt``, so its runs have none.
+    ``dt``, so its runs have none. The mean and the two slice means leave out the recording's
+    first frame, whose ``dt`` is no frame time (``frame_time_summary``); 1 / each is the run's
+    achieved FPS (``glitchygames.recording_metrics.fps_from_seconds``). They are stored in
+    seconds, never as FPS: seconds average correctly, and FPS is one division away.
 
     Attributes:
         p50_seconds: The median frame time.
@@ -244,6 +252,12 @@ class FrameTimeSummary(BaseModel):
         max_seconds: The longest frame.
         late_frames: Frames longer than ``LATE_FRAME_BUDGET_FACTOR`` budgets, or None without a
             budget (an uncapped run).
+        mean_seconds: The mean frame time; None for a summary from before the field, or a run
+            whose only timed frame is its first.
+        slowest_5_percent_mean_seconds: The mean of the slowest ``SLICE_PERCENT``% of frames
+            (``slice_frame_count``): the run's "5% low" FPS; None as for ``mean_seconds``.
+        fastest_5_percent_mean_seconds: The mean of the fastest ``SLICE_PERCENT``% of frames:
+            the run's "5% high" FPS; None as for ``mean_seconds``.
 
     """
 
@@ -253,6 +267,10 @@ class FrameTimeSummary(BaseModel):
     p99_seconds: float
     max_seconds: float
     late_frames: int | None
+    # Absent from summaries written before them (2026-10-28): read as None
+    mean_seconds: float | None = None
+    slowest_5_percent_mean_seconds: float | None = None
+    fastest_5_percent_mean_seconds: float | None = None
 
 
 class RunSummary(BaseModel):
@@ -272,6 +290,14 @@ class RunSummary(BaseModel):
         frames_over_budget: Frames whose processing took longer than the budget, or None
             without one.
         frame_time: The live run's frame times, or None (a rebaseline's run, or no ``dt``).
+        slowest_5_percent_mean_processing_seconds: The mean of the slowest ``SLICE_PERCENT``%
+            of the measured frames (``slice_frame_count``): an unpaced run's "5% low" headroom
+            FPS; None for a summary from before the field.
+        fastest_5_percent_mean_processing_seconds: The mean of the fastest ``SLICE_PERCENT``%:
+            its "5% high" headroom FPS; None for a summary from before the field.
+
+    The mean is not stored: it is ``total_processing_seconds / measured_frames``
+    (``mean_processing_seconds``), as every summary already holds both.
 
     """
 
@@ -288,6 +314,16 @@ class RunSummary(BaseModel):
     budget_seconds: float | None
     frames_over_budget: int | None
     frame_time: FrameTimeSummary | None
+    # Absent from summaries written before them (2026-10-28): read as None
+    slowest_5_percent_mean_processing_seconds: float | None = None
+    fastest_5_percent_mean_processing_seconds: float | None = None
+
+    @property
+    def mean_processing_seconds(self: Self) -> float | None:
+        """The mean processing time per measured frame (None when no frame was measured)."""
+        if self.measured_frames <= 0:
+            return None
+        return self.total_processing_seconds / self.measured_frames
 
 
 def _percentile(*, sorted_values: Sequence[float], percent: float) -> float:
@@ -309,10 +345,51 @@ def _rounded(seconds: float) -> float:
     return round(seconds, PROCESSING_SECONDS_DIGITS)
 
 
+def slice_frame_count(*, frame_count: int) -> int:
+    """Return how many frames a "5% low" or "5% high" slice of a run averages.
+
+    The one definition of the slices (``SLICE_PERCENT``): ``ceil(frame_count * 5 / 100)``
+    frames, computed in integers, and at least one. So a run of 1 to 20 frames averages its
+    single slowest (fastest) frame, 21 to 40 frames its two, and 472 frames its 24. The frames
+    are those the summary's percentiles read, the same population: every frame with a time for
+    the run, pause frames included (the engine runs, paces and presents them like any other).
+    Live frame times leave out the recording's first frame as well (``frame_time_summary``).
+
+    Args:
+        frame_count: How many frames the run timed (at least one).
+
+    Returns:
+        The slice's size.
+
+    """
+    return max(1, -(-frame_count * SLICE_PERCENT // PERCENT))
+
+
+def slice_means(*, sorted_values: Sequence[float]) -> tuple[float, float]:
+    """Return the mean of the slowest and of the fastest slice (``slice_frame_count``).
+
+    Args:
+        sorted_values: The run's times, ascending (at least one).
+
+    Returns:
+        The slowest slice's mean and the fastest slice's mean, in seconds, unrounded.
+
+    """
+    size = slice_frame_count(frame_count=len(sorted_values))
+    slowest = math.fsum(sorted_values[-size:]) / size
+    fastest = math.fsum(sorted_values[:size]) / size
+    return slowest, fastest
+
+
 def frame_time_summary(
     *, frames: Sequence[Mapping[str, Any]], budget_seconds: float | None
 ) -> FrameTimeSummary | None:
     """Summarise a recording's frame times (each frame's ``dt``).
+
+    The mean and the slice means (``slice_frame_count``) leave out the recording's first frame:
+    its ``dt`` runs from the clock's start, not from a frame before it (about a microsecond in
+    every golden), so it is no frame time and would read as a million FPS. The percentiles,
+    the longest frame and the late frames read every frame, as they always have.
 
     Args:
         frames: The decoded frames.
@@ -322,11 +399,12 @@ def frame_time_summary(
         The summary, or None when no frame has a numeric ``dt``.
 
     """
-    frame_seconds = sorted(
-        float(frame['dt'])
-        for frame in frames
+    timed = [
+        (position, float(frame['dt']))
+        for position, frame in enumerate(frames)
         if isinstance(frame.get('dt'), int | float) and not isinstance(frame.get('dt'), bool)
-    )
+    ]
+    frame_seconds = sorted(seconds for _, seconds in timed)
     if not frame_seconds:
         return None
     late_frames = (
@@ -336,11 +414,20 @@ def frame_time_summary(
             1 for seconds in frame_seconds if seconds > budget_seconds * LATE_FRAME_BUDGET_FACTOR
         )
     )
+    after_the_first = sorted(seconds for position, seconds in timed if position > 0)
+    mean_seconds = slowest_seconds = fastest_seconds = None
+    if after_the_first:
+        mean_seconds = _rounded(math.fsum(after_the_first) / len(after_the_first))
+        slowest, fastest = slice_means(sorted_values=after_the_first)
+        slowest_seconds, fastest_seconds = _rounded(slowest), _rounded(fastest)
     return FrameTimeSummary(
         p50_seconds=_rounded(_percentile(sorted_values=frame_seconds, percent=50)),
         p99_seconds=_rounded(_percentile(sorted_values=frame_seconds, percent=99)),
         max_seconds=_rounded(frame_seconds[-1]),
         late_frames=late_frames,
+        mean_seconds=mean_seconds,
+        slowest_5_percent_mean_seconds=slowest_seconds,
+        fastest_5_percent_mean_seconds=fastest_seconds,
     )
 
 
@@ -379,6 +466,7 @@ def run_summary(
     times = sorted(seconds for seconds, _, _ in timed_frames)
     worst_seconds, worst_index, worst = max(timed_frames, key=lambda timed: (timed[0], -timed[1]))
     scene = worst.get('scene')
+    slowest_seconds, fastest_seconds = slice_means(sorted_values=times)
     return RunSummary(
         measured_frames=len(times),
         total_processing_seconds=_rounded(math.fsum(times)),
@@ -397,6 +485,8 @@ def run_summary(
         frame_time=(
             frame_time_summary(frames=frames, budget_seconds=budget_seconds) if live_run else None
         ),
+        slowest_5_percent_mean_processing_seconds=_rounded(slowest_seconds),
+        fastest_5_percent_mean_processing_seconds=_rounded(fastest_seconds),
     )
 
 
@@ -510,7 +600,9 @@ def stacked_measurement_runs(
     aligned with the frames' histories), but the run before gets its ``frame_count``: only now,
     with its recording read, is it known (a run's own header is written before its frames).
     Likewise every earlier run without a ``summary`` gets one from the earlier frames (its own
-    index in their ``processing_seconds`` histories), when they hold any of its times.
+    index in their ``processing_seconds`` histories), when they hold any of its times, and a
+    summary written before some of its fields existed gets those fields
+    (``completed_summary``).
 
     Args:
         newest: This run.
@@ -530,7 +622,8 @@ def stacked_measurement_runs(
         if not isinstance(run, dict):
             continue
         run_fields = cast('dict[str, Any]', run)
-        if run_fields.get(RUN_SUMMARY_FIELD) is not None:
+        stored = run_fields.get(RUN_SUMMARY_FIELD)
+        if stored is not None and not summary_lacks_fields(summary=stored):
             continue
         summary = run_summary(
             frames=previous_frames,
@@ -538,11 +631,75 @@ def stacked_measurement_runs(
             budget_seconds=budget_seconds,
             live_run=run_fields.get('rebaselined_from') is None,
         )
-        if summary is not None:
-            earlier[run_index] = {**run_fields, RUN_SUMMARY_FIELD: summary.model_dump(mode='json')}
+        if summary is None:
+            continue
+        computed = summary.model_dump(mode='json')
+        earlier[run_index] = {
+            **run_fields,
+            RUN_SUMMARY_FIELD: (
+                computed
+                if stored is None
+                else completed_summary(stored=cast('dict[str, Any]', stored), computed=computed)
+            ),
+        }
     return stacked_history(
         newest=newest.to_json(), previous=earlier, depth=MEASUREMENT_RUNS_HISTORY_DEPTH
     )
+
+
+def summary_lacks_fields(*, summary: object) -> bool:
+    """Tell whether a stored summary was written before some of its fields existed.
+
+    Args:
+        summary: The summary, as a header stores it.
+
+    Returns:
+        True for a readable summary (``RunSummary`` reads it, the fields it lacks as their
+        defaults) that lacks a ``RunSummary`` field, or whose ``frame_time`` lacks a
+        ``FrameTimeSummary`` field. False for anything else: an unreadable summary is left as
+        it is.
+
+    """
+    if not isinstance(summary, dict):
+        return False
+    fields = cast('dict[str, Any]', summary)
+    try:
+        RunSummary.model_validate(fields)
+    except ValidationError:
+        return False
+    if set(RunSummary.model_fields) - set(fields):
+        return True
+    frame_time = fields.get(FRAME_TIME_FIELD)
+    return isinstance(frame_time, dict) and bool(
+        set(FrameTimeSummary.model_fields) - set(cast('dict[str, Any]', frame_time))
+    )
+
+
+def completed_summary(*, stored: Mapping[str, Any], computed: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a stored summary with the fields it lacks taken from one computed from the frames.
+
+    A summary written before a field existed lacks it (``summary_lacks_fields``); the frames it
+    was computed from are still the recording's (a rebaseline copies each frame's ``dt`` and
+    keeps every run's processing time at that run's index), so the field is computed now. Every
+    field the stored summary holds keeps its stored value, its ``frame_time``'s too.
+
+    Args:
+        stored: The summary the header holds.
+        computed: The same run's summary, computed from the frames (``RunSummary``'s JSON).
+
+    Returns:
+        The completed summary.
+
+    """
+    completed = {**computed, **stored}
+    stored_frame_time = stored.get(FRAME_TIME_FIELD)
+    computed_frame_time = computed.get(FRAME_TIME_FIELD)
+    if isinstance(stored_frame_time, dict) and isinstance(computed_frame_time, dict):
+        completed[FRAME_TIME_FIELD] = {
+            **cast('dict[str, Any]', computed_frame_time),
+            **cast('dict[str, Any]', stored_frame_time),
+        }
+    return completed
 
 
 def recording_run_summaries(

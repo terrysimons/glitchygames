@@ -278,6 +278,30 @@ class TestGameEngineInitializeArguments:
         assert result['resolution'] == '800x480'
         assert 'Game does not implement arguments' in caplog.text
 
+    @pytest.mark.parametrize(('log_level', 'shown'), [('info', True), ('warning', False)])
+    def test_the_no_arguments_hint_shows_at_info_in_a_process_with_no_logging_yet(
+        self, mocker, monkeypatch, capsys, log_level, shown
+    ):
+        """In a fresh process the hint reaches stderr at --log-level info, not at warning.
+
+        D18's report: it was logged before ``logging.basicConfig`` ran, so only Python's
+        last-resort handler (WARNING and up) saw it, and it never showed at any level. The root
+        logger here has no handler, as in a game's own process (pytest's are put back after).
+        """
+
+        class NoArgsGame:
+            NAME = 'NoArgsGame'
+            VERSION = '1.0'
+            TARGET_FPS = None
+
+        monkeypatch.setattr(logging.root, 'handlers', [])
+        monkeypatch.setattr(logging.root, 'level', logging.root.level)
+        mocker.patch.object(sys, 'argv', ['test_game_engine', '--log-level', log_level])
+
+        GameEngine.initialize_arguments(NoArgsGame)
+
+        assert ('Game does not implement arguments' in capsys.readouterr().err) is shown
+
     @pytest.mark.parametrize('log_level', ['debug', 'info', 'warning', 'error', 'critical'])
     def test_debug_events_is_off_without_the_flag(self, mocker, log_level):
         """No --log-level turns debug_events on: only --debug-events does (BUGS.md #74)."""

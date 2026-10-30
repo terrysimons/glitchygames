@@ -46,6 +46,7 @@ from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
     PROCESSING_SECONDS_FIELD,
+    FrameTimeSummary,
     MeasurementRun,
     RunSummary,
     recorded_measurement_runs,
@@ -121,6 +122,97 @@ def _milliseconds(seconds: float) -> str:
 
 def _change_percent(*, older: float, newer: float) -> str:
     return f'{(newer - older) / older * 100:+.1f}%'
+
+
+def fps_from_seconds(*, seconds: float | None) -> float | None:
+    """Return the frames per second a frame time stands for: the one conversion for display.
+
+    Summaries store seconds, never FPS (``glitchygames.recording_history.RunSummary``): seconds
+    average correctly, and FPS is this one division away. A live run's frame times give its
+    achieved FPS (paced, so never above the target); an unpaced replay's processing times give
+    its headroom FPS (how fast the work alone could run).
+
+    Args:
+        seconds: A frame time, or None when not measured.
+
+    Returns:
+        ``1 / seconds``, or None when ``seconds`` is None, zero or negative (no time, no rate:
+        never a division by zero).
+
+    """
+    if seconds is None or seconds <= 0.0:
+        return None
+    return 1.0 / seconds
+
+
+def describe_fps(
+    *,
+    mean_seconds: float | None,
+    slowest_seconds: float | None,
+    fastest_seconds: float | None,
+) -> str | None:
+    """Describe a run's FPS on one line: its average and its 5% low and 5% high.
+
+    Args:
+        mean_seconds: The mean frame (or processing) time.
+        slowest_seconds: The mean of the slowest 5% (``recording_history.slice_frame_count``):
+            the 5% low.
+        fastest_seconds: The mean of the fastest 5%: the 5% high.
+
+    Returns:
+        ``avg 222 fps (5% low 168, 5% high 251)``, whole frames per second; without the
+        parenthesis when either slice is unknown (``fps_from_seconds``); None when the mean is.
+
+    """
+    average = fps_from_seconds(seconds=mean_seconds)
+    if average is None:
+        return None
+    low = fps_from_seconds(seconds=slowest_seconds)
+    high = fps_from_seconds(seconds=fastest_seconds)
+    if low is None or high is None:
+        return f'avg {average:.0f} fps'
+    return f'avg {average:.0f} fps (5% low {low:.0f}, 5% high {high:.0f})'
+
+
+def describe_processing_fps(*, summary: RunSummary) -> str | None:
+    """Describe a run's processing times as FPS: what 1 / each processing time stands for.
+
+    Args:
+        summary: The run's summary.
+
+    Returns:
+        ``describe_fps``'s line of the mean and the slice means, or None for a summary from
+        before the slice means (its line would show the mean alone).
+
+    """
+    if (
+        summary.slowest_5_percent_mean_processing_seconds is None
+        or summary.fastest_5_percent_mean_processing_seconds is None
+    ):
+        return None
+    return describe_fps(
+        mean_seconds=summary.mean_processing_seconds,
+        slowest_seconds=summary.slowest_5_percent_mean_processing_seconds,
+        fastest_seconds=summary.fastest_5_percent_mean_processing_seconds,
+    )
+
+
+def describe_frame_time_fps(*, frame_time: FrameTimeSummary) -> str | None:
+    """Describe a live run's frame times as FPS: its achieved average and 5% low and high.
+
+    Args:
+        frame_time: The run's frame times.
+
+    Returns:
+        ``describe_fps``'s line, or None for frame times from before the mean (or a run whose
+        only timed frame is its first).
+
+    """
+    return describe_fps(
+        mean_seconds=frame_time.mean_seconds,
+        slowest_seconds=frame_time.slowest_5_percent_mean_seconds,
+        fastest_seconds=frame_time.fastest_5_percent_mean_seconds,
+    )
 
 
 class FrameSpan(BaseModel):

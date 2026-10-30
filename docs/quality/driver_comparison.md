@@ -158,8 +158,8 @@ host's caches, Hypothesis's database) and no submodule's contents (CircleCI's ch
 Its `.git` is cloned from the repository's git directory, mounted read-only at its own path, so
 the session runs from a worktree too; HEAD is this checkout's, on its branch, and the remote
 branches are this checkout's, as fresh as its last fetch. It installs fontconfig, uv and Python at
-the job's versions and runs `uvx nox -s test` as the job does. Its `test-results/` (junit.xml)
-come back to `test-results/linux-ci/`. The memory guard's summary line names the peak it saw (the
+the job's versions, then nox as a uv tool, and runs `nox -s test` as the job does. Its
+`test-results/` (junit.xml) come back to `test-results/linux-ci/`. The memory guard's summary line names the peak it saw (the
 container's memory less its page cache, what the kernel's 2 GB kill counts), and the last line
 the container's raw peak (the page cache included, so near 2 GB even on a healthy run). It takes
 as long as the job (a serial run) or longer: the image is amd64, as CircleCI's machines are (the

@@ -19,7 +19,7 @@ from typing import Any, ClassVar, Self
 
 import pygame
 
-from glitchygames.clock import elapsed_seconds
+from glitchygames import clock
 from glitchygames.sources import active_sources
 
 LOG = logging.getLogger('game.tools.multi_controller_manager')
@@ -111,7 +111,7 @@ class MultiControllerManager:
             List of controller instance IDs that are connected
 
         """
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
         if current_time - self.last_scan_time < self.scan_interval:
             return list(self.controllers.keys())
 
@@ -248,8 +248,8 @@ class MultiControllerManager:
 
         # Assign the controller
         controller_info.status = ControllerStatus.ASSIGNED
-        controller_info.assigned_time = elapsed_seconds()
-        controller_info.last_activity = elapsed_seconds()
+        controller_info.assigned_time = clock.elapsed_seconds()
+        controller_info.last_activity = clock.elapsed_seconds()
 
         self.assigned_controllers[instance_id] = controller_info.controller_id
 
@@ -275,7 +275,7 @@ class MultiControllerManager:
 
         if instance_id in self.controllers:
             self.controllers[instance_id].status = ControllerStatus.ACTIVE
-            self.controllers[instance_id].last_activity = elapsed_seconds()
+            self.controllers[instance_id].last_activity = clock.elapsed_seconds()
             return True
 
         return False
@@ -340,7 +340,7 @@ class MultiControllerManager:
 
         """
         if instance_id in self.controllers:
-            self.controllers[instance_id].last_activity = elapsed_seconds()
+            self.controllers[instance_id].last_activity = clock.elapsed_seconds()
 
     def get_active_controllers(self) -> list[int]:
         """Get list of active controller instance IDs.
@@ -366,7 +366,7 @@ class MultiControllerManager:
 
     def cleanup_inactive_controllers(self) -> None:
         """Clean up controllers that have been inactive for too long."""
-        current_time = elapsed_seconds()
+        current_time = clock.elapsed_seconds()
         inactive_controllers: list[int] = []
 
         for instance_id, controller_info in self.controllers.items():

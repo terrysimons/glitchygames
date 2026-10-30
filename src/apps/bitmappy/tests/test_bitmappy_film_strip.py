@@ -11,7 +11,7 @@ from src.apps.bitmappy.tests.film_strip_support import (
     make_real_animated_sprite,
 )
 
-from bitmappy import film_strip, film_strip_events
+from bitmappy import film_strip
 from bitmappy.film_strip import (
     ANIMATION_NAME_MAX_LENGTH,
     CURSOR_BLINK_INTERVAL_MS,
@@ -20,8 +20,7 @@ from bitmappy.film_strip import (
     FilmStripWidget,
     FilmTabWidget,
 )
-from glitchygames import sources
-from glitchygames.clock import frame_clock_milliseconds
+from glitchygames import clock, sources
 from glitchygames.events import HashableEvent
 from glitchygames.sprites.animated import (
     AnimatedSprite,
@@ -1386,7 +1385,7 @@ class TestFilmStripHandleClick:
     def test_handle_click_on_animation_label_enters_edit_mode(self, widget_with_sprite, mocker):
         """Test handle_click on animation label enters edit mode."""
         widget_with_sprite.animation_layouts['idle'] = pygame.Rect(100, 5, 80, 20)
-        mocker.patch.object(film_strip_events, 'frame_clock_milliseconds', return_value=1000)
+        mocker.patch('glitchygames.clock.frame_clock_milliseconds', return_value=1000)
         result = widget_with_sprite.handle_click((120, 10))
         assert result is None
         assert widget_with_sprite.editing_animation == 'idle'
@@ -1500,7 +1499,7 @@ class TestFilmStripHandleKeyboardInput:
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = 'test'
-        mocker.patch.object(film_strip_events, 'frame_clock_milliseconds', return_value=1000)
+        mocker.patch('glitchygames.clock.frame_clock_milliseconds', return_value=1000)
 
         event = key_down_event(key=pygame.K_BACKSPACE)
         result = widget.handle_keyboard_input(event)
@@ -1524,7 +1523,7 @@ class TestFilmStripHandleKeyboardInput:
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.editing_animation = 'idle'
         widget.editing_text = 'te'
-        mocker.patch.object(film_strip_events, 'frame_clock_milliseconds', return_value=1000)
+        mocker.patch('glitchygames.clock.frame_clock_milliseconds', return_value=1000)
 
         event = key_down_event(key=pygame.K_s, unicode='s')
         result = widget.handle_keyboard_input(event)
@@ -3380,7 +3379,7 @@ class TestFilmStripRenderEditingLabel:
 
         # It was True, so it is False after the blink interval, and the blink restarted now
         assert widget.cursor_visible is False
-        assert widget.cursor_blink_time == frame_clock_milliseconds()
+        assert widget.cursor_blink_time == clock.frame_clock_milliseconds()
 
 
 class TestFilmStripRenderWithHover:

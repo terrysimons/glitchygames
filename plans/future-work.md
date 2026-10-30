@@ -57,6 +57,30 @@ local branches are deleted. The decisions made on the way, for the record:
   re-recorded, and `ScriptedInputSupervisor` posts with `post_input_event`. Later: a rebind
   screen saving `ActionMap.to_dict()` (it already round-trips scancodes).
 
+## Sprite QuickLook (`src/quicklook`, 2026-10-29)
+
+- Check the real QuickLook panel and Finder by eye: the automated checks rendered the preview
+  offscreen and asked for thumbnails through QLThumbnailGenerator, but no screenshot of the real
+  panel was possible from the agent session.
+- Film strip preview (spec goal 6) ~~Done~~ 2026-10-29: every frame of every animation, with
+  the live animation beside each strip. Check it by eye in the real panel with the rest.
+- Idea, brainstormed 2026-10-29, not decided: give sprites their own extension so macOS can tell
+  them from other `.toml` files. macOS types a file by its last extension only, so
+  `sparkle.gg.toml` is still `public.toml`; `sparkle.toml.ggsprite` (or `.ggsprite`) would work,
+  with an exported "GlitchyGames Sprite" type conforming to `public.toml`. Then the extensions
+  would see only sprites, other `.toml` files would get Apple's own preview back, and sprites could
+  have their own Finder kind, icon and default app (Bitmappy). Costs: every `*.toml` glob in the
+  engine, Bitmappy and tools; `Path.stem` becomes `sparkle.toml`; editors and taplo need an
+  association. Still open: one extension for static and animated sprites, or two.
+- Finder thumbnails can't animate (Finder shows still images only). Options if the thumbnail
+  should say more: a better-chosen frame, a small grid of frames, or an "animated" corner badge.
+  Not checked yet: whether Finder's preview pane plays the full animated preview.
+- Later ideas, not built: hitbox and frame-anchor overlays in the preview; a swatch (palette-swap)
+  picker; `[[transition]]` playback; syntax highlighting in the plain-text fallback for
+  non-sprite `.toml` files.
+- When the engine's row-normalization or `frame_index` bugs (below) are fixed, update
+  `Sources/SpriteCore` and regenerate the golden frames in the same change.
+
 ## Bugs found and not fixed yet
 
 | Item | Where | Notes |
@@ -74,7 +98,9 @@ local branches are deleted. The decisions made on the way, for the record:
 | Papyrus sprites keep their unscaled native rect size | BUGS.md #59 | Latent; fixing it needs its own golden expected-difference class. |
 | Brave Adventurer's ground and walls stay drawn only because the parallax layers dirty the whole screen | BUGS.md #60 | Fragile; make the terrain `dirty = 2` or document the dependency. |
 | Brave Adventurer's and Papyrus's enemies (Cobra, Scarab, Scorpion) still draw in `update()` | `src/games/brave-adventurer/src/brave_adventurer/enemies.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | Harmless while their hitboxes do not depend on the pose (the scarab's bounds are the same at every roll angle); move drawing into `dt_tick` (the pose rule) if they ever do. |
-| The memory guard counts about 290 MiB of reclaimable kernel slab (file metadata from the checkout and the installs), flat from before the first test; the kernel reclaims it before it kills, so the guard's figure overstates the run by that much | `tests/memory_guard.py` (`memory.current` less page cache) | Found 2026-10-28 by the test-memory-reduction work (BUGS.md #237: a serial run now peaks at 1409 MiB against the 1600 limit). The owner (2026-10-28): report it, change nothing yet; the guard's summary line and its stop message now name the slab (`memory guard: peak N MiB ... (S MiB of it reclaimable kernel slab)`). With CircleCI's real figures, choose: keep counting it, subtract it at 1600, or subtract it and lower the limit to about 1300. The `uvx` wrapper's 47 MiB is under Developer environment. |
+| Static and animated sprites normalize ragged pixel rows differently: static (`_convert_static_sprite`) strips only the whole string, pads to the longest row with the sprite's most common glyph and never truncates; animated frames (`parse_toml_pixel_lines` + `_validate_toml_frame_dimensions`) strip each line, drop empty lines, use the most common row length, truncate longer rows and pad shorter ones with their own last glyph. Unify on one rule (do it **on its own branch**, the owner, 2026-10-29) | `src/glitchygames/sprites/animated.py` | Found 2026-10-29 while writing the sprite QuickLook design (`docs/specs/2026-10-29-sprite-quicklook-design.md`), which copies both behaviors; update the QuickLook parser and its golden frames in the same change. |
+| TOML frames are never ordered by `frame_index`: `_process_toml_animation` sorts with `frames.sort(key=lambda f: getattr(f, 'frame_index', 0))`, but `SpriteFrame` never gets a `frame_index` attribute, so every key is 0 and frames play in file order | `src/glitchygames/sprites/animated.py` (`_process_toml_animation`, `_create_toml_frame`) | Found 2026-10-29 by the sprite QuickLook golden tests (`src/quicklook`), which copy the file-order behavior. Decide whether `frame_index` should order frames (set it on the frame) or be dropped from the format; update the QuickLook loader and golden frames in the same change. |
+| ~~`qlmanage -t -s 256 -o <dir> <sprite.toml>...` hangs with no output and the sprite thumbnail extension never launches~~ | `src/quicklook/tools/make_thumbnails.swift` | Found 2026-10-29 (`feat/sprite-quicklook`, plan Task 7). **Done** (explained, not an extension bug): on this macOS `qlmanage -t` only uses old generator plug-ins (its log says "missing or invalid generator for thumbnail" and its `com.apple.quicklook.thumbnail` discovery finds 0 extensions), and it hangs on any type without one (an unknown `.qqqzz` file hangs too). Through `QLThumbnailGenerator`, the API Finder uses, the extension draws sprites and declines other `.toml` files, which keep the plain document icon they had before (checked with the extension switched off). Check thumbnails with `swift tools/make_thumbnails.swift`. |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
@@ -630,9 +656,33 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   default costs ~16-25 ns, a direct read ~5-17 ns); the per-sprite helpers (`resolve_snap_mode`,
   `is_world_positioned`, `screen_position_for`, collision) make about 1,200 lookups per Brave
   Adventurer frame, ~20 us of ~2 ms, and need their defaults for foreign sprites.
+- **FPS figures follow-ups (2026-10-28, feature/fps-metrics).** (1) `verify` prints no times (a
+  plain headless replay measures none), so it shows no FPS; it could append the recording's
+  newest run's headroom from its header. (2) The live runs' ledger rows (`history-...` files)
+  were written before the figures and are never rewritten, so the FPS chart's live line stays
+  empty until a live recording is measured again. (3) The goldens and the rally demo were
+  rebaselined (their frame-0 scene starts now name the members' modules) and the two member
+  tests that only checked the migration from the old names were removed (the owner,
+  2026-10-28); the engine code that reads and converts recordings made before logical names or
+  before the move stays, with its own stand-in tests, until the owner decides (the FPS metrics
+  report lists it: `replay/driver.py` `modules_not_compared` and `check_recorded_game`'s
+  header-without-`game` branch, `replay/playback.py` `find_scene_class`'s branch without a
+  logical name, `replay/tools/children.py` `recorded_game_module`'s refusal, Brave
+  Adventurer's launcher message).
 - Deferred from the screen-shake spec (see its known follow-ups in
   `plans/2026-10-17-screen-shake-and-synth.md`): the audio probe capture mode and the spin-window
   power idea.
+- **pygame's clock through the door too** (left from `feature/clock-door`, 2026-10-28: "move the
+  calls behind the door"; the `time` module and `datetime`'s now are read only in
+  `src/glitchygames/clock.py` now). `pygame.time` stays outside it: `SceneManager.__init__`'s
+  pacing fallback `pygame.time.Clock` (allowed by function in `tests/test_engine_doors.py`) and
+  `PygameTimer` (`--timer-backend pygame`), which calls `pygame.time.get_ticks`/`delay` through
+  its own `self._pg`, a path the doors scan cannot follow. Moving them means raw
+  `clock.raw_ticks_milliseconds()`/`raw_delay()` functions and a `PygameTimer` that takes them as
+  parameters, as `FastTimer` takes `read_counter_ns`/`sleep`. Not fenced: `asyncio.sleep` (the
+  package has none today; its async loops wait for the host's tick) and third-party code's own
+  clock reads (tenacity stamps each retry's start with `time.monotonic()`; only its sleep is
+  ours, through `sleep=`).
 
 ## Assets and art
 
@@ -675,16 +725,6 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   ships. A runtime-only SBOM for the policy is the other option. (Its platform half is done:
   since the cleanup branch, 2026-10-28, syft scans `uv.lock`, so the SBOM is the same on every
   platform; `scripts/generate_sbom.py`'s docstring.)
-- **Run nox without the `uvx` wrapper in CI** (found 2026-10-28 by the test-memory-reduction
-  work, `feature/test-memory-reduction`; the owner asked to look at it later).
-  - Every CircleCI step runs `uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox
-    -s ...` (`.circleci/config.yml`). The `uvx` process stays alive as nox's parent, holding about
-    47 MiB of anonymous memory, which the Linux job's memory guard (`tests/memory_guard.py`,
-    `GLITCHYGAMES_TEST_RSS_LIMIT_MB`) counts.
-  - Option: install nox once per job (`uv tool install "nox[uv]==<pinned version>"`) and run
-    `nox -s ...` directly, so no wrapper process waits on it.
-  - It changes the test step of both the Linux and macOS jobs (and the shared commands), so check
-    the Windows job and the cache keys too; measure the guard's peak before and after.
 - **Stamp each game's build with its own revision** (found 2026-10-26, Part 3 Stage D, Task D3
   review).
   - Since D3, every recorded run names its game's source revision

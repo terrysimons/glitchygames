@@ -7,6 +7,7 @@ import threading
 import numpy as np
 import pytest
 
+from glitchygames import clock
 from glitchygames.audio import diagnostics
 from glitchygames.audio.diagnostics import (
     EdgeReport,
@@ -18,7 +19,6 @@ from glitchygames.audio.diagnostics import (
     measure_lock_wait,
 )
 from glitchygames.timing import FastTimer
-from tests.stand_in_time import patch_module_time
 
 SAMPLE_RATE = 44100
 BUFFER_SAMPLES = 512
@@ -160,7 +160,8 @@ class TestMeasureLockWait:
 
     def test_late_frames_without_spin_yield_skip_the_coarse_sleep(self, mocker):
         """Game logic longer than the frame leaves no time to sleep: the pacing only spins."""
-        sleep = mocker.spy(diagnostics.time, 'sleep')
+        # glitchygames/clock.py's raw_sleep, which the listener and the pacing both call
+        sleep = mocker.spy(clock, 'raw_sleep')
 
         listener_period_seconds = 0.002
 
@@ -223,14 +224,13 @@ class TestPaceUntil:
         its length on macOS, often past the deadline, which left the spin unrun and its line
         uncovered in some runs.
         """
-        coarse_sleep = mocker.Mock()
-        patch_module_time(mocker=mocker, module=diagnostics, sleep=coarse_sleep)
+        coarse_sleep = mocker.patch('glitchygames.clock.raw_sleep')
         wait_seconds = 0.02
-        deadline_ns = diagnostics.time.perf_counter_ns() + int(wait_seconds * 1e9)
+        deadline_ns = clock.raw_counter_ns() + int(wait_seconds * 1e9)
 
         diagnostics._pace_until(deadline_ns=deadline_ns, timer=FastTimer(), yield_in_spin=False)
 
-        assert diagnostics.time.perf_counter_ns() >= deadline_ns
+        assert clock.raw_counter_ns() >= deadline_ns
         (sleep_call,) = coarse_sleep.call_args_list
         (slept_seconds,) = sleep_call.args
         assert 0.0 < slept_seconds <= wait_seconds - diagnostics.SLEEP_MARGIN_SECONDS

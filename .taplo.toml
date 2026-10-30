@@ -1,4 +1,15 @@
 # taplo (nox -s format-toml, lint-toml): the project's own TOML files only. Not the submodules'
 # (other projects' files: formatting third_party/pygame-ce/pyproject.toml dirtied the submodule)
 # nor installed packages' (.venv/, .nox/) or build output
-exclude = ["third_party/**", ".venv/**", ".nox/**", "build/**"]
+# src/quicklook: SwiftPM's own checkouts (.build/, which hold deliberately invalid TOML test
+# files), and the sprite fixtures whose exact bytes the QuickLook tests depend on (CRLF line
+# endings, ragged rows); formatting them would quietly stop those tests testing anything
+exclude = [
+  "third_party/**",
+  ".venv/**",
+  ".nox/**",
+  "build/**",
+  "src/quicklook/.build/**",
+  "src/quicklook/tools/fixtures/**",
+  "src/quicklook/Tests/SpriteCoreTests/Golden/**",
+]

@@ -15,8 +15,8 @@ parameters:
   XCODE_LATEST_VERSION:
     type: string
     default: "27.1.0"
-  # nox runs through uvx (no project venv; each nox session syncs its own from uv.lock):
-  # keep this at the version uv.lock pins
+  # nox is installed once per job as a uv tool and run directly (no project venv; each nox
+  # session syncs its own from uv.lock): keep this at the version uv.lock pins
   NOX_VERSION:
     type: string
     default: "2026.7.11"
@@ -61,8 +61,10 @@ orbs:
 
 commands:
   # One cache per OS: uv's wheel cache and its managed Python, which every nox session's
-  # `uv sync --frozen` draws on. There is no project venv to cache: nox runs through uvx and
-  # each session syncs its own venv from uv.lock (noxfile.py)
+  # `uv sync --frozen` draws on. There is no project venv to cache: nox is a uv tool (installed
+  # by each job, never cached: ~/.local/share/uv/tools stays out of the paths, as Windows's
+  # tools directory, under %APPDATA%, does) and each session syncs its own venv from uv.lock
+  # (noxfile.py)
   restore-uv-cache-posix:
     steps:
       - restore_cache:
@@ -86,7 +88,7 @@ commands:
           when: always
           paths:
             - ~/.cache/uv
-            - ~/.local/share/uv
+            - ~/.local/share/uv/python
 
   install-deps-posix:
     steps:
@@ -105,13 +107,19 @@ commands:
             # sessions install the project from uv.lock themselves
             uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
 
+            # nox at the pinned version, a uv tool (its own venv; the executable in ~/.local/bin),
+            # run directly by every later step. Under `uvx` the uvx process stayed alive as nox's
+            # parent, about 47 MiB that the Linux job's memory guard counts
+            uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"
+            nox --version
+
   nox-format:
     steps:
       - run:
           name: "Format check"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s format
+            nox -s format
 
   nox-lint:
     steps:
@@ -119,7 +127,7 @@ commands:
           name: "Lint (ruff)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s lint
+            nox -s lint
 
   nox-static-analysis:
     steps:
@@ -127,7 +135,7 @@ commands:
           name: "Static analysis (basedpyright)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s static-analysis
+            nox -s static-analysis
 
   nox-lint-docs:
     steps:
@@ -135,7 +143,7 @@ commands:
           name: "Lint docs (mkdocs)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s lint-docs
+            nox -s lint-docs
 
   nox-timer-report:
     steps:
@@ -147,7 +155,7 @@ commands:
           when: always
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s timer-report
+            nox -s timer-report
 
   nox-test:
     steps:
@@ -161,7 +169,7 @@ commands:
           when: always
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s test
+            nox -s test
       - store_test_results:
           path: test-results
           when: always
@@ -210,7 +218,7 @@ commands:
           name: "Security scan (bandit, syft SBOM, grype CVEs, licenses)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s security-scan
+            nox -s security-scan
 
   nox-performance-test:
     steps:
@@ -218,7 +226,7 @@ commands:
           name: "Performance benchmarks"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s performance-test
+            nox -s performance-test
 
   nox-build:
     steps:
@@ -226,7 +234,7 @@ commands:
           name: "Build binary and wheel"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s build
+            nox -s build
       - store_artifacts:
           path: dist
           destination: dist
@@ -358,6 +366,10 @@ jobs:
 
             # The nox sessions install the project from uv.lock themselves
             uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
+
+            # nox at the pinned version, a uv tool run directly, as in install-deps-posix
+            uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"
+            nox --version
       # Only what differs by platform, as on Linux; the rest runs on macOS
       # Diagnostic only, as in nox-timer-report
       - run:
@@ -367,7 +379,7 @@ jobs:
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s timer-report
+            nox -s timer-report
       # Tests run (and report) even when an earlier step failed, as in nox-test
       - run:
           name: "Tests (pytest + coverage)"
@@ -377,7 +389,7 @@ jobs:
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s test
+            nox -s test
       - store_test_results:
           path: test-results
           when: always
@@ -395,7 +407,7 @@ jobs:
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s build
+            nox -s build
       - store_artifacts:
           path: dist
           destination: dist
@@ -416,6 +428,26 @@ jobs:
 
     steps:
       - checkout
+      # Publish what main is now, not only the commit this deploy was started for: a merge that
+      # landed while this deploy waited its turn (serial-group) is published here instead of
+      # depending on its own deploy, which may be canceled. A deploy whose main is already on
+      # gh-pages (MkDocs commits "Deployed <short hash> with MkDocs ...") stops, successfully
+      - run:
+          name: "Move to main's latest commit; stop if its docs are already published"
+          command: |
+            set -euo pipefail
+            git fetch --quiet origin main gh-pages
+            git checkout --quiet --detach origin/main
+            latest=$(git rev-parse HEAD)
+            published=$(git log -1 --format=%s origin/gh-pages \
+              | sed -n 's/^Deployed \([0-9a-f]\{7,\}\) with MkDocs.*/\1/p')
+            echo "main is at $latest; gh-pages holds ${published:-an unrecognised deploy}"
+            case "$latest" in
+              "${published:-none}"*)
+                echo "main's docs are already published: nothing to deploy"
+                circleci-agent step halt
+                ;;
+            esac
       - run:
           name: "Check out the pygame-ce submodule (the browser games' wheel is built from it)"
           command: |
@@ -453,7 +485,7 @@ jobs:
               exit 1
             fi
             export GIT_SSH_COMMAND="ssh -i $deploy_key -o IdentitiesOnly=yes"
-            uvx --from "nox[uv]==<< pipeline.parameters.NOX_VERSION >>" nox -s docs-deploy -- --no-measure
+            nox -s docs-deploy -- --no-measure
       - save_cache:
           key: pyodide-toolchain-v1-{{ arch }}-{{ checksum "third_party/pygame-ce/buildconfig/glitchygames/build_pyodide_wheel.sh" }}
           paths:

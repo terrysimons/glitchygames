@@ -1,10 +1,32 @@
-"""Template building and discovery functions. Wraps cookiecutter."""
+"""Template building and discovery functions. Wraps cookiecutter.
+
+cookiecutter is the ``templates`` extra (``pip install glitchygames[templates]``), not a core
+dependency: without it the templates are still listed (``get_templates``), and ``build`` raises
+``TemplatesUnavailableError`` naming the extra.
+"""
 
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
-from cookiecutter.main import cookiecutter
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+cookiecutter: Callable[..., Any] | None
+try:
+    from cookiecutter.main import cookiecutter
+except ImportError:  # the templates extra is not installed
+    cookiecutter = None
 
 path = Path(__file__).parent
+
+TEMPLATES_EXTRA_MISSING_MESSAGE = (
+    'Building a project from a template needs cookiecutter, which the templates extra '
+    'installs: pip install glitchygames[templates]'
+)
+
+
+class TemplatesUnavailableError(ImportError):
+    """cookiecutter, the ``templates`` extra, is not installed."""
 
 
 def get_templates() -> list[str]:
@@ -19,7 +41,14 @@ def get_templates() -> list[str]:
 
 
 def build(template: str) -> None:
-    """Build the project from the template, using cookiecutter."""
+    """Build the project from the template, using cookiecutter.
+
+    Raises:
+        TemplatesUnavailableError: cookiecutter (the ``templates`` extra) is not installed.
+
+    """
+    if cookiecutter is None:
+        raise TemplatesUnavailableError(TEMPLATES_EXTRA_MISSING_MESSAGE)
     try:
         # The templates can be from remote repositories also.  Use a .repo file to name the repo
         with Path.open(Path(path) / template / '.repo') as fh:

@@ -53,6 +53,7 @@ from glitchygames.tracing import read_trace_result
 from tests.ledger_repositories import environment_without_git_variables, git
 from tests.stand_in_games import (
     STAND_IN_GAME_FRAMES,
+    UNPACED_TARGET_FPS,
     stand_in_game_source,
     write_stand_in_distribution,
 )
@@ -535,8 +536,19 @@ def build_template(*, root: Path, layout: Layout) -> Template:
     git(repository=project, arguments=['init', '--quiet', '--initial-branch', 'main'])
     game_commit = commit_all(project=project, message='The stand-in rally')
 
+    # Uncapped: the golden is the tools' input here, and none of them reads its frame times
+    # (the record-trace and record-session cases record as a player does, paced)
     recorded = run_child(
-        command=[*launch, '--log-level', 'error', '--headless', '--record-trace', layout.golden],
+        command=[
+            *launch,
+            '--log-level',
+            'error',
+            '--headless',
+            '--target-fps',
+            UNPACED_TARGET_FPS,
+            '--record-trace',
+            layout.golden,
+        ],
         environment=environment,
         project=project,
     )

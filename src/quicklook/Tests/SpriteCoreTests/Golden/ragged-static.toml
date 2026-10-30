@@ -1,0 +1,19 @@
+# Hand-written fixture: ragged rows in a static sprite (R5: whole-string strip, longest row,
+# most common glyph pads)
+[sprite]
+name = "ragged_static"
+pixels = """
+  ab
+abbbb
+b
+"""
+
+[colors."a"]
+red = 200
+green = 10
+blue = 10
+
+[colors."b"]
+red = 10
+green = 200
+blue = 10

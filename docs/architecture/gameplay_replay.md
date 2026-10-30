@@ -9,7 +9,9 @@ headless runs, the determinism audit, golden replays and rebaselining them, the 
 gets (as its own flags and as the `glitchygames` command), in-game playback (demos, instant
 replay, ghosts), and the rules game code follows so its sessions replay. See
 `plans/2026-10-19-gameplay-replay.md` for the design and `plans/future-work.md` for the
-follow-ups.
+follow-ups. For how it works (a frame's steps and doors, speeds and timing, the
+file's fields, stored versus derived, and how playback is tested), see the overview,
+[Gameplay Playback](playback/index.md); this page is the command reference.
 
 ## Quick start
 
@@ -80,17 +82,23 @@ The modules:
   `--record-trace` and records what passes through them.
 - `src/glitchygames/replay/driver.py`: `ReplaySources`, the comparison and the divergence report.
 
-`tests/test_engine_doors.py` scans the package and fails if anything outside the doors reads
-the raw clock, polls pygame's keyboard or mouse, reads or posts pygame events directly, or
-enumerates or opens joysticks and controllers. Its `ALLOWED_BYPASSES` lists the few exceptions,
-each with its reason.
+`tests/test_engine_doors.py` scans the package and fails if any file but
+`src/glitchygames/clock.py` uses the `time` module (a read, `time.sleep`, anything) or reads
+`datetime`'s now, or if anything outside the doors polls pygame's keyboard or mouse, reads or
+posts pygame events directly, uses pygame's timers, or enumerates or opens joysticks and
+controllers. Its `ALLOWED_BYPASSES` lists the few exceptions, each with its reason. The engine's
+own pacing, measurement and diagnostics read real time through the clock module's raw functions
+(`raw_counter_ns()`, `raw_counter_seconds()`, `raw_sleep()`, `raw_wall_clock_time()`), which are
+never replayed and are not for game code.
 
 ## Rules for game code
 
 ### Time
 
 Read time from `src/glitchygames/clock.py` or `Scene.game_time`, never from `time`, `datetime` or
-`pygame.time`:
+`pygame.time`. Import the module and call through it (`from glitchygames import clock`, then
+`clock.elapsed_seconds()`), never a function by name: it is the one clock, so one patch on
+`glitchygames.clock` reaches every reader (the doors guard checks it):
 
 | Use | For |
 |---|---|
