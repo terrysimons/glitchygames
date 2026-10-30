@@ -658,6 +658,20 @@ FAST_RECORDINGS = {
     'hit_its_2000_fps_target_at_half_speed': FastRecording(
         target_fps=2000.0, frame_seconds=[0.0] + [1 / 2000] * 10_000, speed=0.5
     ),
+    # More frames a tick (50) than MAX_INNER_FRAMES_PER_TICK: up to 1x only the tick's work
+    # budget limits them
+    'hit_its_3000_fps_target_at_1x': FastRecording(
+        target_fps=3000.0, frame_seconds=[0.0] + [1 / 3000] * 30_000, speed=1.0
+    ),
+    # An uncapped game's recording (--target-fps 0) at about 3100 FPS, as PaddleSlap achieves
+    'uncapped_about_3100_fps_at_1x': FastRecording(
+        target_fps=0.0,
+        frame_seconds=[
+            0.0,
+            *uniform_frames(shortest_seconds=0.00025, longest_seconds=0.0004, frame_count=31_000),
+        ],
+        speed=1.0,
+    ),
 }
 
 
@@ -817,6 +831,30 @@ class TestRecordingsFasterThanTheTickKeepTheirRate:
         )
         assert check.required_frames_per_second == pytest.approx(1200, rel=0.001)
         assert check.keeps_rate, check
+
+    def test_a_3000_fps_recording_keeps_3000(self, tmp_path):
+        """50 frames a tick at 1x, more than MAX_INNER_FRAMES_PER_TICK: only the budget limits."""
+        check = check_watched_rate(
+            recording=FAST_RECORDINGS['hit_its_3000_fps_target_at_1x'],
+            path=tmp_path / 'fast.jsonl.gz',
+        )
+        assert check.required_frames_per_second == pytest.approx(3000)
+        assert check.keeps_rate, check
+
+    def test_a_stall_runs_one_bounded_burst_of_its_short_frames(self):
+        """Up to 1x the owed limit, not a frame count, bounds a stall's burst.
+
+        For 1/3000 s frames the owed limit is its floor, the frame plus two ticks (33.67 ms):
+        the stall's tick runs until less than the frame plus a tick is owed, so 50 frames (a
+        tick's worth, as every tick), and the rest of the half second is dropped (behind).
+        """
+        schedule = run_schedule(inner_frame_seconds=[1 / 3000] * 3000, stall_before_tick=20)
+        frames_per_tick = [len(frames_run) for frames_run in schedule.frames_by_tick]
+        assert frames_per_tick[20] == 50
+        # Every tick once the phase has settled (from tick 3) runs the same 50
+        assert set(frames_per_tick[3:20]) == set(frames_per_tick[21:-1]) == {50}
+        assert not schedule.behind_by_tick[19]
+        assert schedule.behind_by_tick[20]
 
     @pytest.mark.parametrize('recording', FAST_RECORDINGS.values(), ids=FAST_RECORDINGS.keys())
     def test_it_never_falls_behind(self, recording):

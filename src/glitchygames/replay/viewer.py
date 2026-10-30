@@ -24,28 +24,29 @@ The contract between them, asked through ``EngineSources.hold_frame`` before eac
    of 0 and 2 frames. Only while the inner game is running: paused, at the start screen or over,
    the accumulator empties, and a restart seeds it with half a frame (so frame boundaries never
    sit on a tick boundary).
-2. Tick open: run one more inner frame (``should_run_inner_frame`` True) while the accumulator
-   holds the frame's recorded duration, which it then consumes; at most
-   ``MAX_INNER_FRAMES_PER_TICK`` per tick, and only within the tick's real-time budget
-   (``INNER_FRAME_BUDGET_SECONDS``), so keys, the status line and presenting stay at 60 Hz
-   however costly inner frames are. Up to 1x (speed <= 1) a tick runs at most one inner frame
-   unless the replay is genuinely behind: a second (or later) frame in the same tick runs only
-   when the accumulator holds its recorded duration plus a whole tick of inner time (the speed
-   times the tick period); otherwise the tick closes and the frame runs next tick, the owed
-   time carried. So a live frame that ran long and the short frame its pacing caught up with
-   never share a tick (which would show only the short one): each is presented. After such a
-   catch-up the replay stays about a tick behind real time: a constant lag, not a drift (it
-   never grows), which a pause resets. A recording faster than 60 FPS (frames shorter than a
-   tick) owes more than that every tick, so a tick still runs several of its frames and
-   presents the last, as every tick above 1x does. The accumulator never owes more than one
-   tick's worth of frames (``MAX_INNER_FRAMES_PER_TICK`` and a half; up to 1x never less than
-   a frame plus two ticks of inner time, so a recording of very short frames keeps its rate):
-   the excess is dropped (a long stall runs one bounded burst), and while frames are dropped
-   or the budget cuts ticks short the viewer is behind (``is_behind``): the
-   status bar then shows the real speed (``effective_speed``). So 1x runs one inner frame a
-   tick for a 60 FPS recording (but for the true rate mismatch), 8x eight, 1/4x one every
-   fourth tick, paused none. While paused a step (``.``) runs exactly one inner frame. The
-   start screen lets frame 0 run first, so its picture is behind the message.
+2. Tick open: run one more inner frame (``should_run_inner_frame`` True) while the accumulator holds
+   the frame's recorded duration, which it then consumes, only within the tick's real-time work
+   budget (``INNER_FRAME_BUDGET_SECONDS``, 11 ms of the 16.7 ms tick), so keys, the status line and
+   presenting stay at 60 Hz however costly inner frames are. Above 1x a tick also runs at most
+   ``MAX_INNER_FRAMES_PER_TICK``; up to 1x the budget is the only per-tick limit, so on a real
+   machine an uncapped recording whose frames cost what they did live may still not keep up, and
+   "can't keep up" then means exactly that. Up to 1x (speed <= 1) a tick runs at most one inner
+   frame unless the replay is genuinely behind: a second (or later) frame in the same tick runs only
+   when the accumulator holds its recorded duration plus a whole tick of inner time (the speed times
+   the tick period); otherwise the tick closes and the frame runs next tick, the owed time carried.
+   So a live frame that ran long and the short frame its pacing caught up with never share a tick
+   (which would show only the short one): each is presented. After such a catch-up the replay stays
+   about a tick behind real time: a constant lag, not a drift (it never grows), which a pause
+   resets. A recording faster than 60 FPS (frames shorter than a tick) owes more than that every
+   tick, so a tick still runs several of its frames and presents the last, as every tick above 1x
+   does. The accumulator never owes more than one tick's worth: ``MAX_INNER_FRAMES_PER_TICK`` and a
+   half frames, and up to 1x never less than a frame plus two ticks of inner time (so a recording of
+   very short frames keeps its rate). The excess is dropped (a long stall runs one bounded burst),
+   and while frames are dropped or the budget cuts ticks short the viewer is behind (``is_behind``):
+   the status bar then shows the real speed (``effective_speed``). So 1x runs one inner frame a tick
+   for a 60 FPS recording (but for the true rate mismatch), 8x eight, 1/4x one every fourth tick,
+   paused none. While paused a step (``.``) runs exactly one inner frame. The start screen lets
+   frame 0 run first, so its picture is behind the message.
 3. Otherwise the tick closes: the doors refresh the status line, the loop presents the outer
    frame and asks again (step 1).
 
@@ -74,7 +75,9 @@ if TYPE_CHECKING:
 
     from glitchygames.scenes import SceneManager
 
-# The most inner frames one outer tick runs; the accumulator never owes more than this many
+# The most inner frames one outer tick runs above 1x (up to 1x only the work budget limits a
+# tick); the accumulator never owes more than this many and a half (up to 1x, or a frame plus two
+# ticks of inner time when that is more)
 MAX_INNER_FRAMES_PER_TICK = 32
 # The real time an outer tick may spend running inner frames (of its 16.7 ms), so the tick's
 # keys, status line and presenting keep their 60 Hz
@@ -363,11 +366,7 @@ class ReplayViewer:
             # Not owed yet, or (up to 1x, not behind) it runs and is presented next tick, the
             # owed time carried
             return self._close_tick()
-        if (
-            self._inner_frames_this_tick >= MAX_INNER_FRAMES_PER_TICK
-            or self._read_measured_seconds() - self._tick_start_seconds
-            >= INNER_FRAME_BUDGET_SECONDS
-        ):
+        if self._is_tick_spent():
             # Owed but out of frames or time this tick: carried to the next
             if inner_frame_seconds > 0:
                 self._fall_behind()
@@ -376,6 +375,24 @@ class ReplayViewer:
         self._inner_frames_this_tick += 1
         self._inner_seconds_this_tick += inner_frame_seconds
         return True
+
+    def _is_tick_spent(self: Self) -> bool:
+        """Whether the open tick may run no more inner frames (rule 2).
+
+        Its real-time work budget (``INNER_FRAME_BUDGET_SECONDS``) is spent; above 1x also once
+        it ran ``MAX_INNER_FRAMES_PER_TICK`` frames. Up to 1x the budget is the only limit, so a
+        recording of very short frames (an uncapped game: 3000 FPS is 50 frames a tick) keeps
+        its rate when its frames cost little enough.
+
+        Returns:
+            True when the tick closes.
+
+        """
+        if self.controls.speed > 1 and self._inner_frames_this_tick >= MAX_INNER_FRAMES_PER_TICK:
+            return True
+        return (
+            self._read_measured_seconds() - self._tick_start_seconds >= INNER_FRAME_BUDGET_SECONDS
+        )
 
     def _owed_limit_seconds(self: Self, *, inner_frame_seconds: float) -> float:
         """Return the most inner time the accumulator may owe; the excess is dropped (rule 2).
