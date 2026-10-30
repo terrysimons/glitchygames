@@ -304,6 +304,24 @@ class TestGeneratedFiles:
             'brave_adventurer_papyrus.zip',
         ]
 
+    def test_a_member_package_no_member_holds_is_refused_by_name(self, tmp_path, mocker):
+        """A game naming a member package the workspace lacks fails, naming it (#224 item 37)."""
+        game = dataclasses.replace(GAMES['mr-muncher'], member_packages=('no_such_package',))
+        mocker.patch.dict(GAMES, {'missing-package-game': game})
+        mocker.patch.object(build_browser_bundle, 'write_engine_archive', return_value=0)
+        wheel_path = tmp_path / WHEEL_NAME
+        wheel_path.write_bytes(b'')
+
+        with pytest.raises(
+            LookupError, match=r'^No workspace member holds the package no_such_package$'
+        ):
+            build_browser_bundle.write_bundle(
+                game='missing-package-game',
+                output_directory=tmp_path / 'site',
+                wheel_path=wheel_path,
+                arguments=[],
+            )
+
     def test_the_bundle_report_counts_every_archives_files(self, tmp_path, mocker, capsys):
         """The engine's files and each member package's are counted, each archive named."""
         file_counts = {

@@ -21,7 +21,8 @@ kebab-case, as pyproject.toml's are (stage D's settings table):
   history follows it. Each path is relative, no new path is itself an old one (lookups are one
   hop: an old path names the final one directly), and no two old paths are the same path
   written two ways; refused when read otherwise. ``recording_renames_problems`` finds a new path
-  that does not exist (a check of the files, which reading settings never does).
+  that does not exist and an old one that still does (a check of the files, which reading
+  settings never does).
 - ``game-timeout-seconds``: how long ``glitchygames verify`` and ``glitchygames measure`` wait
   for each game they start (``GAME --verify``, ``GAME --measure``) before stopping it and
   failing it (default: an hour, ``DEFAULT_GAME_TIMEOUT_SECONDS``). A game replays each of its
@@ -504,23 +505,27 @@ def _project_name_or_none(*, project_root: Path) -> str | None:
 
 
 def recording_renames_problems(*, settings: ProjectSettings, project_root: Path) -> list[str]:
-    """Return each recording rename whose new path does not exist in the project.
+    """Return each recording rename whose new path does not exist, or whose old path still does.
 
-    The table's shape is checked as it is read (``ProjectSettings``); this checks the files.
+    The table's shape is checked as it is read (``ProjectSettings``); this checks the files. An
+    old path still holding a file is no finished move: its runs and the new path's would be
+    counted as one recording's.
 
     Args:
         settings: The project's settings.
         project_root: The project's root.
 
     Returns:
-        One line per missing new path (empty when every one exists).
+        One line per problem, in the table's order (empty when there is none).
 
     """
-    return [
-        f'{source} is renamed to {target}, which does not exist'
-        for source, target in settings.recording_renames.items()
-        if not (project_root / target).is_file()
-    ]
+    problems: list[str] = []
+    for source, target in settings.recording_renames.items():
+        if not (project_root / target).is_file():
+            problems.append(f'{source} is renamed to {target}, which does not exist')
+        if (project_root / source).exists():
+            problems.append(f'{source} is renamed to {target}, but {source} still exists')
+    return problems
 
 
 def ensure_local_directory(*, directory: Path) -> Path:
