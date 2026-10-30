@@ -177,12 +177,27 @@ def test_dependency_dead_code_security_and_complexity_scans_cover_every_member(m
     wily = configparser.ConfigParser()
     wily.read(PROJECT_ROOT / 'wily.cfg', encoding='utf-8')
 
-    assert set(member.import_packages) <= set(deptry['known_first_party'])
+    # deptry ties the root's imports of a member (scripts/ imports the games) to the member's
+    # distribution, which the root's extras declare: a member package taken as first party is
+    # never checked against them (a game missing from its extra goes unreported), and in the
+    # editable dev venv, which records no member's packages, the map is what ties them
+    assert not set(member.import_packages) & set(deptry['known_first_party'])
+    assert deptry['package_module_name_map'][member.distribution] == list(member.import_packages)
     # Members are projects of their own: the root's dependency check leaves their layer out
     assert repository_path(member.directory.parent) in deptry['extend_exclude']
     for package_directory in member.package_directories:
         assert repository_path(package_directory) in noxfile._SOURCE_PACKAGE_DIRS
     assert repository_path(member.directory) in wily['wily']['path'].split(',')
+
+
+def test_the_deptry_map_names_the_members_and_pygame_alone():
+    """No key is left for a removed member: the map is pygame-ce's and each member's."""
+    package_module_name_map = root_pyproject()['tool']['deptry']['package_module_name_map']
+
+    assert sorted(package_module_name_map) == sorted([
+        'pygame-ce',
+        *(member.distribution for member in MEMBERS),
+    ])
 
 
 def test_nox_installs_and_reinstalls_every_member():

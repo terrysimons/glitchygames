@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from scripts.git_checkout import files_not_ignored
 from scripts.git_checkout import run_git as scripts_run_git
 from scripts.workspace_packages import (
     ENGINE_DIRECTORY,
@@ -270,25 +271,23 @@ def run_git(*, arguments: list[str], directory: Path) -> str:
     return output
 
 
-def tracked_entry_names(*, directory: Path) -> set[str]:
-    """Return the names directly in a directory that git tracks, ignored and untracked files out.
+def leftover_files(*, directory: Path) -> list[Path]:
+    """Return the files a move left in a directory that git does not ignore, relative to it.
 
-    A directory counts when git tracks any file below it. A file git ignores (macOS Finder's
-    ``.DS_Store``) or has not been told about is not part of the repository, so it is not here.
+    What git ignores (a ``__pycache__`` the old package's imports wrote, Finder's ``.DS_Store``)
+    is in no commit and no wheel, so it is not a leftover; a tracked file, or an untracked one no
+    ignore rule covers, is.
 
     Args:
-        directory: A directory inside a git work tree.
+        directory: Where a package was, inside a git checkout.
 
     Returns:
-        The tracked files' and directories' names directly in ``directory``.
+        The files, sorted (none when the directory is not there).
 
     """
-    listing = run_git(arguments=['ls-files', '-z', '--', '.'], directory=directory)
-    return {
-        tracked_path.split('/', maxsplit=1)[0]
-        for tracked_path in listing.split('\0')
-        if tracked_path
-    }
+    if not directory.is_dir():
+        return []
+    return sorted(files_not_ignored(directory=directory))
 
 
 def test_the_engines_examples_directory_is_gone():
@@ -310,27 +309,33 @@ def test_the_engines_examples_directory_is_gone():
         PROJECT_ROOT / 'src' / 'glitchygames' / 'examples',
         PROJECT_ROOT / 'tests' / 'examples',
     ):
-        assert not leftover_directory.exists(), (
-            f'{leftover_directory} still exists: ignored leftovers of the move (__pycache__); '
-            'rm -rf src/glitchygames/examples tests/examples'
+        assert leftover_files(directory=leftover_directory) == [], (
+            f'{leftover_directory} still holds files the move left behind: remove them'
         )
 
 
-def test_tracked_entry_names_leaves_out_ignored_and_untracked_files(tmp_path):
-    """An ignored .DS_Store and an untracked file are not entries; a tracked directory is one."""
+def test_ignored_leftovers_of_a_move_are_not_leftover_files(tmp_path):
+    """A __pycache__ or Finder .DS_Store left where a package was is no leftover; a file is.
+
+    Both are ignored, so nothing of them is in the repository or a wheel: a guard tripping on
+    them fails locally for nothing (an old examples/ __pycache__ did).
+    """
     run_git(arguments=['init', '--quiet'], directory=tmp_path)
-    (tmp_path / '.gitignore').write_text('.DS_Store\n', encoding='utf-8')
-    (tmp_path / 'demo.py').write_text('', encoding='utf-8')
-    (tmp_path / 'resources').mkdir()
-    (tmp_path / 'resources' / 'tone.wav').write_text('', encoding='utf-8')
-    (tmp_path / '.DS_Store').write_text('', encoding='utf-8')
-    (tmp_path / 'untracked.py').write_text('', encoding='utf-8')
-    run_git(arguments=['add', '.gitignore', 'demo.py', 'resources'], directory=tmp_path)
+    (tmp_path / '.gitignore').write_text('__pycache__/\n.DS_Store\n', encoding='utf-8')
+    moved = tmp_path / 'examples'
+    (moved / 'paddleslap' / '__pycache__').mkdir(parents=True)
+    (moved / 'paddleslap' / '__pycache__' / 'game.cpython-314.pyc').write_bytes(b'')
+    (moved / '.DS_Store').write_bytes(b'')
 
-    assert tracked_entry_names(directory=tmp_path) == {'.gitignore', 'demo.py', 'resources'}
+    assert leftover_files(directory=moved) == []
+    assert leftover_files(directory=tmp_path / 'never-there') == []
+
+    (moved / 'paddleslap' / 'forgotten.py').write_text('', encoding='utf-8')
+
+    assert leftover_files(directory=moved) == [Path('paddleslap') / 'forgotten.py']
 
 
-def test_tracked_entry_names_ignores_a_git_dir_from_the_environment(tmp_path, monkeypatch):
+def test_leftover_files_ignores_a_git_dir_from_the_environment(tmp_path, monkeypatch):
     """A GIT_DIR set by a git hook does not send the helper to another repository."""
     other_repository = tmp_path / 'other'
     other_repository.mkdir()
@@ -340,12 +345,13 @@ def test_tracked_entry_names_ignores_a_git_dir_from_the_environment(tmp_path, mo
     repository = tmp_path / 'repository'
     repository.mkdir()
     run_git(arguments=['init', '--quiet'], directory=repository)
-    (repository / 'demo.py').write_text('', encoding='utf-8')
-    run_git(arguments=['add', 'demo.py'], directory=repository)
+    (repository / 'moved').mkdir()
+    (repository / 'moved' / 'demo.py').write_text('', encoding='utf-8')
+    run_git(arguments=['add', 'moved/demo.py'], directory=repository)
     monkeypatch.setenv('GIT_DIR', str(other_repository / '.git'))
     monkeypatch.setenv('GIT_INDEX_FILE', str(other_repository / '.git' / 'index'))
 
-    assert tracked_entry_names(directory=repository) == {'demo.py'}
+    assert leftover_files(directory=repository / 'moved') == [Path('demo.py')]
 
 
 def test_the_root_goldens_are_the_engines_own():

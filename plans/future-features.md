@@ -426,7 +426,16 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Code Architecture Features
 
-### 55. Swatches Into the Engine: Recolouring Sprites by Palette Swap — TODO
+### 62. Reserve the Game Package Names on PyPI Before Publishing the Engine — TODO
+- **Goal**: never let `pip install glitchygames[games]` (or `[demos]`, `[apps]`) install a package someone else registered (the owner, 2026-10-30)
+- **Why**: `pyproject.toml`'s extras `games`, `demos` and `apps` list the workspace members by distribution name (`mr-muncher`, `brave-adventurer`, `clockwork-keep`, `paddleslap`, `drawing-fire`, `dt-demo`, `joystick-demo`, `text-input-demo`, `bitmappy`). In the workspace they resolve to the members; from PyPI they resolve to whatever is registered under those names, and none is registered by this project yet. Publishing the engine first would let anyone register one of those names and be installed by the extra (dependency confusion)
+- **Before the engine is published**: either publish (or reserve) every member under its name first, or drop the extras from the published engine (keep them for the workspace only), or rename the distributions under a prefix this project owns (e.g. `glitchygames-mr-muncher`). A test could refuse a publish build whose extras name a distribution not owned on PyPI
+- **Found**: comparing the workspace migration plan with #109 (2026-10-26)
+- **Status**: TODO, before any PyPI publish
+- **Priority**: High at publish time, none until then
+
+### 61. Swatches Into the Engine: Recolouring Sprites by Palette Swap — TODO
+- **Numbering**: was a second #55 (the Recording Naming Convention entry kept #55, which other plans cite); renumbered 2026-10-30
 - **Goal**: move the mechanic Drawing Fire proved (plans/2026-10-25-drawing-fire-design.md,
   section 7) from `src/games/drawing-fire/drawing_fire/swatches.py` into the engine, so any
   game recolours a sprite's parts (a helmet, a uniform) by palette swap, its shades following.
