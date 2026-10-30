@@ -727,8 +727,6 @@ severity = "medium"
 confidence = "medium"
 
 [tool.deptry]
-# pygame-ce installs as the 'pygame' module
-package_module_name_map = { "pygame-ce" = "pygame" }
 # Not this package's code: the pygame-ce submodule (its own project), browser/, which runs
 # in Pyodide on its runtime modules (js, pyodide) and its own files, and the workspace members
 # under src/games, src/demos and src/apps (projects of their own, each declaring its dependencies:
@@ -740,23 +738,31 @@ extend_exclude = [
   "src/demos",
   "src/apps",
 ]
-# The engine's own package, under src/, and the workspace members' packages scripts/ imports
-# (deptry guesses first-party modules from the root's direct children only)
-known_first_party = [
-  "glitchygames",
-  "mr_muncher",
+# The engine's own package, under src/ (deptry guesses first-party modules from the root's direct
+# children only). The members' packages are not first party: the root's extras (games, demos,
+# apps) declare their distributions, and scripts/ imports the games, which deptry ties together
+# through package_module_name_map
+known_first_party = ["glitchygames"]
+
+# pygame-ce installs as the 'pygame' module; each workspace member as its import packages (its
+# editable install records a .pth file, not its packages, so deptry cannot read them; kept equal to
+# the workspace by tests/test_workspace_config.py)
+[tool.deptry.package_module_name_map]
+"pygame-ce" = "pygame"
+"mr-muncher" = ["mr_muncher"]
+"brave-adventurer" = [
   "brave_adventurer_core",
   "brave_adventurer",
   "brave_adventurer_papyrus",
   "brave_adventurer_modes",
-  "clockwork_keep",
-  "paddleslap",
-  "drawing_fire",
-  "dt_demo",
-  "joystick_demo",
-  "text_input_demo",
-  "bitmappy",
 ]
+"clockwork-keep" = ["clockwork_keep"]
+"paddleslap" = ["paddleslap"]
+"drawing-fire" = ["drawing_fire"]
+"dt-demo" = ["dt_demo"]
+"joystick-demo" = ["joystick_demo"]
+"text-input-demo" = ["text_input_demo"]
+"bitmappy" = ["bitmappy"]
 
 [tool.deptry.per_rule_ignores]
 # numpy is used indirectly via pygame.surfarray (array3d/array4d) which requires it at runtime

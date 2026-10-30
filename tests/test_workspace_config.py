@@ -177,7 +177,11 @@ def test_dependency_dead_code_security_and_complexity_scans_cover_every_member(m
     wily = configparser.ConfigParser()
     wily.read(PROJECT_ROOT / 'wily.cfg', encoding='utf-8')
 
-    assert set(member.import_packages) <= set(deptry['known_first_party'])
+    # deptry ties the root's imports of a member (scripts/ imports the games) to the member's
+    # distribution, which the root's extras declare: a member package taken as first party is
+    # never tied to it, and the extra is reported as unused (DEP002)
+    assert not set(member.import_packages) & set(deptry['known_first_party'])
+    assert deptry['package_module_name_map'][member.distribution] == list(member.import_packages)
     # Members are projects of their own: the root's dependency check leaves their layer out
     assert repository_path(member.directory.parent) in deptry['extend_exclude']
     for package_directory in member.package_directories:
