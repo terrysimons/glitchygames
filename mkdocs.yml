@@ -36,6 +36,7 @@ nav:
     - Designs:
       - glitchy.games Website on AWS: "specs/2026-10-27-glitchy-games-website-design.md"
       - Sprite QuickLook for macOS: "specs/2026-10-29-sprite-quicklook-design.md"
+      - One Rule for Sprite Pixel Rows: "specs/2026-10-30-unified-pixel-rows-design.md"
   - glitchygames API Reference:
     - "glitchygames/index.md"
     - glitchygames.api: "glitchygames/api/index.md"
