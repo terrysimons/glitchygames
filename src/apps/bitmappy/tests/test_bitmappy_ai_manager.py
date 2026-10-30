@@ -53,6 +53,12 @@ ANIMATED_SPRITE_TOML = (
     '[colors."."]\nred = 255\ngreen = 255\nblue = 255\n'
 )
 
+# A static sprite whose second row is short: valid TOML that needs a pixel-row repair
+RAGGED_SPRITE_TOML = (
+    '[sprite]\nname = "ball"\npixels = """\n##\n#\n"""\n\n'
+    '[colors."#"]\nred = 255\ngreen = 0\nblue = 0\n'
+)
+
 DEFAULT_PROMPT_TEXT = 'Enter a description of the sprite you want to create:'
 
 
@@ -876,6 +882,57 @@ class TestProcessAiResponse:
         assert 'the sprite was not loaded' in caplog.text
         assert 'anyway' not in caplog.text
         assert manager.pending_ai_requests == {}
+
+    def test_bitmappy_retries_ragged_rows(self):
+        """Rows that need repair are retried with the equal-widths correction."""
+        editor = _editor()
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(original_prompt='a red ball')
+
+        manager._process_ai_response('request-1', AIResponse(content=RAGGED_SPRITE_TOML))
+
+        retry_request = manager.ai_request_queue.items[0]  # type: ignore[union-attr]
+        assert 'every row of a frame must have the same number of characters' in str(
+            retry_request.messages
+        )
+        assert manager.pending_ai_requests['request-1'].retry_count == 1
+
+    def test_bitmappy_loads_ragged_rows_after_last_retry(self):
+        """Out of retries, rows that need repair load repaired instead of being thrown away."""
+        canvas = FakeCanvas()
+        editor = _editor(canvas=canvas)
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(
+            original_prompt='a red ball',
+            retry_count=AI_VALIDATION_MAX_RETRIES,
+        )
+
+        manager._process_ai_response('request-1', AIResponse(content=RAGGED_SPRITE_TOML))
+
+        assert not manager.ai_request_queue.items  # type: ignore[union-attr]
+        assert len(canvas.loaded_paths) == 1
+        frame = canvas.animated_sprite.get_current_frame()
+        assert frame.image.get_size() == (2, 2)
+        assert canvas.animated_sprite.pixel_row_repairs
+        assert manager.pending_ai_requests == {}
+
+    def test_bitmappy_still_discards_other_failures(self):
+        """Out of retries, any other failure is still not loaded."""
+        canvas = FakeCanvas()
+        editor = _editor(canvas=canvas)
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(
+            original_prompt='a red ball',
+            retry_count=AI_VALIDATION_MAX_RETRIES,
+        )
+
+        manager._process_ai_response(
+            'request-1',
+            AIResponse(content='[sprite]\nname = "x"\npixels = """\n#\n#.\n"""\n'),
+        )
+
+        assert canvas.loaded_paths == []
+        assert 'The sprite was not loaded.' in editor.debug_text.text
 
 
 class TestLoadAiSprite:

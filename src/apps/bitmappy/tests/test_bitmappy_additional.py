@@ -836,10 +836,20 @@ class TestBuildRetryPrompt:
         assert 'IMPORTANT' in result
         assert 'cut off' in result
 
+    # ---------------------------------------------------------------------------
+    # _alpha_blend_pixel tests
+    # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# _alpha_blend_pixel tests
-# ---------------------------------------------------------------------------
+    def test_retry_prompt_asks_for_equal_widths(self):
+        """A pixel-row error gets its own correction, and no other one."""
+        result = build_retry_prompt(
+            'p',
+            'Pixel rows need repair: walk frame 0: row widths differ (3, 4); short rows padded '
+            'with transparent pixels to 4',
+        )
+        assert 'every row of a frame must have the same number of characters' in result
+        assert 'Previous attempt had an error' not in result
+        assert 'not an empty or error message' not in result
 
 
 class TestAlphaBlendPixel:

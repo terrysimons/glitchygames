@@ -29,6 +29,7 @@ from glitchygames.ai import (
 from glitchygames.ai import (
     clean_ai_response as ai_clean_response,
 )
+from glitchygames.ai.sprite_generator import pixel_row_problems
 from glitchygames.color import (
     RGB_COMPONENT_COUNT,
 )
@@ -502,47 +503,7 @@ class AIManager:
 
             # Check if we can retry
             if request_state.retry_count < AI_VALIDATION_MAX_RETRIES:
-                # Trigger retry with targeted prompt
-                request_state.retry_count += 1
-                request_state.last_error = validation_error
-
-                self.log.info(
-                    'Retrying request (attempt %s/%s)',
-                    request_state.retry_count + 1,
-                    AI_VALIDATION_MAX_RETRIES + 1,
-                )
-
-                # Build retry prompt with specific corrections
-                retry_prompt = build_retry_prompt(request_state.original_prompt, validation_error)
-
-                # Rebuild messages with retry prompt
-                messages = build_sprite_generation_messages(
-                    user_request=retry_prompt,
-                    training_examples=request_state.training_examples,
-                    max_examples=3,
-                    include_size_hint=True,
-                    include_animation_hint=True,
-                )
-
-                # Create new request with same ID
-                retry_request = AIRequest(
-                    prompt=str(messages),
-                    request_id=request_id,  # Reuse same ID
-                    messages=messages,
-                )
-
-                # Submit retry
-                assert self.ai_request_queue is not None
-                self.ai_request_queue.put(retry_request)
-
-                # Update UI
-                if hasattr(self.editor, 'debug_text'):
-                    self.editor.debug_text.text = (
-                        f'Retrying with corrections... (attempt'
-                        f' {request_state.retry_count + 1}/{AI_VALIDATION_MAX_RETRIES + 1})\n'
-                        f'Error: {validation_error}'
-                    )
-
+                self._retry_ai_request(request_id, request_state, validation_error)
                 # DON'T delete from pending_ai_requests - we're retrying
                 return
             # Max retries reached: give up without loading. This used to say "loading sprite
@@ -562,12 +523,87 @@ class AIManager:
             self._handle_ai_error_message(request_id, response.content)
             return
 
+        # Rows the loader would have to repair are retried too, but the last attempt is loaded
+        # repaired rather than thrown away (the owner, 2026-10-30): the repair only adds
+        # transparent pixels, and the load says what it repaired
+        pixel_rows_error = self._ai_pixel_row_problems(request_id, response.content)
+        if pixel_rows_error:
+            self.log.warning('AI response pixel rows need repair: %s', pixel_rows_error)
+            if request_state.retry_count < AI_VALIDATION_MAX_RETRIES:
+                self._retry_ai_request(request_id, request_state, pixel_rows_error)
+                return
+            self.log.warning(
+                'Max retries (%s) reached, loading the sprite with its pixel rows repaired',
+                AI_VALIDATION_MAX_RETRIES,
+            )
+
         # Valid response - load the sprite
         self._load_ai_sprite(request_id, response.content)
 
         # Remove from pending requests
         if request_id in self.pending_ai_requests:
             del self.pending_ai_requests[request_id]
+
+    def _ai_pixel_row_problems(self, request_id: str, content: str) -> str:
+        """Check the pixel rows of what loading this response would load.
+
+        Runs on _prepare_ai_content's result (cleaned, and rewritten when there is a prompt),
+        so the rows checked are the rows drawn.
+
+        Returns:
+            str: '' when no block needs repair or the content isn't TOML (the loader reports
+                that); otherwise the error (pixel_row_problems).
+
+        """
+        try:
+            data = tomllib.loads(self._prepare_ai_content(request_id, content))
+        except tomllib.TOMLDecodeError:
+            return ''
+        return pixel_row_problems(data)
+
+    def _retry_ai_request(
+        self, request_id: str, request_state: AIRequestState, validation_error: str
+    ) -> None:
+        """Queue the request again, under the same id, with a correction for the error."""
+        request_state.retry_count += 1
+        request_state.last_error = validation_error
+
+        self.log.info(
+            'Retrying request (attempt %s/%s)',
+            request_state.retry_count + 1,
+            AI_VALIDATION_MAX_RETRIES + 1,
+        )
+
+        # Build retry prompt with specific corrections
+        retry_prompt = build_retry_prompt(request_state.original_prompt, validation_error)
+
+        # Rebuild messages with retry prompt
+        messages = build_sprite_generation_messages(
+            user_request=retry_prompt,
+            training_examples=request_state.training_examples,
+            max_examples=3,
+            include_size_hint=True,
+            include_animation_hint=True,
+        )
+
+        # Create new request with same ID
+        retry_request = AIRequest(
+            prompt=str(messages),
+            request_id=request_id,  # Reuse same ID
+            messages=messages,
+        )
+
+        # Submit retry
+        assert self.ai_request_queue is not None
+        self.ai_request_queue.put(retry_request)
+
+        # Update UI
+        if hasattr(self.editor, 'debug_text'):
+            self.editor.debug_text.text = (
+                f'Retrying with corrections... (attempt'
+                f' {request_state.retry_count + 1}/{AI_VALIDATION_MAX_RETRIES + 1})\n'
+                f'Error: {validation_error}'
+            )
 
     def _log_ai_response_content(self, content: str) -> None:
         """Log AI response content for debugging."""
@@ -1169,11 +1205,15 @@ pixels = \"\"\"
             Tuple of (is_valid, error_message); the error is the raw content's.
 
         """
-        is_valid, error_message = validate_ai_response(content)
+        # Pixel rows are checked on what loads (_ai_pixel_row_problems), not here, so a sprite
+        # whose rows need repair is never mistaken for an error message
+        is_valid, error_message = validate_ai_response(content, check_pixel_rows=False)
         if is_valid:
             return True, ''
 
-        cleaned_is_valid, _ = validate_ai_response(self._clean_ai_response(content))
+        cleaned_is_valid, _ = validate_ai_response(
+            self._clean_ai_response(content), check_pixel_rows=False
+        )
         if cleaned_is_valid:
             return True, ''
         return False, error_message

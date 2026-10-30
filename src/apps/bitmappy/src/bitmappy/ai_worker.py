@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from glitchygames import clock
 from glitchygames.ai import get_sprite_size_hint
+from glitchygames.ai.sprite_generator import PIXEL_ROWS_ERROR_PREFIX
 from glitchygames.sprites.pixel_utils import normalize_pixel_rows
 
 from .constants import (
@@ -863,7 +864,12 @@ def build_retry_prompt(original_prompt: str, validation_error: str) -> str:
     # Add specific corrections based on error type
     error_lower = validation_error.lower()
 
-    if 'missing [sprite] section' in error_lower:
+    if PIXEL_ROWS_ERROR_PREFIX.lower() in error_lower:
+        retry_prompt += (
+            'CRITICAL: every row of a frame must have the same number of characters, one '
+            'palette glyph per pixel. Count each row.'
+        )
+    elif 'missing [sprite] section' in error_lower:
         retry_prompt += 'CRITICAL: You must include a [sprite] section at the beginning.'
     elif 'missing [colors] section' in error_lower:
         retry_prompt += (

@@ -6,10 +6,17 @@ sprite generation in the TOML format used by GlitchyGames.
 
 import logging
 import re
+import tomllib
 from typing import Any, cast
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE
 from glitchygames.sprites.animated import toml_basic_string, toml_pixel_block
+from glitchygames.sprites.pixel_utils import normalize_pixel_rows, palette_key_problems
+
+# Starts the error validate_ai_response gives when a pixel block needs repair. Bitmappy's retry
+# prompt matches it, and Bitmappy loads the last attempt anyway, repaired; so the repair texts
+# (normalize_pixel_rows) must not contain the words other retry corrections match
+PIXEL_ROWS_ERROR_PREFIX = 'Pixel rows need repair'
 
 LOG = logging.getLogger('game.ai.sprite_generator')
 
@@ -434,11 +441,49 @@ def _check_mixed_format(content: str) -> tuple[bool, str]:
     return True, ''
 
 
-def validate_ai_response(content: str) -> tuple[bool, str]:
+def pixel_row_problems(data: dict[str, Any]) -> str:
+    """Describe every pixel block in parsed sprite TOML that the loader would have to repair.
+
+    Each block goes through normalize_pixel_rows, labelled as the loader labels it ('sprite',
+    or '<namespace> frame <frame_index>'), and the palette's keys through palette_key_problems.
+
+    Args:
+        data: The parsed TOML.
+
+    Returns:
+        str: '' when nothing needs repair; otherwise PIXEL_ROWS_ERROR_PREFIX, then every repair.
+
+    """
+    palette_glyphs = [str(glyph) for glyph in data.get('colors', {})]
+    problems = [f'palette: {problem}' for problem in palette_key_problems(palette_glyphs)]
+    blocks: list[tuple[str, str]] = []
+    sprite_pixels = data.get('sprite', {}).get('pixels')
+    if isinstance(sprite_pixels, str):
+        blocks.append(('sprite', sprite_pixels))
+    for animation in data.get('animation', []):
+        namespace = animation.get('namespace', 'default')
+        for frame_number, frame in enumerate(animation.get('frame', [])):
+            frame_index = frame.get('frame_index', frame_number)
+            pixels = frame.get('pixels')
+            if isinstance(pixels, str):
+                blocks.append((f'{namespace} frame {frame_index}', pixels))
+    for label, pixels in blocks:
+        problems.extend(
+            f'{label}: {repair}' for repair in normalize_pixel_rows(pixels, palette_glyphs).repairs
+        )
+    if not problems:
+        return ''
+    return f'{PIXEL_ROWS_ERROR_PREFIX}: ' + '; '.join(problems)
+
+
+def validate_ai_response(content: str, *, check_pixel_rows: bool = True) -> tuple[bool, str]:
     """Validate AI response for common errors.
 
     Args:
         content: AI response content
+        check_pixel_rows: Also reject pixel blocks the loader would have to repair
+            (pixel_row_problems). Runs last, and only on content that parses as TOML. Bitmappy
+            turns it off and checks what it loads itself.
 
     Returns:
         Tuple of (is_valid, error_message)
@@ -461,6 +506,12 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
         _, error = _check_mixed_format(content)
     if not error and re.search(r'(red|green|blue)\s*=\s*\d+\s*,', content):
         error = 'Color values contain commas (should be separate fields)'
+    if not error and check_pixel_rows:
+        try:
+            error = pixel_row_problems(tomllib.loads(content))
+        except tomllib.TOMLDecodeError:
+            # Not TOML: the checks above and the loader handle it as they always have
+            error = ''
 
     if error:
         return False, error
