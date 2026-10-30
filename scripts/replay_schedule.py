@@ -19,13 +19,15 @@ waits), and the inner game runs on to the end of the recording. Each inner frame
 next frame's recorded dt (the last frame its own), as ``ReplaySources._inner_frame_seconds``
 gives them (glitchygames/replay/driver.py, rule 4).
 
-A frame is never presented when a later frame ran in the same tick. Such a frame is hidden (a
-failure) when its recorded duration is at least one tick of inner time at the speed
-(``speed * CONTROL_TICK_SECONDS``: the live game showed it for a whole 60 Hz refresh or more);
-shorter ones are skipped by design (a recording faster than the tick, or a replay above 1x, has
-more frames than ticks). The last frame is presented by the tick that runs it; a recording
-that quits in its last frame ends the real run there, so that frame is not shown in a real
-replay, which this does not model. Frame 0 runs behind the start screen's message.
+A frame is never presented when a later frame ran in the same tick. Up to 1x such a frame is
+hidden (a failure) when its recorded duration is at least 3/4 of a tick of inner time
+(``speed * CONTROL_TICK_SECONDS * HIDDEN_FRAME_TICK_FRACTION``: the live game most likely showed
+it for a 60 Hz refresh; a default 60.01 FPS frame counts); shorter ones are skipped by design (a
+recording faster than the tick has more frames than ticks). Above 1x no frame is hidden:
+fast-forward presents only the last frame of each tick by design, so frames not presented are
+reported as skipped and the recording passes. The last frame is presented by the tick that runs
+it; a recording that quits in its last frame ends the real run there, so that frame is not shown
+in a real replay, which this does not model. Frame 0 runs behind the start screen's message.
 
 Output per recording: each tick's time, the frames it ran and the accumulator after it; the
 hidden frames and the ones skipped by design; every frame's recorded dt in milliseconds.
@@ -61,6 +63,10 @@ from glitchygames.replay.viewer import ReplayViewer
 from glitchygames.tracing import FRAMES_FIELD, TraceFormatError, read_trace_result
 
 MILLISECONDS_PER_SECOND = 1000.0
+# A frame never presented up to 1x is hidden (a failure) from this fraction of a tick of inner time:
+# under a whole tick, so a default 60.01 FPS frame (16.664 ms, a hair under 16.667) counts, and
+# over half a tick, so 120 and 144 FPS frames (8.3 and 6.9 ms) are skipped by design
+HIDDEN_FRAME_TICK_FRACTION = 0.75
 
 
 class UnusableRecordingError(ValueError):
@@ -109,32 +115,37 @@ class RecordingSchedule(BaseModel):
 
     @property
     def hidden(self: Self) -> tuple[int, ...]:
-        """The frames never presented that lasted at least one tick at the speed (a failure).
+        """The frames never presented that a watched replay should have shown (a failure).
 
-        The threshold: a frame whose recorded duration (``inner_frame_seconds``: its next
-        frame's dt) is at least ``speed * CONTROL_TICK_SECONDS`` of inner time, so the live game
-        showed it for a whole 60 Hz refresh or more, and so would the replay at that speed.
+        Up to 1x only: a frame whose recorded duration (``inner_frame_seconds``: its next
+        frame's dt) is at least ``HIDDEN_FRAME_TICK_FRACTION`` (3/4) of a tick of inner time,
+        ``speed * CONTROL_TICK_SECONDS * 3 / 4``, so the live game most likely showed it for a
+        60 Hz refresh (a default 60.01 FPS frame, 16.664 ms, is one; a 120 FPS frame is not).
+        Above 1x none: fast-forward presents only the last frame of each tick by design.
         """
+        if self.speed > 1:
+            return ()
         return tuple(frame for frame in self.never_presented if self._lasts_a_tick(frame=frame))
 
     @property
     def skipped_by_design(self: Self) -> tuple[int, ...]:
-        """The frames never presented that lasted less than a tick at the speed (expected).
+        """The frames never presented that are not hidden (expected, never a failure).
 
-        A recording faster than the viewer's tick, or one replayed above 1x, has more frames
-        than ticks: a tick runs several and presents the last.
+        A recording faster than the viewer's tick has more frames than ticks: a tick runs
+        several and presents the last; above 1x every frame not presented is one.
         """
-        return tuple(frame for frame in self.never_presented if not self._lasts_a_tick(frame=frame))
+        hidden = set(self.hidden)
+        return tuple(frame for frame in self.never_presented if frame not in hidden)
 
     def _lasts_a_tick(self: Self, *, frame: int) -> bool:
-        """Whether a frame's recorded duration is at least one tick of inner time at the speed.
+        """Whether a frame's recorded duration reaches the hidden threshold at the speed.
 
         Returns:
-            True from ``speed * CONTROL_TICK_SECONDS`` on.
+            True from ``speed * CONTROL_TICK_SECONDS * HIDDEN_FRAME_TICK_FRACTION`` on.
 
         """
         duration_seconds = inner_frame_seconds(frame_seconds=self.frame_seconds, frame_index=frame)
-        return duration_seconds >= self.speed * CONTROL_TICK_SECONDS
+        return duration_seconds >= self.speed * CONTROL_TICK_SECONDS * HIDDEN_FRAME_TICK_FRACTION
 
 
 class IdealClock:
@@ -311,7 +322,7 @@ def detail_lines(*, name: str, schedule: RecordingSchedule) -> list[str]:
     lines.extend((
         f'  hidden: {frame_list(frames=schedule.hidden)}',
         (
-            '  skipped by design (shorter than a tick at this speed): '
+            '  skipped by design (under 3/4 of a tick, or above 1x): '
             f'{frame_list(frames=schedule.skipped_by_design)}'
         ),
         '  recorded dt:',

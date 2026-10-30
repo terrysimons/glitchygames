@@ -44,16 +44,10 @@ LONG_MIDDLE_FRAME_SECONDS = (
 STEADY_FRAME_SECONDS = (0.0, *([STEADY_SECONDS] * 7))
 # A recording made at 240 FPS: four frames to each 60 Hz tick, so a 1x replay is behind
 FAST_FRAME_SECONDS = (0.0, *([1 / 240] * 12))
-# A 50 ms frame 2 (frame 3's dt) and its 2 ms catch-up frame 3, watched at 2x: one tick (33.3 ms
-# of inner time) runs both, hiding frame 2, which lasted more than a tick at that speed
-STUTTER_AT_TWO_TIMES_FRAME_SECONDS = (
-    0.0,
-    STEADY_SECONDS,
-    STEADY_SECONDS,
-    0.050,
-    0.002,
-    *([STEADY_SECONDS] * 3),
-)
+# A recording made at about 67 FPS (15 ms frames), watched at 1x: the replay owes 1.7 ms more
+# each tick, so every so often a tick runs two frames (frames 15 and 16 first) and hides the
+# first, which lasted more than 3/4 of a tick
+FIFTEEN_MILLISECOND_FRAME_SECONDS = (0.0, *([0.015] * 20))
 
 
 def write_recording(*, path: Path, frame_seconds: tuple[float, ...]) -> Path:
@@ -164,45 +158,45 @@ def test_a_recording_presenting_every_frame_succeeds(tmp_path, capsys):
     assert f'{path.as_posix()}: 8 frames at 1x' in output
     assert 'tick 1 (16.67 ms): ran 1; accumulator 8.33 ms' in output
     assert '  hidden: none' in output
-    assert '  skipped by design (shorter than a tick at this speed): none' in output
+    assert '  skipped by design (under 3/4 of a tick, or above 1x): none' in output
     assert 'frame 1: 16.67 ms' in output
 
 
 def test_a_recording_hiding_a_frame_fails_naming_it(tmp_path, capsys):
     """A hidden frame exits REPLAY_DIVERGED: the watched sequence differs."""
     path = write_recording(
-        path=tmp_path / 'stutter.jsonl.gz', frame_seconds=STUTTER_AT_TWO_TIMES_FRAME_SECONDS
+        path=tmp_path / 'behind.jsonl.gz', frame_seconds=FIFTEEN_MILLISECOND_FRAME_SECONDS
     )
 
-    exit_code = main(arguments=[str(path), '--speed', '2'])
+    exit_code = main(arguments=[str(path)])
 
     output = capsys.readouterr().out
     assert exit_code == ExitCode.REPLAY_DIVERGED
-    assert 'tick 2 (33.33 ms): ran 2, 3; accumulator 6.33 ms' in output
-    assert '  hidden: 2' in output
-    assert '  skipped by design (shorter than a tick at this speed): 4, 6' in output
-    assert 'frame 3: 50.00 ms' in output
+    assert 'tick 15 (250.00 ms): ran 15, 16; accumulator 17.50 ms' in output
+    assert '  hidden: 15' in output
+    assert '  skipped by design (under 3/4 of a tick, or above 1x): none' in output
+    assert 'frame 16: 15.00 ms' in output
 
 
 def test_the_summary_is_one_line_per_recording(tmp_path, capsys):
     """--summary: name, frame count, hidden and skipped frames, the shortest and longest dt."""
     fast = write_recording(path=tmp_path / 'fast.jsonl.gz', frame_seconds=FAST_FRAME_SECONDS)
-    stutter = write_recording(
-        path=tmp_path / 'stutter.jsonl.gz', frame_seconds=STUTTER_AT_TWO_TIMES_FRAME_SECONDS
+    behind = write_recording(
+        path=tmp_path / 'behind.jsonl.gz', frame_seconds=FIFTEEN_MILLISECOND_FRAME_SECONDS
     )
 
-    exit_code = main(arguments=[str(fast), str(stutter), '--summary', '--speed', '2'])
+    exit_code = main(arguments=[str(fast), str(behind), '--summary'])
 
     lines = capsys.readouterr().out.splitlines()
     assert exit_code == ExitCode.REPLAY_DIVERGED
     assert lines == [
         (
             f'{fast.as_posix()}: 13 frames, hidden: none, '
-            'skipped by design: 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, dt min 0.00 ms max 4.17 ms'
+            'skipped by design: 2, 3, 5, 6, 7, 9, 10, 11, dt min 0.00 ms max 4.17 ms'
         ),
         (
-            f'{stutter.as_posix()}: 8 frames, hidden: 2, skipped by design: 4, 6, '
-            'dt min 0.00 ms max 50.00 ms'
+            f'{behind.as_posix()}: 21 frames, hidden: 15, skipped by design: none, '
+            'dt min 0.00 ms max 15.00 ms'
         ),
     ]
 
@@ -265,16 +259,16 @@ def test_an_unreadable_recording_is_unusable_input(tmp_path, capsys, kind):
 
 def test_the_first_failure_decides_the_exit_code(tmp_path, capsys):
     """Every recording is reported; the exit code is the first failure's."""
-    stutter = write_recording(
-        path=tmp_path / 'stutter.jsonl.gz', frame_seconds=STUTTER_AT_TWO_TIMES_FRAME_SECONDS
+    behind = write_recording(
+        path=tmp_path / 'behind.jsonl.gz', frame_seconds=FIFTEEN_MILLISECOND_FRAME_SECONDS
     )
     absent = tmp_path / 'absent.jsonl.gz'
 
-    exit_code = main(arguments=[str(stutter), str(absent), '--summary', '--speed', '2'])
+    exit_code = main(arguments=[str(behind), str(absent), '--summary'])
 
     captured = capsys.readouterr()
     assert exit_code == ExitCode.REPLAY_DIVERGED
-    assert stutter.as_posix() in captured.out
+    assert behind.as_posix() in captured.out
     assert absent.as_posix() in captured.err
 
 
@@ -333,7 +327,7 @@ def test_a_120_fps_recording_skips_frames_by_design_and_passes(tmp_path, capsys)
     output = capsys.readouterr().out
     assert exit_code == ExitCode.SUCCESS
     assert '  hidden: none' in output
-    assert '  skipped by design (shorter than a tick at this speed): ' in output
+    assert '  skipped by design (under 3/4 of a tick, or above 1x): ' in output
 
 
 @pytest.mark.parametrize(
@@ -351,13 +345,31 @@ def test_a_stutter_pair_sharing_a_tick_hides_the_long_frame(long_seconds, short_
     assert schedule.skipped_by_design == ()
 
 
+# The hidden threshold: three quarters of a tick of inner time at 1x
+THREE_QUARTERS_OF_A_TICK_SECONDS = CONTROL_TICK_SECONDS * 3 / 4
+
+
 @pytest.mark.parametrize(
     ('frame_two_seconds', 'expected_hidden'),
-    [(CONTROL_TICK_SECONDS, (2,)), (CONTROL_TICK_SECONDS * 0.999, ())],
-    ids=['a_whole_tick_is_hidden', 'just_under_a_tick_is_skipped'],
+    [
+        (THREE_QUARTERS_OF_A_TICK_SECONDS, (2,)),
+        (THREE_QUARTERS_OF_A_TICK_SECONDS * 0.999, ()),
+        (1 / 60.01, (2,)),
+        (1 / 60, (2,)),
+        (1 / 120, ()),
+        (1 / 144, ()),
+    ],
+    ids=[
+        'three_quarters_of_a_tick_is_hidden',
+        'just_under_three_quarters_is_skipped',
+        'a_default_60_01_fps_frame_is_hidden',
+        'a_60_fps_frame_is_hidden',
+        'a_120_fps_frame_is_skipped',
+        'a_144_fps_frame_is_skipped',
+    ],
 )
-def test_a_frame_counts_as_hidden_from_one_tick_of_inner_time(frame_two_seconds, expected_hidden):
-    """The threshold: a frame lasting at least one tick at the speed (speed x 1/60 s)."""
+def test_a_frame_counts_as_hidden_from_three_quarters_of_a_tick(frame_two_seconds, expected_hidden):
+    """The threshold: a frame lasting at least 3/4 of a tick at the speed (speed x 12.5 ms)."""
     schedule = schedule_from_ticks(
         frame_seconds=(0.0, STEADY_SECONDS, STEADY_SECONDS, frame_two_seconds, 0.001),
         speed=1.0,
@@ -366,6 +378,33 @@ def test_a_frame_counts_as_hidden_from_one_tick_of_inner_time(frame_two_seconds,
 
     assert schedule.hidden == expected_hidden
     assert schedule.never_presented == (2,)
+
+
+@pytest.mark.parametrize(
+    ('long_seconds', 'short_seconds'), STUTTER_PAIRS.values(), ids=STUTTER_PAIRS.keys()
+)
+def test_above_normal_speed_a_stutter_pair_is_not_a_failure(
+    tmp_path, capsys, long_seconds, short_seconds
+):
+    """Fast-forward presents the last frame of each tick: frames not presented, exit SUCCESS."""
+    path = write_recording(
+        path=tmp_path / 'stutter.jsonl.gz',
+        frame_seconds=(
+            0.0,
+            STEADY_SECONDS,
+            STEADY_SECONDS,
+            long_seconds,
+            short_seconds,
+            *([STEADY_SECONDS] * 3),
+        ),
+    )
+
+    exit_code = main(arguments=[str(path), '--speed', '2', '--summary'])
+
+    output = capsys.readouterr().out
+    assert exit_code == ExitCode.SUCCESS
+    assert 'hidden: none' in output
+    assert 'skipped by design: none' not in output
 
 
 def test_twice_the_speed_skips_steady_frames_by_design():
