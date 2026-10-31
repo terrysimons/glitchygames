@@ -12,4 +12,5 @@ packages = [
 "./browser_storage.py" = "./browser_storage.py"
 "./browser_clipboard.py" = "./browser_clipboard.py"
 "./browser_user_files.py" = "./browser_user_files.py"
+"./masterhub_bridge.py" = "./masterhub_bridge.py"
 "./boot_config.json" = "./boot_config.json"
