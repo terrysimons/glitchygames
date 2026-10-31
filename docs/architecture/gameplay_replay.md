@@ -363,21 +363,21 @@ A replay without `--headless` is watched: a read-only game inside a game
 presents the recorded game's latest frame with the status bar drawn on it. The inner loop, the
 recorded game, runs its frames in full (logic, update and render) at their recorded frame times:
 each tick runs as many as the real time since the last tick, times the speed, pays for, only within
-an 11 ms real-time budget per tick, so keys and drawing keep their 60 Hz (above 1x also at most
-`MAX_INNER_FRAMES_PER_TICK`). Up to 1x the budget is the only per-tick limit, so an uncapped
-recording whose frames cost what they did live may still not keep up on a real machine, and "can't
-keep up" then means exactly that. Up to 1x a tick runs at most one recorded frame unless the replay
-is genuinely behind (it owes that frame plus a whole tick): a frame the live game ran long and the
-short frame its pacing caught up with then get a tick each, so both are presented, and the replay
-then stays about a tick behind real time (a constant lag, not a drift; a pause resets it). A
-recording faster than 60 FPS is behind by that measure every tick, so a tick runs several of its
-frames and presents the last. Above 1x the same limit follows a frame lasting at least a tick of
-inner time at that speed (17 ms of real time for a 34 ms frame at 2x), so fast-forward still shows
-it; shorter frames run several a tick and the last is presented. It never owes more than one tick's
-worth: after a stall it runs one bounded burst and drops the rest, and when the recorded game cannot
-keep up with the speed the status bar says so and shows the real speed (`can't keep up: ×3.2`). So
-1x shows about one recorded frame per tick, 8x about eight, 1/4x one every fourth tick. Which frames
-run when never changes what they do, so a watched replay is exactly as exact as a headless one.
+an 11 ms real-time budget per tick, so keys and drawing keep their 60 Hz. At every speed the budget
+is the only per-tick limit (no frame count), so an uncapped recording whose frames cost what they
+did live may still not keep up on a real machine, and "can't keep up" then means exactly that. Up to
+1x a tick runs at most one recorded frame unless the replay is genuinely behind (it owes that frame
+plus a whole tick): a frame the live game ran long and the short frame its pacing caught up with
+then get a tick each, so both are presented, and the replay then stays about a tick behind real time
+(a constant lag, not a drift; a pause resets it). A recording faster than 60 FPS is behind by that
+measure every tick, so a tick runs several of its frames and presents the last. Above 1x the same
+limit follows a frame lasting at least a tick of inner time at that speed (17 ms of real time for a
+34 ms frame at 2x), so fast-forward still shows it; shorter frames run several a tick and the last
+is presented. It never owes more than one tick's worth: after a stall it runs one bounded burst and
+drops the rest, and when the recorded game cannot keep up with the speed the status bar says so and
+shows the real speed (`can't keep up: ×3.2`). So 1x shows about one recorded frame per tick, 8x
+about eight, 1/4x one every fourth tick. Which frames run when never changes what they do, so a
+watched replay is exactly as exact as a headless one.
 
 It first runs frame 0, then holds on a start screen: that frame dimmed, "Press Spacebar to Start
 Game Replay" centred, and a smaller line naming the debug overlay's keys (`F3: debug overlay

@@ -833,15 +833,16 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   presents the latest frame with a status bar (`EngineSources.draws_overlay`/`draw_overlay`,
   never in screenshots or traces); the INNER recorded game runs N full frames per tick from an
   accumulator (real time x speed, consumed by recorded dt, within `INNER_FRAME_BUDGET_SECONDS` per
-  tick and, above 1x, at most `MAX_INNER_FRAMES_PER_TICK`, never owing more than one tick's worth;
-  up to 1x the work budget is the only per-tick limit, so an uncapped recording whose frames cost
-  what they did live may not keep up on a real machine, and "can't keep up" then means exactly that;
-  up to 1x a tick runs at most one unless behind, owing that frame plus a whole tick, so a long live
-  frame and its short catch-up frame are each presented, the replay then staying about a tick behind
-  real time (a constant lag a pause resets), and a recording faster than 60 FPS still runs several a
-  tick, presenting the last; above 1x the same limit follows a frame lasting at least a tick of
-  inner time at that speed (shorter frames run several a tick, fast-forward) (rule 2 of
-  `viewer.py`); the status bar shows the real speed when it cannot keep up),
+  tick, never owing more than one tick's worth (`MAX_OWED_INNER_FRAMES` and a half frames, at least
+  a frame plus two ticks of inner time); at every speed the work budget is the only per-tick limit
+  (no frame count), so an uncapped recording whose frames cost what they did live may not keep up on
+  a real machine, and "can't keep up" then means exactly that; up to 1x a tick runs at most one
+  unless behind, owing that frame plus a whole tick, so a long live frame and its short catch-up
+  frame are each presented, the replay then staying about a tick behind real time (a constant lag a
+  pause resets), and a recording faster than 60 FPS still runs several a tick, presenting the last;
+  above 1x the same limit follows a frame lasting at least a tick of inner time at that speed
+  (shorter frames run several a tick, fast-forward) (rule 2 of `viewer.py`); the status bar shows
+  the real speed when it cannot keep up),
   unpresented (`EngineSources.presents_frames` False). It drives the loop through
   `EngineSources.hold_frame` (held = present an outer frame, run nothing, consume no recorded
   batch). It holds at a "Press Spacebar to Start Game Replay" screen after frame 0 (the pause

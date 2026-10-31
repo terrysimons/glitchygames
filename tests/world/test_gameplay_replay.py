@@ -111,7 +111,7 @@ from glitchygames.replay.tools.golden_traces import (
     InputScript,
 )
 from glitchygames.replay.tools.scripted_sessions import record_scripted_session
-from glitchygames.replay.viewer import MAX_INNER_FRAMES_PER_TICK
+from glitchygames.replay.viewer import MAX_OWED_INNER_FRAMES
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
     active_sources,
@@ -3039,9 +3039,9 @@ class TestWatched:
         # One tick's worth (32.5 frames of 10 ms) is kept and the rest dropped. Up to 1x the
         # burst stops once the replay owes less than a frame plus a tick (rule 2 of
         # glitchygames/replay/viewer.py): 30 frames run at once, 25 ms carried
-        assert frames_per_tick[0] == MAX_INNER_FRAMES_PER_TICK - 2
+        assert frames_per_tick[0] == MAX_OWED_INNER_FRAMES - 2
         assert max(frames_per_tick[1:]) <= 2
-        assert abs(sum(frames_per_tick) - (MAX_INNER_FRAMES_PER_TICK + 0.5 / 0.01)) <= 3
+        assert abs(sum(frames_per_tick) - (MAX_OWED_INNER_FRAMES + 0.5 / 0.01)) <= 3
         assert sources.viewer.is_behind
 
     @pytest.mark.parametrize(

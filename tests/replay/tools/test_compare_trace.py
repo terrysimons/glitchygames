@@ -318,7 +318,7 @@ def recorded_old(tmp_path_factory) -> Path:
     """
     root = tmp_path_factory.mktemp('recorded-old')
     # Paced: a watched replay presents OLD's frames by their recorded frame times (its viewer
-    # runs one recorded frame per 60 Hz tick at 1x unless behind, then up to 32), so an
+    # runs one recorded frame per 60 Hz tick at 1x unless behind, then as many as owed), so an
     # uncapped OLD's frames, far shorter than a tick, would run many to a tick; then steadied
     # (steady_frame_times), so the frames presented never depend on this machine's timing
     recording = record_stand_in_game_once(

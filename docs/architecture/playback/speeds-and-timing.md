@@ -86,29 +86,29 @@ Before each inner frame the scene manager asks `hold_frame`:
    real time since the last tick, times the speed, to an accumulator.
 2. **Tick open.** Run another inner frame while the accumulator holds that frame's recorded
    duration, and consume it, only within `INNER_FRAME_BUDGET_SECONDS` = 0.011 s of real time per
-   tick, so keys and presenting stay at 60 Hz; above 1x also at most `MAX_INNER_FRAMES_PER_TICK` =
-   32 frames. Up to 1x the budget is the only per-tick limit, so an uncapped recording whose frames
-   cost what they did live may still not keep up on a real machine, and "can't keep up" then means
-   exactly that. Up to 1x a tick runs at most one inner frame unless the replay is genuinely behind:
-   a second frame in the same tick runs only when the accumulator holds its duration plus a whole
-   tick of inner time (the speed times the tick period); otherwise it runs next tick, the owed time
-   carried. So a frame the live game ran long and the short frame its pacing caught up with are each
-   presented, and the replay then stays about a tick behind real time (a constant lag, not a drift;
-   a pause resets it). A recording faster than 60 FPS still runs several frames a tick and presents
-   the last. Above 1x the same limit follows a frame lasting at least a tick of inner time at that
-   speed (a 60 Hz refresh or more of real time); after shorter frames a tick runs several and
-   presents the last (fast-forward). The accumulator never owes more than one tick's worth (32.5
-   frames, and up to 1x never less than a frame plus two ticks of inner time, so very short frames
-   keep their rate): the excess is dropped, and the status bar shows the real speed while the viewer
-   is behind (`BEHIND_SPEED_FRACTION` = 0.95).
+   tick, so keys and presenting stay at 60 Hz. At every speed the budget is the only per-tick limit
+   (no frame count), so an uncapped recording whose frames cost what they did live may still not
+   keep up on a real machine, and "can't keep up" then means exactly that. Up to 1x a tick runs at
+   most one inner frame unless the replay is genuinely behind: a second frame in the same tick runs
+   only when the accumulator holds its duration plus a whole tick of inner time (the speed times the
+   tick period); otherwise it runs next tick, the owed time carried. So a frame the live game ran
+   long and the short frame its pacing caught up with are each presented, and the replay then stays
+   about a tick behind real time (a constant lag, not a drift; a pause resets it). A recording
+   faster than 60 FPS still runs several frames a tick and presents the last. Above 1x the same
+   limit follows a frame lasting at least a tick of inner time at that speed (a 60 Hz refresh or
+   more of real time); after shorter frames a tick runs several and presents the last
+   (fast-forward). The accumulator never owes more than one tick's worth (`MAX_OWED_INNER_FRAMES` =
+   32 and a half frames, and never less than a frame plus two ticks of inner time, so very short
+   frames keep their rate): the excess is dropped, and the status bar shows the real speed while the
+   viewer is behind (`BEHIND_SPEED_FRACTION` = 0.95).
 3. **Otherwise** the tick closes and the frame is presented.
 
 So at 1x a 60 FPS recording runs one inner frame per tick, at 8x eight, and at 1/4x one every
 fourth tick (the viewer's docstring). The speed keys double or halve the speed
 (`SPEED_STEP_FACTOR` = 2.0), within `MIN_SPEED` = 0.25 and `MAX_SPEED` = 8.0
-(`ReplayControls`, `src/glitchygames/replay/controls.py`). The owed limit (32.5 frames, up to 1x
-never less than a frame plus two ticks) is what lets the viewer catch up after a stall, in one
-bounded burst.
+(`ReplayControls`, `src/glitchygames/replay/controls.py`). The owed limit (32.5 frames, never
+less than a frame plus two ticks) is what lets the viewer catch up after a stall, in one bounded
+burst.
 
 ```mermaid
 gantt
@@ -122,7 +122,7 @@ gantt
     sleep until the next tick               :s1, 8, 17
     section Outer tick 2
     keys + accumulator                      :k2, 17, 18
-    inner frames (up to 32 per tick)        :i2, 18, 24
+    inner frames (within the 11 ms budget)  :i2, 18, 24
     present                                 :p2, 24, 25
 ```
 

@@ -23,7 +23,7 @@ from glitchygames.replay.viewer import (
     BEHIND_SPEED_FRACTION,
     EFFECTIVE_SPEED_WINDOW_TICKS,
     INNER_FRAME_BUDGET_SECONDS,
-    MAX_INNER_FRAMES_PER_TICK,
+    MAX_OWED_INNER_FRAMES,
     ReplayViewer,
 )
 from glitchygames.tracing import FRAMES_FIELD, read_trace_result, write_trace
@@ -205,13 +205,13 @@ def test_the_owed_time_is_bounded_when_inner_frames_cannot_keep_up(mocker):
     time = FakeTime(mocker=mocker)
     viewer = new_viewer(speed=8.0)
     run_ticks(viewer=viewer, time=time, tick_count=600, inner_frame_cost_seconds=0.005)
-    assert viewer.accumulated_seconds <= MAX_INNER_FRAMES_PER_TICK * RECORDED_FRAME_SECONDS
+    assert viewer.accumulated_seconds <= MAX_OWED_INNER_FRAMES * RECORDED_FRAME_SECONDS
 
 
 def test_a_stall_runs_at_most_one_bounded_burst(mocker):
     """A two-second stall runs one bounded burst, then the normal pace.
 
-    The owed time is capped at MAX_INNER_FRAMES_PER_TICK and a half frames; up to 1x the burst
+    The owed time is capped at MAX_OWED_INNER_FRAMES and a half frames; up to 1x the burst
     stops once the replay owes less than a frame plus a tick (rule 2), so it runs one frame
     fewer than the cap and the replay carries one tick behind.
     """
@@ -220,8 +220,8 @@ def test_a_stall_runs_at_most_one_bounded_burst(mocker):
     run_ticks(viewer=viewer, time=time, tick_count=10)
     time.now += 2.0  # a two-second stall: 120 frames owed, at most one tick's worth are kept
     frames_per_tick = run_ticks(viewer=viewer, time=time, tick_count=30)
-    assert frames_per_tick[MAX_INNER_FRAMES_PER_TICK - 1] == 1
-    assert max(frames_per_tick) == MAX_INNER_FRAMES_PER_TICK - 1
+    assert frames_per_tick[MAX_OWED_INNER_FRAMES - 1] == 1
+    assert max(frames_per_tick) == MAX_OWED_INNER_FRAMES - 1
     assert sum(count for frames, count in frames_per_tick.items() if frames > 2) == 1
 
 
@@ -410,19 +410,20 @@ class TestGivenClock:
         now = viewer.begin_tick(is_inner_running=True)
         assert now is not None
         viewer.accrue(now=now, is_inner_running=True)
-        viewer.accumulated_seconds = MAX_INNER_FRAMES_PER_TICK * RECORDED_FRAME_SECONDS
+        viewer.accumulated_seconds = MAX_OWED_INNER_FRAMES * RECORDED_FRAME_SECONDS
         frames_run = run_open_tick(
             viewer=viewer, inner_frame_seconds_for=lambda _frame: RECORDED_FRAME_SECONDS
         )
-        assert frames_run == MAX_INNER_FRAMES_PER_TICK
+        assert frames_run == MAX_OWED_INNER_FRAMES
 
 
-def test_above_normal_speed_a_tick_runs_at_most_the_frame_cap():
-    """Above 1x MAX_INNER_FRAMES_PER_TICK still ends a tick (up to 1x only the budget does).
+def test_above_normal_speed_no_frame_count_ends_a_tick():
+    """At every speed only the work budget limits a tick: no frame count ends it.
 
-    One 100 ms frame, then 1 ms frames, at 8x on a clock that stands still (no budget spent):
-    the short frames' owed limit (32.5 of them) leaves more than the cap's worth, so the tick
-    stops at the cap, not for want of owed time.
+    One 100 ms frame, then 1 ms frames, at 8x on a clock that stands still (no budget spent),
+    3.2 s owed: the 1 ms frames' owed limit is its floor, the frame plus two 8x ticks of inner
+    time (267.7 ms), and the tick runs them all (none lasts a tick, so rule 2 never defers), far
+    more than MAX_OWED_INNER_FRAMES, until less than a frame is owed.
     """
     controls = ReplayControls(total_frames=10**9)
     controls.speed = ReplayControls.MAX_SPEED
@@ -440,9 +441,8 @@ def test_above_normal_speed_a_tick_runs_at_most_the_frame_cap():
             long_frame_seconds if frame == 0 else short_frame_seconds
         ),
     )
-    assert frames_run == MAX_INNER_FRAMES_PER_TICK
-    # Owed time was left: the cap, not the accumulator, closed the tick
-    assert viewer.accumulated_seconds >= short_frame_seconds
+    assert frames_run == 268
+    assert viewer.accumulated_seconds < short_frame_seconds
 
 
 # A steady 60 FPS recording's frame, for the schedules below
@@ -747,10 +747,34 @@ FAST_RECORDINGS = {
     'hit_its_2000_fps_target_at_half_speed': FastRecording(
         target_fps=2000.0, frame_seconds=[0.0] + [1 / 2000] * 10_000, speed=0.5
     ),
-    # More frames a tick (50) than MAX_INNER_FRAMES_PER_TICK: up to 1x only the tick's work
+    # More frames a tick (50) than MAX_OWED_INNER_FRAMES: only the tick's work
     # budget limits them
     'hit_its_3000_fps_target_at_1x': FastRecording(
         target_fps=3000.0, frame_seconds=[0.0] + [1 / 3000] * 30_000, speed=1.0
+    ),
+    # Above 1x too only the work budget limits a tick: these run 33 to 400 frames a tick
+    'hit_its_1000_fps_target_at_2x': FastRecording(
+        target_fps=1000.0, frame_seconds=[0.0] + [1 / 1000] * 10_000, speed=2.0
+    ),
+    'hit_its_1500_fps_target_at_2x': FastRecording(
+        target_fps=1500.0, frame_seconds=[0.0] + [1 / 1500] * 15_000, speed=2.0
+    ),
+    'hit_its_2000_fps_target_at_2x': FastRecording(
+        target_fps=2000.0, frame_seconds=[0.0] + [1 / 2000] * 20_000, speed=2.0
+    ),
+    'hit_its_3000_fps_target_at_2x': FastRecording(
+        target_fps=3000.0, frame_seconds=[0.0] + [1 / 3000] * 30_000, speed=2.0
+    ),
+    'uncapped_0.3_to_2_ms_frames_at_2x': FastRecording(
+        target_fps=0.0,
+        frame_seconds=[
+            0.0,
+            *uniform_frames(shortest_seconds=0.0003, longest_seconds=0.002, frame_count=10_000),
+        ],
+        speed=2.0,
+    ),
+    'hit_its_3000_fps_target_at_8x': FastRecording(
+        target_fps=3000.0, frame_seconds=[0.0] + [1 / 3000] * 30_000, speed=8.0
     ),
     # An uncapped game's recording (--target-fps 0) at about 3100 FPS, as PaddleSlap achieves
     'uncapped_about_3100_fps_at_1x': FastRecording(
@@ -921,13 +945,48 @@ class TestRecordingsFasterThanTheTickKeepTheirRate:
         assert check.required_frames_per_second == pytest.approx(1200, rel=0.001)
         assert check.keeps_rate, check
 
+    @pytest.mark.parametrize('speed', [2.0, 8.0])
+    def test_above_normal_speed_a_stall_runs_one_bounded_burst(self, speed):
+        """The owed limit, not a frame count, bounds a stall's burst at every speed.
+
+        60 FPS frames, half a second stalled: the owed time is capped at 32.5 frames (541.7 ms,
+        above its floor of a frame plus two ticks of inner time), so the stall's tick runs 32
+        frames, keeps the half frame and is behind; then `speed` frames a tick again.
+        """
+        schedule = run_schedule(
+            inner_frame_seconds=[STEADY_FRAME_SECONDS] * 1500, speed=speed, stall_before_tick=20
+        )
+        frames_per_tick = [len(frames_run) for frames_run in schedule.frames_by_tick]
+        assert frames_per_tick[20] == MAX_OWED_INNER_FRAMES
+        assert schedule.accumulated_by_tick[20] == pytest.approx(STEADY_FRAME_SECONDS / 2)
+        assert schedule.behind_by_tick[20]
+        assert set(frames_per_tick[3:20]) == set(frames_per_tick[21:-1]) == {int(speed)}
+
     def test_a_3000_fps_recording_keeps_3000(self, tmp_path):
-        """50 frames a tick at 1x, more than MAX_INNER_FRAMES_PER_TICK: only the budget limits."""
+        """50 frames a tick at 1x: no frame count limits a tick, only the work budget."""
         check = check_watched_rate(
             recording=FAST_RECORDINGS['hit_its_3000_fps_target_at_1x'],
             path=tmp_path / 'fast.jsonl.gz',
         )
         assert check.required_frames_per_second == pytest.approx(3000)
+        assert check.keeps_rate, check
+
+    def test_a_1500_fps_recording_at_two_times_keeps_3000_frames_a_second(self, tmp_path):
+        """50 frames a tick at 2x: no frame count limits a tick, only the work budget."""
+        check = check_watched_rate(
+            recording=FAST_RECORDINGS['hit_its_1500_fps_target_at_2x'],
+            path=tmp_path / 'fast.jsonl.gz',
+        )
+        assert check.required_frames_per_second == pytest.approx(3000)
+        assert check.keeps_rate, check
+
+    def test_a_3000_fps_recording_at_eight_times_keeps_24000_frames_a_second(self, tmp_path):
+        """400 frames a tick at 8x."""
+        check = check_watched_rate(
+            recording=FAST_RECORDINGS['hit_its_3000_fps_target_at_8x'],
+            path=tmp_path / 'fast.jsonl.gz',
+        )
+        assert check.required_frames_per_second == pytest.approx(24_000)
         assert check.keeps_rate, check
 
     def test_a_stall_runs_one_bounded_burst_of_its_short_frames(self):
@@ -963,7 +1022,9 @@ def viewer_owing_for_a_first_frame(*, speed: float, owed_seconds: float) -> Repl
 
     """
     controls = ReplayControls(total_frames=10**9)
-    controls.speed = speed
+    # The phase is spent at 1x, where rule 2 closes a tick of zero-length frames; above 1x
+    # nothing would (they owe nothing, and no frame count limits a tick)
+    controls.speed = 1.0
     viewer = ReplayViewer(controls=controls, measured_seconds=lambda: 0.0)
     viewer.ticks_externally = True
     for _ in range(2):
@@ -971,6 +1032,7 @@ def viewer_owing_for_a_first_frame(*, speed: float, owed_seconds: float) -> Repl
         assert now is not None
         viewer.accrue(now=now, is_inner_running=True)
         run_open_tick(viewer=viewer, inner_frame_seconds_for=lambda _frame: 0.0)
+    controls.speed = speed
     now = viewer.begin_tick(is_inner_running=True)
     assert now is not None
     viewer.accrue(now=now, is_inner_running=True)
