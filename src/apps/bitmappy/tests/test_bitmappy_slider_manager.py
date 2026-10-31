@@ -87,15 +87,15 @@ class TestSetup:
     """Test the real slider, color well and bounding box setup."""
 
     def test_setup_initializes_values_and_colors(self, editor):
-        """Sliders start at opaque black and the canvas color follows the well."""
+        """Sliders start at opaque white and the canvas color follows the well."""
         assert editor.alpha_slider.value == 255
         assert (editor.red_slider.value, editor.green_slider.value, editor.blue_slider.value) == (
-            0,
-            0,
-            0,
+            255,
+            255,
+            255,
         )
-        assert editor.color_well.active_color == (0, 0, 0, 255)
-        assert editor.canvas.active_color == (0, 0, 0, 255)
+        assert editor.color_well.active_color == (255, 255, 255, 255)
+        assert editor.canvas.active_color == (255, 255, 255, 255)
         assert editor.slider_input_format == '%d'
 
     def test_bounding_boxes_start_hidden_around_their_sliders(self, editor):
@@ -270,8 +270,8 @@ class TestSliderEvents:
 
         assert editor.slider_input_format == '%X'
         assert editor.green_slider.text_sprite.text == 'AB'
-        assert editor.red_slider.text_sprite.text == '00'
-        assert editor.blue_slider.text_sprite.text == '00'
+        assert editor.red_slider.text_sprite.text == 'FF'
+        assert editor.blue_slider.text_sprite.text == 'FF'
 
     def test_tab_change_back_to_decimal_shows_decimal_text(self, editor):
         """Switching back to decimal shows the values as decimal numbers."""
@@ -311,9 +311,9 @@ class TestSliderEvents:
             editor.green_slider.value,
             editor.blue_slider.value,
             editor.alpha_slider.value,
-        ) == (0, 0, 0, 255)
-        assert editor.color_well.active_color == (0, 0, 0, 255)
-        assert editor.canvas.active_color == (0, 0, 0, 255)
+        ) == (255, 255, 255, 255)
+        assert editor.color_well.active_color == (255, 255, 255, 255)
+        assert editor.canvas.active_color == (255, 255, 255, 255)
 
     def test_tab_change_before_setup_changes_nothing(self, screen):
         """With no sliders yet, a tab change only records the format."""
@@ -358,8 +358,8 @@ class TestCommitSliderTextBoxes:
         assert slider.original_value == 120
         assert slider.text_sprite.text == '120'
         assert slider.text_sprite.is_active is False
-        assert editor.color_well.active_color == (120, 0, 0, 255)
-        assert editor.canvas.active_color == (120, 0, 0, 255)
+        assert editor.color_well.active_color == (120, 255, 255, 255)
+        assert editor.canvas.active_color == (120, 255, 255, 255)
 
     def test_hex_text_commits_value_shown_in_hex_format(self, editor):
         """Text with hex letters is parsed as hex and shown in hex in hex format."""
@@ -405,7 +405,7 @@ class TestCommitSliderTextBoxes:
 
         assert slider.value == 64
         assert slider.text_sprite.is_active is False
-        assert editor.color_well.active_color == (0, 0, 0, 64)
+        assert editor.color_well.active_color == (255, 255, 255, 64)
 
     @pytest.mark.parametrize('typed_text', ['', '   ', '999', 'zz'])
     def test_empty_out_of_range_or_invalid_text_restores_original(self, editor, typed_text):
@@ -443,7 +443,7 @@ class TestCommitSliderTextBoxes:
 
         assert slider.text_sprite.is_active is True
         assert slider.text_sprite.text == '7'
-        assert slider.value == 0
+        assert slider.value == 255
 
 
 class TestInteraction:
@@ -580,7 +580,7 @@ class TestSampleColorFromScreen:
 
         editor.slider_manager.sample_color_from_screen((0, 0))
 
-        assert editor.color_well.active_color == (0, 0, 0, 255)
+        assert editor.color_well.active_color == (255, 255, 255, 255)
         assert 'Error sampling color from screen' in caplog.text
 
     def test_sampling_off_the_screen_leaves_sliders_unchanged(self, editor, screen, caplog):
@@ -589,7 +589,7 @@ class TestSampleColorFromScreen:
 
         editor.slider_manager.sample_color_from_screen(off_screen)
 
-        assert editor.color_well.active_color == (0, 0, 0, 255)
+        assert editor.color_well.active_color == (255, 255, 255, 255)
         assert 'Error sampling color from screen' in caplog.text
 
     def test_error_setting_the_sliders_propagates(self, editor, screen, mocker):
@@ -695,8 +695,8 @@ class TestClickAwayCommitInTheRealEditor:
 
         assert real_editor.red_slider.value == 200
         assert real_editor.red_slider.text_sprite.is_active is False
-        assert real_editor.color_well.active_color == (200, 0, 0, 255)
-        assert real_editor.canvas.active_color == (200, 0, 0, 255)
+        assert real_editor.color_well.active_color == (200, 255, 255, 255)
+        assert real_editor.canvas.active_color == (200, 255, 255, 255)
 
     def test_click_away_commits_the_alpha_text_box(self, real_editor):
         """Clicking away from typed alpha text commits it and stops the box taking keys.
@@ -709,8 +709,8 @@ class TestClickAwayCommitInTheRealEditor:
 
         assert real_editor.alpha_slider.text_sprite.is_active is False
         assert real_editor.alpha_slider.value == 128
-        assert real_editor.color_well.active_color == (0, 0, 0, 128)
-        assert real_editor.canvas.active_color == (0, 0, 0, 128)
+        assert real_editor.color_well.active_color == (255, 255, 255, 128)
+        assert real_editor.canvas.active_color == (255, 255, 255, 128)
         assert real_editor.red_slider.text_sprite.is_active is True
 
 
