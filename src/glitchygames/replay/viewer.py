@@ -411,11 +411,15 @@ class ReplayViewer:
     def _owed_limit_seconds(self: Self, *, inner_frame_seconds: float) -> float:
         """Return the most inner time the accumulator may owe; the excess is dropped (rule 2).
 
-        ``MAX_OWED_INNER_FRAMES`` and a half frames, and never less than the frame plus two ticks
-        of inner time (the speed times the tick period): what rule 2's one-frame limit carries
-        (a frame plus a tick) plus the tick's own time. Below that, a recording whose frames are
-        short (an uncapped game) would be capped every tick, fall behind every tick and play in
-        slow motion.
+        ``MAX_OWED_INNER_FRAMES`` and a half frames, and never less than the floor: the frame
+        plus a 60 Hz tick of inner time (what rule 2's one-frame limit may carry) plus the inner
+        time of the tick paid for (the speed times the real time since the last tick, at least
+        a 60 Hz tick). Below that, a recording whose frames are short (an uncapped game) would
+        be capped every tick, fall behind every tick and play in slow motion; a tick slower than
+        60 Hz (a browser on a slower display, a late blocking tick) pays for more than a 60 Hz
+        tick, so the floor follows it. A stall (a tick paying for more than
+        ``STALL_TICK_SECONDS``, as the effective-speed window counts it) is not a display rate:
+        it counts as a 60 Hz tick, so its burst stays as bounded as at 60 Hz.
 
         Args:
             inner_frame_seconds: The recorded duration of the inner frame that would run.
@@ -425,10 +429,15 @@ class ReplayViewer:
 
         """
         frames_limit_seconds = (MAX_OWED_INNER_FRAMES + 0.5) * inner_frame_seconds
-        return max(
-            frames_limit_seconds,
-            inner_frame_seconds + 2 * self.controls.speed * CONTROL_TICK_SECONDS,
+        tick_paid_for_seconds = (
+            CONTROL_TICK_SECONDS
+            if self._tick_elapsed_seconds > STALL_TICK_SECONDS
+            else max(CONTROL_TICK_SECONDS, self._tick_elapsed_seconds)
         )
+        floor_seconds = inner_frame_seconds + self.controls.speed * (
+            CONTROL_TICK_SECONDS + tick_paid_for_seconds
+        )
+        return max(frames_limit_seconds, floor_seconds)
 
     def _defers_to_the_next_tick(self: Self, *, inner_frame_seconds: float) -> bool:
         """Decide whether a later inner frame in the open tick waits for the next tick (rule 2).

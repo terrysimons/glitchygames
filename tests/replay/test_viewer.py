@@ -462,6 +462,7 @@ class ScheduleRun(BaseModel):
         frames_by_tick: The frames each tick ran (it presents the last).
         accumulated_by_tick: The accumulator after each tick.
         behind_by_tick: Whether the viewer was behind (``is_behind``) after each tick.
+        tick_seconds: The real time between ticks (the display's refresh period).
 
     """
 
@@ -470,6 +471,7 @@ class ScheduleRun(BaseModel):
     frames_by_tick: list[list[int]]
     accumulated_by_tick: list[float]
     behind_by_tick: list[bool]
+    tick_seconds: float
 
     def replay_lag_seconds(self: Self, *, inner_frame_seconds: list[float], speed: float) -> float:
         """Return how much later than real time the replay ended (negative: earlier).
@@ -481,22 +483,32 @@ class ScheduleRun(BaseModel):
             Seconds.
 
         """
-        replay_seconds = (len(self.frames_by_tick) - 1) * CONTROL_TICK_SECONDS
-        return replay_seconds - sum(inner_frame_seconds) / speed
+        return self.real_seconds - sum(inner_frame_seconds) / speed
+
+    @property
+    def real_seconds(self: Self) -> float:
+        """The real time from the first tick to the one that ran the last frame."""
+        return (len(self.frames_by_tick) - 1) * self.tick_seconds
 
 
 def run_schedule(
-    *, inner_frame_seconds: list[float], speed: float = 1.0, stall_before_tick: int | None = None
+    *,
+    inner_frame_seconds: list[float],
+    speed: float = 1.0,
+    stall_before_tick: int | None = None,
+    tick_seconds: float = CONTROL_TICK_SECONDS,
 ) -> ScheduleRun:
     """Run the viewer's accumulator over inner frames on an ideal clock, ticked externally.
 
-    Each tick is exactly ``CONTROL_TICK_SECONDS`` after the last and inner frames cost no time,
-    as scripts/replay_schedule.py runs it (the replay starts running, no start screen).
+    Each tick is exactly ``tick_seconds`` after the last and inner frames cost no time, as
+    scripts/replay_schedule.py runs it (the replay starts running, no start screen).
 
     Args:
         inner_frame_seconds: Each inner frame's recorded duration, in order.
         speed: The replay speed.
         stall_before_tick: The tick that opens half a second late (a stall), or None.
+        tick_seconds: The real time between ticks: the viewer's 60 Hz tick, or a browser's
+            animation frames on a display of another refresh rate.
 
     Returns:
         The schedule.
@@ -528,11 +540,12 @@ def run_schedule(
         frames_by_tick.append(frames_run)
         accumulated_by_tick.append(viewer.accumulated_seconds)
         behind_by_tick.append(viewer.is_behind)
-        given['seconds'] += CONTROL_TICK_SECONDS
+        given['seconds'] += tick_seconds
     return ScheduleRun(
         frames_by_tick=frames_by_tick,
         accumulated_by_tick=accumulated_by_tick,
         behind_by_tick=behind_by_tick,
+        tick_seconds=tick_seconds,
     )
 
 
@@ -788,6 +801,15 @@ FAST_RECORDINGS = {
 }
 
 
+# A 60 FPS recording that hit its target, for the slower-display checks
+STEADY_60_FPS_RECORDING = FastRecording(
+    target_fps=60.0, frame_seconds=[0.0] + [1 / 60] * 600, speed=1.0
+)
+# The burst of 1/3000 s frames a half-second stall runs at 30 Hz: as at 60 Hz, the owed limit
+# (the frame plus two 60 Hz ticks of inner time) less what rule 2 carries
+STALL_BURST_FRAMES_AT_30_HERTZ = 50
+
+
 def write_fast_recording(*, recording: FastRecording, path: Path) -> Path:
     """Write the recording with its target FPS in the header's options, as a live one holds it.
 
@@ -851,10 +873,10 @@ class RateCheck(BaseModel):
         required_frames_per_second: Inner frames per real second the replay must run: the
             recording's achieved rate capped by its target FPS, times the speed it is watched at.
         real_seconds: The real time the replay took to run every frame.
-        allowed_seconds: The most real time that rate allows, with the tolerance: two ticks and
-            one recorded frame over the run (rule 2 lets the replay owe under a frame plus a
-            tick when a tick closes, a constant lag of up to a tick, and the run's end is read
-            at a tick, so up to one more).
+        allowed_seconds: The most real time that rate allows, with the tolerance: a 60 Hz tick,
+            one display tick and one recorded frame over the run (rule 2 lets the replay owe
+            under a frame plus a 60 Hz tick when a tick closes, a constant lag, and the run's
+            end is read at a display tick, so up to one more).
 
     """
 
@@ -871,7 +893,11 @@ class RateCheck(BaseModel):
 
 
 def check_watched_rate(
-    *, recording: FastRecording, path: Path, replayed_at_speed: float | None = None
+    *,
+    recording: FastRecording,
+    path: Path,
+    replayed_at_speed: float | None = None,
+    tick_seconds: float = CONTROL_TICK_SECONDS,
 ) -> RateCheck:
     """Write a recording, replay it watched (the viewer's schedule) and check its rate.
 
@@ -880,6 +906,8 @@ def check_watched_rate(
         path: Where to write it.
         replayed_at_speed: The speed the replay actually runs at (a slower one stands for a
             replay that cannot keep up); None is the recording's speed.
+        tick_seconds: The real time between the viewer's ticks (a browser display's refresh
+            period; the viewer's own 60 Hz tick by default).
 
     Returns:
         The check.
@@ -892,14 +920,17 @@ def check_watched_rate(
     schedule = run_schedule(
         inner_frame_seconds=inner_frame_seconds,
         speed=recording.speed if replayed_at_speed is None else replayed_at_speed,
+        tick_seconds=tick_seconds,
     )
     required_frames_per_second = (
         required_inner_frames_per_second(header=trace, recorded=recorded) * recording.speed
     )
-    tolerance_seconds = 2 * CONTROL_TICK_SECONDS + max(inner_frame_seconds) / recording.speed
+    tolerance_seconds = (
+        CONTROL_TICK_SECONDS + tick_seconds + max(inner_frame_seconds) / recording.speed
+    )
     return RateCheck(
         required_frames_per_second=required_frames_per_second,
-        real_seconds=(len(schedule.frames_by_tick) - 1) * CONTROL_TICK_SECONDS,
+        real_seconds=schedule.real_seconds,
         allowed_seconds=recorded.frame_count / required_frames_per_second + tolerance_seconds,
     )
 
@@ -1003,6 +1034,53 @@ class TestRecordingsFasterThanTheTickKeepTheirRate:
         assert set(frames_per_tick[3:20]) == set(frames_per_tick[21:-1]) == {50}
         assert not schedule.behind_by_tick[19]
         assert schedule.behind_by_tick[20]
+
+    @pytest.mark.parametrize('display_hertz', [30, 50])
+    @pytest.mark.parametrize(
+        'recording',
+        [
+            FAST_RECORDINGS['hit_its_1000_fps_target_at_1x'],
+            FAST_RECORDINGS['hit_its_3000_fps_target_at_1x'],
+            STEADY_60_FPS_RECORDING,
+        ],
+        ids=['1000_fps', '3000_fps', '60_fps'],
+    )
+    def test_on_a_slower_display_it_keeps_its_rate_and_never_falls_behind(
+        self, recording, display_hertz, tmp_path
+    ):
+        """Ticked by a browser at 30 or 50 Hz, each tick pays for more than a 60 Hz tick.
+
+        The owed limit's floor is sized by the tick paid for, so rule 2's carried frame plus a
+        tick and the slow tick's own time are never dropped.
+        """
+        tick_seconds = 1 / display_hertz
+        check = check_watched_rate(
+            recording=recording, path=tmp_path / 'fast.jsonl.gz', tick_seconds=tick_seconds
+        )
+        assert check.keeps_rate, check
+        inner_frame_seconds = [*recording.frame_seconds[1:], recording.frame_seconds[-1]]
+        schedule = run_schedule(
+            inner_frame_seconds=inner_frame_seconds,
+            speed=recording.speed,
+            tick_seconds=tick_seconds,
+        )
+        assert not any(schedule.behind_by_tick)
+
+    def test_on_a_slower_display_a_stall_runs_one_bounded_burst(self):
+        """A half-second stall at 30 Hz is a stall, not a display rate: a 60 Hz tick's floor.
+
+        1/3000 s frames: the owed limit is the frame plus two 60 Hz ticks of inner time, so the
+        stall's tick runs the same bounded burst as at 60 Hz (50 frames) and is behind; the
+        30 Hz ticks around it run 100.
+        """
+        schedule = run_schedule(
+            inner_frame_seconds=[1 / 3000] * 6000, stall_before_tick=20, tick_seconds=1 / 30
+        )
+        frames_per_tick = [len(frames_run) for frames_run in schedule.frames_by_tick]
+        assert frames_per_tick[20] == STALL_BURST_FRAMES_AT_30_HERTZ
+        assert schedule.behind_by_tick[20]
+        # 100 frames a 30 Hz tick (101 when the rounding of 1/3000 s carries one over)
+        assert set(frames_per_tick[3:20]) | set(frames_per_tick[21:-1]) <= {100, 101}
 
     @pytest.mark.parametrize('recording', FAST_RECORDINGS.values(), ids=FAST_RECORDINGS.keys())
     def test_it_never_falls_behind(self, recording):
