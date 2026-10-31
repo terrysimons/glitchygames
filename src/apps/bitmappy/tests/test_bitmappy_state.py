@@ -12,7 +12,6 @@ from bitmappy.ai_worker import (
     _initialize_ai_client,
     _log_capabilities_dump,
     _process_ai_request,
-    _set_ollama_env_timeout,
     _setup_ai_worker_logging,
     select_relevant_training_examples,
 )
@@ -72,24 +71,6 @@ class TestCreateOllamaConfig:
         if not AI_MODEL.startswith('ollama:'):
             result = _create_ollama_config(log)
             assert result == {}
-
-
-class TestSetOllamaEnvTimeout:
-    """Test _set_ollama_env_timeout function."""
-
-    def test_non_ollama_model_no_env_set(self):
-        """Test that non-ollama models don't set environment variables."""
-        import os
-
-        log = logging.getLogger('test')
-        original_timeout = os.environ.get('OLLAMA_TIMEOUT')
-        if not AI_MODEL.startswith('ollama:'):
-            _set_ollama_env_timeout(log)
-            # Should not have set the environment variable
-            if original_timeout is None:
-                assert os.environ.get('OLLAMA_TIMEOUT') is None
-            else:
-                assert os.environ.get('OLLAMA_TIMEOUT') == original_timeout
 
 
 class TestGetProviderTimeoutValue:

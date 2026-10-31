@@ -267,7 +267,17 @@ def measure_top_modules(*, checkout: Path, report_path: Path, module_count: int)
     Returns:
         The top modules (paths relative to the checkout, ``/``-separated).
 
+    Raises:
+        ComplexityGraphError: If the checkout has no ``RANKED_PACKAGE`` (this script and HEAD
+            disagree on where the engine lives).
+
     """
+    if not (checkout / RANKED_PACKAGE).is_dir():
+        message = (
+            f'The checked-out commit has no {RANKED_PACKAGE}/ to rank: RANKED_PACKAGE and HEAD '
+            'disagree on where the engine lives'
+        )
+        raise ComplexityGraphError(message)
     run_tool(
         command=[
             sys.executable,

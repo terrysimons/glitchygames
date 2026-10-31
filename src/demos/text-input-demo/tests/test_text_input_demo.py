@@ -183,10 +183,13 @@ def _type(scene: text_input_demo.Game, text: str) -> None:
 
 
 def test_first_frame_shows_the_box_with_its_text_on_yellow(scene: text_input_demo.Game) -> None:
-    """The box shows 'Test' in its own colour; the rest of the screen is yellow."""
+    """The box shows 'Test' in white, as it does after typing (BUGS.md #178 item 30).
+
+    The rest of the screen is yellow.
+    """
     screen = _draw_frame(scene)
 
-    assert _shows_box(screen, text=STARTING_TEXT, text_rgb=BOX_BORDER_RGB)
+    assert _shows_box(screen, text=STARTING_TEXT, text_rgb=WHITE_RGB)
     assert _rgb(screen, (10, 10)) == YELLOW_RGB
     assert scene.input_box.is_active is False
 
@@ -200,7 +203,7 @@ def test_typing_before_a_click_changes_nothing(scene: text_input_demo.Game) -> N
     """Without the keyboard, key downs leave the text alone."""
     _type(scene, 'ab')
 
-    assert _shows_box(_draw_frame(scene), text=STARTING_TEXT, text_rgb=BOX_BORDER_RGB)
+    assert _shows_box(_draw_frame(scene), text=STARTING_TEXT, text_rgb=WHITE_RGB)
 
 
 def test_a_click_gives_the_box_the_keyboard(scene: text_input_demo.Game) -> None:
@@ -267,20 +270,19 @@ def test_return_submits_the_text(
 
 
 def test_the_box_joins_the_sprite_group_it_is_given() -> None:
-    """A sprite group passed in holds the box; without one the scene makes its own."""
+    """The group passed in is the scene's, and the box's only group (BUGS.md #178 item 31).
+
+    Without one the scene makes its own. The box was also put in a second group.
+    """
     show_canvas_on_new_display(size=DEMO_DISPLAY_SIZE)
     group: pygame.sprite.LayeredDirty[pygame.sprite.DirtySprite] = pygame.sprite.LayeredDirty()
 
     game = text_input_demo.Game(options={}, groups=group)
 
-    assert game.input_box in group
-    assert game.all_sprites is not group
+    assert game.all_sprites is group
+    assert game.input_box.groups() == [group]
     default_game = text_input_demo.Game(options={})
-    assert any(
-        isinstance(sprite_group, pygame.sprite.LayeredDirty) and sprite_group is not group
-        for sprite_group in default_game.input_box.groups()
-        if sprite_group is not default_game.all_sprites
-    )
+    assert default_game.input_box.groups() == [default_game.all_sprites]
 
 
 @pytest.mark.usefixtures('engine_run')

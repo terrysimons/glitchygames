@@ -114,6 +114,7 @@ from glitchygames.logical_names import logical_name
 from glitchygames.recording import (
     DEVICE_ENUMERATION_FIELD,
     DEVICES_HEADER_FIELD,
+    GAME_HEADER_FIELD,
     event_batch_records,
     event_to_record,
     recorded_frame,
@@ -205,7 +206,8 @@ class InstantReplayJournal:
             self._header['game_class'] = type(game).__name__
             self._header['game_module'] = type(game).__module__
             # The game's logical name, which replays compare (glitchygames/logical_names.py)
-            self._header['game'] = logical_name(scene_class=type(game))
+            # The header field the driver reads, by its constant (BUGS.md #224 item 16)
+            self._header[GAME_HEADER_FIELD] = logical_name(scene_class=type(game))
         # Save namespaces a playback seeds from the scene's start; others are snapshotted
         # into the frame that first opens them (setup's go to the lead-in frame)
         self._known_save_namespaces: set[str] = set() if start is None else set(start.saves)

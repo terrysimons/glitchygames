@@ -773,6 +773,29 @@ def test_each_engine_context_has_its_own_scene_manager():
     assert default_manager._initialized
 
 
+def test_a_subclass_made_in_one_context_is_not_another_contexts_scene_manager():
+    """A subclass's manager made in one context is never SceneManager() in another (BUGS.md #228).
+
+    Item 16: the per-class entries are per context, so the other context makes its own.
+    """
+    first = EngineContext(name='first')
+    second = EngineContext(name='second')
+
+    with first.active():
+        subclass_manager = SubclassedSceneManager()
+        assert type(subclass_manager) is SubclassedSceneManager
+
+    with second.active():
+        second_manager = SceneManager()
+        assert second_manager is not subclass_manager
+        assert type(second_manager) is SceneManager
+        # With no entry of its own here, the subclass answers with this context's base manager
+        assert SubclassedSceneManager() is second_manager
+
+    with first.active():
+        assert SubclassedSceneManager() is subclass_manager
+
+
 def test_a_scene_manager_subclass_keeps_the_singleton_rules_of_the_class_attribute():
     """Review Focus 4: the class attribute's inherited lookup, kept exactly.
 

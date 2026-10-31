@@ -20,7 +20,7 @@ from glitchygames.sprites import BitmappySprite
 if TYPE_CHECKING:
     from bitmappy.controllers.event_handler import ControllerEventHandler
     from bitmappy.controllers.manager import ControllerInfo
-    from bitmappy.indicators import LocationType, VisualIndicator
+    from bitmappy.indicators import LocationType
 
 log = logging.getLogger('game.tools.bitmappy.controllers.visual_indicators')
 log.addHandler(logging.NullHandler())
@@ -378,56 +378,6 @@ class VisualIndicators:
 
         return indicator
 
-    def _update_slider_indicator(
-        self,
-        controller_id: int,
-        color: tuple[int, ...],
-    ) -> None:
-        """Update or create slider indicator for a controller."""
-        # Remove any existing indicator for this controller
-        self._remove_slider_indicator(controller_id)
-
-        # Get the controller's current mode to determine which slider
-        if hasattr(self.handler.editor, 'mode_switcher'):
-            controller_mode = self.handler.editor.mode_switcher.get_controller_mode(controller_id)
-
-            # Create indicator on the appropriate slider based on mode
-            if (
-                controller_mode
-                and controller_mode.value == 'r_slider'
-                and hasattr(self.handler.editor, 'red_slider')
-            ):
-                indicator = self._create_slider_indicator_sprite(
-                    controller_id,
-                    color,
-                    self.handler.editor.red_slider.rect,
-                )
-                self.handler.slider_indicators[controller_id] = indicator
-
-            elif (
-                controller_mode
-                and controller_mode.value == 'g_slider'
-                and hasattr(self.handler.editor, 'green_slider')
-            ):
-                indicator = self._create_slider_indicator_sprite(
-                    controller_id,
-                    color,
-                    self.handler.editor.green_slider.rect,
-                )
-                self.handler.slider_indicators[controller_id] = indicator
-
-            elif (
-                controller_mode
-                and controller_mode.value == 'b_slider'
-                and hasattr(self.handler.editor, 'blue_slider')
-            ):
-                indicator = self._create_slider_indicator_sprite(
-                    controller_id,
-                    color,
-                    self.handler.editor.blue_slider.rect,
-                )
-                self.handler.slider_indicators[controller_id] = indicator
-
     def _update_all_slider_indicators(self) -> None:
         """Update all slider indicators with collision avoidance."""
         # Clear all existing slider indicators
@@ -767,50 +717,3 @@ class VisualIndicators:
                 self.handler.editor.all_sprites.remove(indicator)
             # Remove from tracking
             del self.handler.slider_indicators[controller_id]
-
-    def _draw_visual_indicator(
-        self,
-        screen: pygame.Surface,
-        indicator: VisualIndicator,
-    ) -> None:
-        """Draw a single visual indicator on the screen."""
-        if not indicator.is_visible:
-            self.handler.log.debug(
-                'DEBUG: Indicator for controller %s is not visible',
-                indicator.controller_id,
-            )
-            return
-
-        # Calculate final position with offset
-        final_x = indicator.position[0] + indicator.offset[0]
-        final_y = indicator.position[1] + indicator.offset[1]
-
-        self.handler.log.debug(
-            'DEBUG: Drawing indicator for controller %s at (%s, %s) with shape %s',
-            indicator.controller_id,
-            final_x,
-            final_y,
-            indicator.shape.value,
-        )
-
-        # Draw based on shape
-        if indicator.shape.value == 'triangle':
-            # Draw triangle (film strip indicator)
-            points = [
-                (final_x, final_y - indicator.size // 2),
-                (final_x - indicator.size // 2, final_y + indicator.size // 2),
-                (final_x + indicator.size // 2, final_y + indicator.size // 2),
-            ]
-            pygame.draw.polygon(screen, indicator.color, points)
-        elif indicator.shape.value == 'square':
-            # Draw square (canvas indicator)
-            rect = pygame.Rect(
-                final_x - indicator.size // 2,
-                final_y - indicator.size // 2,
-                indicator.size,
-                indicator.size,
-            )
-            pygame.draw.rect(screen, indicator.color, rect)
-        else:
-            # Draw circle (slider indicator): CIRCLE is the only other IndicatorShape
-            pygame.draw.circle(screen, indicator.color, (final_x, final_y), indicator.size // 2)

@@ -31,6 +31,28 @@ LOG = logging.getLogger('game.joysticks')
 LOG.addHandler(logging.NullHandler())
 
 
+def _cache_holds(cache: list[Any], *, index: int, default: object) -> bool:
+    """Grow a joystick state cache to hold ``index``, as the button cache does.
+
+    An event for an index past the opened device's counts raised IndexError (SDL never sends
+    one; a replay against other stand-ins could) (BUGS.md #184 item 4).
+
+    Args:
+        cache: The axis, hat or ball cache.
+        index: The event's axis, hat or ball index.
+        default: The resting value for the new entries.
+
+    Returns:
+        False for a negative index, which no cache holds; True otherwise.
+
+    """
+    if index < 0:
+        return False
+    if index >= len(cache):
+        cache.extend([default] * (index + 1 - len(cache)))
+    return True
+
+
 class IdentifiableJoystick(Protocol):
     """An opened joystick as the DEVICEADDED debug log reads it (pygame's or a replay's).
 
@@ -165,6 +187,8 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
             """
             # JOYAXISMOTION    instance_id, axis, value
+            if not _cache_holds(self._axes, index=event.axis, default=0.0):
+                return
             self._axes[event.axis] = event.value
             self.game.on_joy_axis_motion_event(event)
 
@@ -210,6 +234,8 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
             """
             # JOYHATMOTION     instance_id, hat, value
+            if not _cache_holds(self._hats, index=event.hat, default=(0, 0)):
+                return
             self._hats[event.hat] = event.value
             self.game.on_joy_hat_motion_event(event)
 
@@ -222,6 +248,8 @@ class JoystickEventManager(JoystickEvents, ResourceManager):
 
             """
             # JOYBALLMOTION    instance_id, ball, rel
+            if not _cache_holds(self._balls, index=event.ball, default=(0, 0)):
+                return
             self._balls[event.ball] = event.rel
             self.game.on_joy_ball_motion_event(event)
 

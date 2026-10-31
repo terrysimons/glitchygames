@@ -23,6 +23,7 @@ from scripts.build_browser_bundle import (
     PACKAGE_DIRECTORY,
     PYSCRIPT_RELEASE,
     REPOSITORY_DIRECTORY,
+    TAB_ICON_LINK,
     TOUCH_LAYOUTS,
     BundleRequestHandler,
     PortUnavailableError,
@@ -483,7 +484,11 @@ class TestMain:
         ]
         assert (output / 'wheels' / WHEEL_NAME).read_bytes() == b'wheel'
         assert json.loads((output / 'boot_config.json').read_text())['arguments'] == ['-x']
-        assert '<title>Paddle Slap</title>' in (output / 'index.html').read_text()
+        page = (output / 'index.html').read_text()
+        assert '<title>Paddle Slap</title>' in page
+        # The tab icon is inline: the page asks for no /favicon.ico, which the bundle lacks
+        assert TAB_ICON_LINK in page
+        assert '$' not in TAB_ICON_LINK
         with zipfile.ZipFile(output / 'glitchygames.zip') as archive:
             names = set(archive.namelist())
         assert 'glitchygames/host.py' in names
@@ -500,6 +505,7 @@ class TestMain:
         assert status == 0
         assert sorted(path.name for path in output.iterdir()) == sorted([*GAMES, 'index.html'])
         index = (output / 'index.html').read_text()
+        assert TAB_ICON_LINK in index
         for game, specification in GAMES.items():
             assert (output / game / 'index.html').is_file()
             assert f'<a href="{game}/">{specification.title}</a>' in index

@@ -3358,9 +3358,19 @@ class TestEditorConstructionAndArguments:
         BitmapEditorScene.args(parser)
 
         assert parser.parse_args([]).size == '32x32'
-        parsed = parser.parse_args(['--size', '16x8', '--version'])
-        assert parsed.size == '16x8'
-        assert parsed.version is True
+        assert parser.parse_args(['--size', '16x8']).size == '16x8'
+
+    @pytest.mark.parametrize('version_flag', ['-v', '--version'])
+    def test_version_flag_prints_the_version_and_exits(self, capsys, version_flag):
+        """-v/--version prints the editor's name and version and exits (BUGS.md #178 item 25)."""
+        parser = argparse.ArgumentParser()
+        BitmapEditorScene.args(parser)
+
+        with pytest.raises(SystemExit) as exit_info:
+            parser.parse_args([version_flag])
+
+        assert exit_info.value.code == 0
+        assert capsys.readouterr().out == 'Bitmappy 1.0\n'
 
 
 # ===========================================================================

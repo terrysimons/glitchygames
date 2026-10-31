@@ -2200,45 +2200,6 @@ class TestCurrentFramePixels:
         assert canvas.pixels == [GREEN_RGBA] * PIXEL_COUNT
 
 
-class TestConvertStaticToAnimated:
-    """Test _convert_static_to_animated."""
-
-    def test_pixel_data_and_name_are_kept(self):
-        """The static sprite's pixel data becomes one frame of an animation named after it."""
-        canvas, _ = _make_real_canvas()
-        static_sprite = type(
-            'StaticSprite',
-            (),
-            {'name': 'dot', 'get_pixel_data': lambda self: [RED_RGBA] * 4},
-        )()
-
-        animated_sprite = canvas._convert_static_to_animated(static_sprite, 2, 2)
-
-        assert list(animated_sprite._animations) == ['dot']
-        assert animated_sprite._animations['dot'][0].get_pixel_data() == [RED_RGBA] * 4
-
-    def test_pixels_list_and_animation_name_are_used(self):
-        """Without get_pixel_data or a name, the pixels list and animation_name are used."""
-        canvas, _ = _make_real_canvas()
-        static_sprite = type(
-            'StaticSprite',
-            (),
-            {'name': '', 'animation_name': 'idle', 'pixels': [BLUE_RGBA] * 4},
-        )()
-
-        animated_sprite = canvas._convert_static_to_animated(static_sprite, 2, 2)
-
-        assert animated_sprite._animations['idle'][0].get_pixel_data() == [BLUE_RGBA] * 4
-
-    def test_sprite_without_pixels_becomes_transparent(self):
-        """A sprite with no pixel data becomes one transparent magenta frame named idle."""
-        canvas, _ = _make_real_canvas()
-
-        animated_sprite = canvas._convert_static_to_animated(object(), 2, 2)
-
-        assert animated_sprite._animations['idle'][0].get_pixel_data() == [MAGENTA_RGB] * 4
-
-
 class TestNavigationEdges:
     """Test frame and animation navigation where there is nothing to move to."""
 

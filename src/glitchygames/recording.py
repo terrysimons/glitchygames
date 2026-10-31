@@ -319,6 +319,10 @@ RECORDING_FORMAT_THREE_FIELDS = (
 )
 # Header fields format version 3 adds
 SAVES_HEADER_FIELD = 'saves'
+# The game class's logical name (glitchygames/logical_names.py), which replays compare. Here, not
+# in replay/driver.py, so the instant-replay journal can name it without importing the driver,
+# which scenes must not import (BUGS.md #224 item 16)
+GAME_HEADER_FIELD = 'game'
 DEVICES_HEADER_FIELD = 'devices'
 # The recording's start time (ISO 8601): the origin of a recorded or replayed run's wall clock
 RECORDED_AT_HEADER_FIELD = 'recorded_at'

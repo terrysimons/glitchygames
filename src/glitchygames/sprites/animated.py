@@ -2510,12 +2510,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             return
 
         frame = frames[self.frame_manager.current_frame]
+        # The frame's image size: SpriteFrame has no `surface`, so the old has_surface was always
+        # False (BUGS.md #178 item 20)
         self.log.debug(
-            "ANIMATION FRAME DUMP: animation='%s', frame_index=%s, frame=%s, has_surface=%s",
+            "ANIMATION FRAME DUMP: animation='%s', frame_index=%s, frame=%s, image_size=%s",
             self.frame_manager.current_animation,
             self.frame_manager.current_frame,
             frame,
-            hasattr(frame, 'surface'),
+            frame.image.get_size(),
         )
 
         self._debug_frame_pixel_data(frame)

@@ -122,8 +122,8 @@ class BitmappySprite(Sprite):
             self.height = self.rect.height
 
         elif self.width and self.height:
-            self.image = pygame.Surface((self.width, self.height))
-            self.image.convert()
+            # Keep convert()'s result: the converted copy has the display's format (#173.5)
+            self.image = pygame.Surface((self.width, self.height)).convert()
         else:
             raise pygame.error(
                 _ERR_CANNOT_CREATE_SURFACE.format(width=self.width, height=self.height),
@@ -337,6 +337,8 @@ class BitmappySprite(Sprite):
     ) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate a sprite from a list of pixels.
 
+        A pixel character missing from the color map raises KeyError (BUGS.md #178 item 1).
+
         Args:
             width: the width of the sprite.
             height: the height of the sprite.
@@ -347,15 +349,12 @@ class BitmappySprite(Sprite):
             A tuple containing the sprite's image and rect.
 
         """
-        image = pygame.Surface((width, height))
-        image.convert()
+        # Keep convert()'s result: the converted copy is the one in the display's format (#178.1)
+        image = pygame.Surface((width, height)).convert()
 
-        raw_pixels: list[Any] = []
         for y, row in enumerate(pixels):
             for x, pixel in enumerate(row):
-                color = color_map[pixel]
-                raw_pixels.append(color)
-                pygame.draw.rect(image, color, (x, y, 1, 1))
+                pygame.draw.rect(image, color_map[pixel], (x, y, 1, 1))
 
         return (image, image.get_rect())
 

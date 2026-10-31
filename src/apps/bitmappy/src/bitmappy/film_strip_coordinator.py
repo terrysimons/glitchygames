@@ -1403,24 +1403,15 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         ):
             return
 
-        # Rename in the widget's sprite
-        widget_frames = strip_widget.animated_sprite._animations[old_name]  # type: ignore[reportPrivateUsage]
-        del strip_widget.animated_sprite._animations[old_name]  # type: ignore[reportPrivateUsage]
-        strip_widget.animated_sprite._animations[new_name] = widget_frames  # type: ignore[reportPrivateUsage]
-
-        # Update animation order
-        if strip_widget.animated_sprite.has_own_animation_order:
-            strip_widget.animated_sprite._animation_order = [new_name]  # type: ignore[reportPrivateUsage]
-
-            # Update frame manager
-            if strip_widget.animated_sprite.frame_manager.current_animation == old_name:
-                strip_widget.animated_sprite.frame_manager.current_animation = new_name
-
-            self.log.debug(
-                "Updated FilmStripWidget's internal sprite: '%s' -> '%s'",
-                old_name,
-                new_name,
-            )
+        # The sprite's own rename keeps every other animation and the order's place, and moves
+        # the current animation whatever the order: the hand-written rename set the order to
+        # [new_name], dropping the strip's other animations (BUGS.md #178 item 21)
+        strip_widget.animated_sprite.rename_animation(old_name=old_name, new_name=new_name)
+        self.log.debug(
+            "Updated FilmStripWidget's internal sprite: '%s' -> '%s'",
+            old_name,
+            new_name,
+        )
 
     def _update_film_strip_layout_after_rename(
         self,

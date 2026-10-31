@@ -183,18 +183,21 @@ class TestCacheAndDefault:
         assert [pattern.value for pattern in BackgroundPattern] == ['test-pattern', 'channel-3']
 
 
-def test_each_engine_context_has_its_own_default_background():
-    """One context's --default-background never changes another's scenes (audit C2)."""
-    second = EngineContext(name='second')
-    set_active_default_background_pattern(pattern=BackgroundPattern.CHANNEL_THREE)
+class TestEngineContextIsolation:
+    """The default background is per engine context (BUGS.md #228 item 8: grouped like the rest)."""
 
-    with second.active():
-        assert active_default_background_pattern() is DEFAULT_BACKGROUND_PATTERN
-        second_surface = pygame.Surface(PATTERN_SIZE)
-        paint_default_background(surface=second_surface)
-        assert rgb_at(second_surface, x=0, y=0) == BAR_GREY
+    def test_each_engine_context_has_its_own_default_background(self):
+        """One context's --default-background never changes another's scenes (audit C2)."""
+        second = EngineContext(name='second')
+        set_active_default_background_pattern(pattern=BackgroundPattern.CHANNEL_THREE)
 
-    assert active_default_background_pattern() is BackgroundPattern.CHANNEL_THREE
-    default_surface = pygame.Surface(PATTERN_SIZE)
-    paint_default_background(surface=default_surface)
-    assert rgb_at(default_surface, x=0, y=0) == VCR_BLUE
+        with second.active():
+            assert active_default_background_pattern() is DEFAULT_BACKGROUND_PATTERN
+            second_surface = pygame.Surface(PATTERN_SIZE)
+            paint_default_background(surface=second_surface)
+            assert rgb_at(second_surface, x=0, y=0) == BAR_GREY
+
+        assert active_default_background_pattern() is BackgroundPattern.CHANNEL_THREE
+        default_surface = pygame.Surface(PATTERN_SIZE)
+        paint_default_background(surface=default_surface)
+        assert rgb_at(default_surface, x=0, y=0) == VCR_BLUE

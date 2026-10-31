@@ -1578,7 +1578,7 @@ class TestInputBoxCoverage:
         parent = _RecordingParent('on_input_box_submit_event', x=0, y=0)
         inputbox = InputBox(x=10, y=20, width=200, height=30, text='test', parent=parent)
         inputbox.on_input_box_submit_event(_key_down(key=pygame.K_RETURN, unicode='\r'))
-        assert parent.calls == [('on_input_box_submit_event', (), {'event': inputbox})]
+        assert parent.calls == [('on_input_box_submit_event', (), {'control': inputbox})]
 
     def test_inputbox_update(self):
         """Test InputBox update draws its text inside a border in its colour."""
@@ -1593,6 +1593,23 @@ class TestInputBoxCoverage:
         assert _pixel_count_of(inputbox.image, PLACEHOLDER_FILL) == 0
         # The text, drawn at (4, 4), lights pixels inside the border
         assert _lit_pixel_count(inputbox.image, (2, 2, 196, 26)) > 0
+
+    def test_inputbox_text_is_white_before_and_after_a_render(self):
+        """The first text is drawn white, as render() redraws it (BUGS.md #178 item 30)."""
+        inputbox = InputBox(x=10, y=20, width=200, height=30, text='hello')
+        first_text_colors = {
+            inputbox.text_image.get_at((x, y))[:3]
+            for x in range(inputbox.text_image.get_width())
+            for y in range(inputbox.text_image.get_height())
+            if inputbox.text_image.get_at((x, y))[3] == 255
+        }
+
+        inputbox.render()
+
+        assert first_text_colors == {(255, 255, 255)}
+        assert pygame.image.tobytes(inputbox.text_image, 'RGBA') == pygame.image.tobytes(
+            InputBox(x=10, y=20, width=200, height=30, text='hello').text_image, 'RGBA'
+        )
 
 
 class TestTextBoxSpriteCoverage:
@@ -2827,7 +2844,7 @@ class TestInputBoxKeyHandling:
         parent = _RecordingParent('on_input_box_submit_event', x=0, y=0)
         input_box = _input_box(text='submitted', parent=parent)
         input_box.on_input_box_submit_event(_key_down(key=pygame.K_RETURN, unicode='\r'))
-        assert parent.calls == [('on_input_box_submit_event', (), {'event': input_box})]
+        assert parent.calls == [('on_input_box_submit_event', (), {'control': input_box})]
 
     def test_on_input_box_submit_no_parent_handler(self):
         """Test submit event with a parent that lacks the handler only logs."""
@@ -2994,7 +3011,8 @@ class TestTabControlSpriteEvents:
             _mouse_event(pygame.MOUSEBUTTONDOWN, (TEST_X + 75, TEST_Y + 10))
         )
         assert tab_control.active_tab == 1
-        assert tab_control.dirty == 2
+        # Redrawn once, not every frame (BUGS.md #155 item 2)
+        assert tab_control.dirty == 1
 
     def test_tab_click_outside_does_nothing(self):
         """Test clicking outside the tab control does nothing."""

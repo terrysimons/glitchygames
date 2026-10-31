@@ -9,10 +9,12 @@ from __future__ import annotations
 import ast
 import asyncio
 import contextvars
+import importlib.util
 import random
 import re
 import sys
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 import numpy as np
@@ -84,7 +86,6 @@ from tests.input.test_input_state import snapshot_with
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
-    from pathlib import Path
 
     from glitchygames.input.devices import DeviceDescriptor
 
@@ -196,6 +197,9 @@ def called_name(call: ast.Call) -> str | None:
 def import_time_context_reads(*, source_path: Path) -> list[str]:
     """Return ``'<line>: <name>'`` for each engine-context read run as the file is imported.
 
+    Literal reads only: a call of a context reader by its own name. A module-level call of a
+    helper that reads a slot, or a reader imported under another name, is not seen.
+
     Args:
         source_path: A Python file.
 
@@ -274,6 +278,77 @@ def test_the_harness_leak_check_is_torn_down_before_every_engine_state_reset():
     assert set(PROCESS_STATE_AUTOUSE_FIXTURES) <= autouse_fixtures
     assert engine_state_fixtures
     assert requested & autouse_fixtures == engine_state_fixtures
+
+
+# The fixtures that only group the engine-state resets for the leak check (tests/harness.py)
+GROUPING_FIXTURE_NAMES = ('per_context_state_resets', 'engine_service_resets')
+
+
+def _repository_plugin_paths() -> list[Path]:
+    """Return the file of each pytest plugin the root conftest loads from this repository.
+
+    Returns:
+        The paths (pytester and other installed plugins are left out).
+
+    """
+    tree = ast.parse((PROJECT_ROOT / 'conftest.py').read_text(encoding='utf-8'))
+    plugin_names = [
+        element.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == 'pytest_plugins'
+            for target in node.targets
+        )
+        and isinstance(node.value, ast.List)
+        for element in node.value.elts
+        if isinstance(element, ast.Constant) and isinstance(element.value, str)
+    ]
+    paths: list[Path] = []
+    for plugin_name in plugin_names:
+        spec = importlib.util.find_spec(plugin_name)
+        if spec is None or spec.origin is None:
+            continue
+        origin = Path(spec.origin).resolve()
+        if origin.is_relative_to(PROJECT_ROOT.resolve()):
+            paths.append(origin)
+    return paths
+
+
+def test_only_the_harness_defines_autouse_fixtures():
+    """No plugin but tests/harness.py defines an autouse fixture (BUGS.md #228 item 4).
+
+    The leak-check guard reads tests/harness.py alone, so it would not see one elsewhere.
+    """
+    plugin_paths = _repository_plugin_paths()
+    other_autouse_fixtures = {
+        f'{path.relative_to(PROJECT_ROOT.resolve())}:{node.name}'
+        for path in plugin_paths
+        if path.name != 'harness.py'
+        for node in ast.parse(path.read_text(encoding='utf-8')).body
+        if isinstance(node, ast.FunctionDef) and is_autouse_fixture(node)
+    }
+
+    assert any(path.name == 'harness.py' for path in plugin_paths)
+    assert other_autouse_fixtures == set()
+
+
+def test_the_grouping_fixtures_only_group():
+    """The two grouping fixtures hold only their docstrings (BUGS.md #228 item 5).
+
+    Any reset they did would run outside the order the leak check sets.
+    """
+    tree = ast.parse((PROJECT_ROOT / 'tests' / 'harness.py').read_text(encoding='utf-8'))
+    grouping_bodies = {
+        node.name: node.body
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name in GROUPING_FIXTURE_NAMES
+    }
+
+    assert set(grouping_bodies) == set(GROUPING_FIXTURE_NAMES)
+    for name, body in grouping_bodies.items():
+        assert len(body) == 1, f'{name} does more than group its fixtures'
+        assert isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant), name
 
 
 def test_the_default_context_is_current_outside_every_switch():
@@ -847,7 +922,8 @@ def check_scene_managers(*, first: EngineContext, second: EngineContext) -> None
     assert default_manager is not second_manager
 
 
-# Every engine slot, with the check that proves its values never leak between contexts
+# Every engine slot, with the check that proves its values never leak between contexts. Each
+# check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.pixel_snap.default_mode': check_default_snap_mode,
     'glitchygames.backgrounds.default_pattern': check_default_background,

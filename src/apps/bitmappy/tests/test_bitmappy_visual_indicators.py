@@ -20,7 +20,6 @@ from bitmappy.indicators.collision import (
     IndicatorShape,
     LocationType,
     VisualCollisionManager,
-    VisualIndicator,
 )
 from glitchygames import clock
 
@@ -473,73 +472,11 @@ class TestSliderIndicatorSprites:
         assert indicator.image.get_at((8, 1))[:3] == WHITE
         assert indicator.image.get_at((0, 0))[:3] == BLACK
 
-    @pytest.mark.parametrize(
-        ('mode', 'slider_name'),
-        [
-            (ControllerMode.R_SLIDER, 'red_slider'),
-            (ControllerMode.G_SLIDER, 'green_slider'),
-            (ControllerMode.B_SLIDER, 'blue_slider'),
-        ],
-    )
-    def test_update_slider_indicator_uses_mode_slider(self, handler, editor, mode, slider_name):
-        """The indicator is placed on the slider matching the controller's mode."""
-        add_controller(editor=editor, controller_id=0, mode=mode)
-
-        handler.indicators._update_slider_indicator(controller_id=0, color=RED)
-
-        slider_rect = getattr(editor, slider_name).rect
-        assert handler.slider_indicators[0].rect.center == slider_rect.center
-
-    @pytest.mark.parametrize(
-        ('mode', 'slider_name'),
-        [
-            (ControllerMode.R_SLIDER, 'red_slider'),
-            (ControllerMode.G_SLIDER, 'green_slider'),
-            (ControllerMode.B_SLIDER, 'blue_slider'),
-        ],
-    )
-    def test_update_slider_indicator_without_slider(self, handler, editor, mode, slider_name):
-        """A slider mode whose slider is missing gets no indicator."""
-        add_controller(editor=editor, controller_id=0, mode=mode)
-        delattr(editor, slider_name)
-
-        handler.indicators._update_slider_indicator(controller_id=0, color=RED)
-
-        assert handler.slider_indicators == {}
-
-    def test_update_slider_indicator_replaces_old_one(self, handler, editor):
-        """Updating removes the old indicator sprite before adding the new one."""
-        add_controller(editor=editor, controller_id=0, mode=ControllerMode.B_SLIDER)
-        handler.indicators._update_slider_indicator(controller_id=0, color=RED)
-        old_indicator = handler.slider_indicators[0]
-
-        handler.indicators._update_slider_indicator(controller_id=0, color=RED)
-
-        assert handler.slider_indicators[0] is not old_indicator
-        assert old_indicator not in editor.all_sprites
-        assert len(editor.all_sprites) == 1
-
-    @pytest.mark.parametrize('mode', [ControllerMode.CANVAS, None])
-    def test_update_slider_indicator_outside_slider_mode(self, handler, editor, mode):
-        """A controller not in a slider mode gets no indicator."""
-        add_controller(editor=editor, controller_id=0, mode=mode)
-
-        handler.indicators._update_slider_indicator(controller_id=0, color=RED)
-
-        assert handler.slider_indicators == {}
-
-    def test_update_slider_indicator_without_mode_switcher(self, handler, editor):
-        """With no mode switcher no indicator is created."""
-        del editor.mode_switcher
-
-        handler.indicators._update_slider_indicator(controller_id=0, color=RED)
-
-        assert handler.slider_indicators == {}
-
     def test_remove_slider_indicator_without_sprite_group(self, handler, editor):
         """Removing still forgets the indicator when the editor has no sprite group."""
-        add_controller(editor=editor, controller_id=0, mode=ControllerMode.R_SLIDER)
-        handler.indicators._update_slider_indicator(controller_id=0, color=RED)
+        handler.slider_indicators[0] = handler.indicators._create_slider_indicator_sprite(
+            controller_id=0, color=RED, slider_rect=pygame.Rect(0, 0, 100, 20)
+        )
         del editor.all_sprites
 
         handler.indicators._remove_slider_indicator(controller_id=0)
@@ -829,74 +766,3 @@ class TestRegisterNewControllers:
         handler.indicators._register_new_controllers()
 
         assert editor.controller_selections == {}
-
-
-class TestDrawVisualIndicator:
-    """Test _draw_visual_indicator."""
-
-    @staticmethod
-    def make_indicator(shape: IndicatorShape, *, visible: bool = True) -> VisualIndicator:
-        """Build a size-10 indicator at (20, 20) offset by (5, 0).
-
-        Returns:
-            VisualIndicator: The indicator.
-
-        """
-        return VisualIndicator(
-            controller_id=0,
-            instance_id=0,
-            position=(20, 20),
-            color=RED,
-            shape=shape,
-            size=10,
-            location_type=LocationType.FILM_STRIP,
-            offset=(5, 0),
-            is_visible=visible,
-        )
-
-    @pytest.fixture
-    def screen(self) -> pygame.Surface:
-        """Build a black 50x50 surface.
-
-        Returns:
-            pygame.Surface: The surface.
-
-        """
-        return pygame.Surface((50, 50))
-
-    def test_triangle_points_up(self, handler, screen):
-        """A triangle is drawn wide at the bottom and narrow at the top."""
-        handler.indicators._draw_visual_indicator(
-            screen=screen, indicator=self.make_indicator(IndicatorShape.TRIANGLE)
-        )
-
-        assert screen.get_at((25, 22))[:3] == RED
-        assert screen.get_at((21, 24))[:3] == RED
-        assert screen.get_at((21, 16))[:3] == BLACK
-
-    def test_square_fills_its_box(self, handler, screen):
-        """A square fills its whole box, corners included."""
-        handler.indicators._draw_visual_indicator(
-            screen=screen, indicator=self.make_indicator(IndicatorShape.SQUARE)
-        )
-
-        assert screen.get_at((20, 15))[:3] == RED
-        assert screen.get_at((29, 24))[:3] == RED
-        assert screen.get_at((30, 25))[:3] == BLACK
-
-    def test_circle_leaves_corners_empty(self, handler, screen):
-        """A circle covers its center but not its bounding box's corners."""
-        handler.indicators._draw_visual_indicator(
-            screen=screen, indicator=self.make_indicator(IndicatorShape.CIRCLE)
-        )
-
-        assert screen.get_at((25, 20))[:3] == RED
-        assert screen.get_at((20, 15))[:3] == BLACK
-
-    def test_hidden_indicator_draws_nothing(self, handler, screen):
-        """A hidden indicator is not drawn."""
-        handler.indicators._draw_visual_indicator(
-            screen=screen, indicator=self.make_indicator(IndicatorShape.SQUARE, visible=False)
-        )
-
-        assert pygame.transform.average_color(screen)[:3] == BLACK

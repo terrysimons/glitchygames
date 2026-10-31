@@ -2891,6 +2891,19 @@ class TestSceneManagerConfigureActiveScene:
 
         assert pygame.display.get_caption() == ('MyGame', 'MyGame')
 
+    def test_set_display_caption_version_only(self, mocker):
+        """A scene with a VERSION but no NAME gets the version alone, with no leading space."""
+        manager = SceneManager()
+        scene = mocker.Mock()
+        scene.NAME = ''
+        scene.VERSION = '2.1'
+        manager.active_scene = scene
+
+        pygame.display.set_caption('before')
+        manager._set_display_caption()
+
+        assert pygame.display.get_caption() == ('v2.1', 'v2.1')
+
     def test_configure_scene_fps(self, mocker):
         """Test _configure_scene_fps sets target_fps on scene."""
         manager = SceneManager()

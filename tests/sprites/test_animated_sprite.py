@@ -2069,6 +2069,18 @@ class TestAnimatedSpriteDebugFrameInfo:
         sprite.frame_manager._current_frame = 99
         sprite._debug_frame_info([frame])
 
+    def test_debug_frame_info_logs_the_image_size(self, caplog):
+        """The frame dump logs the frame's image size (BUGS.md #178 item 20)."""
+        sprite = AnimatedSprite()
+        frame = SpriteFrame(pygame.Surface((3, 2)))
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+
+        with caplog.at_level(logging.DEBUG, logger=sprite.log.name):
+            sprite._debug_frame_info([frame])
+
+        assert 'image_size=(3, 2)' in caplog.text
+
     def test_debug_frame_info_with_pixels(self):
         """Test _debug_frame_info with frame that has pixel data."""
         sprite = AnimatedSprite()

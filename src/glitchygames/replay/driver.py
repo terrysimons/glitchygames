@@ -279,6 +279,7 @@ from glitchygames.recording import (
     EVENT_ORIGIN_FIELD,
     EVENT_TYPE_FIELD,
     EXTERNAL_ORIGIN,
+    GAME_HEADER_FIELD,
     INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
     PLAYBACK_ANSWERS_FIELD,
@@ -443,8 +444,6 @@ CONTROL_EVENTS_FORMAT_VERSION = 3
 # Header fields the replay reads
 GAME_CLASS_HEADER_FIELD = 'game_class'
 GAME_MODULE_HEADER_FIELD = 'game_module'
-# The game class's logical name (glitchygames/logical_names.py), which replays compare
-GAME_HEADER_FIELD = 'game'
 # The module name of a file run as a script (python paddleslap.py)
 SCRIPT_MODULE_NAME = '__main__'
 RANDOM_SEED_HEADER_FIELD = 'random_seed'

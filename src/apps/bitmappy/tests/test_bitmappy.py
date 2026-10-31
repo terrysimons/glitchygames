@@ -1,7 +1,6 @@
 """Tests for bitmappy tool functionality and coverage."""
 
 import logging
-import os
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,7 +15,6 @@ from bitmappy.ai_worker import (
     _create_ollama_config,
     _get_provider_timeout_value,
     _initialize_ai_client,
-    _set_ollama_env_timeout,
     run_ai_worker,
 )
 from bitmappy.alpha import parse_toml_sprite_data
@@ -739,56 +737,6 @@ class TestCheckOllamaModelStatus:
 
 
 # ---------------------------------------------------------------------------
-# TestSetOllamaEnvTimeout
-# ---------------------------------------------------------------------------
-
-
-class TestSetOllamaEnvTimeout:
-    """Tests for _set_ollama_env_timeout function."""
-
-    def test_non_ollama_model_no_env_set(self, mock_logger, mocker):
-        """Non-ollama model does not set environment variable."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'anthropic:claude-sonnet-4-5'
-        _set_ollama_env_timeout(mock_logger)
-        # Should not set OLLAMA_TIMEOUT for non-ollama models
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_model_sets_env(self, mock_logger, mocker):
-        """Ollama model sets OLLAMA_TIMEOUT environment variable."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        mocker.patch(
-            'bitmappy.ai_worker._check_ollama_model_status',
-            return_value={'downloaded': True, 'reason': 'already_downloaded'},
-        )
-        _set_ollama_env_timeout(mock_logger)
-        assert 'OLLAMA_TIMEOUT' in os.environ
-        # Clean up
-        del os.environ['OLLAMA_TIMEOUT']
-        ai_worker_module.AI_MODEL = original
-
-    def test_ollama_model_not_downloaded_uses_longer_timeout(self, mock_logger, mocker):
-        """Ollama model needing download uses longer timeout."""
-        import bitmappy.ai_worker as ai_worker_module
-
-        original = ai_worker_module.AI_MODEL
-        ai_worker_module.AI_MODEL = 'ollama:testmodel'
-        mocker.patch(
-            'bitmappy.ai_worker._check_ollama_model_status',
-            return_value={'downloaded': False, 'reason': 'needs_download'},
-        )
-        _set_ollama_env_timeout(mock_logger)
-        assert os.environ.get('OLLAMA_TIMEOUT') == str(ai_worker_module.AI_MODEL_DOWNLOAD_TIMEOUT)
-        del os.environ['OLLAMA_TIMEOUT']
-        ai_worker_module.AI_MODEL = original
-
-
-# ---------------------------------------------------------------------------
 # TestCreateOllamaConfig
 # ---------------------------------------------------------------------------
 
@@ -909,11 +857,6 @@ def _real_client_provider_configs(log: logging.Logger) -> dict[str, dict[str, ob
 class TestProviderConfigTimeouts:
     """The real aisuite Client gets each provider's timeout in its provider configuration."""
 
-    @pytest.fixture(autouse=True)
-    def restore_the_environment(self, mocker):
-        """Keep the OLLAMA_TIMEOUT that _initialize_ai_client sets for ollama out of later tests."""
-        mocker.patch.dict(os.environ)
-
     def test_hosted_model_configures_only_the_anthropic_timeout(self, mock_logger, mocker):
         """With a hosted model, Anthropic gets the AI timeout and no ollama provider is set up."""
         mocker.patch('bitmappy.ai_worker.AI_MODEL', 'anthropic:claude-sonnet-4-5')
@@ -992,7 +935,6 @@ class TestInitializeAiClient:
         mock_client = mocker.MagicMock()
         mock_ai.Client.return_value = mock_client
         mocker.patch('bitmappy.ai_worker.ai', mock_ai)
-        mocker.patch('bitmappy.ai_worker._set_ollama_env_timeout')
         mocker.patch(
             'bitmappy.ai_worker._create_ollama_config',
             return_value={},
@@ -1006,7 +948,6 @@ class TestInitializeAiClient:
         mock_client = mocker.MagicMock()
         mock_ai.Client.return_value = mock_client
         mocker.patch('bitmappy.ai_worker.ai', mock_ai)
-        mocker.patch('bitmappy.ai_worker._set_ollama_env_timeout')
         provider_config = {'ollama': {'timeout': 600}}
         mocker.patch(
             'bitmappy.ai_worker._create_ollama_config',
@@ -1029,7 +970,6 @@ class TestInitializeAiClient:
         """
         mock_ai = mocker.MagicMock()
         mocker.patch('bitmappy.ai_worker.ai', mock_ai)
-        mocker.patch('bitmappy.ai_worker._set_ollama_env_timeout')
         mocker.patch(
             'bitmappy.ai_worker._create_ollama_config',
             return_value={},

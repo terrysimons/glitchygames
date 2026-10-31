@@ -204,6 +204,19 @@ def test_a_code_commit_is_measured_and_its_rows_staged_with_it(mocker, repositor
     }
 
 
+def test_a_row_file_written_now_is_staged_once(mocker, repository):
+    """A file just written is also one of the tree's row files: git add is given it once."""
+    stand_in_measurement(mocker, repository=repository)
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 4\n')
+    stage = mocker.spy(measure_staged_replays, '_stage')
+
+    assert run_hook(repository=repository) == ExitCode.SUCCESS
+
+    staged_paths = stage.call_args.kwargs['paths']
+    assert len(staged_paths) == MEASURED_RECORDING_COUNT
+    assert len(set(staged_paths)) == len(staged_paths)
+
+
 def test_history_rows_the_measurement_wrote_are_staged_with_the_commit(mocker, repository):
     """A run a recording held, written as a history row file, joins the commit too."""
     stand_in_measurement(mocker, repository=repository, history_recording='older/run.jsonl.gz')
@@ -354,7 +367,7 @@ def test_the_hook_is_configured_to_run_before_each_commit():
     )
 
     assert 'id: replay-metrics' in configuration
-    assert 'python -m scripts.measure_staged_replays' in configuration
+    assert 'entry: uv run --locked python -m scripts.measure_staged_replays' in configuration
     assert 'stages: [pre-commit]' in configuration
 
 

@@ -596,6 +596,24 @@ class TestDialogSceneSetupCleanupDismiss:
         assert 'Got text input from: TestInput: test value' in caplog.text
         assert scene.next_scene is None
 
+    def test_an_input_box_whose_parent_is_the_scene_reaches_it(self, previous_scene, caplog):
+        """The box's own submit reaches the scene's handler (BUGS.md #178 item 12).
+
+        The box called its parent with event=, and the scene's handler takes control: TypeError.
+        """
+        scene = InputConfirmationDialogScene(
+            previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty()
+        )
+        input_box = scene.dialog.input_box
+        input_box.name = 'TestInput'
+        input_box.text = 'test value'
+        input_box.parent = scene
+
+        with caplog.at_level(logging.INFO, logger='game.ui.dialogs'):
+            input_box.on_input_box_submit_event(input_box)
+
+        assert 'Got text input from: TestInput: test value' in caplog.text
+
     def test_input_confirmation_dialog_mouse_button_up(self, previous_scene):
         """Test InputConfirmationDialogScene on_mouse_button_up_event activates input."""
         scene = InputConfirmationDialogScene(
@@ -1792,7 +1810,7 @@ class TestInputDialogInputBoxSubmitEvent:
         input_box.name = 'test_input'
         input_box.text = 'hello world'
 
-        scene.dialog.on_input_box_submit_event(event=input_box)
+        scene.dialog.on_input_box_submit_event(control=input_box)
 
         assert previous_scene.canvas.loaded_paths == ['hello world']
         assert scene.next_scene is previous_scene

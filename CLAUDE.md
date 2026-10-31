@@ -1104,11 +1104,13 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   their scenes (the tests' `COUNTER_SLOT` only tests the class)
 - `with context.active():` switches (a `contextvars.ContextVar`: per thread and asyncio task;
   nests; restores on exceptions). Slots today: the default snap mode, the default background,
-  the polled input, the random streams, the doors with the frame clock and observers, and the
-  `SceneManager` singleton; each has an isolation check in `tests/test_engine_context.py`
+  the polled input, the random streams, the game-frame clock, the doors with the frame clock
+  and observers, and the `SceneManager` singleton (the table in
+  `docs/architecture/engine_context.md` lists each one's functions); each has an isolation check in `tests/test_engine_context.py`
   (`ISOLATION_CHECKS`), and a slot without one fails the suite
 - The harness fails a test that leaves another context current
-  (`every_test_ends_in_the_default_engine_context`). A new autouse fixture that resets engine
+  (`every_test_ends_in_the_default_engine_context`): a switch entered by hand and still held. A
+  switch abandoned unexited unwinds itself when collected and is not reported. A new autouse fixture that resets engine
   state must join a group (`per_context_state_resets` or `engine_service_resets` in
   `tests/harness.py`) that the leak check requests, or be listed in
   `PROCESS_STATE_AUTOUSE_FIXTURES` (`tests/test_engine_context.py`) with its reason; a guard

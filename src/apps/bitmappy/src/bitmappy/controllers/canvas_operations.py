@@ -467,7 +467,8 @@ class CanvasOperations:
         # in continuous movement)
         if (
             old_position != new_position
-            and not getattr(self.handler, 'applying_undo_redo', False)
+            # The editor's flag, not the handler's, which nothing sets (BUGS.md #178 item 22)
+            and not getattr(self.handler.editor, 'applying_undo_redo', False)
             and not self._is_controller_in_continuous_movement(controller_id)
             and hasattr(self.handler.editor, 'controller_position_operation_tracker')
         ):
