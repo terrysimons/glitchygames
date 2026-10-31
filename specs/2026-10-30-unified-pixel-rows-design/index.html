@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/specs/2026-10-30-unified-pixel-rows-design/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>One Rule for Sprite Pixel Rows - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "One Rule for Sprite Pixel Rows";
+        var mkdocs_page_input_path = "specs/2026-10-30-unified-pixel-rows-design.md";
+        var mkdocs_page_url = "/glitchygames/specs/2026-10-30-unified-pixel-rows-design/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="https://terrysimons.github.io/glitchygames/play/">Play in the Browser</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/game_packages/">Games as Their Own Packages</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/drawing_fire/">Drawing Fire Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Playback</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/">Gameplay Playback</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/how-a-frame-runs/">How a Frame Runs</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/speeds-and-timing/">Speeds and Timing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/recording-file/">The Recording File</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../architecture/playback/testing/">How We Test Playback</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/engine_context/">Engine Context</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/upstream_issues/">Upstream Issues</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Designs</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../2026-10-29-sprite-quicklook-design/">Sprite QuickLook for macOS</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">One Rule for Sprite Pixel Rows</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/effects/">glitchygames.effects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/input/">glitchygames.input</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/state/">glitchygames.state</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/transitions/">glitchygames.transitions</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Games API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Apps API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+          <li class="breadcrumb-item">Designs</li>
+      <li class="breadcrumb-item active">One Rule for Sprite Pixel Rows</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/specs/2026-10-30-unified-pixel-rows-design.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../2026-10-29-sprite-quicklook-design/" class="btn btn-neutral float-left" title="Sprite QuickLook for macOS"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../glitchygames/" class="btn btn-neutral float-right" title="glitchygames API Reference">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="one-rule-for-sprite-pixel-rows-design">One rule for sprite pixel rows — Design<a class="headerlink" href="#one-rule-for-sprite-pixel-rows-design" title="Permanent link">#</a></h1>
+<ul>
+<li><strong>Date:</strong> 2026-10-30</li>
+<li><strong>Status:</strong> BUILT on <code>feat/unified-pixel-rows</code> (2026-10-30), from
+  <code>plans/2026-10-30-unified-pixel-rows-implementation.md</code>. Was: DESIGN, approved (the owner, 2026-10-30: "Go for it"; the builder check's open
+  questions were settled the same day, "You go ahead and patch it").</li>
+<li><strong>Branch:</strong> <code>feat/unified-pixel-rows</code>, on its own (the owner, 2026-10-29). Replaces the row in
+  <code>plans/future-work.md</code> that tracks the two rules.</li>
+</ul>
+<h2 id="intent">Intent<a class="headerlink" href="#intent" title="Permanent link">#</a></h2>
+<p>A sprite's <code>pixels = """…"""</code> block is text, one glyph per pixel and one line per row. Whatever
+the text gets wrong (a short row, a stray space, a blank line), the engine has to turn it into a
+rectangle. Today it does that two different ways, and both of them can change the art without
+telling anyone:</p>
+<ul>
+<li><strong>Static sprites</strong> (<code>AnimatedSprite._convert_static_sprite</code>, <code>src/glitchygames/sprites/animated.py</code>)
+  strip the whole block, widen every row to the longest one, and fill with the most common glyph
+  in the sprite. That glyph is usually a color, so a short row gets solid pixels the author never
+  drew.</li>
+<li><strong>Animated frames</strong> (<code>parse_toml_pixel_lines</code> and <code>_validate_toml_frame_dimensions</code>) strip every
+  line, drop blank lines, take the most common row length as the width, <strong>cut longer rows off</strong>,
+  and pad shorter ones with their own last glyph. Cutting deletes art: a sword drawn
+  <code>x / xxxx / x / x</code> loads as four single <code>x</code> rows, and adding one more short row to <code>abcd / ab</code>
+  cuts <code>cd</code> off the first row.</li>
+</ul>
+<p>Bitmappy saves what it loaded, so whatever the repair did is written back into the file.</p>
+<p>The goal is <strong>one rule, used everywhere, that never removes a pixel the author wrote, and that
+says so whenever it had to repair something.</strong></p>
+<h2 id="goals">Goals<a class="headerlink" href="#goals" title="Permanent link">#</a></h2>
+<ol>
+<li>One function decides the rows of every pixel block: static sprites and animation frames, in
+   the engine, Bitmappy, the AI path, the repo's sprite checks and scripts, and the QuickLook
+   preview (which copies the engine).</li>
+<li><strong>Nothing is ever cut off.</strong> A repair only adds transparent pixels.</li>
+<li><strong>Repairs are reported.</strong> One log line per repaired block; a strict mode raises instead; the
+   repo's sprite checks run strict.</li>
+<li>Bitmappy tells the person editing when a file it loaded had to be repaired, so that saving
+   writes the repaired grid on purpose.</li>
+<li>The AI path rejects a generated sprite whose rows needed repair, the same way it rejects
+   other invalid responses.</li>
+<li>Saving can't corrupt rows: glyphs that TOML treats specially are escaped.</li>
+</ol>
+<h2 id="non-goals">Non-goals<a class="headerlink" href="#non-goals" title="Permanent link">#</a></h2>
+<ul>
+<li>Guessing where a short row's missing pixels belong (lining it up with its neighbors, or
+  repeating a glyph). The adversarial review (below) measured this: it rescues some AI mistakes
+  and invents pixels in others. The rule adds transparent pixels at the end of the row, nothing
+  else.</li>
+<li>Changing any art in the repo. Measured on the branch base (1e42b124): of 98 sprite files and
+  377 pixel blocks, the new rule draws exactly the same picture as today for all but the four
+  hand-written ragged test fixtures under <code>src/quicklook/</code> (repo sprites already pass
+  <code>check_rows_have_equal_lengths</code>).</li>
+<li>The Bitmappy <code>\n</code> corruption in <code>_normalize_escaped_newlines</code> (<code>toml_processing.py</code>): a <code>\</code>
+  glyph followed by an <code>n</code> glyph becomes a line break. Its own later branch (see "Bugs found").</li>
+<li>The full sprite linter (<code>plans/future-features.md</code> #28). This branch provides its core check.</li>
+</ul>
+<h2 id="anti-goals">Anti-goals<a class="headerlink" href="#anti-goals" title="Permanent link">#</a></h2>
+<ul>
+<li>Any repair that removes or recolors a pixel the author wrote.</li>
+<li>Any repair nobody hears about.</li>
+<li>QuickLook drawing something different from the game.</li>
+</ul>
+<h2 id="the-rule">The rule<a class="headerlink" href="#the-rule" title="Permanent link">#</a></h2>
+<p>Every pixel block, static or animated, goes through these steps. Lengths are counted in Unicode
+code points (what Python's <code>str</code> counts; Swift's <code>unicodeScalars</code>), never in grapheme clusters.</p>
+<ol>
+<li><strong>Split</strong> the text on U+000A only.</li>
+<li><strong>Trim the end of each line</strong>: remove trailing U+0020 (space), U+0009 (tab) and U+000D
+   (carriage return, so Windows line endings work).</li>
+<li><strong>Drop blank lines at the top and bottom.</strong> A blank line between rows stays.</li>
+<li><strong>Remove shared indentation</strong>: the longest run of leading spaces and tabs that every
+   non-blank line starts with, character for character. Indentation that only some lines have
+   stays, and draws as transparent pixels (a space is never a palette glyph today). This keeps
+   indented TOML working without moving art, and keeps a pyramid that uses leading spaces as
+   its transparent pixels a pyramid.</li>
+<li><strong>Make it a rectangle</strong>: the width is the longest row. Shorter rows are padded at the end with
+   transparent pixels, and a blank line between rows becomes a row of transparent pixels.</li>
+</ol>
+<p>Accepted costs (the owner agreed, 2026-10-30): one accidentally long row widens the whole frame
+by a pixel; a short row in a solid tile shows a see-through notch instead of a guessed fill.
+Both are reported, and neither destroys anything.</p>
+<p><strong>Transparent padding</strong> is the engine's transparency key, magenta (255, 0, 255), the color the
+engine already draws for a glyph that has no palette entry. On save, the writer finds the
+palette's magenta glyph, or adds one if there isn't one (checked on the branch base). <em>My call,</em>
+revised while planning: an earlier draft preferred the palette's own transparent glyph, but
+QuickLook reads the palette as an unordered dictionary, so it couldn't pick the same "first"
+glyph. Magenta is one answer that both sides give. A padded pixel is U+0000 in the returned rows
+(<code>PADDING_GLYPH</code>); a palette that defines U+0000 is reported as a bad palette key.</p>
+<h3 id="what-counts-as-a-repair">What counts as a repair<a class="headerlink" href="#what-counts-as-a-repair" title="Permanent link">#</a></h3>
+<p>Steps 2–4 tidy text; they never change the picture, so they are not reported. These change or
+might change the picture, and are reported (and raise in strict mode):</p>
+<ul>
+<li>rows of different widths (step 5 padded something), naming each width found;</li>
+<li>a blank line between rows;</li>
+<li>a glyph that isn't in the palette (it draws transparent, which is probably not what the
+  author meant; the report names the glyphs). <em>My call:</em> a space is the exception. It is the
+  format's "no pixel here" glyph (step 4 relies on it), so it is never reported;</li>
+<li>for the width report, a row counts as short only if it is still shorter than the width when
+  its trimmed trailing spaces and tabs are counted back in. <em>My call:</em> a pyramid padded with
+  spaces on both sides is not reported, but a row that really is missing pixels is.</li>
+<li>a palette key that isn't exactly one code point (e.g. <code>"❤️"</code> is two: U+2764 and U+FE0F). It
+  can never match a pixel, because pixels are single code points.</li>
+</ul>
+<p>Animation frames of different sizes are logged at debug level only: they are legal.</p>
+<h3 id="strict-mode">Strict mode<a class="headerlink" href="#strict-mode" title="Permanent link">#</a></h3>
+<p>The function takes <code>strict: bool</code>. Strict raises one <code>ValueError</code> listing every repair in the
+block. Loading a sprite is not strict (old and AI-made files must still open). Strict is used
+by:</p>
+<ul>
+<li><code>check_rows_have_equal_lengths</code> in <code>src/glitchygames/testing/sprite_files.py</code>, which the
+  workspace sprite test runs on every repo sprite. <em>My call:</em> it keeps running on every pixel
+  block, now through the shared function in strict mode, so it also catches blank interior
+  lines, missing glyphs and bad palette keys. Renaming it is the builder's call.</li>
+<li>the AI path (Goal 5).</li>
+</ul>
+<h2 id="before-and-after-what-each-layer-draws">Before and after: what each layer draws<a class="headerlink" href="#before-and-after-what-each-layer-draws" title="Permanent link">#</a></h2>
+<p>The record for "what changed", so a later breakage can be traced to the rule. The two old
+columns were drawn by the engine itself on the branch base (1e42b124), loading each case as a
+static sprite and as a one-frame animation and reading the pixels back as glyphs. <code>·</code> is a
+transparent pixel. Rows are separated by <code>/</code>. The new column is the rule above, and Task 2 of the
+plan pins every row of it with a test (<code>test_before_and_after_table</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Case (pixel text)</th>
+<th>Old static (<code>_convert_static_sprite</code>)</th>
+<th>Old animated (<code>parse_toml_pixel_lines</code> + <code>_validate_toml_frame_dimensions</code>)</th>
+<th>New (both)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sword <code>x / xxxx / x / x</code></td>
+<td><code>xxxx / xxxx / xxxx / xxxx</code> (filled with the most common glyph)</td>
+<td><code>x / x / x / x</code> (crossguard cut)</td>
+<td><code>x··· / xxxx / x··· / x···</code></td>
+</tr>
+<tr>
+<td>one long row <code>abcd / ab / ab</code></td>
+<td><code>abcd / abaa / abaa</code></td>
+<td><code>ab / ab / ab</code> (<code>cd</code> cut)</td>
+<td><code>abcd / ab·· / ab··</code></td>
+</tr>
+<tr>
+<td>short row in a tile <code>xxxx / xxx / xxxx</code></td>
+<td><code>xxxx / xxxx / xxxx</code></td>
+<td><code>xxxx / xxxx / xxxx</code></td>
+<td><code>xxxx / xxx· / xxxx</code> (notch, reported)</td>
+</tr>
+<tr>
+<td>blank line between rows <code>ab /  / ab</code></td>
+<td><code>ab / aa / ab</code></td>
+<td><code>ab / ab</code> (row dropped)</td>
+<td><code>ab / ·· / ab</code></td>
+</tr>
+<tr>
+<td>one indented row <code>␣␣ab / ab / ab</code></td>
+<td><code>ab / ab / ab</code> (whole-block strip)</td>
+<td><code>ab / ab / ab</code> (per-line strip)</td>
+<td><code>··ab / ab·· / ab··</code> (indent kept, reported)</td>
+</tr>
+<tr>
+<td>space pyramid <code>␣␣x / ␣xxx / xxxxx</code></td>
+<td><code>xxxxx / ·xxxx / xxxxx</code></td>
+<td><code>x / x / x</code></td>
+<td><code>··x·· / ·xxx· / xxxxx</code></td>
+</tr>
+<tr>
+<td>tie in widths <code>ab / abc</code></td>
+<td><code>aba / abc</code></td>
+<td><code>ab / ab</code> (tie goes to the first width)</td>
+<td><code>ab· / abc</code></td>
+</tr>
+</tbody>
+</table>
+<p>Read across a row to see which layer changed and how. Two of the old static results surprised
+the review: the whole-block strip also removes the <em>first row's</em> indentation, and filling with the
+most common glyph turns a short sword into a solid block.</p>
+<p>Other records of the old behavior: the QuickLook golden frames at 1e42b124
+(<code>src/quicklook/Tests/SpriteCoreTests/Golden/ragged-*.json</code>, and the R4 and R5 rules in
+<code>docs/specs/2026-10-29-sprite-quicklook-design.md</code>), and the old tests that the plan rewrites,
+in git history. Each plan task is its own commit, so <code>git bisect</code> across the branch names the
+task that broke something.</p>
+<h2 id="where-it-lives">Where it lives<a class="headerlink" href="#where-it-lives" title="Permanent link">#</a></h2>
+<ul>
+<li><strong>Engine:</strong> one public function in <code>src/glitchygames/sprites/pixel_utils.py</code>, taking the pixel
+  text, the palette and <code>strict</code>, returning the rows, their width and height, and the list of
+  repairs. <em>Builder's call</em> on names and the result type, following the module's style.
+  <code>_convert_static_sprite</code> and <code>_create_toml_frame</code> both use it.
+  <code>parse_toml_pixel_lines</code> and <code>_validate_toml_frame_dimensions</code> go away; their other callers
+  (<code>sprite_files.py</code>, <code>scripts/audit_hitboxes.py</code>) switch to it. <code>colorize_pixels</code> in
+  <code>src/glitchygames/tools/ascii_renderer.py</code> (a third copy: whole-block strip, no repair) uses it
+  for its rows. <em>My call</em> on two more copies the builder check found:
+  <code>BitmappySprite._parse_static_toml_data</code> (<code>src/glitchygames/sprites/bitmappy_sprite.py</code>, the
+  fallback loader that <code>_inflate_toml</code> also uses: it strips each line, drops blank lines, and
+  takes the width from the first row) draws in the game, so it uses the function too.
+  <code>_extract_example_size</code> (<code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code>) sizes the AI prompt's
+  examples, so it uses it too. Out of scope: the legacy ConfigParser loader
+  <code>scripts/sprite_loader.py</code>.</li>
+<li><strong>Reporting:</strong> one <code>warning</code> per repaired block, naming the file, the animation and frame (or
+  "sprite" for a static one) and each repair. The loaded sprite keeps the list of repairs so
+  that Bitmappy (and tests) can read it. <em>Builder's call</em> on the attribute name.</li>
+<li><strong>Bitmappy:</strong> after a load that had repairs, the load message (<code>_show_load_message</code> in
+  <code>src/apps/bitmappy/src/bitmappy/animated_canvas.py</code>, the editor's debug text box) says how many
+  blocks were repaired, that the log has the details, and that saving writes the repaired grid.
+  <em>My call</em> on that wording and place; the owner can change it.</li>
+<li><strong>AI path:</strong> a strict row check, worded so that <code>build_retry_prompt</code>
+  (<code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code>) can match it, plus a new correction text in
+  <code>build_retry_prompt</code> telling the model every row must be the same width. There are two AI
+  paths:</li>
+<li><code>SpriteGenerationService._validate_and_build_result</code> (no retries) calls
+    <code>validate_ai_response</code> (<code>src/glitchygames/ai/sprite_generator.py</code>). That function gains the
+    check on the cleaned response.</li>
+<li>Bitmappy's <code>ai_manager.py</code> retries a failed check up to <code>AI_VALIDATION_MAX_RETRIES</code> (2)
+    times. <em>My call:</em> there the check runs on the text Bitmappy actually loads, after its own
+    clean-up (<code>normalize_toml_data</code>), so the rows checked are the rows drawn.</li>
+</ul>
+<p>When Bitmappy's retries run out and the last response still needed repair, it is loaded
+  repaired, with the Bitmappy repair notice, instead of being discarded (the owner, 2026-10-30:
+  "2. Yes" to my recommendation). Every other validation failure still
+  ends with "the sprite was not loaded".</p>
+<p><em>My call:</em> a response that doesn't parse as TOML skips the row check, so this check adds no
+  new rejections. The existing checks and the loader handle it as they do today.
+- <strong>Writers:</strong> every place that writes pixel rows into TOML escapes each row the way
+  <code>toml_multiline_basic_string</code> does (<code>\</code>, <code>"</code> and control characters). Today a row ending in a
+  <code>\</code> glyph joins the next row (TOML's line continuation), <code>a\bc</code> loads as a backspace, and
+  <code>a\a</code> won't load. The writers are:
+  - both writers in <code>animated.py</code> (the static writer and <code>_write_toml_animations</code>);
+  - Bitmappy's AI rewrite (<code>ai_manager._construct_toml_with_preserved_formatting</code> and
+    <code>_format_animation_sections</code>), which feeds the loader;
+  - the prompt examples in <code>sprite_generator.py</code> (around lines 215 and 282);</p>
+<p><code>ascii_renderer.py</code>'s output isn't on the list. It is a colorized terminal view with ANSI
+  codes, and nothing reads it back as TOML (my call, while planning).</p>
+<p>The PNG import (<code>toml_processing.py</code>) can't produce either glyph (<code>SPRITE_GLYPHS</code>), so it gets
+  a test that pins that rather than a change.
+- <strong>QuickLook:</strong> <code>src/quicklook/Sources/SpriteCore/PixelRows.swift</code>'s two functions become one
+  that follows the rule, used for static and animated blocks alike. QuickLook doesn't report or
+  go strict: it draws what the game draws. Its golden frames are regenerated from the engine with
+  <code>src/quicklook/tools/dump_engine_frames.py</code>, and new golden fixtures cover: a long row, a short
+  row, a blank interior line, shared and unshared indentation, CRLF, a <code>\</code> and a <code>"</code> glyph, a
+  combining mark, and a VS16 emoji (each code point its own pixel).</p>
+<h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
+<p>TDD throughout. Every repair kind, and every step of the rule, gets an engine test, including
+the two examples above (the sword keeps its crossguard; <code>abcd</code> keeps <code>cd</code>). Existing tests that
+pin today's behavior (<code>tests/sprites/test_animated_sprite.py</code>, e.g.
+<code>TestConvertStaticSpriteInconsistentWidths</code>, and the <code>Inconsistent line lengths</code> log test) are
+rewritten for the new rule, not deleted. Round-trip tests save and reload sprites with <code>\</code> and
+<code>"</code> glyphs. The Swift goldens prove engine and preview agree.</p>
+<h2 id="bugs-found-to-report-in-bugsmd">Bugs found (to report in <code>BUGS.md</code>)<a class="headerlink" href="#bugs-found-to-report-in-bugsmd" title="Permanent link">#</a></h2>
+<ol>
+<li>Writer doesn't escape pixel rows (fixed here, Goal 6).</li>
+<li><code>validate_ai_response</code> never checks row widths (fixed here, Goal 5).</li>
+<li><code>_normalize_escaped_newlines</code> turns a <code>\</code> glyph followed by an <code>n</code> glyph into a newline
+   (<code>toml_processing.py</code>; used by Bitmappy's AI manager and alpha path). Separate branch.</li>
+<li><code>cobra.toml</code> (<code>src/games/brave-adventurer/src/brave_adventurer_papyrus/sprites/</code>) uses glyph
+   <code>e</code> in 7 rows, but its palette has no <code>e</code>, so the cobra's second eye draws transparent. Strict
+   mode fails on it. Fixed on this branch (the owner, 2026-10-30: "You go ahead and patch it").
+   <em>My call:</em> <code>e</code> = (180, 30, 30). It follows the palette's own convention, where a lowercase
+   glyph is a darker shade of its capital (<code>g</code> is <code>G</code> minus 20 per channel), so <code>e</code> is <code>E</code>
+   (200, 50, 50) minus 20.</li>
+<li>
+<p><code>scripts/foo.toml</code> has pixels and no palette at all; strict mode fails on it too. The owner
+   decides whether it's kept.</p>
+</li>
+<li>
+<p>Bitmappy's AI rewrite (<code>ai_manager._construct_toml_with_preserved_formatting</code>) writes each
+   color's red, green and blue but drops <code>alpha</code>, so a generated sprite with see-through colors
+   loads opaque. It also writes <code>name</code> and <code>description</code> unescaped (<code>description = """{…}"""</code>),
+   so a prompt containing <code>\</code> or <code>"""</code> breaks the file. Found while planning; fixed on this
+   branch with the writer escaping (fixups as we go), since it is the same function.</p>
+</li>
+</ol>
+<h2 id="prior-work">Prior work<a class="headerlink" href="#prior-work" title="Permanent link">#</a></h2>
+<ul>
+<li>The adversarial review (2026-10-30, three reviewers: AI failure modes, the format contract,
+  and an adversary), verified by reproduction on the branch base. It measured the alternatives
+  over 1,723 frames with injected AI errors, and argued the final shape of the rule above.</li>
+<li><code>docs/specs/2026-10-29-sprite-quicklook-design.md</code> documents today's two rules (its R4 and
+  R5); update it to point here.</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../2026-10-29-sprite-quicklook-design/" class="btn btn-neutral float-left" title="Sprite QuickLook for macOS"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../glitchygames/" class="btn btn-neutral float-right" title="glitchygames API Reference">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../2026-10-29-sprite-quicklook-design/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../glitchygames/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

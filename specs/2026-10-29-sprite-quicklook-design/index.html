@@ -109,6 +109,8 @@
                 </li>
                 <li class="toctree-l2 current"><a class="reference internal current" href="#">Sprite QuickLook for macOS</a>
                 </li>
+                <li class="toctree-l2"><a class="reference internal" href="../2026-10-30-unified-pixel-rows-design/">One Rule for Sprite Pixel Rows</a>
+                </li>
     </ul>
                   </li>
               </ul>
@@ -219,7 +221,7 @@
   </ul>
     <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
         <a href="../2026-10-27-glitchy-games-website-design/" class="btn btn-neutral float-left" title="glitchy.games Website on AWS"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
-        <a href="../../glitchygames/" class="btn btn-neutral float-right" title="glitchygames API Reference">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+        <a href="../2026-10-30-unified-pixel-rows-design/" class="btn btn-neutral float-right" title="One Rule for Sprite Pixel Rows">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
     </div>
   <hr/>
 </div>
@@ -317,13 +319,12 @@ code point; Swift must iterate <code>unicodeScalars</code> to match (e.g. <code>
 <p><strong>Transparency</strong> (<code>is_color_transparent</code>): a pixel is transparent when its color is magenta
 <code>(255, 0, 255)</code> with no alpha or alpha 255, or when its alpha is 0. Glyphs missing from <code>[colors]</code>
 render as magenta, i.e. transparent.</p>
-<p><strong>Pixel rows</strong> (animated frames, <code>parse_toml_pixel_lines</code>): split on <code>\n</code>, strip each line, drop
-empty lines. Width is the most common line length; longer lines are truncated, shorter ones padded
-with their own last glyph.</p>
-<p><strong>Pixel rows</strong> (static sprite, <code>_convert_static_sprite</code>): the whole string is stripped, then split on
-<code>\n</code> (lines are <em>not</em> individually stripped). Width is the longest row; shorter rows are padded with
-the most common glyph in the sprite. (This differs from the animated path — see "Engine quirks
-noticed".)</p>
+<p><strong>Pixel rows</strong> (static sprites and animation frames alike, <code>normalize_pixel_rows</code>): one rule since
+2026-10-30, described in <code>docs/specs/2026-10-30-unified-pixel-rows-design.md</code>. Nothing is cut off;
+short rows are padded with transparent pixels to the longest. That design's "Before and after"
+table records the two rules this preview first copied (R4, animated: per-line strip, most common
+length, truncate, pad with the row's last glyph; R5, static: whole-string strip, longest row, pad
+with the most common glyph).</p>
 <p><strong>Animations</strong>: each <code>[[animation]]</code> has <code>namespace</code> (default <code>"default"</code>), <code>frame_interval</code>
 (seconds, default 0.5), <code>loop</code> (default true), and <code>frame</code> entries. Frames play in <strong>file order</strong>: the engine means to sort by <code>frame_index</code>, but its sort
 key is never set, so it changes nothing (found by the golden tests while building, 2026-10-29;
@@ -387,10 +388,11 @@ its last frame.</p>
   play in file order. The preview copies that; tracked in <code>plans/future-work.md</code>.</p>
 </li>
 <li>
-<p>Static and animated sprites normalize ragged rows differently (longest row + most-common-glyph
+<p><del>Static and animated sprites normalize ragged rows differently (longest row + most-common-glyph
   pad vs most-common length + last-glyph pad + truncation), and static rows are not stripped per
   line. The preview copies both behaviors so it matches the engine. The owner wants the engine
-  unified later, on its own branch. That is tracked in <code>plans/future-work.md</code> under "Bugs found and
+  unified later, on its own branch.</del> Done 2026-10-30 (<code>feat/unified-pixel-rows</code>,
+  <code>docs/specs/2026-10-30-unified-pixel-rows-design.md</code>); the preview follows the one rule. That is tracked in <code>plans/future-work.md</code> under "Bugs found and
   not fixed yet"; when it lands, the QuickLook parser and its golden frames change with it.</p>
 </li>
 </ul>
@@ -430,7 +432,7 @@ its last frame.</p>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
         <a href="../2026-10-27-glitchy-games-website-design/" class="btn btn-neutral float-left" title="glitchy.games Website on AWS"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../../glitchygames/" class="btn btn-neutral float-right" title="glitchygames API Reference">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../2026-10-30-unified-pixel-rows-design/" class="btn btn-neutral float-right" title="One Rule for Sprite Pixel Rows">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -460,7 +462,7 @@ its last frame.</p>
       <span><a href="../2026-10-27-glitchy-games-website-design/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../../glitchygames/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../2026-10-30-unified-pixel-rows-design/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>
