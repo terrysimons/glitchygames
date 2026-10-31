@@ -29,6 +29,7 @@ from glitchygames.replay.viewer import (
 from glitchygames.tracing import FRAMES_FIELD, read_trace_result, write_trace
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 # A recording made at the engine's default target, 60.01 FPS: a hair off the 60 Hz viewer tick
@@ -76,6 +77,41 @@ class FakeTime:
         self.now += seconds + self._random.uniform(0.0, self._lateness_seconds)
 
 
+# The most inner frames a test lets one tick run: far above any tick's frames in these tests (50
+# for a 3000 FPS recording at 1x), so a rule that never closes a tick fails at once instead of
+# hanging the suite
+MOST_INNER_FRAMES_A_TEST_TICK_RUNS = 10_000
+
+
+def run_open_tick(
+    *,
+    viewer: ReplayViewer,
+    inner_frame_seconds_for: Callable[[int], float],
+    after_each_frame: Callable[[], None] | None = None,
+) -> int:
+    """Run the open tick's inner frames until the viewer closes it, as hold_frame asks.
+
+    Args:
+        viewer: The viewer, a tick open.
+        inner_frame_seconds_for: The recorded duration of the tick's Nth frame (from 0).
+        after_each_frame: Called after each frame runs (a frame costing real time), or None.
+
+    Returns:
+        How many frames the tick ran.
+
+    """
+    for frames_run in range(MOST_INNER_FRAMES_A_TEST_TICK_RUNS + 1):
+        if not viewer.should_run_inner_frame(
+            inner_frame_seconds=inner_frame_seconds_for(frames_run),
+            is_inner_over=False,
+            is_first_inner_frame=False,
+        ):
+            return frames_run
+        if after_each_frame is not None:
+            after_each_frame()
+    pytest.fail(f'a tick ran more than {MOST_INNER_FRAMES_A_TEST_TICK_RUNS} inner frames')
+
+
 def run_ticks(
     *,
     viewer: ReplayViewer,
@@ -96,12 +132,15 @@ def run_ticks(
         assert now is not None
         viewer.apply_key_events(now=now)
         viewer.accrue(now=now, is_inner_running=True)
-        frames = 0
-        while viewer.should_run_inner_frame(
-            inner_frame_seconds=inner_frame_seconds, is_inner_over=False, is_first_inner_frame=False
-        ):
-            frames += 1
+
+        def spend_the_frame_cost() -> None:
             time.now += inner_frame_cost_seconds
+
+        frames = run_open_tick(
+            viewer=viewer,
+            inner_frame_seconds_for=lambda _frame: inner_frame_seconds,
+            after_each_frame=spend_the_frame_cost,
+        )
         frames_per_tick[frames] += 1
     return frames_per_tick
 
@@ -324,12 +363,9 @@ class TestExternalTicks:
         for _ in range(tick_count):
             now = viewer.begin_tick(is_inner_running=True)
             viewer.accrue(now=now, is_inner_running=True)
-            while viewer.should_run_inner_frame(
-                inner_frame_seconds=RECORDED_FRAME_SECONDS,
-                is_inner_over=False,
-                is_first_inner_frame=False,
-            ):
-                frames_run += 1
+            frames_run += run_open_tick(
+                viewer=viewer, inner_frame_seconds_for=lambda _frame: RECORDED_FRAME_SECONDS
+            )
             time.now += 1 / display_hertz
 
         real_seconds = (tick_count - 1) / display_hertz
@@ -356,12 +392,9 @@ class TestGivenClock:
             now = viewer.begin_tick(is_inner_running=True)
             assert now == given['seconds']
             viewer.accrue(now=now, is_inner_running=True)
-            while viewer.should_run_inner_frame(
-                inner_frame_seconds=CONTROL_TICK_SECONDS,
-                is_inner_over=False,
-                is_first_inner_frame=False,
-            ):
-                frames_run += 1
+            frames_run += run_open_tick(
+                viewer=viewer, inner_frame_seconds_for=lambda _frame: CONTROL_TICK_SECONDS
+            )
             given['seconds'] += CONTROL_TICK_SECONDS
 
         # The first tick owes nothing but the half-frame phase; then one frame a tick
@@ -378,13 +411,9 @@ class TestGivenClock:
         assert now is not None
         viewer.accrue(now=now, is_inner_running=True)
         viewer.accumulated_seconds = MAX_INNER_FRAMES_PER_TICK * RECORDED_FRAME_SECONDS
-        frames_run = 0
-        while viewer.should_run_inner_frame(
-            inner_frame_seconds=RECORDED_FRAME_SECONDS,
-            is_inner_over=False,
-            is_first_inner_frame=False,
-        ):
-            frames_run += 1
+        frames_run = run_open_tick(
+            viewer=viewer, inner_frame_seconds_for=lambda _frame: RECORDED_FRAME_SECONDS
+        )
         assert frames_run == MAX_INNER_FRAMES_PER_TICK
 
 
@@ -405,13 +434,12 @@ def test_above_normal_speed_a_tick_runs_at_most_the_frame_cap():
     long_frame_seconds = 0.1
     short_frame_seconds = 0.001
     viewer.accumulated_seconds = 3.2
-    frames_run = 0
-    while viewer.should_run_inner_frame(
-        inner_frame_seconds=long_frame_seconds if frames_run == 0 else short_frame_seconds,
-        is_inner_over=False,
-        is_first_inner_frame=False,
-    ):
-        frames_run += 1
+    frames_run = run_open_tick(
+        viewer=viewer,
+        inner_frame_seconds_for=lambda frame: (
+            long_frame_seconds if frame == 0 else short_frame_seconds
+        ),
+    )
     assert frames_run == MAX_INNER_FRAMES_PER_TICK
     # Owed time was left: the cap, not the accumulator, closed the tick
     assert viewer.accumulated_seconds >= short_frame_seconds
@@ -910,10 +938,7 @@ def viewer_owing_for_a_first_frame(*, speed: float, owed_seconds: float) -> Repl
         now = viewer.begin_tick(is_inner_running=True)
         assert now is not None
         viewer.accrue(now=now, is_inner_running=True)
-        while viewer.should_run_inner_frame(
-            inner_frame_seconds=0.0, is_inner_over=False, is_first_inner_frame=False
-        ):
-            pass
+        run_open_tick(viewer=viewer, inner_frame_seconds_for=lambda _frame: 0.0)
     now = viewer.begin_tick(is_inner_running=True)
     assert now is not None
     viewer.accrue(now=now, is_inner_running=True)
