@@ -156,6 +156,25 @@ class TestBallSpriteColor:
         assert tuple(ball.image.get_at((10, 10)))[:3] == (255, 255, 255)
         assert ball.image.get_bounding_rect() == pygame.Rect(5, 5, 10, 10)
 
+    def test_the_radius_sizes_the_visible_ball(self):
+        """BallSprite(radius=10) fills its 20x20 image; the hitbox is the visible pixels (#172)."""
+        ball = BallSprite(radius=10)
+
+        assert ball.image.get_bounding_rect() == pygame.Rect(0, 0, 20, 20)
+        assert get_sprite_collision_rect(ball).size == (20, 20)
+
+    def test_the_default_radius_is_unchanged_for_a_larger_image(self):
+        """A bigger image alone does not grow the ball: radius 5 stays centred (PaddleSlap's)."""
+        ball = BallSprite(width=40, height=40)
+
+        assert ball.image.get_bounding_rect() == pygame.Rect(15, 15, 10, 10)
+
+    @pytest.mark.parametrize('radius', [0, -1, 11])
+    def test_a_radius_that_does_not_fit_the_image_is_refused(self, radius):
+        """A circle wider than the image would be clipped without a word: refuse it."""
+        with pytest.raises(ValueError, match=f'A radius-{radius} ball does not fit a 20x20 image'):
+            BallSprite(radius=radius)
+
 
 class TestBallSpriteBounce:
     """Test BallSprite bounce functionality."""

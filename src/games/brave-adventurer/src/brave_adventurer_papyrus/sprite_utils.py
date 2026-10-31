@@ -75,7 +75,8 @@ def apply_transparency_and_scale(
     (not self.image) to prevent cumulative double-scaling.
     The SRCALPHA format set by prepare_papyrus_sprite() is preserved
     through pygame.transform.scale(). Also sets the sprite's hitbox_scale,
-    so its native-pixel TOML hitboxes match the scaled image.
+    so its native-pixel TOML hitboxes match the scaled image, and sizes its rect to the scaled
+    image.
 
     Args:
         sprite: The sprite to process.
@@ -100,3 +101,6 @@ def apply_transparency_and_scale(
         )
     else:
         sprite.image = source_surface.copy()
+    # The rect is the drawn image's size, not the native frame's (BUGS.md #59: a 40x56 player
+    # had a 20x28 rect). Only its size: the engine places its position from world_x/world_y
+    sprite.rect.size = sprite.image.get_size()

@@ -212,7 +212,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - Brave Adventurer code noticed while sharing the scenes (behaviour, so left for a change that
     re-checks the goldens): `brave_adventurer_core/scene.py` set `_was_airborne` and never read
     it (resolved 2026-10-31: the landing sound already played from a local); the respawn clamp `max(0, self.player.world_x - RESPAWN_OFFSET)` can make the respawn x
-    the int 0 (both tracked in BUGS.md, #229 and #230); both games' `game.py` import their scarab
+    the int 0 (resolved 2026-10-31: `max(0.0, ...)`) (both tracked in BUGS.md, #229 and #230); both games' `game.py` import their scarab
     lazily inside a method although nothing needs it deferred
   - Member tests use the engine's test seams (`SceneManager._reset`, `FontManager._font_cache`),
     a known exemption from the public-API rule (`docs/architecture/game_packages.md`); member

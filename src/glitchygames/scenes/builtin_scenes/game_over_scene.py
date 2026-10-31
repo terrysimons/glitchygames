@@ -108,7 +108,7 @@ class GameOverScene(Scene):
         # Subtitle
         current_y += 20
         subtitle = TextSprite(
-            'Press SPACE to restart or ESC to quit',
+            'Press SPACE or START to restart, ESC or BACK to quit',
             (center_x, current_y),
             color=(255, 255, 255),
             font_size=24,

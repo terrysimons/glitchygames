@@ -744,7 +744,9 @@ class BraveAdventurerSceneBase(Scene):
         self.player.stop_horizontal()
 
         # Fade out, reposition, fade in
-        respawn_x = max(0, self.player.world_x - RESPAWN_OFFSET)
+        # 0.0, not 0: max() returns whichever argument wins, and world_x is a float everywhere
+        # else (a recording would hold 0 for the clamped respawn; BUGS.md #230)
+        respawn_x = max(0.0, self.player.world_x - RESPAWN_OFFSET)
 
         def _reposition_and_fade_in() -> None:
             self.player.world_x = respawn_x

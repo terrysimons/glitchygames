@@ -369,6 +369,7 @@ class BallSprite(Sprite):
         y: int = 0,
         width: int = 20,
         height: int = 20,
+        radius: int = 5,
         groups: pygame.sprite.LayeredDirty | None = None,  # type: ignore[type-arg]
         collision_sound: str | None = None,
         bounce_top_bottom: bool = True,
@@ -382,8 +383,10 @@ class BallSprite(Sprite):
         Args:
             x (int): The x position of the ball.
             y (int): The y position of the ball.
-            width (int): The width of the ball.
-            height (int): The height of the ball.
+            width (int): The width of the ball's image (the visible ball is the circle).
+            height (int): The height of the ball's image.
+            radius (int): The radius of the circle drawn centred in the image: the visible ball,
+                whose pixels are its hitbox (BUGS.md #172: it was always 5 whatever the size).
             groups (pygame.sprite.LayeredDirty | None): The sprite groups to add the sprite to.
             collision_sound (str | None): The sound to play on collision.
             bounce_top_bottom (bool): Whether to bounce off top and bottom boundaries.
@@ -395,7 +398,14 @@ class BallSprite(Sprite):
             pixel_snap_mode (PixelSnapMode): How the sub-pixel world position is rounded
                 to the rect position the ball is drawn at.
 
+        Raises:
+            ValueError: If the circle does not fit in the image (it would be clipped silently),
+                or its radius is not positive.
+
         """
+        if radius <= 0 or 2 * radius > min(width, height):
+            message = f'A radius-{radius} ball does not fit a {width}x{height} image'
+            raise ValueError(message)
         if groups is None:
             groups = pygame.sprite.LayeredDirty()  # type: ignore[type-arg]
 
@@ -404,6 +414,7 @@ class BallSprite(Sprite):
         # Sprite.__init__ created the image after the display was set, so it already has the
         # display's pixel format (convert() would return an equivalent copy)
         self.image.set_colorkey(0)
+        self.radius = radius
         self.direction = 0
         self.speed = Speed(250.0, 125.0)  # 250 pixels/second horizontal, 125 pixels/second vertical
 
@@ -548,7 +559,9 @@ class BallSprite(Sprite):
 
         """
         self._color = new_color
-        pygame.draw.circle(self.image, self._color, (self.width // 2, self.height // 2), 5, 0)
+        pygame.draw.circle(
+            self.image, self._color, (self.width // 2, self.height // 2), self.radius, 0
+        )
 
     def reset(self: Self, serve_toward: ServeHorizontalDirection | None = None) -> None:
         """Start a new serve: random position within the spawn margin, then serve().

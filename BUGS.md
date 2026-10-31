@@ -38,15 +38,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Expected: the dialog stays open with the name still editable and the message shown, so the name can be corrected in place. The refusal path in `on_confirm_event` calls `self.dismiss()` after `_show_save_error`; keeping the dialog open means showing the message inside the dialog (`_show_save_error` writes to the previous scene's debug text, which is behind the dialog). Filed, not fixed, by the owner's decision
 - **Files**: `src/glitchygames/ui/dialogs.py`
 
-### 230. Brave Adventurer's Respawn Clamp Can Make the Player's X the Int 0
-- **Description**: `BraveAdventurerScene._respawn_player` (`src/games/brave-adventurer/src/brave_adventurer_core/scene.py`, around line 750) computes `respawn_x = max(0, self.player.world_x - RESPAWN_OFFSET)`. When the player dies within `RESPAWN_OFFSET` (200) pixels of the start, `max` returns the int `0`, not a float, and that int becomes `self.player.world_x`, which is a float everywhere else
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found sharing the two games' scenes (workspace packages Part 2, Task 6)
-- **Date Reported**: 2026-10-25
-- **Details**: Predates the move: both editions' scenes had the same line before they shared one base. Harmless in arithmetic today, but a recording or golden trace that records the player's x would record `0` rather than `0.0` after such a respawn, so the fix (`max(0.0, ...)`) can change recordings and golden traces and needs them re-checked. Not fixed on the branch for that reason. Also noted in `plans/future-features.md` (#56, Part 2 leftovers)
-- **Files**: `src/games/brave-adventurer/src/brave_adventurer_core/scene.py`
-
 ### 228. Smaller Findings From the Engine Context Sub-Plan 1 Reviews
 - **Description**: The task reviews and the final whole-branch review of engine context sub-plan 1 (plans/2026-10-25-engine-context-1-state.md, 2026-10-25) recorded these minor findings; the final reviewer triaged them and none blocks the merge. The important findings were fixed on the branch. Item 6 (the positional calls) belongs to sub-plan 2
 - **Status**: Active
@@ -188,24 +179,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Fixed 2026-10-21: items 3 (typed text on the hex tab is read as hex), 4 (one loop refreshes R, G, B and alpha), 5 (`tts.say` runs through `run_command` with a 30 s timeout), 6 (preset SDL drivers kept, pygame re-initialized after `pygame.quit()`, the frame manager always restored), 7 (pixel blocks written without their trailing newline, so a rewrite is identical), 9 (the animation tests render to a real display and check its pixels), 1 (load errors go to `parent_scene.debug_text`, where a successful load writes, and are shown) and 2 (the class-wide `WIDTH`/`HEIGHT` writes are gone: nothing read them). Kept for the record: (3) `slider_manager.py:807` and `ui/sliders.py:322` read typed text as hex only when it contains a-f, even on the hex tab ("10" is 10, not 16). (4) `slider_manager.py:701-735` refreshes only the R, G and B text formats on a tab change, not alpha. (5) `audio/tts.py:92` calls `subprocess.run` directly instead of `glitchygames.process.run_command`, the engine's one launcher. (6) `services/renderer_service.py:101-102` always overwrites `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER`; its `pygame_initialized` class flag never resets after `pygame.quit()`; `:415-418` leaves the frame manager on the last rendered frame when its starting animation is None. (7) `ai_manager.py:588-590`/`616-620`: each TOML rewrite adds a blank line to every pixel block (tomllib keeps the trailing newline; loading ignores it). (8) No production callers: `visual_indicators._update_slider_indicator` and `_draw_visual_indicator`, the `animated_canvas` panning helpers, `_convert_static_to_animated`, `_mark_film_strips_dirty`, `_clear_existing_film_strips`, `adaptive_clamping.get_statistical_aggregates` (fixed 2026-10-31, bug sweep: deleted; `get_statistical_aggregates` kept, as public engine API). (9) `tests/animation/test_animation_hardware.py`'s 9 "hardware" tests read the shared mocked display, whose `get_at` answers black for every pixel: they check no real rendering, whatever their names say. (10) Unreachable code the tests could not reach is listed in each agent's notes: e.g. `film_strip_operations.py:324-328`/`388-391`, `modes.py:146`/`367`/`373`, `sprite_generation_service.py:176-181`. Also: a joystick in film strip mode always reads R2 as pressed because of #67, so its triggers never switch modes
 - **Files**: see Details
 
-### 111. The Default Palette's Names Do Not Match Their Colors
-- **Description**: In the `Default` palette (`color/palette.py:200-210`, exported by `color/constants.py`), YELLOW is (128, 128, 0) (olive), GREEN is (0, 255, 255) (cyan) and BLACK has alpha 0
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found fixing #102
-- **Date Reported**: 2026-10-21
-- **Details**: Deferred by choice: fixing the names or the values changes colours the games draw, so it needs its own review of every user of these constants
-- **Files**: `src/glitchygames/color/palette.py:200-210`, `src/glitchygames/color/constants.py`
-
-### 115. A Scene's AnimatedSprites Advance a Fixed 16 ms per Rendered Frame (Suspected)
-- **Description**: `Scene.update()` (`scenes/scene.py:2968-2978`) calls `sprite.update()` without a dt, and `AnimatedSprite.update(dt=0.016)` defaults it, so a plain `AnimatedSprite` in a scene's group animates by frames rendered, not by time: slower than real time below 62.5 FPS, faster above it
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found rewriting the animation hardware tests
-- **Date Reported**: 2026-10-21
-- **Details**: The example games avoid it by animating in `dt_tick` and making `update()` a no-op (`src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py:86`). A fix changes animation timing in games and recordings, so it needs the golden replays checked
-- **Files**: `src/glitchygames/scenes/scene.py:2968-2978`, `src/glitchygames/sprites/animated.py:2520`
-
 ### 138. Smaller Findings From the 100% Coverage Audit
 - **Description**: Inconsistencies none of which breaks a feature
 - **Status**: Active
@@ -257,15 +230,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: (1) A pressed ButtonSprite looks like a released one (its `background_color` is never drawn): `test_pressed_button_is_drawn_in_its_active_color`. (2) CheckboxSprite never runs its click callback (no user in the code base): `test_checkbox_click_runs_its_callback`. (3) `MenuItem.add_menu` puts the first sub-item at y=40, below the dropped-down image, not y=20: `test_add_menu_puts_the_first_sub_item_right_below_the_item`. (4) After a paste the MultiLineTextBox cursor is past the end of the text: `test_handle_paste_leaves_the_cursor_after_the_pasted_text`. (5) Click-to-cursor measures characters by ink width, not advance, drifting 1-2 px per character: `test_mouse_down_in_the_middle_of_a_character_puts_the_cursor_before_it`. (6) InputBox types Escape's character into Save/Load/New file names (unconfirmed against a real key press): `test_dialogs.py::TestInputConfirmationDialogScene::test_escape_key_down_types_nothing`. Not pinned: MenuBar mouse-up calls items' down handlers; a focused MenuBar's outline equals its border; constructor text is never wrapped; freetype line height 14 vs a 20 px cursor; `_render_with_pygame_font` renders twice; InputBox parent-offset code is dead and its initial text colour differs from render()'s
 - **Files**: see Details
 
-### 172. The Ball Draws a Fixed 10 px Circle Whatever Its Size
-- **Description**: `BallSprite.color` draws `pygame.draw.circle(..., 5, 0)`: a radius-5 circle centred in the image whatever the ball's width and height (20x20 by default), so the visible ball and its visible-pixel hitbox are 10x10 inside a 20x20 rect
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
-- **Date Reported**: 2026-10-22
-- **Details**: Unchanged since the ball was written (4d1863ea); every recording and golden trace was made with it, so changing it changes PaddleSlap's physics and needs reviewed new baselines. The ball physics tests had assumed the whole 20x20 image was visible, which was true only under the mocks
-- **Files**: `src/glitchygames/game_objects/ball.py:514`
-
 ### 173. Smaller Findings From the Real-Display Migration
 - **Description**: Minor findings, none breaking a feature
 - **Status**: Active
@@ -283,15 +247,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-22
 - **Details**: Pinned: `src/games/paddleslap/tests/test_paddleslap_ball_collision_physics.py::TestBallCollisionSweepFrameAlignedMeeting::test_head_on_balls_meeting_on_a_frame_collide` (4 angles). A fix (swept collision or sub-stepping) changes PaddleSlap physics and so its golden trace and replay. Note: the moving-pair sweep's 10% velocity-swap tolerance holds only with its 2 px contact phase (the game computes contact directions from whole-pixel centres, so on a 10 px circle a pixel of rounding turns the direction by about 10 degrees)
 - **Files**: `src/games/paddleslap/src/paddleslap/__init__.py`, `src/glitchygames/game_objects/ball.py`
-
-### 59. Papyrus Sprites Keep Their Unscaled Native Rect Size
-- **Description**: Papyrus's TOML sprites are drawn at 2x (`SPRITE_SCALE`), but their `rect` keeps the native size: the player's rect is 20x28 while its image is 40x56, a scarab's 10x8 while its image is 20x16
-- **Status**: Active (latent)
-- **Priority**: Low
-- **Reporter**: Found on feature/engine-world-space (Task 8)
-- **Date Reported**: 2026-10-18
-- **Details**: Predates the branch. Latent today: every Papyrus sprite is `dirty = 2`, the scene renders the full screen, the image overhangs the rect by at most 28 px (less than `CULL_MARGIN_PIXELS`, 32), and hitboxes and the debug overlay use collision rects. It would surface with mouse picking (`sprites_at_position`, `pygame.sprite.spritecollide`), a non-dirty Papyrus sprite, or `pygame.display.update(rects)`. Fixing it (sizing rect from the scaled image in `apply_transparency_and_scale` / `prepare_papyrus_sprite`) changes every Papyrus rect size in the golden trace, so it needs its own expected-difference class in `tests/world/test_golden_traces.py`
-- **Files**: `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py`
 
 ### 178. Smaller Findings From Narrowing the Try Blocks
 - **Description**: Minor findings, none breaking a feature
@@ -349,7 +304,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**:
   1. Recordings store raw custom event ids (#197): code that calls `pygame.event.custom_type()` before glitchygames is imported shifts FPSEVENT/GAMEEVENT/MENUEVENT, and a recording made that way replays only in a process that imports the same way. A follow-up could record the ids in the header and remap them on read
   2. `Sprite.on_*_mouse_drag_down/up_event` are no longer called by the mouse proxy (#199): dead handlers
-  3. Deferred 2026-10-31 to the golden changers (GameOverScene is in every golden game, so the fix re-records them): The engine's game-over subtitle still reads "Press SPACE to restart or ESC to quit" though a gamepad now works there too (#209 item 10)
+  3. Closed 2026-10-31 (bug sweep, golden changers: the subtitle reads 'Press SPACE or START to restart, ESC or BACK to quit', the gamepad's Start and Back named as the scene binds them; no golden changed, since the subtitle is no world sprite and no golden replay reaches the scene). Was: The engine's game-over subtitle still reads "Press SPACE to restart or ESC to quit" though a gamepad now works there too (#209 item 10)
   4. Closed 2026-10-31 (bug sweep, batch 3: not a bug: the fallback `strip_1` frame 0 is a fresh editor's real start frame; load now sets the current frame; a comment says so). Was: Bitmappy: `FilmStripOperationTracker.add_frame_selection` (`history/operations.py`) falls back to a hard-coded `('strip_1', 0)` when no current frame is known; undoing that first selection on a sprite without `strip_1` targets an animation that does not exist (latent now that #150 keeps the current frame)
   5. Bitmappy: every load records a "Selected frame" step before #150's reset clears it (harmless now; wasted work)
   6. Fixed 2026-10-23: Clockwork Keep's victory played the elevator clank; it now plays its own `victory` chime (`sounds.py`; test `TestClockFaceVictory::test_the_victory_plays_its_own_fanfare`)
@@ -357,6 +312,51 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: see each item
 
 ## Resolved Bugs
+
+### 230. Brave Adventurer's Respawn Clamp Can Make the Player's X the Int 0
+- **Description**: `BraveAdventurerScene._respawn_player` (`src/games/brave-adventurer/src/brave_adventurer_core/scene.py`, around line 750) computes `respawn_x = max(0, self.player.world_x - RESPAWN_OFFSET)`. When the player dies within `RESPAWN_OFFSET` (200) pixels of the start, `max` returns the int `0`, not a float, and that int becomes `self.player.world_x`, which is a float everywhere else
+- **Status**: Resolved (2026-10-31, bug sweep, golden changers: `_respawn_player` clamps with `max(0.0, ...)`, so a respawn near the start keeps `world_x` a float; `TestRespawnNearTheStart` pins it. No golden replay or golden trace changed: none respawns within `RESPAWN_OFFSET` of the start)
+- **Priority**: Low
+- **Reporter**: Found sharing the two games' scenes (workspace packages Part 2, Task 6)
+- **Date Reported**: 2026-10-25
+- **Details**: Predates the move: both editions' scenes had the same line before they shared one base. Harmless in arithmetic today, but a recording or golden trace that records the player's x would record `0` rather than `0.0` after such a respawn, so the fix (`max(0.0, ...)`) can change recordings and golden traces and needs them re-checked. Not fixed on the branch for that reason. Also noted in `plans/future-features.md` (#56, Part 2 leftovers)
+- **Files**: `src/games/brave-adventurer/src/brave_adventurer_core/scene.py`
+
+### 111. The Default Palette's Names Do Not Match Their Colors
+- **Description**: In the `Default` palette (`color/palette.py:200-210`, exported by `color/constants.py`), YELLOW is (128, 128, 0) (olive), GREEN is (0, 255, 255) (cyan) and BLACK has alpha 0
+- **Status**: Resolved (2026-10-31, bug sweep, golden changers: `resources/default.palette` gives YELLOW (255, 255, 0), GREEN (0, 255, 0) and an opaque BLACK; the joystick demo's heading is the only on-screen user (now bright yellow). `test_default_color_names_match_their_colors` pins every name. No golden uses these colors)
+- **Priority**: Low
+- **Reporter**: Found fixing #102
+- **Date Reported**: 2026-10-21
+- **Details**: Deferred by choice: fixing the names or the values changes colours the games draw, so it needs its own review of every user of these constants
+- **Files**: `src/glitchygames/color/palette.py:200-210`, `src/glitchygames/color/constants.py`
+
+### 115. A Scene's AnimatedSprites Advance a Fixed 16 ms per Rendered Frame (Suspected)
+- **Description**: `Scene.update()` (`scenes/scene.py:2968-2978`) calls `sprite.update()` without a dt, and `AnimatedSprite.update(dt=0.016)` defaults it, so a plain `AnimatedSprite` in a scene's group animates by frames rendered, not by time: slower than real time below 62.5 FPS, faster above it
+- **Status**: Resolved (2026-10-31, bug sweep, golden changers: `Scene.update()` calls `update(self.dt)` on each dirty AnimatedSprite, so it animates by time; other sprites' `update()` is called as before. Papyrus's sprites, which animate in `dt_tick`, already override `update()` as a no-op taking dt, so nothing advances twice (a fix in `Scene.dt_tick` was rejected: Brave Adventurer's scene ticks every sprite itself). No golden changed. Tests: `TestSceneAnimatesByTime` in `tests/scenes/test_scene.py`)
+- **Priority**: Medium
+- **Reporter**: Found rewriting the animation hardware tests
+- **Date Reported**: 2026-10-21
+- **Details**: The example games avoid it by animating in `dt_tick` and making `update()` a no-op (`src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py:86`). A fix changes animation timing in games and recordings, so it needs the golden replays checked
+- **Files**: `src/glitchygames/scenes/scene.py:2968-2978`, `src/glitchygames/sprites/animated.py:2520`
+
+### 172. The Ball Draws a Fixed 10 px Circle Whatever Its Size
+- **Description**: `BallSprite.color` draws `pygame.draw.circle(..., 5, 0)`: a radius-5 circle centred in the image whatever the ball's width and height (20x20 by default), so the visible ball and its visible-pixel hitbox are 10x10 inside a 20x20 rect
+- **Status**: Resolved (2026-10-31, bug sweep, golden changers: `BallSprite(radius=5)` draws the circle, and `width`/`height` are documented as the image's size; a radius that does not fit the image is refused with ValueError. The default stays 5, so PaddleSlap and its goldens are unchanged; tests in `tests/game_objects/test_ball.py`)
+- **Priority**: Low
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Unchanged since the ball was written (4d1863ea); every recording and golden trace was made with it, so changing it changes PaddleSlap's physics and needs reviewed new baselines. The ball physics tests had assumed the whole 20x20 image was visible, which was true only under the mocks
+- **Files**: `src/glitchygames/game_objects/ball.py:514`
+
+### 59. Papyrus Sprites Keep Their Unscaled Native Rect Size
+- **Description**: Papyrus's TOML sprites are drawn at 2x (`SPRITE_SCALE`), but their `rect` keeps the native size: the player's rect is 20x28 while its image is 40x56, a scarab's 10x8 while its image is 20x16
+- **Status**: Resolved (2026-10-31, bug sweep, golden changers: `apply_transparency_and_scale` sizes the rect to the scaled image. The Papyrus golden trace's differences are explained by a new `ExpectedDifference` (`rect_sized_to_its_scaled_image`; the other Papyrus position rules judge a scaled sprite with the size change taken out, through `judged_without_the_scaled_size`, so each difference keeps one cause); the world sample now records each sprite's image size. `golden-papyrus.jsonl.gz` was rebaselined (inputs and dt kept): every rect change is exactly 2x in size with no position change, and the gold scarab on frames 170-172 is now drawn, where its native-size rect had it culled though its image reached into the cull margin (the latent case this entry predicted). Test: `test_the_rect_is_the_scaled_images_size`)
+- **Priority**: Low
+- **Reporter**: Found on feature/engine-world-space (Task 8)
+- **Date Reported**: 2026-10-18
+- **Details**: Predates the branch. Latent today: every Papyrus sprite is `dirty = 2`, the scene renders the full screen, the image overhangs the rect by at most 28 px (less than `CULL_MARGIN_PIXELS`, 32), and hitboxes and the debug overlay use collision rects. It would surface with mouse picking (`sprites_at_position`, `pygame.sprite.spritecollide`), a non-dirty Papyrus sprite, or `pygame.display.update(rects)`. Fixing it (sizing rect from the scaled image in `apply_transparency_and_scale` / `prepare_papyrus_sprite`) changes every Papyrus rect size in the golden trace, so it needs its own expected-difference class in `tests/world/test_golden_traces.py`
+- **Files**: `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py`
 
 ### 246. A Save-Manager Test Made Every `Path.read_text` Fail, Breaking the Memory Guard's Thread on Linux
 - **Description**: `tests/state/test_manager.py::TestLoadErrors::test_a_file_that_cannot_be_read_is_not_reported_as_corrupt` patched `read_text` on the whole `PosixPath` class to raise `PermissionError`. On Linux the memory guard (`tests/memory_guard.py`) samples `/proc/self/statm` and the cgroup's `memory.*` files with `Path.read_text` from its `memory-guard` thread, so a sample taken during the test raised there; pytest reported the unhandled thread exception (`PytestUnhandledThreadExceptionWarning`, an error under the suite's filterwarnings) at the setup of the next test, `TestLoadRaw::test_load_raw_includes_metadata`. Timing-dependent: seen on `main` at 30df34b8 (CircleCI build 2532, serial `-n 0`), not on macOS, where the guard reads no files

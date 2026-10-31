@@ -68,6 +68,7 @@ from glitchygames.sources import (
     set_frame_clock_seconds,
     take_redelivered_events,
 )
+from glitchygames.sprites.animated import AnimatedSprite
 from glitchygames.supervision import PLAYBACK_KIND, ControlEvent
 from glitchygames.timing import DEFAULT_TARGET_FPS
 from glitchygames.world import aim_camera, is_world_positioned, position_world_sprites
@@ -3279,8 +3280,16 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # sprite object, but that doesn't work for some reason.
         [sprite.update_nested_sprites() for sprite in self.all_sprites]
 
-        # Update all sprites that are dirty
-        [sprite.update() for sprite in self.all_sprites if sprite.dirty]
+        # Update all sprites that are dirty. An AnimatedSprite is given the frame's dt, so it
+        # animates by time, not by frames rendered (its update() defaults to 16 ms; BUGS.md
+        # #115). Games that animate in dt_tick override update() as a no-op taking dt
+        for sprite in self.all_sprites:
+            if not sprite.dirty:
+                continue
+            if isinstance(sprite, AnimatedSprite):
+                sprite.update(self.dt)
+            else:
+                sprite.update()
 
         # Make all of the new scene's sprites dirty to force a redraw
         if self.dirty:
