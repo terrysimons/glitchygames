@@ -388,24 +388,19 @@ class VisualCollisionManager:
             indicators_dict = self.indicators
 
         # Apply offsets to indicators (each controller id came from a collision group, which
-        # _update_collision_groups built from this same indicators dict)
-        for i, controller_id in enumerate(controller_ids):
-            if i < len(offsets):
-                indicators_dict[controller_id].offset = offsets[i]
-                LOG.debug(
-                    'Applied %s offset %s to controller %s',
-                    location_type.value,
-                    offsets[i],
-                    controller_id,
-                )
-            else:
-                # Fallback to default offset
-                indicators_dict[controller_id].offset = (0, 0)
-                LOG.debug(
-                    'Applied fallback %s offset (0, 0) to controller %s',
-                    location_type.value,
-                    controller_id,
-                )
+        # _update_collision_groups built from this same indicators dict). There is one offset
+        # per controller: _calculate_offsets returns exactly as many as asked for, and the cache
+        # is keyed by the count. The (0, 0) fallback for a controller with no offset was
+        # reachable only through the count-blind cache of BUGS.md #141, so it is gone; strict
+        # zip would raise if the counts ever disagreed again.
+        for controller_id, offset in zip(controller_ids, offsets, strict=True):
+            indicators_dict[controller_id].offset = offset
+            LOG.debug(
+                'Applied %s offset %s to controller %s',
+                location_type.value,
+                offset,
+                controller_id,
+            )
 
     def _calculate_offsets(self, count: int) -> list[tuple[int, int]]:
         """Calculate offsets for collision avoidance.

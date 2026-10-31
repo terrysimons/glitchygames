@@ -447,7 +447,7 @@ class TestApplyCollisionAvoidanceSingleController:
 
 
 class TestApplyCollisionAvoidanceSliderAndFallback:
-    """Test _apply_collision_avoidance with slider type and fallback offsets (lines 379-382)."""
+    """Test _apply_collision_avoidance for the slider and default indicator dicts."""
 
     def setup_method(self):
         """Set up test fixtures."""
