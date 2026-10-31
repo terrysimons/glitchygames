@@ -3921,7 +3921,12 @@ class TestMultiLineTextBoxMouseEvents:
         """A click on the middle of 'W' (character 6 of 'Hello World') puts the cursor at 6."""
         textbox = self._make_textbox()
         text = 'Hello World'
-        advances = [metrics[4] for metrics in textbox.font.get_metrics(text)]
+        advances = [
+            character_metrics[4]
+            for character_metrics in textbox.font.get_metrics(text)
+            if character_metrics is not None
+        ]
+        assert len(advances) == len(text)  # The default font has every glyph of the text
         # The text is drawn from its first ink column (the first glyph's left bearing)
         left_bearing = textbox.font.get_rect(text).x
         w_middle = sum(advances[:6]) + advances[6] / 2 - left_bearing
