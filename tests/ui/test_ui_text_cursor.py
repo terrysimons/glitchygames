@@ -6,7 +6,6 @@ the real font on real surfaces.
 
 import numpy as np
 import pygame
-import pytest
 
 from glitchygames.color import WHITE
 from glitchygames.fonts import FontManager
@@ -227,15 +226,6 @@ class TestTextSpriteCursorFunctionality:
         # Assert - timer should wrap around
         assert text_sprite._cursor_timer == 0
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'An active TextSprite fills its image with the editing background (50, 50, 50) but '
-            'renders its text with background_color as the text background, so a '
-            'background_color box surrounds the text while editing (e.g. the black box of a '
-            "slider's value field)"
-        ),
-    )
     def test_active_text_is_drawn_on_the_editing_background(self):
         """While editing, no pixel keeps the inactive background colour."""
         text_sprite = _make_text_sprite(background_color=(0, 0, 0))

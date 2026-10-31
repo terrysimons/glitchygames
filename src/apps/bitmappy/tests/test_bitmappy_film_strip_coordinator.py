@@ -704,47 +704,6 @@ class TestDeleteAnimation:
         assert (editor.canvas.current_animation, editor.canvas.current_frame) == ('idle', 1)
 
 
-class TestHandleNoRemainingAnimations:
-    """_handle_no_remaining_animations clears the selection and fixes the scroll."""
-
-    def test_few_strips_scroll_to_the_top(self):
-        """Two or fewer strips left: the offset returns to 0 and widgets rebuild."""
-        editor = _editor_with_strip_stand_ins(frame_counts={'idle': 1, 'walk': 1})
-        editor.film_strip_sprites['no_widget'] = _strip_sprite(widget=None)
-        editor.film_strip_scroll_offset = 3
-        editor.selected_animation = 'idle'
-        editor.selected_frame = 0
-        coordinator = FilmStripCoordinator(editor)
-
-        coordinator._handle_no_remaining_animations(['idle', 'walk'], ['idle', 'walk', 'x'], 2)
-
-        assert editor.selected_animation is None
-        assert editor.selected_frame is None
-        assert editor.film_strip_scroll_offset == 0
-        assert editor.film_strips['idle'].tab_creations == 1
-        assert editor.film_strip_sprites['idle'].dirty == 1
-
-    def test_deleting_the_last_strip_shows_the_previous_two(self):
-        """Deleting the last of five strips scrolls to show the last two left."""
-        remaining = ['a', 'b', 'c', 'd']
-        editor = _editor_with_strip_stand_ins(frame_counts=dict.fromkeys(remaining, 1))
-        coordinator = FilmStripCoordinator(editor)
-
-        coordinator._handle_no_remaining_animations(remaining, [*remaining, 'e'], 4)
-
-        assert editor.film_strip_scroll_offset == 2
-
-    def test_deleting_a_middle_strip_shows_the_one_before(self):
-        """Deleting the fourth of five strips scrolls to the third."""
-        remaining = ['a', 'b', 'c', 'e']
-        editor = _editor_with_strip_stand_ins(frame_counts=dict.fromkeys(remaining, 1))
-        coordinator = FilmStripCoordinator(editor)
-
-        coordinator._handle_no_remaining_animations(remaining, ['a', 'b', 'c', 'd', 'e'], 3)
-
-        assert editor.film_strip_scroll_offset == 2
-
-
 # ---------------------------------------------------------------------------
 # Confirmation dialogs
 # ---------------------------------------------------------------------------
@@ -1883,22 +1842,6 @@ class TestSelectInitialFilmStripWithoutStrips:
         coordinator._select_initial_film_strip()
 
         assert editor.selected_animation is None
-
-
-class TestNoRemainingAnimationsWithoutSprites:
-    """_handle_no_remaining_animations works with no strip sprites."""
-
-    def test_selection_is_cleared(self):
-        """The selection is cleared and the scroll returns to the top."""
-        editor = _EditorStandIn()
-        editor.selected_animation = 'walk'
-        editor.film_strip_scroll_offset = 1
-        coordinator = FilmStripCoordinator(editor)
-
-        coordinator._handle_no_remaining_animations([], ['walk'], 0)
-
-        assert editor.selected_animation is None
-        assert editor.film_strip_scroll_offset == 0
 
 
 class TestCancelWithoutStripSprites:

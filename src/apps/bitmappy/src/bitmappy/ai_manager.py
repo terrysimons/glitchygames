@@ -1064,12 +1064,20 @@ class AIManager:
 
         # Generate color definitions using the consistent mapping (every color is an
         # RGB tuple: collect_unique_colors_from_pixels keeps three components)
+        # Past the glyph limit, build_color_to_glyph_mapping gives a color the glyph of its
+        # closest mapped color, so several colors can share a glyph: write each glyph's table
+        # once, with the color that owns it (the first in sorted order), or the TOML declares a
+        # table twice and cannot be parsed (BUGS.md #171)
         color_definitions = ''
+        defined_glyphs: set[str] = set()
         for color in sorted_colors:
+            glyph: str = color_to_glyph[color]
+            if glyph in defined_glyphs:
+                continue
+            defined_glyphs.add(glyph)
             red = int(color[0])
             green = int(color[1])
             blue = int(color[2])
-            glyph: str = color_to_glyph[color]
             color_definitions += (
                 f'[colors."{glyph}"]\nred = {red}\ngreen = {green}\nblue = {blue}\n\n'
             )

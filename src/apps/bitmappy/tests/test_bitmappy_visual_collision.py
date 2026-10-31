@@ -1,7 +1,5 @@
 """Tests for visual collision functionality and coverage."""
 
-import pytest
-
 from bitmappy.indicators.collision import (
     IndicatorShape,
     LocationType,
@@ -276,12 +274,12 @@ class TestVisualCollisionManagerModifiers:
         manager.add_controller_indicator(1, 1, (0, 255, 0), (10, 10))
 
         # Manually populate cache with stale data
-        manager.position_cache[99, 99] = [(0, 0)]
+        manager.position_cache[99, 99, 1] = [(0, 0)]
 
         manager.optimize_positioning()
 
         # Stale cache entry should be cleared
-        assert (99, 99) not in manager.position_cache
+        assert (99, 99, 1) not in manager.position_cache
 
 
 class TestRemoveControllerIndicatorForLocation:
@@ -449,7 +447,7 @@ class TestApplyCollisionAvoidanceSingleController:
 
 
 class TestApplyCollisionAvoidanceSliderAndFallback:
-    """Test _apply_collision_avoidance with slider type and fallback offsets (lines 379-382)."""
+    """Test _apply_collision_avoidance for the slider and default indicator dicts."""
 
     def setup_method(self):
         """Set up test fixtures."""
@@ -508,13 +506,6 @@ class TestApplyCollisionAvoidanceSliderAndFallback:
 class TestCachedOffsetsForAGrowingGroup:
     """A position's cached offsets were computed for the group's size at the time."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'position_cache is keyed by position only: a third controller at a position cached '
-            'for two falls back to offset (0, 0), on top of the first controller'
-        ),
-    )
     def test_third_controller_at_a_cached_position_gets_its_own_offset(self):
         """Three controllers on one canvas pixel get three different offsets."""
         manager = VisualCollisionManager()

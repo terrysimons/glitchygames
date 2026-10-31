@@ -229,14 +229,6 @@ class TestButtonSpriteFunctionality:
         assert button.background_color == button.inactive_color
         assert button.dirty == 1
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'ButtonSprite never draws its background_color: the press sets active_color, but '
-            'the label TextSprite keeps the colour it was built with, so a pressed button looks '
-            'the same as a released one'
-        ),
-    )
     def test_pressed_button_is_drawn_in_its_active_color(self):
         """A pressed button shows its active colour on screen."""
         groups = pygame.sprite.LayeredDirty()
@@ -474,13 +466,6 @@ class TestCheckboxSpriteFunctionality:
         assert checkbox.checked is True
         assert checkbox.dirty == 1
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "CheckboxSprite's left mouse button up handler toggles the box without the base "
-            "Sprite handler's callback dispatch, so a callback can never react to a toggle"
-        ),
-    )
     def test_checkbox_click_runs_its_callback(self, mocker):
         """A checkbox click runs its on_left_mouse_button_up_event callback, as a button's does."""
         checkbox = CheckboxSprite(x=10, y=20, width=20, height=20, name='TestCheckbox')
@@ -960,14 +945,6 @@ class TestMenuBarEventHandlers:
 
         assert _rgb_at(menubar.image, (0, 0)) == (0, 0, 0)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'MenuBar draws its background (and its focus border) on its own image at self.rect, '
-            'its position on the screen, so a menu bar away from the origin leaves the part of '
-            'its image left of (or above) that offset undrawn'
-        ),
-    )
     def test_menubar_away_from_the_origin_draws_its_background_on_all_of_itself(self):
         """A menu bar at x=50 draws its translucent white background from its own left edge."""
         menubar = _menubar(x=50, width=200, height=30)
@@ -1179,15 +1156,6 @@ class TestMenuItemAddMenu:
         # The next sub-item's offset moves down one item height
         assert parent_item.menu_offset_y == parent_item.border_width + 20
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'MenuItem.add_menu lays its sub-items out from self.rect.height after resizing the '
-            'rect to the whole dropped-down menu, so the first sub-item lands at y=40, below '
-            'the last row of the 40-pixel-tall dropped-down image, instead of right below the '
-            'item at y=20'
-        ),
-    )
     def test_add_menu_puts_the_first_sub_item_right_below_the_item(self):
         """The first sub-item of a 20-pixel-tall item starts at y=20, inside the menu image."""
         parent_item = self._create_menuitem_with_x((0, 0, 100, 20), 'FileMenu')
@@ -1209,6 +1177,14 @@ class TestMenuItemAddMenu:
 
         assert list(parent_item.menu_items) == ['Open', 'Save']
         assert sub_item2.rect.y == sub_item1.rect.bottom
+
+    def test_second_add_menu_sizes_the_image_for_the_item_and_both_sub_items(self):
+        """A second add_menu counts the item's own height once, not the whole first menu."""
+        parent_item = self._create_menuitem_with_x((0, 0, 100, 20), 'FileMenu')
+        parent_item.add_menu(self._create_menuitem_with_x((0, 0, 80, 20), 'Open'))
+        parent_item.add_menu(self._create_menuitem_with_x((0, 0, 80, 20), 'Save'))
+
+        assert parent_item.menu_down_image.get_height() == 20 + 20 + 20
 
     def test_add_menu_recalculates_image_dimensions(self):
         """Test MenuItem.add_menu sizes the dropped-down image to hold the item and its menu."""
@@ -1651,14 +1627,6 @@ class TestTextBoxSpriteCoverage:
 
         assert _lit_pixel_count(textbox.image, (1, 1, 198, 28)) > 0
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "TextBoxSprite.update blits its text sprite's image at (self.x, self.y), its "
-            'position on the screen, onto its own image, so a text box away from the origin '
-            'draws its text off its image (or partly) and keeps stale pixels'
-        ),
-    )
     def test_text_box_away_from_the_origin_shows_its_text(self):
         """A TextBoxSprite at (10, 20) draws its text sprite's text on its own image."""
         textbox = TextBoxSprite(x=10, y=20, width=200, height=30, name='TestTB')
@@ -2016,14 +1984,6 @@ class TestMultiLineTextBoxClipboard:
         text_box._handle_paste()
         assert text_box._original_text == 'Hellopasted World'
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "MultiLineTextBox._handle_paste adds the pasted text's length to the cursor after "
-            'the text setter has already moved it to the end, so the cursor lands past the end '
-            'of the text (23 in 17 characters) instead of after the pasted text'
-        ),
-    )
     def test_handle_paste_leaves_the_cursor_after_the_pasted_text(self, text_box, clipboard):
         """Pasting 'pasted' at position 5 leaves the cursor at 11, right after it."""
         clipboard.text = 'pasted'
@@ -3691,6 +3651,14 @@ class _FontWithoutSize:
         """
         return self._font.render(text, fgcolor=fgcolor)
 
+    def get_metrics(self, text):
+        """Measure each character with the real font.
+
+        Returns:
+            list: Each character's metrics (its advance at index 4).
+        """
+        return self._font.get_metrics(text)
+
 
 def _small_multiline_text_box(*, text, height=100):
     """Build a MultiLineTextBox at the shared test position and width, with its text set.
@@ -3749,21 +3717,18 @@ class TestMultiLineTextBoxCursorNavigation:
         result = textbox._map_wrapped_position_to_original(line=999, column=0)
         assert result == len(textbox._original_text)
 
-    def test_map_cursor_pos_fallback_return(self):
-        """Test _map_cursor_pos_to_wrapped_text fallback return.
+    def test_map_cursor_pos_stops_at_the_end_of_a_shorter_wrapped_text(self):
+        """A position past the end of the wrapped text maps to the wrapped text's end.
 
-        When the wrapped text has fewer occurrences of the target character
-        than the original text (e.g., due to wrapping removing chars), the
-        fallback path returns min(wrapped_pos, len(self._text)).
+        Wrapping never makes the text this much shorter; the mapping still stays in range.
         """
         textbox = self._make_textbox(text='aaa')
-        # Manipulate _text to have fewer 'a's than _original_text so the
-        # char_count loop exhausts without matching
         textbox._original_text = 'aaa'
-        textbox._text = 'a'  # Only 1 'a' in wrapped text vs 3 in original
-        # Position 2 needs 3rd 'a' (char_count_before_target=2) but wrapped text only has 1
+        textbox._text = 'a'
+
         result = textbox._map_cursor_pos_to_wrapped_text(2)
-        assert result == 0
+
+        assert result == len(textbox._text)
 
     def test_get_line_height_freetype_fallback(self):
         """Test _get_line_height uses a freetype font's size (it has no get_linesize)."""
@@ -3952,20 +3917,16 @@ class TestMultiLineTextBoxMouseEvents:
 
         assert textbox.cursor_pos == len('Hello World')
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "MultiLineTextBox maps a click to a character by summing each character's ink "
-            'width (font.get_rect(char).width) instead of its advance, so the positions it '
-            'measures fall behind the drawn text by a pixel or two per character and a click '
-            "in the middle of 'W' in 'Hello World' puts the cursor after it (7), not before (6)"
-        ),
-    )
     def test_mouse_down_in_the_middle_of_a_character_puts_the_cursor_before_it(self):
         """A click on the middle of 'W' (character 6 of 'Hello World') puts the cursor at 6."""
         textbox = self._make_textbox()
         text = 'Hello World'
-        advances = [metrics[4] for metrics in textbox.font.get_metrics(text)]
+        advances = [
+            character_metrics[4]
+            for character_metrics in textbox.font.get_metrics(text)
+            if character_metrics is not None
+        ]
+        assert len(advances) == len(text)  # The default font has every glyph of the text
         # The text is drawn from its first ink column (the first glyph's left bearing)
         left_bearing = textbox.font.get_rect(text).x
         w_middle = sum(advances[:6]) + advances[6] / 2 - left_bearing

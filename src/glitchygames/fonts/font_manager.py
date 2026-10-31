@@ -68,6 +68,14 @@ class GameFont(Protocol):
         """Get the size of rendered text."""
         ...
 
+    def get_metrics(self, text: str, size: float = 0) -> list[tuple[float, ...] | None]:
+        """Get each character's metrics (pygame.freetype; the advance is at index 4)."""
+        ...
+
+    def metrics(self, text: str) -> list[tuple[int, ...] | None]:
+        """Get each character's metrics (pygame.font; the advance is at index 4)."""
+        ...
+
 
 from glitchygames.events import FontEvents, ResourceManager  # ruff: ignore[module-import-not-at-top-of-file]
 

@@ -8,7 +8,6 @@ from the wrapped text, so they follow the font's metrics.
 
 import numpy as np
 import pygame
-import pytest
 
 from glitchygames.fonts import FontManager
 from glitchygames.ui import MultiLineTextBox
@@ -162,14 +161,6 @@ class TestMultiLineTextBoxCursorWrapping:
         assert cursor_line > 0  # Position 50 is past the first wrap
         _assert_cursor_drawn_at(textbox, cursor_line, cursor_column)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            '_map_cursor_pos_to_wrapped_text finds the Nth occurrence of the character under '
-            'the cursor, but wrapping turned some spaces into newlines, so a cursor on a space '
-            'after the first wrap maps to a later space or the end of the text'
-        ),
-    )
     def test_cursor_on_a_space_after_a_wrap_is_on_its_own_line_and_column(self):
         """Every cursor position maps to its own line and column in the wrapped text."""
         textbox = _make_textbox()
@@ -183,6 +174,29 @@ class TestMultiLineTextBoxCursorWrapping:
         ]
 
         assert wrong_positions == []
+
+    def test_cursor_after_a_dropped_space_maps_past_it(self):
+        """A space wrapping dropped (one that would start a line) maps to where it was (#163)."""
+        textbox = _make_textbox()
+        # 'longword  next' wrapped as _wrap_text does when 'longword' fills a line: the first
+        # space becomes the newline, the second (which would start the next line) is dropped
+        textbox._original_text = 'longword  next'
+        textbox._text = 'longword\nnext'
+
+        mapped = [textbox._map_cursor_pos_to_wrapped_text(position) for position in range(15)]
+
+        assert mapped == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 10, 11, 12, 13]
+
+    def test_wrapped_position_after_a_dropped_space_maps_back_past_it(self):
+        """A wrapped line and column after a dropped space maps back past that space."""
+        textbox = _make_textbox()
+        textbox._original_text = 'longword  next'
+        textbox._text = 'longword\nnext'
+
+        # Line 1, column 0 is the 'n' of 'next', original position 10
+        assert textbox._map_wrapped_position_to_original(1, 0) == 10
+        assert textbox._map_wrapped_position_to_original(1, 4) == 14
+        assert textbox._map_wrapped_position_to_original(0, 8) == 8
 
     def test_cursor_positioning_with_mixed_wrapped_and_explicit_newlines(self):
         """Test cursor positioning with both wrapped text and explicit newlines."""

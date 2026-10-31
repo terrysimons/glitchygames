@@ -227,16 +227,6 @@ class TestBitmapEditorFilmStripIntegration:
         assert animation_names(real_editor) == ['strip_1', 'strip_2']
         assert isinstance(real_editor.next_scene, DeleteAnimationDialogScene)
 
-    # The scroll offset is recomputed after a delete only in
-    # FilmStripCoordinator._handle_no_remaining_animations, which _delete_animation never calls
-    STALE_SCROLL_OFFSET_REASON = (
-        'Production bug: deleting an animation keeps the film strip scroll offset from '
-        'before the delete (the recomputation is in _handle_no_remaining_animations, which '
-        '_delete_animation never calls), so the offset can pass the last strip and the '
-        'selected first animation is scrolled out of view'
-    )
-
-    @pytest.mark.xfail(strict=True, reason=STALE_SCROLL_OFFSET_REASON)
     def test_delete_animation_scroll_offset_calculation(self, real_editor):
         """Test that deleting the middle of three strips scrolls to show the selected strip."""
         add_strips(real_editor, count=2)
@@ -245,7 +235,6 @@ class TestBitmapEditorFilmStripIntegration:
 
         assert_scroll_shows_the_selected_strip(real_editor)
 
-    @pytest.mark.xfail(strict=True, reason=STALE_SCROLL_OFFSET_REASON)
     def test_delete_animation_scroll_offset_last_strip(self, real_editor):
         """Test that deleting the last strip scrolls back to show the selected strip."""
         add_strips(real_editor, count=2)
@@ -256,7 +245,6 @@ class TestBitmapEditorFilmStripIntegration:
 
         assert_scroll_shows_the_selected_strip(real_editor)
 
-    @pytest.mark.xfail(strict=True, reason=STALE_SCROLL_OFFSET_REASON)
     def test_delete_animation_scroll_offset_many_strips(self, real_editor):
         """Test that deleting one of five strips scrolls to show the selected strip."""
         add_strips(real_editor, count=4)

@@ -47,6 +47,10 @@ CURSOR_BLINK_FRAME_INTERVAL = 30
 CURSOR_BLINK_HALF_SECOND = 0.5
 PYGAME_MOUSE_SCROLL_UP_BUTTON = 4
 PYGAME_MOUSE_SCROLL_DOWN_BUTTON = 5
+# Where a character's horizontal advance is in its font metrics (pygame.freetype and pygame.font)
+ADVANCE_METRIC_INDEX = 4
+# A TextSprite's background while it is being edited
+EDITING_BACKGROUND_COLOR = (50, 50, 50)
 
 
 class TextSprite(BitmappySprite):
@@ -191,13 +195,16 @@ class TextSprite(BitmappySprite):
         self.image = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         self.image = self.image.convert_alpha()
 
-        # Fill with the sprite's background color
+        # Fill with the sprite's background color (darker while editing). The text is rendered
+        # on the same color, or a box of background_color surrounds it while editing
+        # (BUGS.md #162)
+        fill_color: tuple[int, ...] = (
+            EDITING_BACKGROUND_COLOR if self.is_active else self.background_color
+        )
         if is_transparent:
             self.image.fill((0, 0, 0, 0))
-        elif self.is_active:
-            self.image.fill((50, 50, 50))  # Darker background when editing
         else:
-            self.image.fill(self.background_color)
+            self.image.fill(fill_color)
 
         font: GameFont = FontManager.get_font()
         current_text_color: tuple[int, ...] = self.text_color  # Use original text color
@@ -207,6 +214,7 @@ class TextSprite(BitmappySprite):
             text,
             current_text_color,
             is_transparent=is_transparent,
+            background_color=fill_color,
         )
 
         # Position the text in the center of our surface
@@ -230,10 +238,12 @@ class TextSprite(BitmappySprite):
         text_color: tuple[int, ...],
         *,
         is_transparent: bool,
+        background_color: tuple[int, ...] | None = None,
     ) -> tuple[pygame.Surface, pygame.Rect | None]:
         """Render text using the appropriate font system.
 
-        Handles both pygame.freetype.Font and pygame.font.Font.
+        Handles both pygame.freetype.Font and pygame.font.Font. background_color is the color
+        the text is rendered on (the sprite's background_color when None).
 
         Returns:
             Tuple of (text_surface, text_rect). text_rect may be None.
@@ -245,7 +255,11 @@ class TextSprite(BitmappySprite):
             # This is a pygame.freetype.Font
             try:
                 text_surface, text_rect = self._render_with_freetype_font(
-                    font, text, text_color, is_transparent=is_transparent
+                    font,
+                    text,
+                    text_color,
+                    is_transparent=is_transparent,
+                    background_color=background_color,
                 )
             except TypeError, ValueError:  # pragma: no cover - freetype rejected the color
                 # Fall back to pygame.font style (returns surface)
@@ -272,8 +286,12 @@ class TextSprite(BitmappySprite):
         text_color: tuple[int, ...],
         *,
         is_transparent: bool,
+        background_color: tuple[int, ...] | None = None,
     ) -> tuple[pygame.Surface, pygame.Rect | None]:
         """Render text using pygame.freetype.Font.
+
+        background_color is the color the text is rendered on (the sprite's background_color
+        when None).
 
         Returns:
             Tuple of (text_surface, text_rect). text_rect may be None.
@@ -285,7 +303,10 @@ class TextSprite(BitmappySprite):
             text_surface.fill((0, 0, 0, 0))
             text_rect = font.render_to(text_surface, (0, 0), str(text), text_color)
         else:
-            render_result = font.render(str(text), text_color, self.background_color)
+            render_background = (
+                self.background_color if background_color is None else background_color
+            )
+            render_result = font.render(str(text), text_color, render_background)
             if isinstance(render_result, tuple):
                 text_surface, text_rect = render_result
             else:
@@ -424,7 +445,9 @@ class TextBoxSprite(BitmappySprite):
         """Update the text box sprite."""
         if self.text_box:
             self.text_box.background_color = self.background_color
-            self.image.blit(self.text_box.image, (self.x, self.y, self.width, self.height))
+            # At (0, 0) on the box's own image, not at (self.x, self.y), its position on the
+            # screen (BUGS.md #164)
+            self.image.blit(self.text_box.image, (0, 0))
 
         # Border drawn with fixed color; hover/click visual feedback not yet implemented
         if self.border_width:
@@ -764,6 +787,41 @@ class MultiLineTextBox(BitmappySprite):
             scroll_offset=0,
         )
 
+    def _character_advances(self, text: str) -> list[int]:
+        """Return how far each character of the text moves the pen (its advance), in pixels.
+
+        A character the font has no glyph for advances 0.
+
+        Returns:
+            list[int]: One advance per character.
+
+        """
+        # Each character's metrics hold its horizontal advance at index 4, for pygame.freetype
+        # (get_metrics) and pygame.font (metrics) alike; a character with no glyph has None
+        if hasattr(self.font, 'get_metrics'):
+            metrics = self.font.get_metrics(text)
+        else:
+            metrics = self.font.metrics(text)
+        return [
+            int(character_metrics[ADVANCE_METRIC_INDEX]) if character_metrics else 0
+            for character_metrics in metrics
+        ]
+
+    def _left_bearing(self, text: str) -> int:
+        """Return how far right of the pen the text's first ink column is, in pixels.
+
+        A pygame.freetype render starts at the first ink column, so the characters' advances are
+        measured from the pen position that many pixels to the left; a pygame.font render
+        includes the bearing, so it is 0.
+
+        Returns:
+            int: The left bearing (0 for empty text or a pygame.font font).
+
+        """
+        if not text or not hasattr(self.font, 'get_metrics'):
+            return 0
+        return int(self.font.get_rect(text).x)
+
     def _get_text_width(self, text: str) -> int:
         """Get text width for both pygame.font and pygame.freetype fonts.
 
@@ -833,25 +891,20 @@ class MultiLineTextBox(BitmappySprite):
         if original_pos >= len(self._original_text):
             return len(self._text)
 
-        # Find the character at the original position
-        target_char = self._original_text[original_pos]
-
-        # Count how many times this character appears before the target position
-        char_count_before_target = self._original_text[:original_pos].count(target_char)
-
-        # Find the corresponding position in wrapped text
-        wrapped_pos = 0
-        char_count = 0
-
-        for i, char in enumerate(self._text):
-            if char == target_char:
-                if char_count == char_count_before_target:
-                    return i
-                char_count += 1
-            wrapped_pos = i
-
-        # If we can't find an exact match, return the closest position
-        return min(wrapped_pos, len(self._text))
+        # _wrap_text only turns a space into a newline (a wrap) or drops a space (one that
+        # would start a line), so walk both texts together: each original character either
+        # lines up with the next wrapped character or was a dropped space. Counting the
+        # occurrences of the character under the cursor instead lost track of the spaces that
+        # became newlines (BUGS.md #163)
+        wrapped_index = 0
+        for original_index in range(original_pos):
+            if wrapped_index >= len(self._text):
+                break
+            original_char = self._original_text[original_index]
+            wrapped_char = self._text[wrapped_index]
+            if original_char == wrapped_char or (original_char == ' ' and wrapped_char == '\n'):
+                wrapped_index += 1
+        return wrapped_index
 
     def _get_cursor_line_and_column_in_wrapped_text(
         self,
@@ -939,11 +992,22 @@ class MultiLineTextBox(BitmappySprite):
         target_wrapped_pos = sum(len(wrapped_lines[i]) + 1 for i in range(line)) + column
         target_wrapped_pos = min(target_wrapped_pos, len(self._text))
 
-        # Find the corresponding position in original text
-        # Map character by character, checking position BEFORE incrementing
-        for i, _char in enumerate(self._original_text):
-            if i >= target_wrapped_pos:
-                return i  # Return current position when we've reached target
+        # Walk both texts together, as _map_cursor_pos_to_wrapped_text does: each original
+        # character lines up with the next wrapped one (a space with a newline where it wrapped)
+        # or is a space wrapping dropped. Returning the wrapped position unchanged was off by
+        # every space dropped before it. A dropped space at the target is skipped, so the cursor
+        # lands before the character shown there, not before the invisible space
+        wrapped_index = 0
+        for original_index, original_char in enumerate(self._original_text):
+            wrapped_char = self._text[wrapped_index] if wrapped_index < len(self._text) else ''
+            lines_up = original_char == wrapped_char or (
+                original_char == ' ' and wrapped_char == '\n'
+            )
+            if not lines_up:
+                continue  # A space wrapping dropped
+            if wrapped_index >= target_wrapped_pos:
+                return original_index
+            wrapped_index += 1
 
         # If we've gone through the whole text, return the end position
         return len(self._original_text)
@@ -1170,19 +1234,19 @@ class MultiLineTextBox(BitmappySprite):
             if clicked_line >= len(wrapped_lines):
                 clicked_line = len(wrapped_lines) - 1
 
-            # Find the character position within the clicked line
+            # Find the character position within the clicked line: walk the characters by their
+            # advances (where the next one starts), not their ink widths, which fall behind the
+            # drawn text by a pixel or two per character (BUGS.md #165)
             clicked_line_text = wrapped_lines[clicked_line]
-            text_width = 0
-            char_pos_in_line = 0
+            character_left = -self._left_bearing(clicked_line_text)
+            char_pos_in_line = len(clicked_line_text)
 
-            for i, char in enumerate(clicked_line_text):
-                char_width = self._get_text_width(char)
-                if text_width + (char_width / 2) > x_rel:
+            for i, advance in enumerate(self._character_advances(clicked_line_text)):
+                # A click on a character's middle or left of it goes before the character
+                if character_left + (advance / 2) >= x_rel:
                     char_pos_in_line = i
                     break
-                text_width += char_width
-            else:
-                char_pos_in_line = len(clicked_line_text)
+                character_left += advance
 
             # Map the wrapped position back to original text position
             self.cursor_pos = self._map_wrapped_position_to_original(clicked_line, char_pos_in_line)
@@ -1325,7 +1389,10 @@ class MultiLineTextBox(BitmappySprite):
             before_cursor = self._original_text[: self.cursor_pos]
             after_cursor = self._original_text[self.cursor_pos :]
             self.text = before_cursor + clipboard_text + after_cursor
-            self.cursor_pos += len(clipboard_text)
+            # The text setter moves the cursor to the end, so place it after the pasted text
+            # from the position before the paste, not from where the setter left it
+            # (BUGS.md #165)
+            self.cursor_pos = len(before_cursor) + len(clipboard_text)
 
     def _handle_cut(self) -> None:
         """Handle cut operation: the selection, or all the text when nothing is selected."""

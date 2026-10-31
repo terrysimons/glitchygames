@@ -210,8 +210,9 @@ class TestAnimatedCanvasSprite:
         assert self.canvas.current_animation == 'idle'
         assert self.canvas.current_frame == 1
 
-        # A click between thumbnails selects nothing
-        assert film_strip.handle_click((0, 0)) is None
+        # A click on the strip's empty area selects the strip itself at the scene's selected
+        # frame (BUGS.md #168)
+        assert film_strip.handle_click((0, 0)) == ('idle', 0)
 
     def test_keyboard_navigation(self):
         """Test keyboard navigation between frames."""

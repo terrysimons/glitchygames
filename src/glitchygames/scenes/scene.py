@@ -3116,6 +3116,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         assert self.screen is not None
         self.background.fill(self._background_color)
         self.all_sprites.clear(self.screen, self.background)
+        # The next draw repaints the whole screen from the new background, not only the areas
+        # sprites dirty (BUGS.md #166)
+        self.all_sprites.repaint_rect(self.screen.get_rect())
 
     @property
     def background_pattern(self: Self) -> BackgroundPattern | None:
@@ -3147,6 +3150,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             (0, 0),
         )
         self.all_sprites.clear(self.screen, self.background)
+        # The next draw repaints the whole screen from the new background (BUGS.md #166)
+        self.all_sprites.repaint_rect(self.screen.get_rect())
 
     def transition_to(self: Self, next_scene: Scene | None, transition: Transition) -> None:
         """Switch to another scene with a visual transition effect.
