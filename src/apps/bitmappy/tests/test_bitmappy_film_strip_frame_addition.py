@@ -34,9 +34,10 @@ def _solid_rgb(image):
 def _mock_parent_scene(animated_sprite, mocker):
     """Create a stand-in editor scene for the film strip, with the real frame coordinator.
 
-    The editor scene itself is a mock (the film strip only reads its canvas size and calls
-    on_frame_inserted), but its film_strip_coordinator is the real FilmStripCoordinator, so
-    inserted frames are the editor's real blank frames. canvas.animated_sprite is the real
+    The editor scene itself is a mock (the film strip only reads its canvas size), but its
+    film_strip_coordinator is the real FilmStripCoordinator, so inserted frames are the editor's
+    real blank frames; its on_frame_inserted is spied on, as the film strip tells it about each
+    insertion (BUGS.md #119). canvas.animated_sprite is the real
     sprite so film_strip._create_film_tabs() can iterate its animations.
 
     Returns:
@@ -44,13 +45,17 @@ def _mock_parent_scene(animated_sprite, mocker):
 
     """
     parent_scene = mocker.Mock()
-    parent_scene.on_frame_inserted = mocker.Mock()
+    # The coordinator's on_frame_inserted walks these: real, empty ones (a Mock can't be iterated)
+    parent_scene.selected_animation = None
+    parent_scene.film_strips = {}
+    parent_scene.film_strip_sprites = {}
     parent_scene.canvas = mocker.Mock()
     parent_scene.canvas.pixels_across = CANVAS_WIDTH
     parent_scene.canvas.pixels_tall = CANVAS_HEIGHT
     parent_scene.canvas.animated_sprite = animated_sprite
     # _insert_frame_at_tab routes through the coordinator
     parent_scene.film_strip_coordinator = FilmStripCoordinator(parent_scene)
+    mocker.spy(parent_scene.film_strip_coordinator, 'on_frame_inserted')
     return parent_scene
 
 
@@ -109,7 +114,8 @@ class TestFilmStripFrameAddition:
         assert math.isclose(film_strip.preview_animation_times['idle'], 0.0, abs_tol=1e-9)
 
         # Verify parent scene was notified
-        film_strip.parent_scene.on_frame_inserted.assert_called_once_with('idle', 1)
+        coordinator = film_strip.parent_scene.film_strip_coordinator
+        coordinator.on_frame_inserted.assert_called_once_with('idle', 1)
 
     def test_film_strip_handles_before_insertion(self, mocker):
         """Test film strip handles frame insertion before existing frame."""
@@ -142,7 +148,8 @@ class TestFilmStripFrameAddition:
         assert animated_sprite._is_looping
 
         # Verify parent scene was notified with correct index
-        film_strip.parent_scene.on_frame_inserted.assert_called_once_with('idle', 0)
+        coordinator = film_strip.parent_scene.film_strip_coordinator
+        coordinator.on_frame_inserted.assert_called_once_with('idle', 0)
 
     def test_film_strip_handles_after_insertion(self, mocker):
         """Test film strip handles frame insertion after existing frame."""
@@ -175,7 +182,8 @@ class TestFilmStripFrameAddition:
         assert animated_sprite._is_looping
 
         # Verify parent scene was notified with correct index
-        film_strip.parent_scene.on_frame_inserted.assert_called_once_with('idle', 1)
+        coordinator = film_strip.parent_scene.film_strip_coordinator
+        coordinator.on_frame_inserted.assert_called_once_with('idle', 1)
 
     def test_film_strip_no_animation_without_sprite(self, mocker):
         """Test film strip handles missing animated sprite gracefully."""
@@ -191,7 +199,8 @@ class TestFilmStripFrameAddition:
         film_strip._insert_frame_at_tab(tab)
 
         # Should not call parent scene
-        film_strip.parent_scene.on_frame_inserted.assert_not_called()
+        coordinator = film_strip.parent_scene.film_strip_coordinator
+        coordinator.on_frame_inserted.assert_not_called()
 
     def test_film_strip_no_animation_without_scene(self):
         """Test film strip handles missing parent scene gracefully."""

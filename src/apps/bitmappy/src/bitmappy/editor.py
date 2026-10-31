@@ -395,8 +395,10 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         try:
             width, height = self._parse_canvas_dimensions(dimensions)
         except ValueError:
-            self.log.exception("Invalid dimensions format '%s'", dimensions)
-            self.log.exception("Expected format: WxH (e.g., '32x32')")
+            # One log.exception: two printed the same traceback twice
+            self.log.exception(
+                "Invalid dimensions format '%s': expected WxH (e.g., '32x32')", dimensions
+            )
         else:
             self.log.info('Parsed dimensions: %sx%s', width, height)
 
@@ -407,6 +409,16 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
                 350 // width,
             )
             self.log.info('Calculated new pixel size: %s', new_pixel_size)
+
+            # A size too large for the canvas area leaves each pixel 0 screen pixels wide: a
+            # canvas that can't be seen or drawn on, so it is refused and the canvas kept
+            # (BUGS.md #176)
+            if new_pixel_size < 1:
+                self.log.error(
+                    "Invalid dimensions '%s': too large to fit the canvas area", dimensions
+                )
+                self.dirty = 1
+                return
 
             self._reset_canvas_for_new_file(width, height, new_pixel_size)
             self._create_fresh_animated_sprite(width, height, new_pixel_size)
@@ -708,6 +720,12 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         for sprite in sprites:
             sprite.on_left_mouse_button_up_event(event)
+
+        # A canvas drag released outside the canvas must still finish: flush the stroke, submit
+        # it to undo and clear _drag_active (BUGS.md #120). The canvas ignores a release when no
+        # drag is active.
+        if self.canvas not in sprites:
+            self.canvas.on_left_mouse_button_up_event(event)
 
     @override
     def on_left_mouse_drag_event(
@@ -1210,11 +1228,25 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.pixel_change_timer = None
         self.log.debug('Started a new undo history')
 
+    def _finish_pan_gesture_in_progress(self) -> None:
+        """Record a pan gesture still in progress (an arrow still held) before undo or redo.
+
+        Undo or redo applied inside the gesture left the redo stack in place until the keys
+        were released (BUGS.md #152). Finishing first makes the pan an undoable step of its
+        own, which clears the redo stack as any new edit does; holding the arrow afterwards
+        starts a new gesture.
+        """
+        canvas = getattr(self, 'canvas', None)
+        if canvas and canvas.pan_session is not None:
+            self._frame_operations.finish_canvas_panning()
+
     def handle_undo(self) -> None:
         """Handle undo operation."""
         if not hasattr(self, 'undo_redo_manager'):
             self.log.warning('Undo/redo manager not initialized')
             return
+
+        self._finish_pan_gesture_in_progress()
 
         # Get current frame information
         current_animation = None
@@ -1341,6 +1373,8 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         if not hasattr(self, 'undo_redo_manager'):
             self.log.warning('Undo/redo manager not initialized')
             return
+
+        self._finish_pan_gesture_in_progress()
 
         # Get current frame information
         current_animation = None

@@ -704,6 +704,56 @@ class TestFilmStripControllerSelections:
 
         assert handler.film_strip_controller_selections == {}
 
+    def test_a_controller_moving_frames_marks_its_strip_dirty(self, handler, editor):
+        """The strip re-renders the moved triangle right away (BUGS.md #154).
+
+        A strip redraws only when dirty, and nothing marked it dirty when a controller moved,
+        so the triangle lagged until the strip's preview next advanced.
+        """
+        selection = add_controller(editor=editor, controller_id=0, selection=('walk', 0))
+        handler.indicators._update_film_strip_controller_selections()
+        walk_marks_before = editor.film_strips['walk'].dirty_mark_count
+
+        selection.set_frame(1)
+        handler.indicators._update_film_strip_controller_selections()
+
+        assert editor.film_strips['walk'].dirty_mark_count == walk_marks_before + 1
+        assert editor.film_strips['run'].dirty_mark_count == 0
+
+    def test_a_controller_moving_animations_marks_both_strips_dirty(self, handler, editor):
+        """The strip it left drops its triangle and the strip it joined draws it."""
+        selection = add_controller(editor=editor, controller_id=0, selection=('walk', 0))
+        handler.indicators._update_film_strip_controller_selections()
+        walk_marks_before = editor.film_strips['walk'].dirty_mark_count
+
+        selection.set_selection('run', 0)
+        handler.indicators._update_film_strip_controller_selections()
+
+        assert editor.film_strips['walk'].dirty_mark_count == walk_marks_before + 1
+        assert editor.film_strips['run'].dirty_mark_count == 1
+
+    def test_unchanged_selections_leave_the_strips_alone(self, handler, editor):
+        """An update with nothing moved does not make any strip re-render."""
+        add_controller(editor=editor, controller_id=0, selection=('walk', 0))
+        handler.indicators._update_film_strip_controller_selections()
+        walk_marks_before = editor.film_strips['walk'].dirty_mark_count
+
+        handler.indicators._update_film_strip_controller_selections()
+
+        assert editor.film_strips['walk'].dirty_mark_count == walk_marks_before
+        assert editor.film_strips['run'].dirty_mark_count == 0
+
+    def test_selections_update_without_film_strips(self, handler, editor):
+        """An editor with no film strips still gets its selections, with nothing to mark."""
+        add_controller(editor=editor, controller_id=0, selection=('walk', 0))
+        del editor.film_strips
+
+        handler.indicators._update_film_strip_controller_selections()
+
+        assert handler.film_strip_controller_selections == {
+            'walk': {0: {'controller_id': 0, 'frame': 0, 'color': RED}},
+        }
+
 
 class TestCanvasIndicators:
     """Test _update_canvas_indicators."""

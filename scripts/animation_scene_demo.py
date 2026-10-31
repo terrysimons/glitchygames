@@ -8,14 +8,16 @@ from typing import Any, override
 
 import pygame
 
-# Add the parent directory to the path so we can import glitchygames
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from glitchygames.exit_codes import ExitCode
 from glitchygames.scenes import Scene
 from glitchygames.sprites.animated import AnimatedSprite
 
 logger = logging.getLogger(__name__)
+
+# The sprite the demo shows: scripts/foo.toml, next to this script. The demos looked for it in
+# the repository root, where there is none, so they always stopped with MISSING_INPUT
+# (BUGS.md #245).
+FOO_TOML_PATH = Path(__file__).parent / 'foo.toml'
 
 
 class AnimationScene(Scene):
@@ -36,7 +38,7 @@ class AnimationScene(Scene):
         self.groups: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty()
 
         # Load the animated sprite from foo.toml
-        foo_toml_path = Path(__file__).parent.parent / 'foo.toml'
+        foo_toml_path = FOO_TOML_PATH
 
         try:
             self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.groups)

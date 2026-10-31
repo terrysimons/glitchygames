@@ -156,7 +156,7 @@ class Game(Scene):
 
         """
         assert self.screen is not None
-        rendered = self.font.render(text, antialias=False, color=color)
+        rendered = self.font.render(text, antialias=True, color=color)
         self.screen.blit(rendered, position)
 
     @override

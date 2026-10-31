@@ -146,13 +146,13 @@ def _demo_font() -> pygame.font.Font:
 
 
 def _demo_text(text: str, *, color: tuple[int, int, int] = WHITE) -> pygame.Surface:
-    """Render ``text`` as the demo draws it: the demo's font, not antialiased.
+    """Render ``text`` as the demo draws it: the demo's font, antialiased.
 
     Returns:
         The rendered text.
 
     """
-    return _demo_font().render(text, antialias=False, color=color)
+    return _demo_font().render(text, antialias=True, color=color)
 
 
 def _line_height() -> int:

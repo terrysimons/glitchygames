@@ -4,14 +4,10 @@
 from __future__ import annotations
 
 import logging
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
-
-# Add the parent directory to the path so we can import glitchygames
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
@@ -24,6 +20,11 @@ if TYPE_CHECKING:
 # Its level is the command line's (--log-level; debug shows this demo's debug lines): never
 # set here, where at import it reached every game.* logger of a process importing it (BUGS.md #236)
 LOG = logging.getLogger('game')
+
+# The sprite the demo shows: scripts/foo.toml, next to this script. The demos looked for it in
+# the repository root, where there is none, so they always stopped with MISSING_INPUT
+# (BUGS.md #245).
+FOO_TOML_PATH = Path(__file__).parent / 'foo.toml'
 
 
 class AnimationGame(Scene):
@@ -96,7 +97,7 @@ class AnimationGame(Scene):
             RuntimeError: If the animation system fails to initialize.
 
         """
-        foo_toml_path = Path(__file__).parent.parent / 'foo.toml'
+        foo_toml_path = FOO_TOML_PATH
 
         try:
             self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.all_sprites)

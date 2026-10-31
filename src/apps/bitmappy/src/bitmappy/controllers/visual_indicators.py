@@ -586,15 +586,46 @@ class VisualIndicators:
     # ------------------------------------------------------------------
 
     def _update_film_strip_controller_selections(self) -> None:
-        """Update film strip controller selections for all animations."""
+        """Update film strip controller selections for all animations.
+
+        A film strip draws its controller triangles only when it re-renders, and it re-renders
+        only when dirty, so each strip whose selections changed is marked dirty here: a
+        controller moving between frames used to leave its triangle behind until the strip's
+        preview next advanced (BUGS.md #154).
+        """
+        previous_selections = {
+            animation: dict(controllers)
+            for animation, controllers in self.handler.film_strip_controller_selections.items()
+        }
         self.handler.film_strip_controller_selections.clear()
 
-        if not hasattr(self.handler.editor, 'controller_selections'):
+        if hasattr(self.handler.editor, 'controller_selections'):
+            selections = self.handler.editor.controller_selections
+            for controller_id, controller_selection in selections.items():
+                self._process_film_strip_controller_selection(controller_id, controller_selection)
+
+        self._mark_film_strips_with_changed_selections_dirty(previous_selections)
+
+    def _mark_film_strips_with_changed_selections_dirty(
+        self,
+        previous_selections: dict[str, Any],
+    ) -> None:
+        """Mark dirty each film strip whose controller selections differ from the last update.
+
+        Args:
+            previous_selections: The selections by animation before this update.
+
+        """
+        if not hasattr(self.handler.editor, 'film_strips'):
             return
 
-        selections = self.handler.editor.controller_selections
-        for controller_id, controller_selection in selections.items():
-            self._process_film_strip_controller_selection(controller_id, controller_selection)
+        current_selections = self.handler.film_strip_controller_selections
+        film_strips = self.handler.editor.film_strips
+        for animation in previous_selections.keys() | current_selections.keys():
+            if previous_selections.get(animation) == current_selections.get(animation):
+                continue
+            if animation in film_strips:
+                film_strips[animation].mark_dirty()
 
     def _process_film_strip_controller_selection(
         self,

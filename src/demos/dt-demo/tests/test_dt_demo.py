@@ -72,7 +72,7 @@ def _key_down(key: int) -> HashableEvent:
 
 
 def _demo_text(text: str) -> pygame.Surface:
-    """Render ``text`` as the demo draws it: the bundled font, size 40, white, not antialiased.
+    """Render ``text`` as the demo draws it: the bundled font, size 40, white, antialiased.
 
     Returns:
         The rendered text.
@@ -84,7 +84,7 @@ def _demo_text(text: str) -> pygame.Surface:
             font_config={'font_name': DEFAULT_FONT_NAME, 'font_size': DEMO_FONT_SIZE}
         ),
     )
-    return font.render(text, False, WHITE)  # ruff: ignore[boolean-positional-value-in-call]
+    return font.render(text, True, WHITE)  # ruff: ignore[boolean-positional-value-in-call]
 
 
 def _shows(screen: pygame.Surface, *, image: pygame.Surface, topleft: tuple[int, int]) -> bool:

@@ -507,10 +507,11 @@ class TestJoystickEvents:
         assert editor.mode_switcher.controller_modes == {}
 
     def test_a_joystick_trigger_axis_registers_the_joystick_by_its_index(self):
-        """A joystick trigger axis registers the joystick, by its index, in film strip mode.
+        """A joystick trigger axis registers the joystick by its index, and L2 moves it to canvas.
 
-        The joystick conversion reads about 0.5 for any position (BUGS.md #67), so both
-        triggers count as pressed, and R2 pressed in film strip mode blocks any switch.
+        The joystick path reads triggers on pygame 2's -1.0..1.0 scale, as the controller path
+        does (BUGS.md #67): L2 fully pressed and R2 released switch film strip to canvas. It
+        used to read about 0.5 for any position, so both counted as pressed and nothing switched.
         """
         handler, editor = _make_handler()
         _snapshot_with_axes({3: (0.0, 0.0, 0.0, 0.0, 1.0, -1.0)})
@@ -519,9 +520,12 @@ class TestJoystickEvents:
             HashableEvent(pygame.JOYAXISMOTION, joy=3, axis=4, value=1.0),
         )
 
-        assert editor.mode_switcher.get_controller_mode(3) == ControllerMode.FILM_STRIP
+        assert editor.mode_switcher.get_controller_mode(3) == ControllerMode.CANVAS
+        assert editor.mode_switcher.trigger_detector.get_trigger_state(3, 'L2') == pytest.approx(
+            1.0
+        )
         assert editor.mode_switcher.trigger_detector.get_trigger_state(3, 'R2') == pytest.approx(
-            32767.0 / 65535.0,
+            0.0
         )
 
 

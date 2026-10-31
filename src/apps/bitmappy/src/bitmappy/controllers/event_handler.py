@@ -728,12 +728,11 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
         l2_raw = snapshot.axis(device_id=event.joy, axis=4)  # TRIGGERLEFT
         r2_raw = snapshot.axis(device_id=event.joy, axis=5)  # TRIGGERRIGHT
 
-        # Convert joystick raw values to 0.0..1.0 range
-        # Joystick values are typically in the range -32768 to 32767
-        # We need to normalize them to 0.0 to 1.0
-        # (pygame 2 reports -1.0..1.0, so this reads about 0.5 for any position: BUGS.md #67)
-        l2_value = max(0.0, min(1.0, (l2_raw + 32768.0) / 65535.0))
-        r2_value = max(0.0, min(1.0, (r2_raw + 32768.0) / 65535.0))
+        # Convert pygame 2's joystick axis values (-1.0 to 1.0) to 0.0..1.0, as the controller
+        # path does (this used pygame 1's -32768..32767 scale, so every position read about 0.5:
+        # BUGS.md #67)
+        l2_value = max(0.0, min(1.0, (l2_raw + 1.0) / 2.0))
+        r2_value = max(0.0, min(1.0, (r2_raw + 1.0) / 2.0))
 
         self.log.debug(
             'DEBUG: Joystick %s raw values - L2: %.2f, R2: %.2f',

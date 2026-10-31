@@ -221,9 +221,11 @@ def pygame_needs_fastevents() -> bool:
         True for pygame < 2.2.
 
     """
-    return (
-        pygame.version.vernum[0] < PYGAME_MIN_MAJOR_VERSION
-        and pygame.version.vernum[1] < PYGAME_MIN_MINOR_VERSION
+    # Compare (major, minor) as a pair: pygame 1.9 is older than 2.2 although its minor 9 is not
+    # below 2 (BUGS.md #75).
+    return (pygame.version.vernum[0], pygame.version.vernum[1]) < (
+        PYGAME_MIN_MAJOR_VERSION,
+        PYGAME_MIN_MINOR_VERSION,
     )
 
 

@@ -7,13 +7,15 @@ from pathlib import Path
 
 import pygame
 
-# Add the parent directory to the path so we can import glitchygames
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from glitchygames.exit_codes import ExitCode
 from glitchygames.sprites.animated import AnimatedSprite
 
 logger = logging.getLogger(__name__)
+
+# The sprite the demo shows: scripts/foo.toml, next to this script. The demos looked for it in
+# the repository root, where there is none, so they always stopped with MISSING_INPUT
+# (BUGS.md #245).
+FOO_TOML_PATH = Path(__file__).parent / 'foo.toml'
 
 
 def _handle_event(event: pygame.event.Event, animated_sprite: AnimatedSprite) -> bool:
@@ -67,7 +69,7 @@ def main() -> int:
     clock = pygame.time.Clock()
 
     # Load the animated sprite from foo.toml
-    foo_toml_path = Path(__file__).parent.parent / 'foo.toml'
+    foo_toml_path = FOO_TOML_PATH
 
     # Scale up the sprite by 20x for better visibility on large monitors
     scale_factor = 20

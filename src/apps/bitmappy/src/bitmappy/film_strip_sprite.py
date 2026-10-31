@@ -837,13 +837,11 @@ class FilmStripSprite(BitmappySprite):
         # Mark as dirty for redraw
         self.film_strip_widget.mark_dirty()
 
-        # Notify the parent scene about the frame insertion
-        if (
-            hasattr(self, 'parent_scene')
-            and self.parent_scene
-            and hasattr(self.parent_scene, 'on_frame_inserted')
-        ):
-            self.parent_scene.on_frame_inserted(current_animation, insert_index)  # type: ignore[reportPrivateUsage] # ty: ignore[call-non-callable]
+        # Tell the editor's film strip coordinator about the insertion (asking the scene, which
+        # has no on_frame_inserted, never reached it: BUGS.md #119)
+        coordinator = getattr(getattr(self, 'parent_scene', None), 'film_strip_coordinator', None)
+        if coordinator is not None:
+            coordinator.on_frame_inserted(current_animation, insert_index)
 
         # Select the newly created frame
         self.film_strip_widget.set_current_frame(current_animation, insert_index)

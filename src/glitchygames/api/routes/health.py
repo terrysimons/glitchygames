@@ -22,8 +22,9 @@ async def health_check() -> HealthResponse:
     """
     config = ServiceConfig.from_env()
 
-    # Check if pygame is initialized (renderer will initialize it if needed)
-    pygame_initialized: bool = RendererService.pygame_initialized
+    # Whether pygame is running now (renderer will initialize it if needed): not only whether
+    # it was started once, which stays True after pygame.quit() (BUGS.md #113)
+    pygame_initialized: bool = RendererService.pygame_running()
 
     return HealthResponse(
         status='healthy',

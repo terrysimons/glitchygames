@@ -327,7 +327,7 @@ class NewCanvasDialogScene(InputConfirmationDialogScene):
         """
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
-        super().__init__(previous_scene, options=options, groups=pygame.sprite.LayeredDirty())
+        super().__init__(previous_scene, options=options, groups=groups)
 
     @override
     def on_confirm_event(self: Self, event: HashableEvent, trigger: object) -> None:
@@ -378,7 +378,7 @@ class LoadDialogScene(InputConfirmationDialogScene):
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
-        super().__init__(previous_scene, options=options, groups=pygame.sprite.LayeredDirty())
+        super().__init__(previous_scene, options=options, groups=groups)
 
     @override
     def on_confirm_event(self: Self, event: HashableEvent, trigger: object) -> None:
@@ -430,7 +430,7 @@ class SaveDialogScene(InputConfirmationDialogScene):
         if groups is None:
             groups = pygame.sprite.LayeredDirty()
 
-        super().__init__(previous_scene, options=options, groups=pygame.sprite.LayeredDirty())
+        super().__init__(previous_scene, options=options, groups=groups)
 
     @override
     def on_confirm_event(self: Self, event: HashableEvent, trigger: object) -> None:

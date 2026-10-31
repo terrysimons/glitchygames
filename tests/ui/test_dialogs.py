@@ -293,6 +293,22 @@ class TestInputConfirmationDialogScene:
         assert _rgb_at(screen, (dialog_rect.right, dialog_rect.bottom)) == MARKER_COLOR
 
 
+class TestDialogScenesUseTheirGroups:
+    """The New, Load and Save dialog scenes keep the sprite group they are given (BUGS.md #135)."""
+
+    @pytest.mark.parametrize(
+        'scene_class', [NewCanvasDialogScene, LoadDialogScene, SaveDialogScene]
+    )
+    def test_dialog_scene_uses_the_given_group(self, previous_scene, scene_class):
+        """The scene's sprites go in the group passed in, not in a new one."""
+        groups = pygame.sprite.LayeredDirty()
+
+        scene = scene_class(previous_scene=previous_scene, groups=groups)
+
+        assert scene.all_sprites is groups
+        assert scene.dialog in groups
+
+
 class TestLoadDialogScene:
     """Test LoadDialogScene functionality."""
 
