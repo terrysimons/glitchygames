@@ -53,6 +53,12 @@ ANIMATED_SPRITE_TOML = (
     '[colors."."]\nred = 255\ngreen = 255\nblue = 255\n'
 )
 
+# A static sprite whose second row is short: valid TOML that needs a pixel-row repair
+RAGGED_SPRITE_TOML = (
+    '[sprite]\nname = "ball"\npixels = """\n##\n#\n"""\n\n'
+    '[colors."#"]\nred = 255\ngreen = 0\nblue = 0\n'
+)
+
 DEFAULT_PROMPT_TEXT = 'Enter a description of the sprite you want to create:'
 
 
@@ -877,6 +883,80 @@ class TestProcessAiResponse:
         assert 'anyway' not in caplog.text
         assert manager.pending_ai_requests == {}
 
+    def test_bitmappy_retries_ragged_rows(self):
+        """Rows that need repair are retried with the equal-widths correction."""
+        editor = _editor()
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(original_prompt='a red ball')
+
+        manager._process_ai_response('request-1', AIResponse(content=RAGGED_SPRITE_TOML))
+
+        retry_request = manager.ai_request_queue.items[0]  # type: ignore[union-attr]
+        assert 'every row of a frame must have the same number of characters' in str(
+            retry_request.messages
+        )
+        assert manager.pending_ai_requests['request-1'].retry_count == 1
+
+    def test_bitmappy_loads_ragged_rows_after_last_retry(self):
+        """Out of retries, rows that need repair load repaired instead of being thrown away."""
+        canvas = FakeCanvas()
+        editor = _editor(canvas=canvas)
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(
+            original_prompt='a red ball',
+            retry_count=AI_VALIDATION_MAX_RETRIES,
+        )
+
+        manager._process_ai_response('request-1', AIResponse(content=RAGGED_SPRITE_TOML))
+
+        assert not manager.ai_request_queue.items  # type: ignore[union-attr]
+        assert len(canvas.loaded_paths) == 1
+        frame = canvas.animated_sprite.get_current_frame()
+        assert frame.image.get_size() == (2, 2)
+        assert canvas.animated_sprite.pixel_row_repairs
+        assert manager.pending_ai_requests == {}
+
+    def test_ai_load_with_repairs_shows_the_notice(self):
+        """After the AI manager puts the prompt back, the repair notice is still below it."""
+        canvas = FakeCanvas()
+        editor = _editor(canvas=canvas)
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(
+            original_prompt='a red ball',
+            retry_count=AI_VALIDATION_MAX_RETRIES,
+        )
+
+        manager._process_ai_response('request-1', AIResponse(content=RAGGED_SPRITE_TOML))
+
+        assert editor.debug_text.text == (
+            'a red ball\nRepaired the pixel rows of 1 block(s) while loading (details in the '
+            'log). Saving writes the repaired rows.'
+        )
+
+    def test_row_check_skips_a_response_that_is_not_toml(self):
+        """Content that isn't TOML has no rows to check; loading reports what's wrong with it."""
+        manager = _manager_with_queues(_editor())
+
+        assert not manager._ai_pixel_row_problems('request-1', '[sprite]\nname = = "x"\n')
+
+    def test_bitmappy_still_discards_other_failures(self):
+        """Out of retries, any other failure is still not loaded."""
+        canvas = FakeCanvas()
+        editor = _editor(canvas=canvas)
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(
+            original_prompt='a red ball',
+            retry_count=AI_VALIDATION_MAX_RETRIES,
+        )
+
+        manager._process_ai_response(
+            'request-1',
+            AIResponse(content='[sprite]\nname = "x"\npixels = """\n#\n#.\n"""\n'),
+        )
+
+        assert canvas.loaded_paths == []
+        assert 'The sprite was not loaded.' in editor.debug_text.text
+
 
 class TestLoadAiSprite:
     """Test AIManager._load_ai_sprite error handling."""
@@ -1054,6 +1134,54 @@ class TestConstructTomlWithPreservedFormatting:
         )
 
         assert content == '[sprite]\n'
+
+    def test_ai_rewrite_accepts_a_non_string_name(self):
+        """An AI that writes name = 5 still gets a rewrite, as it did before escaping."""
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(  # type: ignore[arg-type]
+            {'sprite': {'name': 5}},
+        )
+
+        assert tomllib.loads(content)['sprite']['name'] == '5'
+
+    def test_ai_rewrite_keeps_alpha(self):
+        """A color's alpha is written back, so a see-through color stays see-through."""
+        data = tomllib.loads(STATIC_SPRITE_TOML)
+        first_glyph = next(iter(data['colors']))
+        data['colors'][first_glyph]['alpha'] = 128
+
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(data)  # type: ignore[arg-type]
+
+        assert tomllib.loads(content)['colors'][first_glyph]['alpha'] == 128
+
+    def test_ai_rewrite_escapes_name_description_and_rows(self):
+        """Text and rows with TOML's own characters parse back to the same values."""
+        data = {
+            'sprite': {
+                'name': 'a "quoted" \\ name',
+                'description': 'draw """ a \\ thing',
+                'pixels': 'b\\\nbb\n',
+            },
+            'animation': [
+                {
+                    'namespace': 'walk',
+                    'frame_interval': 0.5,
+                    'loop': True,
+                    'frame': [{'frame_index': 0, 'pixels': '"b\nb\\\n'}],
+                }
+            ],
+            'colors': {
+                '\\': {'red': 1, 'green': 2, 'blue': 3},
+                '"': {'red': 4, 'green': 5, 'blue': 6},
+                'b': {'red': 7, 'green': 8, 'blue': 9},
+            },
+        }
+
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(data)  # type: ignore[arg-type]
+
+        reparsed = tomllib.loads(content)
+        assert reparsed['sprite'] == data['sprite']
+        assert reparsed['animation'][0]['frame'][0]['pixels'] == '"b\nb\\\n'
+        assert reparsed['colors'] == data['colors']
 
 
 class TestTemporaryFilesAndStaticLoad:

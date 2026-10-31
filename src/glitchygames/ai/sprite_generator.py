@@ -6,9 +6,17 @@ sprite generation in the TOML format used by GlitchyGames.
 
 import logging
 import re
+import tomllib
 from typing import Any, cast
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE
+from glitchygames.sprites.animated import toml_basic_string, toml_pixel_block
+from glitchygames.sprites.pixel_utils import normalize_pixel_rows, palette_key_problems
+
+# Starts the error validate_ai_response gives when a pixel block needs repair. Bitmappy's retry
+# prompt matches it, and Bitmappy loads the last attempt anyway, repaired; so the repair texts
+# (normalize_pixel_rows) must not contain the words other retry corrections match
+PIXEL_ROWS_ERROR_PREFIX = 'Pixel rows need repair'
 
 LOG = logging.getLogger('game.ai.sprite_generator')
 
@@ -199,6 +207,18 @@ def _training_example_body(example: dict[str, Any], *, include_raw: bool) -> str
     return '# (Format unavailable)'
 
 
+def _pixels_line(pixels: str) -> str:
+    """Write a pixels key: a multi-line block for rows, a basic string for one line.
+
+    Returns:
+        str: The ``pixels = ...`` line(s), escaped so any glyph is valid TOML.
+
+    """
+    if '\n' in pixels:
+        return f'pixels = {toml_pixel_block(pixels)}'
+    return f'pixels = {toml_basic_string(pixels)}'
+
+
 def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
     """Reconstruct static sprite TOML from example data.
 
@@ -207,20 +227,16 @@ def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
 
     """
     lines = ['[sprite]']
-    lines.append(f'name = "{example.get("name", "unknown")}"')
+    lines.append(f'name = {toml_basic_string(example.get("name", "unknown"))}')
 
-    # Handle pixels
+    # Handle pixels (escaped, so any glyph is valid TOML)
     pixels = example.get('pixels', '')
-    if '\n' in pixels:
-        lines.append(f'pixels = """\n{pixels}\n"""')
-    else:
-        lines.append(f'pixels = "{pixels}"')
-    lines.append('')
+    lines.extend((_pixels_line(pixels), ''))
 
     # Add colors
     colors: dict[str, Any] = example.get('colors', {})
     for char, color_data in sorted(colors.items()):
-        lines.append(f'[colors."{char}"]')
+        lines.append(f'[colors.{toml_basic_string(char)}]')
         if isinstance(color_data, dict):
             color_dict = cast('dict[str, int]', color_data)
             lines.extend((
@@ -244,7 +260,7 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
     """
     lines = ['[sprite]']
     lines.extend((
-        f'name = "{example.get("name", "unknown")}"',
+        f'name = {toml_basic_string(example.get("name", "unknown"))}',
         '',
     ))
 
@@ -276,12 +292,9 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
                 f'frame_index = {frame_dict.get("frame_index", 0)}',
             ))
 
-            # Handle pixels
+            # Handle pixels (escaped, so any glyph is valid TOML)
             pixels: str = frame_dict.get('pixels', '')
-            if '\n' in pixels:
-                lines.append(f'pixels = """\n{pixels}\n"""')
-            else:
-                lines.append(f'pixels = "{pixels}"')
+            lines.append(_pixels_line(pixels))
 
             if 'frame_interval' in frame_dict:
                 lines.append(f'frame_interval = {frame_dict["frame_interval"]}')
@@ -290,7 +303,7 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
     # Add colors
     colors: dict[str, Any] = example.get('colors', {})
     for char, color_data in sorted(colors.items()):
-        lines.append(f'[colors."{char}"]')
+        lines.append(f'[colors.{toml_basic_string(char)}]')
         if isinstance(color_data, dict):
             anim_color_dict = cast('dict[str, int]', color_data)
             lines.extend((
@@ -428,11 +441,66 @@ def _check_mixed_format(content: str) -> tuple[bool, str]:
     return True, ''
 
 
-def validate_ai_response(content: str) -> tuple[bool, str]:
+def pixel_row_problems(data: dict[str, Any]) -> str:
+    """Describe every pixel block in parsed sprite TOML that the loader would have to repair.
+
+    Each block goes through normalize_pixel_rows, labelled as the loader labels it ('sprite',
+    or '<namespace> frame <frame_index>'), and the palette's keys through palette_key_problems.
+
+    Args:
+        data: The parsed TOML.
+
+    Returns:
+        str: '' when nothing needs repair; otherwise PIXEL_ROWS_ERROR_PREFIX, then every repair.
+
+    """
+    # A response can put a table where an array belongs (or the reverse); those parts have no
+    # rows to check here, and the loader reports them
+    colors: object = data.get('colors', {})
+    palette_glyphs = (
+        [str(glyph) for glyph in cast('dict[str, Any]', colors)] if isinstance(colors, dict) else []
+    )
+    problems = [f'palette: {problem}' for problem in palette_key_problems(palette_glyphs)]
+    blocks: list[tuple[str, str]] = []
+    sprite: object = data.get('sprite', {})
+    if isinstance(sprite, dict):
+        sprite_pixels: object = cast('dict[str, Any]', sprite).get('pixels')
+        if isinstance(sprite_pixels, str):
+            blocks.append(('sprite', sprite_pixels))
+    animations: object = data.get('animation', [])
+    for animation in cast('list[object]', animations) if isinstance(animations, list) else []:
+        if not isinstance(animation, dict):
+            continue
+        animation_table = cast('dict[str, Any]', animation)
+        namespace = str(animation_table.get('namespace', 'default'))
+        frames: object = animation_table.get('frame', [])
+        for frame_number, frame in enumerate(
+            cast('list[object]', frames) if isinstance(frames, list) else []
+        ):
+            if not isinstance(frame, dict):
+                continue
+            frame_table = cast('dict[str, Any]', frame)
+            frame_index = frame_table.get('frame_index', frame_number)
+            pixels: object = frame_table.get('pixels')
+            if isinstance(pixels, str):
+                blocks.append((f'{namespace} frame {frame_index}', pixels))
+    for label, pixels in blocks:
+        problems.extend(
+            f'{label}: {repair}' for repair in normalize_pixel_rows(pixels, palette_glyphs).repairs
+        )
+    if not problems:
+        return ''
+    return f'{PIXEL_ROWS_ERROR_PREFIX}: ' + '; '.join(problems)
+
+
+def validate_ai_response(content: str, *, check_pixel_rows: bool = True) -> tuple[bool, str]:
     """Validate AI response for common errors.
 
     Args:
         content: AI response content
+        check_pixel_rows: Also reject pixel blocks the loader would have to repair
+            (pixel_row_problems). Runs last, and only on content that parses as TOML. Bitmappy
+            turns it off and checks what it loads itself.
 
     Returns:
         Tuple of (is_valid, error_message)
@@ -455,6 +523,12 @@ def validate_ai_response(content: str) -> tuple[bool, str]:
         _, error = _check_mixed_format(content)
     if not error and re.search(r'(red|green|blue)\s*=\s*\d+\s*,', content):
         error = 'Color values contain commas (should be separate fields)'
+    if not error and check_pixel_rows:
+        try:
+            error = pixel_row_problems(tomllib.loads(content))
+        except tomllib.TOMLDecodeError:
+            # Not TOML: the checks above and the loader handle it as they always have
+            error = ''
 
     if error:
         return False, error

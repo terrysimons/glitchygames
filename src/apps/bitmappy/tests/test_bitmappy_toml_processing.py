@@ -539,3 +539,9 @@ class TestBuildPixelStringFromPixels:
         pixel_string = build_pixel_string_from_pixels([(0, 0, 0)], 2, 2, mapping, sorted(mapping))
 
         assert pixel_string == f'#{TRANSPARENT_GLYPH}\n{TRANSPARENT_GLYPH * 2}'
+
+
+def test_png_import_glyphs_need_no_escaping():
+    """The PNG import writes pixel rows unescaped: safe only while its glyphs are plain."""
+    assert '\\' not in SPRITE_GLYPHS
+    assert '"' not in SPRITE_GLYPHS

@@ -73,7 +73,7 @@ public enum SpriteLoader {
     /// R7 (AnimatedSprite._convert_static_sprite)
     private static func resolveStatic(name: String?, pixels: String, palette: ColorPalette) -> Sprite? {
         guard let frame = makeFrame(
-            rows: PixelRows.staticSpriteRows(pixels),
+            rows: PixelRows.rows(pixels),
             palette: palette,
             duration: defaultFrameInterval
         ) else {
@@ -119,7 +119,7 @@ public enum SpriteLoader {
         // (plans/future-work.md, "Bugs found and not fixed yet")
         return (section.frame ?? []).compactMap { frameSection in
             makeFrame(
-                rows: PixelRows.animatedFrameRows(frameSection.pixels ?? ""),
+                rows: PixelRows.rows(frameSection.pixels ?? ""),
                 palette: palette,
                 duration: frameSection.frameInterval ?? animationInterval
             )

@@ -718,11 +718,10 @@ class TestExtractExampleSize:
         assert result == (3, 4)
 
     def test_empty_pixels_string(self):
-        """Test with empty pixels string."""
+        """An empty pixels string has no rows, as the loader sees it (normalize_pixel_rows)."""
         example = {'pixels': '\n'}
         result = _extract_example_size(example)
-        # Strip produces empty string, split gives [''], height=1, width=0
-        assert result == (0, 1)
+        assert result is None
 
 
 class TestBuildColorToGlyphMap:

@@ -12,7 +12,6 @@ import logging
 import math
 import operator
 import tomllib
-from collections import Counter
 from enum import Enum
 from pathlib import Path
 from typing import IO, Any, Self, cast, override
@@ -36,6 +35,7 @@ from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 from .file_format import detect_file_format
 from .frame import FrameManager, SpriteFrame
 from .pixel_utils import (
+    PADDING_GLYPH,
     convert_pixels_to_rgb_if_possible,
     convert_pixels_to_rgba_if_needed,
     create_alpha_surface,
@@ -45,6 +45,8 @@ from .pixel_utils import (
     lookup_pixel_char,
     needs_alpha_channel,
     normalize_pixel_for_color_map,
+    normalize_pixel_rows,
+    palette_key_problems,
 )
 
 # Characters TOML basic strings must escape with a short escape sequence
@@ -87,6 +89,25 @@ def toml_basic_string(value: str) -> str:
         else:
             escaped_characters.append(character)
     return '"' + ''.join(escaped_characters) + '"'
+
+
+def toml_pixel_block(pixel_text: str) -> str:
+    """Write pixel rows as a TOML multi-line basic string, one row per line.
+
+    Each row is escaped as toml_basic_string escapes (a backslash, a quote and control
+    characters), so any glyph survives: unescaped, a row ending in a backslash glyph joins the
+    next row (TOML's line-ending backslash), and three quote glyphs end the string. The line
+    breaks between rows stay real so the rows stay readable. A trailing line break of the input
+    is dropped: the closing quotes' line ends the last row.
+
+    Returns:
+        str: The rows wrapped in triple quotes, the opening quotes on their own line.
+
+    """
+    rows = pixel_text.removesuffix('\n').split('\n')
+    # toml_basic_string quotes a row; the quotes are dropped, the escapes kept
+    escaped_rows = [toml_basic_string(row)[1:-1] for row in rows]
+    return '"""\n' + '\n'.join(escaped_rows) + '\n"""'
 
 
 def toml_multiline_basic_string(value: str) -> str:
@@ -590,6 +611,12 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # save writes the animation state machine back; transitions games add in code are not
         # part of it
         self.transition_data: list[dict[str, Any]] = []
+        # What the last load had to repair in its pixel rows, one entry per repair, each
+        # '<label>: <repair>' (label 'sprite', '<namespace> frame <frame_index>' or 'palette');
+        # see normalize_pixel_rows. Bitmappy shows a notice when it isn't empty
+        self.pixel_row_repairs: list[str] = []
+        # Names the source in the repair warnings: the file being loaded
+        self._pixel_rows_source = '<data>'
         self._is_playing: bool = False
         self._is_looping: bool = False
         self._frame_timer: float = 0.0
@@ -1334,8 +1361,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self._animation_frame_intervals = {}
         self._loop_flags = {}
         self.transition_data = [dict(transition) for transition in data.get('transition', [])]
+        self.pixel_row_repairs = []
+        self._pixel_rows_source = filename
 
         color_map, color_order, colors_with_per_pixel_alpha = self.build_color_map(data)
+        self._record_pixel_row_repairs('palette', palette_key_problems(data.get('colors', {})))
         self._color_map = color_map  # Store color map for later use
         self._color_order = color_order  # Store color order for preserving file format
         # Store which colors originally had alpha=0-254 (per-pixel
@@ -1345,18 +1375,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         self.log.debug('Found %s animation(s) in TOML file', len(animations))
 
-        # Check if this is a static sprite (has sprite.pixels but no animations)
-        if not animations and 'sprite' in data and 'pixels' in data['sprite']:
-            self.log.debug('Detected static sprite, converting to single-frame animation')
-            self._animation_order.append(self._convert_static_sprite(data, color_map))
-        else:
-            # Process normal animated sprite
-            for anim_data in animations:
-                anim_name = anim_data.get('namespace', 'default')
-                frames = self._process_toml_animation(anim_data, color_map)
-                if frames:
-                    self._animations[anim_name] = frames
-                    self._animation_order.append(anim_name)  # Track order
+        self._animation_order.extend(self._load_toml_animations(data, color_map, animations))
 
         # Auto-create animation state machine if [[transition]] sections exist
         self.state_machine: AnimationStateMachine | None = None
@@ -1386,49 +1405,59 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             self._last_drawn_frame = None  # Force update regardless of previous state
             self._update_surface_and_mark_dirty()
 
+    def _load_toml_animations(
+        self: Self,
+        data: dict[str, Any],
+        color_map: dict[str, tuple[int, ...]],
+        animations: list[dict[str, Any]],
+    ) -> list[str]:
+        """Load the [[animation]] tables, or the static sprite as a one-frame animation.
+
+        An animation (or static sprite) with nothing to draw is left out.
+
+        Returns:
+            list[str]: The loaded animations' names, in file order (the animation order).
+
+        """
+        # Check if this is a static sprite (has sprite.pixels but no animations)
+        if not animations and 'sprite' in data and 'pixels' in data['sprite']:
+            self.log.debug('Detected static sprite, converting to single-frame animation')
+            static_animation_name = self._convert_static_sprite(data, color_map)
+            return [] if static_animation_name is None else [static_animation_name]
+        # Process normal animated sprite
+        animation_names: list[str] = []
+        for anim_data in animations:
+            anim_name = anim_data.get('namespace', 'default')
+            frames = self._process_toml_animation(anim_data, color_map)
+            if frames:
+                self._animations[anim_name] = frames
+                animation_names.append(anim_name)  # Track order
+        return animation_names
+
     def _convert_static_sprite(
         self: Self,
         data: dict[str, Any],
         color_map: dict[str, tuple[int, ...]],
-    ) -> str:
+    ) -> str | None:
         """Convert a static sprite to a single-frame animation.
 
         Returns:
-            str: The animation's name (the caller adds it to the animation order).
+            str | None: The animation's name (the caller adds it to the animation order), or
+                None when the pixels are blank and there is nothing to draw.
 
         """
         sprite_data = data['sprite']
         pixels = sprite_data['pixels']
 
-        # Parse pixel rows
-        pixel_rows = pixels.strip().split('\n')
-        height = len(pixel_rows)
-
-        # Calculate maximum width across all rows to handle inconsistent widths
-        row_widths = [len(row) for row in pixel_rows]
-        width = max(row_widths) if row_widths else 0
-
-        # Check for inconsistent row widths and pad if needed
-        if len(set(row_widths)) > 1:
-            self.log.warning(
-                'Inconsistent row widths detected in static sprite: '
-                'min=%s, max=%s. '
-                'Padding shorter rows to %s characters.',
-                min(row_widths),
-                max(row_widths),
-                width,
-            )
-            # Pad shorter rows with first character (usually transparency)
-            # Find the most common character to use as padding (likely transparency)
-            from collections import Counter
-
-            all_chars = ''.join(pixel_rows)
-            char_counts = Counter(all_chars)
-            pad_char = char_counts.most_common(1)[0][0] if char_counts else ' '
-
-            # Pad rows to consistent width
-            pixel_rows = [row.ljust(width, pad_char) for row in pixel_rows]
-            self.log.debug("Using '%s' as padding character", pad_char)
+        # The one pixel-row rule, shared with animation frames (normalize_pixel_rows)
+        normalized = normalize_pixel_rows(pixels, color_map.keys())
+        if not normalized.rows:
+            # Nothing to draw: no animation, as a blank animation frame is skipped
+            self.log.debug('Skipping empty static sprite')
+            return None
+        self._record_pixel_row_repairs('sprite', normalized.repairs)
+        pixel_rows = normalized.rows
+        width, height = normalized.width, normalized.height
 
         # Create a surface from the pixel data
         surface = pygame.Surface((width, height))
@@ -1501,6 +1530,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         original_alpha_values: dict[str, int] = {}
         colors_section: dict[str, Any] = data.get('colors', {})
         for char, color_data in colors_section.items():
+            if char == PADDING_GLYPH:
+                # normalize_pixel_rows pads with it, so it can't be a color (the load reports
+                # it through palette_key_problems)
+                continue
             r = color_data.get('red', 0)
             g = color_data.get('green', 0)
             b = color_data.get('blue', 0)
@@ -1551,7 +1584,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         frames: list[SpriteFrame] = []
         for frame_idx, frame_data in enumerate(frames_data):
-            frame = self._create_toml_frame(frame_data, frame_idx, color_map, frame_interval)
+            frame = self._create_toml_frame(
+                frame_data, frame_idx, color_map, frame_interval, animation_name=anim_name
+            )
             if frame:
                 frames.append(frame)
 
@@ -1576,8 +1611,11 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         frame_idx: int,
         color_map: dict[str, tuple[int, ...]],
         frame_interval: float = 0.5,
+        animation_name: str = 'default',
     ) -> SpriteFrame | None:
         """Create a SpriteFrame from TOML frame data.
+
+        animation_name names the frame in pixel-row repair reports.
 
         Returns:
             SpriteFrame: The result.
@@ -1587,16 +1625,14 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self.log.debug('  Processing frame %s (data index %s)', frame_index, frame_idx)
 
         pixel_data = frame_data.get('pixels', '')
-        pixel_lines = AnimatedSprite.parse_toml_pixel_lines(pixel_data)
-
-        if not pixel_lines:
+        # The one pixel-row rule, shared with static sprites (normalize_pixel_rows)
+        normalized = normalize_pixel_rows(pixel_data, color_map.keys())
+        if not normalized.rows:
             self.log.debug('    Skipping empty frame %s', frame_index)
             return None
-
-        width, height, normalized_lines = self._validate_toml_frame_dimensions(
-            pixel_lines,
-            frame_index,
-        )
+        self._record_pixel_row_repairs(f'{animation_name} frame {frame_index}', normalized.repairs)
+        width, height = normalized.width, normalized.height
+        normalized_lines = list(normalized.rows)
         # Extract the frame's colors once: they decide the surface type and are the frame's
         # pixel data
         raw_pixels = extract_pixel_colors(normalized_lines, width, height, color_map)
@@ -1626,8 +1662,25 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         else:
             frame.pixels = convert_pixels_to_rgb_if_possible(raw_pixels)
 
-        self._log_frame_debug_info(frame_index, pixel_lines, frame_data)
+        self._log_frame_debug_info(frame_index, normalized_lines, frame_data)
         return frame
+
+    def _record_pixel_row_repairs(self: Self, label: str, repairs: tuple[str, ...]) -> None:
+        """Keep a block's pixel-row repairs and log them in one warning.
+
+        Args:
+            label: Names the block: 'sprite', '<namespace> frame <frame_index>' or 'palette'.
+            repairs: What normalize_pixel_rows (or palette_key_problems) reported; may be empty.
+
+        """
+        if not repairs:
+            return
+        self.pixel_row_repairs.extend(f'{label}: {repair}' for repair in repairs)
+        self.log.warning(
+            '%s: pixel rows repaired: %s',
+            self._pixel_rows_source,
+            '; '.join(f'{label}: {repair}' for repair in repairs),
+        )
 
     @staticmethod
     def _parse_hitbox_data(
@@ -1649,76 +1702,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             hitbox_data.get('width', 0),
             hitbox_data.get('height', 0),
         )
-
-    @staticmethod
-    def parse_toml_pixel_lines(pixel_data: str) -> list[str]:
-        """Parse pixel data string into lines.
-
-        Returns:
-            list: The result.
-
-        """
-        raw_lines = pixel_data.split('\n')
-        return [line.strip() for line in raw_lines if line.strip()]
-
-    def _validate_toml_frame_dimensions(
-        self: Self,
-        pixel_lines: list[str],
-        frame_index: int,
-    ) -> tuple[int, int, list[str]]:
-        """Validate and return frame dimensions and normalized lines.
-
-        The lines come from parse_toml_pixel_lines, so they are already stripped and none is
-        empty.
-
-        Returns:
-            tuple[int, int, list]: The result.
-
-        """
-        # Normalize line lengths for consistency
-        # This helps handle AI-generated content with inconsistent formatting
-        normalized_lines: list[str] = list(pixel_lines)
-
-        # Find the most common line length (mode) to handle AI inconsistencies
-        line_lengths = [len(line) for line in normalized_lines]
-        length_counts = Counter(line_lengths)
-        most_common_length = length_counts.most_common(1)[0][0]
-
-        # If there are inconsistencies, try to normalize to the most common length
-        if len(set(line_lengths)) > 1:
-            self.log.warning(
-                '    Frame %s: Inconsistent line lengths detected. '
-                'Most common length: %s, lengths found: %s',
-                frame_index,
-                most_common_length,
-                set(line_lengths),
-            )
-
-            # Normalize lines to the most common length
-            normalized_lines = []
-            for line in pixel_lines:
-                normalized_line = line
-                if len(normalized_line) > most_common_length:
-                    # Truncate if too long
-                    normalized_line = normalized_line[:most_common_length]
-                elif len(normalized_line) < most_common_length:
-                    # Pad with the last character if too short (no line is empty)
-                    padding_length = most_common_length - len(normalized_line)
-                    normalized_line += normalized_line[-1] * padding_length
-                normalized_lines.append(normalized_line)
-
-            self.log.info(
-                '    Frame %s: Normalized to %s characters per line',
-                frame_index,
-                most_common_length,
-            )
-
-        # Every line now has the most common length
-        height = len(normalized_lines)
-        width = most_common_length
-        self.log.debug('    Frame %s: %sx%s pixels', frame_index, width, height)
-        self.log.debug('    Processed: %s lines of %s pixels each', len(normalized_lines), width)
-        return width, height, normalized_lines
 
     @staticmethod
     def _create_toml_surface(
@@ -1903,9 +1886,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 f.write(f'description = {toml_multiline_basic_string(self.description)}\n')
             if self.frame_anchor is not FrameAnchor.NONE:
                 f.write(f'frame_anchor = "{self.frame_anchor.value}"\n')
-            f.write('pixels = """\n')
-            f.write('\n'.join(pixel_rows))
-            f.write('\n"""\n\n')
+            f.write(f'pixels = {toml_pixel_block("\n".join(pixel_rows))}\n\n')
 
             hitbox_data = self._get_effective_static_hitbox(frame)
             if hitbox_data is not None:
@@ -2335,9 +2316,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 f.write(f'frame_index = {frame["frame_index"]}\n')
                 if 'frame_interval' in frame:
                     f.write(f'frame_interval = {frame["frame_interval"]}\n')
-                f.write('pixels = """\n')
-                f.write(frame['pixels'])
-                f.write('\n"""\n\n')
+                f.write(f'pixels = {toml_pixel_block(frame["pixels"])}\n\n')
 
                 # Write per-frame hitbox if present
                 if 'hitbox' in frame:
@@ -2423,7 +2402,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
             for char in chars_to_write:
                 color = data['colors'][char]
-                f.write(f'[colors."{char}"]\n')
+                # Quoted and escaped, so a backslash or quote glyph is a valid key
+                f.write(f'[colors.{toml_basic_string(char)}]\n')
                 f.write(f'red = {color["red"]}\n')
                 f.write(f'green = {color["green"]}\n')
                 f.write(f'blue = {color["blue"]}\n')

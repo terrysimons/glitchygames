@@ -1,5 +1,5 @@
-# Hand-written fixture: ragged rows in a static sprite (R5: whole-string strip, longest row,
-# most common glyph pads)
+# Hand-written fixture: ragged rows in a static sprite. The one pixel-row rule
+# (normalize_pixel_rows) pads with transparent pixels; it used to pad with the most common glyph
 [sprite]
 name = "ragged_static"
 pixels = """

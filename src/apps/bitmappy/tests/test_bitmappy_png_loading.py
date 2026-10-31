@@ -76,7 +76,8 @@ class TestPNGLoading:
                 'bitmappy.animated_canvas.AnimatedSprite',
             )
             mock_sprite = self._mocker.Mock()
-            mock_sprite._animations = {}  # Add required attribute
+            # A sprite with something to draw: a load with nothing to draw is an error
+            mock_sprite._animations = {'idle': [self._mocker.Mock()]}
             mock_sprite_class.return_value = mock_sprite
 
             # Call the method
@@ -118,7 +119,8 @@ class TestPNGLoading:
             'bitmappy.animated_canvas.AnimatedSprite',
         )
         mock_sprite = self._mocker.Mock()
-        mock_sprite._animations = {}  # Add required attribute
+        # A sprite with something to draw: a load with nothing to draw is an error
+        mock_sprite._animations = {'idle': [self._mocker.Mock()]}
         mock_sprite_class.return_value = mock_sprite
 
         # Call with a TOML file

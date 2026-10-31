@@ -196,6 +196,15 @@ class TestColorizePixels:
         result = renderer_without_color.colorize_pixels(pixels, colors)
         assert result == pixels
 
+    def test_colorize_pixels_keeps_unshared_indentation(self, renderer_with_color):
+        """Rows keep leading spaces that only some rows have, as the loader does."""
+        colors = {'#': (255, 0, 0, 255)}
+        plain = renderer_with_color.colorize_pixels(' #\n##', colors)
+        first_row, second_row = plain.split('\n')
+        assert first_row.count('\033[38;2;255;0;0m') == 1
+        assert second_row.count('\033[38;2;255;0;0m') == 2
+        assert not first_row.startswith('\033[38;2;255;0;0m')
+
     def test_colorize_opaque_pixels(self, renderer_with_color):
         """Test colorization of fully opaque pixels."""
         pixels = '#'

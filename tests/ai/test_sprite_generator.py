@@ -1,6 +1,11 @@
 """Tests for AI sprite generation functionality."""
 
+import tomllib
+
+import pytest
+
 from glitchygames.ai.sprite_generator import (
+    PIXEL_ROWS_ERROR_PREFIX,
     SpriteGenerationPrompt,
     _check_mixed_format,
     _check_truncated_pixel_data,
@@ -13,6 +18,7 @@ from glitchygames.ai.sprite_generator import (
     detect_refinement_request,
     format_training_example,
     get_sprite_size_hint,
+    pixel_row_problems,
     validate_ai_response,
 )
 
@@ -748,6 +754,30 @@ class TestReconstructStaticSprite:
         result = _reconstruct_static_sprite(example)
         assert 'alpha = 128' in result
 
+    def test_prompt_examples_are_valid_toml(self):
+        """Examples with TOML's own characters as glyphs, in both pixel forms, parse back."""
+        colors = {
+            '\\': {'red': 1, 'green': 2, 'blue': 3},
+            '"': {'red': 4, 'green': 5, 'blue': 6},
+        }
+        for pixels in ('\\"\n"\\', '\\"'):
+            example = {'name': 'a "b"', 'pixels': pixels, 'colors': colors}
+            reparsed = tomllib.loads(_reconstruct_static_sprite(example))
+            assert reparsed['sprite']['pixels'].removesuffix('\n') == pixels
+            assert reparsed['sprite']['name'] == 'a "b"'
+            assert reparsed['colors'] == colors
+
+        animated_example = {
+            'name': 'x',
+            'animations': [
+                {'namespace': 'walk', 'frame': [{'frame_index': 0, 'pixels': '\\"\n"\\'}]}
+            ],
+            'colors': colors,
+        }
+        reparsed = tomllib.loads(_reconstruct_animated_sprite(animated_example))
+        assert reparsed['animation'][0]['frame'][0]['pixels'].removesuffix('\n') == '\\"\n"\\'
+        assert reparsed['colors'] == colors
+
 
 class TestReconstructAnimatedSprite:
     """Test _reconstruct_animated_sprite."""
@@ -1110,3 +1140,69 @@ class TestBuildRefinementMessages:
         )
         last_content = messages[-1]['content']
         assert 'ANIMATED' in last_content
+
+
+RAGGED_ANIMATED_RESPONSE = (
+    '[sprite]\nname = "slime"\n\n'
+    '[[animation]]\nnamespace = "walk"\nframe_interval = 0.5\nloop = true\n\n'
+    '[[animation.frame]]\nnamespace = "walk"\nframe_index = 0\npixels = """\nAA\nA\n"""\n\n'
+    '[colors."A"]\nred = 255\ngreen = 0\nblue = 0\n'
+)
+
+
+class TestValidateAiResponsePixelRows:
+    """validate_ai_response's strict pixel-row check (normalize_pixel_rows)."""
+
+    def test_ragged_rows_fail_validation(self):
+        """A frame whose rows differ in width fails, naming the frame."""
+        is_valid, message = validate_ai_response(RAGGED_ANIMATED_RESPONSE)
+        assert is_valid is False
+        assert message.startswith(f'{PIXEL_ROWS_ERROR_PREFIX}: walk frame 0: row widths differ')
+
+    def test_unparseable_response_skips_the_row_check(self):
+        """A response that isn't valid TOML is left to the other checks and the loader."""
+        content = RAGGED_ANIMATED_RESPONSE + 'broken = = 1\n'
+        assert validate_ai_response(content) == validate_ai_response(
+            content, check_pixel_rows=False
+        )
+
+    def test_space_pyramid_passes(self):
+        """Spaces are transparent pixels: a pyramid drawn with them needs no repair."""
+        content = (
+            '[sprite]\nname = "pyramid"\npixels = """\n  A  \n AAA \nAAAAA\n"""\n\n'
+            '[colors."A"]\nred = 255\ngreen = 0\nblue = 0\n'
+        )
+        assert validate_ai_response(content) == (True, '')
+
+    def test_frame_without_pixels_has_nothing_to_check(self):
+        """A frame with no pixels key is left to the loader, which skips it."""
+        data = {'animation': [{'namespace': 'walk', 'frame': [{'frame_index': 0}]}]}
+        assert not pixel_row_problems(data)
+
+    @pytest.mark.parametrize(
+        'content',
+        [
+            '[sprite]\nname = "x"\n[animation]\nnamespace = "walk"\n',
+            (
+                '[sprite]\nname = "x"\n[[animation]]\nnamespace = "walk"\n[animation.frame]\n'
+                'pixels = "A"\n'
+            ),
+            '[[sprite]]\nname = "x"\n',
+            'animation = ["walk"]\n',
+            '[[animation]]\nnamespace = "walk"\nframe = ["AA"]\n',
+        ],
+        ids=[
+            'animation table',
+            'frame table',
+            'sprite array',
+            'animation strings',
+            'frame strings',
+        ],
+    )
+    def test_wrong_shaped_toml_is_left_to_the_other_checks(self, content):
+        """Tables where arrays belong (and the reverse) don't crash the row check."""
+        assert not pixel_row_problems(tomllib.loads(content))
+
+    def test_row_check_can_be_turned_off(self):
+        """Bitmappy runs the row check itself, on what it loads."""
+        assert validate_ai_response(RAGGED_ANIMATED_RESPONSE, check_pixel_rows=False) == (True, '')

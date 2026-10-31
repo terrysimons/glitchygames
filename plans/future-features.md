@@ -1297,6 +1297,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ### 28. Sprite Format Linter
 - **Description**: Comprehensive validation and linting tool for TOML sprite files to ensure format compliance and catch common errors
+- **Started (2026-10-30)**: the pixel-row core exists. `normalize_pixel_rows` in strict mode and `palette_key_problems` (`src/glitchygames/sprites/pixel_utils.py`) reject ragged rows, blank lines between rows, glyphs missing from the palette and palette keys that aren't one code point; `check_rows_have_equal_lengths` runs them on every repo sprite (`docs/specs/2026-10-30-unified-pixel-rows-design.md`)
 - **Use Case**: Essential for maintaining sprite file quality, catching format errors early, and ensuring compatibility across different sprite formats
 - **Status**: Planned
 - **Priority**: High

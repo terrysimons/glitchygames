@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from glitchygames.sprites import AnimatedSprite
+from glitchygames.sprites.pixel_utils import normalize_pixel_rows, palette_key_problems
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -175,26 +176,32 @@ def _save_and_reload(
 
 
 def check_rows_have_equal_lengths(*, sprite_file: Path) -> None:
-    """Check that every pixel row in a sprite file is the same width.
+    """Check that no pixel block in a sprite file needs the loader to repair it.
 
-    The loader pads a short row with its last character (and truncates a long one), which
-    silently changes the art, e.g. a 9-wide row in gold_scarab.toml frame 2 drew a notch.
+    Runs normalize_pixel_rows in strict mode on every block, and checks the palette's keys. The
+    loader repairs what this rejects (ragged rows, blank lines between rows, glyphs missing from
+    the palette), which changes the art, e.g. a 9-wide row in gold_scarab.toml frame 2 drew a
+    notch, and cobra.toml's second eye had no color.
 
     Args:
         sprite_file: The sprite file to check.
 
     Raises:
-        AssertionError: A pixel block has rows of more than one width; the message names the file,
-            the block and the widths.
+        AssertionError: A block or the palette needs a repair; the message names the file, the
+            block and every repair.
 
     """
     sprite_data = _read_sprite_data(sprite_file=sprite_file)
+    palette_glyphs = list(sprite_data.get('colors', {}))
+    for problem in palette_key_problems(palette_glyphs):
+        message = f'{sprite_file} palette: {problem}'
+        raise AssertionError(message)
     for label, pixels in _pixel_blocks(sprite_data=sprite_data):
-        rows = AnimatedSprite.parse_toml_pixel_lines(pixels)
-        row_lengths = {len(row) for row in rows}
-        if len(row_lengths) > 1:
-            message = f'{sprite_file} {label}: row lengths {sorted(row_lengths)}'
-            raise AssertionError(message)
+        try:
+            normalize_pixel_rows(pixels, palette_glyphs, strict=True, label=label)
+        except ValueError as error:
+            message = f'{sprite_file} {error}'
+            raise AssertionError(message) from error
 
 
 def check_animation_timings_survive_a_save_round_trip(

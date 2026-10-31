@@ -1950,6 +1950,52 @@ class TestLoading:
 
         assert parent_scene.debug_text.text == 'A tiny red dot'
 
+    def test_load_with_repairs_shows_the_notice(self, tmp_path):
+        """A file whose pixel rows needed repair says so below the AI text box's text."""
+        canvas, _ = _make_real_canvas()
+        parent_scene = ParentSceneStandIn()
+        canvas.parent_scene = parent_scene
+        sprite_path = tmp_path / 'ragged.toml'
+        sprite_path.write_text(
+            '[sprite]\nname = "ragged"\npixels = """\n##\n#\n\n##\n"""\n\n'
+            '[colors."#"]\nred = 255\ngreen = 0\nblue = 0\n'
+        )
+
+        canvas.on_load_file_event(str(sprite_path))
+
+        assert parent_scene.debug_text.text == (
+            'Enter a description of the sprite you want to create:'
+            '\nRepaired the pixel rows of 1 block(s) while loading (details in the log). '
+            'Saving writes the repaired rows.'
+        )
+
+    def test_loading_a_blank_static_sprite_does_not_crash(self, tmp_path):
+        """A sprite with no pixels to draw is reported as a load error, not a crash."""
+        canvas, _ = _make_real_canvas()
+        parent_scene = ParentSceneStandIn()
+        canvas.parent_scene = parent_scene
+        sprite_path = tmp_path / 'blank.toml'
+        sprite_path.write_text(
+            '[sprite]\nname = "blank"\npixels = """\n\n"""\n\n'
+            '[colors."#"]\nred = 255\ngreen = 0\nblue = 0\n'
+        )
+
+        canvas.on_load_file_event(str(sprite_path))
+
+        assert parent_scene.debug_text.text.startswith('Error loading sprite:')
+
+    def test_clean_load_shows_no_notice(self, tmp_path):
+        """A file that needed no repair shows only the usual text."""
+        canvas, _ = _make_real_canvas()
+        parent_scene = ParentSceneStandIn()
+        canvas.parent_scene = parent_scene
+        sprite_path = tmp_path / 'blinker.toml'
+        sprite_path.write_text(ANIMATED_SPRITE_TOML)
+
+        canvas.on_load_file_event(str(sprite_path))
+
+        assert 'Repaired' not in parent_scene.debug_text.text
+
     def test_loading_a_different_size_resizes_the_canvas(self, tmp_path):
         """A sprite of another size resizes the canvas to fit it."""
         # The size math depends on the 800x600 display the conftest opens

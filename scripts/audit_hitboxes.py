@@ -45,6 +45,7 @@ from glitchygames.sprites.animated import AnimatedSprite
 from glitchygames.sprites.pixel_utils import (
     compute_bounding_box,
     compute_envelope_bounding_box,
+    normalize_pixel_rows,
 )
 
 log: logging.Logger = logging.getLogger('game.scripts.audit_hitboxes')
@@ -142,7 +143,7 @@ def extract_frames(
     # Check for static sprite (single frame in [sprite] section)
     sprite_section = data.get('sprite', {})
     if 'pixels' in sprite_section:
-        pixel_lines = AnimatedSprite.parse_toml_pixel_lines(sprite_section['pixels'])
+        pixel_lines = list(normalize_pixel_rows(sprite_section['pixels'], color_map).rows)
         width = max(len(line) for line in pixel_lines) if pixel_lines else 0
         height = len(pixel_lines)
         bounding_box = compute_bounding_box(pixel_lines, color_map)
@@ -163,7 +164,7 @@ def extract_frames(
         animation_frames = animation.get('frame', [])
         for frame_index, frame_data in enumerate(animation_frames):
             pixel_data = frame_data.get('pixels', '')
-            pixel_lines = AnimatedSprite.parse_toml_pixel_lines(pixel_data)
+            pixel_lines = list(normalize_pixel_rows(pixel_data, color_map).rows)
             width = max(len(line) for line in pixel_lines) if pixel_lines else 0
             height = len(pixel_lines)
             bounding_box = compute_bounding_box(pixel_lines, color_map)

@@ -136,7 +136,7 @@ class TestRowsHaveEqualLengths:
     def test_uneven_static_rows_fail_naming_the_file(self, tmp_path):
         """A static sprite with a long row fails, naming the file, block and lengths."""
         sprite_file = write_sprite(directory=tmp_path, name='bad.toml', text=UNEVEN_ROWS_SPRITE)
-        with pytest.raises(AssertionError, match=r'bad\.toml sprite: row lengths \[2, 3\]'):
+        with pytest.raises(AssertionError, match=r'bad\.toml sprite: row widths differ \(2, 3\)'):
             sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)
 
     def test_uneven_animation_frame_rows_fail_naming_the_frame(self, tmp_path):
@@ -144,8 +144,45 @@ class TestRowsHaveEqualLengths:
         sprite_file = write_sprite(
             directory=tmp_path, name='bad_frame.toml', text=UNEVEN_FRAME_ROWS_SPRITE
         )
-        with pytest.raises(AssertionError, match=r'animation 0 frame 0: row lengths \[2, 3\]'):
+        with pytest.raises(
+            AssertionError, match=r'animation 0 frame 0: row widths differ \(2, 3\)'
+        ):
             sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)
+
+    def test_check_fails_on_glyph_missing_from_palette(self, tmp_path):
+        """A glyph with no palette entry draws transparent, which is almost never meant."""
+        text = f'[sprite]\nname = "eye"\npixels = """\n#e\n##\n"""\n\n{COLORS_SECTION}'
+        sprite_file = write_sprite(directory=tmp_path, name='eye.toml', text=text)
+        with pytest.raises(
+            AssertionError, match=r"eye\.toml sprite: glyphs not in the palette: 'e'"
+        ):
+            sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)
+
+    def test_check_fails_on_blank_interior_line(self, tmp_path):
+        """A blank line between rows is a repair, so the strict check fails."""
+        text = f'[sprite]\nname = "gap"\npixels = """\n##\n\n##\n"""\n\n{COLORS_SECTION}'
+        sprite_file = write_sprite(directory=tmp_path, name='gap.toml', text=text)
+        with pytest.raises(AssertionError, match=r'gap\.toml sprite: blank line between rows'):
+            sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)
+
+    def test_check_fails_on_bad_palette_key(self, tmp_path):
+        """A palette key that isn't one code point can never match a pixel."""
+        text = (
+            f'[sprite]\nname = "heart"\npixels = """\n##\n"""\n\n{COLORS_SECTION}\n'
+            '[colors."\u2764\ufe0f"]\nred = 255\ngreen = 0\nblue = 0\n'
+        )
+        sprite_file = write_sprite(directory=tmp_path, name='heart.toml', text=text)
+        with pytest.raises(AssertionError, match=r'heart\.toml palette: palette keys'):
+            sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)
+
+    def test_check_passes_a_space_pyramid(self, tmp_path):
+        """Spaces are the format's transparent pixel: a pyramid drawn with them passes."""
+        text = (
+            '[sprite]\nname = "pyramid"\n'
+            f'pixels = """\n  #  \n ### \n#####\n"""\n\n{COLORS_SECTION}'
+        )
+        sprite_file = write_sprite(directory=tmp_path, name='pyramid.toml', text=text)
+        sprite_files.check_rows_have_equal_lengths(sprite_file=sprite_file)
 
 
 class TestAnimationTimings:

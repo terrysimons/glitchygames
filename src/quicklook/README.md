@@ -23,7 +23,9 @@ tests check this against frames dumped by the engine's own loader. Design:
 - `App/project.yml`: the XcodeGen spec for the host app (`HostApp/`) and the two extensions
   (`PreviewExtension/`, `ThumbnailExtension/`).
 - `tools/`: `dump_engine_frames.py` (golden data), `make_thumbnails.swift` (thumbnail check),
-  `make_app_icon.py` (the app icon), `fixtures/` (hand-written edge-case sprites).
+  `make_app_icon.py` (the app icon), `fixtures/` (hand-written edge-case sprites: CRLF line
+  endings, ragged rows, `rows-edge-cases.toml` with one frame per case of the engine's pixel-row
+  rule, and `rows-static-pyramid.toml`).
 
 ## Setup
 

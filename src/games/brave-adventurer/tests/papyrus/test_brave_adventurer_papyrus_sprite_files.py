@@ -138,3 +138,14 @@ def test_state_machine_transitions_reload_in_order(sprite_file, expected_pairs, 
         (transition.from_state, transition.to_state)
         for transition in reloaded_sprite.state_machine._transitions
     ] == expected_pairs
+
+
+def test_cobra_eye_has_a_color():
+    """The cobra's second eye, glyph 'e', has a palette color: a darker shade of 'E'.
+
+    It had none, so the eye drew transparent (the strict pixel-row check found it).
+    """
+    cobra = AnimatedSprite(str(SPRITES_DIR / 'cobra.toml'))
+
+    assert cobra._color_map['e'] == (180, 30, 30)
+    assert cobra.pixel_row_repairs == []

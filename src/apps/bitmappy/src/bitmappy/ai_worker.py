@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from glitchygames import clock
 from glitchygames.ai import get_sprite_size_hint
+from glitchygames.ai.sprite_generator import PIXEL_ROWS_ERROR_PREFIX
+from glitchygames.sprites.pixel_utils import normalize_pixel_rows
 
 from .constants import (
     AI_BASE_DELAY,
@@ -817,11 +819,7 @@ def _extract_example_size(example: dict[str, Any]) -> tuple[int, int] | None:
     if 'pixels' in example:
         pixels = example['pixels']
         if isinstance(pixels, str) and '\n' in pixels:
-            # str.split always returns at least one line
-            lines = pixels.strip().split('\n')
-            height = len(lines)
-            width = len(lines[0])
-            return (width, height)
+            return _pixel_grid_size(pixels)
 
     # Try to get size from first animation frame
     if example.get('animations'):
@@ -831,13 +829,64 @@ def _extract_example_size(example: dict[str, Any]) -> tuple[int, int] | None:
             if 'pixels' in first_frame:
                 pixels = first_frame['pixels']
                 if isinstance(pixels, str) and '\n' in pixels:
-                    # str.split always returns at least one line
-                    lines = pixels.strip().split('\n')
-                    height = len(lines)
-                    width = len(lines[0])
-                    return (width, height)
+                    return _pixel_grid_size(pixels)
 
     return None
+
+
+def _pixel_grid_size(pixels: str) -> tuple[int, int] | None:
+    """Return the (width, height) the loader gives a pixels block (normalize_pixel_rows).
+
+    The palette doesn't change the size, so none is passed.
+
+    Returns:
+        tuple[int, int] | None: The block's width and height, or None when it has no rows (the
+            loader skips it, and a 0x0 size would divide by zero in _score_size_match).
+
+    """
+    normalized = normalize_pixel_rows(pixels, ())
+    if not normalized.rows:
+        return None
+    return (normalized.width, normalized.height)
+
+
+# The repair kinds normalize_pixel_rows and palette_key_problems report, each with its
+# correction for the retry prompt
+PIXEL_ROWS_CORRECTIONS = (
+    (
+        'row widths differ',
+        (
+            'CRITICAL: every row of a frame must have the same number of characters, one '
+            'palette glyph per pixel. Count each row.'
+        ),
+    ),
+    (
+        'blank line between rows',
+        'CRITICAL: no blank lines inside a frame; every line between the quotes is a row.',
+    ),
+    (
+        'glyphs not in the palette',
+        'CRITICAL: define every glyph you use in [colors], including the transparent one.',
+    ),
+    (
+        'palette keys that are not one code point',
+        'CRITICAL: every [colors] key must be exactly one character.',
+    ),
+)
+
+
+def _pixel_rows_corrections(error_lower: str) -> str:
+    """Return one correction per kind of pixel-row repair named in the error.
+
+    Returns:
+        str: The corrections, one per line.
+
+    """
+    return '\n'.join(
+        correction
+        for repair_kind, correction in PIXEL_ROWS_CORRECTIONS
+        if repair_kind in error_lower
+    )
 
 
 def build_retry_prompt(original_prompt: str, validation_error: str) -> str:
@@ -857,7 +906,9 @@ def build_retry_prompt(original_prompt: str, validation_error: str) -> str:
     # Add specific corrections based on error type
     error_lower = validation_error.lower()
 
-    if 'missing [sprite] section' in error_lower:
+    if PIXEL_ROWS_ERROR_PREFIX.lower() in error_lower:
+        retry_prompt += _pixel_rows_corrections(error_lower)
+    elif 'missing [sprite] section' in error_lower:
         retry_prompt += 'CRITICAL: You must include a [sprite] section at the beginning.'
     elif 'missing [colors] section' in error_lower:
         retry_prompt += (

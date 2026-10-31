@@ -32,6 +32,32 @@ if TYPE_CHECKING:
     from glitchygames import events
 
 
+def pixel_row_repair_notice(sprite: object) -> str:
+    """Say that loading repaired a sprite's pixel rows, for the AI text box.
+
+    The loader pads ragged rows and keeps blank lines as transparent rows (normalize_pixel_rows)
+    and records what it did in ``pixel_row_repairs``. Saving writes the repaired grid, so the
+    person editing is told rather than finding out from the file.
+
+    Args:
+        sprite: The loaded sprite; only an AnimatedSprite records repairs.
+
+    Returns:
+        str: A line to append to the text box ('' when nothing was repaired), starting with a
+            line break.
+
+    """
+    if not isinstance(sprite, AnimatedSprite) or not sprite.pixel_row_repairs:
+        return ''
+    repairs = sprite.pixel_row_repairs
+    # Each repair is '<label>: <repair>'; a block (or the palette) can have several
+    repaired_blocks = {repair.split(': ', 1)[0] for repair in repairs}
+    return (
+        f'\nRepaired the pixel rows of {len(repaired_blocks)} block(s) while loading (details '
+        'in the log). Saving writes the repaired rows.'
+    )
+
+
 class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-methods]
     """Animated Canvas Sprite for editing animated sprites."""
 
@@ -1463,6 +1489,11 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         # Create a new animated sprite and load it
         loaded_sprite = AnimatedSprite()
         loaded_sprite.load(filename)
+        if not loaded_sprite._animations:  # type: ignore[reportPrivateUsage]
+            # Nothing to draw (no pixels, or only blank ones): keep the canvas's sprite rather
+            # than resize to 0x0, which divides by zero
+            msg = f'{filename} has no pixels to draw'
+            raise ValueError(msg)
 
         # Debug: Check what was loaded
         self.log.debug('Loaded sprite has _animations: %s', hasattr(loaded_sprite, '_animations'))
@@ -1635,6 +1666,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 self.parent_scene.debug_text.text = (
                     'Enter a description of the sprite you want to create:'
                 )
+            self.parent_scene.debug_text.text += pixel_row_repair_notice(loaded_sprite)
         else:
             self.log.warning('Cannot access parent or debug_text - description not updated')
 
