@@ -8,10 +8,6 @@ including system prompts, training examples, and user requests.
 
 import logging
 import sys
-from pathlib import Path
-
-# Add the project root to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from glitchygames.exit_codes import ExitCode
 

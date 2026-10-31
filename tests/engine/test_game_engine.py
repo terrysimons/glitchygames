@@ -60,7 +60,7 @@ from glitchygames import events
 from glitchygames.argument_types import non_negative_int, non_negative_percent
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
-from glitchygames.engine.game_engine import unit_interval
+from glitchygames.engine.game_engine import pygame_needs_fastevents, unit_interval
 from glitchygames.events import base as events_base
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.input_devices import InputMode
@@ -2536,7 +2536,7 @@ class TestGameEngineFastEvents:
 
     def test_use_fastevents_with_old_pygame(self, mocker):
         """Test USE_FASTEVENTS is set for old pygame versions (line 341)."""
-        # Mock pygame version to be < 2.2 (both major < 2 AND minor < 2)
+        # Mock pygame version to be < 2.2
         mocker.patch.object(pygame.version, 'vernum', (1, 1, 0))
         # Create a fake fastevent module
         mock_fastevent = mocker.Mock()
@@ -2547,6 +2547,25 @@ class TestGameEngineFastEvents:
         engine = _make_engine(mocker)
         assert engine.USE_FASTEVENTS is True
         mock_fastevent.init.assert_called_once()
+
+    @pytest.mark.parametrize(
+        ('vernum', 'expected'),
+        [
+            ((1, 1, 0), True),
+            ((1, 9, 6), True),
+            ((2, 1, 3), True),
+            ((2, 2, 0), False),
+            ((2, 5, 2), False),
+            ((3, 0, 0), False),
+        ],
+    )
+    def test_pygame_needs_fastevents_compares_major_and_minor_together(
+        self, mocker, vernum, expected
+    ):
+        """Any pygame older than 2.2 needs fastevent, pygame 1.9 included (BUGS.md #75)."""
+        mocker.patch.object(pygame.version, 'vernum', vernum)
+
+        assert pygame_needs_fastevents() is expected
 
     def test_process_events_with_fastevents(self, mocker):
         """Test process_events uses fastevent.get when USE_FASTEVENTS is True (line 924)."""

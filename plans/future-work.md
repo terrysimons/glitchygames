@@ -96,7 +96,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | The animation-delete undo capture keeps frame pixels and durations but not per-frame hitboxes | `src/glitchygames/bitmappy/film_strip_coordinator.py` (`_capture_animation_deletion_for_undo`) | Found while fixing BUGS.md #51. |
 | PaddleSlap's `_separate_overlapping_balls` runs after wall and paddle handling, so a ball can sit 1–3 px inside a paddle or past a wall for one frame | `src/games/paddleslap/paddleslap/__init__.py` | Pre-existing, self-correcting next frame. |
 | Papyrus sprites keep their unscaled native rect size | BUGS.md #59 | Latent; fixing it needs its own golden expected-difference class. |
-| Brave Adventurer's ground and walls stay drawn only because the parallax layers dirty the whole screen | BUGS.md #60 | Fragile; make the terrain `dirty = 2` or document the dependency. |
+| ~~Brave Adventurer's ground and walls stay drawn only because the parallax layers dirty the whole screen~~ | BUGS.md #60 | Fragile; make the terrain `dirty = 2` or document the dependency. **Done** 2026-10-31 (bug sweep 2): the terrain is `dirty = 2`. |
 | Brave Adventurer's and Papyrus's enemies (Cobra, Scarab, Scorpion) still draw in `update()` | `src/games/brave-adventurer/src/brave_adventurer/enemies.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | Harmless while their hitboxes do not depend on the pose (the scarab's bounds are the same at every roll angle); move drawing into `dt_tick` (the pose rule) if they ever do. |
 | ~~Static and animated sprites normalize ragged pixel rows differently: static (`_convert_static_sprite`) strips only the whole string, pads to the longest row with the sprite's most common glyph and never truncates; animated frames (`parse_toml_pixel_lines` + `_validate_toml_frame_dimensions`) strip each line, drop empty lines, use the most common row length, truncate longer rows and pad shorter ones with their own last glyph. Unify on one rule (do it **on its own branch**, the owner, 2026-10-29)~~ | `src/glitchygames/sprites/animated.py` | Found 2026-10-29 while writing the sprite QuickLook design (`docs/specs/2026-10-29-sprite-quicklook-design.md`), which copies both behaviors; update the QuickLook parser and its golden frames in the same change. **Done** 2026-10-30 (`feat/unified-pixel-rows`): one rule, `normalize_pixel_rows`, for both and for QuickLook; design `docs/specs/2026-10-30-unified-pixel-rows-design.md`, BUGS.md #239. |
 | Bitmappy's AI clean-up (`_normalize_escaped_newlines`, `toml_processing.py`, used by the alpha path and `ai_manager`) turns a `\` glyph followed by an `n` glyph into a line break, splitting the row | `src/apps/bitmappy/src/bitmappy/toml_processing.py` | Found 2026-10-30 in the pixel-rows review (BUGS.md #243). Its own branch (the owner, 2026-10-30). |
@@ -460,13 +460,16 @@ Follow-ups (not in any plan yet):
   `SourcesAlreadyRunningError` after it), when no playback scope can be active, so it always
   wraps the installed doors.
 - Bugs found during the replay core and not fixed (BUGS.md, Active): #67 (Bitmappy's
-  joystick-event trigger conversion assumes pygame 1's integer axis scale), #68
+  joystick-event trigger conversion assumes pygame 1's integer axis scale; resolved
+  2026-10-31, bug sweep 2), #68
   (`ControllerEventManager` keys controllers by device index but routes events by instance id;
   resolved 2026-10-22 with #181),
-  #72 (`BitmappyMultiControllerEnhancements` stores a duration where a timestamp is expected), #73
+  #72 (`BitmappyMultiControllerEnhancements` stores a duration where a timestamp is expected;
+  resolved 2026-10-31, bug sweep 2), #73
   (PaddleSlap sets the `game` logger to INFO at import), #74 (`debug_events` is always False;
   resolved 2026-10-23: it is the `--debug-events` flag now),
-  #75 (`pygame_needs_fastevents` compares major and minor separately).
+  #75 (`pygame_needs_fastevents` compares major and minor separately; resolved 2026-10-31,
+  bug sweep 2).
 
 ## Headless capture to raw files and a frame/audio ready latch — groundwork for an external control API
 

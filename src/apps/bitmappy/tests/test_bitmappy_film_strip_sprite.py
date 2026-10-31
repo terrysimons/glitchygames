@@ -296,13 +296,37 @@ OTHER_COLOR = (200, 100, 50, 255)
 BLUE = (0, 0, 255)
 
 
+class RecordingFrameCoordinator:
+    """A film strip coordinator stand-in that keeps the frame insertions it is told about."""
+
+    def __init__(self) -> None:
+        """Start with no frame insertions."""
+        self.inserted_frames: list[tuple[str, int]] = []
+
+    def on_frame_inserted(self, animation: str, frame_index: int) -> None:
+        """Keep a frame insertion notification.
+
+        Args:
+            animation: The animation the frame was inserted into.
+            frame_index: Where it was inserted.
+
+        """
+        self.inserted_frames.append((animation, frame_index))
+
+
 class RecordingParentScene:
     """A parent scene stand-in that keeps the colour it is sent."""
 
     def __init__(self) -> None:
         """Start with no slider values and no frame insertions."""
         self.slider_values: dict[str, int] = {}
-        self.inserted_frames: list[tuple[str, int]] = []
+        # The film strip tells the editor's coordinator about insertions (BUGS.md #119)
+        self.film_strip_coordinator = RecordingFrameCoordinator()
+
+    @property
+    def inserted_frames(self) -> list[tuple[str, int]]:
+        """The frame insertions the coordinator was told about."""
+        return self.film_strip_coordinator.inserted_frames
 
     def apply_color(self, *, red: int, green: int, blue: int, alpha: int) -> None:
         """Keep the color sent, by slider name.
@@ -315,16 +339,6 @@ class RecordingParentScene:
 
         """
         self.slider_values = {'R': red, 'G': green, 'B': blue, 'A': alpha}
-
-    def on_frame_inserted(self, animation: str, frame_index: int) -> None:
-        """Keep a frame insertion notification.
-
-        Args:
-            animation: The animation the frame was inserted into.
-            frame_index: Where it was inserted.
-
-        """
-        self.inserted_frames.append((animation, frame_index))
 
 
 class RecordingCanvas:

@@ -86,6 +86,40 @@ class TestParseTomlWithRegexEdgeCases:
 
         assert data == {'sprite': {'pixels': '\n##\n..'}}
 
+    @pytest.mark.parametrize(
+        ('header', 'expected_data'),
+        [
+            # A section under a key that already holds a non-table value (TypeError before)
+            ('[a.b]', {'a': 2, 'kept': {'d': 3}}),
+            ('[[a.b]]', {'a': 2, 'kept': {'d': 3}}),
+            # A quoted key with no closing quote (ValueError before)
+            ('["unterminated]', {'a': 2, 'kept': {'d': 3}}),
+            ('[["unterminated]]', {'a': 2, 'kept': {'d': 3}}),
+        ],
+        ids=['section-under-a-value', 'array-under-a-value', 'unterminated', 'array-unterminated'],
+    )
+    def test_section_header_that_cannot_be_placed_is_skipped(self, caplog, header, expected_data):
+        """A header it cannot place is skipped with its keys; parsing goes on (BUGS.md #177).
+
+        Its keys must not land in the section before it, and the next header starts afresh.
+        """
+        content = f'a = 1\na = 2\n{header}\nc = 1\n[kept]\nd = 3\n'
+
+        with caplog.at_level(logging.WARNING, logger=LOG.name):
+            data = _parse_toml_with_regex(content, LOG)
+
+        assert data == expected_data
+        assert any('Skipped section header at line 3' in message for message in caplog.messages)
+        assert any('Skipped line 4' in message for message in caplog.messages)
+
+    def test_multiline_string_under_a_skipped_section_is_skipped_whole(self):
+        """A skipped section's triple-quoted value is read and dropped, not parsed as lines."""
+        content = 'a = 1\na = 2\n[a.b]\npixels = """\n[fake]\nx = 1\n"""\n[kept]\nd = 3\n'
+
+        data = _parse_toml_with_regex(content, LOG)
+
+        assert data == {'a': 2, 'kept': {'d': 3}}
+
     def test_unrecognized_line_is_ignored(self, caplog):
         """A line that is neither a header nor key = value is reported and skipped."""
         with caplog.at_level(logging.WARNING, logger=LOG.name):
@@ -247,6 +281,33 @@ class TestNormalizeTomlDataErrors:
         config_data = {'sprite': None}
 
         assert normalize_toml_data(config_data) is config_data
+
+
+class TestNormalizeTomlDataLeavesTheInputAlone:
+    """normalize_toml_data never changes the caller's data (BUGS.md #177)."""
+
+    def test_nested_pixels_are_normalized_in_a_copy(self):
+        """The caller's nested sprite and animation tables keep their escaped newlines."""
+        config_data = {
+            'sprite': {'pixels': 'ab\\ncd'},
+            'animation': [{'frame': [{'pixels': 'ef\\ngh'}]}],
+        }
+
+        normalized = normalize_toml_data(config_data)
+
+        assert normalized['sprite']['pixels'] == 'ab\ncd'
+        assert normalized['animation'][0]['frame'][0]['pixels'] == 'ef\ngh'
+        assert config_data['sprite']['pixels'] == 'ab\\ncd'
+        assert config_data['animation'][0]['frame'][0]['pixels'] == 'ef\\ngh'
+
+    def test_an_error_part_way_leaves_the_input_unnormalized(self):
+        """Sprite pixels normalized before an animation error do not leak into the input."""
+        config_data = {'sprite': {'pixels': 'ab\\ncd'}, 'animation': [{'frame': None}]}
+
+        result = normalize_toml_data(config_data)
+
+        assert result is config_data
+        assert config_data['sprite']['pixels'] == 'ab\\ncd'
 
 
 class TestColorDistance:

@@ -286,6 +286,9 @@ class TestInsertFrameAtTab:
         parent_scene = SimpleNamespace(
             canvas=canvas,
             _creating_frame=False,
+            # The coordinator now hears of the insertion (BUGS.md #119) and reads this, which
+            # the real editor sets in __init__ ('' until an animation is selected)
+            selected_animation='',
             on_film_strip_frame_selected=lambda _strip, animation, frame: selected_frames.append(
                 (animation, frame),
             ),

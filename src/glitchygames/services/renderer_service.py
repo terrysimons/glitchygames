@@ -89,6 +89,21 @@ class RendererService:
         self._ensure_pygame_initialized()
 
     @classmethod
+    def pygame_running(cls) -> bool:
+        """Report whether this service started pygame and pygame is still running.
+
+        pygame_initialized alone stays True after pygame.quit() until the next RendererService
+        is made (BUGS.md #113), so pygame.get_init() is checked as well.
+
+        Returns:
+            True while pygame started by this service has not been quit.
+
+        """
+        import pygame
+
+        return cls.pygame_initialized and pygame.get_init()
+
+    @classmethod
     def _ensure_pygame_initialized(cls) -> None:
         """Ensure pygame is initialized in headless mode.
 

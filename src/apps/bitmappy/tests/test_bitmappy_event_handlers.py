@@ -116,6 +116,8 @@ def mock_editor(mocker):  # ruff: ignore[too-many-statements]
     editor.canvas.dirty_pixels = [False] * (32 * 32)
     editor.canvas.current_animation = 'default'
     editor.canvas.current_frame = 0
+    # No pan gesture in progress, as on a real canvas (a Mock attribute would look like one)
+    editor.canvas.pan_session = None
     editor.canvas.pixel_width = 10
     editor.canvas.pixel_height = 10
     editor.canvas.rect = pygame.Rect(0, 24, 320, 320)

@@ -776,9 +776,13 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         # if it was previously a single-frame animation
         self.widget.animation.initialize_preview_animations()
 
-        # Notify the parent scene about the frame insertion
-        if hasattr(self.widget.parent_scene, 'on_frame_inserted'):
-            self.widget.parent_scene.on_frame_inserted(current_animation, insert_index)
+        # Tell the editor's film strip coordinator about the insertion (it made the blank frame
+        # above, so it is there). The editor scene has no on_frame_inserted of its own, so
+        # asking the scene never reached it and the editor's selected frame was never updated
+        # (BUGS.md #119)
+        self.widget.parent_scene.film_strip_coordinator.on_frame_inserted(
+            current_animation, insert_index
+        )
 
         # Select the newly created frame so the user can immediately start editing it
         LOG.debug(
@@ -1030,9 +1034,11 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         # Ensure the current frame is within bounds after deletion
         self.clamp_animated_sprite_frame(animation_name, frames)
 
-        # Notify the parent scene about the frame removal
-        if hasattr(self.widget.parent_scene, 'on_frame_removed'):
-            self.widget.parent_scene.on_frame_removed(animation_name, frame_index)
+        # Tell the editor's film strip coordinator about the removal, so it adjusts the
+        # editor's selected frame (asking the scene never reached it: BUGS.md #119)
+        coordinator = getattr(self.widget.parent_scene, 'film_strip_coordinator', None)
+        if coordinator is not None:
+            coordinator.on_frame_removed(animation_name, frame_index)
 
         # CRITICAL: Reinitialize preview animations after frame removal
         # This ensures the preview animation system is updated with the new frame count

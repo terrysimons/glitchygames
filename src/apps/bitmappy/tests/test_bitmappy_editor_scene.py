@@ -95,6 +95,8 @@ def _setup_canvas(editor, mocker):
     editor.canvas.dirty_pixels = [False] * (32 * 32)
     editor.canvas.current_animation = 'default'
     editor.canvas.current_frame = 0
+    # No pan gesture in progress, as on a real canvas (a Mock attribute would look like one)
+    editor.canvas.pan_session = None
     editor.canvas.pixel_width = 10
     editor.canvas.pixel_height = 10
     editor.canvas.rect = pygame.Rect(0, 24, 320, 320)
@@ -3444,6 +3446,66 @@ class TestCanvasRedrawInTheRealEditor:
         drawn_colors = {_drawn_rgb_at(real_editor, x=x, y=y) for x in range(3) for y in range(2)}
         assert drawn_colors == {MAGENTA_RGB}
 
+    def test_a_drag_released_outside_the_canvas_is_finished(self, real_editor):
+        """Releasing a canvas drag off the canvas still flushes the stroke (BUGS.md #120).
+
+        The release went only to sprites under the mouse, so the stroke was never written to
+        the frame or submitted to undo, and the canvas stayed in its drag.
+        """
+        from glitchygames import events
+
+        canvas = real_editor.canvas
+        canvas.active_color = (*PAINT_RGB, 255)
+
+        def pixel_position(x):
+            return (canvas.rect.x + x * canvas.pixel_width + 1, canvas.rect.y + 1)
+
+        real_editor.on_left_mouse_button_down_event(
+            events.HashableEvent(pygame.MOUSEBUTTONDOWN, pos=pixel_position(0), button=1),
+        )
+        for pixel_x in (1, 2):
+            real_editor.on_left_mouse_drag_event(
+                events.HashableEvent(
+                    pygame.MOUSEMOTION, pos=pixel_position(pixel_x), buttons=(1, 0, 0)
+                ),
+                None,
+            )
+        assert canvas._drag_active is True
+        outside_the_canvas = (canvas.rect.right + 5, canvas.rect.y + 1)
+        assert not canvas.rect.collidepoint(outside_the_canvas)
+
+        real_editor.on_left_mouse_button_up_event(
+            events.HashableEvent(pygame.MOUSEBUTTONUP, pos=outside_the_canvas, button=1),
+        )
+        real_editor.on_mouse_button_up_event(
+            events.HashableEvent(pygame.MOUSEBUTTONUP, pos=outside_the_canvas, button=1),
+        )
+
+        assert canvas._drag_active is False
+        frame = canvas.animated_sprite._animations[canvas.current_animation][canvas.current_frame]
+        frame_pixels = frame.get_pixel_data()
+        assert [tuple(color)[:3] for color in frame_pixels[:3]] == [PAINT_RGB] * 3
+        # The whole stroke undoes in one step
+        real_editor.handle_undo()
+        assert {_drawn_rgb_at(real_editor, x=x, y=0) for x in range(3)} == {MAGENTA_RGB}
+
+    def test_a_release_over_the_canvas_reaches_it_once(self, real_editor, mocker):
+        """A release over the canvas goes to it as a sprite under the mouse, and only then.
+
+        The outside-the-canvas route (BUGS.md #120) must not hand it the same release twice.
+        """
+        from glitchygames import events
+
+        canvas = real_editor.canvas
+        on_canvas = (canvas.rect.x + 1, canvas.rect.y + 1)
+        canvas_release = mocker.spy(canvas, 'on_left_mouse_button_up_event')
+
+        real_editor.on_left_mouse_button_up_event(
+            events.HashableEvent(pygame.MOUSEBUTTONUP, pos=on_canvas, button=1),
+        )
+
+        assert canvas_release.call_count == 1
+
     @pytest.mark.parametrize('dimensions', ['0x16', '16x0', '-4x4'])
     def test_non_positive_dimensions_keep_the_canvas(self, real_editor, caplog, dimensions):
         """A zero or negative size is refused as invalid; the painted canvas stays as it was.
@@ -3459,6 +3521,31 @@ class TestCanvasRedrawInTheRealEditor:
         assert (canvas.pixels_across, canvas.pixels_tall) == (32, 32)
         assert _drawn_rgb_at(real_editor, x=0, y=0) == PAINT_RGB
         assert f"Invalid dimensions format '{dimensions}'" in caplog.text
+
+    @pytest.mark.parametrize('dimensions', ['351x16', '16x10000'])
+    def test_dimensions_too_large_for_a_pixel_keep_the_canvas(
+        self, real_editor, caplog, dimensions
+    ):
+        """A size whose pixels would be 0 screen pixels wide is refused (BUGS.md #176).
+
+        It used to build a zero-size canvas that could not be seen or drawn on.
+        """
+        _paint_pixel(real_editor, x=0, y=0, color=(*PAINT_RGB, 255))
+
+        real_editor.on_new_file_event(dimensions)
+
+        canvas = real_editor.canvas
+        assert (canvas.pixels_across, canvas.pixels_tall) == (32, 32)
+        assert _drawn_rgb_at(real_editor, x=0, y=0) == PAINT_RGB
+        assert f"Invalid dimensions '{dimensions}': too large" in caplog.text
+
+    def test_invalid_format_logs_one_traceback(self, real_editor, caplog):
+        """A bad format logs one exception, not the same traceback twice (BUGS.md #176)."""
+        real_editor.on_new_file_event('banana')
+
+        exception_records = [record for record in caplog.records if record.exc_info]
+        assert len(exception_records) == 1
+        assert "expected WxH (e.g., '32x32')" in exception_records[0].getMessage()
 
     def test_a_failure_building_the_canvas_is_not_reported_as_bad_dimensions(
         self,

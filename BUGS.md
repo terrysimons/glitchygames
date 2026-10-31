@@ -20,15 +20,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-30
 - **Files**: `src/apps/bitmappy/src/bitmappy/toml_processing.py`
 
-### 233. The Demos Render Their Text Without Antialiasing
-- **Description**: The demos draw their text with pygame's antialias flag off, so it looks blocky ("the fonts are garbage": the user, 2026-10-26, running the demos by hand). Every such call: in `src/demos/dt-demo/src/dt_demo/__init__.py`, the scene's (`Game`) `update()` renders the countdown (around line 118, `self.font.render(..., False, ...)`), the FPS line (around line 123) and the record time (around line 130) with `False` as the second (antialias) argument; in `src/demos/joystick-demo/src/joystick_demo/__init__.py`, `_draw_line` draws every readout line with `self.font.render(text, antialias=False, color=color)` (around line 159). The text-input demo is not affected: its `InputBox` renders with antialiasing on (`src/glitchygames/ui/inputs.py`, around lines 106 and 171).
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: The user, running the demos by hand (workspace packages Part 3)
-- **Date Reported**: 2026-10-26
-- **Details**: Both demos use the bundled Vera (`DEFAULT_FONT_NAME`) through `FontManager.pygame_font`. Pre-existing: the calls came with the demos when they moved into `src/demos/`, so the move did not cause it. Expected: render with antialiasing on. It belongs with the demos-experience work (`plans/future-features.md` #57).
-- **Files**: `src/demos/dt-demo/src/dt_demo/__init__.py`, `src/demos/joystick-demo/src/joystick_demo/__init__.py`
-
 ### 232. The Sprite Loader Ignores `frame_index`
 - **Description**: The saver writes `frame_index = ...` for every frame (`src/glitchygames/sprites/animated.py`, around line 2335), but on load `_process_toml_animation` sorts the frames with `frames.sort(key=lambda f: getattr(f, 'frame_index', 0))` (around line 1559), and `SpriteFrame` (`src/glitchygames/sprites/frame.py`) has no `frame_index` attribute. The key is 0 for every frame, the stable sort keeps the file order, and the TOML `frame_index` never reorders frames
 - **Status**: Active
@@ -171,15 +162,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
   48. Browser test (the owner): every page requests /favicon.ico and gets a 404 (no tab icon in the bundle)
 - **Files**: see each item
 
-### 222. Scripts and Tests Insert the Repository Root Into sys.path, Which Does Nothing Since the Engine Moved
-- **Description**: Many scripts and tests start with `sys.path.insert(0, str(Path(__file__).parent.parent))` (or `.parent.parent.parent`) "so direct imports work". Since the engine moved to `src/glitchygames`, the repository root holds no importable `glitchygames`: the imports resolve to the installed package either way, so the lines do nothing (the root still serves `scripts.*`, but a script reaches that as `python -m scripts.<name>`). They also hide a mistake: a test that needed the root would pass here and fail elsewhere
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: The documentation task of plans/2026-10-24-workspace-packages-1-foundation.md
-- **Date Reported**: 2026-10-25
-- **Files**: `scripts/ai_query_inspector.py`, `scripts/animation_demo.py`, `scripts/animation_scene_demo.py`, `scripts/animation_scene_full_demo.py`, `scripts/show_ai_query.py`, and under `tests/` `animation/`, `canvas/`, `engine/`, `events/` and others (`git grep -n 'sys.path.insert' -- scripts tests`)
-- **Solution**: Remove the lines (and their comments), then run the suite; where a script needs `scripts.*`, run it as a module
-
 ### 220. Smaller Findings From the Measured-Rows Review
 - **Description**: A fresh review of the measured-rows-in-the-repository branch (2026-10-25) found these; none breaks publishing on main as merges are made today (squash, up to date, the hook installed). Its critical and important findings were fixed on the branch: code that arrived by a merge is measured by the next commit, rows of a refused commit are staged on the retry, partial commits and untracked measured files are refused, deploys only from main, the hooks installed by `.envrc`
 - **Status**: Active
@@ -215,14 +197,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Deferred by choice: fixing the names or the values changes colours the games draw, so it needs its own review of every user of these constants
 - **Files**: `src/glitchygames/color/palette.py:200-210`, `src/glitchygames/color/constants.py`
 
-### 113. The Health Route Reports a Stale "pygame initialized" Flag
-- **Description**: `api/routes/health.py:26` reports `RendererService.pygame_initialized`, which stays True after `pygame.quit()` until the next `RendererService()` is made
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found fixing #110 item 6
-- **Date Reported**: 2026-10-21
-- **Files**: `src/glitchygames/api/routes/health.py:26`, `src/glitchygames/services/renderer_service.py`
-
 ### 115. A Scene's AnimatedSprites Advance a Fixed 16 ms per Rendered Frame (Suspected)
 - **Description**: `Scene.update()` (`scenes/scene.py:2968-2978`) calls `sprite.update()` without a dt, and `AnimatedSprite.update(dt=0.016)` defaults it, so a plain `AnimatedSprite` in a scene's group animates by frames rendered, not by time: slower than real time below 62.5 FPS, faster above it
 - **Status**: Active
@@ -231,38 +205,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-21
 - **Details**: The example games avoid it by animating in `dt_tick` and making `update()` a no-op (`src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py:86`). A fix changes animation timing in games and recordings, so it needs the golden replays checked
 - **Files**: `src/glitchygames/scenes/scene.py:2968-2978`, `src/glitchygames/sprites/animated.py:2520`
-
-### 119. Frames Inserted or Removed Through the Film Strip Never Reach the Coordinator
-- **Description**: `film_strip_events.py:746`, `:993` and `film_strip_sprite.py:806` check `hasattr(parent_scene, 'on_frame_inserted' / 'on_frame_removed')`, which only `FilmStripCoordinator` has, so the editor's `selected_frame` is never adjusted after frames are inserted or removed through the film strip
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found fixing #90 (same pattern)
-- **Date Reported**: 2026-10-21
-- **Files**: `src/glitchygames/bitmappy/film_strip_events.py:746`, `:993`, `src/glitchygames/bitmappy/film_strip_sprite.py:806`
-
-### 120. A Canvas Drag Released Outside the Canvas Is Never Finished
-- **Description**: `editor.py:701-704` sends the left-button-up only to sprites under the mouse, so a drag released outside the canvas never flushes or submits its stroke to undo, and `_drag_active` stays True
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found fixing #101
-- **Date Reported**: 2026-10-21
-- **Files**: `src/glitchygames/bitmappy/editor.py:701-704`, `src/glitchygames/bitmappy/animated_canvas.py`
-
-### 135. Dialog Scenes Ignore Their `groups` Argument
-- **Description**: `NewCanvasDialogScene`, `LoadDialogScene` and `SaveDialogScene` always pass a new `LayeredDirty()`
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found by the 100% coverage audit
-- **Date Reported**: 2026-10-22
-- **Files**: `src/glitchygames/ui/dialogs.py` 344-346, 394-397, 446-449
-
-### 137. Frame Extraction Reports Non-PNG Data as a Success With 0 Frames
-- **Description**: `/sprites/extract-frames` returns `success=True` with no frames for arbitrary bytes, because `APNG.from_bytes` accepts garbage
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found by the 100% coverage audit
-- **Date Reported**: 2026-10-22
-- **Files**: `src/glitchygames/api/routes/sprites.py`
 
 ### 138. Smaller Findings From the 100% Coverage Audit
 - **Description**: Inconsistencies none of which breaks a feature
@@ -289,14 +231,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-22
 - **Files**: `src/glitchygames/bitmappy/history/undo_redo.py`
 
-### 152. Redo Pressed Mid-Pan Applies Inside the Gesture
-- **Description**: Ctrl+Shift+Z while an arrow is still held applies the redo inside a pan gesture; undoing the gesture still restores its starting pixels, but the redo stack is not cleared until the gesture ends
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found by the dead-code audit follow-ups
-- **Date Reported**: 2026-10-22
-- **Files**: `src/glitchygames/bitmappy/editor.py` (`handle_undo`/`handle_redo`)
-
 ### 153. Controllers Cannot Adjust Alpha
 - **Description**: There is no alpha slider mode: `is_any_controller_in_slider_mode`, slider navigation and the indicators know only R, G and B
 - **Status**: Active
@@ -304,15 +238,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Reporter**: Found by the dead-code audit follow-ups
 - **Date Reported**: 2026-10-22
 - **Files**: `src/glitchygames/bitmappy/controllers/`
-
-### 154. Film Strip Triangles May Lag a Moving Controller
-- **Description**: A film strip sprite re-renders only when dirty; `render_visual_indicators` updates selections every frame, but nothing confirms a controller moving between frames always marks the strip dirty (unchecked)
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found by the dead-code audit follow-ups
-- **Date Reported**: 2026-10-22
-- **Details**: Suspected; needs a real-editor test
-- **Files**: `src/glitchygames/bitmappy/film_strip_rendering.py`
 
 ### 155. Smaller Slider Findings
 - **Description**: Deferred improvements and minor findings from the slider work
@@ -367,60 +292,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-18
 - **Details**: Predates the branch. Latent today: every Papyrus sprite is `dirty = 2`, the scene renders the full screen, the image overhangs the rect by at most 28 px (less than `CULL_MARGIN_PIXELS`, 32), and hitboxes and the debug overlay use collision rects. It would surface with mouse picking (`sprites_at_position`, `pygame.sprite.spritecollide`), a non-dirty Papyrus sprite, or `pygame.display.update(rects)`. Fixing it (sizing rect from the scaled image in `apply_transparency_and_scale` / `prepare_papyrus_sprite`) changes every Papyrus rect size in the golden trace, so it needs its own expected-difference class in `tests/world/test_golden_traces.py`
 - **Files**: `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py`
-
-### 60. Brave Adventurer Ground and Walls Stay Drawn Only Because the Parallax Layers Dirty the Screen
-- **Description**: The shared `GroundSegment` and `StoneWall` (both editions) are `dirty = 1` and are dirtied again only when they move. With a still camera they stay on screen only because the full-screen `dirty = 2` ParallaxLayers make the whole screen dirty every frame
-- **Status**: Active (fragile, works today)
-- **Priority**: Low
-- **Reporter**: Found by the Task 8 review on feature/engine-world-space
-- **Date Reported**: 2026-10-18
-- **Details**: If the parallax layers stop redrawing the full screen (made static, partially sized, or removed), a still camera would let other sprites' clearing erase the terrain. Either make the terrain `dirty = 2` or document the dependency where the layers are built
-- **Files**: `src/games/brave-adventurer/src/brave_adventurer_core/terrain.py`, `src/games/brave-adventurer/src/brave_adventurer/game.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py`
-
-### 67. Bitmappy's Joystick-Event Trigger Conversion Assumes pygame 1's Integer Axis Scale
-- **Description**: `ControllerEventHandler._read_joystick_trigger_values` converts trigger axes with `(raw + 32768) / 65535`, but pygame 2 reports joystick axes as -1.0..1.0, so both triggers always read about 0.5 whatever their position
-- **Status**: Active (latent: only events without an `instance_id` take this path, and pygame-ce's joystick and controller events all carry one, so they go to `_read_controller_trigger_values`, which converts correctly)
-- **Priority**: Low
-- **Reporter**: Found on feature/gameplay-replay (replay core, Task 6)
-- **Date Reported**: 2026-10-19
-- **Details**: Fix with the `(raw + 1.0) / 2.0` conversion the controller path uses (or drop the path if no event without an `instance_id` can reach it). `TestTriggerValuesFromSnapshot` in `tests/tools/test_bitmap_editor_scene.py` pins today's values
-- **Files**: `src/glitchygames/bitmappy/controllers/event_handler.py`
-
-### 72. MultiControllerEnhancements Stores a Duration Where Its Next Call Expects a Timestamp
-- **Description**: `MultiControllerEnhancements._update_performance_metrics` stores the first reading as `performance_metrics[operation]`, then on each later call replaces it with `timestamp - performance_metrics[operation]`. From the third call on it subtracts a duration from a timestamp, so `'visual_update'` alternates between a duration and a timestamp-sized number
-- **Status**: Active (diagnostic only: the value is reported by `get_controller_performance_stats` and nothing acts on it)
-- **Priority**: Low
-- **Reporter**: Found on feature/gameplay-replay (replay core, Task 9)
-- **Date Reported**: 2026-10-19
-- **Details**: Keep the last reading and the last duration under separate keys (or separate dicts), so each call subtracts the previous reading. The readings come from `measured_seconds()` (real time, diagnostics only) since Task 12b
-- **Files**: `src/glitchygames/bitmappy/controllers/enhancements.py`
-
-### 75. `pygame_needs_fastevents` Compares the Major and Minor Versions Separately
-- **Description**: `pygame_needs_fastevents()` (`src/glitchygames/engine/game_engine.py`, around line 107) returns `vernum[0] < 2 and vernum[1] < 2`, so it is True only when both the major and the minor version are below 2. pygame 1.9 (major 1, minor 9) gets False and would not read events with `pygame.fastevent`, although its docstring says "True for pygame < 2.2". The intended test is `(vernum[0], vernum[1]) < (PYGAME_MIN_MAJOR_VERSION, PYGAME_MIN_MINOR_VERSION)`
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found on feature/gameplay-replay (replay core, Task 12 review)
-- **Date Reported**: 2026-10-19
-- **Details**: Harmless today: the project runs on pygame-ce 2.x, where both forms give False. The existing `test_use_fastevents_with_old_pygame` mocks pygame 1.1, which both forms treat as old, so it does not catch the bug; a fix should add a 1.9 case
-- **Files**: `src/glitchygames/engine/game_engine.py`
-
-### 176. Bitmappy Accepts Canvas Widths That Leave No Room for a Pixel
-- **Description**: The new-canvas dialog's width is never capped: a width over 350, or one too large for the screen, makes `new_pixel_size` 0, and the editor builds a zero-size canvas surface that can't be seen or drawn on
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found narrowing the broad try blocks (BUGS.md #19)
-- **Date Reported**: 2026-10-22
-- **Details**: Non-positive sizes (`0x16`, `-4x4`) are refused since #175; very large ones are not. Refuse (or cap) a size whose pixel size would be 0, with the same "Invalid dimensions" log
-- **Files**: `src/glitchygames/bitmappy/editor.py:402`
-
-### 177. The Fallback TOML Parser Crashes on Some Malformed Files
-- **Description**: `parse_toml_robustly`, the regex fallback for TOML that `tomllib` rejects, raises instead of recovering: a section header under a key already holding a non-table value raises `TypeError: argument of type 'int' is not a container` (`'a = 1\na = 2\n[a.b]\nc = 1\n'`), and a section header with an unterminated quote raises `ValueError: substring not found` from `remaining.index('"', 1)` (`'x = 1\nx = 2\n["unterminated]\n'`)
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found narrowing the broad try blocks (BUGS.md #19)
-- **Date Reported**: 2026-10-22
-- **Details**: The fallback exists to load damaged files; it should skip a line it cannot place and log it. Related: `normalize_toml_data` copies only the top level, so it changes the caller's nested `sprite`/`animation` tables in place, and an error part way returns them half-normalized
-- **Files**: `src/glitchygames/bitmappy/toml_processing.py:215`, `:219`, `:360`, `:634`
 
 ### 178. Smaller Findings From Narrowing the Try Blocks
 - **Description**: Minor findings, none breaking a feature
@@ -486,6 +357,151 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: see each item
 
 ## Resolved Bugs
+
+### 246. A Save-Manager Test Made Every `Path.read_text` Fail, Breaking the Memory Guard's Thread on Linux
+- **Description**: `tests/state/test_manager.py::TestLoadErrors::test_a_file_that_cannot_be_read_is_not_reported_as_corrupt` patched `read_text` on the whole `PosixPath` class to raise `PermissionError`. On Linux the memory guard (`tests/memory_guard.py`) samples `/proc/self/statm` and the cgroup's `memory.*` files with `Path.read_text` from its `memory-guard` thread, so a sample taken during the test raised there; pytest reported the unhandled thread exception (`PytestUnhandledThreadExceptionWarning`, an error under the suite's filterwarnings) at the setup of the next test, `TestLoadRaw::test_load_raw_includes_metadata`. Timing-dependent: seen on `main` at 30df34b8 (CircleCI build 2532, serial `-n 0`), not on macOS, where the guard reads no files
+- **Status**: Resolved (2026-10-31, bug sweep 2: the patch refuses reads only under the test's `tmp_path` and passes every other path to the real `read_text`. It was the only class-wide `read_text` patch in the tests; the other class-wide `Path` patches (`unlink`, `is_file`, `open`, `replace`, `home`) touch nothing the guard uses)
+- **Priority**: Medium (fails CI at random)
+- **Reporter**: CircleCI build 2532 on `main`
+- **Date Reported**: 2026-10-31
+- **Files**: `tests/state/test_manager.py`, `tests/memory_guard.py`
+
+### 245. The Animation Demo Scripts Look for `foo.toml` in the Repository Root
+- **Description**: `scripts/animation_demo.py`, `scripts/animation_scene_demo.py` and `scripts/animation_scene_full_demo.py` load `Path(__file__).parent.parent / 'foo.toml'`, the repository root, but the sprite is `scripts/foo.toml`, so every run logs the load failure and exits with `MISSING_INPUT`
+- **Status**: Resolved (2026-10-31, bug sweep 2: each script has a module-level `FOO_TOML_PATH = Path(__file__).parent / 'foo.toml'`, and `tests/test_scripts_sprite_paths.py` checks each one names a real file. Once loaded, the sprite still draws nothing until #244 is decided)
+- **Priority**: Low
+- **Reporter**: Found removing the scripts' `sys.path` lines (#222)
+- **Date Reported**: 2026-10-31
+- **Files**: `scripts/animation_demo.py`, `scripts/animation_scene_demo.py`, `scripts/animation_scene_full_demo.py`
+
+### 233. The Demos Render Their Text Without Antialiasing
+- **Description**: The demos draw their text with pygame's antialias flag off, so it looks blocky ("the fonts are garbage": the user, 2026-10-26, running the demos by hand). Every such call: in `src/demos/dt-demo/src/dt_demo/__init__.py`, the scene's (`Game`) `update()` renders the countdown (around line 118, `self.font.render(..., False, ...)`), the FPS line (around line 123) and the record time (around line 130) with `False` as the second (antialias) argument; in `src/demos/joystick-demo/src/joystick_demo/__init__.py`, `_draw_line` draws every readout line with `self.font.render(text, antialias=False, color=color)` (around line 159). The text-input demo is not affected: its `InputBox` renders with antialiasing on (`src/glitchygames/ui/inputs.py`, around lines 106 and 171).
+- **Status**: Resolved (2026-10-31, bug sweep 2: both demos render their text antialiased; their tests' expected text renders the same way)
+- **Priority**: Low
+- **Reporter**: The user, running the demos by hand (workspace packages Part 3)
+- **Date Reported**: 2026-10-26
+- **Details**: Both demos use the bundled Vera (`DEFAULT_FONT_NAME`) through `FontManager.pygame_font`. Pre-existing: the calls came with the demos when they moved into `src/demos/`, so the move did not cause it. Expected: render with antialiasing on. It belongs with the demos-experience work (`plans/future-features.md` #57).
+- **Files**: `src/demos/dt-demo/src/dt_demo/__init__.py`, `src/demos/joystick-demo/src/joystick_demo/__init__.py`
+
+### 222. Scripts and Tests Insert the Repository Root Into sys.path, Which Does Nothing Since the Engine Moved
+- **Description**: Many scripts and tests start with `sys.path.insert(0, str(Path(__file__).parent.parent))` (or `.parent.parent.parent`) "so direct imports work". Since the engine moved to `src/glitchygames`, the repository root holds no importable `glitchygames`: the imports resolve to the installed package either way, so the lines do nothing (the root still serves `scripts.*`, but a script reaches that as `python -m scripts.<name>`). They also hide a mistake: a test that needed the root would pass here and fail elsewhere
+- **Status**: Resolved (2026-10-31, bug sweep 2: the tests were already clean, and `tests/test_suite_collection.py` now refuses new path edits; the four scripts left (`animation_demo.py`, `animation_scene_demo.py`, `animation_scene_full_demo.py`, `show_ai_query.py`) lost the line and its comment. `scripts/ai_query_inspector.py` no longer had one)
+- **Priority**: Low
+- **Reporter**: The documentation task of plans/2026-10-24-workspace-packages-1-foundation.md
+- **Date Reported**: 2026-10-25
+- **Files**: `scripts/ai_query_inspector.py`, `scripts/animation_demo.py`, `scripts/animation_scene_demo.py`, `scripts/animation_scene_full_demo.py`, `scripts/show_ai_query.py`, and under `tests/` `animation/`, `canvas/`, `engine/`, `events/` and others (`git grep -n 'sys.path.insert' -- scripts tests`)
+- **Solution**: Remove the lines (and their comments), then run the suite; where a script needs `scripts.*`, run it as a module
+
+### 113. The Health Route Reports a Stale "pygame initialized" Flag
+- **Description**: `api/routes/health.py:26` reports `RendererService.pygame_initialized`, which stays True after `pygame.quit()` until the next `RendererService()` is made
+- **Status**: Resolved (2026-10-31, bug sweep 2: the route reports `RendererService.pygame_running()`, which also checks `pygame.get_init()`; a test covers started/quit/never-started)
+- **Priority**: Low
+- **Reporter**: Found fixing #110 item 6
+- **Date Reported**: 2026-10-21
+- **Files**: `src/glitchygames/api/routes/health.py:26`, `src/glitchygames/services/renderer_service.py`
+
+### 119. Frames Inserted or Removed Through the Film Strip Never Reach the Coordinator
+- **Description**: `film_strip_events.py:746`, `:993` and `film_strip_sprite.py:806` check `hasattr(parent_scene, 'on_frame_inserted' / 'on_frame_removed')`, which only `FilmStripCoordinator` has, so the editor's `selected_frame` is never adjusted after frames are inserted or removed through the film strip
+- **Status**: Resolved (2026-10-31, bug sweep 2: the film strip's insert and remove paths (now `src/apps/bitmappy/src/bitmappy/film_strip_events.py` and `film_strip_sprite.py`) call `parent_scene.film_strip_coordinator.on_frame_inserted/removed`; the frame-addition tests spy on the coordinator instead of a mocked scene method, and a new test checks a film-strip delete moves the editor's selected frame back)
+- **Priority**: Medium
+- **Reporter**: Found fixing #90 (same pattern)
+- **Date Reported**: 2026-10-21
+- **Files**: `src/glitchygames/bitmappy/film_strip_events.py:746`, `:993`, `src/glitchygames/bitmappy/film_strip_sprite.py:806`
+
+### 120. A Canvas Drag Released Outside the Canvas Is Never Finished
+- **Description**: `editor.py:701-704` sends the left-button-up only to sprites under the mouse, so a drag released outside the canvas never flushes or submits its stroke to undo, and `_drag_active` stays True
+- **Status**: Resolved (2026-10-31, bug sweep 2: `on_left_mouse_button_up_event` also sends the release to the canvas when the canvas is not under the mouse; the canvas ignores it with no drag active. Real-editor test: a drag released off the canvas writes the stroke, ends the drag and undoes in one step)
+- **Priority**: Medium
+- **Reporter**: Found fixing #101
+- **Date Reported**: 2026-10-21
+- **Files**: `src/glitchygames/bitmappy/editor.py:701-704`, `src/glitchygames/bitmappy/animated_canvas.py`
+
+### 135. Dialog Scenes Ignore Their `groups` Argument
+- **Description**: `NewCanvasDialogScene`, `LoadDialogScene` and `SaveDialogScene` always pass a new `LayeredDirty()`
+- **Status**: Resolved (2026-10-31, bug sweep 2: the three dialog scenes pass `groups` through; a parametrized test checks the scene's sprites use the given group)
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `src/glitchygames/ui/dialogs.py` 344-346, 394-397, 446-449
+
+### 137. Frame Extraction Reports Non-PNG Data as a Success With 0 Frames
+- **Description**: `/sprites/extract-frames` returns `success=True` with no frames for arbitrary bytes, because `APNG.from_bytes` accepts garbage
+- **Status**: Resolved (2026-10-31, bug sweep 2: data without the PNG signature, or that parses to no frames, is an unsuccessful response (`Invalid APNG file: ...`), tested with garbage, another format and a bare signature)
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `src/glitchygames/api/routes/sprites.py`
+
+### 152. Redo Pressed Mid-Pan Applies Inside the Gesture
+- **Description**: Ctrl+Shift+Z while an arrow is still held applies the redo inside a pan gesture; undoing the gesture still restores its starting pixels, but the redo stack is not cleared until the gesture ends
+- **Status**: Resolved (2026-10-31, bug sweep 2: `handle_undo`/`handle_redo` first finish a pan gesture in progress, recording it as its own step, which clears the redo stack as any edit does; the mocked editors' canvases now say `pan_session = None` like a real one)
+- **Priority**: Low
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `src/glitchygames/bitmappy/editor.py` (`handle_undo`/`handle_redo`)
+
+### 154. Film Strip Triangles May Lag a Moving Controller
+- **Description**: A film strip sprite re-renders only when dirty; `render_visual_indicators` updates selections every frame, but nothing confirms a controller moving between frames always marks the strip dirty (unchecked)
+- **Status**: Resolved (2026-10-31, bug sweep 2: confirmed by reading: nothing marked a strip dirty when a controller moved, so triangles waited for the preview to advance (forever on a stopped preview). `_update_film_strip_controller_selections` now marks dirty each strip whose controller selections changed since the last update; tests cover a frame move, an animation move and no move)
+- **Priority**: Low
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Details**: Suspected; needs a real-editor test
+- **Files**: `src/glitchygames/bitmappy/film_strip_rendering.py`
+
+### 60. Brave Adventurer Ground and Walls Stay Drawn Only Because the Parallax Layers Dirty the Screen
+- **Description**: The shared `GroundSegment` and `StoneWall` (both editions) are `dirty = 1` and are dirtied again only when they move. With a still camera they stay on screen only because the full-screen `dirty = 2` ParallaxLayers make the whole screen dirty every frame
+- **Status**: Resolved (2026-10-31, bug sweep 2: `GroundSegment` and `StoneWall` are `dirty = 2`; the engine's world placement keeps a 2, so nothing else changes and the screen was already fully redrawn every frame)
+- **Priority**: Low
+- **Reporter**: Found by the Task 8 review on feature/engine-world-space
+- **Date Reported**: 2026-10-18
+- **Details**: If the parallax layers stop redrawing the full screen (made static, partially sized, or removed), a still camera would let other sprites' clearing erase the terrain. Either make the terrain `dirty = 2` or document the dependency where the layers are built
+- **Files**: `src/games/brave-adventurer/src/brave_adventurer_core/terrain.py`, `src/games/brave-adventurer/src/brave_adventurer/game.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py`
+
+### 67. Bitmappy's Joystick-Event Trigger Conversion Assumes pygame 1's Integer Axis Scale
+- **Description**: `ControllerEventHandler._read_joystick_trigger_values` converts trigger axes with `(raw + 32768) / 65535`, but pygame 2 reports joystick axes as -1.0..1.0, so both triggers always read about 0.5 whatever their position
+- **Status**: Resolved (2026-10-31, bug sweep 2: the joystick path converts with `(raw + 1.0) / 2.0`, clamped, like the controller path; `TestTriggerValuesFromSnapshot` now expects (1.0, 0.0))
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 6)
+- **Date Reported**: 2026-10-19
+- **Details**: Fix with the `(raw + 1.0) / 2.0` conversion the controller path uses (or drop the path if no event without an `instance_id` can reach it). `TestTriggerValuesFromSnapshot` in `tests/tools/test_bitmap_editor_scene.py` pins today's values
+- **Files**: `src/glitchygames/bitmappy/controllers/event_handler.py`
+
+### 72. MultiControllerEnhancements Stores a Duration Where Its Next Call Expects a Timestamp
+- **Description**: `MultiControllerEnhancements._update_performance_metrics` stores the first reading as `performance_metrics[operation]`, then on each later call replaces it with `timestamp - performance_metrics[operation]`. From the third call on it subtracts a duration from a timestamp, so `'visual_update'` alternates between a duration and a timestamp-sized number
+- **Status**: Resolved (2026-10-31, bug sweep 2: each operation's last reading lives in `_last_operation_readings`; `performance_metrics` holds only durations, starting from the second reading. Tests cover the first reading and two later intervals)
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 9)
+- **Date Reported**: 2026-10-19
+- **Details**: Keep the last reading and the last duration under separate keys (or separate dicts), so each call subtracts the previous reading. The readings come from `measured_seconds()` (real time, diagnostics only) since Task 12b
+- **Files**: `src/glitchygames/bitmappy/controllers/enhancements.py`
+
+### 75. `pygame_needs_fastevents` Compares the Major and Minor Versions Separately
+- **Description**: `pygame_needs_fastevents()` (`src/glitchygames/engine/game_engine.py`, around line 107) returns `vernum[0] < 2 and vernum[1] < 2`, so it is True only when both the major and the minor version are below 2. pygame 1.9 (major 1, minor 9) gets False and would not read events with `pygame.fastevent`, although its docstring says "True for pygame < 2.2". The intended test is `(vernum[0], vernum[1]) < (PYGAME_MIN_MAJOR_VERSION, PYGAME_MIN_MINOR_VERSION)`
+- **Status**: Resolved (2026-10-31, bug sweep 2: compares `(major, minor)` tuples; a parametrized test covers 1.1, 1.9, 2.1, 2.2, 2.5 and 3.0)
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 12 review)
+- **Date Reported**: 2026-10-19
+- **Details**: Harmless today: the project runs on pygame-ce 2.x, where both forms give False. The existing `test_use_fastevents_with_old_pygame` mocks pygame 1.1, which both forms treat as old, so it does not catch the bug; a fix should add a 1.9 case
+- **Files**: `src/glitchygames/engine/game_engine.py`
+
+### 176. Bitmappy Accepts Canvas Widths That Leave No Room for a Pixel
+- **Description**: The new-canvas dialog's width is never capped: a width over 350, or one too large for the screen, makes `new_pixel_size` 0, and the editor builds a zero-size canvas surface that can't be seen or drawn on
+- **Status**: Resolved (2026-10-31, bug sweep 2: a size whose pixel size works out below 1 logs `Invalid dimensions '<WxH>': too large to fit the canvas area` and keeps the canvas; a bad format logs one exception instead of two. Tests: 351x16, 16x10000, and one traceback for 'banana')
+- **Priority**: Medium
+- **Reporter**: Found narrowing the broad try blocks (BUGS.md #19)
+- **Date Reported**: 2026-10-22
+- **Details**: Non-positive sizes (`0x16`, `-4x4`) are refused since #175; very large ones are not. Refuse (or cap) a size whose pixel size would be 0, with the same "Invalid dimensions" log
+- **Files**: `src/glitchygames/bitmappy/editor.py:402`
+
+### 177. The Fallback TOML Parser Crashes on Some Malformed Files
+- **Description**: `parse_toml_robustly`, the regex fallback for TOML that `tomllib` rejects, raises instead of recovering: a section header under a key already holding a non-table value raises `TypeError: argument of type 'int' is not a container` (`'a = 1\na = 2\n[a.b]\nc = 1\n'`), and a section header with an unterminated quote raises `ValueError: substring not found` from `remaining.index('"', 1)` (`'x = 1\nx = 2\n["unterminated]\n'`)
+- **Status**: Resolved (2026-10-31, bug sweep 2: a `[section]` or `[[array]]` header the regex parser cannot place (unterminated quote, or a path through a non-table value) is skipped and logged, and so are its keys, multi-line values included, until the next header; `normalize_toml_data` deep-copies, so the caller's tables are never changed or half-normalized)
+- **Priority**: Medium
+- **Reporter**: Found narrowing the broad try blocks (BUGS.md #19)
+- **Date Reported**: 2026-10-22
+- **Details**: The fallback exists to load damaged files; it should skip a line it cannot place and log it. Related: `normalize_toml_data` copies only the top level, so it changes the caller's nested `sprite`/`animation` tables in place, and an error part way returns them half-normalized
+- **Files**: `src/glitchygames/bitmappy/toml_processing.py:215`, `:219`, `:360`, `:634`
 
 ### 141. A Third Controller on a Cached Indicator Position Lands on the First
 - **Description**: `VisualCollisionManager.position_cache` is keyed by position only, so a third controller at a position cached for two gets the fallback offset (0, 0), on top of the first controller

@@ -630,6 +630,8 @@ class TestFilmStripFrameDeleteUndo:
         scene.canvas.animated_sprite = AnimatedSprite(str(sprite_file))
         scene.canvas.current_animation = 'run'
         scene.canvas.current_frame = 0
+        # No pan gesture in progress, as on a real canvas (a Mock attribute would look like one)
+        scene.canvas.pan_session = None
         widget = FilmStripWidget(x=0, y=0, width=400, height=100)
         widget.parent_scene = scene
         widget.set_animated_sprite(scene.canvas.animated_sprite)
@@ -678,6 +680,21 @@ class TestFilmStripFrameDeleteUndo:
 
         assert scene.undo_redo_manager.undo() is True
         self._assert_middle_frame_restored(frames)
+
+    def test_a_film_strip_delete_moves_the_editor_selection_back(self, mocker, tmp_path):
+        """Deleting a frame through the film strip reaches the coordinator (BUGS.md #119).
+
+        The film strip asked the editor scene for on_frame_removed, which only the coordinator
+        has, so the editor's selected frame kept pointing past the deleted frame.
+        """
+        scene, widget = self._scene_with_film_strip(mocker, tmp_path)
+        scene.selected_animation = 'run'
+        scene.selected_frame = 2
+
+        widget.event_handler.remove_frame(animation_name='run', frame_index=1)
+
+        assert scene.selected_frame == 1
+        scene.canvas.show_frame.assert_called_with('run', 1)
 
     def test_undoing_a_frame_delete_restores_a_frame_without_a_pixel_list(self, mocker, tmp_path):
         """A frame known only by its surface (empty pixels list) is restored from that surface."""

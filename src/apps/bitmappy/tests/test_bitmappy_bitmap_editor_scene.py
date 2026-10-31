@@ -458,9 +458,8 @@ class TestTriggerValuesFromSnapshot:
 
         left_trigger, right_trigger = mock_editor.controller_handler._read_trigger_values(event, 0)
 
-        # The existing joystick conversion assumes pygame's old int scale (BUGS.md #67)
-        assert left_trigger == pytest.approx(32769.0 / 65535.0)
-        assert right_trigger == pytest.approx(32767.0 / 65535.0)
+        # pygame 2's -1.0..1.0 axis scale, as the controller path reads it (BUGS.md #67)
+        assert (left_trigger, right_trigger) == (1.0, 0.0)
         real_joystick.assert_not_called()
 
 
