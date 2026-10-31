@@ -462,6 +462,27 @@ class TestPapyrusSpriteUtilities:
         assert _surface_bytes(sprite.image) == _surface_bytes(frame_image)
         assert sprite.hitbox_scale == 1
 
+    @pytest.mark.parametrize(
+        'make_sprite',
+        [
+            lambda groups: PapyrusPlayer(world_x=100.0, world_y=100.0, groups=groups),
+            lambda groups: PapyrusCobra(world_x=100.0, groups=groups),
+            lambda groups: PapyrusScarab(world_x=100.0, groups=groups),
+            lambda groups: PapyrusScorpion(world_x=100.0, groups=groups),
+        ],
+        ids=['player', 'cobra', 'scarab', 'scorpion'],
+    )
+    def test_the_rect_is_the_scaled_images_size(self, make_sprite):
+        """A 2x sprite's rect is its drawn image's size, not the native frame's (BUGS.md #59)."""
+        _start_display()
+        sprite = make_sprite(pygame.sprite.LayeredDirty())
+        native_size = sprite.get_current_frame().image.get_size()
+
+        apply_transparency_and_scale(sprite)
+
+        assert sprite.image.get_size() == (native_size[0] * 2, native_size[1] * 2)
+        assert sprite.rect.size == sprite.image.get_size()
+
 
 # A player running right that has just left the ground and started to fall
 RUNNING_OFF_A_LEDGE_CONTEXT = {'velocity_x': 200.0, 'velocity_y': 20.0, 'on_ground': False}

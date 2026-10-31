@@ -21,6 +21,8 @@ from glitchygames.opacity import OPAQUE, has_per_pixel_alpha
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import JITTER_SAMPLE_BUFFER_MAX_SIZE
 from glitchygames.sources import advance_frame_clock
+from glitchygames.sprites.animated import AnimatedSprite
+from glitchygames.sprites.frame import SpriteFrame
 from tests.display_canvas import CANVAS_PATTERN
 from tests.logged_messages import logged_message
 
@@ -754,6 +756,49 @@ class TestSceneDtTick:
         scene.dt_tick(0.017)
         assert abs(scene.dt - 0.017) < 1e-9
         assert abs(scene.dt_timer - 0.033) < 0.001
+
+
+class TestSceneAnimatesByTime:
+    """A plain AnimatedSprite in a scene advances by the frame's dt, not 16 ms (BUGS.md #115)."""
+
+    @staticmethod
+    def _two_frame_sprite(scene: Scene) -> AnimatedSprite:
+        """Return a playing AnimatedSprite of two 0.1 s frames in the scene's group.
+
+        Returns:
+            The sprite, on its first frame.
+
+        """
+        sprite = AnimatedSprite()
+        surface = pygame.Surface((4, 4))
+        sprite.add_animation(
+            'blink', [SpriteFrame(surface, duration=0.1), SpriteFrame(surface, duration=0.1)]
+        )
+        sprite.play('blink')
+        sprite.dirty = 2
+        scene.all_sprites.add(sprite)
+        return sprite
+
+    def test_one_long_frame_advances_the_animation(self):
+        """A 0.15 s frame (below 7 FPS) moves to the second frame; 16 ms would not."""
+        scene = Scene()
+        sprite = self._two_frame_sprite(scene)
+
+        scene.dt_tick(0.15)
+        scene.update()
+
+        assert sprite.frame_manager.current_frame == 1
+
+    def test_short_frames_do_not_advance_it_early(self):
+        """Ten 1 ms frames are 10 ms: still the first frame (16 ms each would be 160 ms)."""
+        scene = Scene()
+        sprite = self._two_frame_sprite(scene)
+
+        for _ in range(10):
+            scene.dt_tick(0.001)
+            scene.update()
+
+        assert sprite.frame_manager.current_frame == 0
 
 
 class TestSceneCleanup:

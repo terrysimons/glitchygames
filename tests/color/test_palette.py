@@ -6,7 +6,7 @@ import sys
 import pytest
 from pygame import Color
 
-from glitchygames.color.palette import ColorPalette, PaletteUtility, System, Vga
+from glitchygames.color.palette import ColorPalette, Default, PaletteUtility, System, Vga
 
 MAGENTA = Color(255, 0, 255)
 
@@ -244,6 +244,34 @@ class TestBuiltinPalettes:
             'PURPLE': Color(128, 0, 128),
             'TEAL': Color(0, 128, 128),
             'NAVY': Color(0, 0, 128),
+        }
+
+    def test_default_color_names_match_their_colors(self):
+        """YELLOW is yellow, GREEN green and BLACK opaque (BUGS.md #111: olive, cyan, alpha 0)."""
+        palette = Default()
+
+        named_colors = {
+            'YELLOW': palette.YELLOW,
+            'PURPLE': palette.PURPLE,
+            'BLUE': palette.BLUE,
+            'GREEN': palette.GREEN,
+            'WHITE': palette.WHITE,
+            'BLACK': palette.BLACK,
+            'BLACKLUCENT': palette.BLACKLUCENT,
+            'BLUELUCENT': palette.BLUELUCENT,
+            'RED': palette.RED,
+        }
+
+        assert named_colors == {
+            'YELLOW': Color(255, 255, 0, 255),
+            'PURPLE': Color(121, 7, 242, 255),
+            'BLUE': Color(0, 0, 255, 255),
+            'GREEN': Color(0, 255, 0, 255),
+            'WHITE': Color(255, 255, 255, 255),
+            'BLACK': Color(0, 0, 0, 255),
+            'BLACKLUCENT': Color(0, 0, 0, 127),
+            'BLUELUCENT': Color(0, 96, 255, 127),
+            'RED': Color(255, 0, 0, 255),
         }
 
     def test_vga_palette_has_256_colors(self):

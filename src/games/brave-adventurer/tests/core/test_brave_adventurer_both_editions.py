@@ -1280,6 +1280,23 @@ class TestRespawnStopsWalking:
         assert player.world_x == pytest.approx(position_at_death)
 
 
+class TestRespawnNearTheStart:
+    """A death within RESPAWN_OFFSET of the start respawns at x 0.0, a float like every x (#230)."""
+
+    def test_the_clamped_respawn_position_is_a_float(self, real_scene):
+        player = real_scene.player
+        player.world_x = 50.0
+
+        real_scene._respawn_player()
+        # Past the 0.2 s fade out, where the player is repositioned
+        for _ in range(30):
+            real_scene.dt_tick(FRAME_SECONDS)
+
+        assert not player.is_respawning
+        assert player.world_x == 0.0
+        assert type(player.world_x) is float
+
+
 class TestScarabInAPitIsDrawn:
     """A scarab that rolled into a pit is drawn over the pit fill, as the player is (#209.5)."""
 

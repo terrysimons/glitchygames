@@ -98,6 +98,8 @@ class SpriteWorldSample:
         draw_offset: The sprite's draw_offset (an anchored animation frame's offset, which the
             engine adds to the snapped position, as Papyrus's old apply_camera did; (0, 0) for
             sprites without one).
+        image_size: The size of the image the sprite draws (Papyrus's scaled sprites size
+            their rect to it since BUGS.md #59; (0, 0) for a sprite without an image).
 
     """
 
@@ -106,6 +108,7 @@ class SpriteWorldSample:
     rect: list[int]
     hidden: bool
     draw_offset: tuple[int, int] = (0, 0)
+    image_size: tuple[int, int] = (0, 0)
 
 
 @dataclass(frozen=True)
@@ -193,6 +196,7 @@ class WorldSampler:
                     rect=[sprite.rect.x, sprite.rect.y, sprite.rect.width, sprite.rect.height],
                     hidden=bool(getattr(sprite, 'hidden', False)),
                     draw_offset=tuple(getattr(sprite, 'draw_offset', (0, 0))),
+                    image_size=sprite.image.get_size() if sprite.image is not None else (0, 0),
                 )
                 for sprite in scene.all_sprites.sprites()
                 if is_world_positioned(sprite)
@@ -996,6 +1000,84 @@ def papyrus_fell_in_its_falling_pose(difference: TraceDifference, frame: FrameWo
 
 
 # Filled in by later tasks of the world-space plan; every entry must say why it is expected.
+# Papyrus's sprites drawn at SPRITE_SCALE through apply_transparency_and_scale, whose rect
+# now has the drawn image's size (BUGS.md #59) where the baseline kept the native frame's
+PAPYRUS_SCALED_SPRITE_PATTERNS = (
+    'PapyrusPlayer#*',
+    'PapyrusCobra#*',
+    'PapyrusScarab#*',
+    'PapyrusScorpion#*',
+    'PapyrusGoldScarab#*',
+)
+
+
+def _without_the_scaled_size(
+    difference: TraceDifference, frame: FrameWorldSample
+) -> TraceDifference | None:
+    """A scaled Papyrus sprite's rect difference with #59's size change taken out, or None.
+
+    None unless the sprite is one PAPYRUS_SCALED_SPRITE_PATTERNS names, the current rect has
+    the size of the image it draws this frame, and the baseline's size differs (the native
+    frame's). The result's baseline keeps its position and takes the current size, so what
+    is left is only the position difference, if any.
+
+    Returns:
+        The difference with matching sizes, or None.
+
+    """
+    sprite = _sprite_sample(difference, frame)
+    if (
+        sprite is None
+        or difference.field != 'rect'
+        or not any(
+            fnmatch.fnmatchcase(difference.sprite_id, pattern)
+            for pattern in PAPYRUS_SCALED_SPRITE_PATTERNS
+        )
+        or difference.current[2:] != list(sprite.image_size)
+        or difference.baseline[2:] == difference.current[2:]
+    ):
+        return None
+    return dataclasses.replace(
+        difference, baseline=[*difference.baseline[:2], *difference.current[2:]]
+    )
+
+
+def rect_sized_to_its_scaled_image(difference: TraceDifference, frame: FrameWorldSample) -> bool:
+    """BUGS.md #59 alone: same position, and the rect now has its drawn (scaled) image's size.
+
+    Returns:
+        True if only the size differs, and the current size is the drawn image's.
+
+    """
+    resized = _without_the_scaled_size(difference, frame)
+    return resized is not None and resized.baseline == resized.current
+
+
+def judged_without_the_scaled_size(
+    rule: Callable[[TraceDifference, FrameWorldSample], bool],
+) -> Callable[[TraceDifference, FrameWorldSample], bool]:
+    """Judge a position rule as if #59 had not resized the scaled sprite's rect.
+
+    A scaled sprite's difference whose position also moved is the rule's, judged with the size
+    change taken out; one whose position did not move is rect_sized_to_its_scaled_image's, so
+    each difference keeps exactly one cause. Any other sprite's difference goes to the rule
+    unchanged.
+
+    Returns:
+        The wrapped rule.
+
+    """
+
+    def judged(difference: TraceDifference, frame: FrameWorldSample) -> bool:
+        resized = _without_the_scaled_size(difference, frame)
+        if resized is None:
+            return rule(difference, frame)
+        return resized.baseline != resized.current and rule(resized, frame)
+
+    judged.__name__ = f'{rule.__name__}_without_the_scaled_size'
+    return judged
+
+
 EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
     'clockwork_keep': [
         ExpectedDifference(
@@ -1151,7 +1233,7 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
             frames=None,
             sprite_pattern='*',
             field='rect',
-            world_rule=separately_snapped,
+            world_rule=judged_without_the_scaled_size(separately_snapped),
             reason=(
                 'Spec 2.2: sprite and camera are snapped separately, snap(world) - '
                 'snap(camera), instead of round(world - camera); the running adventurer (plus '
@@ -1163,7 +1245,7 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
             frames=None,
             sprite_pattern='*',
             field='rect',
-            world_rule=rounded_half_up_at_exact_half,
+            world_rule=judged_without_the_scaled_size(rounded_half_up_at_exact_half),
             reason=(
                 'Spec 2.2 half-up rounding: a rolling scarab at exactly x.5 under the still '
                 'camera (x = 0 before it moves) was drawn by round(), half to even; the engine '
@@ -1174,13 +1256,25 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
             frames=range(841, 900),
             sprite_pattern='*',
             field='rect',
-            world_rule=papyrus_fell_in_its_falling_pose,
+            world_rule=judged_without_the_scaled_size(papyrus_fell_in_its_falling_pose),
             reason=(
                 'Running to falling (BUGS.md #209 item 7): the script runs off a ledge on frame '
                 '841; the player now falls in its falling frame, anchored 2 px higher than the '
                 'running frames the old player fell in and 4 px lower than the idle frame it '
                 'showed once the pit wall stopped it; in the screen-4 pit its wider hitbox '
                 'stops at another x, which the camera, following it, trails'
+            ),
+        ),
+        ExpectedDifference(
+            frames=None,
+            sprite_pattern='Papyrus*',
+            field='rect',
+            world_rule=rect_sized_to_its_scaled_image,
+            reason=(
+                "BUGS.md #59: a scaled Papyrus sprite's rect has its drawn image's size (2x "
+                'the frame, SPRITE_SCALE) where the old rect kept the native size of the frame '
+                'the sprite was built with; its position is unchanged (a moved position is '
+                "judged by the other entries' rules with the size change taken out)"
             ),
         ),
     ],
