@@ -275,18 +275,14 @@ class FilmStripWidget:  # ruff: ignore[too-many-public-methods]
         if hasattr(self, 'film_strip_sprite') and self.film_strip_sprite:
             self.film_strip_sprite.dirty = 1
 
-    def refresh(self, *, recalculate_layout: bool) -> None:
+    def refresh(self) -> None:
         """Rebuild the previews, layout and film tabs after the animations changed, and redraw.
 
-        Args:
-            recalculate_layout: Recalculate the frame layout before updating it.
-
+        update_layout calculates the layout and creates the film tabs once each: refresh used
+        to do both again around it (BUGS.md #178 item 24).
         """
         self._initialize_preview_animations()
-        if recalculate_layout:
-            self._calculate_layout()
         self.update_layout()
-        self._create_film_tabs()
         self.mark_dirty()
 
     # ---- Forwarding methods for backward compatibility ----

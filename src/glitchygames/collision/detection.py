@@ -94,7 +94,7 @@ def snapped_world_position(
         The snapped (x, y) position.
 
     """
-    pixel_snap_mode = resolve_snap_mode(sprite)
+    pixel_snap_mode = resolve_snap_mode(sprite=sprite)
     return (
         snap_to_pixel(world_x, pixel_snap_mode),
         snap_to_pixel(world_y, pixel_snap_mode),

@@ -61,6 +61,7 @@ from glitchygames.sprites import AnimatedSprite
 from glitchygames.state import DiskSaveManager
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.world import position_world_sprites
+from tests.display_canvas import show_canvas_on_new_display
 
 FRAME_SECONDS = 1 / 60
 # The member's golden replays: golden-classic.jsonl.gz, golden-papyrus.jsonl.gz
@@ -783,8 +784,13 @@ BACKGROUND_COLOR = (1, 2, 3)
 def _start_display():
     if not pygame.get_init():
         pygame.init()
-    if pygame.display.get_surface() is None:
-        set_display_mode(size=SCREEN_SIZE)
+    # Reopen a display of another size too: the scenes size the pit floor from it, and under
+    # pytest another test may have left any size (BUGS.md #211 item 7)
+    display_surface = pygame.display.get_surface()
+    if display_surface is None or display_surface.get_size() != SCREEN_SIZE:
+        # The harness's canvas pattern on it: a new display is black, which its black-frame
+        # guard fails
+        show_canvas_on_new_display(size=SCREEN_SIZE)
 
 
 @pytest.fixture(params=GAME_SCENE_CLASSES)

@@ -1430,10 +1430,12 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
             parser (argparse.ArgumentParser): The argument parser.
 
         """
+        # argparse's version action prints and exits; store_true did nothing (BUGS.md #178 item 25)
         parser.add_argument(
             '-v',
             '--version',
-            action='store_true',
+            action='version',
+            version=f'{cls.NAME} {cls.VERSION}',
             help='print the game version and exit',
         )
         parser.add_argument(

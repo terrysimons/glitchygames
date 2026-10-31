@@ -1239,7 +1239,15 @@ def _start_playback(
         is_rebaseline=manager.OPTIONS.get('rebaseline') is not None,
     )
     if scene_class is None:
-        LOG.warning('No %s: no scene class named %s is loaded', kind, start.scene_class)
+        # Name the logical name and module too: a class of that name may be loaded under
+        # another, and "no scene class named X is loaded" was then wrong (BUGS.md #224 item 46)
+        LOG.warning(
+            'No %s: no loaded scene class matches %s (logical name %s, module %s)',
+            kind,
+            start.scene_class,
+            start.scene,
+            start.scene_module,
+        )
         return False
     try:
         replay = playback_replay_sources(

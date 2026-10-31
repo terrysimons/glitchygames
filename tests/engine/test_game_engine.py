@@ -60,7 +60,11 @@ from glitchygames import events
 from glitchygames.argument_types import non_negative_int, non_negative_percent
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
-from glitchygames.engine.game_engine import pygame_needs_fastevents, unit_interval
+from glitchygames.engine.game_engine import (
+    pygame_needs_fastevents,
+    scene_class_of,
+    unit_interval,
+)
 from glitchygames.events import base as events_base
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.input_devices import InputMode
@@ -437,6 +441,19 @@ class TestGameEngineDisplayMethods:
         assert engine.mode_flags & pygame.SCALED
         assert not engine.mode_flags & pygame.FULLSCREEN
 
+    def test_a_headless_display_asks_for_no_window_flags(self, mocker):
+        """--headless opens the display without SCALED or RESIZABLE (BUGS.md #178 item 32).
+
+        The dummy driver has no renderer for SCALED, so it warned "no fast renderer available".
+        """
+        # The test already runs on the dummy driver: keep the SDL variables as they are
+        mocker.patch.object(GameEngine, '_enter_headless_mode')
+
+        engine = _make_engine(mocker, '--headless', '--resolution', '640x480')
+
+        assert engine.mode_flags == 0
+        assert engine.screen.get_size() == (640, 480)
+
     def test_initialize_display_waits_for_a_late_resize(self, mocker):
         """A window manager answering after set_mode returns: the game sees the new size."""
         window_manager = SlowWindowManager(pumps_until_resized=4, final_size=(640, 480))
@@ -533,14 +550,18 @@ class TestGameEngineSystemInfo:
     """Test GameEngine system info methods."""
 
     def test_print_game_info(self, mocker, caplog):
-        """Test print_game_info logs game title and version."""
+        """print_game_info logs the game's title and version, not the engine's placeholder.
+
+        The engine's own NAME, "Boilerplate Adventures", names no game (BUGS.md #178 item 27).
+        """
         engine = _make_engine(mocker)
 
         with caplog.at_level(logging.INFO, logger=GameEngine.log.name):
-            engine.print_game_info()
+            engine.print_game_info(game=EngineTestGame)
 
-        assert f'Game Title: {GameEngine.NAME}' in caplog.text
-        assert f'Game Version: {GameEngine.VERSION}' in caplog.text
+        assert f'Game Title: {GAME_NAME}' in caplog.text
+        assert f'Game Version: {GAME_VERSION}' in caplog.text
+        assert GameEngine.NAME not in caplog.text
 
     def test_print_system_info(self, mocker, caplog):
         """print_system_info logs the real display driver and resolution."""
@@ -576,13 +597,17 @@ class TestGameEngineSystemInfo:
             assert record.args == (str(engine.display_info),)
 
     def test_initialize_system_icons(self, mocker):
-        """initialize_system_icons sets the real window caption (a game with no icon)."""
+        """initialize_system_icons captions the window with the game's name and version.
+
+        Not the engine's placeholder "Boilerplate Adventures" (BUGS.md #178 item 27). A game
+        with no icon.
+        """
         engine = _make_engine(mocker, game=NoIconGame)
         pygame.display.set_caption('something else')
 
         engine.initialize_system_icons()
 
-        expected_caption = f'{GameEngine.NAME} v{GameEngine.VERSION}'
+        expected_caption = f'{NoIconGame.NAME} v{NoIconGame.VERSION}'
         assert pygame.display.get_caption() == (expected_caption, expected_caption)
 
 
@@ -3115,3 +3140,18 @@ class TestReplayRestartExitStatus:
         relaunch.assert_called_once()
         assert exit_info.value.code == game_own_exit_status
         assert f'Exiting with {ExitCode.describe_status(game_own_exit_status)}' in caplog.text
+
+
+class TestSceneClassOf:
+    """scene_class_of: the one spelling of class-or-instance (BUGS.md #224 item 15)."""
+
+    def test_a_class_is_its_own_scene_class(self):
+        """A scene class comes back as it is."""
+        assert scene_class_of(EngineTestGame) is EngineTestGame
+
+    def test_an_instance_gives_its_class(self, mocker):
+        """A scene instance gives its class, and so does a stand-in that is not a Scene."""
+        stand_in = mocker.NonCallableMock()
+
+        assert scene_class_of(EngineTestGame.__new__(EngineTestGame)) is EngineTestGame
+        assert scene_class_of(stand_in) is type(stand_in)

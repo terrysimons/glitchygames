@@ -8,18 +8,38 @@ multi-controller indicators, and film sprockets.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pygame
 
 from bitmappy.film_strip_layout import render_label_text
 from glitchygames import clock
+from glitchygames.fonts import FontManager
+from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 
 if TYPE_CHECKING:
     from bitmappy.film_strip import FilmStripWidget
     from glitchygames.sprites import SpriteFrame
 
 LOG = logging.getLogger('game.tools.film_strip')
+
+
+def _counter_font(size: int) -> pygame.font.Font:
+    """The bundled font for the frame counters, built once per size and cached by FontManager.
+
+    Each thumbnail and preview built pygame's default font on every draw (BUGS.md #178 item 6).
+
+    Args:
+        size: The font size.
+
+    Returns:
+        pygame.font.Font: The font.
+
+    """
+    return cast(
+        'pygame.font.Font',
+        FontManager.pygame_font(font_config={'font_name': DEFAULT_FONT_NAME, 'font_size': size}),
+    )
 
 
 class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
@@ -125,8 +145,7 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
 
     def _render_frame_number(self, surface: pygame.Surface, frame_index: int) -> None:
         """Render the "current/total" frame number at the bottom center of the frame."""
-        # Create font for frame number
-        font = pygame.font.Font(None, 12)  # Small font size
+        font = _counter_font(12)  # Small font size
 
         # Get total frames for current animation
         total_frames = 1  # Default fallback
@@ -948,8 +967,7 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         ):
             total_frames = len(self.widget.animated_sprite.animations[anim_name])
 
-        # Create font for frame index
-        font = pygame.font.Font(None, 14)  # Slightly larger than frame numbers
+        font = _counter_font(14)  # Slightly larger than frame numbers
 
         # Render frame index text in format "current+1/total"
         frame_text = f'{current_frame_idx + 1}/{total_frames}'

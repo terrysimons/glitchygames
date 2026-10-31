@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -89,6 +90,48 @@ def test_a_member_without_its_pyproject_is_refused(tmp_path):
         workspace_members(project_root=tmp_path)
 
 
+def test_a_member_directory_that_is_missing_is_refused_as_a_directory(tmp_path):
+    """A listed member whose directory is gone is not reported as a missing pyproject.toml."""
+    write_workspace(tmp_path)
+    shutil.rmtree(tmp_path / 'src' / 'games' / 'space-game')
+
+    with pytest.raises(FileNotFoundError, match=r'space-game has no directory'):
+        workspace_members(project_root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    'member_pyproject',
+    ['[tool.hatch.build.targets.wheel]\npackages = ["space_game"]\n', '[project]\nversion = "1"\n'],
+)
+def test_a_member_without_a_project_name_is_refused_by_name(tmp_path, member_pyproject):
+    """A member lacking [project] or its name raises an error naming the member, not a KeyError."""
+    write_workspace(tmp_path)
+    member_file = tmp_path / 'src' / 'games' / 'space-game' / 'pyproject.toml'
+    member_file.write_text(member_pyproject, encoding='utf-8')
+
+    with pytest.raises(ValueError, match=r'space-game has no \[project\] name'):
+        workspace_members(project_root=tmp_path)
+
+
+@pytest.mark.parametrize('packages', ['"space_game"', '[1]'])
+def test_wheel_packages_that_are_not_a_list_of_strings_are_refused(tmp_path, packages):
+    """A bare string must not be iterated character by character."""
+    write_workspace(tmp_path)
+    member_file = tmp_path / 'src' / 'games' / 'space-game' / 'pyproject.toml'
+    member_file.write_text(MEMBER_PYPROJECT.replace('["space_game"]', packages), encoding='utf-8')
+
+    with pytest.raises(ValueError, match=r'space-game.*list of strings'):
+        workspace_members(project_root=tmp_path)
+
+
+def test_an_existing_member_validates_again(tmp_path):
+    """The before-validator passes anything but a dict through (a member is not a dict)."""
+    write_workspace(tmp_path)
+    (member,) = workspace_members(project_root=tmp_path)
+
+    assert WorkspaceMember.model_validate(member) == member
+
+
 def test_a_project_without_a_workspace_has_no_members(tmp_path):
     """Before any workspace is declared there are no members."""
     (tmp_path / 'pyproject.toml').write_text('[project]\nname = "glitchygames"\n', encoding='utf-8')
@@ -99,9 +142,13 @@ def test_a_project_without_a_workspace_has_no_members(tmp_path):
 
 def test_the_real_repository_is_readable():
     """The repository itself reads, engine first."""
-    assert source_package_directories(project_root=PROJECT_ROOT)[0] == (
-        PROJECT_ROOT / 'src' / 'glitchygames'
-    )
+    directories = source_package_directories(project_root=PROJECT_ROOT)
+    members = workspace_members(project_root=PROJECT_ROOT)
+
+    assert directories[0] == PROJECT_ROOT / 'src' / 'glitchygames'
+    assert members, 'the repository declares no workspace members'
+    for member in members:
+        assert all(directory in directories for directory in member.package_directories)
 
 
 def test_a_member_declaring_no_wheel_packages_is_refused(tmp_path):

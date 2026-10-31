@@ -1,10 +1,9 @@
 """Ball walls, off-screen kill and serve margins use the ball's visible circle (real surfaces).
 
 The ball's image is 20x20 with a radius-5 circle in the middle, so its visible collision rect is
-a 10x10 box offset (5, 5) from where it is drawn. These tests live under tests/collision because
-tests/harness.py mocks pygame drawing for every path containing "game_objects"; there the circle
-is never drawn and the visible rect is the whole image. The wall sweep helpers are shared with
-tests/game_objects/test_ball.py, which runs the same sweep with the mocked (offset 0) ball.
+a 10x10 box offset (5, 5) from where it is drawn. The wall sweep helpers are shared with
+tests/game_objects/test_ball.py; these tests check the visible circle's edges against each wall,
+the serve margin and the off-screen kill line.
 """
 
 import math

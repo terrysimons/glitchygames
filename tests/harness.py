@@ -263,14 +263,13 @@ def pytest_configure(config):
 
 
 def _reset_all_singleton_instances():
-    """Reset all singleton class instances to prevent test contamination.
+    """Reset every singleton and shared cache so no test sees another test's instances.
 
-    Singleton instances (SceneManager, MenuBar, etc.) persist across tests
-    and can carry stale state from mocked pygame environments into tests
-    that need real pygame. SceneManager is no longer one of those: it is
-    a slot of the engine context, so SceneManager._reset() clears the current context's
-    managers. This resets the other classes' parent and subclass __instance__ attributes
-    since Python sets cls.__instance__ on the subclass, not the parent.
+    Scene managers live in the engine context (a slot, not a class attribute), so
+    SceneManager._reset() clears the current context's managers. The ResourceManager instances
+    and FontManager's caches are cleared next. The remaining singletons keep their instance in
+    a class attribute, __instance__, which Python sets on the class that made the instance:
+    each singleton base and each of its direct subclasses is reset (BUGS.md #228 items 17, 22).
     """
     SceneManager._reset()
 
@@ -636,7 +635,9 @@ def every_test_ends_in_the_default_engine_context(per_context_state_resets, engi
     ``context.active()`` entered by hand (``__enter__``) and never exited while something still
     holds it. A switch abandoned unexited unwinds itself when its generator is collected (its
     ``finally`` resets the context), so it is not reported. A caught leak would leave its
-    context current for every later test on the worker, so it is undone before the test fails.
+    context current for every later test on the worker, so it is undone before the test fails;
+    if the leaked switch is collected later, its ``finally`` can reset a later test's context,
+    which only happens after this test already failed (BUGS.md #228 item 2).
 
     Args:
         per_context_state_resets: Requested only to be torn down after this check.

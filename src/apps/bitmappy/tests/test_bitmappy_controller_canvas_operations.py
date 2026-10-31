@@ -610,7 +610,8 @@ class TestCanvasMoveCursor:
     def test_no_undo_record_while_applying_undo(self):
         """A move made by undo/redo itself is not recorded again."""
         handler, editor = _make_handler(position=(2, 2))
-        handler.applying_undo_redo = True  # type: ignore[attr-defined]
+        # The editor's flag, which undo and redo set (BUGS.md #178 item 22)
+        editor.applying_undo_redo = True
 
         handler.canvas._canvas_move_cursor(CONTROLLER_ID, 1, 0)
 

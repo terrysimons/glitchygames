@@ -391,3 +391,23 @@ def test_restoring_stream_states_in_one_context_never_touches_another_contexts_s
 
     assert random_stream(name=CONTEXT_DRAWS_STREAM) is default_stream
     assert default_stream.getstate() == default_state_before
+
+
+def test_restoring_numpy_stream_states_in_one_context_never_touches_another_contexts():
+    """A numpy stream's bit-generator state is restored per context too (BUGS.md #228 item 10)."""
+    second = EngineContext(name='second')
+    reset_streams(seed=FIRST_CONTEXT_SEED)
+    default_stream = numpy_stream(name=CONTEXT_NOISE_STREAM)
+    default_stream.integers(low=CONTEXT_NOISE_LOW, high=CONTEXT_NOISE_HIGH)
+    default_state_before = default_stream.bit_generator.state
+    captured = capture_stream_states()
+
+    with second.active():
+        restore_stream_states(states=captured)
+        second_stream = numpy_stream(name=CONTEXT_NOISE_STREAM)
+        assert second_stream is not default_stream
+        assert second_stream.bit_generator.state == default_state_before
+        second_stream.integers(low=CONTEXT_NOISE_LOW, high=CONTEXT_NOISE_HIGH)
+
+    assert numpy_stream(name=CONTEXT_NOISE_STREAM) is default_stream
+    assert default_stream.bit_generator.state == default_state_before

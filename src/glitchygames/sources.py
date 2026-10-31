@@ -587,11 +587,12 @@ def frame_clock_seconds() -> float:
 def reset_sources() -> None:
     """Forget the current engine context's sources, frame clock and observers (a new run, a test).
 
-    Its installed and scoped sources, frame clock, held events and observers; other contexts keep
-    theirs.
+    The installed and scoped sources are uninstalled, and the frame clock, the held events and
+    the observers are cleared. Other engine contexts keep all of theirs.
 
     The frame's polled input is not reset here (this leaf may not import glitchygames.input):
-    callers also call glitchygames.input.state.reset_current_input().
+    callers also call glitchygames.input.state.reset_current_input(), which likewise resets the
+    current engine context's input only.
     """
     registry = _registry()
     for sources in [*registry.scoped, registry.installed]:

@@ -364,6 +364,8 @@ class FilmStripOperationTracker:
             LOG.debug('Frame selection unchanged: %s[%s]', animation, frame)
             return
 
+        # Only a fresh editor has no current frame (a load sets it: BUGS.md #211 item 5), and a
+        # fresh editor starts on frame 0 of 'strip_1', so this is the frame undo goes back to
         if previous_animation is None or previous_frame is None:
             previous_animation, previous_frame = 'strip_1', 0
 

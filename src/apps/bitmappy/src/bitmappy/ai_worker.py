@@ -158,30 +158,6 @@ def _create_ollama_config(log: logging.Logger) -> dict[str, dict[str, object]]:
     return {'ollama': {'timeout': timeout_value}}
 
 
-def _set_ollama_env_timeout(log: logging.Logger) -> None:
-    """Set the OLLAMA_TIMEOUT environment variable based on model download status.
-
-    Args:
-        log: Logger instance.
-
-    """
-    import os
-
-    if not AI_MODEL.startswith('ollama:'):
-        return
-
-    model_status = _check_ollama_model_status(log)
-    if model_status['downloaded']:
-        ollama_timeout = AI_TIMEOUT
-        log.info('Model already downloaded, using %ss timeout', ollama_timeout)
-    else:
-        ollama_timeout = AI_MODEL_DOWNLOAD_TIMEOUT
-        log.info('Model needs download, using %ss timeout (30 minutes)', ollama_timeout)
-
-    os.environ['OLLAMA_TIMEOUT'] = str(ollama_timeout)
-    log.info('Set OLLAMA_TIMEOUT environment variable to %s seconds', ollama_timeout)
-
-
 def _get_provider_timeout_value(log: logging.Logger) -> int:
     """Get the appropriate timeout value based on model status.
 
@@ -216,8 +192,6 @@ def _initialize_ai_client(log: logging.Logger) -> AIClient | None:
 
     log.info('aisuite is available')
     log.debug('aisuite version: %s', getattr(ai, '__version__', 'unknown'))
-
-    _set_ollama_env_timeout(log)
 
     log.info('Initializing AI client...')
     # aisuite creates a provider only when the first request needs it (Client.providers is
@@ -565,8 +539,8 @@ def _make_ai_api_call(
     except Exception:
         end_time = clock.measured_seconds()
         duration = end_time - start_time
+        # One record with the traceback, not two (BUGS.md #178 item 8)
         log.exception('API call failed after %.2f seconds', duration)
-        log.exception('API call failed with exception')
         raise
 
     end_time = clock.measured_seconds()

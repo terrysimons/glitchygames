@@ -319,6 +319,47 @@ class TestSetup:
         )
         assert manager not in ai_manager_module._RUNNING_AI_MANAGERS
 
+    def test_start_failure_closes_both_queues(self, mocker, fake_process_class):
+        """A worker that cannot start closes the two queues it made (BUGS.md #178 item 10)."""
+        fake_process_class.start_error = OSError('no fork')
+        created_queues: list[FakeQueue] = []
+
+        def recording_queue() -> FakeQueue:
+            created_queue = FakeQueue()
+            created_queues.append(created_queue)
+            return created_queue
+
+        mocker.patch.object(ai_manager_module.multiprocessing, 'Queue', recording_queue)
+        manager = AIManager(_editor())  # type: ignore[arg-type]
+
+        manager.setup()
+
+        assert [created_queue.closed for created_queue in created_queues] == [True, True]
+
+    def test_a_queue_that_cannot_be_made_closes_the_one_that_was(self, mocker, fake_process_class):
+        """The second queue failing (out of file descriptors): only the first exists to close."""
+        created_queues: list[FakeQueue] = []
+
+        def queue_then_failure() -> FakeQueue:
+            if created_queues:
+                message = 'too many open files'
+                raise OSError(message)
+            created_queue = FakeQueue()
+            created_queues.append(created_queue)
+            return created_queue
+
+        mocker.patch.object(ai_manager_module.multiprocessing, 'Queue', queue_then_failure)
+        manager = AIManager(_editor())  # type: ignore[arg-type]
+
+        manager.setup()
+
+        assert [created_queue.closed for created_queue in created_queues] == [True]
+        assert (manager.ai_request_queue, manager.ai_response_queue, manager.ai_process) == (
+            None,
+            None,
+            None,
+        )
+
     def test_outside_the_main_process_nothing_starts(self, mocker, fake_process_class):
         """A manager created in a child process does not start a worker."""
         mocker.patch.object(

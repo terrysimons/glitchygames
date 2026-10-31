@@ -28,7 +28,8 @@ hook, scripts/measure_staged_replays.py).
    then each run the recording held, unless already in the ledger) to the pending ledger. A run
    the recording held is written (to the pending file, or with ``--rows-directory`` as row
    files) only if it landed (``rows_to_write``: measured on a commit that is on the project's
-   ``landed-ref`` without uncommitted changes; none at all without that ref, said once). "Already
+   ``landed-ref`` without uncommitted changes; none at all without that ref, said once when a run
+   would have been judged; ``LandedCommits`` asks git once per commit). "Already
    in the ledger" compares rows with a moved recording's old path resolved to its new one
    (``LedgerRow.held_key``, by the project's ``recording-renames``).
 
@@ -573,19 +574,59 @@ def missing_measurements(
     ]
 
 
+class LandedCommits:
+    """Which commits are on a repository's landed ref, each asked of git once per measurement.
+
+    The answer for a commit cannot change while one measurement runs, and every recording's
+    history repeats the same few commits, so ``rows_to_write`` asks this instead of git. Whether
+    the landed ref exists is looked up on the first question, and a missing one is said then, once:
+    a measurement with no history run to judge says nothing about it.
+    """
+
+    def __init__(self, *, repository: Path, landed_ref: str) -> None:
+        """Answer for ``repository``'s ``landed_ref`` (``[tool.glitchygames]`` ``landed-ref``)."""
+        self.repository = repository
+        self.landed_ref = landed_ref
+        self._landed_ref_present: bool | None = None
+        self._landed_by_commit: dict[str, bool] = {}
+
+    def has_landed(self, *, commit: str) -> bool:
+        """Return whether ``commit`` is on the landed ref (False for every commit without one).
+
+        Returns:
+            True when the commit is the landed ref or one of its ancestors.
+
+        """
+        if self._landed_ref_present is None:
+            self._landed_ref_present = landed_ref_exists(
+                repository=self.repository, landed_ref=self.landed_ref
+            )
+            if not self._landed_ref_present:
+                sys.stdout.write(
+                    f'No {self.landed_ref} in this repository: no history rows written (earlier '
+                    'runs count as landed only on that branch)\n'
+                )
+        if not self._landed_ref_present:
+            return False
+        if commit not in self._landed_by_commit:
+            self._landed_by_commit[commit] = commit_has_landed(
+                repository=self.repository, commit=commit, landed_ref=self.landed_ref
+            )
+        return self._landed_by_commit[commit]
+
+
 def rows_to_write(
     *,
     rows: Sequence[LedgerRow],
     held_keys: set[str],
-    repository: Path,
-    origin_main_present: bool,
+    landed_commits: LandedCommits,
     settings: ProjectSettings,
 ) -> list[LedgerRow]:
     """Return the rows of a rebaselined recording that a measurement writes.
 
     The newest run (``rows[0]``, the one just measured) is written unless held. A history row (a
     run the recording held) is written only when no row holds it, and its run was measured on a
-    commit that is on the project's ``landed-ref`` (``settings.landed_ref``: ours is
+    commit that is on the project's ``landed-ref`` (``landed_commits.landed_ref``: ours is
     ``origin/main``) with no uncommitted changes: a run of code that never landed would be
     published unconditionally (it names no code tree). With no landed ref to compare with, none
     is written. "Held" compares keys with the recording at its current path
@@ -595,9 +636,8 @@ def rows_to_write(
     Args:
         rows: The recording's rows, newest first (``ledger_rows_from_rebaseline``).
         held_keys: The ``held_key`` of every row already held.
-        repository: The repository whose landed ref decides what landed.
-        origin_main_present: Whether the repository has its landed ref (looked up once).
-        settings: The project's settings (``landed-ref``, ``recording-renames``).
+        landed_commits: Which commits landed, shared by the measurement's recordings.
+        settings: The project's settings (``recording-renames``).
 
     Returns:
         The rows to write, in order.
@@ -610,35 +650,13 @@ def rows_to_write(
         commit = row.commit
         if (
             row.held_key(recording_renames=renames) in held_keys
-            or not origin_main_present
             or commit is None
             or row.measured_uncommitted_changes
-            or not commit_has_landed(
-                repository=repository, commit=commit, landed_ref=settings.landed_ref
-            )
+            or not landed_commits.has_landed(commit=commit)
         ):
             continue
         written.append(row)
     return written
-
-
-def _origin_main_present(*, settings: MeasureSettings) -> bool:
-    """Return whether the repository has its landed ref, which history runs are judged by.
-
-    Says so once when it has none (no history row is written then).
-
-    Returns:
-        True when the landed ref (``origin/main`` here) exists.
-
-    """
-    landed_ref = settings.project_settings.landed_ref
-    if landed_ref_exists(repository=settings.project_root, landed_ref=landed_ref):
-        return True
-    sys.stdout.write(
-        f'No {landed_ref} in this repository: no history rows written (earlier runs count as '
-        'landed only on that branch)\n'
-    )
-    return False
 
 
 def ensure_directory(*, directory: Path, project_root: Path) -> Path:
@@ -668,7 +686,7 @@ def _write_new_rows(
     settings: MeasureSettings,
     rows: list[LedgerRow],
     held_keys: set[str],
-    origin_main_present: bool,
+    landed_commits: LandedCommits,
 ) -> list[LedgerRow]:
     """Write a recording's rows no row holds yet (see ``rows_to_write``) and return them.
 
@@ -682,8 +700,7 @@ def _write_new_rows(
     new_rows = rows_to_write(
         rows=rows,
         held_keys=held_keys,
-        repository=settings.project_root,
-        origin_main_present=origin_main_present,
+        landed_commits=landed_commits,
         settings=settings.project_settings,
     )
     if settings.rows_directory is None:
@@ -776,7 +793,9 @@ def measure(
     except UnreadableLedgerError as error:
         sys.stderr.write(f'{MEASURE_PREFIX} {error}\n')
         return MeasureResult(exit_code=ExitCode.UNUSABLE_INPUT)
-    origin_main_present = _origin_main_present(settings=settings)
+    landed_commits = LandedCommits(
+        repository=settings.project_root, landed_ref=settings.project_settings.landed_ref
+    )
     measured_code = measured_code_label(commit=commit, code_tree=settings.code_tree)
     measured: list[str] = []
     skipped: list[str] = []
@@ -821,7 +840,7 @@ def measure(
                     row.held_key(recording_renames=settings.project_settings.recording_renames)
                     for row in known
                 },
-                origin_main_present=origin_main_present,
+                landed_commits=landed_commits,
             )
             known.extend(new_rows)
             measured.append(recording)

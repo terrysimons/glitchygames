@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from glitchygames import code_tree
 from glitchygames.code_tree import (
     CodeTreePaths,
     commit_code_tree,
@@ -234,6 +235,22 @@ def test_landed_code_trees_name_the_commit_each_measured_tree_arrived_in(reposit
     assert landed[first_tree].commit == first_commit
     assert landed[faster_tree].commit == faster_commit
     assert landed[faster_tree].committed_at
+
+
+def test_landed_code_trees_reads_each_commits_tree_once(mocker, repository):
+    """A commit's tree never changes: a second build (a mkdocs serve rebuild) reads none again."""
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 8\n')
+    write(repository=repository, relative_path=f'{LEDGER_DIRECTORY}/eight.json', text='{}\n')
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Measured'])
+    read_trees = mocker.spy(code_tree, 'commit_code_tree')
+
+    first = landed_code_trees(repository=repository, ledger_directory=LEDGER_DIRECTORY, paths=PATHS)
+    read_after_first = read_trees.call_count
+    again = landed_code_trees(repository=repository, ledger_directory=LEDGER_DIRECTORY, paths=PATHS)
+
+    assert again == first
+    assert read_after_first == 2  # the fixture's row-adding commit, then this one
+    assert read_trees.call_count == read_after_first
 
 
 def test_a_tree_measured_but_never_committed_has_not_landed(repository):

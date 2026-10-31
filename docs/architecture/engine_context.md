@@ -35,8 +35,9 @@ tests do.
 | `glitchygames.pixel_snap.default_mode` | `src/glitchygames/pixel_snap.py` | `set_active_default_snap_mode`, `active_default_snap_mode`, `resolve_snap_mode` |
 | `glitchygames.backgrounds.default_pattern` | `src/glitchygames/backgrounds.py` | `set_active_default_background_pattern`, `active_default_background_pattern`, `paint_default_background` |
 | `glitchygames.input.state.current_input` | `src/glitchygames/input/state.py` | `current_input`, `set_current_input`, `reset_current_input` |
-| `glitchygames.randomness.streams` | `src/glitchygames/randomness.py` | `random_stream`, `numpy_stream`, `reset_streams`, `seed_engine_random`, `engine_random_seed`, `capture_stream_states`, `restore_stream_states` |
-| `glitchygames.sources.registry` | `src/glitchygames/sources.py` | `active_sources`, `install_sources`, the scoped sources, the frame clock, held events, observers |
+| `glitchygames.randomness.streams` | `src/glitchygames/randomness.py` | `engine_random`, `random_stream`, `numpy_stream`, `reset_streams`, `seed_engine_random`, `engine_random_seed`, `capture_stream_states`, `restore_stream_states` |
+| `glitchygames.game_frames.clock` | `src/glitchygames/game_frames.py` | `game_frame_clock`, `restart_game_frame_clock` |
+| `glitchygames.sources.registry` | `src/glitchygames/sources.py` | `active_sources`, `install_sources`, `reset_sources`, `push_scoped_sources`, `pop_scoped_sources`, `has_scoped_sources`, `redeliver_events`, `pending_redelivered_events`, `take_redelivered_events`, `discard_scope_posts`, `without_discarded_scope_posts`, `mark_frames_started`, `advance_frame_clock`, `set_frame_clock_seconds`, `frame_clock_seconds`, `observe_save_store_openings`, `stop_observing_save_store_openings`, `notify_save_store_opened`, `observe_device_answers`, `stop_observing_device_answers`, `notify_device_answer` |
 | `glitchygames.scenes.scene.scene_managers` | `src/glitchygames/scenes/scene.py` | `SceneManager()`, `SceneManager._reset()` |
 
 `tests/test_engine_context.py` proves, for every slot, that two contexts in one process never

@@ -180,6 +180,10 @@ class AIManager:
                 self.ai_process.start()
             except OSError, RuntimeError:
                 self.log.exception('Error initializing AI worker process')
+                # Close the queues before dropping them: each holds a pipe (BUGS.md #178 item 10)
+                for unused_queue in (self.ai_request_queue, self.ai_response_queue):
+                    if unused_queue is not None:
+                        unused_queue.close()
                 self.ai_request_queue = None
                 self.ai_response_queue = None
                 self.ai_process = None

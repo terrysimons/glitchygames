@@ -450,7 +450,7 @@ def set_current_input(*, snapshot: InputSnapshot) -> None:
 
 
 def reset_current_input() -> None:
-    """Back to IDLE_INPUT (a new run, or a test)."""
+    """Back to IDLE_INPUT in the current engine context only (a new run, or a test)."""
     current_context().value(slot=CURRENT_INPUT_SLOT).snapshot = IDLE_INPUT
 
 

@@ -46,6 +46,7 @@ from glitchygames.replay.tools import command, measure
 from glitchygames.replay.tools.children import rebaseline_recording_headless
 from glitchygames.replay.tools.identity import GameIdentity, console_script_identity
 from glitchygames.replay.tools.measure import (
+    LandedCommits,
     MeasureSettings,
     UnreplayableRecording,
     clear_published,
@@ -528,8 +529,8 @@ class TestRowsToWrite:
             update={'origin': LedgerOrigin.RECORDING}
         )
 
-    def written(self, *, rows, repository, held_keys=frozenset(), origin_main_present=True):
-        """Return ``rows_to_write``'s rows in a stand-in project landing on origin/main.
+    def written(self, *, rows, repository, held_keys=frozenset(), landed_ref='origin/main'):
+        """Return ``rows_to_write``'s rows in a stand-in project landing on ``landed_ref``.
 
         Returns:
             The rows.
@@ -538,8 +539,7 @@ class TestRowsToWrite:
         return rows_to_write(
             rows=rows,
             held_keys=set(held_keys),
-            repository=repository,
-            origin_main_present=origin_main_present,
+            landed_commits=LandedCommits(repository=repository, landed_ref=landed_ref),
             settings=STAND_IN_SETTINGS,
         )
 
@@ -576,17 +576,44 @@ class TestRowsToWrite:
 
         assert written == [newest]
 
-    def test_without_origin_main_no_history_run_is_written(self, landed_repository):
+    def test_without_origin_main_no_history_run_is_written(self, landed_repository, capsys):
         repository, landed, _ = landed_repository
+        git(repository=repository, arguments=['update-ref', '-d', 'refs/remotes/origin/main'])
         newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
 
         written = self.written(
-            rows=[newest, self.history_row(commit=landed)],
-            repository=repository,
-            origin_main_present=False,
+            rows=[newest, self.history_row(commit=landed)], repository=repository
         )
 
         assert written == [newest]
+        assert 'No origin/main in this repository: no history rows written' in (
+            capsys.readouterr().out
+        )
+
+    def test_a_missing_origin_main_is_not_said_when_no_history_run_is_judged(
+        self, landed_repository, capsys
+    ):
+        repository, _, _ = landed_repository
+        git(repository=repository, arguments=['update-ref', '-d', 'refs/remotes/origin/main'])
+        newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
+
+        written = self.written(rows=[newest, self.history_row(commit=None)], repository=repository)
+
+        assert written == [newest]
+        assert not capsys.readouterr().out
+
+    def test_each_commit_is_asked_of_git_once(self, mocker, landed_repository):
+        """Every recording's history repeats the same commits: one lookup each, not one per row."""
+        repository, landed, branch = landed_repository
+        asked = mocker.spy(measure, 'commit_has_landed')
+        landed_commits = LandedCommits(repository=repository, landed_ref='origin/main')
+
+        answers = [
+            landed_commits.has_landed(commit=commit) for commit in (landed, branch, landed, branch)
+        ]
+
+        assert answers == [True, False, True, False]
+        assert [call.kwargs['commit'] for call in asked.call_args_list] == [landed, branch]
 
     def test_a_run_held_under_a_moved_recordings_old_path_is_not_written_again(
         self, landed_repository
@@ -611,12 +638,8 @@ class TestRowsToWrite:
         newest = ledger_row(measured_at='2026-10-25T10:00:00+00:00')
         history = self.history_row(commit=branch)
 
-        written = rows_to_write(
-            rows=[newest, history],
-            held_keys=set(),
-            repository=repository,
-            origin_main_present=True,
-            settings=ProjectSettings(landed_ref='upstream/trunk'),
+        written = self.written(
+            rows=[newest, history], repository=repository, landed_ref='upstream/trunk'
         )
 
         assert written == [newest, history]

@@ -979,7 +979,8 @@ class TestTrackControllerModeChange:
 
     def test_skips_during_undo_redo(self, mock_editor, mocker):
         """Test that mode changes are not tracked during undo/redo application."""
-        mock_editor.controller_handler.applying_undo_redo = True
+        # The editor's flag, which undo and redo set (BUGS.md #178 item 22)
+        mock_editor.applying_undo_redo = True
         new_mode = mocker.Mock()
         new_mode.value = 'canvas'
         mock_editor.controller_handler._track_controller_mode_change(0, new_mode)

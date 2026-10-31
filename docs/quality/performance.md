@@ -61,6 +61,9 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    squash merge, so each is shown under the commit its code landed in. Rows of a branch's
    intermediate commits match none and are left out. A local build shows a branch's rows before
    it merges; only `main` is ever published (`nox -s docs-deploy` refuses anything else).
+   This needs squash merges: a merge commit brings its branch's commits into `main`'s history,
+   and each that added rows would land its own (intermediate) code tree, so pull requests are
+   squash-merged only.
    After each merge to `main`, CircleCI deploys the site with them; CI never measures (its
    machines vary).
 3. The history measured before this (rows naming their commit) was moved into the repository

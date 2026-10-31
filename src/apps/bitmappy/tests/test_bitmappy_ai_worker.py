@@ -148,11 +148,6 @@ class TestProviderTimeouts:
     first request.
     """
 
-    @pytest.fixture(autouse=True)
-    def restore_the_environment(self, mocker):
-        """Keep the OLLAMA_TIMEOUT that _initialize_ai_client sets for ollama out of later tests."""
-        mocker.patch.dict('os.environ')
-
     def test_no_provider_exists_before_the_first_request(self, mocker):
         """The client creates providers lazily, so only its configuration can carry a timeout."""
         mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
@@ -190,7 +185,8 @@ class TestProviderTimeouts:
         failed.
         """
         mocker.patch.object(ai_worker, 'AI_MODEL', OLLAMA_MODEL)
-        mocker.patch.object(
+        mocker.patch.dict('os.environ')
+        model_status = mocker.patch.object(
             ai_worker,
             '_check_ollama_model_status',
             return_value={'downloaded': downloaded},
@@ -201,6 +197,9 @@ class TestProviderTimeouts:
 
         assert ollama_provider.client.timeout == expected_timeout
         assert client.provider_configs['anthropic'] == {'timeout': AI_TIMEOUT}
+        # One status query, and no OLLAMA_TIMEOUT, which nothing reads (BUGS.md #178 item 23)
+        assert model_status.call_count == 1
+        assert 'OLLAMA_TIMEOUT' not in os.environ
 
 
 class TestQueryModelCapabilities:
@@ -399,6 +398,17 @@ class TestMakeAiApiCall:
 
         with pytest.raises(ConnectionError, match='down'):
             ai_worker._make_ai_api_call(_request(), _client_with(completions), LOG)
+
+    def test_failed_call_is_logged_once(self, caplog):
+        """A failed call logs one error record with its traceback (BUGS.md #178 item 8)."""
+        completions = FakeCompletions(error=ConnectionError('down'))
+
+        with caplog.at_level(logging.ERROR, logger=LOG.name), pytest.raises(ConnectionError):
+            ai_worker._make_ai_api_call(_request(), _client_with(completions), LOG)
+
+        error_records = [record for record in caplog.records if record.levelno >= logging.ERROR]
+        assert len(error_records) == 1
+        assert error_records[0].exc_info is not None
 
     def test_completions_without_create_fails(self):
         """A client with no create() cannot make the call."""

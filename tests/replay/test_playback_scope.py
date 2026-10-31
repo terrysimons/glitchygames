@@ -455,7 +455,22 @@ class TestPlaybackErrors:
             assert not start_playback(
                 manager=manager, header=header, frames=frames, then=manager.active_scene
             )
-        assert 'no scene class named NoSuchScene' in caplog.text
+        assert 'no loaded scene class matches NoSuchScene' in caplog.text
+
+    def test_a_loaded_class_under_another_logical_name_is_named_in_full(self, tmp_path, caplog):
+        """The warning names the logical name it looked for (BUGS.md #224 item 46).
+
+        CountingScene is loaded, so "no scene class named CountingScene is loaded" was wrong.
+        """
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        header, frames = recorded_trace(path=recording_path)
+        frames[0][SCENE_START_FIELD]['scene'] = 'no-such-game.counting'
+        with running_scene(CountingScene) as manager:
+            assert not start_playback(
+                manager=manager, header=header, frames=frames, then=manager.active_scene
+            )
+        assert 'no loaded scene class matches CountingScene' in caplog.text
+        assert 'logical name no-such-game.counting' in caplog.text
 
     def test_an_unreadable_recording_starts_nothing(self, tmp_path, caplog):
         not_a_recording = tmp_path / 'not-a-recording.jsonl.gz'
@@ -2326,6 +2341,23 @@ class TestScopeHousekeeping:
             manager.terminate()
             assert manager._playback_requesting_scene is None
 
+    def test_a_failure_entering_the_scope_pops_the_scoped_doors(
+        self, tmp_path, mocker: MockerFixture
+    ):
+        """An error after the doors are pushed, before the session is set, leaves none pushed."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            mocker.patch(
+                'glitchygames.scenes.scene.take_redelivered_events',
+                side_effect=RuntimeError('cannot take the held events'),
+            )
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            # Contained: the live game goes on (_enter_requested_playback)
+            step(manager)
+            assert manager.playback_session is None
+            assert not has_scoped_sources()
+
     def test_teardown_drops_the_held_live_posts(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -2537,7 +2569,7 @@ class TestPlayRecordingDemos:
             )
             step(manager)
             assert manager.playback_session is None
-        assert 'No demo: no scene class named NoSuchScene' in caplog.text
+        assert 'No demo: no loaded scene class matches NoSuchScene' in caplog.text
 
     def test_a_recording_whose_header_saves_are_not_a_mapping_is_logged(self, tmp_path, caplog):
         """The playback's saves start from the header's: a header that holds none is refused."""

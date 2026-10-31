@@ -52,11 +52,13 @@ repos:
 
     # Measures the golden replays on the code being committed when it can change them, and
     # stages the rows (quality/replay-ledger/) into the same commit
-    # (scripts/measure_staged_replays.py); SKIP=replay-metrics git commit ... skips it
+    # (scripts/measure_staged_replays.py); SKIP=replay-metrics git commit ... skips it.
+    # --locked: a stale uv.lock fails the hook saying so, where a plain uv run would rewrite the
+    # lock and pre-commit would then fail the hook for modifying files
     - id: replay-metrics
       name: replay-metrics (measure the staged code)
       language: system
-      entry: uv run python -m scripts.measure_staged_replays
+      entry: uv run --locked python -m scripts.measure_staged_replays
       pass_filenames: false
       always_run: true
       stages: [pre-commit]

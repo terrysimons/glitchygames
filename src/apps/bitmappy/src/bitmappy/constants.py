@@ -7,6 +7,7 @@ import sys
 from http import HTTPStatus
 from typing import Any
 
+from glitchygames.color import MAX_COLOR_CHANNEL_VALUE
 from glitchygames.sprites import BitmappySprite
 
 # Logger
@@ -23,8 +24,9 @@ MAX_PIXELS_ACROSS = 64
 MIN_PIXELS_ACROSS = 1
 MAX_PIXELS_TALL = 64
 MIN_PIXELS_TALL = 1
+# The engine's channel range under Bitmappy's names, so the two cannot drift (BUGS.md #155 item 4)
 MIN_COLOR_VALUE = 0
-MAX_COLOR_VALUE = 255
+MAX_COLOR_VALUE = MAX_COLOR_CHANNEL_VALUE
 
 # Timing and debouncing
 MODEL_DOWNLOAD_TIME_THRESHOLD_SECONDS = 60  # AI model response time threshold

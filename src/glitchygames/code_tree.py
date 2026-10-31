@@ -25,10 +25,14 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.process import OutputCapture, run_command
+
+if TYPE_CHECKING:
+    import subprocess
 
 GIT_TIMEOUT_SECONDS = 60.0
 
@@ -48,6 +52,27 @@ class CodeTreePaths(BaseModel):
     unmeasured: tuple[str, ...] = ()
 
 
+def _completed_git(
+    *, repository: Path, arguments: list[str], index_file: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Run git in ``repository``, on ``index_file`` when given, whatever its exit code.
+
+    Returns:
+        The finished process (stdout and stderr together in ``stdout``).
+
+    """
+    environment = dict(os.environ)
+    if index_file is not None:
+        environment['GIT_INDEX_FILE'] = str(index_file)
+    return run_command(
+        command=['git', *arguments],
+        environment=environment,
+        timeout_seconds=GIT_TIMEOUT_SECONDS,
+        capture_output=OutputCapture.TOGETHER,
+        working_directory=repository,
+    )
+
+
 def run_git(*, repository: Path, arguments: list[str], index_file: Path | None = None) -> str:
     """Run git in ``repository``, on ``index_file`` when given, and return its output.
 
@@ -58,17 +83,8 @@ def run_git(*, repository: Path, arguments: list[str], index_file: Path | None =
         RuntimeError: If git fails (the command and its output in the message).
 
     """
-    environment = dict(os.environ)
-    if index_file is not None:
-        environment['GIT_INDEX_FILE'] = str(index_file)
     command = ['git', *arguments]
-    completed = run_command(
-        command=command,
-        environment=environment,
-        timeout_seconds=GIT_TIMEOUT_SECONDS,
-        capture_output=OutputCapture.TOGETHER,
-        working_directory=repository,
-    )
+    completed = _completed_git(repository=repository, arguments=arguments, index_file=index_file)
     if completed.returncode != 0:
         message = f'{" ".join(command)} failed in {repository}: {completed.stdout.strip()}'
         raise RuntimeError(message)
@@ -188,6 +204,12 @@ def commit_code_tree(*, repository: Path, commit: str, paths: CodeTreePaths) -> 
         return _measured_tree(repository=repository, index_file=index_file, paths=paths)
 
 
+# A commit's code tree never changes, so landed_code_trees looks each up once per process:
+# (repository, full commit hash, paths) -> tree. A docs build asks for every row-adding commit
+# in the history, and `mkdocs serve` asks again on each rebuild
+_LANDED_COMMIT_CODE_TREES: dict[tuple[Path, str, CodeTreePaths], str] = {}
+
+
 class LandedCommit(BaseModel):
     """The commit a measured code tree landed in: the first one adding rows of that tree.
 
@@ -224,7 +246,11 @@ def landed_code_trees(
     Returns:
         Code tree -> the commit it landed in.
 
+    Each commit's tree is cached for the process (``_LANDED_COMMIT_CODE_TREES``): the log is read
+    every call, the trees only of commits not seen before.
+
     """
+    resolved_repository = repository.resolve()
     output = run_git(
         repository=repository,
         arguments=['log', '--format=%H %cI', '--diff-filter=A', revision, '--', ledger_directory],
@@ -232,7 +258,11 @@ def landed_code_trees(
     landed: dict[str, LandedCommit] = {}
     for line in reversed(output.splitlines()):
         commit, committed_at = line.split(' ', maxsplit=1)
-        tree = commit_code_tree(repository=repository, commit=commit, paths=paths)
+        cache_key = (resolved_repository, commit, paths)
+        tree = _LANDED_COMMIT_CODE_TREES.get(cache_key)
+        if tree is None:
+            tree = commit_code_tree(repository=repository, commit=commit, paths=paths)
+            _LANDED_COMMIT_CODE_TREES[cache_key] = tree
         landed.setdefault(tree, LandedCommit(commit=commit, committed_at=committed_at))
     return landed
 
@@ -244,14 +274,7 @@ def _git_succeeds(*, repository: Path, arguments: list[str]) -> bool:
         True when git exited 0.
 
     """
-    completed = run_command(
-        command=['git', *arguments],
-        environment=dict(os.environ),
-        timeout_seconds=GIT_TIMEOUT_SECONDS,
-        capture_output=OutputCapture.TOGETHER,
-        working_directory=repository,
-    )
-    return completed.returncode == 0
+    return _completed_git(repository=repository, arguments=arguments).returncode == 0
 
 
 def landed_ref_exists(*, repository: Path, landed_ref: str) -> bool:

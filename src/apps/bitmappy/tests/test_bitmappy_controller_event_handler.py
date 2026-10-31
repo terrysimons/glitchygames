@@ -662,7 +662,8 @@ class TestTrackControllerModeChange:
         """A mode change made by undo/redo itself is not recorded again."""
         handler, editor = _make_handler()
         editor.mode_switcher.register_controller(CONTROLLER_ID, ControllerMode.FILM_STRIP)
-        handler.applying_undo_redo = True  # type: ignore[attr-defined]
+        # The editor's flag, which undo and redo set (BUGS.md #178 item 22)
+        editor.applying_undo_redo = True
 
         handler._track_controller_mode_change(CONTROLLER_ID, ControllerMode.CANVAS)
 

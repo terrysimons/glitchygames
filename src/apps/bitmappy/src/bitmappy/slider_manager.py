@@ -772,19 +772,19 @@ class SliderManager:
                 blue = int(self.editor.blue_slider.value)
                 alpha = int(self.editor.alpha_slider.value)
                 self.log.debug(
-                    'DEBUG: _get_current_color() returning color from sliders: (%s, %s, %s, %s)',
+                    'get_current_color() returning color from sliders: (%s, %s, %s, %s)',
                     red,
                     green,
                     blue,
                     alpha,
                 )
             except (ValueError, AttributeError) as e:
-                self.log.debug('DEBUG: _get_current_color() error getting slider values: %s', e)
+                self.log.debug('get_current_color() could not read a slider value: %s', e)
             else:
                 return (red, green, blue, alpha)
 
         # Default to opaque white if sliders not available
-        self.log.debug('DEBUG: _get_current_color() sliders not available, returning white')
+        self.log.debug('get_current_color() has no sliders yet, returning white')
         return (255, 255, 255, 255)
 
     def apply_color(self, *, red: int, green: int, blue: int, alpha: int) -> None:
@@ -817,7 +817,7 @@ class SliderManager:
         # The canvas exists before the sliders in the editor; editors without one (tests)
         # have only the color well
         if getattr(self.editor, 'canvas', None) is not None:
-            self.editor.canvas.active_color = color  # type: ignore[assignment]
+            self.editor.canvas.active_color = color
 
     def sample_color_from_screen(self, screen_pos: tuple[int, int]) -> None:
         """Sample color directly from the screen (RGB only, ignores alpha).

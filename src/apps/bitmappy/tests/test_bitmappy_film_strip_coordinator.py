@@ -1099,6 +1099,8 @@ class TestOnAnimationRename:
         assert unordered_sprite._animations == {'stroll': frames}
         assert not unordered_sprite.has_own_animation_order
         assert other_current_sprite.frame_manager.current_animation == 'idle'
+        # The other animation stays, in its place (BUGS.md #178 item 21)
+        assert other_current_sprite._animation_order == ['idle', 'stroll']
 
     def test_layout_failure_after_rename_is_logged(self):
         """A widget whose layout update fails is still marked dirty."""

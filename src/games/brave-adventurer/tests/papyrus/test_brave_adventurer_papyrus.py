@@ -32,6 +32,7 @@ from glitchygames.display_mode import set_display_mode
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode, snap_to_pixel
 from glitchygames.sprites import AnimatedSprite, FrameAnchor
 from glitchygames.world import CoordinateSpace, position_world_sprites, screen_position_for
+from tests.display_canvas import show_canvas_on_new_display
 
 PAPYRUS_PACKAGE = Path(papyrus_package.__file__).parent
 BRAVE_ADVENTURER_CORE_PACKAGE = Path(brave_adventurer_core_package.__file__).parent
@@ -48,8 +49,13 @@ SCREEN_SIZE = (800, 480)
 def _start_display():
     if not pygame.get_init():
         pygame.init()
-    if pygame.display.get_surface() is None:
-        set_display_mode(size=SCREEN_SIZE)
+    # Reopen a display of another size too: the scenes size the pit floor from it, and under
+    # pytest another test may have left any size (BUGS.md #211 item 7)
+    display_surface = pygame.display.get_surface()
+    if display_surface is None or display_surface.get_size() != SCREEN_SIZE:
+        # The harness's canvas pattern on it: a new display is black, which its black-frame
+        # guard fails
+        show_canvas_on_new_display(size=SCREEN_SIZE)
 
 
 def _surface_bytes(surface):

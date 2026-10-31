@@ -242,14 +242,17 @@ def measure_staged(*, repository: Path, rows_directory: Path) -> int:
     )
     # The files this measurement wrote are valid measurements even when it failed partway
     # (history rows among them: their names lead with "history", not the tree), plus every row
-    # file of the tree already on disk (rule 2): staged now, so a retry commits them
+    # file of the tree already on disk (rule 2): staged now, so a retry commits them. A file
+    # written now is also one of the tree's, so the two lists are merged without repeats
     written = sorted(_row_file_names(rows_directory=rows_directory) - files_before)
     _stage(
         repository=repository,
-        paths=[
-            *(rows_directory / name for name in written),
-            *_tree_row_files(rows_directory=rows_directory, code_tree=code_tree),
-        ],
+        paths=list(
+            dict.fromkeys([
+                *(rows_directory / name for name in written),
+                *_tree_row_files(rows_directory=rows_directory, code_tree=code_tree),
+            ])
+        ),
     )
     if exit_code != ExitCode.SUCCESS:
         sys.stderr.write(

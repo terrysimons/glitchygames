@@ -72,19 +72,14 @@ class Game(Scene):
             parser (argparse.ArgumentParser): The argument parser.
 
         """
+        # argparse's version action prints and exits; store_true did nothing, and the demo has
+        # no balls for the old -b/--balls to count (BUGS.md #178 items 25 and 31)
         parser.add_argument(
             '-v',
             '--version',
-            action='store_true',
+            action='version',
+            version=f'{cls.NAME} {cls.VERSION}',
             help='print the game version and exit',
-        )
-
-        parser.add_argument(
-            '-b',
-            '--balls',
-            type=int,
-            help='the number of balls to start with',
-            default=1,
         )
 
     @override

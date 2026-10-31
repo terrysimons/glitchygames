@@ -90,6 +90,15 @@ EXCLUDED_ASSET_SUFFIXES = frozenset({'.png'})
 # Every archive member gets this timestamp, so the same sources make the same archive
 ARCHIVE_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
 
+# Every page's tab icon, inline (an SVG data URL), so no page asks for a /favicon.ico the bundle
+# does not have (a 404 on each load). No "$": it is substituted into the page template
+TAB_ICON_LINK = (
+    '<link rel="icon" href="data:image/svg+xml,'
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>"
+    "<rect width='16' height='16' rx='3' fill='%23000'/>"
+    "<text x='8' y='12.5' font-size='12' font-family='monospace' font-weight='bold' "
+    "text-anchor='middle' fill='%239cf'>G</text></svg>\">"
+)
 DEFAULT_PORT = 8000
 # Without --port, the ports tried after DEFAULT_PORT is taken (another local server)
 FALLBACK_PORT_COUNT = 20
@@ -478,7 +487,7 @@ def render_page(*, template: str, game: str) -> str:
 
     """
     return string.Template(template).substitute(
-        title=GAMES[game].title, pyscript_release=PYSCRIPT_RELEASE
+        title=GAMES[game].title, pyscript_release=PYSCRIPT_RELEASE, tab_icon_link=TAB_ICON_LINK
     )
 
 
@@ -726,6 +735,7 @@ def site_index_page() -> str:
         '  <meta charset="utf-8">\n'
         '  <meta name="viewport" content="width=device-width, initial-scale=1">\n'
         '  <title>GlitchyGames in the browser</title>\n'
+        f'  {TAB_ICON_LINK}\n'
         '  <style>\n'
         '    :root { color-scheme: dark; }\n'
         '    body { margin: 0; padding: 24px 16px; background: #000; color: #ddd;\n'

@@ -1,4 +1,4 @@
-"""The test display rule's canvas and black-frame check (a helper for conftest and tests).
+"""The test display rule's canvas and black-frame check (a helper for tests/harness.py and tests).
 
 Every test starts on a display showing the canvas: the engine's default background pattern
 (glitchygames/backgrounds.py), the TV test pattern, or the channel 3 blue screen when

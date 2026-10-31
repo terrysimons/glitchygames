@@ -39,6 +39,7 @@ from scripts.generate_complexity_graphs import (
     joined_operator_data,
     load_plotly_from_jsdelivr,
     main,
+    measure_top_modules,
     rank_modules,
     run_tool,
     space_commits_evenly,
@@ -429,6 +430,12 @@ def test_run_tool_raises_with_the_output_of_a_failed_tool(tmp_path):
             working_directory=tmp_path,
             timeout_seconds=60.0,
         )
+
+
+def test_a_checkout_without_the_ranked_package_is_refused_by_name(tmp_path):
+    """HEAD without src/glitchygames/ says so, not a raw FileNotFoundError from radon's report."""
+    with pytest.raises(ComplexityGraphError, match=r'no src/glitchygames/ to rank'):
+        measure_top_modules(checkout=tmp_path, report_path=tmp_path / 'radon.json', module_count=1)
 
 
 def test_run_tool_raises_for_a_tool_that_outlives_its_timeout(tmp_path):

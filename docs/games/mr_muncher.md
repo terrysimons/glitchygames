@@ -752,7 +752,7 @@ to make a failing replay pass.
 
 ## Tests
 
-Both test files use real pygame, the real 800x480 display and real files (saves go to
+Both test files below (in the member, `src/games/mr-muncher/tests/`) use real pygame, the real 800x480 display and real files (saves go to
 `tmp_path`). What is drawn is checked by its pixels. The tests patch only sound playback, where
 a test is about which sound plays.
 

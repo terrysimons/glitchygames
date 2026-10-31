@@ -214,6 +214,9 @@ def _scene_manager_for_class(*, scene_manager_class: type[SceneManager]) -> Scen
 
     """
     scene_managers = current_context().value(slot=SCENE_MANAGERS_SLOT)
+    # Only SceneManager classes are keys, so at run time membership alone would pick the nearest
+    # one; the issubclass narrows the MRO's plain types to type[SceneManager] for ty, which
+    # refuses a plain type as a key (BUGS.md #228 item 15)
     for base_class in scene_manager_class.__mro__:
         if issubclass(base_class, SceneManager) and base_class in scene_managers:
             return scene_managers[base_class]
@@ -238,6 +241,8 @@ class SceneManager(SceneInterface, events.EventManager):
         if instance is None:
             instance = super().__new__(cls)
             current_context().value(slot=SCENE_MANAGERS_SLOT)[cls] = instance
+        # Not always a cls: a subclass asked after its base was made gets the base's manager
+        # (_scene_manager_for_class walks the MRO). The cast keeps the subclass type callers expect
         return cast('Self', instance)
 
     def __init__(self: Self) -> None:
@@ -2125,11 +2130,18 @@ class SceneManager(SceneInterface, events.EventManager):
             fps_event_seconds=self._previous_fps_event_seconds,
         )
         push_scoped_sources(sources=request.sources)
-        # Events an earlier scope held and has not delivered yet (it ended into a scene that
-        # started this one) belong to the live game: held again, ahead of this scope's own
-        request.sources.held_live_events[:0] = take_redelivered_events()
-        # From here on an error ends the scope and restores all of the above (_exit_playback)
-        self._playback_session = session
+        try:
+            # Events an earlier scope held and has not delivered yet (it ended into a scene
+            # that started this one) belong to the live game: held again, ahead of this scope's
+            # own
+            request.sources.held_live_events[:0] = take_redelivered_events()
+            # From here on an error ends the scope, and _exit_playback restores all of the above
+            self._playback_session = session
+        except BaseException:
+            # No session yet, so _exit_playback has nothing to end: pop the doors here, or they
+            # stay pushed over the live game
+            pop_scoped_sources()
+            raise
         # The playback's rumble (its scene's pulses and shakes) goes to a controller of its own
         # that reaches no device (_update_frame_services), so the live game's waits untouched
         self._live_rumble_behind_scope = self.rumble
@@ -2744,7 +2756,7 @@ class SceneManager(SceneInterface, events.EventManager):
             scene: The scene being activated.
 
         """
-        set_active_default_snap_mode(scene.PIXEL_SNAP_MODE)
+        set_active_default_snap_mode(mode=scene.PIXEL_SNAP_MODE)
 
     def _log_blocked_events(self, next_scene: Scene | None) -> None:
         """Log the event types blocked when switching to the scene, on one line.
@@ -2789,7 +2801,8 @@ class SceneManager(SceneInterface, events.EventManager):
             caption = f'{self.active_scene.NAME}'
 
         if self.active_scene.VERSION:
-            caption += f' v{self.active_scene.VERSION}'
+            # No NAME: the version alone, without a leading space
+            caption = f'{caption} v{self.active_scene.VERSION}'.strip()
 
         pygame.display.set_caption(caption, caption)
 

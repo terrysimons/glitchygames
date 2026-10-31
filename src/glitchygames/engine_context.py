@@ -14,7 +14,9 @@ state, the shared resources, the sub-plans). Rules:
 2. Code reads a slot when it needs it, ``current_context().value(slot=...)``, never as its
    module is imported (at module level, in a class body or in a default argument): a value read
    then would be the default context's for every context. tests/test_engine_context.py scans
-   the engine and every workspace member for such reads.
+   the engine and every workspace member for such reads, but only literal ones: a call of
+   ``current_context()`` or ``.value(slot=...)`` itself, not a module-level call of a helper
+   that reads a slot, nor a reader under another name (BUGS.md #228 item 1).
 3. A context makes each slot's value with the slot's factory the first time it is read there,
    so a new context starts as a fresh process would. ``reset_value`` makes a fresh one.
 4. ``current_context()`` is the context switched to last in this thread or asyncio task, else

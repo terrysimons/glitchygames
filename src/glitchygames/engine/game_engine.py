@@ -214,6 +214,26 @@ PORTABLE_VIDEO_DRIVERS = ('offscreen', 'dummy')
 TERMINATING_SIGNAL_NAMES = ('SIGTERM', 'SIGHUP', 'SIGBREAK')
 
 
+def scene_class_of(game: type[Scene] | Scene) -> type[Scene]:
+    """Return the game's scene class, whether the engine was given the class or an instance.
+
+    The one spelling of this test: it was written two ways, and the other one returned a
+    stand-in instance that is not a Scene as if it were a class (BUGS.md #224 item 15).
+
+    Args:
+        game: The game scene class or instance.
+
+    Returns:
+        The scene class.
+
+    """
+    # Tested as a type, not as a Scene, so a stand-in that is no Scene is still never taken for a
+    # class. ty narrows the class branch to "type[Scene] | (Scene & type)" (a Scene that is also
+    # a type, a metaclass instance no game is), where basedpyright sees type[Scene] and refuses a
+    # cast as unnecessary: so ty alone is told
+    return game if isinstance(game, type) else type(game)  # ty: ignore[invalid-return-type]
+
+
 def pygame_needs_fastevents() -> bool:
     """Report whether this pygame is older than 2.2 and so reads events with pygame.fastevent.
 
@@ -1046,7 +1066,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if game_target_fps is None:
             return DEFAULT_TARGET_FPS
 
-        scene_class = game if isinstance(game, type) else type(game)
+        scene_class = scene_class_of(game)
         # bool is a subclass of int, so it must be rejected explicitly.
         if isinstance(game_target_fps, bool) or not isinstance(game_target_fps, (int, float)):
             message = (
@@ -1218,7 +1238,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                         project_root=find_project_root(start=Path.cwd()),
                     ),
                 ),
-                game_class=type(game) if isinstance(game, Scene) else game,
+                game_class=scene_class_of(game),
             )
         )
         # Set the master seed of the engine random streams before any game code runs
@@ -1280,7 +1300,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         # Initialize all of the Pygame modules.
         self.init_pass, self.init_fail = pygame.init()
-        self.print_game_info()
+        self.print_game_info(game=game)
 
         # Enable fast events for multithreaded applications on older
         # versions of pygame, or use the new event loop for newer
@@ -1362,8 +1382,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         desired_width: str = resolution_parts[0]
         desired_height: str = resolution_parts[1]
 
-        if self.windowed:
-            self.mode_flags: int = pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
+        if options.get('headless'):
+            # No window to scale or resize: SCALED asks the dummy driver for a renderer it does
+            # not have ("no fast renderer available") (BUGS.md #178 item 32)
+            self.mode_flags: int = 0
+        elif self.windowed:
+            self.mode_flags = pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
         else:
             self.mode_flags = (
                 pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.SCALED | pygame.RESIZABLE
@@ -1513,7 +1537,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Looked up by name: a game need not be a Scene subclass
         native_window_messages = getattr(game, 'NATIVE_WINDOW_MESSAGES', False)
         if not isinstance(native_window_messages, bool):
-            scene_class = game if isinstance(game, type) else type(game)
+            scene_class = scene_class_of(game)
             message = (
                 f'{scene_class.__name__}.NATIVE_WINDOW_MESSAGES must be a bool, '
                 f'got {native_window_messages!r}'
@@ -1627,16 +1651,24 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.log.info('Window Manager Info: %s', pygame.display.get_wm_info())
         self.log.info('Platform Timer Resolution: %s', pygame.TIMER_RESOLUTION)
 
-    def print_game_info(self: Self) -> None:
-        """Print game information."""
+    def print_game_info(self: Self, *, game: type[Scene] | Scene) -> None:
+        """Log the game's title and version.
+
+        Args:
+            game: The game scene class or instance. Passed in: __init__ logs this before it
+                sets GameEngine.game.
+
+        """
         self.log.debug(
             'Successfully loaded %s modules and failed loading %s modules.',
             self.init_pass,
             self.init_fail,
         )
 
-        self.log.info('Game Title: %s', type(self).NAME)
-        self.log.info('Game Version: %s', type(self).VERSION)
+        # The game's name and version, not the engine's placeholder "Boilerplate Adventures"
+        # (BUGS.md #178 item 27)
+        self.log.info('Game Title: %s', game.NAME)
+        self.log.info('Game Version: %s', game.VERSION)
 
     def suggested_resolution(
         self: Self,
@@ -1751,11 +1783,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         pygame.display.set_icon(icon)
 
-        # Set the display caption.
-        pygame.display.set_caption(
-            f'{type(self).NAME} v{self.VERSION}',
-            f'{type(self).NAME} v{self.VERSION}',
-        )
+        # The game's caption until its scene sets its own, not the engine's placeholder
+        # "Boilerplate Adventures" (BUGS.md #178 item 27)
+        caption = f'{self._game_name()} v{getattr(self.game, "VERSION", self.VERSION)}'
+        pygame.display.set_caption(caption, caption)
 
         # Get captions:
         (title, icontitle) = pygame.display.get_caption()
@@ -2212,7 +2243,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         )
         if options.get('audit'):
             self._refuse_an_unsound_audit(replay_trace_path=replay_trace_path, options=options)
-        game_class = type(game) if isinstance(game, Scene) else game
+        game_class = scene_class_of(game)
         try:
             sources = start_replay(
                 path=Path(replay_trace_path),

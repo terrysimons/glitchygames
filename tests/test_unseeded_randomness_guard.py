@@ -223,10 +223,10 @@ def test_unseeded_randomness_in_a_member_package_is_reported_under_its_repositor
     )
 
     offenders = {
-        allowlist_key: unseeded_randomness(source_path)
+        allowlist_key: file_offenders
         for allowlist_key, source_path in scanned_source_files(project_root=tmp_path)
         if allowlist_key not in UNSEEDED_RANDOMNESS_ALLOWED_MODULES
-        and unseeded_randomness(source_path)
+        and (file_offenders := unseeded_randomness(source_path))
     }
 
     assert list(offenders) == [member_key]

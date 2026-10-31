@@ -52,6 +52,8 @@ LOG = logging.getLogger('game.ui')
 LOG.addHandler(logging.NullHandler())
 
 CURSOR_BLINK_HALF_SECOND = 0.5
+# The input box's text color; `color` is its border and cursor (BUGS.md #178 item 30)
+INPUT_BOX_TEXT_COLOR = (255, 255, 255)
 
 
 class InputBox(Sprite):
@@ -103,10 +105,10 @@ class InputBox(Sprite):
             FontManager.pygame_font(font_config={'font_name': DEFAULT_FONT_NAME, 'font_size': 14}),
         )
         self.text = text
-        self.text_image = self.font.render(self.text, True, self.color)  # ruff: ignore[boolean-positional-value-in-call]
+        self.text_image = self.font.render(self.text, True, INPUT_BOX_TEXT_COLOR)  # ruff: ignore[boolean-positional-value-in-call]
         self.is_active = False
-        self.image = pygame.Surface((self.width, self.height))
-        self.image.convert()
+        # Keep convert()'s result: the converted copy is the one in the display's format (#143)
+        self.image = pygame.Surface((self.width, self.height)).convert()
         self.parent = parent
         self.cursor_rect = self.text_image.get_rect()
 
@@ -134,7 +136,9 @@ class InputBox(Sprite):
         if self.parent:
             callback = getattr(self.parent, 'on_input_box_submit_event', None)
             if callback:
-                callback(event=self)
+                # The parent gets the box as `control`, the name its handlers take: `event=`
+                # raised TypeError in the dialog scene and text input demo (BUGS.md #178 item 12)
+                callback(control=self)
             else:
                 self.log.info(
                     '%s: Submitted "%s" but no parent is configured.', self.name, self.text
@@ -168,7 +172,7 @@ class InputBox(Sprite):
             screen (pygame.Surface | None): The surface to render to.
 
         """
-        self.text_image = self.font.render(self.text, True, (255, 255, 255))  # ruff: ignore[boolean-positional-value-in-call]
+        self.text_image = self.font.render(self.text, True, INPUT_BOX_TEXT_COLOR)  # ruff: ignore[boolean-positional-value-in-call]
 
     def on_mouse_up_event(self: Self, _event: HashableEvent) -> None:
         """Handle mouse up events.
@@ -406,15 +410,15 @@ class InputDialog(BitmappySprite):
         self.log.info('%s Got text input from: %s: %s', self.name, control_name, control_text)
         self.on_cancel_event(event=control, trigger=control)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
-    def on_input_box_submit_event(self: Self, event: HashableEvent) -> None:
-        """Handle input box submit events.
+    def on_input_box_submit_event(self: Self, control: InputBox) -> None:
+        """Handle a submit from the dialog's input box.
 
         Args:
-            event (pygame.event.Event): The event to handle.
+            control (InputBox): The input box that was submitted.
 
         """
-        self.log.info('%s Got text input from: %s: %s', self.name, event.name, event.text)
-        self.on_confirm_event(event=event, trigger=event)
+        self.log.info('%s Got text input from: %s: %s', self.name, control.name, control.text)
+        self.on_confirm_event(event=control, trigger=control)  # type: ignore[arg-type] # ty: ignore[invalid-argument-type]
 
     @override
     def on_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:

@@ -572,6 +572,9 @@ class TabControlSprite(BitmappySprite):
         self.inactive_color = (100, 100, 100)
         self.text_color = (0, 0, 0)
 
+        # Built on the first draw and kept: the tab labels never change size (BUGS.md #155 item 2)
+        self._tab_font: pygame.font.Font | None = None
+
     @override
     def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle left mouse button down event.
@@ -587,7 +590,8 @@ class TabControlSprite(BitmappySprite):
 
             if 0 <= clicked_tab < len(self.tabs):
                 self.active_tab = clicked_tab
-                self.dirty = 2  # Force redraw
+                # Redraw once: dirty 2 redrew the tabs every frame after (BUGS.md #155 item 2)
+                self.dirty = 1
                 self.log.info('Tab control: Switched to tab %s', self.tabs[self.active_tab])
 
                 # Notify parent if it has a tab change handler
@@ -616,8 +620,9 @@ class TabControlSprite(BitmappySprite):
 
                 # Draw tab text
                 try:
-                    font = pygame.font.Font(None, 16)
-                    text_surface = font.render(tab_text, True, self.text_color)  # ruff: ignore[boolean-positional-value-in-call]
+                    if self._tab_font is None:
+                        self._tab_font = pygame.font.Font(None, 16)
+                    text_surface = self._tab_font.render(tab_text, True, self.text_color)  # ruff: ignore[boolean-positional-value-in-call]
                     text_rect = text_surface.get_rect(center=tab_rect.center)
                     self.image.blit(text_surface, text_rect)
                 except pygame.error, AttributeError:

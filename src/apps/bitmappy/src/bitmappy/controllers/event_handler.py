@@ -765,7 +765,8 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
                 which is right only before the switch.
 
         """
-        if getattr(self, 'applying_undo_redo', False):
+        # The editor sets the flag around undo and redo, not the handler (BUGS.md #178 item 22)
+        if getattr(self.editor, 'applying_undo_redo', False):
             return
         if not hasattr(self.editor, 'controller_position_operation_tracker'):
             return
