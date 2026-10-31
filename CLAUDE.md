@@ -839,8 +839,9 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   up to 1x a tick runs at most one unless behind, owing that frame plus a whole tick, so a long live
   frame and its short catch-up frame are each presented, the replay then staying about a tick behind
   real time (a constant lag a pause resets), and a recording faster than 60 FPS still runs several a
-  tick, presenting the last (rule 2 of `viewer.py`); the status bar shows the real speed when it
-  cannot keep up),
+  tick, presenting the last; above 1x the same limit follows a frame lasting at least a tick of
+  inner time at that speed (shorter frames run several a tick, fast-forward) (rule 2 of
+  `viewer.py`); the status bar shows the real speed when it cannot keep up),
   unpresented (`EngineSources.presents_frames` False). It drives the loop through
   `EngineSources.hold_frame` (held = present an outer frame, run nothing, consume no recorded
   batch). It holds at a "Press Spacebar to Start Game Replay" screen after frame 0 (the pause

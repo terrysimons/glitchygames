@@ -556,11 +556,10 @@ def stuttered_recording(*, long_seconds: float, short_seconds: float) -> list[fl
     return [STEADY_FRAME_SECONDS] * 30 + [long_seconds, short_seconds] + [STEADY_FRAME_SECONDS] * 30
 
 
-# At 2x (measured on the accumulator before rule 2's one-frame limit, which applies only up to
-# 1x): the first tick owes the half-frame phase, then two frames a tick, the long frame (30)
-# and its short catch-up frame (31) sharing one
+# At 2x (measured on the accumulator before rule 2's one-frame limit): the first tick owes the
+# half-frame phase, then two frames a tick, a frame shorter than a tick (30) and its short
+# catch-up frame (31) sharing one
 TWO_TIMES_SCHEDULE = [[]] + [[2 * tick, 2 * tick + 1] for tick in range(31)]
-EXPECTED_TWO_TIMES_SCHEDULES = dict.fromkeys(STUTTER_PAIRS.values(), TWO_TIMES_SCHEDULE)
 
 
 class TestEveryFrameIsShownUpToNormalSpeed:
@@ -645,20 +644,53 @@ class TestEveryFrameIsShownUpToNormalSpeed:
         # Then one frame a tick again
         assert set(frames_per_tick[21:]) == {1}
 
-    @pytest.mark.parametrize(
-        ('long_seconds', 'short_seconds'), STUTTER_PAIRS.values(), ids=STUTTER_PAIRS.keys()
-    )
-    def test_above_normal_speed_the_frames_run_per_tick_are_unchanged(
-        self, long_seconds, short_seconds
-    ):
-        """At 2x a tick runs several frames and presents the last, as it always did."""
+    def test_above_normal_speed_frames_shorter_than_a_tick_run_several_a_tick(self):
+        """At 2x rally's 28.63 ms frame is shorter than a tick (33.3 ms of inner time).
+
+        It shares a tick with its catch-up frame, as fast-forward always ran them.
+        """
         frames_by_tick = run_schedule(
-            inner_frame_seconds=stuttered_recording(
-                long_seconds=long_seconds, short_seconds=short_seconds
-            ),
+            inner_frame_seconds=stuttered_recording(long_seconds=0.02863, short_seconds=0.00151),
             speed=2.0,
         ).frames_by_tick
-        assert frames_by_tick == EXPECTED_TWO_TIMES_SCHEDULES[long_seconds, short_seconds]
+        assert frames_by_tick == TWO_TIMES_SCHEDULE
+
+
+class TestAboveNormalSpeedAFrameLastingATickIsPresented:
+    """Rule 2 at every speed for a frame lasting at least a tick of inner time at that speed.
+
+    After such a frame (recorded duration >= speed x the tick period) the next frame in the same
+    tick runs only when the replay is behind; frames shorter than that keep fast-forward's
+    several a tick.
+    """
+
+    def test_golden_classics_long_frame_is_presented_at_twice_the_speed(self):
+        """34.02 ms then 7.44 ms (frames 30 and 31): at 2x the long frame lasts 17 ms real."""
+        frames_by_tick = run_schedule(
+            inner_frame_seconds=stuttered_recording(long_seconds=0.03402, short_seconds=0.00744),
+            speed=2.0,
+        ).frames_by_tick
+        assert 30 not in never_presented(frames_by_tick=frames_by_tick)
+
+    def test_at_four_times_the_same_frame_is_shorter_than_a_tick(self):
+        """At 4x a tick is 66.7 ms of inner time: the 34.02 ms frame (8.5 ms real) is shorter.
+
+        Not protected, it runs with the frames after it, the last presented.
+        """
+        frames_by_tick = run_schedule(
+            inner_frame_seconds=stuttered_recording(long_seconds=0.03402, short_seconds=0.00744),
+            speed=4.0,
+        ).frames_by_tick
+        assert 30 in never_presented(frames_by_tick=frames_by_tick)
+
+    @pytest.mark.parametrize('speed', [2.0, 4.0, 8.0])
+    def test_steady_60_fps_runs_the_speeds_frames_a_tick(self, speed):
+        """Frames shorter than a tick at the speed: unchanged, `speed` frames a tick."""
+        frames_by_tick = run_schedule(
+            inner_frame_seconds=[STEADY_FRAME_SECONDS] * 800, speed=speed
+        ).frames_by_tick
+        frames_per_tick = [len(frames_run) for frames_run in frames_by_tick]
+        assert set(frames_per_tick[2:-1]) == {int(speed)}
 
 
 def uniform_frames(

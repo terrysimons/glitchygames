@@ -31,12 +31,12 @@ so a broken helper would hide frames and call them behind): the inner time owed 
 plus a whole tick of inner time (the speed times ``CONTROL_TICK_SECONDS``). The viewer's own
 report (``ReplayViewer.last_inner_frame_ran_behind``) is a cross-check: a frame it disagrees on
 is a failure too. Otherwise a frame not presented is skipped by design: a recording faster than
-the tick, a stall's catch-up, the 60.01 FPS rate mismatch. Above 1x no frame is hidden:
-fast-forward runs several frames a tick by design, and their extra frames are not behind by that
-condition (a tick owes speed times a tick), so frames not presented are reported as skipped and
-the recording passes. The last frame is presented by the tick that runs it; a recording that
-quits in its last frame ends the real run there, so that frame is not shown in a real replay,
-which this does not model. Frame 0 runs behind the start screen's message.
+the tick, a stall's catch-up, the 60.01 FPS rate mismatch. Above 1x the same holds for a frame
+lasting at least a tick of inner time at the speed (a 60 Hz refresh or more of real time, which
+rule 2 then protects); shorter frames run several a tick by design (fast-forward presents the
+last), and are reported as skipped. The last frame is presented by the tick that runs it; a
+recording that quits in its last frame ends the real run there, so that frame is not shown in a
+real replay, which this does not model. Frame 0 runs behind the start screen's message.
 
 Output per recording: each tick's time, the frames it ran and the accumulator after it; the
 hidden frames and the ones skipped by design; every frame's recorded dt in milliseconds.
@@ -226,13 +226,12 @@ class RecordingSchedule(BaseModel):
         """The frames never presented that the replay hid while not behind (a failure).
 
         A frame is never presented when a later frame ran in the same tick; it is hidden when
-        the frame right after it in that tick (the extra frame that hid it) ran while the replay
-        was NOT behind, by the tool's own condition (``ran_behind``). Up to 1x only: above it a
-        tick runs several frames by design (fast-forward presents the last), and those extra
-        frames are not behind by that condition, so none counts.
+        it must be shown (``_must_be_shown``: up to 1x every frame, above it one lasting at least
+        a tick of inner time) and the frame right after it in that tick (the extra frame that
+        hid it) ran while the replay was NOT behind, by the tool's own condition
+        (``ran_behind``). Above 1x frames shorter than a tick run several a tick by design
+        (fast-forward presents the last).
         """
-        if self.speed > 1:
-            return ()
         hidden_frames: list[int] = []
         for tick in self.ticks:
             for frame, extra_frame, extra_owed_seconds in zip(
@@ -241,16 +240,34 @@ class RecordingSchedule(BaseModel):
                 tick.owed_before_seconds[1:],
                 strict=True,
             ):
-                if not self._owes_beyond_a_tick(frame=extra_frame, owed_seconds=extra_owed_seconds):
+                if self._must_be_shown(frame=frame) and not self._owes_beyond_a_tick(
+                    frame=extra_frame, owed_seconds=extra_owed_seconds
+                ):
                     hidden_frames.append(frame)
         return tuple(hidden_frames)
+
+    def _must_be_shown(self: Self, *, frame: int) -> bool:
+        """Whether rule 2 asks the viewer to show a frame (unless the replay is behind).
+
+        Up to 1x every frame; above 1x a frame lasting at least a tick of inner time at the
+        speed (its recorded duration at least the speed times ``CONTROL_TICK_SECONDS``: a 60 Hz
+        refresh or more of real time). Written here, not taken from the viewer.
+
+        Returns:
+            True when the frame must be shown.
+
+        """
+        if self.speed <= 1:
+            return True
+        return self.duration_seconds(frame=frame) >= self.speed * CONTROL_TICK_SECONDS
 
     @property
     def skipped_by_design(self: Self) -> tuple[int, ...]:
         """The frames never presented that are not hidden (expected, never a failure).
 
         The replay was behind when the extra frame ran (a recording faster than the tick, a
-        stall's catch-up, the 60.01 FPS rate mismatch), or the speed is above 1x.
+        stall's catch-up, the 60.01 FPS rate mismatch), or, above 1x, the frame lasted less
+        than a tick of inner time (fast-forward).
         """
         hidden = set(self.hidden)
         return tuple(frame for frame in self.never_presented if frame not in hidden)
@@ -470,7 +487,7 @@ def detail_lines(*, name: str, schedule: RecordingSchedule) -> list[str]:
     lines.extend((
         f'  hidden: {frame_list(frames=schedule.hidden)}',
         (
-            '  skipped by design (the replay was behind, or above 1x): '
+            '  skipped by design (the replay was behind, or shorter than a tick above 1x): '
             f'{frame_list(frames=schedule.skipped_by_design)}'
         ),
         f'  viewer disagrees on behind: {frame_list(frames=schedule.behind_disagreements)}',

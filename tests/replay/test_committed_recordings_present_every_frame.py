@@ -34,6 +34,7 @@ RECORDING_SUFFIX = '.jsonl.gz'
 # never replayed through the viewer
 GOLDEN_TRACE_BASELINES = 'tests/world/golden/'
 NORMAL_SPEED = 1.0
+TWICE_THE_SPEED = 2.0
 # PaddleSlap's bundled demo, whose frame 286 (28.63 ms) a broken rule 2 hides
 RALLY_DEMO = PROJECT_ROOT / 'src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz'
 
@@ -85,6 +86,11 @@ def schedule_problems(*, speed: float) -> list[str]:
 def test_every_committed_recording_presents_every_frame_at_normal_speed():
     """No frame of a golden replay, a bundled demo or a fixture is hidden in a 1x watch."""
     assert schedule_problems(speed=NORMAL_SPEED) == []
+
+
+def test_every_committed_recording_presents_its_long_frames_at_twice_the_speed():
+    """At 2x every frame lasting at least a tick of inner time (33.3 ms) is shown (rule 2)."""
+    assert schedule_problems(speed=TWICE_THE_SPEED) == []
 
 
 def weakened_owes_beyond_a_tick(viewer: ReplayViewer, *, inner_frame_seconds: float) -> bool:

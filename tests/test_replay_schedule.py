@@ -177,7 +177,10 @@ def test_a_recording_presenting_every_frame_succeeds(tmp_path, capsys):
     assert f'{path.as_posix()}: 8 frames at 1x' in output
     assert 'tick 1 (16.67 ms): ran 1; accumulator 8.33 ms' in output
     assert '  hidden: none' in output
-    assert '  skipped by design (the replay was behind, or above 1x): none' in output
+    assert (
+        '  skipped by design (the replay was behind, or shorter than a tick above 1x): none'
+        in output
+    )
     assert 'frame 1: 16.67 ms' in output
 
 
@@ -191,7 +194,10 @@ def test_a_recording_hiding_a_frame_fails_naming_it(tmp_path, capsys, without_ru
     assert exit_code == ExitCode.REPLAY_DIVERGED
     assert 'tick 3 (50.00 ms): ran 2, 3; accumulator 0.21 ms' in output
     assert '  hidden: 2' in output
-    assert '  skipped by design (the replay was behind, or above 1x): none' in output
+    assert (
+        '  skipped by design (the replay was behind, or shorter than a tick above 1x): none'
+        in output
+    )
     assert 'frame 3: 34.02 ms' in output
 
 
@@ -362,7 +368,9 @@ def test_a_120_fps_recording_skips_frames_by_design_and_passes(tmp_path, capsys)
     output = capsys.readouterr().out
     assert exit_code == ExitCode.SUCCESS
     assert '  hidden: none' in output
-    assert '  skipped by design (the replay was behind, or above 1x): ' in output
+    assert (
+        '  skipped by design (the replay was behind, or shorter than a tick above 1x): ' in output
+    )
 
 
 @pytest.mark.parametrize(
@@ -560,3 +568,12 @@ def test_a_behind_condition_without_the_speed_fails_at_half_speed(mocker, tmp_pa
     assert exit_code == ExitCode.REPLAY_DIVERGED
     assert '  viewer disagrees on behind: none' not in output
     assert '  viewer disagrees on behind: ' in output
+
+
+def test_above_normal_speed_a_long_frame_sharing_a_tick_is_hidden(mocker):
+    """Rule 2 off: at 2x the 34.02 ms frame (17 ms real, over a tick) shares a tick, hidden."""
+    mocker.patch.object(ReplayViewer, '_defers_to_the_next_tick', return_value=False)
+
+    schedule = simulate_schedule(frame_seconds=STUTTER_FRAME_SECONDS, speed=2.0)
+
+    assert schedule.hidden == (2,)

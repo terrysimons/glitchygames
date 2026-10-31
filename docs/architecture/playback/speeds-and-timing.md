@@ -95,10 +95,12 @@ Before each inner frame the scene manager asks `hold_frame`:
    carried. So a frame the live game ran long and the short frame its pacing caught up with are each
    presented, and the replay then stays about a tick behind real time (a constant lag, not a drift;
    a pause resets it). A recording faster than 60 FPS still runs several frames a tick and presents
-   the last, as every tick above 1x does. The accumulator never owes more than one tick's worth
-   (32.5 frames, and up to 1x never less than a frame plus two ticks of inner time, so very short
-   frames keep their rate): the excess is dropped, and the status bar shows the real speed while the
-   viewer is behind (`BEHIND_SPEED_FRACTION` = 0.95).
+   the last. Above 1x the same limit follows a frame lasting at least a tick of inner time at that
+   speed (a 60 Hz refresh or more of real time); after shorter frames a tick runs several and
+   presents the last (fast-forward). The accumulator never owes more than one tick's worth (32.5
+   frames, and up to 1x never less than a frame plus two ticks of inner time, so very short frames
+   keep their rate): the excess is dropped, and the status bar shows the real speed while the viewer
+   is behind (`BEHIND_SPEED_FRACTION` = 0.95).
 3. **Otherwise** the tick closes and the frame is presented.
 
 So at 1x a 60 FPS recording runs one inner frame per tick, at 8x eight, and at 1/4x one every

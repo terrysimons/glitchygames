@@ -38,15 +38,18 @@ The contract between them, asked through ``EngineSources.hold_frame`` before eac
    (which would show only the short one): each is presented. After such a catch-up the replay stays
    about a tick behind real time: a constant lag, not a drift (it never grows), which a pause
    resets. A recording faster than 60 FPS (frames shorter than a tick) owes more than that every
-   tick, so a tick still runs several of its frames and presents the last, as every tick above 1x
-   does. The accumulator never owes more than one tick's worth: ``MAX_INNER_FRAMES_PER_TICK`` and a
-   half frames, and up to 1x never less than a frame plus two ticks of inner time (so a recording of
-   very short frames keeps its rate). The excess is dropped (a long stall runs one bounded burst),
-   and while frames are dropped or the budget cuts ticks short the viewer is behind (``is_behind``):
-   the status bar then shows the real speed (``effective_speed``). So 1x runs one inner frame a tick
-   for a 60 FPS recording (but for the true rate mismatch), 8x eight, 1/4x one every fourth tick,
-   paused none. While paused a step (``.``) runs exactly one inner frame. The start screen lets
-   frame 0 run first, so its picture is behind the message.
+   tick, so a tick still runs several of its frames and presents the last. Above 1x the same limit
+   applies after a frame lasting at least a tick of inner time at that speed (its recorded duration
+   at least the speed times the tick period: a 60 Hz refresh or more of real time), so fast-forward
+   still shows it; after shorter frames a tick runs several and presents the last. The accumulator
+   never owes more than one tick's worth: ``MAX_INNER_FRAMES_PER_TICK`` and a half frames, and up to
+   1x never less than a frame plus two ticks of inner time (so a recording of very short frames
+   keeps its rate). The excess is dropped (a long stall runs one bounded burst), and while frames
+   are dropped or the budget cuts ticks short the viewer is behind (``is_behind``): the status bar
+   then shows the real speed (``effective_speed``). So 1x runs one inner frame a tick for a 60 FPS
+   recording (but for the true rate mismatch), 8x eight, 1/4x one every fourth tick, paused none.
+   While paused a step (``.``) runs exactly one inner frame. The start screen lets frame 0 run
+   first, so its picture is behind the message.
 3. Otherwise the tick closes: the doors refresh the status line, the loop presents the outer
    frame and asks again (step 1).
 
@@ -143,8 +146,8 @@ class ReplayViewer:
             duration plus a whole tick of inner time (the speed times ``CONTROL_TICK_SECONDS``),
             read before the frame consumed it; False for a frame run without the accumulator (a
             paused step, frame 0 at the start screen). Rule 2's one-frame limit uses the same
-            condition; the schedule tool (scripts/replay_schedule.py) reads this to tell a frame
-            a tick skipped because the replay was behind from one it hid.
+            condition; the schedule tool (scripts/replay_schedule.py) derives behind itself and
+            checks this against it.
 
     """
 
@@ -172,6 +175,8 @@ class ReplayViewer:
         self.last_inner_frame_ran_behind = False
         self._is_tick_open = False
         self._inner_frames_this_tick = 0
+        # The recorded duration of the open tick's last inner frame (rule 2 above 1x)
+        self._last_inner_frame_seconds = 0.0
         self._tick_start_seconds = 0.0
         # The tick time the next tick's elapsed time is measured from (snapping carries error)
         self._last_tick_seconds: float | None = None
@@ -386,6 +391,7 @@ class ReplayViewer:
         self.accumulated_seconds -= inner_frame_seconds
         self._inner_frames_this_tick += 1
         self._inner_seconds_this_tick += inner_frame_seconds
+        self._last_inner_frame_seconds = inner_frame_seconds
         return True
 
     def _is_tick_spent(self: Self) -> bool:
@@ -431,12 +437,14 @@ class ReplayViewer:
     def _defers_to_the_next_tick(self: Self, *, inner_frame_seconds: float) -> bool:
         """Decide whether a later inner frame in the open tick waits for the next tick (rule 2).
 
-        Up to 1x a tick presents every frame it runs: a second (or later) frame runs in the
-        same tick only when the replay is genuinely behind, its accumulator holding the frame's
-        recorded duration plus a whole tick of inner time (the speed times the tick period).
-        Otherwise a live frame that ran long and the short one its pacing caught up with would
-        share a tick, and the long one would never be shown. Above 1x a tick runs several
-        frames and presents the last, as it always did.
+        A tick presents only its last frame, so a second (or later) frame runs in the same tick
+        only when the replay is genuinely behind (``_owes_beyond_a_tick``): up to 1x after any
+        frame, and above 1x after a frame lasting at least a tick of inner time at that speed
+        (its recorded duration at least the speed times ``CONTROL_TICK_SECONDS``, so it lasts a
+        60 Hz refresh or more of real time). Otherwise a live frame that ran long and the short
+        one its pacing caught up with would share a tick, and the long one would never be
+        shown. After a frame shorter than that, above 1x, a tick runs several frames and
+        presents the last (fast-forward).
 
         Args:
             inner_frame_seconds: The recorded duration of the inner frame that would run.
@@ -445,11 +453,12 @@ class ReplayViewer:
             True when the frame waits for the next tick.
 
         """
-        return (
-            self.controls.speed <= 1
-            and self._inner_frames_this_tick > 0
-            and not self._owes_beyond_a_tick(inner_frame_seconds=inner_frame_seconds)
-        )
+        speed = self.controls.speed
+        if self._inner_frames_this_tick == 0:
+            return False
+        if speed > 1 and self._last_inner_frame_seconds < speed * CONTROL_TICK_SECONDS:
+            return False
+        return not self._owes_beyond_a_tick(inner_frame_seconds=inner_frame_seconds)
 
     def _owes_beyond_a_tick(self: Self, *, inner_frame_seconds: float) -> bool:
         """Whether the replay is behind: it owes the frame plus a whole tick of inner time.
