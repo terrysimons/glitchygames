@@ -3686,6 +3686,36 @@ class TestAnimatedSpriteAnimationEditing:
         assert 'strike' not in sprite._loop_flags
         assert 'strike' not in sprite._animation_frame_intervals
 
+    def test_rename_keeps_other_cached_surfaces_and_the_current_animation(self):
+        """Renaming an animation that is not playing drops only its own cached surfaces."""
+        sprite = AnimatedSprite()
+        sprite.add_animation('walk', [self._solid_frame((255, 0, 0))])
+        sprite.add_animation('run', [self._solid_frame((0, 255, 0))])
+        sprite.set_animation('run')
+        cached_surface = pygame.Surface((1, 1))
+        sprite._surface_cache = {'walk_0': cached_surface, 'run_0': cached_surface}
+
+        sprite.rename_animation(old_name='walk', new_name='stroll')
+
+        assert sprite._surface_cache == {'run_0': cached_surface}
+        assert sprite.current_animation == 'run'
+
+    def test_restore_on_a_sprite_never_loaded_sets_its_loop_flag_and_interval(self):
+        """Without a file's order, restoring sets the position, loop flag and frame interval."""
+        sprite = AnimatedSprite()
+        walk_frames = [self._solid_frame((255, 0, 0))]
+        sprite.add_animation('walk', walk_frames)
+        sprite.add_animation('run', [self._solid_frame((0, 255, 0))])
+        sprite.remove_animation('walk')
+        sprite.add_animation('walk', walk_frames)
+
+        sprite.restore_animation_settings('walk', position=0, loop_flag=False, frame_interval=0.25)
+
+        assert list(sprite.animation_data) == ['walk', 'run']
+        assert not sprite.has_own_animation_order
+        assert sprite._loop_flags['walk'] is False
+        assert sprite._animation_frame_intervals['walk'] == pytest.approx(0.25)
+
     def test_a_sprite_never_loaded_orders_its_animations_as_added(self):
         """Without a file's order, animation_order follows the animations, through edits."""
         sprite = AnimatedSprite()

@@ -141,36 +141,18 @@ Part 3 stopped the engine's tests borrowing members (decision 7) and measured th
 coverage from the root `tests/` alone before and after each of C2, C3 and C4 (decision 11): no
 arc was lost. What follows is left.
 
-- **Engine arcs reached only by root tests that run members.** The engine has no test of its own
-  for these; the golden-trace test, the golden-script round trip and the power-on test reach them
-  by running the games. They are not gaps (a full run covers them), but each deserves an engine
-  stand-in test that reaches it directly. Line numbers are as of 273fa323 and re-checked
-  2026-10-26 (none of these files changed since):
-  - `game_objects/ball.py`: `dt_tick` (744), `_finish_wall_bounce` (820-821)
-  - `animation/state_machine.py`: `evaluate` (291-292), `_switch_to` (342, 346)
-  - `physics/body.py`: `get_animation_context` (133)
-  - `input/action_map.py`: `handle_event` (401)
-  - `audio/recipes.py`: `render` (116-117)
-  - `audio/synth.py`: `concatenate` (437)
-  - `camera.py`: `update_scroll` (144)
-  - `transitions/elevator.py`: `_draw_shaft_walls` (208-209); the `ElevatorTransition` stand-in in
-    `tests/world/test_transition_input.py` may reach it now: check before writing a test
-  - `sprites/animated.py`: `SpriteAnimation.__init__` (575), `update_nested_sprites` (2663)
-  - `engine/game_engine.py`: `_crash_boundary` (2577), `_run_game` (2596); only the power-on
-    test reaches them
-- **Root-only engine gaps that were there before Part 3.** The root `tests/` alone misses the
-  same 5 lines and 7 branches before and after C2 (so they are not from the moves; a full run
-  covers them through members' tests or not at all): `collision/layers.py` 72;
-  `scenes/scene.py` 1270->1276; `sprites/animated.py` 1096, 1098, 2039-2040 and their branches.
-  Give the engine its own tests for them.
-- **Member tests import helpers from root test modules** (`tests.collision.test_ball_paddle_collision`,
-  `tests.world.test_frame_integration`). Move the shared helpers into non-test helper modules
-  both can import.
-- **The import guard's blind spots.** `engine_test_imports_of_members` finds literal
-  `importlib.import_module`/`__import__` strings but not `importlib.__import__`,
-  `builtins.__import__`, `pytest.importorskip` or `importlib.util.find_spec`. The member-test
-  naming check (`test_<distribution>*`) matches a prefix with no separator, so
-  `test_bitmappyx.py` passes (the unique-name guard still catches clashes).
+- ~~**Engine arcs reached only by root tests that run members.**~~ **Done** (checked
+  2026-10-31 with `pytest tests/` alone): every arc listed here is now reached by root tests.
+- ~~**Root-only engine gaps.**~~ **Done** 2026-10-31 (`test/engine-root-gaps`): engine tests
+  for `CollisionLayer.clear`, `SceneManager.live_audio` reuse, `rename_animation` of an
+  animation not playing, and `restore_animation_settings` with a loop flag and interval.
+- ~~**Member tests import helpers from root test modules.**~~ **Done** 2026-10-31: `running_scene`
+  moved to `tests/world/frame_harness.py`, `make_ball` and `VISIBLE_SIZE` to
+  `tests/game_objects/ball_helpers.py`.
+- ~~**The import guard's blind spots.**~~ **Done** 2026-10-31: `tests/ast_scanning.py`'s
+  `STRING_LOADS` adds `importlib.__import__`, `builtins.__import__`, `pytest.importorskip` and
+  `importlib.util.find_spec`; the member-test naming check already required a separator
+  (`test_bitmappyx.py` is refused).
 
 ## Engine tools after Stage D (2026-10-27, workspace packages part 3)
 
