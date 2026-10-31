@@ -1327,7 +1327,7 @@ which has no gamepad.</p>
 Re-record the fixture only deliberately (the commands are in the script's docstring), never just
 to make a failing replay pass.</p>
 <h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
-<p>Both test files use real pygame, the real 800x480 display and real files (saves go to
+<p>Both test files below (in the member, <code>src/games/mr-muncher/tests/</code>) use real pygame, the real 800x480 display and real files (saves go to
 <code>tmp_path</code>). What is drawn is checked by its pixels. The tests patch only sound playback, where
 a test is about which sound plays.</p>
 <p><code>src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py</code> covers the parts:</p>

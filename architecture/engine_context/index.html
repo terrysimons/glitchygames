@@ -283,12 +283,17 @@ tests do.</p>
 <tr>
 <td><code>glitchygames.randomness.streams</code></td>
 <td><code>src/glitchygames/randomness.py</code></td>
-<td><code>random_stream</code>, <code>numpy_stream</code>, <code>reset_streams</code>, <code>seed_engine_random</code>, <code>engine_random_seed</code>, <code>capture_stream_states</code>, <code>restore_stream_states</code></td>
+<td><code>engine_random</code>, <code>random_stream</code>, <code>numpy_stream</code>, <code>reset_streams</code>, <code>seed_engine_random</code>, <code>engine_random_seed</code>, <code>capture_stream_states</code>, <code>restore_stream_states</code></td>
+</tr>
+<tr>
+<td><code>glitchygames.game_frames.clock</code></td>
+<td><code>src/glitchygames/game_frames.py</code></td>
+<td><code>game_frame_clock</code>, <code>restart_game_frame_clock</code></td>
 </tr>
 <tr>
 <td><code>glitchygames.sources.registry</code></td>
 <td><code>src/glitchygames/sources.py</code></td>
-<td><code>active_sources</code>, <code>install_sources</code>, the scoped sources, the frame clock, held events, observers</td>
+<td><code>active_sources</code>, <code>install_sources</code>, <code>reset_sources</code>, <code>push_scoped_sources</code>, <code>pop_scoped_sources</code>, <code>has_scoped_sources</code>, <code>redeliver_events</code>, <code>pending_redelivered_events</code>, <code>take_redelivered_events</code>, <code>discard_scope_posts</code>, <code>without_discarded_scope_posts</code>, <code>mark_frames_started</code>, <code>advance_frame_clock</code>, <code>set_frame_clock_seconds</code>, <code>frame_clock_seconds</code>, <code>observe_save_store_openings</code>, <code>stop_observing_save_store_openings</code>, <code>notify_save_store_opened</code>, <code>observe_device_answers</code>, <code>stop_observing_device_answers</code>, <code>notify_device_answer</code></td>
 </tr>
 <tr>
 <td><code>glitchygames.scenes.scene.scene_managers</code></td>

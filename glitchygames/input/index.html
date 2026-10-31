@@ -26021,7 +26021,7 @@ same on every keyboard layout, live or replayed (the snapshot holds the held sca
 
     <div class="doc doc-contents ">
 
-        <p>Back to IDLE_INPUT (a new run, or a test).</p>
+        <p>Back to IDLE_INPUT in the current engine context only (a new run, or a test).</p>
 
 
             <details class="mkdocstrings-source">
@@ -26029,7 +26029,7 @@ same on every keyboard layout, live or replayed (the snapshot holds the held sca
               <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.input.state.reset_current_input--source--__codelineno-0-452">452</a></span>
 <span class="normal"><a href="#glitchygames.input.state.reset_current_input--source--__codelineno-0-453">453</a></span>
 <span class="normal"><a href="#glitchygames.input.state.reset_current_input--source--__codelineno-0-454">454</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.input.state.reset_current_input--source--__codelineno-0-452" name="glitchygames.input.state.reset_current_input--source--__codelineno-0-452"></a><span class="k">def</span><span class="w"> </span><span class="nf">reset_current_input</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="glitchygames.input.state.reset_current_input--source--__codelineno-0-453" name="glitchygames.input.state.reset_current_input--source--__codelineno-0-453"></a><span class="w">    </span><span class="sd">"""Back to IDLE_INPUT (a new run, or a test)."""</span>
+<a id="glitchygames.input.state.reset_current_input--source--__codelineno-0-453" name="glitchygames.input.state.reset_current_input--source--__codelineno-0-453"></a><span class="w">    </span><span class="sd">"""Back to IDLE_INPUT in the current engine context only (a new run, or a test)."""</span>
 <a id="glitchygames.input.state.reset_current_input--source--__codelineno-0-454" name="glitchygames.input.state.reset_current_input--source--__codelineno-0-454"></a>    <span class="n">current_context</span><span class="p">()</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">slot</span><span class="o">=</span><span class="n">CURRENT_INPUT_SLOT</span><span class="p">)</span><span class="o">.</span><span class="n">snapshot</span> <span class="o">=</span> <span class="n">IDLE_INPUT</span>
 </code></pre></div></td></tr></table></div>
             </details>
