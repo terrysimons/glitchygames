@@ -93,7 +93,8 @@ class VisualCollisionManager:
         self.slider_collision_groups: dict[tuple[int, int], list[int]] = {}
 
         # Position cache for performance
-        self.position_cache: dict[tuple[int, int], list[tuple[int, int]]] = {}
+        # (x, y, controller count) -> each controller's offset
+        self.position_cache: dict[tuple[int, int, int], list[tuple[int, int]]] = {}
 
     def add_controller_indicator(
         self,
@@ -366,8 +367,10 @@ class VisualCollisionManager:
         if len(controller_ids) <= 1:
             return
 
-        # Use cached positions if available
-        cache_key = (position[0], position[1])
+        # Use cached positions if available. The offsets depend on how many controllers share
+        # the position, so the count is part of the key: a third controller at a position
+        # cached for two would otherwise get no offset of its own (BUGS.md #141)
+        cache_key = (position[0], position[1], len(controller_ids))
         if cache_key in self.position_cache:
             offsets = self.position_cache[cache_key]
         else:

@@ -16,7 +16,6 @@ from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 
 from .constants import (
     LOG,
-    MIN_FILM_STRIPS_FOR_PANEL_POSITIONING,
 )
 from .film_strip import FilmStripWidget
 from .film_strip_sprite import FilmStripSprite
@@ -943,59 +942,23 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
         self.editor.selected_animation = new_animation
         self.editor.selected_frame = target_frame
 
+        # The film strips were rebuilt with the scroll offset from before the delete, which can
+        # now pass the last strip: clamp it, then scroll the selected strip into view
+        # (BUGS.md #170)
+        max_scroll_offset = max(0, len(remaining_animations) - self.editor.max_visible_strips)
+        self.editor.film_strip_scroll_offset = min(
+            self.editor.film_strip_scroll_offset, max_scroll_offset
+        )
+        self.scroll_to_current_animation()
+        self.update_film_strip_visibility()
+        self.update_scroll_arrows()
+
         self.log.info(
             "Selected frame %s in animation '%s' after deleting '%s'",
             target_frame,
             new_animation,
             deleted_animation_name,
         )
-
-    def _handle_no_remaining_animations(
-        self,
-        remaining_animations: list[str],
-        all_animations: list[str],
-        deleted_index: int,
-    ) -> None:
-        """Handle post-deletion state when no animations remain (or updating scroll).
-
-        Args:
-            remaining_animations: List of remaining animation names (may be empty)
-            all_animations: List of all animation names before deletion
-            deleted_index: Index of the deleted animation in the original list
-
-        """
-        self.log.info('No remaining animations after deletion')
-        self.editor.selected_animation = None
-        self.editor.selected_frame = None
-
-        # Force update of all film strip widgets to ensure they reflect the deletion
-        if hasattr(self.editor, 'film_strip_sprites') and self.editor.film_strip_sprites:
-            for film_strip_sprite in self.editor.film_strip_sprites.values():
-                if (
-                    hasattr(film_strip_sprite, 'film_strip_widget')
-                    and film_strip_sprite.film_strip_widget
-                ):
-                    # Force the film strip widget to update its layout
-                    film_strip_sprite.film_strip_widget.update_layout()
-                    film_strip_sprite.film_strip_widget._create_film_tabs()  # type: ignore[reportPrivateUsage]
-                    film_strip_sprite.film_strip_widget.mark_dirty()
-                    film_strip_sprite.dirty = 1
-
-        # Ensure we show up to 2 strips after deletion
-        if len(remaining_animations) <= MIN_FILM_STRIPS_FOR_PANEL_POSITIONING:
-            # If we have 2 or fewer strips, show them all starting from index 0
-            self.editor.film_strip_scroll_offset = 0
-        # If we deleted the last strip, show the previous 2 strips
-        elif deleted_index == len(all_animations) - 1:
-            # We deleted the last strip, show the previous 2 strips
-            self.editor.film_strip_scroll_offset = max(0, len(remaining_animations) - 2)
-        else:
-            # We deleted a strip that wasn't the last, show current and one more
-            self.editor.film_strip_scroll_offset = max(0, deleted_index - 1)
-
-        # Update visibility and scroll arrows
-        self.update_film_strip_visibility()
-        self.update_scroll_arrows()
 
     def _show_delete_animation_confirmation(self, animation_name: str) -> None:
         """Show confirmation dialog before deleting an animation.
@@ -1721,9 +1684,8 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
             for strip_name, strip_widget in self.editor.film_strips.items():
                 if strip_name == animation:
                     # Update the selected_frame in the film strip widget. The editor's
-                    # selected_frame is None when no animations remain (see
-                    # _handle_no_remaining_animations); the widget needs an int, so fall back
-                    # to frame 0 in that case.
+                    # selected_frame can be None (nothing selected); the widget needs an int,
+                    # so fall back to frame 0 in that case.
                     editor_selected_frame = self.editor.selected_frame
                     strip_widget.selected_frame = (
                         editor_selected_frame if editor_selected_frame is not None else 0

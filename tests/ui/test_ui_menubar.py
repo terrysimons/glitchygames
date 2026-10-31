@@ -5,7 +5,6 @@ menu item management, event handling and drawing, on real surfaces and sprite gr
 """
 
 import pygame
-import pytest
 
 from glitchygames.ui import MenuBar, MenuItem
 
@@ -215,14 +214,6 @@ class TestMenuBarFunctionality:
         assert tuple(menubar.image.get_at((0, 0))) == MENUBAR_BACKGROUND
         assert tuple(menubar.image.get_at((5, 5))) == MENUBAR_BACKGROUND
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'MenuBar.__init__ draws its background and border with self.rect (screen '
-            'coordinates) onto its own image, so a bar not at (0, 0) leaves its top-left '
-            'strip undrawn (transparent) and its border off the image'
-        ),
-    )
     def test_menubar_not_at_the_origin_draws_its_whole_background(self):
         """A bar placed away from (0, 0) is drawn over its whole image, like one at (0, 0)."""
         menubar = _create_menubar(x=20, y=20)

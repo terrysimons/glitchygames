@@ -20,86 +20,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-30
 - **Files**: `src/apps/bitmappy/src/bitmappy/toml_processing.py`
 
-### 242. Bitmappy's AI Rewrite Dropped Every Color's Alpha and Wrote Text Unescaped
-- **Description**: `AIManager._construct_toml_with_preserved_formatting` rewrites a generated sprite before loading it. It wrote each color's red, green and blue but not `alpha`, so a see-through color loaded opaque; and it wrote `name`, `description`, palette keys and pixel rows unescaped, so a prompt containing `\` or `"""` broke the file.
-- **Status**: Resolved (2026-10-30, `feat/unified-pixel-rows`: `alpha` is written when present; text goes through `toml_basic_string`/`toml_multiline_basic_string` and rows through `toml_pixel_block`)
-- **Priority**: Medium
-- **Reporter**: Found planning the pixel-rows writer fix
-- **Date Reported**: 2026-10-30
-- **Details**: `test_ai_rewrite_keeps_alpha`, `test_ai_rewrite_escapes_name_description_and_rows` (`src/apps/bitmappy/tests/test_bitmappy_ai_manager.py`).
-- **Files**: `src/apps/bitmappy/src/bitmappy/ai_manager.py`
-
-### 241. `cobra.toml`'s Second Eye Had No Color
-- **Description**: The cobra's eye rows read `GEeG`, but its palette had `E` and no `e`, so one eye of each pair drew transparent.
-- **Status**: Resolved (2026-10-30, `feat/unified-pixel-rows`: `e` = (180, 30, 30), a darker shade of `E` as `g` is of `G`; the owner: "You go ahead and patch it")
-- **Priority**: Low
-- **Reporter**: Found by the pixel-rows audit; the strict repo check now catches any glyph missing from a palette
-- **Date Reported**: 2026-10-30
-- **Details**: `test_cobra_eye_has_a_color` (`src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus_sprite_files.py`).
-- **Files**: `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprites/cobra.toml`
-
-### 240. The AI Path Accepted Sprites Whose Rows Needed Repair
-- **Description**: `validate_ai_response` never checked pixel rows, so a generated sprite with ragged rows loaded silently repaired (by the old rules, which could cut art off) and was then saved that way.
-- **Status**: Resolved (2026-10-30, `feat/unified-pixel-rows`: `validate_ai_response` runs `pixel_row_problems`; Bitmappy checks the rows it will load, retries with an equal-widths correction, and loads the last attempt repaired, with a notice)
-- **Priority**: Medium
-- **Reporter**: Found by the pixel-rows adversarial review
-- **Date Reported**: 2026-10-30
-- **Files**: `src/glitchygames/ai/sprite_generator.py`, `src/apps/bitmappy/src/bitmappy/ai_manager.py`, `src/apps/bitmappy/src/bitmappy/ai_worker.py`
-
-### 239. Ragged Pixel Rows: Two Rules, One Cut Art Off, Neither Said So, and Saving Corrupted Rows
-- **Description**: Static sprites padded short rows with the sprite's most common glyph (a sword became a solid block); animation frames took the most common row length and cut longer rows (a sword lost its crossguard). Both only logged it, and Bitmappy saved the result. Separately, the writers put pixel rows into TOML unescaped: a row ending in a `\` glyph joined the next row, `a\bc` loaded as a backspace and `a\a` didn't load; palette keys were unescaped too.
-- **Status**: Resolved (2026-10-30, `feat/unified-pixel-rows`)
-- **Priority**: High (silent art loss)
-- **Reporter**: The owner asked to unify the two rules (2026-10-29); the adversarial review (2026-10-30) found the truncation loss and the writer bug
-- **Date Reported**: 2026-10-30
-- **Details**: One rule, `normalize_pixel_rows` (`src/glitchygames/sprites/pixel_utils.py`), for every loader and the QuickLook preview: nothing is cut off, short rows pad with transparent pixels, every repair is reported, and the repo check runs it strictly. `toml_pixel_block` escapes rows in every writer. The design's "Before and after" table records what each old rule drew (`docs/specs/2026-10-30-unified-pixel-rows-design.md`).
-- **Files**: `src/glitchygames/sprites/pixel_utils.py`, `src/glitchygames/sprites/animated.py`, `src/glitchygames/testing/sprite_files.py`, `src/quicklook/Sources/SpriteCore/PixelRows.swift`
-
-### 238. `ALL_EVENTS` Listed Type 0 Twice: 'Unknown' Was Patched Into the Key Code K_UNKNOWN
-- **Description**: `supported_events` (`src/glitchygames/events/base.py`) meant to drop the name pygame gives every id it does not name, `'Unknown'`, with `set(names) - set('Unknown')`; that subtracts the set of its letters, so `'Unknown'` stayed, and its patch (`'UNKNOWN': 'K_UNKNOWN'`) turned it into `pygame.K_UNKNOWN`, a key code (0). `ALL_EVENTS` held 0 twice: once as NOEVENT (pygame names id 0 `'NoEvent'`) and once as K_UNKNOWN. `GAME_EVENTS` is built from a set, so it held 0 once either way, and `GameEngine.EVENT_HANDLERS` was the same; the only effect was `SceneManager._log_blocked_events` naming `NoEvent` twice when it was blocked
-- **Status**: Resolved (2026-10-28, commit 7075a4cd: `- {'Unknown'}`; no recording holds a type-0 event, and `GAME_EVENTS` and the handler table are unchanged)
-- **Priority**: Low (a duplicate in a list; no dispatch or recording changed)
-- **Reporter**: Found making the event-name scan run once per process (`pygame_event_names`, feature/test-speed)
-- **Date Reported**: 2026-10-28
-- **Details**: Type 0 stays in `ALL_EVENTS` once, as NOEVENT: a name pygame gives, like every other listed type. `test_unknown_is_no_event_name_and_no_key_code_is_an_event_type` (`tests/events/test_events_core.py`) checks that `'Unknown'` is not among the names, that 0 is listed once and that no type is listed twice
-- **Files**: `src/glitchygames/events/base.py`, `tests/events/test_events_core.py`
-
-### 237. The Serial Suite's Container Peak Ran Past 1600 MiB: Tests' Class Instances, Uncollected Scenes, Replays Holding Whole Recordings
-- **Description**: With the memory guard (`tests/memory_guard.py`) reading the container's memory, page cache left out, a healthy `nox -s test-linux-ci` (CircleCI's Linux job mirrored: serial, 2 GB, 1 CPU) passed 1600 MiB: stopped at 1621 MiB at 63%, during Mr. Muncher's golden replay, and run to the end with a 2000 MiB limit it peaked at 1781 MiB. Four sources, each measured: (1) pytest keeps every test function's class instance for the whole run (pytest 9.1, `Function.instance`), so whatever a `setup_method` put on `self` stayed alive: after Bitmappy's tests 79 `BitmapEditorScene`s and 230 MiB of their surfaces, and the pytest process climbed to about 1.3 GB in the suite's last tests; (2) the garbage collector ran only when the process's peak grew 16 MiB, so later tests' scenes (cycles holding surfaces) piled up to whatever the peak had been; (3) a headless replay (`ReplaySources.from_path`) decoded its recording into independent frames, a copy of every sprite record per frame: Mr. Muncher's 73 KB golden was about 135 MiB of objects, its replay child 322 MiB beside pytest; `golden_recording` in `tests/replay/test_golden_replays.py` did the same in the pytest process; (4) the root-tests import scans (`tests/test_suite_collection.py`) held every parsed file of `tests/` at once (+112 MiB and +51 MiB to the process)
-- **Status**: Resolved (2026-10-28)
-- **Priority**: High (the Linux CI job's limit)
-- **Reporter**: Found investigating the memory guard's stop on PR #111
-- **Date Reported**: 2026-10-28
-- **Details**: Fixes: (1) the harness's `pytest_runtest_protocol` wrapper empties each finished test's class instance (`release_test_instance`, `tests/garbage_collection.py`; a `unittest.TestCase` is left to pytest), then runs the collector; 3 MiB of surfaces are left after Bitmappy's tests; (2) a second collection trigger, malloc's bytes in use (glibc `mallinfo2`, macOS `mstats`) grown 32 MiB since the last collection (Brave Adventurer's both-editions tests alone, macOS: 483 -> 353 MiB at the end, 33 collections, about 1 s); (3) `TraceReader`/`read_trace_result` take `share_records` (off by default): unchanged sprite records are one object across frames; the replay and the golden-replay checks read with it (Mr. Muncher's replay child 342 -> 191 MB on macOS; `test_golden_replays.py` peak 310 -> 177 MiB); a whole-suite run with every decoded record frozen found only test helpers that change records, and they read with copies; (4) the scans parse one file at a time (335 -> 144 MiB peak). The container's peak (the guard's figure, Docker, amd64 emulated on Apple silicon): 1781 MiB -> 1444 MiB with the same instrumentation (its sampler, about 20 MiB, counted in both), and 1409 MiB in a plain `nox -s test-linux-ci` at the 1600 MiB limit, which passed; the pytest process's own peak 1317 -> 895 MiB. What the guard still counts that is not the tests: about 290 MiB of reclaimable kernel slab (`memory.stat`'s `slab_reclaimable`: dentries and inodes from the checkout and the installs, flat from before the first test), which the kernel reclaims before it kills, and the `uvx` and `nox` parents (about 47 MiB of anonymous memory for `uvx` alone) that wait for pytest. Pattern to avoid: keeping a large object on a test class's `self` without a `teardown_method` deleting it; decoding a recording into independent frames when it is only read
-- **Files**: `tests/garbage_collection.py`, `tests/harness.py`, `tests/test_garbage_collection.py`, `src/glitchygames/tracing.py`, `src/glitchygames/replay/driver.py`, `tests/test_tracing.py`, `tests/world/test_gameplay_replay.py`, `tests/replay/test_golden_replays.py`, `tests/test_suite_collection.py`
-
-### 236. PaddleSlap, `game.paddle` and the Sprite API Set Log Levels at Import, So `--log-level warning` Still Logged INFO
-- **Description**: The siblings of #235. `src/games/paddleslap/src/paddleslap/__init__.py` called `logging.getLogger('game').setLevel(logging.INFO)` at import and `src/glitchygames/game_objects/paddle.py` set `game.paddle` to INFO; `src/glitchygames/api/main.py` called `logging.basicConfig(level=logging.INFO, ...)` at import, which sets the root logger's level and adds a standard-error handler. `--log-level` (the engine's `logging.basicConfig` in `GameEngine.initialize_arguments`) sets only the root's level, and does nothing at all once the root has a handler, so a PaddleSlap replay at `--log-level warning` (every replay tool's level) still logged INFO, and any process that imported the API, the test suite included (`tests/api/` imports it at collection), logged every logger's INFO records whatever its own level was
-- **Status**: Resolved (2026-10-28: none of them sets a level at import; the API configures its logging as its server starts, `configure_server_logging`, from `run()` and the app's lifespan. Follow-up the same day: Bitmappy's run-time levels and the `scripts/` demos too, and a source guard on every level setting)
-- **Priority**: Medium (a quiet run is not quiet; pytest keeps the extra records in memory, #235's failure at a lower rate)
-- **Reporter**: Found in Stage D's by-hand check (2026-10-27, `plans/future-work.md`) and by #235's investigation; the API's by the import guard below
-- **Date Reported**: 2026-10-28
-- **Details**: Two guards, each seen failing on these offenders first. `tests/replay/test_replays_log_quietly.py` replays every golden and bundled demo headless at the tools' level, counting every record the child creates by logger and level (`tests/logged_records.py`: a log-record factory, which leaves `basicConfig` alone), and fails naming each logger that emitted INFO or DEBUG records with its count: before the fix, PaddleSlap's golden emitted 81 (`game.engine` 37, `game.scenes` 36, `game.fonts` 3, `game.audio` 2, `game.joysticks` 2, `game.replay` 1) and its rally demo 60; every other golden emitted none. `game.paddle` emits nothing in a replay, so `tests/test_logger_levels_at_import.py` checks the levels themselves: a fresh interpreter imports every module of the engine and of each member and names each logger whose level an import set (it found all three: `glitchygames.api` set root to INFO with one handler, `glitchygames.game_objects` set `game.paddle` to INFO, `paddleslap` set `game` to INFO). A game that wants another default level sets it through `--log-level`, never with `setLevel` at import. Follow-up (2026-10-28): Bitmappy's `main()` set its logger to INFO and `MultiControllerErrorHandler.__init__` set `multi_controller` to the level it was given (INFO), at run time, after `--log-level`; seven `scripts/` demos set `game` to DEBUG or INFO at import (`scripts/raw_sprite_loader.py`, INFO, is imported by `tests/sprites/` at collection, so every run's `game.*` loggers logged INFO) and two called `logging.basicConfig` at import. None of them sets a level now. A third guard, `tests/test_logger_level_source_guard.py`, scans the engine, every member and `scripts/` and fails on any `.setLevel()` call and on a `logging.basicConfig()` that runs at import (outside a function and the `__main__` guard): the run-time settings the replay and import guards cannot reach
-- **Files**: `src/games/paddleslap/src/paddleslap/__init__.py`, `src/glitchygames/game_objects/paddle.py`, `src/glitchygames/api/main.py`, `src/apps/bitmappy/src/bitmappy/editor.py`, `src/apps/bitmappy/src/bitmappy/controllers/error_handling.py`, `scripts/` (nine demos), `tests/replay/test_replays_log_quietly.py`, `tests/test_logger_levels_at_import.py`, `tests/test_logger_level_source_guard.py`, `tests/logged_records.py`, `tests/api/test_api_main.py`
-
-### 235. Importing the Text Input Demo Set Every `game.*` Logger to DEBUG (the Serial Suite Outgrew 2 GB)
-- **Description**: `src/demos/text-input-demo/src/text_input_demo/__init__.py` called `logging.getLogger('game').setLevel(logging.DEBUG)` at import. `game` is the parent of every engine and game logger, so any process that imported the demo logged every `game.*` debug record whatever `--log-level` said. The test suite imports it at collection, so from the first test of every run the `game` logger was at DEBUG, and pytest's capture handlers (level 0) kept each test's records in memory until the test ended. `TestBulkWorkloadBenchmarks::test_bulk_assignment_and_indicators` (`src/apps/bitmappy/tests/test_bitmappy_benchmarks.py`) emits about 505,000 debug records per run (`VisualCollisionManager._update_collision_groups`), and in a serial run pytest-benchmark is on (xdist turns it off) and runs it 5 times: CircleCI's Linux job (`resource_class: small`, 2 GB, `PYTEST_WORKERS=0`) was killed (signal 9) in that test on PR #111 (jobs 2314 and 2316)
-- **Status**: Resolved (2026-10-28: the demo no longer sets a level; a test checks in a fresh interpreter that importing it leaves `game` at NOTSET)
-- **Priority**: High (the Linux CI job cannot pass)
-- **Reporter**: Found investigating PR #111's Linux failure
-- **Date Reported**: 2026-10-28
-- **Details**: Measured on macOS, serial, coverage on, `--log-cli-level=WARNING`, RSS recorded after every test: the run's peak was 4.71 GB, 1.72 GB before the benchmark and 4.71 GB during it. Alone with the demo imported, the benchmark peaked at 3.2 GB (148 MB without it) and `TestMultiControllerStress::test_bulk_assignment_and_indicator_outcomes`, the same work once, at 784 MB (152 MB). After the fix, the same serial run peaked at 1.54 GB (1.48 GB at the benchmark; the peak is reached late, in Bitmappy's wheel test), about 0.6 GB under 2 GB, and took 603 s instead of 667 s. macOS resident sizes, not Linux's: the Linux job is the check. Still at INFO from import: `paddleslap/__init__.py` sets `game` itself to INFO (the runs above show `game` at INFO once the demo stopped setting DEBUG), the same pattern at a lower cost. Pattern to avoid: a module setting a shared logger's level at import (`game.paddle` still sets its own logger to INFO, `src/glitchygames/game_objects/paddle.py`, so `--log-level warning` still shows its INFO lines; several `scripts/` demos set `game` to DEBUG but no test imports them)
-- **Files**: `src/demos/text-input-demo/src/text_input_demo/__init__.py`, `src/demos/text-input-demo/tests/test_text_input_demo.py`
-
-### 234. A Bitmappy Controller-Manager Test Depends on the Tests Before It
-- **Description**: `MultiControllerManager` (`src/apps/bitmappy/src/bitmappy/controllers/manager.py`, around lines 69-105) is a process-wide singleton: `__new__` returns the class's `_instance`, and `__init__` returns early once `_initialized` is set. `TestMultiControllerManager.setup_method` in `src/apps/bitmappy/tests/test_bitmappy_multi_controller.py` (around line 29) builds the manager with `MultiControllerManager()` and never resets it, so `test_initialization` (around line 33, asserting `controllers == {}`, `assigned_controllers == {}` and `next_controller_id == 0`) gets whatever instance an earlier test on the same pytest-xdist worker left, controllers included. The `editor` fixture in `src/apps/bitmappy/tests/conftest.py` (around line 21) resets `_instance` with `mocker.patch.object`, but only for its own test: the patch puts the old instance back afterwards. Expected: every test that builds a manager starts from a fresh one.
-- **Status**: Resolved (2026-10-27: an autouse fixture in Bitmappy's `conftest.py`, `fresh_controller_manager`, gives every Bitmappy test its own manager; seen again in the owner's `uv run pytest`, reproduced by running `test_bitmappy_benchmarks.py` (which connects four controllers) before `test_initialization`)
-- **Priority**: Low (test isolation only; the app uses one manager per process)
-- **Reporter**: Found by a Stage D implementer (workspace packages Part 3), 2026-10-26
-- **Date Reported**: 2026-10-26
-- **Details**: Seen once in `CI=true nox -s test` (it fails depending on test order); the test passes alone (3 of 3 runs) and passed on the rerun. Likely fix: reset `_instance` and `_initialized` in that class's `setup_method`, or in an autouse fixture in Bitmappy's `conftest.py` (with `mocker.patch.object`, as the `editor` fixture does), and check the other test classes that build a manager directly.
-- **Files**: `src/apps/bitmappy/src/bitmappy/controllers/manager.py`, `src/apps/bitmappy/tests/test_bitmappy_multi_controller.py`, `src/apps/bitmappy/tests/conftest.py`
-
 ### 233. The Demos Render Their Text Without Antialiasing
 - **Description**: The demos draw their text with pygame's antialias flag off, so it looks blocky ("the fonts are garbage": the user, 2026-10-26, running the demos by hand). Every such call: in `src/demos/dt-demo/src/dt_demo/__init__.py`, the scene's (`Game`) `update()` renders the countdown (around line 118, `self.font.render(..., False, ...)`), the FPS line (around line 123) and the record time (around line 130) with `False` as the second (antialias) argument; in `src/demos/joystick-demo/src/joystick_demo/__init__.py`, `_draw_line` draws every readout line with `self.font.render(text, antialias=False, color=color)` (around line 159). The text-input demo is not affected: its `InputBox` renders with antialiasing on (`src/glitchygames/ui/inputs.py`, around lines 106 and 171).
 - **Status**: Active
@@ -134,15 +54,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Reporter**: Found sharing the two games' scenes (workspace packages Part 2, Task 6)
 - **Date Reported**: 2026-10-25
 - **Details**: Predates the move: both editions' scenes had the same line before they shared one base. Harmless in arithmetic today, but a recording or golden trace that records the player's x would record `0` rather than `0.0` after such a respawn, so the fix (`max(0.0, ...)`) can change recordings and golden traces and needs them re-checked. Not fixed on the branch for that reason. Also noted in `plans/future-features.md` (#56, Part 2 leftovers)
-- **Files**: `src/games/brave-adventurer/src/brave_adventurer_core/scene.py`
-
-### 229. Brave Adventurer Sets `_was_airborne` and Never Reads It
-- **Description**: `BraveAdventurerScene.__init__` (`src/games/brave-adventurer/src/brave_adventurer_core/scene.py`, around line 193) sets `self._was_airborne = False`, commented "for land sound", but nothing reads it: no landing sound is played from it
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found sharing the two games' scenes (workspace packages Part 2, Task 6)
-- **Date Reported**: 2026-10-25
-- **Details**: Predates the move. Either remove it or play the landing sound it was meant for; playing a sound changes the audio a recording holds, so a fix needs the golden replays re-checked. Not fixed on the branch for that reason. Also noted in `plans/future-features.md` (#56, Part 2 leftovers)
 - **Files**: `src/games/brave-adventurer/src/brave_adventurer_core/scene.py`
 
 ### 228. Smaller Findings From the Engine Context Sub-Plan 1 Reviews
@@ -269,15 +180,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: `scripts/ai_query_inspector.py`, `scripts/animation_demo.py`, `scripts/animation_scene_demo.py`, `scripts/animation_scene_full_demo.py`, `scripts/show_ai_query.py`, and under `tests/` `animation/`, `canvas/`, `engine/`, `events/` and others (`git grep -n 'sys.path.insert' -- scripts tests`)
 - **Solution**: Remove the lines (and their comments), then run the suite; where a script needs `scripts.*`, run it as a module
 
-### 221. tests/test_logging.py Inserts a Path That Never Existed Into sys.path
-- **Description**: `tests/test_logging.py:13` runs `sys.path.insert(0, str(Path(__file__).parent / 'glitchygames'))`, which is `tests/glitchygames`, a directory that has never existed. Dead code (and, were a `tests/glitchygames` ever created, it would shadow the engine)
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: The documentation task of plans/2026-10-24-workspace-packages-1-foundation.md
-- **Date Reported**: 2026-10-25
-- **Files**: `tests/test_logging.py`
-- **Solution**: Delete the line and the `sys`/`Path` imports if nothing else uses them
-
 ### 220. Smaller Findings From the Measured-Rows Review
 - **Description**: A fresh review of the measured-rows-in-the-repository branch (2026-10-25) found these; none breaks publishing on main as merges are made today (squash, up to date, the hook installed). Its critical and important findings were fixed on the branch: code that arrived by a merge is measured by the next commit, rows of a refused commit are staged on the retry, partial commits and untracked measured files are refused, deploys only from main, the hooks installed by `.envrc`
 - **Status**: Active
@@ -346,14 +248,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-21
 - **Files**: `src/glitchygames/bitmappy/editor.py:701-704`, `src/glitchygames/bitmappy/animated_canvas.py`
 
-### 134. A HashableEvent's Own Hash Shows Up as One of Its Attributes
-- **Description**: `HashableEvent` stores its hash in `__dict__` (`_HashableEvent__hash`), so `len()`, iteration, `keys()` and `repr` include it: `len(HashableEvent(KEYDOWN, key=1)) == 3`
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found by the 100% coverage audit
-- **Date Reported**: 2026-10-22
-- **Files**: `src/glitchygames/events/base.py:339`
-
 ### 135. Dialog Scenes Ignore Their `groups` Argument
 - **Description**: `NewCanvasDialogScene`, `LoadDialogScene` and `SaveDialogScene` always pass a new `LayeredDirty()`
 - **Status**: Active
@@ -378,15 +272,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-22
 - **Details**: (1) `replay/driver.py` `_recorded_start` (958-966): a bad or missing `recorded_at` is refused with the right exit code but without the "The recording is malformed" prefix other header refusals use. (2) `scenes/scene.py` ~2593-2597: a scene with a `VERSION` but no `NAME` gets the caption `' v2.1'`. (3) `scenes/scene.py` 1930-1935: an exception between `push_scoped_sources` and setting `_playback_session` would leave the scoped doors pushed (only `take_redelivered_events()` runs there today). (4) `SlideTransition` with an unknown direction draws nothing while `WipeTransition` reveals the new scene; neither validates `direction` (tests pin current behaviour). (5) Resolved: the unreachable freetype fallbacks in `fonts/font_manager.py` were removed. (6) `AnimatedCanvasSprite.previous_animation` into an animation with no frames leaves the canvas but switches the film strip to it. (7) Resolved 2026-10-22: the dead code the audit found was deleted (#146, #147, #148, `animated.py` and `editor.deflate`), apart from `_create_surface_from_toml_pixels`, now the live frame builder (#133)
 - **Files**: see Details
-
-### 141. A Third Controller on a Cached Indicator Position Lands on the First
-- **Description**: `VisualCollisionManager.position_cache` is keyed by position only, so a third controller at a position cached for two gets the fallback offset (0, 0), on top of the first controller
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found by the coverage audit follow-ups
-- **Date Reported**: 2026-10-22
-- **Details**: Pinned by the strict xfail `tests/tools/test_visual_collision.py::TestCachedOffsetsForAGrowingGroup`
-- **Files**: `src/glitchygames/bitmappy/indicators/collision.py`
 
 ### 144. An AnimatedSprite's Rect Comes From the Unscaled Frame Surface
 - **Description**: `_update_surface_and_mark_dirty` sets `rect` from the 1x cached frame surface; a game that scales `sprite.image` itself (Papyrus) gets the right size back only because `apply_transparency_and_scale` runs straight after. Latent
@@ -438,86 +323,14 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: (1) Slider gradients are redrawn every frame (dirty 2, ~1024 line draws): pre-render once. (2) TabControlSprite rebuilds its font every update after its first click. (3) A channel enum instead of strings. (4) Tidy-ups: `trigger.value` mutation in `on_slider_event`, the try/except and hasattr in `get_current_color`, DEBUG f-strings, `MIN/MAX_COLOR_VALUE` vs `MAX_COLOR_CHANNEL_VALUE`. (5) Controller line painting leaves the cursor one past the last painted pixel (maybe intended; pinned). (6) `AnimatedCanvasSprite.active_color` is inferred as a literal tuple (an `assignment` ignore remains in `apply_color`)
 - **Files**: see Details
 
-### 161. Middle and Right Mouse Drags Never Reach a Scene
-- **Description**: The mouse event proxy calls the game's `on_middle_mouse_drag_down_event` / `on_right_mouse_drag_down_event`, which a Scene does not have (it has `on_middle_mouse_drag_event` / `on_right_mouse_drag_event`), so through the engine these drags become missing events and never reach a scene or its sprites
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
-- **Date Reported**: 2026-10-22
-- **Details**: Pinned: `tests/events/test_mouse_events.py::TestMouseEventProxyDragEvent::test_middle_and_right_drags_reach_a_plain_scenes_drag_handler`. Related, latent: the proxy's drop handlers call `on_*_mouse_drag_up_event` instead of `on_*_mouse_drop_event` (pinned: `TestMouseEventProxyDropEvent`). Possibly intended: buttons 4/5 map to scroll down/up
-- **Files**: `src/glitchygames/events/mouse.py`
-
-### 162. Editing Text Shows a Box in the Inactive Colour
-- **Description**: `TextSprite.update_text` renders the text with `background_color` but fills the image with the editing grey (50, 50, 50), so an inactive-colour box surrounds the text while editing (the black box in a slider's value field)
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
-- **Date Reported**: 2026-10-22
-- **Details**: Pinned: `tests/ui/test_ui_text_cursor.py::test_active_text_is_drawn_on_the_editing_background`
-- **Files**: `src/glitchygames/ui/text_widgets.py`
-
-### 163. MultiLineTextBox Puts the Cursor in the Wrong Place After a Wrap
-- **Description**: `_map_cursor_pos_to_wrapped_text` finds the Nth occurrence of the character under the cursor, but wrapping turned some spaces into newlines, so a cursor on a space after the first wrap maps to a later space or the end (19 wrong positions in the test text); affects where the cursor is drawn and up/down
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
-- **Date Reported**: 2026-10-22
-- **Details**: Pinned: `tests/ui/test_ui_text_cursor_wrapping.py::test_cursor_on_a_space_after_a_wrap_is_on_its_own_line_and_column`
-- **Files**: `src/glitchygames/ui/text_widgets.py`
-
-### 164. Widgets Away From the Origin Draw at Their Screen Position on Their Own Image
-- **Description**: MenuBar draws its background, border and focus outline at `self.rect` (screen coordinates) on its own image, leaving a transparent strip when it is not at (0, 0); TextBoxSprite draws its text the same way, so a text box away from (0, 0) shows no text and keeps stale pixels (the InputDialog prompt)
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
-- **Date Reported**: 2026-10-22
-- **Details**: Pinned: `test_ui_menubar.py::test_menubar_not_at_the_origin_draws_its_whole_background`, `test_widgets.py::test_menubar_away_from_the_origin_draws_its_background_on_all_of_itself`, `test_widgets.py::test_text_box_away_from_the_origin_shows_its_text`
-- **Files**: `src/glitchygames/ui/menus.py`, `src/glitchygames/ui/text_widgets.py`
-
 ### 165. Smaller UI Bugs the Real Display Found
 - **Description**: Bugs pinned by strict xfails in tests/ui
-- **Status**: Active
+- **Status**: Active (items 1-5 fixed 2026-10-31 in the bug sweep: the pressed button's label takes the button's color; the checkbox's up handler dispatches its callback; `add_menu` lays out from the item's own height (`item_height`), which also fixes the dropped-down image growing by the whole previous menu on a second `add_menu`; the paste puts the cursor after the pasted text; click-to-cursor walks character advances from the first ink column. Their strict xfails are gone. Item 6 and the unpinned items stay open)
 - **Priority**: Low
 - **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
 - **Date Reported**: 2026-10-22
 - **Details**: (1) A pressed ButtonSprite looks like a released one (its `background_color` is never drawn): `test_pressed_button_is_drawn_in_its_active_color`. (2) CheckboxSprite never runs its click callback (no user in the code base): `test_checkbox_click_runs_its_callback`. (3) `MenuItem.add_menu` puts the first sub-item at y=40, below the dropped-down image, not y=20: `test_add_menu_puts_the_first_sub_item_right_below_the_item`. (4) After a paste the MultiLineTextBox cursor is past the end of the text: `test_handle_paste_leaves_the_cursor_after_the_pasted_text`. (5) Click-to-cursor measures characters by ink width, not advance, drifting 1-2 px per character: `test_mouse_down_in_the_middle_of_a_character_puts_the_cursor_before_it`. (6) InputBox types Escape's character into Save/Load/New file names (unconfirmed against a real key press): `test_dialogs.py::TestInputConfirmationDialogScene::test_escape_key_down_types_nothing`. Not pinned: MenuBar mouse-up calls items' down handlers; a focused MenuBar's outline equals its border; constructor text is never wrapped; freetype line height 14 vs a 20 px cursor; `_render_with_pygame_font` renders twice; InputBox parent-offset code is dead and its initial text colour differs from render()'s
 - **Files**: see Details
-
-### 166. Changing a Scene's Background Colour Leaves Stale Pixels
-- **Description**: Setting `Scene.background_color` after the scene has rendered repaints only the areas sprites dirty; the rest of the display keeps the old colour
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
-- **Date Reported**: 2026-10-22
-- **Details**: Pinned: `tests/scenes/test_scene_rendering.py::TestSceneRenderingEdgeCases::test_scene_rendering_with_render_state_changes_manager`. (The screenshot half, black on displays with per-pixel alpha, was #142, resolved)
-- **Files**: `src/glitchygames/scenes/scene.py`
-
-### 168. Clicking a Film Strip's Empty Area Does Nothing in the Editor
-- **Description**: `FilmStripEventHandler.handle_click` (the parent-strip path) tests the strip-local click position against the widget's screen rect; strips sit right of the canvas (x=350), so the click never matches
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
-- **Date Reported**: 2026-10-22
-- **Details**: Pinned: `test_film_strip_selection.py::test_parent_strip_click_selects_itself`, `test_clicking_a_strips_empty_area_on_screen_selects_that_strip`
-- **Files**: `src/glitchygames/bitmappy/film_strip_events.py`
-
-### 170. The Film Strip Scroll Offset Goes Stale After Deleting an Animation
-- **Description**: The recomputation lives in `_handle_no_remaining_animations`, which `_delete_animation` never calls; deleting strip_3 of 3 leaves offset 1 with strip_1 selected but scrolled out of view (the old tests passed only because `on_sprite_loaded` was a Mock)
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
-- **Date Reported**: 2026-10-22
-- **Details**: Pinned: `test_delete_animation_scroll_offset_calculation`, `..._last_strip`, `..._many_strips`. Not pinned: `switch_to_film_strip` sets the strip's `current_frame` but not `selected_frame`; the `is_right_click` onion-skinning branch of `handle_click` cannot be reached from FilmStripSprite (right-clicks sample colour first), although CLAUDE.md says right-clicking frames toggles onion skinning
-- **Files**: `src/glitchygames/bitmappy/film_strip_coordinator.py`
-
-### 171. Frame TOML With More Than 64 Colours Is Invalid
-- **Description**: `AIManager._generate_frame_toml_content(force_single_char_glyphs=False)` with more than 64 colours makes several colours share a glyph and writes one `[colors."<glyph>"]` table per colour, declaring the same table twice. Latent: the only production caller passes True
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
-- **Date Reported**: 2026-10-22
-- **Details**: Pinned: `test_bitmappy_png_loading.py::TestColorQuantization::test_generate_frame_toml_without_quantization_many_colours_is_valid_toml`. Also: integer-packed pixels make it log an exception and return '' (pinned as current behaviour; decide whether packed pixels should be supported)
-- **Files**: `src/glitchygames/bitmappy/ai_manager.py`
 
 ### 172. The Ball Draws a Fixed 10 px Circle Whatever Its Size
 - **Description**: `BallSprite.color` draws `pygame.draw.circle(..., 5, 0)`: a radius-5 circle centred in the image whatever the ball's width and height (20x20 by default), so the visible ball and its visible-pixel hitbox are 10x10 inside a 20x20 rect
@@ -582,15 +395,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: Keep the last reading and the last duration under separate keys (or separate dicts), so each call subtracts the previous reading. The readings come from `measured_seconds()` (real time, diagnostics only) since Task 12b
 - **Files**: `src/glitchygames/bitmappy/controllers/enhancements.py`
 
-### 73. PaddleSlap Sets the `game` Logger to INFO at Import, Overriding `--log-level`
-- **Description**: `src/games/paddleslap/src/paddleslap/__init__.py:50-51` calls `logging.getLogger('game').setLevel(logging.INFO)` when the module is imported (and `src/glitchygames/game_objects/paddle.py:18-19` does the same for `game.paddle`). The level set on the `game` logger wins over the root level `--log-level` configures, so `--log-level warning` or `error` still prints every `game.*` INFO line when PaddleSlap runs
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found on feature/gameplay-replay (replay core, Task 14: the `--audit` children of the PaddleSlap golden replay printed INFO lines under `--log-level error`)
-- **Date Reported**: 2026-10-19
-- **Details**: Not fixed here: removing the module-level `setLevel` calls changes what PaddleSlap logs by default for other `game.*` loggers if anything else lowers the root level, and needs checking against the other examples that may do the same. `--log-level` defaults to `info`, so only runs that ask for a quieter level are affected. Re-checked 2026-10-26 after PaddleSlap's move to its own package: still applies. Both calls are where the description says, and `GameEngine` still sets only the root level (`logging.basicConfig(level=args.log_level.upper())`, `src/glitchygames/engine/game_engine.py` around line 901). The others that do the same today: `src/glitchygames/bitmappy/editor.py` (around line 1543, INFO) and `src/demos/text-input-demo/src/text_input_demo/__init__.py` (line 21, DEBUG)
-- **Files**: `src/games/paddleslap/src/paddleslap/__init__.py`, `src/glitchygames/game_objects/paddle.py`
-
 ### 75. `pygame_needs_fastevents` Compares the Major and Minor Versions Separately
 - **Description**: `pygame_needs_fastevents()` (`src/glitchygames/engine/game_engine.py`, around line 107) returns `vernum[0] < 2 and vernum[1] < 2`, so it is True only when both the major and the minor version are below 2. pygame 1.9 (major 1, minor 9) gets False and would not read events with `pygame.fastevent`, although its docstring says "True for pygame < 2.2". The intended test is `(vernum[0], vernum[1]) < (PYGAME_MIN_MAJOR_VERSION, PYGAME_MIN_MINOR_VERSION)`
 - **Status**: Active
@@ -599,15 +403,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-19
 - **Details**: Harmless today: the project runs on pygame-ce 2.x, where both forms give False. The existing `test_use_fastevents_with_old_pygame` mocks pygame 1.1, which both forms treat as old, so it does not catch the bug; a fix should add a 1.9 case
 - **Files**: `src/glitchygames/engine/game_engine.py`
-
-### 83. Keys a Layout Adds Without a pygame `K_*` Constant Are Not Replayed on Another Layout
-- **Description**: Recordings now hold the key codes the held keys had (`held_key_codes`), so a replay on another keyboard layout answers `key_pressed(K_*)` as recorded. Only pygame's named `K_*` codes are recorded (`glitchygames.input.state.NAMED_KEY_CODES`): a key code a layout adds that pygame names no constant for (say a Unicode letter key) is never reported held in a replay, even on the recording machine
-- **Status**: Active (documented limitation)
-- **Priority**: Low
-- **Reporter**: Found on feature/gameplay-replay (final review fixes, item A4)
-- **Date Reported**: 2026-10-20
-- **Details**: pygame exposes key code to scancode (through a ScancodeWrapper) but not scancode to key code, so the held keys can only be named by trying every known key code. Documented for game authors in `docs/architecture/gameplay_replay.md` (Polled input): handle such keys through events or by position (`scancode_pressed`, `ActionMap.bind(scancode=...)`), not by polling their key code
-- **Files**: `src/glitchygames/input/state.py`
 
 ### 176. Bitmappy Accepts Canvas Widths That Leave No Room for a Pixel
 - **Description**: The new-canvas dialog's width is never capped: a width over 350, or one too large for the screen, makes `new_pixel_size` 0, and the editor builds a zero-size canvas surface that can't be seen or drawn on
@@ -645,15 +440,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-22
 - **Details**: (1) Rumble still picks its devices by input mode, not through `InputDevices`: with a controller manager (now `auto` too) `ConnectedRumbleDevices.find` rumbles only the controller manager's controllers, so an unmapped joystick that can rumble no longer rumbles in the default mode (it did when `auto` meant joystick mode); moving rumble to `InputDevice.rumble` (one send per device) would fix it, but changes the devices door calls a joystick-mode recording holds for rumble (`input/rumble.py:68`, `scenes/scene.py` `_update_frame_services`). (2) A playback scope's rumble asks the door as the *live* engine's mode would (`_rumble_devices_for_scope(controller_manager=...)` uses the live controller manager): a joystick-mode recording with rumble, played in an `auto` game, leaves its recorded `joystick_count` answers unasked, which the played scene's own next enumeration would read (no bundled demo or golden recording has per-frame device answers today). (3) A playback scope's recorded device events (JOYDEVICEADDED, ...) go through the live engine's joystick and controller managers, so a played device is added to the live game's managers and `input_devices` and announced to the scope's scene, and stays after the scope (pre-existing for the managers; the registry follows them). (4) `JoystickEventProxy` writes axis, hat and ball events into its caches without a bounds check (buttons have one): an event for an index past the opened device's counts raises IndexError (SDL never sends one; a replay against other stand-ins could) (`events/joystick.py` `on_joy_axis_motion_event`, `on_joy_hat_motion_event`, `on_joy_ball_motion_event`); nothing reads those caches any more (`InputDevice` reads the snapshot). (5) The removed `auto` detection said the controller API "has compatibility issues with pygame-ce 2.5+" without saying which; the known ones (#181, the remapped-event lookup) are fixed, but `auto` now runs both managers on real pads: check on hardware (a DualSense, an Xbox pad, an unmapped stick, hot-plugging each). (6) `ActionMap.from_dict` always builds a map in the default input mode (`auto` now), whatever mode the saved map was made in
 - **Files**: `src/glitchygames/input/rumble.py`, `src/glitchygames/scenes/scene.py`, `src/glitchygames/events/joystick.py`, `src/glitchygames/input/action_map.py`
-
-### 186. Smaller Findings From the Typed Events
-- **Description**: Findings from `plans/2026-10-22-typed-events.md` (typed, immutable events), none breaking a feature on its own
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found implementing the typed events
-- **Date Reported**: 2026-10-22
-- **Details**: Fixed 2026-10-22: items 1-4. (1) Bitmappy's joystick hat handler (`bitmappy/controllers/event_handler.py` `on_joy_hat_motion_event`) compared the hat's value with integer bitmasks (1, 2, 4, 8), but pygame always reports a hat as an `(x, y)` tuple, so no direction was ever recognised (each is disabled anyway, so only its debug log changes); the `JOYSTICK_HAT_*` constants are now tuples, `JOYSTICK_HAT_UP` added. (2) `HashableEvent | mapping` (and `mapping | event`) raised AttributeError: UserDict's `|` read `self.data`, which the class never sets; it now builds a changed copy. (3) `MultiLineTextBox`'s click handler computed its line height itself, falling back to `self.font.size` unrounded (a freetype font's float size; the bound `size()` method for a pygame font without `get_linesize`); it uses `_get_line_height()`. (4) `SliderManager.on_slider_event` wrote the clamped value back into its trigger event, which nothing read (removed: events are immutable). Kept for the record: (5) pygame-ce gives `CONTROLLERSENSORUPDATE` no fields at all (its `dict_from_event` has no case for it), so a real sensor event has no `instance_id`: `InputDevices.dispatches` drops it (an input event naming no device), so sensor updates never reach a game, and the interfaces' comments promise `instance_id, sensor, data` (`events/input_event_interfaces.py`; the engine never enables sensors today). (6) Sprite rects are typed `FRect | Rect` (pygame's `DirtySprite` stubs), so a click's position minus `self.rect.x` is `float | int` to the type checker; the widgets' rects are Rects, and `int()` now says so (`film_strip_sprite.py`, `animated_canvas.py`, `ui/text_widgets.py`, `ui/sliders.py`; type-only). (7) A typed class's undeclared names still read as `Any` through `HashableEvent.__getattr__` (kept on the base for custom events), so a typo such as `event.poss` is not caught; a base without `__getattr__` for the typed classes would catch it but needs every generic `HashableEvent` reader typed. (8) pygame-ce's documentation lists `which` for MOUSEWHEEL and `clicks` for MOUSEBUTTONDOWN/UP, but its `dict_from_event` (2.5.6) sets neither, so they are not declared. (9) `HashableEvent.__setstate__` with another type's state keeps the event's class (only pickling calls it, always with its own class's state)
-- **Files**: see Details
 
 ### 190. LayeredDirty Chooses How to Draw the Next Frame From Wall-Clock Time (Suspected)
 - **Description**: pygame's `LayeredDirty.draw` times itself with `pygame.time.get_ticks()` and draws the next frame in full-screen mode (the background over the whole surface, then every visible sprite) when a draw took longer than its threshold (1000/80 ms by default), and in dirty-rect mode (only the dirty areas cleared and redrawn) otherwise. Which mode a frame is drawn in therefore depends on the machine's speed and load, not on the game. Where the two modes draw different pixels (anything drawn on the surface before `draw()` outside the dirty areas, a non-dirty sprite outside them after the surface was filled) a slow machine presents different frames from a fast one
@@ -700,6 +486,220 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: see each item
 
 ## Resolved Bugs
+
+### 141. A Third Controller on a Cached Indicator Position Lands on the First
+- **Description**: `VisualCollisionManager.position_cache` is keyed by position only, so a third controller at a position cached for two gets the fallback offset (0, 0), on top of the first controller
+- **Status**: Resolved (2026-10-31, bug sweep: `VisualCollisionManager.position_cache` is keyed by (x, y, controller count), since the offsets depend on the count; the strict xfail is gone, and two tests in `test_bitmappy_multi_controller.py` that asserted the (0, 0) fallback now expect each controller's own pattern)
+- **Priority**: Low
+- **Reporter**: Found by the coverage audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned by the strict xfail `tests/tools/test_visual_collision.py::TestCachedOffsetsForAGrowingGroup`
+- **Files**: `src/glitchygames/bitmappy/indicators/collision.py`
+
+### 162. Editing Text Shows a Box in the Inactive Colour
+- **Description**: `TextSprite.update_text` renders the text with `background_color` but fills the image with the editing grey (50, 50, 50), so an inactive-colour box surrounds the text while editing (the black box in a slider's value field)
+- **Status**: Resolved (2026-10-31, bug sweep: `TextSprite.update_text` renders the text on the same color it fills with (`EDITING_BACKGROUND_COLOR` while active), passed down as `background_color` to the freetype render; the strict xfail is gone)
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `tests/ui/test_ui_text_cursor.py::test_active_text_is_drawn_on_the_editing_background`
+- **Files**: `src/glitchygames/ui/text_widgets.py`
+
+### 163. MultiLineTextBox Puts the Cursor in the Wrong Place After a Wrap
+- **Description**: `_map_cursor_pos_to_wrapped_text` finds the Nth occurrence of the character under the cursor, but wrapping turned some spaces into newlines, so a cursor on a space after the first wrap maps to a later space or the end (19 wrong positions in the test text); affects where the cursor is drawn and up/down
+- **Status**: Resolved (2026-10-31, bug sweep: `_map_cursor_pos_to_wrapped_text` walks the original and wrapped texts together (wrapping only turns a space into a newline or drops a space); `_map_wrapped_position_to_original`, which returned the wrapped position unchanged, does the same walk and skips a dropped space at the target. The strict xfail is gone; dropped-space tests added for both directions)
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `tests/ui/test_ui_text_cursor_wrapping.py::test_cursor_on_a_space_after_a_wrap_is_on_its_own_line_and_column`
+- **Files**: `src/glitchygames/ui/text_widgets.py`
+
+### 164. Widgets Away From the Origin Draw at Their Screen Position on Their Own Image
+- **Description**: MenuBar draws its background, border and focus outline at `self.rect` (screen coordinates) on its own image, leaving a transparent strip when it is not at (0, 0); TextBoxSprite draws its text the same way, so a text box away from (0, 0) shows no text and keeps stale pixels (the InputDialog prompt)
+- **Status**: Resolved (2026-10-31, bug sweep: MenuBar draws its background, border and focus outline at `self.image.get_rect()`; TextBoxSprite blits its text sprite at (0, 0); `MenuItem.add_menu` blits the item at (0, 0) on its dropped-down image too. The three strict xfails are gone)
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `test_ui_menubar.py::test_menubar_not_at_the_origin_draws_its_whole_background`, `test_widgets.py::test_menubar_away_from_the_origin_draws_its_background_on_all_of_itself`, `test_widgets.py::test_text_box_away_from_the_origin_shows_its_text`
+- **Files**: `src/glitchygames/ui/menus.py`, `src/glitchygames/ui/text_widgets.py`
+
+### 171. Frame TOML With More Than 64 Colours Is Invalid
+- **Description**: `AIManager._generate_frame_toml_content(force_single_char_glyphs=False)` with more than 64 colours makes several colours share a glyph and writes one `[colors."<glyph>"]` table per colour, declaring the same table twice. Latent: the only production caller passes True
+- **Status**: Resolved (2026-10-31, bug sweep: `_generate_frame_toml_content` writes each glyph's `[colors."<glyph>"]` table once, with the color that owns it (the first in sorted order); the strict xfail is gone and the test also checks every glyph the pixels use has a table. Packed-pixel support stays a separate question)
+- **Priority**: Low
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `test_bitmappy_png_loading.py::TestColorQuantization::test_generate_frame_toml_without_quantization_many_colours_is_valid_toml`. Also: integer-packed pixels make it log an exception and return '' (pinned as current behaviour; decide whether packed pixels should be supported)
+- **Files**: `src/glitchygames/bitmappy/ai_manager.py`
+
+### 166. Changing a Scene's Background Colour Leaves Stale Pixels
+- **Description**: Setting `Scene.background_color` after the scene has rendered repaints only the areas sprites dirty; the rest of the display keeps the old colour
+- **Status**: Resolved (2026-10-31, bug sweep: both background setters call `all_sprites.repaint_rect(screen rect)`, so the next draw repaints the whole screen from the new background; the strict xfail in `tests/scenes/test_scene_rendering.py` is gone and a pattern-setter test was added)
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `tests/scenes/test_scene_rendering.py::TestSceneRenderingEdgeCases::test_scene_rendering_with_render_state_changes_manager`. (The screenshot half, black on displays with per-pixel alpha, was #142, resolved)
+- **Files**: `src/glitchygames/scenes/scene.py`
+
+### 168. Clicking a Film Strip's Empty Area Does Nothing in the Editor
+- **Description**: `FilmStripEventHandler.handle_click` (the parent-strip path) tests the strip-local click position against the widget's screen rect; strips sit right of the canvas (x=350), so the click never matches
+- **Status**: Resolved (2026-10-31, bug sweep: the parent-strip path in `FilmStripEventHandler.handle_click` tests the strip-local position against `pygame.Rect((0, 0), rect.size)`; both strict xfails in `test_bitmappy_film_strip_selection.py` are gone)
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `test_film_strip_selection.py::test_parent_strip_click_selects_itself`, `test_clicking_a_strips_empty_area_on_screen_selects_that_strip`
+- **Files**: `src/glitchygames/bitmappy/film_strip_events.py`
+
+### 170. The Film Strip Scroll Offset Goes Stale After Deleting an Animation
+- **Description**: The recomputation lives in `_handle_no_remaining_animations`, which `_delete_animation` never calls; deleting strip_3 of 3 leaves offset 1 with strip_1 selected but scrolled out of view (the old tests passed only because `on_sprite_loaded` was a Mock)
+- **Status**: Resolved (2026-10-31, bug sweep: `_select_animation_after_deletion` clamps the scroll offset to the last page and calls `scroll_to_current_animation()`; the dead `_handle_no_remaining_animations` (one animation always remains) and its tests are removed; the three strict xfails in `test_bitmappy_film_strips.py` are gone. Side note still open: `switch_to_film_strip` sets `current_frame` but not `selected_frame`)
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `test_delete_animation_scroll_offset_calculation`, `..._last_strip`, `..._many_strips`. Not pinned: `switch_to_film_strip` sets the strip's `current_frame` but not `selected_frame`; the `is_right_click` onion-skinning branch of `handle_click` cannot be reached from FilmStripSprite (right-clicks sample colour first), although CLAUDE.md says right-clicking frames toggles onion skinning
+- **Files**: `src/glitchygames/bitmappy/film_strip_coordinator.py`
+
+### 242. Bitmappy's AI Rewrite Dropped Every Color's Alpha and Wrote Text Unescaped
+- **Description**: `AIManager._construct_toml_with_preserved_formatting` rewrites a generated sprite before loading it. It wrote each color's red, green and blue but not `alpha`, so a see-through color loaded opaque; and it wrote `name`, `description`, palette keys and pixel rows unescaped, so a prompt containing `\` or `"""` broke the file.
+- **Status**: Resolved (2026-10-30, `feat/unified-pixel-rows`: `alpha` is written when present; text goes through `toml_basic_string`/`toml_multiline_basic_string` and rows through `toml_pixel_block`)
+- **Priority**: Medium
+- **Reporter**: Found planning the pixel-rows writer fix
+- **Date Reported**: 2026-10-30
+- **Details**: `test_ai_rewrite_keeps_alpha`, `test_ai_rewrite_escapes_name_description_and_rows` (`src/apps/bitmappy/tests/test_bitmappy_ai_manager.py`).
+- **Files**: `src/apps/bitmappy/src/bitmappy/ai_manager.py`
+
+### 241. `cobra.toml`'s Second Eye Had No Color
+- **Description**: The cobra's eye rows read `GEeG`, but its palette had `E` and no `e`, so one eye of each pair drew transparent.
+- **Status**: Resolved (2026-10-30, `feat/unified-pixel-rows`: `e` = (180, 30, 30), a darker shade of `E` as `g` is of `G`; the owner: "You go ahead and patch it")
+- **Priority**: Low
+- **Reporter**: Found by the pixel-rows audit; the strict repo check now catches any glyph missing from a palette
+- **Date Reported**: 2026-10-30
+- **Details**: `test_cobra_eye_has_a_color` (`src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus_sprite_files.py`).
+- **Files**: `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprites/cobra.toml`
+
+### 240. The AI Path Accepted Sprites Whose Rows Needed Repair
+- **Description**: `validate_ai_response` never checked pixel rows, so a generated sprite with ragged rows loaded silently repaired (by the old rules, which could cut art off) and was then saved that way.
+- **Status**: Resolved (2026-10-30, `feat/unified-pixel-rows`: `validate_ai_response` runs `pixel_row_problems`; Bitmappy checks the rows it will load, retries with an equal-widths correction, and loads the last attempt repaired, with a notice)
+- **Priority**: Medium
+- **Reporter**: Found by the pixel-rows adversarial review
+- **Date Reported**: 2026-10-30
+- **Files**: `src/glitchygames/ai/sprite_generator.py`, `src/apps/bitmappy/src/bitmappy/ai_manager.py`, `src/apps/bitmappy/src/bitmappy/ai_worker.py`
+
+### 239. Ragged Pixel Rows: Two Rules, One Cut Art Off, Neither Said So, and Saving Corrupted Rows
+- **Description**: Static sprites padded short rows with the sprite's most common glyph (a sword became a solid block); animation frames took the most common row length and cut longer rows (a sword lost its crossguard). Both only logged it, and Bitmappy saved the result. Separately, the writers put pixel rows into TOML unescaped: a row ending in a `\` glyph joined the next row, `a\bc` loaded as a backspace and `a\a` didn't load; palette keys were unescaped too.
+- **Status**: Resolved (2026-10-30, `feat/unified-pixel-rows`)
+- **Priority**: High (silent art loss)
+- **Reporter**: The owner asked to unify the two rules (2026-10-29); the adversarial review (2026-10-30) found the truncation loss and the writer bug
+- **Date Reported**: 2026-10-30
+- **Details**: One rule, `normalize_pixel_rows` (`src/glitchygames/sprites/pixel_utils.py`), for every loader and the QuickLook preview: nothing is cut off, short rows pad with transparent pixels, every repair is reported, and the repo check runs it strictly. `toml_pixel_block` escapes rows in every writer. The design's "Before and after" table records what each old rule drew (`docs/specs/2026-10-30-unified-pixel-rows-design.md`).
+- **Files**: `src/glitchygames/sprites/pixel_utils.py`, `src/glitchygames/sprites/animated.py`, `src/glitchygames/testing/sprite_files.py`, `src/quicklook/Sources/SpriteCore/PixelRows.swift`
+
+### 238. `ALL_EVENTS` Listed Type 0 Twice: 'Unknown' Was Patched Into the Key Code K_UNKNOWN
+- **Description**: `supported_events` (`src/glitchygames/events/base.py`) meant to drop the name pygame gives every id it does not name, `'Unknown'`, with `set(names) - set('Unknown')`; that subtracts the set of its letters, so `'Unknown'` stayed, and its patch (`'UNKNOWN': 'K_UNKNOWN'`) turned it into `pygame.K_UNKNOWN`, a key code (0). `ALL_EVENTS` held 0 twice: once as NOEVENT (pygame names id 0 `'NoEvent'`) and once as K_UNKNOWN. `GAME_EVENTS` is built from a set, so it held 0 once either way, and `GameEngine.EVENT_HANDLERS` was the same; the only effect was `SceneManager._log_blocked_events` naming `NoEvent` twice when it was blocked
+- **Status**: Resolved (2026-10-28, commit 7075a4cd: `- {'Unknown'}`; no recording holds a type-0 event, and `GAME_EVENTS` and the handler table are unchanged)
+- **Priority**: Low (a duplicate in a list; no dispatch or recording changed)
+- **Reporter**: Found making the event-name scan run once per process (`pygame_event_names`, feature/test-speed)
+- **Date Reported**: 2026-10-28
+- **Details**: Type 0 stays in `ALL_EVENTS` once, as NOEVENT: a name pygame gives, like every other listed type. `test_unknown_is_no_event_name_and_no_key_code_is_an_event_type` (`tests/events/test_events_core.py`) checks that `'Unknown'` is not among the names, that 0 is listed once and that no type is listed twice
+- **Files**: `src/glitchygames/events/base.py`, `tests/events/test_events_core.py`
+
+### 237. The Serial Suite's Container Peak Ran Past 1600 MiB: Tests' Class Instances, Uncollected Scenes, Replays Holding Whole Recordings
+- **Description**: With the memory guard (`tests/memory_guard.py`) reading the container's memory, page cache left out, a healthy `nox -s test-linux-ci` (CircleCI's Linux job mirrored: serial, 2 GB, 1 CPU) passed 1600 MiB: stopped at 1621 MiB at 63%, during Mr. Muncher's golden replay, and run to the end with a 2000 MiB limit it peaked at 1781 MiB. Four sources, each measured: (1) pytest keeps every test function's class instance for the whole run (pytest 9.1, `Function.instance`), so whatever a `setup_method` put on `self` stayed alive: after Bitmappy's tests 79 `BitmapEditorScene`s and 230 MiB of their surfaces, and the pytest process climbed to about 1.3 GB in the suite's last tests; (2) the garbage collector ran only when the process's peak grew 16 MiB, so later tests' scenes (cycles holding surfaces) piled up to whatever the peak had been; (3) a headless replay (`ReplaySources.from_path`) decoded its recording into independent frames, a copy of every sprite record per frame: Mr. Muncher's 73 KB golden was about 135 MiB of objects, its replay child 322 MiB beside pytest; `golden_recording` in `tests/replay/test_golden_replays.py` did the same in the pytest process; (4) the root-tests import scans (`tests/test_suite_collection.py`) held every parsed file of `tests/` at once (+112 MiB and +51 MiB to the process)
+- **Status**: Resolved (2026-10-28)
+- **Priority**: High (the Linux CI job's limit)
+- **Reporter**: Found investigating the memory guard's stop on PR #111
+- **Date Reported**: 2026-10-28
+- **Details**: Fixes: (1) the harness's `pytest_runtest_protocol` wrapper empties each finished test's class instance (`release_test_instance`, `tests/garbage_collection.py`; a `unittest.TestCase` is left to pytest), then runs the collector; 3 MiB of surfaces are left after Bitmappy's tests; (2) a second collection trigger, malloc's bytes in use (glibc `mallinfo2`, macOS `mstats`) grown 32 MiB since the last collection (Brave Adventurer's both-editions tests alone, macOS: 483 -> 353 MiB at the end, 33 collections, about 1 s); (3) `TraceReader`/`read_trace_result` take `share_records` (off by default): unchanged sprite records are one object across frames; the replay and the golden-replay checks read with it (Mr. Muncher's replay child 342 -> 191 MB on macOS; `test_golden_replays.py` peak 310 -> 177 MiB); a whole-suite run with every decoded record frozen found only test helpers that change records, and they read with copies; (4) the scans parse one file at a time (335 -> 144 MiB peak). The container's peak (the guard's figure, Docker, amd64 emulated on Apple silicon): 1781 MiB -> 1444 MiB with the same instrumentation (its sampler, about 20 MiB, counted in both), and 1409 MiB in a plain `nox -s test-linux-ci` at the 1600 MiB limit, which passed; the pytest process's own peak 1317 -> 895 MiB. What the guard still counts that is not the tests: about 290 MiB of reclaimable kernel slab (`memory.stat`'s `slab_reclaimable`: dentries and inodes from the checkout and the installs, flat from before the first test), which the kernel reclaims before it kills, and the `uvx` and `nox` parents (about 47 MiB of anonymous memory for `uvx` alone) that wait for pytest. Pattern to avoid: keeping a large object on a test class's `self` without a `teardown_method` deleting it; decoding a recording into independent frames when it is only read
+- **Files**: `tests/garbage_collection.py`, `tests/harness.py`, `tests/test_garbage_collection.py`, `src/glitchygames/tracing.py`, `src/glitchygames/replay/driver.py`, `tests/test_tracing.py`, `tests/world/test_gameplay_replay.py`, `tests/replay/test_golden_replays.py`, `tests/test_suite_collection.py`
+
+### 236. PaddleSlap, `game.paddle` and the Sprite API Set Log Levels at Import, So `--log-level warning` Still Logged INFO
+- **Description**: The siblings of #235. `src/games/paddleslap/src/paddleslap/__init__.py` called `logging.getLogger('game').setLevel(logging.INFO)` at import and `src/glitchygames/game_objects/paddle.py` set `game.paddle` to INFO; `src/glitchygames/api/main.py` called `logging.basicConfig(level=logging.INFO, ...)` at import, which sets the root logger's level and adds a standard-error handler. `--log-level` (the engine's `logging.basicConfig` in `GameEngine.initialize_arguments`) sets only the root's level, and does nothing at all once the root has a handler, so a PaddleSlap replay at `--log-level warning` (every replay tool's level) still logged INFO, and any process that imported the API, the test suite included (`tests/api/` imports it at collection), logged every logger's INFO records whatever its own level was
+- **Status**: Resolved (2026-10-28: none of them sets a level at import; the API configures its logging as its server starts, `configure_server_logging`, from `run()` and the app's lifespan. Follow-up the same day: Bitmappy's run-time levels and the `scripts/` demos too, and a source guard on every level setting)
+- **Priority**: Medium (a quiet run is not quiet; pytest keeps the extra records in memory, #235's failure at a lower rate)
+- **Reporter**: Found in Stage D's by-hand check (2026-10-27, `plans/future-work.md`) and by #235's investigation; the API's by the import guard below
+- **Date Reported**: 2026-10-28
+- **Details**: Two guards, each seen failing on these offenders first. `tests/replay/test_replays_log_quietly.py` replays every golden and bundled demo headless at the tools' level, counting every record the child creates by logger and level (`tests/logged_records.py`: a log-record factory, which leaves `basicConfig` alone), and fails naming each logger that emitted INFO or DEBUG records with its count: before the fix, PaddleSlap's golden emitted 81 (`game.engine` 37, `game.scenes` 36, `game.fonts` 3, `game.audio` 2, `game.joysticks` 2, `game.replay` 1) and its rally demo 60; every other golden emitted none. `game.paddle` emits nothing in a replay, so `tests/test_logger_levels_at_import.py` checks the levels themselves: a fresh interpreter imports every module of the engine and of each member and names each logger whose level an import set (it found all three: `glitchygames.api` set root to INFO with one handler, `glitchygames.game_objects` set `game.paddle` to INFO, `paddleslap` set `game` to INFO). A game that wants another default level sets it through `--log-level`, never with `setLevel` at import. Follow-up (2026-10-28): Bitmappy's `main()` set its logger to INFO and `MultiControllerErrorHandler.__init__` set `multi_controller` to the level it was given (INFO), at run time, after `--log-level`; seven `scripts/` demos set `game` to DEBUG or INFO at import (`scripts/raw_sprite_loader.py`, INFO, is imported by `tests/sprites/` at collection, so every run's `game.*` loggers logged INFO) and two called `logging.basicConfig` at import. None of them sets a level now. A third guard, `tests/test_logger_level_source_guard.py`, scans the engine, every member and `scripts/` and fails on any `.setLevel()` call and on a `logging.basicConfig()` that runs at import (outside a function and the `__main__` guard): the run-time settings the replay and import guards cannot reach
+- **Files**: `src/games/paddleslap/src/paddleslap/__init__.py`, `src/glitchygames/game_objects/paddle.py`, `src/glitchygames/api/main.py`, `src/apps/bitmappy/src/bitmappy/editor.py`, `src/apps/bitmappy/src/bitmappy/controllers/error_handling.py`, `scripts/` (nine demos), `tests/replay/test_replays_log_quietly.py`, `tests/test_logger_levels_at_import.py`, `tests/test_logger_level_source_guard.py`, `tests/logged_records.py`, `tests/api/test_api_main.py`
+
+### 235. Importing the Text Input Demo Set Every `game.*` Logger to DEBUG (the Serial Suite Outgrew 2 GB)
+- **Description**: `src/demos/text-input-demo/src/text_input_demo/__init__.py` called `logging.getLogger('game').setLevel(logging.DEBUG)` at import. `game` is the parent of every engine and game logger, so any process that imported the demo logged every `game.*` debug record whatever `--log-level` said. The test suite imports it at collection, so from the first test of every run the `game` logger was at DEBUG, and pytest's capture handlers (level 0) kept each test's records in memory until the test ended. `TestBulkWorkloadBenchmarks::test_bulk_assignment_and_indicators` (`src/apps/bitmappy/tests/test_bitmappy_benchmarks.py`) emits about 505,000 debug records per run (`VisualCollisionManager._update_collision_groups`), and in a serial run pytest-benchmark is on (xdist turns it off) and runs it 5 times: CircleCI's Linux job (`resource_class: small`, 2 GB, `PYTEST_WORKERS=0`) was killed (signal 9) in that test on PR #111 (jobs 2314 and 2316)
+- **Status**: Resolved (2026-10-28: the demo no longer sets a level; a test checks in a fresh interpreter that importing it leaves `game` at NOTSET)
+- **Priority**: High (the Linux CI job cannot pass)
+- **Reporter**: Found investigating PR #111's Linux failure
+- **Date Reported**: 2026-10-28
+- **Details**: Measured on macOS, serial, coverage on, `--log-cli-level=WARNING`, RSS recorded after every test: the run's peak was 4.71 GB, 1.72 GB before the benchmark and 4.71 GB during it. Alone with the demo imported, the benchmark peaked at 3.2 GB (148 MB without it) and `TestMultiControllerStress::test_bulk_assignment_and_indicator_outcomes`, the same work once, at 784 MB (152 MB). After the fix, the same serial run peaked at 1.54 GB (1.48 GB at the benchmark; the peak is reached late, in Bitmappy's wheel test), about 0.6 GB under 2 GB, and took 603 s instead of 667 s. macOS resident sizes, not Linux's: the Linux job is the check. Still at INFO from import: `paddleslap/__init__.py` sets `game` itself to INFO (the runs above show `game` at INFO once the demo stopped setting DEBUG), the same pattern at a lower cost. Pattern to avoid: a module setting a shared logger's level at import (`game.paddle` still sets its own logger to INFO, `src/glitchygames/game_objects/paddle.py`, so `--log-level warning` still shows its INFO lines; several `scripts/` demos set `game` to DEBUG but no test imports them)
+- **Files**: `src/demos/text-input-demo/src/text_input_demo/__init__.py`, `src/demos/text-input-demo/tests/test_text_input_demo.py`
+
+### 234. A Bitmappy Controller-Manager Test Depends on the Tests Before It
+- **Description**: `MultiControllerManager` (`src/apps/bitmappy/src/bitmappy/controllers/manager.py`, around lines 69-105) is a process-wide singleton: `__new__` returns the class's `_instance`, and `__init__` returns early once `_initialized` is set. `TestMultiControllerManager.setup_method` in `src/apps/bitmappy/tests/test_bitmappy_multi_controller.py` (around line 29) builds the manager with `MultiControllerManager()` and never resets it, so `test_initialization` (around line 33, asserting `controllers == {}`, `assigned_controllers == {}` and `next_controller_id == 0`) gets whatever instance an earlier test on the same pytest-xdist worker left, controllers included. The `editor` fixture in `src/apps/bitmappy/tests/conftest.py` (around line 21) resets `_instance` with `mocker.patch.object`, but only for its own test: the patch puts the old instance back afterwards. Expected: every test that builds a manager starts from a fresh one.
+- **Status**: Resolved (2026-10-27: an autouse fixture in Bitmappy's `conftest.py`, `fresh_controller_manager`, gives every Bitmappy test its own manager; seen again in the owner's `uv run pytest`, reproduced by running `test_bitmappy_benchmarks.py` (which connects four controllers) before `test_initialization`)
+- **Priority**: Low (test isolation only; the app uses one manager per process)
+- **Reporter**: Found by a Stage D implementer (workspace packages Part 3), 2026-10-26
+- **Date Reported**: 2026-10-26
+- **Details**: Seen once in `CI=true nox -s test` (it fails depending on test order); the test passes alone (3 of 3 runs) and passed on the rerun. Likely fix: reset `_instance` and `_initialized` in that class's `setup_method`, or in an autouse fixture in Bitmappy's `conftest.py` (with `mocker.patch.object`, as the `editor` fixture does), and check the other test classes that build a manager directly.
+- **Files**: `src/apps/bitmappy/src/bitmappy/controllers/manager.py`, `src/apps/bitmappy/tests/test_bitmappy_multi_controller.py`, `src/apps/bitmappy/tests/conftest.py`
+
+### 229. Brave Adventurer Sets `_was_airborne` and Never Reads It
+- **Description**: `BraveAdventurerScene.__init__` (`src/games/brave-adventurer/src/brave_adventurer_core/scene.py`, around line 193) sets `self._was_airborne = False`, commented "for land sound", but nothing reads it: no landing sound is played from it
+- **Status**: Resolved (2026-10-31: the landing sound already played, from the local `was_airborne_before` in `dt_tick` (since #91); the attribute was a leftover and is removed. No audio change, so the goldens are untouched. `TestLandingSound` in `tests/classic/test_brave_adventurer_classic.py` pins one `play_land` per touchdown and none while standing)
+- **Priority**: Low
+- **Reporter**: Found sharing the two games' scenes (workspace packages Part 2, Task 6)
+- **Date Reported**: 2026-10-25
+- **Details**: Predates the move. Either remove it or play the landing sound it was meant for; playing a sound changes the audio a recording holds, so a fix needs the golden replays re-checked. Not fixed on the branch for that reason. Also noted in `plans/future-features.md` (#56, Part 2 leftovers)
+- **Files**: `src/games/brave-adventurer/src/brave_adventurer_core/scene.py`
+
+### 221. tests/test_logging.py Inserts a Path That Never Existed Into sys.path
+- **Description**: `tests/test_logging.py:13` runs `sys.path.insert(0, str(Path(__file__).parent / 'glitchygames'))`, which is `tests/glitchygames`, a directory that has never existed. Dead code (and, were a `tests/glitchygames` ever created, it would shadow the engine)
+- **Status**: Resolved (2026-10-31, bug sweep: `tests/test_logging.py` no longer inserts any path; it imports neither `sys` nor `Path`)
+- **Priority**: Low
+- **Reporter**: The documentation task of plans/2026-10-24-workspace-packages-1-foundation.md
+- **Date Reported**: 2026-10-25
+- **Files**: `tests/test_logging.py`
+- **Solution**: Delete the line and the `sys`/`Path` imports if nothing else uses them
+
+### 134. A HashableEvent's Own Hash Shows Up as One of Its Attributes
+- **Description**: `HashableEvent` stores its hash in `__dict__` (`_HashableEvent__hash`), so `len()`, iteration, `keys()` and `repr` include it: `len(HashableEvent(KEYDOWN, key=1)) == 3`
+- **Status**: Resolved (2026-10-31, bug sweep: fixed under #179; the hash lives in a slot, `__slots__ = ('_content_hash',)` in `src/glitchygames/events/base.py`)
+- **Priority**: Low
+- **Reporter**: Found by the 100% coverage audit
+- **Date Reported**: 2026-10-22
+- **Files**: `src/glitchygames/events/base.py:339`
+
+### 161. Middle and Right Mouse Drags Never Reach a Scene
+- **Description**: The mouse event proxy calls the game's `on_middle_mouse_drag_down_event` / `on_right_mouse_drag_down_event`, which a Scene does not have (it has `on_middle_mouse_drag_event` / `on_right_mouse_drag_event`), so through the engine these drags become missing events and never reach a scene or its sprites
+- **Status**: Resolved (2026-10-31, bug sweep: fixed in fab884c1 (#96); `src/glitchygames/events/mouse.py` routes middle and right drags and drops to `on_middle_mouse_drag_event` / `on_right_mouse_drag_event` and the drop handlers, and `tests/events/test_mouse_events.py` pins it without an xfail. Whether buttons 4/5 should map to scroll is a separate question)
+- **Priority**: Medium
+- **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
+- **Date Reported**: 2026-10-22
+- **Details**: Pinned: `tests/events/test_mouse_events.py::TestMouseEventProxyDragEvent::test_middle_and_right_drags_reach_a_plain_scenes_drag_handler`. Related, latent: the proxy's drop handlers call `on_*_mouse_drag_up_event` instead of `on_*_mouse_drop_event` (pinned: `TestMouseEventProxyDropEvent`). Possibly intended: buttons 4/5 map to scroll down/up
+- **Files**: `src/glitchygames/events/mouse.py`
+
+### 73. PaddleSlap Sets the `game` Logger to INFO at Import, Overriding `--log-level`
+- **Description**: `src/games/paddleslap/src/paddleslap/__init__.py:50-51` calls `logging.getLogger('game').setLevel(logging.INFO)` when the module is imported (and `src/glitchygames/game_objects/paddle.py:18-19` does the same for `game.paddle`). The level set on the `game` logger wins over the root level `--log-level` configures, so `--log-level warning` or `error` still prints every `game.*` INFO line when PaddleSlap runs
+- **Status**: Resolved (2026-10-31, bug sweep: fixed by #236 on 2026-10-28; nothing in `src/` sets a level at import, guarded by `tests/test_logger_level_source_guard.py` and `tests/test_logger_levels_at_import.py`)
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (replay core, Task 14: the `--audit` children of the PaddleSlap golden replay printed INFO lines under `--log-level error`)
+- **Date Reported**: 2026-10-19
+- **Details**: Not fixed here: removing the module-level `setLevel` calls changes what PaddleSlap logs by default for other `game.*` loggers if anything else lowers the root level, and needs checking against the other examples that may do the same. `--log-level` defaults to `info`, so only runs that ask for a quieter level are affected. Re-checked 2026-10-26 after PaddleSlap's move to its own package: still applies. Both calls are where the description says, and `GameEngine` still sets only the root level (`logging.basicConfig(level=args.log_level.upper())`, `src/glitchygames/engine/game_engine.py` around line 901). The others that do the same today: `src/glitchygames/bitmappy/editor.py` (around line 1543, INFO) and `src/demos/text-input-demo/src/text_input_demo/__init__.py` (line 21, DEBUG)
+- **Files**: `src/games/paddleslap/src/paddleslap/__init__.py`, `src/glitchygames/game_objects/paddle.py`
+
+### 83. Keys a Layout Adds Without a pygame `K_*` Constant Are Not Replayed on Another Layout
+- **Description**: Recordings now hold the key codes the held keys had (`held_key_codes`), so a replay on another keyboard layout answers `key_pressed(K_*)` as recorded. Only pygame's named `K_*` codes are recorded (`glitchygames.input.state.NAMED_KEY_CODES`): a key code a layout adds that pygame names no constant for (say a Unicode letter key) is never reported held in a replay, even on the recording machine
+- **Status**: Won't fix (2026-10-31, bug sweep: pygame has no scancode-to-keycode lookup; the limitation is documented in `docs/architecture/gameplay_replay.md`)
+- **Priority**: Low
+- **Reporter**: Found on feature/gameplay-replay (final review fixes, item A4)
+- **Date Reported**: 2026-10-20
+- **Details**: pygame exposes key code to scancode (through a ScancodeWrapper) but not scancode to key code, so the held keys can only be named by trying every known key code. Documented for game authors in `docs/architecture/gameplay_replay.md` (Polled input): handle such keys through events or by position (`scancode_pressed`, `ActionMap.bind(scancode=...)`), not by polling their key code
+- **Files**: `src/glitchygames/input/state.py`
+
+### 186. Smaller Findings From the Typed Events
+- **Description**: Findings from `plans/2026-10-22-typed-events.md` (typed, immutable events), none breaking a feature on its own
+- **Status**: Resolved (2026-10-31, bug sweep: items 1-4 are fixed; items 5-9 are kept below as a record only, no action planned)
+- **Priority**: Low
+- **Reporter**: Found implementing the typed events
+- **Date Reported**: 2026-10-22
+- **Details**: Fixed 2026-10-22: items 1-4. (1) Bitmappy's joystick hat handler (`bitmappy/controllers/event_handler.py` `on_joy_hat_motion_event`) compared the hat's value with integer bitmasks (1, 2, 4, 8), but pygame always reports a hat as an `(x, y)` tuple, so no direction was ever recognised (each is disabled anyway, so only its debug log changes); the `JOYSTICK_HAT_*` constants are now tuples, `JOYSTICK_HAT_UP` added. (2) `HashableEvent | mapping` (and `mapping | event`) raised AttributeError: UserDict's `|` read `self.data`, which the class never sets; it now builds a changed copy. (3) `MultiLineTextBox`'s click handler computed its line height itself, falling back to `self.font.size` unrounded (a freetype font's float size; the bound `size()` method for a pygame font without `get_linesize`); it uses `_get_line_height()`. (4) `SliderManager.on_slider_event` wrote the clamped value back into its trigger event, which nothing read (removed: events are immutable). Kept for the record: (5) pygame-ce gives `CONTROLLERSENSORUPDATE` no fields at all (its `dict_from_event` has no case for it), so a real sensor event has no `instance_id`: `InputDevices.dispatches` drops it (an input event naming no device), so sensor updates never reach a game, and the interfaces' comments promise `instance_id, sensor, data` (`events/input_event_interfaces.py`; the engine never enables sensors today). (6) Sprite rects are typed `FRect | Rect` (pygame's `DirtySprite` stubs), so a click's position minus `self.rect.x` is `float | int` to the type checker; the widgets' rects are Rects, and `int()` now says so (`film_strip_sprite.py`, `animated_canvas.py`, `ui/text_widgets.py`, `ui/sliders.py`; type-only). (7) A typed class's undeclared names still read as `Any` through `HashableEvent.__getattr__` (kept on the base for custom events), so a typo such as `event.poss` is not caught; a base without `__getattr__` for the typed classes would catch it but needs every generic `HashableEvent` reader typed. (8) pygame-ce's documentation lists `which` for MOUSEWHEEL and `clicks` for MOUSEBUTTONDOWN/UP, but its `dict_from_event` (2.5.6) sets neither, so they are not declared. (9) `HashableEvent.__setstate__` with another type's state keeps the event's class (only pickling calls it, always with its own class's state)
+- **Files**: see Details
 
 ### 223. Importing scripts/gen_ref_pages.py Rewrote docs/
 - **Description**: `scripts/gen_ref_pages.py` did all its work at module level, through

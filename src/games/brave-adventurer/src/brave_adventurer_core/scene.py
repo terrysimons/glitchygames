@@ -189,9 +189,6 @@ class BraveAdventurerSceneBase(Scene):
         # Sound effects (generated from waveforms, initialized in setup)
         self.sounds = GameSounds()
 
-        # Track whether player was airborne last frame (for land sound)
-        self._was_airborne: bool = False
-
         # HUD font
         self.hud_font: pygame.font.Font | None = None
 

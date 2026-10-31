@@ -346,3 +346,33 @@ class TestRunningOffALedgeFalls:
         player.state_machine.evaluate(RUNNING_OFF_A_LEDGE_CONTEXT)
 
         assert player.state_machine.current_state == Player.FALLING
+
+
+class TestLandingSound:
+    """Touching down after a fall plays the landing sound once (BUGS.md #229)."""
+
+    def _settle_on_the_ground(self, scene):
+        for _ in range(30):
+            scene.dt_tick(FRAME_SECONDS)
+        assert scene.player.on_ground
+
+    def test_landing_after_a_fall_plays_land_once(self, brave_scene):
+        self._settle_on_the_ground(brave_scene)
+        brave_scene.sounds.reset_mock()
+        brave_scene.player.velocity_y = 0.0
+        brave_scene.player.world_y -= 40  # Lift into the air
+
+        for _ in range(60):
+            brave_scene.dt_tick(FRAME_SECONDS)
+
+        assert brave_scene.player.on_ground
+        assert brave_scene.sounds.play_land.call_count == 1
+
+    def test_standing_still_never_plays_land(self, brave_scene):
+        self._settle_on_the_ground(brave_scene)
+        brave_scene.sounds.reset_mock()
+
+        for _ in range(60):
+            brave_scene.dt_tick(FRAME_SECONDS)
+
+        brave_scene.sounds.play_land.assert_not_called()

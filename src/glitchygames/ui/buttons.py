@@ -158,6 +158,8 @@ class ButtonSprite(BitmappySprite):
 
         """
         self.background_color = self.active_color
+        # The label covers the button, so it carries the button's color (BUGS.md #165)
+        self.text.background_color = self.background_color
         super().on_left_mouse_button_down_event(event)
         self.dirty = 1
 
@@ -170,6 +172,8 @@ class ButtonSprite(BitmappySprite):
 
         """
         self.background_color = self.inactive_color
+        # The label covers the button, so it carries the button's color (BUGS.md #165)
+        self.text.background_color = self.background_color
         super().on_left_mouse_button_up_event(event)
         self.dirty = 1
 
@@ -240,4 +244,7 @@ class CheckboxSprite(ButtonSprite):
 
         """
         self.checked = not self.checked
+        # The base handlers dispatch the on_left_mouse_button_up_event callback, so a callback
+        # can react to the toggle (BUGS.md #165)
+        super().on_left_mouse_button_up_event(event)
         self.dirty = 1

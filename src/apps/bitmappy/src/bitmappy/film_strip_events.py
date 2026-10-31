@@ -160,8 +160,10 @@ class FilmStripEventHandler:  # ruff: ignore[too-many-public-methods]
         if preview_click:
             return preview_click
 
-        # Check if clicking on the parent strip itself (outside of frames, labels, and preview)
-        if self.widget.rect.collidepoint(pos):
+        # Check if clicking on the parent strip itself (outside of frames, labels, and preview).
+        # pos is strip-local, so it is tested against the strip's own size, not its screen rect
+        # (BUGS.md #168)
+        if pygame.Rect((0, 0), self.widget.rect.size).collidepoint(pos):
             # Click is within the film strip widget but not on any specific element
             # This means the user clicked on the parent strip itself
             strip_animation = (
