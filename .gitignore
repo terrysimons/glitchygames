@@ -209,3 +209,6 @@ src/glitchygames/_build_info.json
 src/quicklook/.build/
 src/quicklook/.swiftpm/
 src/quicklook/App/SpritePreview.xcodeproj/
+
+# Claude Code's git worktrees: checkouts of other branches, not this branch's files
+.claude/worktrees/
