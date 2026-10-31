@@ -17,6 +17,7 @@ from scripts import replay_schedule
 from scripts.replay_schedule import (
     RecordingSchedule,
     ScheduledTick,
+    inner_frame_seconds,
     main,
     recorded_frame_seconds,
     simulate_schedule,
@@ -335,7 +336,14 @@ def schedule_from_ticks(
                 tick_index=tick_index,
                 seconds=tick_index * CONTROL_TICK_SECONDS,
                 frames_run=frames_run,
-                frames_ran_behind=tuple(frame in behind_frames for frame in frames_run),
+                owed_before_seconds=tuple(
+                    (
+                        inner_frame_seconds(frame_seconds=frame_seconds, frame_index=frame)
+                        + (speed * CONTROL_TICK_SECONDS if frame in behind_frames else 0.0)
+                    )
+                    for frame in frames_run
+                ),
+                viewer_reported_behind=tuple(frame in behind_frames for frame in frames_run),
                 accumulated_seconds=0.0,
             )
             for tick_index, frames_run in enumerate(frames_by_tick)
@@ -414,7 +422,9 @@ def every_extra_frame_ran_behind(*, schedule: RecordingSchedule) -> bool:
         True when so (vacuously for a schedule with no such frame).
 
     """
-    return all(all(tick.frames_ran_behind[1:]) for tick in schedule.ticks)
+    return all(
+        schedule.ran_behind(frame=frame) for tick in schedule.ticks for frame in tick.frames_run[1:]
+    )
 
 
 def test_a_long_60_01_fps_recording_passes_its_unshown_frames_behind():
@@ -505,3 +515,48 @@ def test_twice_the_speed_skips_steady_frames_by_design():
 
     assert schedule.hidden == ()
     assert schedule.skipped_by_design == (1, 3, 5)
+
+
+def test_the_tool_derives_behind_from_the_schedule_itself():
+    """Owed before each frame run, the tool's own condition: owed >= frame + speed x tick."""
+    schedule = simulate_schedule(frame_seconds=FAST_FRAME_SECONDS, speed=1.0)
+
+    for tick in schedule.ticks:
+        for frame, owed_seconds in zip(tick.frames_run, tick.owed_before_seconds, strict=True):
+            duration_seconds = inner_frame_seconds(
+                frame_seconds=schedule.frame_seconds, frame_index=frame
+            )
+            assert schedule.ran_behind(frame=frame) == (
+                owed_seconds >= duration_seconds + CONTROL_TICK_SECONDS
+            )
+    assert schedule.behind_disagreements == ()
+
+
+def without_the_speed_in_owes_beyond_a_tick(
+    viewer: ReplayViewer, *, inner_frame_seconds: float
+) -> bool:
+    """A broken behind condition: a whole real tick of inner time, not the speed times it.
+
+    Returns:
+        True when the accumulator holds the frame plus CONTROL_TICK_SECONDS.
+
+    """
+    return viewer.accumulated_seconds >= inner_frame_seconds + CONTROL_TICK_SECONDS
+
+
+def test_a_behind_condition_without_the_speed_fails_at_half_speed(mocker, tmp_path, capsys):
+    """At 0.5x the viewer's flag then disagrees with the tool's own condition: a failure."""
+    mocker.patch.object(
+        ReplayViewer,
+        '_owes_beyond_a_tick',
+        autospec=True,
+        side_effect=without_the_speed_in_owes_beyond_a_tick,
+    )
+    path = write_recording(path=tmp_path / 'fast.jsonl.gz', frame_seconds=FAST_FRAME_SECONDS)
+
+    exit_code = main(arguments=[str(path), '--speed', '0.5'])
+
+    output = capsys.readouterr().out
+    assert exit_code == ExitCode.REPLAY_DIVERGED
+    assert '  viewer disagrees on behind: none' not in output
+    assert '  viewer disagrees on behind: ' in output

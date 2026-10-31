@@ -24,16 +24,19 @@ gives them (glitchygames/replay/driver.py, rule 4).
 
 A frame is never presented when a later frame ran in the same tick. A frame may go unshown only
 when the replay was genuinely behind: it is hidden (a failure) when the extra frame right after
-it in that tick ran while the replay was NOT behind (``ReplayViewer.last_inner_frame_ran_behind``:
-the viewer's own condition, the accumulator owing the frame plus a whole tick of inner time,
-read for every frame it runs whether or not rule 2's one-frame limit applied). Otherwise it is
-skipped by design: a recording faster than the tick, a stall's catch-up, the 60.01 FPS rate
-mismatch. Above 1x no frame is hidden: fast-forward runs several frames a tick by design, and
-their extra frames are not behind by that condition (a tick owes speed times a tick), so frames
-not presented are reported as skipped and the recording passes. The last frame is presented by
-the tick that runs it; a recording that quits in its last frame ends the real run there, so that
-frame is not shown in a real replay, which this does not model. Frame 0 runs behind the start
-screen's message.
+it in that tick ran while the replay was NOT behind. The tool decides behind itself, from the
+schedule and its own constant, never from the viewer's helper (which rule 2's limit is built on,
+so a broken helper would hide frames and call them behind): the inner time owed before a frame
+(the viewer's accumulator after allowing it, plus its duration) is at least the frame's duration
+plus a whole tick of inner time (the speed times ``CONTROL_TICK_SECONDS``). The viewer's own
+report (``ReplayViewer.last_inner_frame_ran_behind``) is a cross-check: a frame it disagrees on
+is a failure too. Otherwise a frame not presented is skipped by design: a recording faster than
+the tick, a stall's catch-up, the 60.01 FPS rate mismatch. Above 1x no frame is hidden:
+fast-forward runs several frames a tick by design, and their extra frames are not behind by that
+condition (a tick owes speed times a tick), so frames not presented are reported as skipped and
+the recording passes. The last frame is presented by the tick that runs it; a recording that
+quits in its last frame ends the real run there, so that frame is not shown in a real replay,
+which this does not model. Frame 0 runs behind the start screen's message.
 
 Output per recording: each tick's time, the frames it ran and the accumulator after it; the
 hidden frames and the ones skipped by design; every frame's recorded dt in milliseconds.
@@ -41,12 +44,12 @@ hidden frames and the ones skipped by design; every frame's recorded dt in milli
 frames and shortest and longest dt.
 
 Exit codes (glitchygames/exit_codes.py): ``SUCCESS`` when no recording hides a frame;
-``REPLAY_DIVERGED`` when some frame is hidden (the watched replay's sequence of shown
-frames differs from the recording's: the replay check's failure, not an engine error, and no
-other member names a failed check of a recording); ``MISSING_INPUT`` for a recording that does
-not exist; ``UNUSABLE_INPUT`` for one that cannot be read (not a trace, a directory, no frames,
-a frame without a numeric dt). Every recording is reported; the exit code is the first
-failure's. A speed outside the viewer's range is argparse's usage error.
+``REPLAY_DIVERGED`` when some frame is hidden or the viewer disagrees on behind (the watched
+replay's sequence of shown frames differs from the recording's: the replay check's failure, not
+an engine error, and no other member names a failed check of a recording); ``MISSING_INPUT`` for
+a recording that does not exist; ``UNUSABLE_INPUT`` for one that cannot be read (not a trace, a
+directory, no frames, a frame without a numeric dt). Every recording is reported; the exit code
+is the first failure's. A speed outside the viewer's range is argparse's usage error.
 
 Usage:
     uv run python -m scripts.replay_schedule PATH [PATH ...] [--speed X] [--summary]
@@ -55,6 +58,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import functools
 import sys
 from pathlib import Path
 from typing import Self
@@ -69,6 +73,10 @@ from glitchygames.replay.viewer import ReplayViewer
 from glitchygames.tracing import FRAMES_FIELD, TraceFormatError, read_trace_result
 
 MILLISECONDS_PER_SECOND = 1000.0
+# The owed time before a frame is read back as the accumulator after it plus its duration, which
+# may round by a few ulps: within this of the behind threshold the tool counts the frame behind,
+# and never counts a disagreement with the viewer's report
+BEHIND_TOLERANCE_SECONDS = 1e-9
 
 
 class UnusableRecordingError(ValueError):
@@ -82,9 +90,12 @@ class ScheduledTick(BaseModel):
         tick_index: The tick's number (0 is the first, at the start screen).
         seconds: The tick's time on the ideal clock.
         frames_run: The recorded frames it ran, in order (it presents the last).
-        frames_ran_behind: For each frame run, whether it ran while the replay was behind
-            (``ReplayViewer.last_inner_frame_ran_behind``: the accumulator owed the frame plus
-            a whole tick of inner time).
+        owed_before_seconds: For each frame run, the inner time the viewer owed just before
+            it ran (its accumulator after allowing the frame, plus the frame's duration): what
+            the tool's own behind condition reads (``RecordingSchedule.ran_behind``).
+        viewer_reported_behind: For each frame run, the viewer's own report of whether it ran
+            behind (``ReplayViewer.last_inner_frame_ran_behind``), kept only as a cross-check
+            (``RecordingSchedule.behind_disagreements``).
         accumulated_seconds: The accumulator after the tick.
 
     """
@@ -94,7 +105,8 @@ class ScheduledTick(BaseModel):
     tick_index: int
     seconds: float
     frames_run: tuple[int, ...]
-    frames_ran_behind: tuple[bool, ...]
+    owed_before_seconds: tuple[float, ...]
+    viewer_reported_behind: tuple[bool, ...]
     accumulated_seconds: float
 
 
@@ -119,26 +131,119 @@ class RecordingSchedule(BaseModel):
         """The frames that ran in a tick where a later frame ran too, in order."""
         return tuple(frame for tick in self.ticks for frame in tick.frames_run[:-1])
 
+    def duration_seconds(self: Self, *, frame: int) -> float:
+        """Return how long a frame lasted when recorded (its next frame's dt; rule 4).
+
+        Returns:
+            Seconds.
+
+        """
+        return inner_frame_seconds(frame_seconds=self.frame_seconds, frame_index=frame)
+
+    def _behind_threshold_seconds(self: Self, *, frame: int) -> float:
+        """Return what the replay must owe before a frame to be behind: the frame plus a tick.
+
+        The tool's own condition, written here and never taken from the viewer: the frame's
+        recorded duration plus a whole tick of inner time (the speed times
+        ``CONTROL_TICK_SECONDS``).
+
+        Returns:
+            Seconds.
+
+        """
+        return self.duration_seconds(frame=frame) + self.speed * CONTROL_TICK_SECONDS
+
+    def _frames_with_owed(self: Self) -> list[tuple[int, float, bool]]:
+        """Return every frame run with the inner time owed before it and the viewer's report.
+
+        Returns:
+            ``(frame, owed seconds, viewer reported behind)``, in order.
+
+        """
+        return [
+            entry
+            for tick in self.ticks
+            for entry in zip(
+                tick.frames_run,
+                tick.owed_before_seconds,
+                tick.viewer_reported_behind,
+                strict=True,
+            )
+        ]
+
+    def ran_behind(self: Self, *, frame: int) -> bool:
+        """Whether a frame ran while the replay was behind, by the tool's own condition.
+
+        Behind: the inner time owed before it is at least the frame plus a tick of inner time
+        (``BEHIND_TOLERANCE_SECONDS`` absorbs the rounding of reading the owed time back).
+
+        Returns:
+            True when behind; False for a frame that never ran.
+
+        """
+        owed_seconds = self._owed_before_by_frame.get(frame)
+        if owed_seconds is None:
+            return False
+        return self._owes_beyond_a_tick(frame=frame, owed_seconds=owed_seconds)
+
+    @functools.cached_property
+    def _owed_before_by_frame(self: Self) -> dict[int, float]:
+        """The inner time owed before each frame run, by frame (read once).
+
+        Returns:
+            Seconds by frame.
+
+        """
+        return {frame: owed_seconds for frame, owed_seconds, _ in self._frames_with_owed()}
+
+    def _owes_beyond_a_tick(self: Self, *, frame: int, owed_seconds: float) -> bool:
+        """The tool's behind condition for a frame owing ``owed_seconds`` before it ran.
+
+        Returns:
+            True when behind.
+
+        """
+        threshold_seconds = self._behind_threshold_seconds(frame=frame)
+        return owed_seconds >= threshold_seconds - BEHIND_TOLERANCE_SECONDS
+
+    @property
+    def behind_disagreements(self: Self) -> tuple[int, ...]:
+        """The frames the viewer's own behind report disagrees on with the tool's (a failure).
+
+        Frames owing within ``BEHIND_TOLERANCE_SECONDS`` of the threshold are left out (the
+        owed time read back may round either way there).
+        """
+        return tuple(
+            frame
+            for frame, owed_seconds, viewer_reported in self._frames_with_owed()
+            if viewer_reported != self._owes_beyond_a_tick(frame=frame, owed_seconds=owed_seconds)
+            and abs(owed_seconds - self._behind_threshold_seconds(frame=frame))
+            > BEHIND_TOLERANCE_SECONDS
+        )
+
     @property
     def hidden(self: Self) -> tuple[int, ...]:
         """The frames never presented that the replay hid while not behind (a failure).
 
         A frame is never presented when a later frame ran in the same tick; it is hidden when
         the frame right after it in that tick (the extra frame that hid it) ran while the replay
-        was NOT behind (``ScheduledTick.frames_ran_behind``, the viewer's own condition). Up to
-        1x only: above it a tick runs several frames by design (fast-forward presents the last),
-        and those extra frames are not behind by that condition, so none counts.
+        was NOT behind, by the tool's own condition (``ran_behind``). Up to 1x only: above it a
+        tick runs several frames by design (fast-forward presents the last), and those extra
+        frames are not behind by that condition, so none counts.
         """
         if self.speed > 1:
             return ()
-        return tuple(
-            frame
-            for tick in self.ticks
-            for frame, extra_frame_ran_behind in zip(
-                tick.frames_run[:-1], tick.frames_ran_behind[1:], strict=True
-            )
-            if not extra_frame_ran_behind
-        )
+        hidden_frames: list[int] = []
+        for tick in self.ticks:
+            for frame, extra_frame, extra_owed_seconds in zip(
+                tick.frames_run[:-1],
+                tick.frames_run[1:],
+                tick.owed_before_seconds[1:],
+                strict=True,
+            ):
+                if not self._owes_beyond_a_tick(frame=extra_frame, owed_seconds=extra_owed_seconds):
+                    hidden_frames.append(frame)
+        return tuple(hidden_frames)
 
     @property
     def skipped_by_design(self: Self) -> tuple[int, ...]:
@@ -149,6 +254,11 @@ class RecordingSchedule(BaseModel):
         """
         hidden = set(self.hidden)
         return tuple(frame for frame in self.never_presented if frame not in hidden)
+
+    @property
+    def fails(self: Self) -> bool:
+        """True when a frame is hidden or the viewer disagrees on whether one ran behind."""
+        return bool(self.hidden or self.behind_disagreements)
 
 
 class IdealClock:
@@ -250,7 +360,8 @@ def simulate_schedule(*, frame_seconds: tuple[float, ...], speed: float) -> Reco
             and not (controls.awaiting_start or controls.paused),
         )
         frames_run: list[int] = []
-        frames_ran_behind: list[bool] = []
+        owed_before_seconds: list[float] = []
+        viewer_reported_behind: list[bool] = []
         while viewer.should_run_inner_frame(
             inner_frame_seconds=inner_frame_seconds(
                 frame_seconds=frame_seconds, frame_index=frame_index
@@ -259,14 +370,19 @@ def simulate_schedule(*, frame_seconds: tuple[float, ...], speed: float) -> Reco
             is_first_inner_frame=frame_index == 0,
         ):
             frames_run.append(frame_index)
-            frames_ran_behind.append(viewer.last_inner_frame_ran_behind)
+            owed_before_seconds.append(
+                viewer.accumulated_seconds
+                + inner_frame_seconds(frame_seconds=frame_seconds, frame_index=frame_index)
+            )
+            viewer_reported_behind.append(viewer.last_inner_frame_ran_behind)
             frame_index += 1
         ticks.append(
             ScheduledTick(
                 tick_index=len(ticks),
                 seconds=now,
                 frames_run=tuple(frames_run),
-                frames_ran_behind=tuple(frames_ran_behind),
+                owed_before_seconds=tuple(owed_before_seconds),
+                viewer_reported_behind=tuple(viewer_reported_behind),
                 accumulated_seconds=viewer.accumulated_seconds,
             )
         )
@@ -308,21 +424,31 @@ def summary_line(*, name: str, schedule: RecordingSchedule) -> str:
         f'skipped by design: {frame_list(frames=schedule.skipped_by_design)}, '
         f'dt min {milliseconds(seconds=min(schedule.frame_seconds))} '
         f'max {milliseconds(seconds=max(schedule.frame_seconds))}'
+        f'{disagreement_note(schedule=schedule)}'
     )
 
 
-def behind_note(*, tick: ScheduledTick) -> str:
+def disagreement_note(*, schedule: RecordingSchedule) -> str:
+    """Return the frames the viewer's behind report disagrees on, for the summary line.
+
+    Returns:
+        ``', viewer disagrees on behind: 5, 6'``, or nothing when it agrees on every frame.
+
+    """
+    disagreements = schedule.behind_disagreements
+    if not disagreements:
+        return ''
+    return f', viewer disagrees on behind: {frame_list(frames=disagreements)}'
+
+
+def behind_note(*, schedule: RecordingSchedule, tick: ScheduledTick) -> str:
     """Return the frames a tick ran while the replay was behind, for its detail line.
 
     Returns:
-        ``'; behind: 5, 6'``, or nothing when none did.
+        ``'; behind: 5, 6'`` (the tool's own condition), or nothing when none did.
 
     """
-    behind_frames = tuple(
-        frame
-        for frame, ran_behind in zip(tick.frames_run, tick.frames_ran_behind, strict=True)
-        if ran_behind
-    )
+    behind_frames = tuple(frame for frame in tick.frames_run if schedule.ran_behind(frame=frame))
     return f'; behind: {frame_list(frames=behind_frames)}' if behind_frames else ''
 
 
@@ -338,7 +464,7 @@ def detail_lines(*, name: str, schedule: RecordingSchedule) -> list[str]:
         f'  tick {tick.tick_index} ({milliseconds(seconds=tick.seconds)}): '
         f'ran {", ".join(str(frame) for frame in tick.frames_run) or "nothing"}; '
         f'accumulator {milliseconds(seconds=tick.accumulated_seconds)}'
-        f'{behind_note(tick=tick)}'
+        f'{behind_note(schedule=schedule, tick=tick)}'
         for tick in schedule.ticks
     )
     lines.extend((
@@ -347,6 +473,7 @@ def detail_lines(*, name: str, schedule: RecordingSchedule) -> list[str]:
             '  skipped by design (the replay was behind, or above 1x): '
             f'{frame_list(frames=schedule.skipped_by_design)}'
         ),
+        f'  viewer disagrees on behind: {frame_list(frames=schedule.behind_disagreements)}',
         '  recorded dt:',
     ))
     lines.extend(
@@ -384,7 +511,7 @@ def schedule_recording(*, path: Path, speed: float, summary: bool) -> ExitCode:
         else detail_lines(name=name, schedule=schedule)
     )
     sys.stdout.write('\n'.join(lines) + '\n')
-    return ExitCode.REPLAY_DIVERGED if schedule.hidden else ExitCode.SUCCESS
+    return ExitCode.REPLAY_DIVERGED if schedule.fails else ExitCode.SUCCESS
 
 
 def viewer_speed(value: str) -> float:
