@@ -424,8 +424,13 @@ class SliderManager:
             slider.text_sprite.update_text(slider.text_sprite.text)
 
     def _initialize_slider_values(self) -> None:
-        """Start the editor's color at opaque black."""
-        self.apply_color(red=0, green=0, blue=0, alpha=MAX_COLOR_VALUE)
+        """Start the editor's color at opaque white: every slider at its maximum.
+
+        The owner asked for white on 2026-10-30; it used to start at opaque black.
+        """
+        self.apply_color(
+            red=MAX_COLOR_VALUE, green=MAX_COLOR_VALUE, blue=MAX_COLOR_VALUE, alpha=MAX_COLOR_VALUE
+        )
 
     def channel_sliders(self) -> tuple[SliderSprite, ...]:
         """Return the editor's channel sliders that exist, in R, G, B, A order.

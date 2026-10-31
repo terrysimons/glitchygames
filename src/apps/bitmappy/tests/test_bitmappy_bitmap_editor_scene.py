@@ -227,28 +227,28 @@ class TestInitializeSliderValues:
     """Tests for SliderManager._initialize_slider_values()."""
 
     def test_sets_default_slider_values(self, mock_editor):
-        """Test that sliders are initialized to default values."""
+        """Every slider starts at 255: the editor's color starts as opaque white."""
         mock_editor._slider_manager._initialize_slider_values()
         assert mock_editor.alpha_slider.value == 255
-        assert mock_editor.red_slider.value == 0
-        assert mock_editor.green_slider.value == 0
-        assert mock_editor.blue_slider.value == 0
+        assert mock_editor.red_slider.value == 255
+        assert mock_editor.green_slider.value == 255
+        assert mock_editor.blue_slider.value == 255
 
     def test_updates_color_well(self, mock_editor):
         """Test that color well is synced with slider defaults."""
         mock_editor._slider_manager._initialize_slider_values()
-        assert mock_editor.color_well.active_color == (0, 0, 0, 255)
+        assert mock_editor.color_well.active_color == (255, 255, 255, 255)
 
     def test_updates_canvas_active_color(self, mock_editor):
         """Test that canvas active color is synced."""
         mock_editor._slider_manager._initialize_slider_values()
-        assert mock_editor.canvas.active_color == (0, 0, 0, 255)
+        assert mock_editor.canvas.active_color == (255, 255, 255, 255)
 
     def test_no_canvas_does_not_crash(self, mock_editor):
         """Test that missing canvas is handled gracefully."""
         mock_editor.canvas = None
         mock_editor._slider_manager._initialize_slider_values()
-        assert mock_editor.red_slider.value == 0
+        assert mock_editor.red_slider.value == 255
 
 
 # ===========================================================================
