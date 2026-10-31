@@ -16,8 +16,7 @@ from glitchygames.display_mode import set_display_mode
 from glitchygames.game_objects import BallSprite
 from glitchygames.movement import Speed
 from paddleslap import Game
-from tests.collision.test_ball_paddle_collision import VISIBLE_SIZE, make_ball
-from tests.game_objects.ball_helpers import drawn_position
+from tests.game_objects.ball_helpers import VISIBLE_SIZE, drawn_position, make_ball
 
 # The cooldown test's closing speeds, named as in tests/game_objects/test_collision_scenarios.py
 SPEED_3_0 = 3.0

@@ -1069,6 +1069,36 @@ def test_a_member_loaded_by_its_name_as_a_string_is_found(tmp_path):
     ]
 
 
+def test_a_member_loaded_through_other_string_loads_is_found(tmp_path):
+    """``importlib.__import__``, ``builtins.__import__``, importorskip and find_spec count."""
+    write_root_test(
+        project_root=tmp_path,
+        relative='tests/helpers/other_loads.py',
+        source=(
+            'import builtins\n'
+            'import importlib\n'
+            'import importlib.util\n'
+            'from importlib.util import find_spec\n\n'
+            'import pytest\n\n'
+            "GAME = importlib.__import__('paddleslap')\n"
+            "SHIPS = builtins.__import__('space_game.ships')\n"
+            "DEMO = pytest.importorskip('dt_demo')\n"
+            "SPEC = importlib.util.find_spec('paddleslap')\n"
+            "BARE_SPEC = find_spec('space_game')\n"
+            "ENGINE = pytest.importorskip('glitchygames')\n"
+        ),
+    )
+    members = [*MEMBERS, stand_in_member(project_root=tmp_path)]
+
+    assert engine_test_imports_of_members(project_root=tmp_path, members=members) == [
+        'tests/helpers/other_loads.py:8: import paddleslap',
+        'tests/helpers/other_loads.py:9: import space_game.ships',
+        'tests/helpers/other_loads.py:10: import dt_demo',
+        'tests/helpers/other_loads.py:11: import paddleslap',
+        'tests/helpers/other_loads.py:12: import space_game',
+    ]
+
+
 def test_a_member_import_in_the_exempt_module_is_not_found(tmp_path):
     """The golden-replay control tables' module may import any member, at any level."""
     write_root_test(
