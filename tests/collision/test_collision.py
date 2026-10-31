@@ -234,6 +234,15 @@ class TestCollisionLayer:
         layer.add(sprite)
         assert len(layer) == 1
 
+    def test_clear_empties_the_layer(self):
+        """clear() removes every sprite from the layer."""
+        manager = CollisionManager()
+        layer = manager.add_layer('test')
+        layer.add(FakeSprite())
+        layer.add(FakeSprite())
+        layer.clear()
+        assert len(layer) == 0
+
 
 class TestCollisionManager:
     """CollisionManager layer registration and collision checking."""

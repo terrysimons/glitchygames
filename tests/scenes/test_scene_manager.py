@@ -553,6 +553,27 @@ class TestSceneManagerInternals:
         manager._live_audio = None
 
 
+class TestSceneManagerLiveAudio:
+    """The scene manager's live synth voices."""
+
+    def setup_method(self):
+        """Set up a fresh scene manager (centralized mocks handle pygame)."""
+        SceneManager._reset()
+        self.scene_manager = SceneManager()
+
+    def teardown_method(self):
+        """Reset the scene manager singleton."""
+        SceneManager._reset()
+
+    def test_live_audio_is_created_once_and_then_reused(self, mocker):
+        """The first access creates LiveAudio; later accesses return the same one."""
+        live_audio_class = mocker.patch('glitchygames.audio.live.LiveAudio')
+        first = self.scene_manager.live_audio
+        second = self.scene_manager.live_audio
+        assert first is second is live_audio_class.return_value
+        live_audio_class.assert_called_once()
+
+
 class TestSceneManagerEngineAndQuit:
     """Detaching the engine, and QUIT while a sprite has keyboard focus."""
 

@@ -730,8 +730,10 @@ confidence = "medium"
 # Not this package's code: the pygame-ce submodule (its own project), browser/, which runs
 # in Pyodide on its runtime modules (js, pyodide) and its own files, and the workspace members
 # under src/games, src/demos and src/apps (projects of their own, each declaring its dependencies:
-# tests/test_workspace_config.py, test_every_member_declares_what_it_imports)
+# tests/test_workspace_config.py, test_every_member_declares_what_it_imports), and
+# .claude/worktrees, where Claude Code checks out other branches of this repository
 extend_exclude = [
+  ".claude/worktrees",
   "third_party",
   "browser",
   "src/games",
