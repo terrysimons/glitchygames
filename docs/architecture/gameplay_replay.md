@@ -373,7 +373,8 @@ then get a tick each, so both are presented, and the replay then stays about a t
 measure every tick, so a tick runs several of its frames and presents the last. Above 1x the same
 limit follows a frame lasting at least a tick of inner time at that speed (17 ms of real time for a
 34 ms frame at 2x), so fast-forward still shows it; shorter frames run several a tick and the last
-is presented. It never owes more than one tick's worth: after a stall it runs one bounded burst and
+is presented. What it owes is capped (32.5 frames, never below a frame plus a 60 Hz tick plus the
+tick paid for, so a slower display keeps the rate): after a stall it runs one bounded burst and
 drops the rest, and when the recorded game cannot keep up with the speed the status bar says so and
 shows the real speed (`can't keep up: ×3.2`). So 1x shows about one recorded frame per tick, 8x
 about eight, 1/4x one every fourth tick. Which frames run when never changes what they do, so a

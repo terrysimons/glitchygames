@@ -97,18 +97,19 @@ Before each inner frame the scene manager asks `hold_frame`:
    faster than 60 FPS still runs several frames a tick and presents the last. Above 1x the same
    limit follows a frame lasting at least a tick of inner time at that speed (a 60 Hz refresh or
    more of real time); after shorter frames a tick runs several and presents the last
-   (fast-forward). The accumulator never owes more than one tick's worth (`MAX_OWED_INNER_FRAMES` =
-   32 and a half frames, and never less than a frame plus two ticks of inner time, so very short
-   frames keep their rate): the excess is dropped, and the status bar shows the real speed while the
-   viewer is behind (`BEHIND_SPEED_FRACTION` = 0.95).
+   (fast-forward). What the accumulator owes is capped at `MAX_OWED_INNER_FRAMES` = 32 and a half
+   frames, and never less than a frame plus a 60 Hz tick plus the tick paid for (the real time since
+   the last tick, at least a 60 Hz tick; a stall over `STALL_TICK_SECONDS` counts as one), in inner
+   time, so very short frames and a slower display's ticks keep their rate: the excess is dropped,
+   and the status bar shows the real speed while the viewer is behind (`BEHIND_SPEED_FRACTION` =
+   0.95).
 3. **Otherwise** the tick closes and the frame is presented.
 
-So at 1x a 60 FPS recording runs one inner frame per tick, at 8x eight, and at 1/4x one every
-fourth tick (the viewer's docstring). The speed keys double or halve the speed
-(`SPEED_STEP_FACTOR` = 2.0), within `MIN_SPEED` = 0.25 and `MAX_SPEED` = 8.0
-(`ReplayControls`, `src/glitchygames/replay/controls.py`). The owed limit (32.5 frames, never
-less than a frame plus two ticks) is what lets the viewer catch up after a stall, in one bounded
-burst.
+So at 1x a 60 FPS recording runs one inner frame per tick, at 8x eight, and at 1/4x one every fourth
+tick (the viewer's docstring). The speed keys double or halve the speed (`SPEED_STEP_FACTOR` = 2.0),
+within `MIN_SPEED` = 0.25 and `MAX_SPEED` = 8.0 (`ReplayControls`,
+`src/glitchygames/replay/controls.py`). The owed limit (32.5 frames, never less than its floor) is
+what lets the viewer catch up after a stall, in one bounded burst.
 
 ```mermaid
 gantt

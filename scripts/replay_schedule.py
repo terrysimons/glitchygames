@@ -4,9 +4,10 @@ A watched replay (glitchygames/replay/viewer.py, whose module docstring is the c
 recorded frames from an accumulator: each 60 Hz outer tick owes the inner game one tick of real
 time (times the speed), and the tick runs recorded frames while the accumulator holds their
 recorded durations, presenting only the last one it ran. So a tick that runs two frames never
-presents the first. Up to 1x a tick runs a second frame only when the replay is genuinely
-behind (rule 2), so short frames (pacing catching up after a slow one) no longer hide a frame;
-a recording made faster than 60 FPS, or any replay above 1x, still runs several a tick.
+presents the first. A tick runs a second frame only when the replay is genuinely behind (rule
+2): up to 1x after any frame, above 1x after a frame lasting at least a tick of inner time, so
+short frames (pacing catching up after a slow one) no longer hide a frame; a recording made
+faster than 60 FPS, or frames shorter than a tick above 1x, still run several a tick.
 
 This drives the viewer's REAL accumulator (``ReplayViewer.accrue`` and
 ``ReplayViewer.should_run_inner_frame``, with their constants), never a copy of it, on an ideal

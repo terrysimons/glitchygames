@@ -201,7 +201,7 @@ def test_the_tick_keeps_sixty_hertz_when_inner_frames_are_costly(mocker):
 
 
 def test_the_owed_time_is_bounded_when_inner_frames_cannot_keep_up(mocker):
-    """Costly inner frames never let the accumulator owe more than one tick's worth."""
+    """Costly inner frames never let the accumulator owe more than the owed limit (32.5 frames)."""
     time = FakeTime(mocker=mocker)
     viewer = new_viewer(speed=8.0)
     run_ticks(viewer=viewer, time=time, tick_count=600, inner_frame_cost_seconds=0.005)
@@ -218,7 +218,7 @@ def test_a_stall_runs_at_most_one_bounded_burst(mocker):
     time = FakeTime(mocker=mocker)
     viewer = new_viewer()
     run_ticks(viewer=viewer, time=time, tick_count=10)
-    time.now += 2.0  # a two-second stall: 120 frames owed, at most one tick's worth are kept
+    time.now += 2.0  # a two-second stall: 120 frames owed, at most the owed limit's 32.5 kept
     frames_per_tick = run_ticks(viewer=viewer, time=time, tick_count=30)
     assert frames_per_tick[MAX_OWED_INNER_FRAMES - 1] == 1
     assert max(frames_per_tick) == MAX_OWED_INNER_FRAMES - 1
@@ -617,10 +617,14 @@ class TestEveryFrameIsShownUpToNormalSpeed:
     @pytest.mark.parametrize(
         ('long_seconds', 'short_seconds'), STUTTER_PAIRS.values(), ids=STUTTER_PAIRS.keys()
     )
-    def test_the_replay_falls_at_most_one_tick_behind_after_a_catch_up_frame(
+    def test_after_a_catch_up_frame_the_replay_lags_under_a_frame_and_a_tick(
         self, long_seconds, short_seconds
     ):
-        """The short frame waits for its own tick: the owed time carries, at most one tick more."""
+        """The short frame waits for its own tick: the owed time carries.
+
+        After every tick the replay owes less than its next frame plus a tick, and it ends no
+        more than a tick and a frame after real time would end it.
+        """
         inner_frame_seconds = stuttered_recording(
             long_seconds=long_seconds, short_seconds=short_seconds
         )
@@ -639,7 +643,7 @@ class TestEveryFrameIsShownUpToNormalSpeed:
             )
             # Owed after the tick: less than the next frame plus one tick
             assert accumulated_seconds < next_frame_seconds + CONTROL_TICK_SECONDS
-        # The replay ends no more than one tick later than real time would end it
+        # The replay ends no more than a tick and a frame later than real time would end it
         recording_seconds = sum(inner_frame_seconds)
         replay_seconds = (len(frames_by_tick) - 1) * CONTROL_TICK_SECONDS
         assert replay_seconds - recording_seconds <= CONTROL_TICK_SECONDS + STEADY_FRAME_SECONDS

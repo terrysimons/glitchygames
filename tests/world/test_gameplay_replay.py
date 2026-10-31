@@ -3021,7 +3021,7 @@ class TestWatched:
         # The first tick owes nothing yet (no time has passed) and the run stops part way
         # through the last; exact over time
         assert set(frames_per_tick[1:-1]) <= allowed_per_tick
-        # Within one tick's worth: the owed remainder of the run's last tick
+        # Within one tick of frames: the owed remainder of the run's last tick
         assert abs(sum(frames_per_tick) - 2.0 * speed / 0.01) <= (
             speed * CONTROL_TICK_SECONDS / 0.01 + 2
         )
@@ -3036,7 +3036,7 @@ class TestWatched:
         frames_per_tick = inner_frames_per_tick(
             sources=sources, clock=clock, status_spy=status_spy, seconds=0.5
         )
-        # One tick's worth (32.5 frames of 10 ms) is kept and the rest dropped. Up to 1x the
+        # The owed limit (32.5 frames of 10 ms) is kept and the rest dropped. Up to 1x the
         # burst stops once the replay owes less than a frame plus a tick (rule 2 of
         # glitchygames/replay/viewer.py): 30 frames run at once, 25 ms carried
         assert frames_per_tick[0] == MAX_OWED_INNER_FRAMES - 2
