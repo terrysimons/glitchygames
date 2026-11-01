@@ -90,7 +90,6 @@ class PixelListCanvas:
         self.pixels_across = pixels_across
         self.pixels_tall = pixels_tall
         self.pixels: list[tuple[int, ...]] = [WHITE] * (pixels_across * pixels_tall)
-        self.dirty_pixels = [False] * (pixels_across * pixels_tall)
         self.dirty = 0
 
 
@@ -447,7 +446,6 @@ class TestCanvasPaintAtControllerPosition:
 
         pixel_index = 2 * canvas.pixels_across + 1
         assert canvas.pixels[pixel_index] == RED
-        assert canvas.dirty_pixels[pixel_index] is True
         assert canvas.dirty == 1
 
 
@@ -525,7 +523,6 @@ class TestCanvasEraseAtControllerPosition:
         handler.canvas._canvas_erase_at_controller_position(CONTROLLER_ID)
 
         assert canvas.pixels[3] == BLACK
-        assert canvas.dirty_pixels[3] is True
         assert canvas.dirty == 1
 
     def test_a_position_outside_a_pixel_list_canvas_erases_nothing(self):
@@ -816,9 +813,13 @@ class TestCanvasPaintLines:
         canvas = InterfaceCanvas(pixels_across=16, pixels_tall=16)
         handler, editor = _make_handler(canvas=canvas, position=(1, 3))
 
+        drag_info = _start_drag(handler)
+
         handler.canvas.canvas_paint_horizontal_line(CONTROLLER_ID, -4)
 
         assert sorted(canvas.canvas_interface.painted) == [(0, 3), (1, 3)]
+        # The edge pixel is painted once: after that it is already the color (#155.5)
+        assert [pixel['position'] for pixel in drag_info['pixels_drawn']] == [(1, 3), (0, 3)]
         assert _position_of(editor) == (0, 3)
 
     def test_vertical_line_down(self):
@@ -837,10 +838,30 @@ class TestCanvasPaintLines:
         canvas = InterfaceCanvas(pixels_across=16, pixels_tall=16)
         handler, editor = _make_handler(canvas=canvas, position=(2, 1))
 
+        drag_info = _start_drag(handler)
+
         handler.canvas.canvas_paint_vertical_line(CONTROLLER_ID, -8)
 
         assert sorted(canvas.canvas_interface.painted) == [(2, 0), (2, 1)]
+        assert [pixel['position'] for pixel in drag_info['pixels_drawn']] == [(2, 1), (2, 0)]
         assert _position_of(editor) == (2, 0)
+
+    def test_a_line_over_pixels_already_that_color_tracks_only_the_changed_ones(self):
+        """A line skips pixels that already have the color: nothing to paint or undo (#155.5)."""
+        canvas = InterfaceCanvas(pixels_across=16, pixels_tall=16)
+        handler, editor = _make_handler(canvas=canvas, position=(2, 3))
+        drag_info = _start_drag(handler)
+        handler.canvas.canvas_paint_horizontal_line(CONTROLLER_ID, 2)
+        editor.mode_switcher.save_controller_position(CONTROLLER_ID, (2, 3))
+
+        handler.canvas.canvas_paint_horizontal_line(CONTROLLER_ID, 4)
+
+        assert [pixel['position'] for pixel in drag_info['pixels_drawn']] == [
+            (2, 3),
+            (3, 3),
+            (4, 3),
+            (5, 3),
+        ]
 
     def test_lines_clamp_at_the_far_edges(self):
         """Lines past the right and bottom edges stop at the last pixel."""

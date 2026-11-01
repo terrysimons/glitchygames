@@ -116,9 +116,10 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
         self.parent: Any = parent
         self.proxies = [self]
 
-        # For debugging sanity.
+        # For debugging sanity: an unnamed sprite is named after its class, as a string (the
+        # class object itself made name not always a str: BUGS.md #178 item 18)
         if not name:
-            self.name = type(self)
+            self.name = type(self).__name__
 
         if not self.width:
             self.log.error('%s has 0 Width', type(self))

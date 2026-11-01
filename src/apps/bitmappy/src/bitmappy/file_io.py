@@ -585,13 +585,11 @@ class FileIOManager:
 
         # Update canvas pixels
         canvas_sprite.pixels = pixel_data
-        canvas_sprite.dirty_pixels = [True] * len(pixel_data)
         self.log.info('Transferred %s pixels to canvas', len(pixel_data))
 
         # Update mini view pixels too
         if hasattr(canvas_sprite, 'mini_view') and canvas_sprite.mini_view is not None:
             canvas_sprite.mini_view.pixels = pixel_data.copy()
-            canvas_sprite.mini_view.dirty_pixels = [True] * len(pixel_data)
             self.log.info('Updated mini view pixels')
 
     def _finalize_sprite_load(self, canvas_sprite: AnimatedCanvasSprite) -> None:
@@ -610,7 +608,6 @@ class FileIOManager:
         if hasattr(canvas_sprite, 'mini_view') and canvas_sprite.mini_view is not None:
             self.log.info('Updating mini view...')
             canvas_sprite.mini_view.pixels = canvas_sprite.pixels.copy()
-            canvas_sprite.mini_view.dirty_pixels = [True] * len(canvas_sprite.pixels)
             canvas_sprite.mini_view.dirty = 1
             canvas_sprite.mini_view.force_redraw()
 

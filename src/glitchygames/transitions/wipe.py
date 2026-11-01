@@ -11,7 +11,7 @@ from typing import override
 
 import pygame
 
-from glitchygames.transitions.base import Transition
+from glitchygames.transitions.base import Transition, checked_direction
 
 
 class WipeTransition(Transition):
@@ -27,6 +27,9 @@ class WipeTransition(Transition):
         duration: Transition duration in seconds.
         easing: Easing function name.
 
+    Raises:
+        ValueError: If direction is not one of the four above.
+
     """
 
     def __init__(
@@ -37,7 +40,7 @@ class WipeTransition(Transition):
     ) -> None:
         """Initialize the wipe transition."""
         super().__init__(duration=duration, easing=easing)
-        self._direction = direction
+        self._direction = checked_direction(direction)
 
     @override
     def _render_frame(
@@ -73,12 +76,10 @@ class WipeTransition(Transition):
             # Typo-free: 'up' reveals from top moving downward
             reveal_height = int(height * progress)
             clip_rect = pygame.Rect(0, 0, width, reveal_height)
-        elif self._direction == 'down':
+        else:  # 'down': checked_direction allowed nothing else
             reveal_height = int(height * progress)
             clip_y = height - reveal_height
             clip_rect = pygame.Rect(0, clip_y, width, reveal_height)
-        else:
-            clip_rect = pygame.Rect(0, 0, width, height)
 
         # Blit only the revealed portion of the new scene
         screen.blit(new_surface, clip_rect.topleft, area=clip_rect)

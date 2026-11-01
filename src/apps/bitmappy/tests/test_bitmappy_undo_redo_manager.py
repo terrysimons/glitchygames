@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Tests for the core UndoRedoManager functionality."""
 
+import pytest
+
 from bitmappy.history.undo_redo import OperationType, UndoRedoManager
 
 
@@ -296,3 +298,69 @@ class TestUndoRedoManager:
             'frame stroke',
             'pushed during undo',
         ]
+
+
+class _FailingCommand:
+    """A command whose undo and execute fail by raising or by returning False."""
+
+    operation_type = OperationType.CANVAS_BRUSH_STROKE
+    timestamp = 0.0
+    description = 'failing command'
+
+    def __init__(self, *, raises: bool) -> None:
+        self.raises = raises
+
+    def _fail(self) -> bool:
+        if self.raises:
+            msg = 'command broke'
+            raise RuntimeError(msg)
+        return False
+
+    def execute(self) -> bool:
+        return self._fail()
+
+    def undo(self) -> bool:
+        return self._fail()
+
+
+class TestFailedCommandsStayInTheHistory:
+    """A command that fails its undo or redo is put back, raised or not (BUGS.md #178.11)."""
+
+    @pytest.mark.parametrize('raises', [True, False], ids=['raises', 'returns_false'])
+    def test_a_failed_global_undo_and_redo_keep_the_command(self, raises):
+        manager = UndoRedoManager()
+        command = _FailingCommand(raises=raises)
+        manager.push_command(command)
+
+        assert manager.undo() is False
+        assert manager.undo_stack == [command]
+        assert not manager.is_undoing
+
+        manager.undo_stack.clear()
+        manager.redo_stack.append(command)
+        assert manager.redo() is False
+        assert manager.redo_stack == [command]
+        assert not manager.is_redoing
+
+    @pytest.mark.parametrize('raises', [True, False], ids=['raises', 'returns_false'])
+    def test_a_failed_frame_undo_and_redo_keep_the_command(self, raises):
+        manager = UndoRedoManager()
+        command = _FailingCommand(raises=raises)
+        manager.push_frame_command('idle', 0, command)
+
+        assert manager.undo_frame('idle', 0) is False
+        assert manager.frame_undo_stacks['idle', 0] == [command]
+
+        manager.frame_undo_stacks['idle', 0].clear()
+        manager.frame_redo_stacks['idle', 0].append(command)
+        assert manager.redo_frame('idle', 0) is False
+        assert manager.frame_redo_stacks['idle', 0] == [command]
+        assert not (manager.is_undoing or manager.is_redoing)
+
+    def test_a_raising_undo_is_logged(self, caplog):
+        manager = UndoRedoManager()
+        manager.push_command(_FailingCommand(raises=True))
+
+        manager.undo()
+
+        assert 'Error undoing failing command' in caplog.text

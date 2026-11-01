@@ -597,7 +597,7 @@ data, terrain, background drawing, sounds and constants with the classic edition
 | Shared with the classic edition (`brave_adventurer_core`, unchanged) | Changed in Papyrus |
 |---|---|
 | `LEVEL_1` and `ScreenData` (re-exported by its `levels.py`) | The player, the three enemies and the gold scarab are `AnimatedSprite`s loaded from TOML files in `sprites/` |
-| `GroundSegment` and `StoneWall` (variable-width primitives, which do not suit fixed pixel art) | Sprites are scaled 2x (`SPRITE_SCALE`); TOML hitboxes are in native pixels, so `hitbox_scale` is set to 2 |
+| `GroundSegment` and `StoneWall` (variable-width primitives, which do not suit fixed pixel art) | Sprites are scaled 2x (`SPRITE_SCALE`); TOML hitboxes are in native pixels, so `scale` is set to 2 |
 | The four parallax draw functions and the pits | The player stands on a fixed foot line, `PAPYRUS_PLAYER_HEIGHT` = 27 × 2 px below its snapped world y, instead of its hitbox bottom |
 | `GameSounds` and every sound | Animation state machines come from the TOML `[[transition]]` sections (the player's, the cobra's timed strike) |
 | Physics, camera, layer, parallax, scoring and colour constants (re-exported by its `constants.py`) | Its own save namespace (`brave-adventurer-papyrus`) and scene `NAME` |
@@ -725,7 +725,8 @@ classDiagram
   and it fills the base's voice hooks, which Papyrus leaves empty.
 - **`PapyrusPlayer`** has the same `PhysicsBody` and move methods as `Player`. Each `dt_tick`
   ticks physics, evaluates the TOML state machine, advances the TOML animation
-  (`AnimatedSprite.update(self, dt)`), rescales the frame (`apply_transparency_and_scale`), and
+  (`AnimatedSprite.update(self, dt)`), starts image from a fresh copy of the drawn frame
+  (`refresh_drawn_image`), and
   mirrors image and hitbox when facing left (`hitbox_flip_x`), then refits the world-edge
   bound. That keeps the pose rule: the frame collision uses is the one drawn this frame.
   `frame_anchor = FrameAnchor.BOTTOM` draws each frame lower by its `draw_offset`, so frames
@@ -735,9 +736,10 @@ classDiagram
 - **The Papyrus enemies and gold scarab** do the same, animating in `dt_tick`, and make
   `update()` a no-op (`Scene.update()` would call it without a dt: BUGS.md #115).
 - **`sprite_utils.py`**: `prepare_papyrus_sprite()` converts every loaded frame from the
-  magenta colour key to per-pixel alpha (so transparency survives scaling and flipping) and sets
-  `hitbox_scale`; `apply_transparency_and_scale()` scales the current frame's source surface
-  each tick, never the already scaled image.
+  magenta colour key to per-pixel alpha and sets the engine's `AnimatedSprite.scale` to
+  `SPRITE_SCALE`, which draws every frame, rect, hitbox and `draw_offset` at 2x (BUGS.md #144);
+  `refresh_drawn_image()` copies the engine's drawn frame each tick, so the facing flip and the
+  respawn fade never stack or reach the engine's cached surface.
 
 | Papyrus TOML sprite | Animations | Hitbox | State machine |
 |---|---|---|---|
@@ -793,7 +795,7 @@ names; and its one browser page, the title screen, ships all four archives, the 
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | `PapyrusCobra`, `PapyrusScarab`, `PapyrusScorpion` |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/terrain.py` | `PapyrusGoldScarab`; re-exports the shared `GroundSegment` and `StoneWall` |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/levels.py` | `PapyrusLevelManager`; re-exports `LEVEL_1` |
-| `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py` | Colour key to alpha, 2x scaling, `hitbox_scale` |
+| `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py` | Colour key to alpha, `scale` set to 2x, per-tick image refresh |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/constants.py` | Re-exports the shared constants; `SPRITE_SCALE`, the Papyrus heights, `SPRITES_DIR` |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprites/*.toml` | The pixel art, hitboxes and state machines |
 | `src/glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The engine's pause and game-over screens |

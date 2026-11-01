@@ -113,7 +113,6 @@ def mock_editor(mocker):  # ruff: ignore[too-many-statements]
     editor.canvas.active_color = (128, 64, 32, 255)
     editor.canvas.canvas_interface = mocker.Mock()
     editor.canvas.pixels = [(255, 0, 255)] * (32 * 32)
-    editor.canvas.dirty_pixels = [False] * (32 * 32)
     editor.canvas.current_animation = 'default'
     editor.canvas.current_frame = 0
     # No pan gesture in progress, as on a real canvas (a Mock attribute would look like one)
@@ -316,7 +315,6 @@ class TestResetCanvasForNewFile:
         assert mock_editor.canvas.pixel_height == 20
         assert len(mock_editor.canvas.pixels) == 256
         assert all(p == (255, 0, 255, 255) for p in mock_editor.canvas.pixels)
-        assert all(mock_editor.canvas.dirty_pixels)
 
     def test_ends_the_pan_in_progress(self, mock_editor):
         """Ends the old canvas's pan gesture."""
@@ -1836,7 +1834,7 @@ class TestSetCanvasPixel:
         mock_editor.controller_handler.canvas._set_canvas_pixel(1, 1, (255, 0, 0))
         expected_idx = 1 * 32 + 1
         assert mock_editor.canvas.pixels[expected_idx] == (255, 0, 0)
-        assert mock_editor.canvas.dirty_pixels[expected_idx] is True
+        assert mock_editor.canvas.dirty == 1
 
 
 class TestBrushStrokeCommandUndoRedo:

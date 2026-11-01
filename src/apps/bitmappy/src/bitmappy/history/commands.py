@@ -507,8 +507,6 @@ class FramePasteCommand(_ApplyingUndoRedoGuard):
             and hasattr(self.editor.canvas, 'pixels')
         ):
             self.editor.canvas.pixels = pixels.copy()
-            if hasattr(self.editor.canvas, 'dirty_pixels'):
-                self.editor.canvas.dirty_pixels = [True] * len(pixels)
             if hasattr(self.editor.canvas, 'dirty'):
                 self.editor.canvas.dirty = 1
 

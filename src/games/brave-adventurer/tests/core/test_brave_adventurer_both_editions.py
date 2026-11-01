@@ -121,7 +121,7 @@ class TestDeathRumble:
 def _drawn_player(scene):
     """Tick and draw the player once, as a game frame does, and return it.
 
-    dt_tick draws Brave Adventurer's pose and sets Papyrus's hitbox_scale; update() is the
+    dt_tick draws Brave Adventurer's pose and sets Papyrus's scale; update() is the
     render phase (Brave Adventurer's respawn fade, Papyrus's animation).
     """
     scene.player.dt_tick(0.0)
@@ -142,7 +142,7 @@ def _widen_player_hitbox(scene, extra_pixels):
         frame.hitbox = pygame.Rect(
             native_hitbox.x,
             native_hitbox.y,
-            native_hitbox.width + extra_pixels // player.hitbox_scale,
+            native_hitbox.width + extra_pixels // player.scale,
             native_hitbox.height,
         )
     else:

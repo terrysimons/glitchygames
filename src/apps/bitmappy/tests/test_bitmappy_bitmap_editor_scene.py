@@ -83,7 +83,6 @@ def mock_editor(mocker):  # ruff: ignore[too-many-statements]
     editor.canvas.active_color = (128, 64, 32, 255)
     editor.canvas.canvas_interface = mocker.Mock()
     editor.canvas.pixels = [(255, 0, 255)] * (32 * 32)
-    editor.canvas.dirty_pixels = [False] * (32 * 32)
 
     # -- Multi-controller system --
     editor.multi_controller_manager = mocker.Mock()
@@ -662,12 +661,10 @@ class TestSetCanvasPixel:
         mock_editor.canvas.pixels_across = 4
         mock_editor.canvas.pixels_tall = 4
         mock_editor.canvas.pixels = [(0, 0, 0)] * 16
-        mock_editor.canvas.dirty_pixels = [False] * 16
         mock_editor.canvas.dirty = 0
         mock_editor.controller_handler.canvas._set_canvas_pixel(1, 2, (100, 200, 50))
         # pixel_num = 2 * 4 + 1 = 9
         assert mock_editor.canvas.pixels[9] == (100, 200, 50)
-        assert mock_editor.canvas.dirty_pixels[9] is True
         assert mock_editor.canvas.dirty == 1
 
     def test_no_canvas_attr_does_nothing(self, mock_editor):
@@ -1294,7 +1291,6 @@ class TestResetCanvasForNewFile:
         mock_editor._reset_canvas_for_new_file(4, 4, 2)
         assert len(mock_editor.canvas.pixels) == 16
         assert all(pixel == (255, 0, 255, 255) for pixel in mock_editor.canvas.pixels)
-        assert all(dirty is True for dirty in mock_editor.canvas.dirty_pixels)
 
     def test_ends_the_pan_in_progress(self, mock_editor):
         """Test that a pan gesture of the old canvas is ended."""

@@ -838,7 +838,7 @@ MEMBER_IMPORT_EXEMPT_NAMES: dict[str, dict[tuple[str, str], str]] = {
         ('brave_adventurer_papyrus.player', 'PapyrusPlayer'): GOLDEN_TRACE_WORLD_RULES_REASON,
         (
             'brave_adventurer_papyrus.sprite_utils',
-            'apply_transparency_and_scale',
+            'refresh_drawn_image',
         ): GOLDEN_TRACE_WORLD_RULES_REASON,
         ('clockwork_keep.constants', 'PLAYER_HEIGHT'): GOLDEN_TRACE_WORLD_RULES_REASON,
         ('clockwork_keep.constants', 'PLAYER_WIDTH'): GOLDEN_TRACE_WORLD_RULES_REASON,

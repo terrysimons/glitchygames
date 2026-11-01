@@ -122,7 +122,7 @@ MAGENTA_KEY = (255, 0, 255)
 # Papyrus sprite heights (native TOML size * SPRITE_SCALE) place feet on the ground and walls
 # (game.py); the engine culls world sprites by their rects, so no widths are needed.
 # Horizontal terrain contact and sprite-vs-sprite hits use each sprite's collision rect: the
-# TOML [hitbox] sections, scaled by AnimatedSprite.hitbox_scale.
+# TOML [hitbox] sections, scaled by AnimatedSprite.scale.
 # Player native image: 20x28. Visible feet end at row 27 in the tallest frames (idle),
 # row 25 in falling and rows 24-25 in running and jumping. The player sets
 # frame_anchor = FrameAnchor.BOTTOM: each frame is drawn lower so its feet sit on the

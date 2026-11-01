@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, override
 if TYPE_CHECKING:
     import pygame
 
-from glitchygames.transitions.base import Transition
+from glitchygames.transitions.base import Transition, checked_direction
 
 
 class SlideTransition(Transition):
@@ -23,6 +23,9 @@ class SlideTransition(Transition):
         duration: Transition duration in seconds.
         easing: Easing function name.
 
+    Raises:
+        ValueError: If direction is not one of the four above.
+
     """
 
     def __init__(
@@ -33,7 +36,7 @@ class SlideTransition(Transition):
     ) -> None:
         """Initialize the slide transition."""
         super().__init__(duration=duration, easing=easing)
-        self._direction = direction
+        self._direction = checked_direction(direction)
 
     @override
     def _render_frame(
@@ -69,7 +72,7 @@ class SlideTransition(Transition):
             screen.blit(old_surface, (0, offset_y))
             screen.blit(new_surface, (0, offset_y + height))
 
-        elif self._direction == 'down':
+        else:  # 'down': checked_direction allowed nothing else
             offset_y = int(height * progress)
             screen.blit(old_surface, (0, offset_y))
             screen.blit(new_surface, (0, offset_y - height))
