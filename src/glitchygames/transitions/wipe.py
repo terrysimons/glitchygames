@@ -76,12 +76,10 @@ class WipeTransition(Transition):
             # Typo-free: 'up' reveals from top moving downward
             reveal_height = int(height * progress)
             clip_rect = pygame.Rect(0, 0, width, reveal_height)
-        elif self._direction == 'down':
+        else:  # 'down': checked_direction allowed nothing else
             reveal_height = int(height * progress)
             clip_y = height - reveal_height
             clip_rect = pygame.Rect(0, clip_y, width, reveal_height)
-        else:
-            clip_rect = pygame.Rect(0, 0, width, height)
 
         # Blit only the revealed portion of the new scene
         screen.blit(new_surface, clip_rect.topleft, area=clip_rect)

@@ -72,7 +72,7 @@ class SlideTransition(Transition):
             screen.blit(old_surface, (0, offset_y))
             screen.blit(new_surface, (0, offset_y + height))
 
-        elif self._direction == 'down':
+        else:  # 'down': checked_direction allowed nothing else
             offset_y = int(height * progress)
             screen.blit(old_surface, (0, offset_y))
             screen.blit(new_surface, (0, offset_y - height))
