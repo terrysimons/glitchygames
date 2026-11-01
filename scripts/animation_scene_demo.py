@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Animated scene demo script that loads foo.toml and displays animated sprite."""
+"""Animated scene demo script that loads animated.toml and displays animated sprite."""
 
 import logging
 import sys
@@ -14,10 +14,11 @@ from glitchygames.sprites.animated import AnimatedSprite
 
 logger = logging.getLogger(__name__)
 
-# The sprite the demo shows: scripts/foo.toml, next to this script. The demos looked for it in
+# The sprite the demo shows: scripts/animated.toml, next to this script (it was foo.toml, a
+# static sprite with no palette that drew nothing, BUGS.md #244). The demos looked for it in
 # the repository root, where there is none, so they always stopped with MISSING_INPUT
 # (BUGS.md #245).
-FOO_TOML_PATH = Path(__file__).parent / 'foo.toml'
+SPRITE_PATH = Path(__file__).parent / 'animated.toml'
 
 
 class AnimationScene(Scene):
@@ -37,11 +38,11 @@ class AnimationScene(Scene):
         # Create sprite group for the scene
         self.groups: pygame.sprite.LayeredDirty[Any] = pygame.sprite.LayeredDirty()
 
-        # Load the animated sprite from foo.toml
-        foo_toml_path = FOO_TOML_PATH
+        # Load the animated sprite from animated.toml
+        sprite_path = SPRITE_PATH
 
         try:
-            self.animated_sprite = AnimatedSprite(str(foo_toml_path), groups=self.groups)
+            self.animated_sprite = AnimatedSprite(str(sprite_path), groups=self.groups)
         except FileNotFoundError, ValueError, RuntimeError:
             logger.exception('Failed to load animation')
             raise
@@ -104,7 +105,7 @@ def main() -> int:
 
     # Set up the display
     screen = pygame.display.set_mode((800, 600))
-    pygame.display.set_caption('Animated Scene Demo - foo.toml')
+    pygame.display.set_caption('Animated Scene Demo - animated.toml')
     clock = pygame.time.Clock()
 
     # Create and run the scene

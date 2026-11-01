@@ -4,22 +4,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
-### 244. `scripts/foo.toml` Has Pixels and No Palette, So It Draws Nothing
-- **Description**: `scripts/foo.toml` (a "Bitmap Canvas" static sprite from #54) uses glyphs `.`, `O` and `X` with no `[colors]` table, so every pixel draws transparent. Nothing checks `scripts/`, so CI never saw it.
-- **Status**: Open (the owner decides whether it is kept, with a palette, or deleted; `plans/future-work.md`)
-- **Priority**: Low
-- **Reporter**: Found by the pixel-rows audit of every repo sprite (`feat/unified-pixel-rows`)
-- **Date Reported**: 2026-10-30
-- **Files**: `scripts/foo.toml`
-
-### 243. Bitmappy's AI Clean-Up Turns a `\` Glyph Followed by an `n` Glyph Into a Line Break
-- **Description**: `_normalize_escaped_newlines` (`src/apps/bitmappy/src/bitmappy/toml_processing.py`, used by the alpha path and `ai_manager`) replaces the two characters `\n` with a line break, so a row containing a backslash glyph followed by an `n` glyph is split in two.
-- **Status**: Open (its own branch, the owner, 2026-10-30; `plans/future-work.md`)
-- **Priority**: Low (needs both glyphs, adjacent)
-- **Reporter**: Found by the pixel-rows adversarial review
-- **Date Reported**: 2026-10-30
-- **Files**: `src/apps/bitmappy/src/bitmappy/toml_processing.py`
-
 ### 228. Smaller Findings From the Engine Context Sub-Plan 1 Reviews
 - **Description**: The task reviews and the final whole-branch review of engine context sub-plan 1 (plans/2026-10-25-engine-context-1-state.md, 2026-10-25) recorded these minor findings; the final reviewer triaged them and none blocks the merge. The important findings were fixed on the branch. Item 6 (the positional calls) belongs to sub-plan 2
 - **Status**: Active
@@ -285,6 +269,22 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: see each item
 
 ## Resolved Bugs
+
+### 244. `scripts/foo.toml` Has Pixels and No Palette, So It Draws Nothing
+- **Description**: `scripts/foo.toml` (a "Bitmap Canvas" static sprite from #54) uses glyphs `.`, `O` and `X` with no `[colors]` table, so every pixel draws transparent. Nothing checks `scripts/`, so CI never saw it.
+- **Status**: Resolved (2026-11-01, bug sweep, the owner: deleted. The three animation demo scripts that loaded it as their animated sprite load `scripts/animated.toml` (animations and a palette) through `SPRITE_PATH`; `tests/test_scripts_sprite_paths.py` checks each demo's sprite has animations and colors)
+- **Priority**: Low
+- **Reporter**: Found by the pixel-rows audit of every repo sprite (`feat/unified-pixel-rows`)
+- **Date Reported**: 2026-10-30
+- **Files**: `scripts/foo.toml`
+
+### 243. Bitmappy's AI Clean-Up Turns a `\` Glyph Followed by an `n` Glyph Into a Line Break
+- **Description**: `_normalize_escaped_newlines` (`src/apps/bitmappy/src/bitmappy/toml_processing.py`, used by the alpha path and `ai_manager`) replaces the two characters `\n` with a line break, so a row containing a backslash glyph followed by an `n` glyph is split in two.
+- **Status**: Won't fix (2026-11-01, bug sweep, the owner: in the AI's pixel text `\n` is always a line break; the sprite's width and height come from the rows it gives)
+- **Priority**: Low (needs both glyphs, adjacent)
+- **Reporter**: Found by the pixel-rows adversarial review
+- **Date Reported**: 2026-10-30
+- **Files**: `src/apps/bitmappy/src/bitmappy/toml_processing.py`
 
 ### 231. A Refused Save Closes the Dialog Instead of Letting the Name Be Retyped
 - **Description**: When Save refuses a file name (for example a ':' on macOS, or on Windows outside the drive designator), `SaveDialogScene.on_confirm_event` (`src/glitchygames/ui/dialogs.py`) shows the message through `_show_save_error` in the editor's status (debug) text, as a failed save does, and then dismisses the dialog. The user has to reopen Save and retype the name
