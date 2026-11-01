@@ -253,8 +253,9 @@ replay, which names the remedy; <code>--replay-trace OLD --rebaseline NEW --head
   same: the name is used as given, with surrounding whitespace trimmed, and a sprite in the
   library is opened by its path. The <code>example:</code> prefix they once understood is gone, and Save
   applies a per-platform rule to <code>:</code> in a file name (<code>_file_name_problem</code>, the platform passed in
-  and <code>sys.platform</code> by default); the refusal is shown in the editor's debug text and nothing is
-  written:</li>
+  and <code>sys.platform</code> by default); nothing is written, the full refusal is shown in the editor's
+  debug text, and the dialog stays open with the name kept and a short reason in its prompt
+  (<code>REFUSED_FILE_NAME_PROMPT</code>), so the name can be corrected in place:</li>
 </ul>
 <table>
 <thead>
@@ -621,14 +622,14 @@ Canvas operations are batched per drag with 0.1s debounce for efficiency.</p>
         FILL["Flood fill"]
         FSEL["Select frame"]
         FDEL["Delete frame"]
-        FCOPY["Copy/paste frame"]
+        FCOPY["Paste frame"]
         CMOVE["Controller move / mode change"]
     end
 
     subgraph Trackers["Operation Trackers"]
         COT["CanvasOperationTracker\npixel-level, batched per drag"]
         FOT["FilmStripOperationTracker\nframe-level operations"]
-        CAOT["CrossAreaOperationTracker\nframe copy/paste"]
+        FOM["FrameOperationManager\nFramePasteCommand"]
         CPOT["ControllerPositionOperationTracker\ncontroller positions and modes"]
     end
 
@@ -642,12 +643,12 @@ Canvas operations are batched per drag with 0.1s debounce for efficiency.</p>
     FILL --&gt; COT
     FSEL --&gt; FOT
     FDEL --&gt; FOT
-    FCOPY --&gt; CAOT
+    FCOPY --&gt; FOM
     CMOVE --&gt; CPOT
 
     COT --&gt;|"batch submit\n0.1s debounce"| STACK_F
     FOT --&gt;|"submit"| STACK_U
-    CAOT --&gt;|"submit"| STACK_U
+    FOM --&gt;|"push to the pasted frame's stack"| STACK_F
     CPOT --&gt;|"submit"| STACK_U
 
     STACK_F -.-&gt;|"Ctrl+Z tries the current frame first"| STACK_U
@@ -701,7 +702,7 @@ which reads and writes the file; drag and drop is all the editor's (<code>FileIO
     end</code></pre>
 <h2 id="multi-controller-system">Multi-Controller System<a class="headerlink" href="#multi-controller-system" title="Permanent link">#</a></h2>
 <p>Up to 4 color-coded controllers can operate simultaneously. Each controller
-independently switches between film strip, canvas and slider (R, G, B) modes using the
+independently switches between film strip, canvas and slider (A, R, G, B) modes using the
 triggers: L2 steps forward, R2 steps back (R2 does nothing in film strip mode). B undoes
 and X redoes in film strip and canvas modes.</p>
 <pre class="mermaid"><code>flowchart TD
@@ -716,12 +717,12 @@ and X redoes in film strip and canvas modes.</p>
     subgraph Modes["Mode Switching per Controller (ModeSwitcher)"]
         FSM["Film Strip Mode\n(starting mode)"]
         CM["Canvas Mode"]
-        SLM["Slider Modes\nR, then G, then B"]
+        SLM["Slider Modes\nA, then R, G, B"]
 
         FSM --&gt;|"L2"| CM
         CM --&gt;|"L2"| SLM
         SLM --&gt;|"L2 on B"| FSM
-        SLM --&gt;|"R2 on R"| CM
+        SLM --&gt;|"R2 on A"| CM
         CM --&gt;|"R2"| FSM
     end
 
