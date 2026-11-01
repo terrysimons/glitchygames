@@ -38,6 +38,10 @@ EXTENDED_DRIVE_PREFIXES = ('\\\\?\\', '\\\\.\\')
 
 _EXAMPLES_PREFIX_HINT = "The 'examples:' prefix was removed: type the sprite's path instead."
 
+# The Save dialog's prompt after a refused name: short enough for its one-line prompt, and true
+# on every platform that refuses (macOS refuses any ':', Windows one outside the drive letter)
+REFUSED_FILE_NAME_PROMPT = "':' isn't allowed in this name"
+
 
 def _is_letter_drive(drive: str) -> bool:
     r"""Say whether a PureWindowsPath drive is a drive letter and nothing else.
@@ -448,8 +452,11 @@ class SaveDialogScene(InputConfirmationDialogScene):
         # A name with a ':' this platform cannot hold is refused before anything is written
         problem = _file_name_problem(filename.strip())
         if problem is not None:
+            # The dialog stays open with the name kept, so it can be corrected in place
+            # (BUGS.md #231). The prompt is one short line, so it gets the short reason; the
+            # full message, with its hint, goes to the editor's status text
+            self.dialog.dialog_text_sprite.text_box.text = REFUSED_FILE_NAME_PROMPT
             self._show_save_error(message=problem)
-            self.dismiss()
             return
 
         # The name is used as given, apart from surrounding whitespace

@@ -27,8 +27,9 @@ replay, which names the remedy; `--replay-trace OLD --rebaseline NEW --headless`
   same: the name is used as given, with surrounding whitespace trimmed, and a sprite in the
   library is opened by its path. The `example:` prefix they once understood is gone, and Save
   applies a per-platform rule to `:` in a file name (`_file_name_problem`, the platform passed in
-  and `sys.platform` by default); the refusal is shown in the editor's debug text and nothing is
-  written:
+  and `sys.platform` by default); nothing is written, the full refusal is shown in the editor's
+  debug text, and the dialog stays open with the name kept and a short reason in its prompt
+  (`REFUSED_FILE_NAME_PROMPT`), so the name can be corrected in place:
 
   | Platform | `:` in a Save name |
   |---|---|

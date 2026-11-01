@@ -20,15 +20,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-30
 - **Files**: `src/apps/bitmappy/src/bitmappy/toml_processing.py`
 
-### 231. A Refused Save Closes the Dialog Instead of Letting the Name Be Retyped
-- **Description**: When Save refuses a file name (for example a ':' on macOS, or on Windows outside the drive designator), `SaveDialogScene.on_confirm_event` (`src/glitchygames/ui/dialogs.py`) shows the message through `_show_save_error` in the editor's status (debug) text, as a failed save does, and then dismisses the dialog. The user has to reopen Save and retype the name
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found in the workspace-packages Part 4 final review
-- **Date Reported**: 2026-10-26
-- **Details**: Expected: the dialog stays open with the name still editable and the message shown, so the name can be corrected in place. The refusal path in `on_confirm_event` calls `self.dismiss()` after `_show_save_error`; keeping the dialog open means showing the message inside the dialog (`_show_save_error` writes to the previous scene's debug text, which is behind the dialog). Filed, not fixed, by the owner's decision
-- **Files**: `src/glitchygames/ui/dialogs.py`
-
 ### 228. Smaller Findings From the Engine Context Sub-Plan 1 Reviews
 - **Description**: The task reviews and the final whole-branch review of engine context sub-plan 1 (plans/2026-10-25-engine-context-1-state.md, 2026-10-25) recorded these minor findings; the final reviewer triaged them and none blocks the merge. The important findings were fixed on the branch. Item 6 (the positional calls) belongs to sub-plan 2
 - **Status**: Active
@@ -214,11 +205,11 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 165. Smaller UI Bugs the Real Display Found
 - **Description**: Bugs pinned by strict xfails in tests/ui
-- **Status**: Active (items 1-5 fixed 2026-10-31 in the bug sweep: the pressed button's label takes the button's color; the checkbox's up handler dispatches its callback; `add_menu` lays out from the item's own height (`item_height`), which also fixes the dropped-down image growing by the whole previous menu on a second `add_menu`; the paste puts the cursor after the pasted text; click-to-cursor walks character advances from the first ink column. Their strict xfails are gone. Item 6 and the unpinned items stay open)
+- **Status**: Active (items 1-5 fixed 2026-10-31 in the bug sweep: the pressed button's label takes the button's color; the checkbox's up handler dispatches its callback; `add_menu` lays out from the item's own height (`item_height`), which also fixes the dropped-down image growing by the whole previous menu on a second `add_menu`; the paste puts the cursor after the pasted text; click-to-cursor walks character advances from the first ink column. Their strict xfails are gone. Item 6 fixed 2026-11-01, behavior decision: Escape cancels the dialog, as the Cancel button does, and the InputBox types printable characters only; its xfail is gone. The unpinned items stay open)
 - **Priority**: Low
 - **Reporter**: Found moving the tests off the shared pygame mocks onto the real display
 - **Date Reported**: 2026-10-22
-- **Details**: (1) A pressed ButtonSprite looks like a released one (its `background_color` is never drawn): `test_pressed_button_is_drawn_in_its_active_color`. (2) CheckboxSprite never runs its click callback (no user in the code base): `test_checkbox_click_runs_its_callback`. (3) `MenuItem.add_menu` puts the first sub-item at y=40, below the dropped-down image, not y=20: `test_add_menu_puts_the_first_sub_item_right_below_the_item`. (4) After a paste the MultiLineTextBox cursor is past the end of the text: `test_handle_paste_leaves_the_cursor_after_the_pasted_text`. (5) Click-to-cursor measures characters by ink width, not advance, drifting 1-2 px per character: `test_mouse_down_in_the_middle_of_a_character_puts_the_cursor_before_it`. (6) InputBox types Escape's character into Save/Load/New file names (unconfirmed against a real key press): `test_dialogs.py::TestInputConfirmationDialogScene::test_escape_key_down_types_nothing`. Not pinned: MenuBar mouse-up calls items' down handlers; a focused MenuBar's outline equals its border; constructor text is never wrapped; freetype line height 14 vs a 20 px cursor; `_render_with_pygame_font` renders twice (fixed 2026-11-01: it renders once); InputBox parent-offset code is dead and its initial text colour differs from render()'s
+- **Details**: (1) A pressed ButtonSprite looks like a released one (its `background_color` is never drawn): `test_pressed_button_is_drawn_in_its_active_color`. (2) CheckboxSprite never runs its click callback (no user in the code base): `test_checkbox_click_runs_its_callback`. (3) `MenuItem.add_menu` puts the first sub-item at y=40, below the dropped-down image, not y=20: `test_add_menu_puts_the_first_sub_item_right_below_the_item`. (4) After a paste the MultiLineTextBox cursor is past the end of the text: `test_handle_paste_leaves_the_cursor_after_the_pasted_text`. (5) Click-to-cursor measures characters by ink width, not advance, drifting 1-2 px per character: `test_mouse_down_in_the_middle_of_a_character_puts_the_cursor_before_it`. (6) InputBox types Escape's character into Save/Load/New file names (unconfirmed against a real key press): `test_dialogs.py::TestInputConfirmationDialogScene::test_escape_key_down_types_nothing` (fixed 2026-11-01: now `test_escape_key_down_cancels_the_dialog_and_types_nothing`). Not pinned: MenuBar mouse-up calls items' down handlers; a focused MenuBar's outline equals its border; constructor text is never wrapped; freetype line height 14 vs a 20 px cursor; `_render_with_pygame_font` renders twice (fixed 2026-11-01: it renders once); InputBox parent-offset code is dead and its initial text colour differs from render()'s
 - **Files**: see Details
 
 ### 173. Smaller Findings From the Real-Display Migration
@@ -294,6 +285,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: see each item
 
 ## Resolved Bugs
+
+### 231. A Refused Save Closes the Dialog Instead of Letting the Name Be Retyped
+- **Description**: When Save refuses a file name (for example a ':' on macOS, or on Windows outside the drive designator), `SaveDialogScene.on_confirm_event` (`src/glitchygames/ui/dialogs.py`) shows the message through `_show_save_error` in the editor's status (debug) text, as a failed save does, and then dismisses the dialog. The user has to reopen Save and retype the name
+- **Status**: Resolved (2026-11-01, bug sweep, behavior decision: a refused name keeps the dialog open with the name still in the input box and `REFUSED_FILE_NAME_PROMPT` ("':' isn't allowed in this name") as its prompt, so it can be corrected in place; the full message, with its hint, still goes to the editor's debug text, as it does not fit the one-line prompt. A save that fails while writing still closes the dialog)
+- **Priority**: Low
+- **Reporter**: Found in the workspace-packages Part 4 final review
+- **Date Reported**: 2026-10-26
+- **Details**: Expected: the dialog stays open with the name still editable and the message shown, so the name can be corrected in place. The refusal path in `on_confirm_event` calls `self.dismiss()` after `_show_save_error`; keeping the dialog open means showing the message inside the dialog (`_show_save_error` writes to the previous scene's debug text, which is behind the dialog). Filed, not fixed, by the owner's decision
+- **Files**: `src/glitchygames/ui/dialogs.py`
 
 ### 247. TextSprite's Fallback for a Rejected Color Called the freetype Font With pygame.font's Arguments
 - **Description**: When `TextSprite._render_with_freetype_font` raised `TypeError` or `ValueError` (freetype rejecting the color), `_render_text_with_font` fell back to `_render_with_pygame_font`, whose `render(text, antialias, color)` call freetype reads as `(text, fgcolor, bgcolor)`: the antialias flag became the text color and the text color the background, a solid block in the text's color

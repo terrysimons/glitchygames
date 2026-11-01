@@ -26,6 +26,7 @@ from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.scenes import Scene
 from glitchygames.ui import ConfirmDialog, InputDialog
 from glitchygames.ui.dialogs import (
+    REFUSED_FILE_NAME_PROMPT,
     DeleteAnimationDialogScene,
     DeleteFrameDialogScene,
     InputConfirmationDialogScene,
@@ -255,21 +256,24 @@ class TestInputConfirmationDialogScene:
         assert scene.dialog.input_box.is_active is False
         assert scene.next_scene is None
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "InputBox.on_key_down_event appends a key-down's unicode for every key but Return, "
-            "Backspace and Shift+;: Escape's key-down (unicode '\\x1b', as pygame delivers it) "
-            'adds an invisible escape character to the typed file name'
-        ),
-    )
-    def test_escape_key_down_types_nothing(self, previous_scene):
-        """Pressing Escape in the input box must not add a character to it."""
+    def test_escape_key_down_cancels_the_dialog_and_types_nothing(self, previous_scene):
+        """Pressing Escape in the input box cancels the dialog without typing (BUGS.md #165.6)."""
         scene = InputConfirmationDialogScene(previous_scene=previous_scene)
 
+        # pygame delivers Escape's key-down with unicode '\x1b'
         scene.on_key_down_event(_key_down(pygame.K_ESCAPE, unicode='\x1b'))
 
         assert not scene.dialog.input_box.text
+        assert scene.next_scene is previous_scene
+
+    def test_control_character_key_down_types_nothing(self, previous_scene):
+        """A key-down whose unicode is a control character (Ctrl+A) adds nothing to the input."""
+        scene = InputConfirmationDialogScene(previous_scene=previous_scene)
+
+        scene.on_key_down_event(_key_down(pygame.K_a, unicode='\x01'))
+
+        assert not scene.dialog.input_box.text
+        assert scene.next_scene is None
 
     def test_dialog_scene_draws_its_dialog_on_the_display(self, previous_scene):
         """Drawing the scene's sprites puts the dialog's border at its rect on the display."""
@@ -1012,7 +1016,7 @@ class TestSaveDialogConfirm:
     def test_a_name_with_a_colon_is_refused_and_nothing_is_saved(
         self, previous_scene, filename, macos_rules
     ):
-        """A ':' name shows the reason, saves nothing, hands nothing over and closes the dialog."""
+        """A ':' name shows the reason, saves nothing, hands nothing over; the dialog stays open."""
         user_files = _RecordingUserFiles()
         install_user_files(user_files=user_files)
         previous_scene.debug_text = _RecordingDebugText()
@@ -1024,7 +1028,7 @@ class TestSaveDialogConfirm:
         assert previous_scene.canvas.saved_paths == []
         assert not user_files.saved_files
         assert "':' isn't allowed in a file name on macOS" in previous_scene.debug_text.text
-        assert dialog.next_scene is previous_scene
+        assert dialog.next_scene is None
 
     def test_a_refused_name_writes_no_file(
         self, previous_scene, tmp_path, monkeypatch, macos_rules
@@ -1038,16 +1042,41 @@ class TestSaveDialogConfirm:
 
         assert list(tmp_path.iterdir()) == []
 
-    def test_a_refused_name_without_a_debug_text_is_only_dismissed(
+    def test_a_refused_name_without_a_debug_text_keeps_the_dialog_open(
         self, previous_scene, macos_rules
     ):
-        """A scene with no debug text box still closes the dialog without saving."""
+        """A scene with no debug text box still keeps the dialog open without saving."""
         dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
         dialog.dialog.input_box.text = 'examples:star.toml'
 
         dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
 
         assert previous_scene.canvas.saved_paths == []
+        assert dialog.next_scene is None
+
+    def test_a_refused_name_stays_editable_with_the_reason_in_the_prompt(
+        self, previous_scene, macos_rules
+    ):
+        """The refused name is kept for retyping and the prompt says why (BUGS.md #231)."""
+        dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        dialog.dialog.input_box.text = 'examples:star.toml'
+
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert dialog.dialog.input_box.text == 'examples:star.toml'
+        assert dialog.dialog.input_box in dialog.all_sprites
+        assert dialog.dialog.dialog_text_sprite.text_box.text == REFUSED_FILE_NAME_PROMPT
+
+    def test_a_corrected_name_saves_after_a_refusal(self, previous_scene, macos_rules):
+        """After a refusal, the name corrected in place saves and closes the dialog."""
+        dialog = SaveDialogScene(previous_scene=previous_scene, groups=pygame.sprite.LayeredDirty())
+        dialog.dialog.input_box.text = 'examples:star.toml'
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        dialog.dialog.input_box.text = 'star.toml'
+        dialog.on_confirm_event(_mouse_up((0, 0)), dialog.dialog.confirm_button)
+
+        assert previous_scene.canvas.saved_paths == ['star.toml']
         assert dialog.next_scene is previous_scene
 
     def test_without_user_files_nothing_is_handed_over(self, previous_scene):
