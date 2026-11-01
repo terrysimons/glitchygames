@@ -1281,20 +1281,26 @@ class TestNavigationWithParentScene:
         ]
         assert switches == [('walk', 0), ('idle', 0)]
 
-    def test_switching_to_an_empty_animation_uses_frame_zero(self, mocker):
-        """An animation with no frames is entered at frame 0."""
+    def test_animation_steps_skip_an_animation_with_no_frames(self):
+        """next/previous_animation step over an animation with no frames (BUGS.md #138.6)."""
         canvas, animated_sprite = _make_real_canvas()
+        surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         animated_sprite._animations['empty'] = []
-        canvas.current_frame = 2
-        show_frame = mocker.spy(canvas, 'show_frame')
+        animated_sprite.add_animation('walk', [SpriteFrame(surface)])
+        parent_scene = ParentSceneStandIn()
+        canvas.parent_scene = parent_scene
 
         canvas.next_animation()
-        canvas.current_animation = 'empty'
-        canvas.current_frame = 2
+        assert canvas.current_animation == 'walk'
         canvas.previous_animation()
+        assert canvas.current_animation == 'idle'
 
-        assert show_frame.call_args_list[0].args == ('empty', 0)
-        assert show_frame.call_args_list[1].args == ('idle', 2)
+        switches = [
+            arguments
+            for name, arguments in parent_scene.film_strip_coordinator.notifications
+            if name == 'switch_to_film_strip'
+        ]
+        assert switches == [('walk', 0), ('idle', 0)]
 
     def test_set_frame_tells_the_undo_manager_and_resumes_playback(self):
         """Selecting a frame while playing updates the undo manager and keeps playing."""
@@ -2225,8 +2231,8 @@ class TestNavigationEdges:
 
         assert (canvas.current_animation, canvas.current_frame) == ('idle', 1)
 
-    def test_previous_animation_without_frames_asks_for_frame_zero(self):
-        """Stepping back to an animation with no frames tells the scene to show its frame 0."""
+    def test_animation_steps_with_only_empty_others_change_nothing(self):
+        """When every other animation has no frames, stepping changes neither canvas nor strip."""
         canvas, animated_sprite = _make_real_canvas()
         animated_sprite._animations = {'empty': [], **animated_sprite._animations}
         parent_scene = ParentSceneStandIn()
@@ -2234,12 +2240,14 @@ class TestNavigationEdges:
         canvas.current_frame = 2
 
         canvas.previous_animation()
+        canvas.next_animation()
 
-        assert parent_scene.film_strip_coordinator.notifications[-1] == (
-            'switch_to_film_strip',
-            ('empty', 0),
-        )
         assert (canvas.current_animation, canvas.current_frame) == ('idle', 2)
+        assert not [
+            name
+            for name, _ in parent_scene.film_strip_coordinator.notifications
+            if name == 'switch_to_film_strip'
+        ]
 
     def test_set_frame_out_of_range_changes_nothing(self):
         """A frame index past the end of the animation is ignored."""

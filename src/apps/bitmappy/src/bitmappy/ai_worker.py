@@ -974,7 +974,9 @@ def _serve_ai_requests(
     """Answer requests until the shutdown message (None) arrives.
 
     A request that fails with ValueError, KeyError, AttributeError or OSError is answered
-    with an error response and the worker goes on; any other error ends the worker.
+    with an error response and the worker goes on; any other error ends the worker. A failed
+    read of the request queue also ends it: a closed or broken queue never recovers, and
+    retrying it logged the same error forever (BUGS.md #178 item 7).
 
     Args:
         request_queue: Queue to receive requests from
@@ -985,11 +987,13 @@ def _serve_ai_requests(
     """
     request_count = 0
     while True:
-        # Reset every time: a failed get must not answer the previous request a second time
-        request = None
         try:
             request = request_queue.get()
-            request_count += 1
+        except ValueError, OSError, EOFError:
+            log.exception('The AI request queue cannot be read; stopping the AI worker')
+            break
+        request_count += 1
+        try:
             keep_serving = _answer_ai_request(
                 request=request,
                 request_number=request_count,

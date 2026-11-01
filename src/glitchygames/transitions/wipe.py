@@ -11,7 +11,7 @@ from typing import override
 
 import pygame
 
-from glitchygames.transitions.base import Transition
+from glitchygames.transitions.base import Transition, checked_direction
 
 
 class WipeTransition(Transition):
@@ -27,6 +27,9 @@ class WipeTransition(Transition):
         duration: Transition duration in seconds.
         easing: Easing function name.
 
+    Raises:
+        ValueError: If direction is not one of the four above.
+
     """
 
     def __init__(
@@ -37,7 +40,7 @@ class WipeTransition(Transition):
     ) -> None:
         """Initialize the wipe transition."""
         super().__init__(duration=duration, easing=easing)
-        self._direction = direction
+        self._direction = checked_direction(direction)
 
     @override
     def _render_frame(
