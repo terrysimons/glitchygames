@@ -71,7 +71,6 @@ class _Canvas:
         self.animated_sprite = animated_sprite
         self.canvas_interface = _CanvasInterface()
         self.pixels = [RED] * (FRAME_WIDTH * FRAME_HEIGHT)
-        self.dirty_pixels = [False] * (FRAME_WIDTH * FRAME_HEIGHT)
         self.dirty = 0
         self.shown_frames = []
 
@@ -371,7 +370,6 @@ class TestFramePasteCommand:
         assert frame.get_pixel_data() == new_pixels
         assert frame.duration == pytest.approx(2.0)
         assert editor.canvas.pixels == new_pixels
-        assert editor.canvas.dirty_pixels == [True] * len(new_pixels)
         assert editor.canvas.dirty == 1
 
         assert command.undo() is True
@@ -454,7 +452,6 @@ class TestFramePasteCommand:
 
     def test_paste_into_canvas_without_dirty_tracking(self, editor):
         """A canvas with no dirty flags still gets the pasted pixels."""
-        del editor.canvas.dirty_pixels
         del editor.canvas.dirty
         new_pixels = [GREEN] * 4
         command = FramePasteCommand(

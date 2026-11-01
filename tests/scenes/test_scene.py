@@ -125,7 +125,7 @@ class TestScene:
         assert scene.dt_timer == 0
         assert scene.dirty == 1
         assert scene.options == {'debug_events': False, 'no_unhandled_events': False}
-        assert scene.name is type(scene)
+        assert scene.name == type(scene).__name__
         # No colour set: the background shows the default pattern (glitchygames/backgrounds.py)
         assert scene.background_color is None
         assert scene.background_pattern is CANVAS_PATTERN

@@ -1274,7 +1274,6 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
                     self.editor.canvas.pixels = [
                         (255, 0, 255, 255)
                     ] * pixel_count  # Magenta background
-                    self.editor.canvas.dirty_pixels = [True] * pixel_count
                     self.log.debug(
                         'Canvas pixels initialized: len=%s',
                         len(self.editor.canvas.pixels),

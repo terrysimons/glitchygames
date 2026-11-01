@@ -190,17 +190,10 @@ class TestInitializeDimensions:
 class TestInitializePixelArrays:
     """Test _initialize_pixel_arrays method."""
 
-    def test_pixel_array_length(self, mocker):
-        """Test pixel array has correct length for canvas size."""
+    def test_the_canvas_keeps_no_dirty_pixel_list(self, mocker):
+        """The per-pixel dirty list is gone: nothing read it (BUGS.md #178 item 15)."""
         canvas, _ = _make_canvas(mocker, config=CanvasConfig(pixels_across=4, pixels_tall=4))
-        # Pixels are updated from animated sprite frame data during init,
-        # but dirty_pixels should match the expected count
-        assert len(canvas.dirty_pixels) == PIXEL_COUNT
-
-    def test_dirty_pixels_initialized_true(self, mocker):
-        """Test all dirty pixels start as True after initialization."""
-        canvas, _ = _make_canvas(mocker, config=CanvasConfig(pixels_across=4, pixels_tall=4))
-        assert all(canvas.dirty_pixels)
+        assert not hasattr(canvas, 'dirty_pixels')
 
     def test_background_color_set(self, mocker):
         """Test background color is set to gray."""
@@ -845,7 +838,6 @@ class TestOnPixelUpdateEvent:
 
         canvas.on_pixel_update_event(event, trigger)
         assert canvas.pixels[5] == RED_RGBA
-        assert canvas.dirty_pixels[5] is True
         assert canvas.dirty == 1
 
     def test_pixel_update_without_pixel_number_does_nothing(self, mocker):

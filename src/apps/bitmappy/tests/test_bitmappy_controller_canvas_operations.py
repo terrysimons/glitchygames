@@ -90,7 +90,6 @@ class PixelListCanvas:
         self.pixels_across = pixels_across
         self.pixels_tall = pixels_tall
         self.pixels: list[tuple[int, ...]] = [WHITE] * (pixels_across * pixels_tall)
-        self.dirty_pixels = [False] * (pixels_across * pixels_tall)
         self.dirty = 0
 
 
@@ -447,7 +446,6 @@ class TestCanvasPaintAtControllerPosition:
 
         pixel_index = 2 * canvas.pixels_across + 1
         assert canvas.pixels[pixel_index] == RED
-        assert canvas.dirty_pixels[pixel_index] is True
         assert canvas.dirty == 1
 
 
@@ -525,7 +523,6 @@ class TestCanvasEraseAtControllerPosition:
         handler.canvas._canvas_erase_at_controller_position(CONTROLLER_ID)
 
         assert canvas.pixels[3] == BLACK
-        assert canvas.dirty_pixels[3] is True
         assert canvas.dirty == 1
 
     def test_a_position_outside_a_pixel_list_canvas_erases_nothing(self):

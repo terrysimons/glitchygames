@@ -339,7 +339,6 @@ class TestStaticCanvasInterface:
         sprite.pixels_across = CANVAS_SIZE
         sprite.pixels_tall = CANVAS_SIZE
         sprite.dirty = 0
-        sprite.dirty_pixels = [False] * PIXEL_COUNT
         sprite.image = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         return sprite
 
@@ -358,7 +357,6 @@ class TestStaticCanvasInterface:
         interface.set_pixel_data(new_pixels)
         assert canvas_sprite.pixels == new_pixels
         assert canvas_sprite.dirty == 1
-        assert all(canvas_sprite.dirty_pixels)
 
     def test_get_dimensions(self, canvas_sprite):
         """Test get_dimensions returns width and height."""
@@ -396,7 +394,6 @@ class TestStaticCanvasInterface:
         interface = StaticCanvasInterface(canvas_sprite)
         interface.set_pixel_at(0, 0, RED)
         assert canvas_sprite.pixels[0] == RED
-        assert canvas_sprite.dirty_pixels[0] is True
         assert canvas_sprite.dirty == 1
 
     def test_set_pixel_at_out_of_bounds(self, canvas_sprite):
@@ -496,7 +493,6 @@ class TestAnimatedCanvasInterfacePixelOps:
         canvas_sprite.pixels_tall = CANVAS_SIZE
         canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
         canvas_sprite.dirty = 0
-        canvas_sprite.dirty_pixels = [False] * PIXEL_COUNT
         canvas_sprite.image = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
 
         animated_sprite = AnimatedSprite()
@@ -550,7 +546,6 @@ class TestAnimatedCanvasInterfacePixelOps:
         """Test set_pixel_data falls back to static sprite."""
         canvas_sprite = mocker.Mock()
         canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
-        canvas_sprite.dirty_pixels = [False] * PIXEL_COUNT
         canvas_sprite.dirty = 0
         del canvas_sprite.animated_sprite
 
@@ -595,7 +590,6 @@ class TestAnimatedCanvasInterfaceSetPixelAt:
         canvas_sprite.pixels_across = CANVAS_SIZE
         canvas_sprite.pixels_tall = CANVAS_SIZE
         canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
-        canvas_sprite.dirty_pixels = [False] * PIXEL_COUNT
         canvas_sprite.dirty = 0
         del canvas_sprite.animated_sprite
 
@@ -741,7 +735,6 @@ class TestCollectPixelChangeDictionaryTrimming:
         canvas_sprite.pixels_across = 100
         canvas_sprite.pixels_tall = 100
         canvas_sprite.pixels = [MAGENTA] * 10000
-        canvas_sprite.dirty_pixels = [False] * 10000
         canvas_sprite.dirty = 0
         del canvas_sprite.animated_sprite
 
@@ -769,7 +762,6 @@ class TestCollectPixelChangeDictionaryTrimming:
         canvas_sprite.pixels_across = CANVAS_SIZE
         canvas_sprite.pixels_tall = CANVAS_SIZE
         canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
-        canvas_sprite.dirty_pixels = [False] * PIXEL_COUNT
         canvas_sprite.dirty = 0
         del canvas_sprite.animated_sprite
 
@@ -1922,7 +1914,6 @@ class TestAnimatedCanvasInterfaceUpdateFramePixelData:
         canvas_sprite.pixels_tall = CANVAS_SIZE
         canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
         canvas_sprite.dirty = 0
-        canvas_sprite.dirty_pixels = [False] * PIXEL_COUNT
         canvas_sprite.current_animation = 'idle'
         canvas_sprite.current_frame = 0
 
@@ -1949,7 +1940,6 @@ class TestAnimatedCanvasInterfaceUpdateFramePixelData:
         canvas_sprite.pixels_tall = CANVAS_SIZE
         canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
         canvas_sprite.dirty = 0
-        canvas_sprite.dirty_pixels = [False] * PIXEL_COUNT
         canvas_sprite.current_animation = 'idle'
         canvas_sprite.current_frame = 0
 
@@ -1969,7 +1959,6 @@ class TestAnimatedCanvasInterfaceUpdateFramePixelData:
         """Test _update_frame_pixel_data falls back to static pixels."""
         canvas_sprite = mocker.Mock()
         canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
-        canvas_sprite.dirty_pixels = [False] * PIXEL_COUNT
         canvas_sprite.dirty = 0
         del canvas_sprite.animated_sprite
 
@@ -1988,7 +1977,6 @@ class TestAnimatedCanvasInterfaceSetPixelAtFullPath:
         canvas_sprite.pixels_across = CANVAS_SIZE
         canvas_sprite.pixels_tall = CANVAS_SIZE
         canvas_sprite.pixels = [MAGENTA] * PIXEL_COUNT
-        canvas_sprite.dirty_pixels = [False] * PIXEL_COUNT
         canvas_sprite.dirty = 0
         canvas_sprite.current_animation = 'idle'
         canvas_sprite.current_frame = 0

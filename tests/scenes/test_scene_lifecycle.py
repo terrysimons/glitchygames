@@ -33,7 +33,7 @@ class TestSceneLifecycle:
         scene = Scene()
 
         # Verify scene properties
-        assert scene.name is type(scene)
+        assert scene.name == type(scene).__name__
         assert scene.target_fps == 0
         assert scene.fps == 0
         assert scene.dt == 0
@@ -49,7 +49,7 @@ class TestSceneLifecycle:
         assert scene.dt == 0
         assert scene.dirty == 1
         assert scene.options == {'debug_events': False, 'no_unhandled_events': False}
-        assert scene.name is type(scene)
+        assert scene.name == type(scene).__name__
 
     def test_scene_cleanup(self):
         """Test scene cleanup."""

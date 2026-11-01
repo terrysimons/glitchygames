@@ -345,7 +345,6 @@ class CanvasOperations:
         ):
             pixel_num = y * self.handler.editor.canvas.pixels_across + x
             self.handler.editor.canvas.pixels[pixel_num] = color
-            self.handler.editor.canvas.dirty_pixels[pixel_num] = True
             self.handler.editor.canvas.dirty = 1
 
     def _track_controller_drag_pixel(
@@ -428,7 +427,6 @@ class CanvasOperations:
                 ):
                     pixel_num = y * self.handler.editor.canvas.pixels_across + x
                     self.handler.editor.canvas.pixels[pixel_num] = background_color
-                    self.handler.editor.canvas.dirty_pixels[pixel_num] = True
                     self.handler.editor.canvas.dirty = 1
             self.handler.log.debug('DEBUG: Erased at canvas position %s', position.position)
 

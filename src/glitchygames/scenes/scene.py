@@ -2937,7 +2937,8 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         self.dirty = 1
         self.options = options
         self.scene_manager = SceneManager()
-        self.name = type(self)
+        # The class name as a string, like an unnamed Sprite's (BUGS.md #178 item 18)
+        self.name: str = type(self).__name__
         self._background_color: tuple[int, ...] | None = None
         self._background_pattern: BackgroundPattern | None = None
         self._last_fps_log_time: float = 0.0

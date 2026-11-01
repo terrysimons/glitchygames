@@ -122,7 +122,7 @@ class TestSpriteInitialization:
         sprite = Sprite(x=SPRITE_X, y=SPRITE_Y, width=SPRITE_WIDTH, height=SPRITE_HEIGHT)
 
         # When no name is provided, it defaults to the class type
-        assert sprite.name is type(sprite)
+        assert sprite.name == type(sprite).__name__
 
     def test_sprite_initialization_with_zero_dimensions(self, mocker):
         """Test Sprite initialization with zero dimensions."""

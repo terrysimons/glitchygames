@@ -186,7 +186,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         """Initialize pixel arrays and color settings."""
         # Initialize pixels with magenta as the transparent/background color (RGBA)
         self.pixels = [(255, 0, 255, 255) for _ in range(self.pixels_across * self.pixels_tall)]
-        self.dirty_pixels = [True] * len(self.pixels)
         self.background_color = (128, 128, 128)
         # Declared RGBA so apply_color can assign any color (BUGS.md #155 item 6)
         self.active_color: tuple[int, int, int, int] = (0, 0, 0, 255)
@@ -351,7 +350,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
         if animation == self.current_animation and frame_index == self.current_frame:
             self.pixels = list(pixels)
-            self.dirty_pixels = [True] * len(self.pixels)
             self.dirty = 1
 
         if self.parent_scene:
@@ -513,7 +511,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 len(set(frame_pixels)) == 1,
             )
             self.pixels = frame_pixels
-            self.dirty_pixels = [True] * len(self.pixels)
             self.log.info('Updated canvas pixels from frame %s', current_frame)
             # Mark canvas dirty to ensure redraw applies per-pixel alpha on load
             self.dirty = 1
@@ -658,8 +655,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                     [(255, 0, 255)] * (self.pixels_across * self.pixels_tall),
                 )
 
-            # Mark all pixels as dirty
-            self.dirty_pixels = [True] * len(self.pixels)
+            # Mark the canvas dirty so it redraws
             self.dirty = 1
 
             # Notify parent scene to update film strips
@@ -828,8 +824,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 frame.set_pixel_data(self._clipboard)
                 # Update the canvas pixels
                 self.pixels = self._clipboard.copy()
-                # Mark as dirty
-                self.dirty_pixels = [True] * len(self.pixels)
+                # Mark the canvas dirty so it redraws
                 self.dirty = 1
 
     @classmethod
@@ -1059,7 +1054,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
         # Update pixel data for immediate visual feedback
         self.pixels[pixel_num] = self.active_color
-        self.dirty_pixels[pixel_num] = True
 
         # Update frame data immediately so renderer shows the change
         self._update_drag_frame_pixel(pixel_num, self.active_color)
@@ -1218,7 +1212,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             new_color: tuple[int, ...] = trigger.pixel_color  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
 
             self.pixels[pixel_num] = new_color
-            self.dirty_pixels[pixel_num] = True
             self.dirty = 1
 
             # Notify parent scene to update film strips
@@ -1701,7 +1694,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         self.pixels = [(255, 0, 255, 255)] * (
             sprite_width * sprite_height
         )  # Initialize with magenta
-        self.dirty_pixels = [True] * (sprite_width * sprite_height)
 
         # Update surface dimensions
         actual_width = sprite_width * pixel_size
@@ -1801,7 +1793,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         if current_frame_pixels:
             # Copy the pixels to the canvas
             self.pixels = current_frame_pixels.copy()  # ty: ignore[invalid-assignment]
-            self.dirty_pixels = [True] * len(self.pixels)
             self.dirty = 1  # Mark canvas as dirty for redraw
             self.log.debug('Copied %s pixels to canvas', len(current_frame_pixels))
             self.log.debug(
