@@ -397,7 +397,7 @@ each with its type and default, then its help text.</p>
 <li><code>--live-voice-pool LIVE_VOICE_POOL</code> (<code>int</code>): mixer channels reserved for real-time synth voices (default: 4)</li>
 <li><code>--crt-power-on {auto,on,off}</code> (<code>choice</code>, default <code>auto</code>): show the game's canvas switching on like a CRT before the game starts: auto (default: when someone can see it, so not on SDL's dummy driver or before a replay, audit, rebaseline or recording), on (always; refused with a replay or a recording) or off</li>
 <li><code>--default-background {test-pattern,channel-3}</code> (<code>choice</code>): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)</li>
-<li><code>--video-driver {cocoa,offscreen,dummy}</code> (<code>choice</code>, default <code>None</code>): not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER (or --headless) instead</li>
+<li><code>--video-driver {cocoa,offscreen,dummy}</code> (<code>choice</code>, default <code>None</code>): SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: SDL_VIDEODRIVER's own value, or SDL's choice; --headless overrides it)</li>
 </ul>
 <p><strong><code>--video-driver</code> choices by platform</strong> (SDL 2's video driver names, by <code>platform.system()</code>;
 <code>--help</code> above is macOS's):</p>
@@ -462,12 +462,13 @@ from <code>--help</code>: the watched replay's restart internals.</p>
 <ul>
 <li><code>--font-name FONT_NAME</code> (<code>str</code>): Font to use (default: the bundled Vera; the bundled variants are Vera, VeraBd, VeraIt and VeraBI; any other name is looked up among the system's fonts)</li>
 <li><code>--font-size FONT_SIZE</code> (<code>int</code>): size of the default font, used by text that asks for no font of its own (default: 14)</li>
-<li><code>--font-bold</code> (<code>store_true</code>, default <code>False</code>): not used yet: stored, but no text is drawn bold because of it</li>
-<li><code>--font-italic</code> (<code>store_true</code>, default <code>False</code>): not used yet: stored, but no text is drawn italic because of it</li>
-<li><code>--font-antialias</code> (<code>store_true</code>, default <code>False</code>): not used yet: stored, but each text widget chooses its own antialiasing</li>
-<li><code>--font-dpi FONT_DPI</code> (<code>int</code>): the resolution, in dots per inch, freetype font sizes are scaled at (sets pygame.freetype's default resolution); the pygame font system ignores it (default: 72)</li>
-<li><code>--font-system {pygame,freetype}</code> (<code>choice</code>, default <code>freetype</code>): Font system to use: freetype (enhanced, default) or pygame (built-in)</li>
+<li><code>--font-bold</code> (<code>store_true</code>, default <code>False</code>): draw text bold</li>
+<li><code>--font-italic</code> (<code>store_true</code>, default <code>False</code>): draw text italic</li>
+<li><code>--font-antialias</code>, <code>--no-font-antialias</code> (<code>BooleanOptionalAction</code>): antialias text (default: True). freetype fonts carry it; every <code>pygame.font</code> render call passes <code>FontManager.antialias()</code>, except the channel 3 screen's digit, which stays hard-edged on purpose</li>
+<li><code>--font-dpi FONT_DPI</code> (<code>int</code>): the resolution, in dots per inch, font sizes are scaled at (a size is in pixels at 72) (default: 72)</li>
 </ul>
+<p>The style options reach every font <code>FontManager</code> loads; a font configuration that gives its own <code>font_bold</code>, <code>font_italic</code>, <code>font_antialias</code> or <code>font_dpi</code> overrides them. All four are in the font cache key.
+- <code>--font-system {pygame,freetype}</code> (<code>choice</code>, default <code>freetype</code>): Font system to use: freetype (enhanced, default) or pygame (built-in)</p>
 <h4 id="game-options">Game Options<a class="headerlink" href="#game-options" title="Permanent link">#</a></h4>
 <p>Added by <code>GameEventManager.args()</code> in <code>src/glitchygames/events/game.py</code>.</p>
 <ul>

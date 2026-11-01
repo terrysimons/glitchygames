@@ -326,9 +326,9 @@ table records the two rules this preview first copied (R4, animated: per-line st
 length, truncate, pad with the row's last glyph; R5, static: whole-string strip, longest row, pad
 with the most common glyph).</p>
 <p><strong>Animations</strong>: each <code>[[animation]]</code> has <code>namespace</code> (default <code>"default"</code>), <code>frame_interval</code>
-(seconds, default 0.5), <code>loop</code> (default true), and <code>frame</code> entries. Frames play in <strong>file order</strong>: the engine means to sort by <code>frame_index</code>, but its sort
-key is never set, so it changes nothing (found by the golden tests while building, 2026-10-29;
-tracked in <code>plans/future-work.md</code>). Frames whose pixels are empty are skipped. A frame's own <code>frame_interval</code> overrides the animation's. A non-looping animation stops on
+(seconds, default 0.5), <code>loop</code> (default true), and <code>frame</code> entries. Frames play in <strong><code>frame_index</code> order</strong>, a frame without one at its file position, ties in file
+order (the engine's <code>frame_tables_in_load_order</code>; until 2026-10-31 the engine's sort was a no-op
+and frames played in file order, BUGS.md #232). Frames whose pixels are empty are skipped. A frame's own <code>frame_interval</code> overrides the animation's. A non-looping animation stops on
 its last frame.</p>
 <p><strong>Static sprite name</strong>: the single animation is named after <code>sprite.name</code> (default <code>"idle"</code>).</p>
 <h2 id="decided-how-the-owner-agreed-in-conversation-marked-where-it-was-claudes-call">Decided "how" (the owner agreed in conversation; marked where it was Claude's call)<a class="headerlink" href="#decided-how-the-owner-agreed-in-conversation-marked-where-it-was-claudes-call" title="Permanent link">#</a></h2>
@@ -384,8 +384,9 @@ its last frame.</p>
 <h2 id="engine-quirks-noticed-reported-not-fixed-here">Engine quirks noticed (reported, not fixed here)<a class="headerlink" href="#engine-quirks-noticed-reported-not-fixed-here" title="Permanent link">#</a></h2>
 <ul>
 <li>
-<p><code>frame_index</code> never orders frames: the engine's sort key reads an attribute no frame has, so frames
-  play in file order. The preview copies that; tracked in <code>plans/future-work.md</code>.</p>
+<p><del><code>frame_index</code> never orders frames: the engine's sort key reads an attribute no frame has, so frames
+  play in file order. The preview copies that; tracked in <code>plans/future-work.md</code>.</del> Fixed
+  2026-10-31 (BUGS.md #232): the engine and the preview both order frames by <code>frame_index</code>.</p>
 </li>
 <li>
 <p><del>Static and animated sprites normalize ragged rows differently (longest row + most-common-glyph
