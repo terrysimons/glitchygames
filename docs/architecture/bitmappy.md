@@ -417,14 +417,14 @@ flowchart LR
         FILL["Flood fill"]
         FSEL["Select frame"]
         FDEL["Delete frame"]
-        FCOPY["Copy/paste frame"]
+        FCOPY["Paste frame"]
         CMOVE["Controller move / mode change"]
     end
 
     subgraph Trackers["Operation Trackers"]
         COT["CanvasOperationTracker\npixel-level, batched per drag"]
         FOT["FilmStripOperationTracker\nframe-level operations"]
-        CAOT["CrossAreaOperationTracker\nframe copy/paste"]
+        FOM["FrameOperationManager\nFramePasteCommand"]
         CPOT["ControllerPositionOperationTracker\ncontroller positions and modes"]
     end
 
@@ -438,12 +438,12 @@ flowchart LR
     FILL --> COT
     FSEL --> FOT
     FDEL --> FOT
-    FCOPY --> CAOT
+    FCOPY --> FOM
     CMOVE --> CPOT
 
     COT -->|"batch submit\n0.1s debounce"| STACK_F
     FOT -->|"submit"| STACK_U
-    CAOT -->|"submit"| STACK_U
+    FOM -->|"push to the pasted frame's stack"| STACK_F
     CPOT -->|"submit"| STACK_U
 
     STACK_F -.->|"Ctrl+Z tries the current frame first"| STACK_U

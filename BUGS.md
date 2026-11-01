@@ -162,14 +162,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-22
 - **Files**: `src/glitchygames/sprites/animated.py`
 
-### 151. Frame Paste Undoes Out of Order With Paint
-- **Description**: Frame paste goes on the global undo stack while paint goes on per-frame stacks; `handle_undo` tries the frame stack first, so after paint then paste, Ctrl+Z undoes the paint before the paste
-- **Status**: Active
-- **Priority**: Medium
-- **Reporter**: Found by the dead-code audit follow-ups
-- **Date Reported**: 2026-10-22
-- **Files**: `src/glitchygames/bitmappy/history/undo_redo.py`
-
 ### 153. Controllers Cannot Adjust Alpha
 - **Description**: There is no alpha slider mode: `is_any_controller_in_slider_mode`, slider navigation and the indicators know only R, G and B
 - **Status**: Active
@@ -269,6 +261,14 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: see each item
 
 ## Resolved Bugs
+
+### 151. Frame Paste Undoes Out of Order With Paint
+- **Description**: Frame paste goes on the global undo stack while paint goes on per-frame stacks; `handle_undo` tries the frame stack first, so after paint then paste, Ctrl+Z undoes the paint before the paste
+- **Status**: Resolved (2026-11-01, bug sweep, behavior decision: the paste replaces one frame's pixels and duration, as paint does, so `FrameOperationManager.handle_paste_frame` pushes its `FramePasteCommand` onto that frame's own stack (`push_frame_command`); paint then paste undoes the paste first. The global stack keeps film-strip structure changes. Noticed, not changed: `CrossAreaOperationTracker.add_frame_copied` and `add_frame_pasted` are never called; the docs diagram showed paste going through them)
+- **Priority**: Medium
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `src/glitchygames/bitmappy/history/undo_redo.py`
 
 ### 244. `scripts/foo.toml` Has Pixels and No Palette, So It Draws Nothing
 - **Description**: `scripts/foo.toml` (a "Bitmap Canvas" static sprite from #54) uses glyphs `.`, `O` and `X` with no `[colors]` table, so every pixel draws transparent. Nothing checks `scripts/`, so CI never saw it.
