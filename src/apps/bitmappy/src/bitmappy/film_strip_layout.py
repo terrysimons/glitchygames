@@ -52,7 +52,7 @@ def render_label_text(
         )
         return text_surface, text_rect
     pygame_font = cast('pygame.font.Font', font)
-    text_surface = pygame_font.render(text, antialias=True, color=color)
+    text_surface = pygame_font.render(text, antialias=FontManager.antialias(), color=color)
     return text_surface, text_surface.get_rect()
 
 

@@ -262,7 +262,7 @@ Added by `FontManager.args()` in `src/glitchygames/fonts/font_manager.py`.
 - `--font-size FONT_SIZE` (`int`): size of the default font, used by text that asks for no font of its own (default: 14)
 - `--font-bold` (`store_true`, default `False`): draw text bold
 - `--font-italic` (`store_true`, default `False`): draw text italic
-- `--font-antialias`, `--no-font-antialias` (`BooleanOptionalAction`): antialias freetype text; the pygame font system antialiases per call, so its text keeps each caller's choice (default: True)
+- `--font-antialias`, `--no-font-antialias` (`BooleanOptionalAction`): antialias text (default: True). freetype fonts carry it; every `pygame.font` render call passes `FontManager.antialias()`, except the channel 3 screen's digit, which stays hard-edged on purpose
 - `--font-dpi FONT_DPI` (`int`): the resolution, in dots per inch, font sizes are scaled at (a size is in pixels at 72) (default: 72)
 
 The style options reach every font `FontManager` loads; a font configuration that gives its own `font_bold`, `font_italic`, `font_antialias` or `font_dpi` overrides them. All four are in the font cache key.

@@ -262,7 +262,7 @@ The other replay options (`--replay-fps`, `--audit`, `--compare-processing`, `--
 | `--font-size` | Size of the default font (text that asks for no font of its own) | `14` |
 | `--font-dpi` | Resolution font sizes are scaled at (a size is in pixels at 72) | `72` |
 | `--font-bold`, `--font-italic` | Draw text bold or italic | `False` |
-| `--font-antialias`, `--no-font-antialias` | Antialias freetype text (pygame-font text keeps each caller's choice) | on |
+| `--font-antialias`, `--no-font-antialias` | Antialias text (all but the channel 3 screen's digit) | on |
 | `--font-system` | `freetype` or `pygame` | `freetype` |
 
 ### Controller Options

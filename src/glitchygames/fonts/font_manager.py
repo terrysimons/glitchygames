@@ -131,8 +131,8 @@ class FontSettings:
         size: The size in points (pixels at BASE_FONT_DPI).
         bold: Drawn bold (pygame.freetype's strong, pygame.font's set_bold).
         italic: Drawn italic (pygame.freetype's oblique, pygame.font's set_italic).
-        antialias: pygame.freetype's antialiased; pygame.font antialiases per render call, so
-            each caller of its render still chooses.
+        antialias: pygame.freetype's antialiased; pygame.font antialiases per render call,
+            so its callers pass FontManager.antialias().
         dpi: The resolution sizes are scaled at.
 
     """
@@ -350,10 +350,9 @@ class FontManager(ResourceManager):
             '--font-antialias',
             action=argparse.BooleanOptionalAction,
             default=FONT_STYLE_DEFAULTS['font_antialias'],
-            help=(
-                'antialias freetype text; the pygame font system antialiases per call, so its '
-                "text keeps each caller's choice (default: %(default)s)"
-            ),
+            # Every text the engine, its games and its tools draw follows it, except the
+            # channel 3 screen's digit (backgrounds.py), hard-edged on purpose
+            help='antialias text (default: %(default)s)',
         )
         group.add_argument(
             '--font-dpi',
@@ -500,6 +499,20 @@ class FontManager(ResourceManager):
         return loaded_font
 
     @classmethod
+    def antialias(cls) -> bool:
+        """Return whether text is antialiased: --font-antialias, on unless turned off.
+
+        pygame.font chooses antialiasing on each render call, so every caller that draws
+        with a pygame.font font passes this (freetype fonts carry it themselves). Text that
+        must stay hard-edged whatever the setting passes False with a comment saying why.
+
+        Returns:
+            The engine's antialias setting (True when no engine has set the options).
+
+        """
+        return cls.font_settings().antialias
+
+    @classmethod
     def font_settings(cls, font_config: dict[str, Any] | None = None) -> FontSettings:
         """Return the settings a font configuration asks for, without changing the configuration.
 
@@ -607,7 +620,7 @@ class FontManager(ResourceManager):
         # Get pygame.font. Its render takes (text, antialias, color) positionally, not
         # freetype's fgcolor keyword (which raised TypeError on a real pygame.font.Font).
         pygame_font = cast('pygame.font.Font', cls.get_font('pygame', config))
-        pygame_surface: pygame.Surface = pygame_font.render(text, True, (255, 255, 255))  # ruff: ignore[boolean-positional-value-in-call]
+        pygame_surface: pygame.Surface = pygame_font.render(text, cls.antialias(), (255, 255, 255))
 
         # Get pygame.freetype
         freetype_font = cls.get_font('freetype', config)

@@ -25,6 +25,7 @@ from glitchygames.fonts.font_manager import (
     DEFAULT_FONT_NAME,
     bundled_font_path,
 )
+from glitchygames.scenes.builtin_scenes.game_over_scene import TextSprite
 from glitchygames.ui import InputBox
 
 # A system font name no machine has: the fake_system_fonts fixture registers it in pygame's
@@ -682,3 +683,39 @@ class TestFontStyleOptions:
         FontManager.get_font(font_system=font_system, font_config=font_config)
 
         assert font_config == {'font_size': 12}
+
+
+class TestTheAntialiasSetting:
+    """FontManager.antialias() carries --font-antialias to pygame.font's render calls."""
+
+    @pytest.fixture
+    def display(self):
+        """A real display surface (sprites convert their images for it).
+
+        Returns:
+            The display surface.
+
+        """
+        if not pygame.get_init():
+            pygame.init()
+        return set_display_mode(size=(320, 240))
+
+    def test_antialiasing_is_on_without_engine_options(self):
+        assert FontManager.antialias() is True
+
+    def test_the_setting_follows_the_engine_option(self):
+        engine_font_manager('--no-font-antialias')
+
+        assert FontManager.antialias() is False
+
+    @pytest.mark.parametrize('antialias', [True, False])
+    def test_the_game_over_text_follows_the_setting(self, display, antialias):
+        """The game-over scene's text used to be antialiased whatever the option said."""
+        FontManager.OPTIONS['font_antialias'] = antialias
+        expected_text = pygame.font.Font(None, 48).render('GAME OVER', antialias, (255, 0, 0))
+
+        text_sprite = TextSprite('GAME OVER', (160, 120), color=(255, 0, 0), font_size=48)
+
+        assert pygame.image.tobytes(text_sprite.image, 'RGBA') == pygame.image.tobytes(
+            expected_text, 'RGBA'
+        )

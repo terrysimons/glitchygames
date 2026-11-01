@@ -189,8 +189,7 @@ Font Options:
   --font-bold           draw text bold
   --font-italic         draw text italic
   --font-antialias, --no-font-antialias
-                        antialias freetype text; the pygame font system antialiases per call, so its text keeps each caller's
-                        choice (default: True)
+                        antialias text (default: True)
   --font-dpi FONT_DPI   the resolution, in dots per inch, font sizes are scaled at (a size is in pixels at 72) (default: 72)
   --font-system {pygame,freetype}
                         Font system to use: freetype (enhanced, default) or pygame (built-in)

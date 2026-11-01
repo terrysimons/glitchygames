@@ -57,6 +57,7 @@ from brave_adventurer_core.sounds import GameSounds
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.fonts import FontManager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
@@ -1046,7 +1047,7 @@ class BraveAdventurerSceneBase(Scene):
         lives_text = f'Lives: {self.player.lives}'
 
         # Shadow for readability
-        antialias = True
+        antialias = FontManager.antialias()
         shadow_surface = self.hud_font.render(score_text, antialias, HUD_SHADOW_COLOR)
         screen.blit(shadow_surface, (11, 11))
         text_surface = self.hud_font.render(score_text, antialias, HUD_TEXT_COLOR)

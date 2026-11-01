@@ -16,6 +16,7 @@ import pygame
 from glitchygames.collision.detection import is_world_rect_sprite, snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.debug.protocols import HasPhysicsBody
+from glitchygames.fonts import FontManager
 
 if TYPE_CHECKING:
     from glitchygames.camera import Camera2D
@@ -274,7 +275,7 @@ def _draw_legend(
     row_bottom = surface.get_height() - LEGEND_MARGIN
     for name, layer_color, layer_sprites in reversed(layers):
         text_surface = font.render(
-            f'{name}: {len(layer_sprites)}', antialias=True, color=layer_color
+            f'{name}: {len(layer_sprites)}', antialias=FontManager.antialias(), color=layer_color
         )
         row_height = max(text_surface.get_height(), LEGEND_SWATCH_SIZE)
         row_top = row_bottom - row_height
@@ -356,7 +357,9 @@ def draw_physics_panel(
         velocity_text = f'({round(body.velocity_x)}, {round(body.velocity_y)})'
         blit_text(
             surface=surface,
-            text_surface=font.render(velocity_text, antialias=True, color=ARROW_COLOR),
+            text_surface=font.render(
+                velocity_text, antialias=FontManager.antialias(), color=ARROW_COLOR
+            ),
             position=(sprite_rect.right + 2, sprite_rect.top),
         )
 
@@ -473,7 +476,7 @@ def draw_camera_panel(
         mouse_world_y = round(camera.world_y) + mouse_position[1]
         mouse_text = font.render(
             f'mouse world: ({mouse_world_x}, {mouse_world_y})',
-            antialias=True,
+            antialias=FontManager.antialias(),
             color=HUD_TEXT_COLOR,
         )
         text_left = min(
@@ -501,7 +504,7 @@ def _draw_text_lines(
     """
     line_top = top
     for line in lines:
-        text_surface = font.render(line, antialias=True, color=HUD_TEXT_COLOR)
+        text_surface = font.render(line, antialias=FontManager.antialias(), color=HUD_TEXT_COLOR)
         line_left = (
             surface.get_width() - HUD_MARGIN - text_surface.get_width()
             if right_aligned
@@ -641,7 +644,9 @@ def draw_performance_panel(
     )
 
     graph_rect = _draw_frame_time_graph(surface=surface, overlay=overlay, target_fps=target_fps)
-    footnote = font.render('overlay drawing included', antialias=True, color=HUD_TEXT_COLOR)
+    footnote = font.render(
+        'overlay drawing included', antialias=FontManager.antialias(), color=HUD_TEXT_COLOR
+    )
     blit_text(
         surface=surface,
         text_surface=footnote,
@@ -670,7 +675,7 @@ def draw_mode_line(
         mode_text += f' | paused: {inspected_scene_label}'
     text_surface = font.render(
         mode_text,
-        antialias=True,
+        antialias=FontManager.antialias(),
         color=HUD_TEXT_COLOR,
     )
     blit_text(

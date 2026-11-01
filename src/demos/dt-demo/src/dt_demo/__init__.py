@@ -112,17 +112,21 @@ class Game(Scene):
 
         countdown = self.font.render(
             'Time: ' + str(round(self.dt_timer, 2)),
-            True,  # ruff: ignore[boolean-positional-value-in-call]
+            FontManager.antialias(),
             (255, 255, 255),
         )
-        fps_text = self.font.render(f'FPS: {round(self.fps, 2)}', True, (255, 255, 255))  # ruff: ignore[boolean-positional-value-in-call]
+        fps_text = self.font.render(
+            f'FPS: {round(self.fps, 2)}', FontManager.antialias(), (255, 255, 255)
+        )
 
         self.screen.blit(countdown, (0, 0))
         self.screen.blit(fps_text, (0, 50))
 
         pygame.draw.rect(self.screen, WHITE, (self.rect_pos, (self.screen_height / 2) + 30, 40, 40))
         if self.record:
-            record_text = self.font.render(f'Time: {round(self.record, 2)}', True, (255, 255, 255))  # ruff: ignore[boolean-positional-value-in-call]
+            record_text = self.font.render(
+                f'Time: {round(self.record, 2)}', FontManager.antialias(), (255, 255, 255)
+            )
 
             self.screen.blit(record_text, (self.screen_width / 4, self.screen_height / 2))
 
