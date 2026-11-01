@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pygame
 
+from bitmappy.controllers.modes import SLIDER_MODE_VALUES
 from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.sprites import (
     BitmappySprite,
@@ -878,11 +879,7 @@ class SliderManager:
 
         for controller_id in self.editor.mode_switcher.controller_modes:
             controller_mode = self.editor.mode_switcher.get_controller_mode(controller_id)
-            if controller_mode and controller_mode.value in {
-                'r_slider',
-                'g_slider',
-                'b_slider',
-            }:
+            if controller_mode and controller_mode.value in SLIDER_MODE_VALUES:
                 return True
         return False
 

@@ -38,9 +38,10 @@ class FakeEditor:
     """The parts of the editor the slider delegate reads."""
 
     def __init__(self) -> None:
-        """Make an editor with all three sliders at 100."""
+        """Make an editor with all four sliders at 100."""
         self.mode_switcher = ModeSwitcher()
         self.multi_controller_manager = MultiControllerManager()
+        self.alpha_slider = FakeSlider(value=100)
         self.red_slider = FakeSlider(value=100)
         self.green_slider = FakeSlider(value=100)
         self.blue_slider = FakeSlider(value=100)
@@ -69,15 +70,17 @@ def _make_handler(*, mode: ControllerMode | None = ControllerMode.R_SLIDER):
 
 
 class TestHandleSliderModeNavigation:
-    """Up and down move between the R, G and B slider modes, wrapping around."""
+    """Up and down move between the A, R, G and B slider modes, wrapping around."""
 
     @pytest.mark.parametrize(
         ('start_mode', 'direction', 'expected_mode'),
         [
+            (ControllerMode.A_SLIDER, 'down', ControllerMode.R_SLIDER),
             (ControllerMode.R_SLIDER, 'down', ControllerMode.G_SLIDER),
-            (ControllerMode.B_SLIDER, 'down', ControllerMode.R_SLIDER),
+            (ControllerMode.B_SLIDER, 'down', ControllerMode.A_SLIDER),
             (ControllerMode.G_SLIDER, 'up', ControllerMode.R_SLIDER),
-            (ControllerMode.R_SLIDER, 'up', ControllerMode.B_SLIDER),
+            (ControllerMode.R_SLIDER, 'up', ControllerMode.A_SLIDER),
+            (ControllerMode.A_SLIDER, 'up', ControllerMode.B_SLIDER),
         ],
     )
     def test_navigates_the_given_controller(self, start_mode, direction, expected_mode):
@@ -140,6 +143,7 @@ class TestSliderAdjustValue:
     @pytest.mark.parametrize(
         ('mode', 'slider_attribute', 'slider_name'),
         [
+            (ControllerMode.A_SLIDER, 'alpha_slider', 'A'),
             (ControllerMode.R_SLIDER, 'red_slider', 'R'),
             (ControllerMode.G_SLIDER, 'green_slider', 'G'),
             (ControllerMode.B_SLIDER, 'blue_slider', 'B'),
@@ -153,7 +157,9 @@ class TestSliderAdjustValue:
 
         assert getattr(editor, slider_attribute).value == 105
         assert editor.slider_events == [(slider_name, 105)]
-        untouched = {'red_slider', 'green_slider', 'blue_slider'} - {slider_attribute}
+        untouched = {'alpha_slider', 'red_slider', 'green_slider', 'blue_slider'} - {
+            slider_attribute
+        }
         assert all(getattr(editor, name).value == 100 for name in untouched)
 
     @pytest.mark.parametrize(('delta', 'expected_value'), [(500, 255), (-500, 0)])

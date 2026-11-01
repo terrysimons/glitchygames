@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Animation demo script that loads foo.toml and displays the animated sprite."""
+"""Animation demo script that loads animated.toml and displays the animated sprite."""
 
 import logging
 import sys
@@ -12,10 +12,11 @@ from glitchygames.sprites.animated import AnimatedSprite
 
 logger = logging.getLogger(__name__)
 
-# The sprite the demo shows: scripts/foo.toml, next to this script. The demos looked for it in
+# The sprite the demo shows: scripts/animated.toml, next to this script (it was foo.toml, a
+# static sprite with no palette that drew nothing, BUGS.md #244). The demos looked for it in
 # the repository root, where there is none, so they always stopped with MISSING_INPUT
 # (BUGS.md #245).
-FOO_TOML_PATH = Path(__file__).parent / 'foo.toml'
+SPRITE_PATH = Path(__file__).parent / 'animated.toml'
 
 
 def _handle_event(event: pygame.event.Event, animated_sprite: AnimatedSprite) -> bool:
@@ -65,18 +66,18 @@ def main() -> int:
 
     # Set up the display
     screen = pygame.display.set_mode((800, 600))
-    pygame.display.set_caption('Animation Demo - foo.toml')
+    pygame.display.set_caption('Animation Demo - animated.toml')
     clock = pygame.time.Clock()
 
-    # Load the animated sprite from foo.toml
-    foo_toml_path = FOO_TOML_PATH
+    # Load the animated sprite from animated.toml
+    sprite_path = SPRITE_PATH
 
     # Scale up the sprite by 20x for better visibility on large monitors
     scale_factor = 20
     scaled_size = None
 
     try:
-        animated_sprite = AnimatedSprite(str(foo_toml_path))
+        animated_sprite = AnimatedSprite(str(sprite_path))
     except FileNotFoundError:
         logger.exception('Failed to load animation')
         return ExitCode.MISSING_INPUT

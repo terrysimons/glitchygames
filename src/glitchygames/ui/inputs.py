@@ -207,6 +207,11 @@ class InputBox(Sprite):
                 on_confirm = getattr(self.parent, 'on_confirm_event', None)
                 if on_confirm:
                     on_confirm(event=event, trigger=self)
+            elif event.key == pygame.K_ESCAPE:
+                # Escape cancels, as the Cancel button does (BUGS.md #165 item 6)
+                on_cancel = getattr(self.parent, 'on_cancel_event', None)
+                if on_cancel:
+                    on_cancel(event=event, trigger=self)
             else:
                 # Handle other key input
                 if event.key == pygame.K_BACKSPACE:
@@ -215,8 +220,9 @@ class InputBox(Sprite):
                 elif event.key == pygame.K_SEMICOLON and (event.mod & pygame.KMOD_SHIFT):
                     # Shift+; produces colon (:) - handle case where unicode might not be set
                     self.text += ':'
-                elif event.unicode:
-                    # Use unicode if available
+                elif event.unicode and event.unicode.isprintable():
+                    # Printable text only: control characters (Tab, Ctrl+letters) would be
+                    # invisible in a file name (BUGS.md #165 item 6)
                     self.text += event.unicode
                 self.render()
 

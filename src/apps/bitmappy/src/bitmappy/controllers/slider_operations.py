@@ -15,7 +15,11 @@ from bitmappy.constants import (
     CONTROLLER_ACCEL_LEVEL2_TIME,
     CONTROLLER_ACCEL_LEVEL3_TIME,
 )
-from bitmappy.controllers.modes import ControllerMode
+from bitmappy.controllers.modes import (
+    SLIDER_CHANNELS_BY_MODE_VALUE,
+    SLIDER_MODE_VALUES,
+    SLIDER_MODES_TOP_TO_BOTTOM,
+)
 from glitchygames import clock, events
 
 if TYPE_CHECKING:
@@ -55,11 +59,7 @@ class SliderOperations:
             target_controller_id = None
             for cid in self.handler.editor.mode_switcher.controller_modes:
                 controller_mode = self.handler.editor.mode_switcher.get_controller_mode(cid)
-                if controller_mode and controller_mode.value in {
-                    'r_slider',
-                    'g_slider',
-                    'b_slider',
-                }:
+                if controller_mode and controller_mode.value in SLIDER_MODE_VALUES:
                     target_controller_id = cid
                     break
         else:
@@ -73,8 +73,8 @@ class SliderOperations:
         if not current_mode:
             return
 
-        # Define the slider mode cycle
-        slider_cycle = [ControllerMode.R_SLIDER, ControllerMode.G_SLIDER, ControllerMode.B_SLIDER]
+        # The slider mode cycle, top to bottom: A, R, G, B
+        slider_cycle = list(SLIDER_MODES_TOP_TO_BOTTOM)
 
         # Find current position in cycle
         if current_mode not in slider_cycle:
@@ -84,10 +84,10 @@ class SliderOperations:
 
         # Calculate new index based on direction
         if direction == 'up':
-            # B -> G -> R
+            # B -> G -> R -> A
             new_index = (current_index - 1) % len(slider_cycle)
         else:  # direction == "down"
-            # R -> G -> B
+            # A -> R -> G -> B
             new_index = (current_index + 1) % len(slider_cycle)
 
         new_mode = slider_cycle[new_index]
@@ -129,37 +129,23 @@ class SliderOperations:
                 controller_mode.value if controller_mode else 'None',
             )
 
-            # Adjust the appropriate slider based on mode
-            if controller_mode and controller_mode.value == 'r_slider':
-                old_value = self.handler.editor.red_slider.value
+            # Adjust the slider the mode names (A, R, G or B, BUGS.md #153)
+            mode_value = controller_mode.value if controller_mode else None
+            slider_channel = SLIDER_CHANNELS_BY_MODE_VALUE.get(mode_value) if mode_value else None
+            if slider_channel is not None:
+                slider_attribute, channel_name = slider_channel
+                slider = getattr(self.handler.editor, slider_attribute)
+                old_value = slider.value
                 new_value = max(0, min(255, old_value + delta))
-                self.handler.log.debug('DEBUG: R slider: %s -> %s', old_value, new_value)
+                self.handler.log.debug(
+                    'DEBUG: %s slider: %s -> %s', channel_name, old_value, new_value
+                )
                 # Update the slider value
-                self.handler.editor.red_slider.value = new_value
+                slider.value = new_value
                 # Create a trigger event to properly update the color well
-                trigger = events.HashableEvent(0, name='R', value=new_value)
+                trigger = events.HashableEvent(0, name=channel_name, value=new_value)
                 self.handler.editor.on_slider_event(events.HashableEvent(0), trigger)
-                self.handler.log.debug('DEBUG: Adjusted R slider to %s', new_value)
-            elif controller_mode and controller_mode.value == 'g_slider':
-                old_value = self.handler.editor.green_slider.value
-                new_value = max(0, min(255, old_value + delta))
-                self.handler.log.debug('DEBUG: G slider: %s -> %s', old_value, new_value)
-                # Update the slider value
-                self.handler.editor.green_slider.value = new_value
-                # Create a trigger event to properly update the color well
-                trigger = events.HashableEvent(0, name='G', value=new_value)
-                self.handler.editor.on_slider_event(events.HashableEvent(0), trigger)
-                self.handler.log.debug('DEBUG: Adjusted G slider to %s', new_value)
-            elif controller_mode and controller_mode.value == 'b_slider':
-                old_value = self.handler.editor.blue_slider.value
-                new_value = max(0, min(255, old_value + delta))
-                self.handler.log.debug('DEBUG: B slider: %s -> %s', old_value, new_value)
-                # Update the slider value
-                self.handler.editor.blue_slider.value = new_value
-                # Create a trigger event to properly update the color well
-                trigger = events.HashableEvent(0, name='B', value=new_value)
-                self.handler.editor.on_slider_event(events.HashableEvent(0), trigger)
-                self.handler.log.debug('DEBUG: Adjusted B slider to %s', new_value)
+                self.handler.log.debug('DEBUG: Adjusted %s slider to %s', channel_name, new_value)
             else:
                 self.handler.log.debug(
                     'DEBUG: No matching slider mode for %s',
