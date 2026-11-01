@@ -69,6 +69,7 @@ from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeAxis, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
+from glitchygames.fonts import FontManager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, TextSprite
@@ -1167,7 +1168,7 @@ class ClockworkKeepScene(Scene):
         if self.hud_font is None:
             return
 
-        antialias = True
+        antialias = FontManager.antialias()
         score_text = f'Score: {self.player.score}'
         lives_text = f'Lives: {self.player.lives}'
         floor_text = f'Floor: {self.floor_data.name}'

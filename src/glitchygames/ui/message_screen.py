@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, ClassVar, Self
 import pygame
 
 from glitchygames.color import BLACK, WHITE
+from glitchygames.fonts import FontManager
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -131,7 +132,7 @@ class MessageScreen:
         if self._message_surface is None:
             font = pygame.font.Font(self.MESSAGE_FONT_PATH, self.MESSAGE_FONT_SIZE)
             self._message_surface = font.render(
-                self.MESSAGE, antialias=True, color=self.MESSAGE_COLOR
+                self.MESSAGE, antialias=FontManager.antialias(), color=self.MESSAGE_COLOR
             )
         return self._message_surface
 
@@ -141,7 +142,9 @@ class MessageScreen:
             return None
         if self._hint_surface is None or hint != self._rendered_hint:
             font = pygame.font.Font(self.HINT_FONT_PATH, self.HINT_FONT_SIZE)
-            self._hint_surface = font.render(hint, antialias=True, color=self.HINT_COLOR)
+            self._hint_surface = font.render(
+                hint, antialias=FontManager.antialias(), color=self.HINT_COLOR
+            )
             self._rendered_hint = hint
         return self._hint_surface
 

@@ -989,12 +989,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             *PORTABLE_VIDEO_DRIVERS,
         ]
         LOG.debug('Video Driver Choices: %s', video_driver_choices)
-        # Parsed and recorded, but never handed to SDL: nothing sets SDL_VIDEODRIVER from it
+        # Sets SDL_VIDEODRIVER before the display starts (_enter_video_driver, BUGS.md #210)
         group.add_argument(
             '--video-driver',
             help=(
-                'not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER '
-                '(or --headless) instead'
+                "SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: "
+                "SDL_VIDEODRIVER's own value, or SDL's choice; --headless overrides it)"
             ),
             default=None,
             choices=video_driver_choices,
@@ -1193,13 +1193,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.initialize_icon(icon=icon)
 
         options = self.initialize_arguments(game=game)
-        # The SDL driver variables as they were before --headless set them (by name; None: the
-        # variable was not set), put back when the run ends (_restore_sdl_driver_variables);
-        # None when the run is not headless and changed nothing
-        self._sdl_driver_variables_before_headless: dict[str, str | None] | None = None
+        # The SDL driver variables as they were before --headless or --video-driver set them
+        # (by name; None: the variable was not set), put back when the run ends
+        # (_restore_sdl_driver_variables); None when the run changed neither
+        self._sdl_driver_variables_before_run: dict[str, str | None] | None = None
         # Before anything starts the display or the mixer (pygame.init() below)
-        if options.get('headless'):
-            self._enter_headless_mode()
+        self._choose_sdl_drivers(options=options)
 
         # NOTE: Game is coupled to event manager for unhandled event routing.
         # Decoupling tracked in https://glitchy-games.atlassian.net/browse/GG-22
@@ -2848,9 +2847,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         (``_restore_sdl_driver_variables``), so a process that goes on after a headless run
         starts pygame on its own drivers again.
         """
-        self._sdl_driver_variables_before_headless = {
-            name: os.environ.get(name) for name in SDL_DRIVER_VARIABLES
-        }
+        self._remember_sdl_driver_variables()
         for name in SDL_DRIVER_VARIABLES:
             os.environ[name] = HEADLESS_SDL_DRIVER
         restarted: list[str] = []
@@ -2887,16 +2884,68 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 ' and '.join(restarted),
             )
 
+    def _choose_sdl_drivers(self: Self, *, options: dict[str, Any]) -> None:
+        """Apply --headless or --video-driver before anything starts the display or the mixer.
+
+        --headless wins: its dummy driver is the point of the run, so --video-driver is ignored
+        (with a warning).
+
+        Args:
+            options: The engine's options.
+
+        """
+        video_driver = options.get('video_driver')
+        if options.get('headless'):
+            if video_driver:
+                self.log.warning(
+                    '--headless runs on the %r video driver; --video-driver %s is ignored',
+                    HEADLESS_SDL_DRIVER,
+                    video_driver,
+                )
+            self._enter_headless_mode()
+        elif video_driver:
+            self._enter_video_driver(video_driver=video_driver)
+
+    def _enter_video_driver(self: Self, *, video_driver: str) -> None:
+        """--video-driver: start the display on the named SDL video driver.
+
+        Called right after the options are read, before ``pygame.init()`` and the display, as
+        ``_enter_headless_mode`` is. A display pygame started before the engine on another driver
+        is stopped (with a warning), so ``pygame.init()`` starts it again on this one. The
+        variable's earlier value is put back when the run ends
+        (``_restore_sdl_driver_variables``).
+
+        Args:
+            video_driver: The SDL video driver (an SDL_VIDEODRIVER name).
+
+        """
+        self._remember_sdl_driver_variables()
+        os.environ['SDL_VIDEODRIVER'] = video_driver
+        if pygame.display.get_init() and pygame.display.get_driver() != video_driver:
+            self.log.warning(
+                '--video-driver: pygame was started before the engine; restarting the display '
+                '(video driver %r) on %r',
+                pygame.display.get_driver(),
+                video_driver,
+            )
+            pygame.display.quit()
+
+    def _remember_sdl_driver_variables(self: Self) -> None:
+        """Keep the SDL driver variables' values, for _restore_sdl_driver_variables."""
+        self._sdl_driver_variables_before_run = {
+            name: os.environ.get(name) for name in SDL_DRIVER_VARIABLES
+        }
+
     def _restore_sdl_driver_variables(self: Self) -> None:
-        """Put back the SDL driver variables --headless set, as they were before it (idempotent).
+        """Put back the SDL driver variables --headless or --video-driver set (idempotent).
 
         SDL reads them only when the display or mixer starts, so this changes nothing that is
         running: it is called after ``_shutdown`` quit pygame, so a process that goes on (runs a
         headless replay, then opens a window) starts pygame on its own drivers, not the dummy
         ones. A variable that was not set before is removed.
         """
-        variables_before, self._sdl_driver_variables_before_headless = (
-            self._sdl_driver_variables_before_headless,
+        variables_before, self._sdl_driver_variables_before_run = (
+            self._sdl_driver_variables_before_run,
             None,
         )
         if variables_before is None:
@@ -4029,46 +4078,6 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
 
         if event.type == pygame.TEXTINPUT:
             self.scene_manager.on_text_input_event(event)
-            return True
-
-        return False
-
-    def process_window_focus_event(self: Self, event: events.HashableEvent) -> bool:  # ruff: ignore[too-many-return-statements]
-        """Process a window focus event.
-
-        Args:
-            event (events.HashableEvent): The event.
-
-        Returns:
-            bool: True if the event was handled, False otherwise.
-
-        """
-        if event.type == pygame.WINDOWSHOWN:
-            self.window_manager.on_window_shown_event(event)
-            return True
-
-        if event.type == pygame.WINDOWLEAVE:
-            self.window_manager.on_window_leave_event(event)
-            return True
-
-        if event.type == pygame.WINDOWFOCUSGAINED:
-            self.window_manager.on_window_focus_gained_event(event)
-            with contextlib.suppress(Exception):
-                pygame.event.set_grab(True)
-            return True
-
-        if event.type == pygame.WINDOWFOCUSLOST:
-            self.window_manager.on_window_focus_lost_event(event)
-            with contextlib.suppress(Exception):
-                pygame.event.set_grab(False)
-            return True
-
-        if event.type == pygame.WINDOWENTER:
-            self.window_manager.on_window_enter_event(event)
-            return True
-
-        if event.type == pygame.WINDOWTAKEFOCUS:
-            self.window_manager.on_window_take_focus_event(event)
             return True
 
         return False

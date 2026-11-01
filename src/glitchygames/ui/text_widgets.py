@@ -261,13 +261,17 @@ class TextSprite(BitmappySprite):
                     is_transparent=is_transparent,
                     background_color=background_color,
                 )
-            except TypeError, ValueError:  # pragma: no cover - freetype rejected the color
-                # Fall back to pygame.font style (returns surface)
-                text_surface = self._render_with_pygame_font(
+            except TypeError, ValueError:
+                # freetype rejected the background color (the text color renders on both
+                # paths), so the text is drawn in its own color with no background. It used to
+                # fall back to pygame.font's (text, antialias, color) call, which freetype reads
+                # as (text, fgcolor, bgcolor): the antialias flag as the text color, and the
+                # text color as the background
+                text_surface, text_rect = self._render_with_freetype_font(
                     font,
                     text,
                     text_color,
-                    is_transparent=is_transparent,
+                    is_transparent=True,
                 )
         else:
             text_surface = self._render_with_pygame_font(
@@ -327,17 +331,14 @@ class TextSprite(BitmappySprite):
             The rendered text surface.
 
         """
-        if is_transparent:
-            return (  # pyright: ignore[reportReturnType, reportUnknownVariableType]
-                font.render(str(text), True, text_color)[0]  # ruff: ignore[boolean-positional-value-in-call]  # pyright: ignore[reportIndexIssue, reportArgumentType]  # ty: ignore[invalid-return-type, not-subscriptable, invalid-argument-type]
-                if isinstance(font.render(str(text), True, text_color), tuple)  # ruff: ignore[boolean-positional-value-in-call]  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-                else font.render(str(text), True, text_color)  # ruff: ignore[boolean-positional-value-in-call]  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-            )
-        return (  # pyright: ignore[reportReturnType, reportUnknownVariableType]
-            font.render(str(text), True, text_color)[0]  # ruff: ignore[boolean-positional-value-in-call]  # pyright: ignore[reportIndexIssue, reportArgumentType]  # ty: ignore[invalid-return-type, not-subscriptable, invalid-argument-type]
-            if isinstance(font.render(str(text), True, text_color), tuple)  # ruff: ignore[boolean-positional-value-in-call]  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-            else font.render(str(text), True, text_color)  # ruff: ignore[boolean-positional-value-in-call]  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-        )
+        # pygame.font's render has no background argument here, so a transparent widget and an
+        # opaque one render alike (is_transparent is kept for the caller's symmetry with
+        # _render_with_freetype_font); rendered once (it used to render up to three times)
+        del is_transparent
+        render_result = font.render(str(text), FontManager.antialias(), text_color)  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+        if isinstance(render_result, tuple):
+            return render_result[0]
+        return render_result
 
     def _draw_cursor(self, text_rect: pygame.Rect, _font: GameFont) -> None:
         """Draw a blinking cursor at the end of the text."""
@@ -1099,7 +1100,7 @@ class MultiLineTextBox(BitmappySprite):
                     else:  # pragma: no cover - a freetype font's render returns (surface, rect)
                         text_surface = render_result
                 else:
-                    font_result = self.font.render(line, True, text_color)  # type: ignore[arg-type]  # ruff: ignore[boolean-positional-value-in-call]
+                    font_result = self.font.render(line, FontManager.antialias(), text_color)  # type: ignore[arg-type]
                     text_surface = font_result[0] if isinstance(font_result, tuple) else font_result
                 self.image.blit(text_surface, (5, y_offset))
             y_offset += line_height

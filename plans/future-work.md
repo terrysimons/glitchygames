@@ -78,8 +78,9 @@ local branches are deleted. The decisions made on the way, for the record:
 - Later ideas, not built: hitbox and frame-anchor overlays in the preview; a swatch (palette-swap)
   picker; `[[transition]]` playback; syntax highlighting in the plain-text fallback for
   non-sprite `.toml` files.
-- When the engine's `frame_index` bug (below) is fixed, update `Sources/SpriteCore` and
-  regenerate the golden frames in the same change. (The row-normalization one was, 2026-10-30.)
+- ~~When the engine's `frame_index` bug (below) is fixed, update `Sources/SpriteCore` and
+  regenerate the golden frames in the same change.~~ Done 2026-10-31 (BUGS.md #232). (The
+  row-normalization one was, 2026-10-30.)
 
 ## Bugs found and not fixed yet
 
@@ -106,7 +107,6 @@ local branches are deleted. The decisions made on the way, for the record:
 | `namespace` is written unescaped by the sprite writers, so a namespace containing `"` or `\` writes broken TOML | `src/glitchygames/sprites/animated.py`, `src/apps/bitmappy/src/bitmappy/ai_manager.py`, `src/glitchygames/ai/sprite_generator.py` | Found 2026-10-30 by the pixel-rows final review (minor; predates the branch). Use `toml_basic_string`. |
 | Bitmappy's repair notice counts a palette-key problem as a "block" ("Repaired the pixel rows of 2 block(s)") | `src/apps/bitmappy/src/bitmappy/animated_canvas.py` (`pixel_row_repair_notice`) | Found 2026-10-30 by the pixel-rows final review (minor; wording only). |
 | Each AI response runs `_prepare_ai_content` twice (the pixel-row check, then the load), repeating its parse, rewrite and logs | `src/apps/bitmappy/src/bitmappy/ai_manager.py` | Found 2026-10-30 by the pixel-rows final review (minor). |
-| TOML frames are never ordered by `frame_index`: `_process_toml_animation` sorts with `frames.sort(key=lambda f: getattr(f, 'frame_index', 0))`, but `SpriteFrame` never gets a `frame_index` attribute, so every key is 0 and frames play in file order | `src/glitchygames/sprites/animated.py` (`_process_toml_animation`, `_create_toml_frame`) | Found 2026-10-29 by the sprite QuickLook golden tests (`src/quicklook`), which copy the file-order behavior. Decide whether `frame_index` should order frames (set it on the frame) or be dropped from the format; update the QuickLook loader and golden frames in the same change. |
 | ~~`qlmanage -t -s 256 -o <dir> <sprite.toml>...` hangs with no output and the sprite thumbnail extension never launches~~ | `src/quicklook/tools/make_thumbnails.swift` | Found 2026-10-29 (`feat/sprite-quicklook`, plan Task 7). **Done** (explained, not an extension bug): on this macOS `qlmanage -t` only uses old generator plug-ins (its log says "missing or invalid generator for thumbnail" and its `com.apple.quicklook.thumbnail` discovery finds 0 extensions), and it hangs on any type without one (an unknown `.qqqzz` file hangs too). Through `QLThumbnailGenerator`, the API Finder uses, the extension draws sprites and declines other `.toml` files, which keep the plain document icon they had before (checked with the extension switched off). Check thumbnails with `swift tools/make_thumbnails.swift`. |
 | The multi-ball simulation tests write `ball.rect.x/y` for start positions and separations, which never took effect (the ball's position is `world_x`/`world_y`; rect was rebuilt from it, now by the engine), so every ball starts at its `reset()` serve position, not the drawn random one | `tests/game_objects/test_multi_ball_*.py` | Pre-existing test weakness found in feature/engine-world-space Task 9; set `world_x`/`world_y` instead and re-check the thresholds. |
 

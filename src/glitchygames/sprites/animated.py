@@ -176,6 +176,29 @@ def toml_scalar(value: object) -> str:
     raise TypeError(msg)
 
 
+def frame_tables_in_load_order(frame_tables: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return an animation's ``[[animation.frame]]`` tables in the order the loader uses.
+
+    A table's ``frame_index`` key places it; a table without one counts as its position in the
+    file. Ties keep the file's order (the sort is stable), so a file whose indexes match its
+    order (what save() writes) loads in file order (BUGS.md #232).
+
+    Args:
+        frame_tables: The animation's frame tables, in file order.
+
+    Returns:
+        The frame tables, sorted.
+
+    """
+    positioned_tables = sorted(
+        enumerate(frame_tables),
+        key=lambda position_and_table: position_and_table[1].get(
+            'frame_index', position_and_table[0]
+        ),
+    )
+    return [frame_table for _position, frame_table in positioned_tables]
+
+
 class FrameAnchor(Enum):
     """Which point of every animation frame's hitbox is kept in place when drawn.
 
@@ -1583,7 +1606,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self._log_animation_metadata(anim_data, anim_name)
 
         frames: list[SpriteFrame] = []
-        for frame_idx, frame_data in enumerate(frames_data):
+        for frame_idx, frame_data in enumerate(frame_tables_in_load_order(frames_data)):
             frame = self._create_toml_frame(
                 frame_data, frame_idx, color_map, frame_interval, animation_name=anim_name
             )
@@ -1591,7 +1614,6 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 frames.append(frame)
 
         if frames:
-            frames.sort(key=lambda f: getattr(f, 'frame_index', 0))
             self.log.debug("Animation '%s' loaded with %s frame(s)", anim_name, len(frames))
         else:
             self.log.debug("Animation '%s' has no valid frames", anim_name)

@@ -217,7 +217,11 @@ class TestAnimationTimings:
             )
 
     def test_frames_are_compared_in_the_order_the_loader_gives_them(self, tmp_path):
-        """Only some frames carry a frame_index: the loader keeps file order, so does the check."""
+        """Only some frames carry a frame_index: the check orders frames as the loader does.
+
+        The first table's frame_index 1 ties with the second's file position 1, so both keep
+        the file's order (frame_tables_in_load_order, BUGS.md #232).
+        """
         sprite_file = write_sprite(
             directory=tmp_path, name='mixed.toml', text=PARTLY_INDEXED_SPRITE
         )

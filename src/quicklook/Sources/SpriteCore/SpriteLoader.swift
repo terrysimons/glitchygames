@@ -113,11 +113,18 @@ public enum SpriteLoader {
 
     private static func resolveFrames(_ section: AnimationSection, palette: ColorPalette) -> [SpriteFrame] {
         let animationInterval = section.frameInterval ?? defaultFrameInterval
-        // Frames play in file order; frame_index is ignored. The engine does sort them, with
-        // frames.sort(key=lambda f: getattr(f, 'frame_index', 0)), but SpriteFrame never has a
-        // frame_index attribute, so every key is 0 and the stable sort changes nothing
-        // (plans/future-work.md, "Bugs found and not fixed yet")
-        return (section.frame ?? []).compactMap { frameSection in
+        // Frames play in frame_index order, a frame without one at its file position, ties in
+        // file order: the engine's frame_tables_in_load_order (glitchygames/sprites/animated.py,
+        // BUGS.md #232). The position breaks ties explicitly, since Swift's sort is not
+        // documented as stable.
+        let framesInLoadOrder = (section.frame ?? []).enumerated()
+            .sorted { first, second in
+                let firstKey = first.element.frameIndex ?? first.offset
+                let secondKey = second.element.frameIndex ?? second.offset
+                return (firstKey, first.offset) < (secondKey, second.offset)
+            }
+            .map(\.element)
+        return framesInLoadOrder.compactMap { frameSection in
             makeFrame(
                 rows: PixelRows.rows(frameSection.pixels ?? ""),
                 palette: palette,

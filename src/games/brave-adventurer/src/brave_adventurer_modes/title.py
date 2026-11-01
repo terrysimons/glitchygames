@@ -31,6 +31,7 @@ from brave_adventurer.game import BraveAdventurerScene
 from brave_adventurer_core.constants import HUD_SHADOW_COLOR, HUD_TEXT_COLOR, SKY_COLOR
 from brave_adventurer_core.drawing import draw_pyramids, draw_sky
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
+from glitchygames.fonts import FontManager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import TextSprite
@@ -210,10 +211,10 @@ class GameChoiceCard(Sprite):
         pygame.draw.rect(
             image, border_color, card_rect, width=border_width, border_radius=CARD_BORDER_RADIUS
         )
-        name = self._name_font.render(self.choice.title, True, name_color)  # ruff: ignore[boolean-positional-value-in-call] - pygame's antialias argument
+        name = self._name_font.render(self.choice.title, FontManager.antialias(), name_color)
         description = self._description_font.render(
             self.choice.description,
-            True,  # ruff: ignore[boolean-positional-value-in-call] - pygame's antialias argument
+            FontManager.antialias(),
             DESCRIPTION_COLOR,
         )
         image.blit(name, (CARD_PADDING, CARD_PADDING))

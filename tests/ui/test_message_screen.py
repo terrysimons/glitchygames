@@ -12,6 +12,7 @@ import pygame
 import pytest
 
 from glitchygames.color import WHITE
+from glitchygames.fonts import FontManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseOverlay
 from glitchygames.ui.message_screen import MessageScreen
 
@@ -33,8 +34,15 @@ def screenshot() -> pygame.Surface:
     return surface
 
 
-def pause_screen_as_before(*, screenshot: pygame.Surface, screen_size: tuple[int, int]) -> bytes:
+def pause_screen_as_before(
+    *, screenshot: pygame.Surface, screen_size: tuple[int, int], antialias: bool = True
+) -> bytes:
     """Draw the pause screen with the code PauseOverlay had before MessageScreen existed.
+
+    Args:
+        screenshot: The game picture under the screen.
+        screen_size: The screen's (width, height).
+        antialias: Whether the text is antialiased (the engine's --font-antialias).
 
     Returns:
         The picture's pixels.
@@ -44,7 +52,7 @@ def pause_screen_as_before(*, screenshot: pygame.Surface, screen_size: tuple[int
     overlay.fill((0, 0, 0))
     overlay.set_alpha(128)
     font = pygame.font.Font(None, 72)
-    text_surface = font.render('PAUSED', antialias=True, color=WHITE)
+    text_surface = font.render('PAUSED', antialias=antialias, color=WHITE)
     text_rect = text_surface.get_rect()
     text_rect.center = (screen_size[0] // 2, screen_size[1] // 2)
     image = screenshot.copy()
@@ -61,6 +69,18 @@ def test_the_pause_screen_renders_as_before(screenshot):
         screenshot=screenshot, screen_size=SCREEN_SIZE
     )
     assert overlay.rect == pygame.Rect((0, 0), SCREEN_SIZE)
+
+
+def test_the_pause_text_follows_the_font_antialias_option(screenshot, mocker):
+    """--no-font-antialias draws the PAUSED text hard-edged (BUGS.md #210)."""
+    mocker.patch.dict(FontManager.OPTIONS, {'font_antialias': False})
+    game = types.SimpleNamespace(screen_width=SCREEN_SIZE[0], screen_height=SCREEN_SIZE[1])
+
+    overlay = PauseOverlay(game, screenshot)
+
+    assert pygame.image.tobytes(overlay.image, 'RGB') == pause_screen_as_before(
+        screenshot=screenshot, screen_size=SCREEN_SIZE, antialias=False
+    )
 
 
 def test_a_screenshot_smaller_than_the_screen_still_centres_on_the_screen(screenshot):

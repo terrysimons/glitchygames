@@ -93,7 +93,7 @@ usage: Bitrot Adventures version 0.0.0 [-h] [-f TARGET_FPS] [--fps-log-interval-
                                        [--live-voice-pool LIVE_VOICE_POOL] [--default-background {test-pattern,channel-3}]
                                        [--video-driver {cocoa,offscreen,dummy}] [--headless]
                                        [--input-mode {auto,joystick,controller}] [--font-name FONT_NAME] [--font-size FONT_SIZE]
-                                       [--font-bold] [--font-italic] [--font-antialias] [--font-dpi FONT_DPI]
+                                       [--font-bold] [--font-italic] [--font-antialias | --no-font-antialias] [--font-dpi FONT_DPI]
                                        [--font-system {pygame,freetype}] [-l {debug,info,warning,error,critical}]
                                        [--no-unhandled-events] [-p] [-s SOME_GAME_SPECIFIC_OPTION]
 
@@ -131,7 +131,8 @@ Graphics Options:
                         the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default:
                         test-pattern)
   --video-driver {cocoa,offscreen,dummy}
-                        not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER (or --headless) instead
+                        SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: SDL_VIDEODRIVER's own
+                        value, or SDL's choice; --headless overrides it)
 
 Diagnostics Options:
   --log-timer-jitter    log frame pacing jitter statistics periodically
@@ -185,11 +186,11 @@ Font Options:
                         other name is looked up among the system's fonts)
   --font-size FONT_SIZE
                         size of the default font, used by text that asks for no font of its own (default: 14)
-  --font-bold           not used yet: stored, but no text is drawn bold because of it
-  --font-italic         not used yet: stored, but no text is drawn italic because of it
-  --font-antialias      not used yet: stored, but each text widget chooses its own antialiasing
-  --font-dpi FONT_DPI   the resolution, in dots per inch, freetype font sizes are scaled at (sets pygame.freetype's default
-                        resolution); the pygame font system ignores it (default: 72)
+  --font-bold           draw text bold
+  --font-italic         draw text italic
+  --font-antialias, --no-font-antialias
+                        antialias text (default: True)
+  --font-dpi FONT_DPI   the resolution, in dots per inch, font sizes are scaled at (a size is in pixels at 72) (default: 72)
   --font-system {pygame,freetype}
                         Font system to use: freetype (enhanced, default) or pygame (built-in)
 

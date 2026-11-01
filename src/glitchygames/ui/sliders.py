@@ -13,6 +13,7 @@ import pygame
 from pygame import Rect
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGBA_COMPONENT_COUNT
+from glitchygames.fonts import FontManager
 from glitchygames.opacity import make_opaque
 from glitchygames.sprites import (
     BitmappySprite,
@@ -622,7 +623,9 @@ class TabControlSprite(BitmappySprite):
                 try:
                     if self._tab_font is None:
                         self._tab_font = pygame.font.Font(None, 16)
-                    text_surface = self._tab_font.render(tab_text, True, self.text_color)  # ruff: ignore[boolean-positional-value-in-call]
+                    text_surface = self._tab_font.render(
+                        tab_text, FontManager.antialias(), self.text_color
+                    )
                     text_rect = text_surface.get_rect(center=tab_rect.center)
                     self.image.blit(text_surface, text_rect)
                 except pygame.error, AttributeError:

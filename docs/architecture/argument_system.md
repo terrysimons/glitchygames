@@ -209,7 +209,7 @@ Added by `GameEngine.args()` in `src/glitchygames/engine/game_engine.py`.
 - `--live-voice-pool LIVE_VOICE_POOL` (`int`): mixer channels reserved for real-time synth voices (default: 4)
 - `--crt-power-on {auto,on,off}` (`choice`, default `auto`): show the game's canvas switching on like a CRT before the game starts: auto (default: when someone can see it, so not on SDL's dummy driver or before a replay, audit, rebaseline or recording), on (always; refused with a replay or a recording) or off
 - `--default-background {test-pattern,channel-3}` (`choice`): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)
-- `--video-driver {cocoa,offscreen,dummy}` (`choice`, default `None`): not applied yet: stored, but SDL picks its video driver from SDL_VIDEODRIVER (or --headless) instead
+- `--video-driver {cocoa,offscreen,dummy}` (`choice`, default `None`): SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: SDL_VIDEODRIVER's own value, or SDL's choice; --headless overrides it)
 
 **`--video-driver` choices by platform** (SDL 2's video driver names, by `platform.system()`;
 `--help` above is macOS's):
@@ -260,10 +260,12 @@ Added by `FontManager.args()` in `src/glitchygames/fonts/font_manager.py`.
 
 - `--font-name FONT_NAME` (`str`): Font to use (default: the bundled Vera; the bundled variants are Vera, VeraBd, VeraIt and VeraBI; any other name is looked up among the system's fonts)
 - `--font-size FONT_SIZE` (`int`): size of the default font, used by text that asks for no font of its own (default: 14)
-- `--font-bold` (`store_true`, default `False`): not used yet: stored, but no text is drawn bold because of it
-- `--font-italic` (`store_true`, default `False`): not used yet: stored, but no text is drawn italic because of it
-- `--font-antialias` (`store_true`, default `False`): not used yet: stored, but each text widget chooses its own antialiasing
-- `--font-dpi FONT_DPI` (`int`): the resolution, in dots per inch, freetype font sizes are scaled at (sets pygame.freetype's default resolution); the pygame font system ignores it (default: 72)
+- `--font-bold` (`store_true`, default `False`): draw text bold
+- `--font-italic` (`store_true`, default `False`): draw text italic
+- `--font-antialias`, `--no-font-antialias` (`BooleanOptionalAction`): antialias text (default: True). freetype fonts carry it; every `pygame.font` render call passes `FontManager.antialias()`, except the channel 3 screen's digit, which stays hard-edged on purpose
+- `--font-dpi FONT_DPI` (`int`): the resolution, in dots per inch, font sizes are scaled at (a size is in pixels at 72) (default: 72)
+
+The style options reach every font `FontManager` loads; a font configuration that gives its own `font_bold`, `font_italic`, `font_antialias` or `font_dpi` overrides them. All four are in the font cache key.
 - `--font-system {pygame,freetype}` (`choice`, default `freetype`): Font system to use: freetype (enhanced, default) or pygame (built-in)
 
 #### Game Options

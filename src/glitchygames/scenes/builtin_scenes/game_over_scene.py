@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 
 from glitchygames.color import BLACK
+from glitchygames.fonts import FontManager
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
@@ -268,7 +269,7 @@ class TextSprite(Sprite):
         font = pygame.font.Font(None, font_size)
 
         # Render the text
-        text_surface = font.render(text, True, color)  # ruff: ignore[boolean-positional-value-in-call]
+        text_surface = font.render(text, FontManager.antialias(), color)
 
         # Initialize the sprite with the text surface
         super().__init__(

@@ -14,7 +14,6 @@ Covers:
 - print_system_info and print_game_info
 - screen_width and screen_height properties
 - process_*_event dispatcher methods (audio, app, controller, drop, touch, midi, etc.)
-- process_window_focus_event: all window focus event types
 - process_window_event: dispatch table routing
 - _build_window_event_dispatch: dispatch table construction
 - process_game_event: FPSEVENT, GAMEEVENT, MENUEVENT, ACTIVEEVENT, USEREVENT, etc.
@@ -38,6 +37,7 @@ Covers:
 import argparse
 import contextlib
 import logging
+import os
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -627,94 +627,6 @@ class TestGameEngineIconWithSurface:
 # ---------------------------------------------------------------------------
 # From test_game_engine_coverage.py
 # ---------------------------------------------------------------------------
-
-
-class TestProcessWindowFocusEvent:
-    """Test GameEngine.process_window_focus_event for all window focus types."""
-
-    def test_window_shown(self, mocker):
-        """Test WINDOWSHOWN dispatches to window_manager."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.WINDOWSHOWN)
-
-        result = engine.process_window_focus_event(event)
-        assert result is True
-        engine.window_manager.on_window_shown_event.assert_called_once_with(event)
-
-    def test_window_leave(self, mocker):
-        """Test WINDOWLEAVE dispatches to window_manager."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.WINDOWLEAVE)
-
-        result = engine.process_window_focus_event(event)
-        assert result is True
-        engine.window_manager.on_window_leave_event.assert_called_once_with(event)
-
-    def test_window_focus_gained(self, mocker):
-        """Test WINDOWFOCUSGAINED dispatches and sets grab."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-        # Mocked: a real grab would confine the mouse of whoever runs the suite on a real driver
-        mock_set_grab = mocker.patch('pygame.event.set_grab')
-
-        event = events.HashableEvent(pygame.WINDOWFOCUSGAINED)
-
-        result = engine.process_window_focus_event(event)
-        assert result is True
-        engine.window_manager.on_window_focus_gained_event.assert_called_once_with(event)
-        mock_set_grab.assert_called_once()
-        assert mock_set_grab.call_args[0][0] is True
-
-    def test_window_focus_lost(self, mocker):
-        """Test WINDOWFOCUSLOST dispatches and releases grab."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-        # Mocked: a real grab would confine the mouse of whoever runs the suite on a real driver
-        mock_set_grab = mocker.patch('pygame.event.set_grab')
-
-        event = events.HashableEvent(pygame.WINDOWFOCUSLOST)
-
-        result = engine.process_window_focus_event(event)
-        assert result is True
-        engine.window_manager.on_window_focus_lost_event.assert_called_once_with(event)
-        mock_set_grab.assert_called_once()
-        assert mock_set_grab.call_args[0][0] is False
-
-    def test_window_enter(self, mocker):
-        """Test WINDOWENTER dispatches to window_manager."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.WINDOWENTER)
-
-        result = engine.process_window_focus_event(event)
-        assert result is True
-        engine.window_manager.on_window_enter_event.assert_called_once_with(event)
-
-    def test_window_take_focus(self, mocker):
-        """Test WINDOWTAKEFOCUS dispatches to window_manager."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-
-        event = events.HashableEvent(pygame.WINDOWTAKEFOCUS)
-
-        result = engine.process_window_focus_event(event)
-        assert result is True
-        engine.window_manager.on_window_take_focus_event.assert_called_once_with(event)
-
-    def test_unhandled_returns_false(self, mocker):
-        """Test unhandled window focus event returns False."""
-        engine = _make_engine(mocker)
-        engine.window_manager = mocker.Mock()
-
-        event = events.HashableEvent(99999)
-
-        result = engine.process_window_focus_event(event)
-        assert result is False
 
 
 class TestProcessWindowEvent:
@@ -2548,8 +2460,56 @@ class TestVideoDriverArgument:
         assert video_driver.choices == expected_choices
         assert video_driver.default is None
 
-    def test_the_help_says_the_option_is_not_applied(self):
-        assert 'not applied' in str(_engine_parser_action(destination='video_driver').help)
+    def test_the_help_no_longer_says_the_option_is_not_applied(self):
+        assert 'not applied' not in str(_engine_parser_action(destination='video_driver').help)
+
+
+class TestVideoDriverApplied:
+    """--video-driver sets SDL_VIDEODRIVER for the run and puts it back after (BUGS.md #210)."""
+
+    def test_the_driver_is_set_before_the_display_starts(self, mocker):
+        mocker.patch.dict(os.environ, {'SDL_VIDEODRIVER': 'before-the-run'})
+        # The test display already runs on the dummy driver, so nothing is restarted
+        display_quit = mocker.spy(pygame.display, 'quit')
+
+        engine = _make_engine(mocker, '--video-driver', 'dummy')
+
+        assert os.environ['SDL_VIDEODRIVER'] == 'dummy'
+        assert pygame.display.get_driver() == 'dummy'
+        display_quit.assert_not_called()
+        engine._restore_sdl_driver_variables()
+        assert os.environ['SDL_VIDEODRIVER'] == 'before-the-run'
+
+    def test_an_unset_variable_is_unset_again_after_the_run(self, mocker):
+        mocker.patch.dict(os.environ)
+        os.environ.pop('SDL_VIDEODRIVER', None)
+
+        engine = _make_engine(mocker, '--video-driver', 'dummy')
+        engine._restore_sdl_driver_variables()
+
+        assert 'SDL_VIDEODRIVER' not in os.environ
+
+    def test_a_display_on_another_driver_is_restarted(self, mocker):
+        mocker.patch.dict(os.environ)
+        engine = _make_engine(mocker)
+        # As if pygame had started the display on another driver before the engine
+        mocker.patch.object(pygame.display, 'get_init', return_value=True)
+        mocker.patch.object(pygame.display, 'get_driver', return_value='cocoa')
+        display_quit = mocker.patch.object(pygame.display, 'quit')
+
+        engine._enter_video_driver(video_driver='dummy')
+
+        display_quit.assert_called_once_with()
+        assert os.environ['SDL_VIDEODRIVER'] == 'dummy'
+
+    def test_headless_wins_over_the_video_driver(self, mocker):
+        enter_headless_mode = mocker.patch.object(GameEngine, '_enter_headless_mode')
+        enter_video_driver = mocker.patch.object(GameEngine, '_enter_video_driver')
+
+        _make_engine(mocker, '--headless', '--video-driver', 'offscreen')
+
+        enter_headless_mode.assert_called_once_with()
+        enter_video_driver.assert_not_called()
 
 
 class TestGameEngineFastEvents:

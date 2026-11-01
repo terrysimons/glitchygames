@@ -105,7 +105,7 @@ class InputBox(Sprite):
             FontManager.pygame_font(font_config={'font_name': DEFAULT_FONT_NAME, 'font_size': 14}),
         )
         self.text = text
-        self.text_image = self.font.render(self.text, True, INPUT_BOX_TEXT_COLOR)  # ruff: ignore[boolean-positional-value-in-call]
+        self.text_image = self.font.render(self.text, FontManager.antialias(), INPUT_BOX_TEXT_COLOR)
         self.is_active = False
         # Keep convert()'s result: the converted copy is the one in the display's format (#143)
         self.image = pygame.Surface((self.width, self.height)).convert()
@@ -172,7 +172,7 @@ class InputBox(Sprite):
             screen (pygame.Surface | None): The surface to render to.
 
         """
-        self.text_image = self.font.render(self.text, True, INPUT_BOX_TEXT_COLOR)  # ruff: ignore[boolean-positional-value-in-call]
+        self.text_image = self.font.render(self.text, FontManager.antialias(), INPUT_BOX_TEXT_COLOR)
 
     def on_mouse_up_event(self: Self, _event: HashableEvent) -> None:
         """Handle mouse up events.

@@ -164,7 +164,7 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         frame_text = f'{frame_index + 1}/{total_frames}'
         text_surface = font.render(
             frame_text,
-            antialias=True,
+            antialias=FontManager.antialias(),
             color=(255, 255, 255),
         )  # White text
         text_rect = text_surface.get_rect()
@@ -973,7 +973,7 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
         frame_text = f'{current_frame_idx + 1}/{total_frames}'
         text_surface = font.render(
             frame_text,
-            antialias=True,
+            antialias=FontManager.antialias(),
             color=(255, 255, 255),
         )  # White text
         text_rect = text_surface.get_rect()

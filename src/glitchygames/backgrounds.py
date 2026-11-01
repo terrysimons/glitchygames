@@ -232,7 +232,9 @@ def draw_channel_three(*, surface: pygame.Surface) -> None:
     width, height = surface.get_size()
     font_size = max(1, _scaled_edge(length=height, fraction=CHANNEL_THREE_FONT_FRACTION))
     font = pygame.font.Font(CHANNEL_THREE_FONT_PATH, font_size)
-    # Not antialiased: an OSD's character generator drew hard-edged pixels
+    # Never antialiased, whatever --font-antialias says (FontManager.antialias()): a VCR's
+    # on-screen display drew the channel number with a character generator's hard-edged
+    # pixels, and the screen copies that look
     digit = font.render(CHANNEL_THREE_TEXT, antialias=False, color=OSD_GREEN)
     shadow = font.render(CHANNEL_THREE_TEXT, antialias=False, color=OSD_SHADOW)
     margin = _scaled_edge(length=height, fraction=CHANNEL_THREE_MARGIN_FRACTION)

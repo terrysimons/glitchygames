@@ -122,17 +122,20 @@ struct AnimationSection: Decodable, Equatable {
 }
 
 struct FrameSection: Decodable, Equatable {
-    // frame_index is not decoded: the engine never uses it (see SpriteLoader.resolveFrames)
+    // Orders the frames, as the engine's loader does (see SpriteLoader.resolveFrames)
+    var frameIndex: Int?
     var frameInterval: Double?
     var pixels: String?
 
     enum CodingKeys: String, CodingKey {
+        case frameIndex = "frame_index"
         case frameInterval = "frame_interval"
         case pixels
     }
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        frameIndex = try container.decodeIfPresent(Int.self, forKey: .frameIndex)
         frameInterval = try decodeSeconds(container, forKey: .frameInterval)
         pixels = try container.decodeIfPresent(String.self, forKey: .pixels)
     }
