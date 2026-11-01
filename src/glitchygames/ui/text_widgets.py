@@ -261,13 +261,17 @@ class TextSprite(BitmappySprite):
                     is_transparent=is_transparent,
                     background_color=background_color,
                 )
-            except TypeError, ValueError:  # pragma: no cover - freetype rejected the color
-                # Fall back to pygame.font style (returns surface)
-                text_surface = self._render_with_pygame_font(
+            except TypeError, ValueError:
+                # freetype rejected the background color (the text color renders on both
+                # paths), so the text is drawn in its own color with no background. It used to
+                # fall back to pygame.font's (text, antialias, color) call, which freetype reads
+                # as (text, fgcolor, bgcolor): the antialias flag as the text color, and the
+                # text color as the background
+                text_surface, text_rect = self._render_with_freetype_font(
                     font,
                     text,
                     text_color,
-                    is_transparent=is_transparent,
+                    is_transparent=True,
                 )
         else:
             text_surface = self._render_with_pygame_font(

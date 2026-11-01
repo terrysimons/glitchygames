@@ -3431,7 +3431,7 @@ class TestTextSpiteRenderPygameFont:
         assert _pixel_count_of(surface, (255, 255, 255)) > 0
 
     def test_render_with_a_freetype_font_returns_the_surface_of_its_tuple(self):
-        """A freetype font (the fallback when freetype rejects the color) gives its surface.
+        """A freetype font (a GameFont may be one) gives its surface.
 
         A freetype render returns (surface, rect); only the surface is handed back.
         """
@@ -3448,6 +3448,26 @@ class TestTextSpiteRenderPygameFont:
 
         assert isinstance(surface, pygame.Surface)
         assert surface.get_width() > 0
+
+    def test_a_rejected_background_color_draws_the_text_in_its_color_on_nothing(self):
+        """A background freetype refuses still leaves the text drawn in its color, unbacked."""
+        text_sprite = _text_sprite(text='test')
+        font = FontManager.get_font()
+        assert hasattr(font, 'render_to')
+
+        text_surface, _text_rect = text_sprite._render_text_with_font(
+            font,
+            'hello',
+            (255, 255, 255),
+            is_transparent=False,
+            background_color='not a color',
+        )
+
+        assert _pixel_count_of(text_surface, (255, 255, 255)) > 0
+        # No background: the far corner (the text is drawn from the top left) is clear, not
+        # filled with the text color
+        width, height = text_surface.get_size()
+        assert text_surface.get_at((width - 1, height - 1)).a == 0
 
 
 class _SurfaceOnlyFreetypeFont:
