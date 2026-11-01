@@ -24,7 +24,11 @@ from glitchygames.sprites import (
     BitmappySprite,
     SpriteFactory,
 )
-from glitchygames.sprites.animated import AnimatedSprite, FrameAnchor
+from glitchygames.sprites.animated import (
+    AnimatedSprite,
+    FrameAnchor,
+    frame_tables_in_load_order,
+)
 from glitchygames.sprites.frame import SpriteFrame
 from glitchygames.sprites.pixel_utils import (
     convert_pixels_to_rgb_if_possible,
@@ -1822,6 +1826,85 @@ pixels = \"\"\"
         # Second frame should have 0.8 duration
         frame1 = sprite.get_frame('blink', 1)
         assert abs(frame1.duration - 0.8) < 1e-9
+
+
+# Two 1x1 frames whose frame_index keys run against the file's order: '#' (black) is written
+# first but is frame 1, '.' (white) second but frame 0
+OUT_OF_ORDER_FRAMES_SPRITE = """[sprite]
+name = "out_of_order"
+
+[colors."#"]
+red = 0
+green = 0
+blue = 0
+
+[colors."."]
+red = 255
+green = 255
+blue = 255
+
+[[animation]]
+namespace = "blink"
+
+[[animation.frame]]
+frame_index = 1
+pixels = \"\"\"
+#
+\"\"\"
+
+[[animation.frame]]
+frame_index = 0
+pixels = \"\"\"
+.
+\"\"\"
+"""
+
+
+class TestFrameIndexOrder:
+    """The loader places frames by their frame_index keys (BUGS.md #232)."""
+
+    def test_frames_load_in_frame_index_order(self, tmp_path):
+        sprite_file = tmp_path / 'out_of_order.toml'
+        sprite_file.write_text(OUT_OF_ORDER_FRAMES_SPRITE, encoding='utf-8')
+
+        sprite = AnimatedSprite()
+        sprite.load(str(sprite_file))
+
+        assert sprite.get_frame('blink', 0).get_pixel_data()[0][:3] == (255, 255, 255)
+        assert sprite.get_frame('blink', 1).get_pixel_data()[0][:3] == (0, 0, 0)
+
+    def test_a_save_writes_the_frames_in_load_order(self, tmp_path):
+        sprite_file = tmp_path / 'out_of_order.toml'
+        sprite_file.write_text(OUT_OF_ORDER_FRAMES_SPRITE, encoding='utf-8')
+        sprite = AnimatedSprite()
+        sprite.load(str(sprite_file))
+        saved_file = tmp_path / 'saved.toml'
+
+        sprite.save(str(saved_file), 'toml')
+
+        saved_frames = tomllib.loads(saved_file.read_text(encoding='utf-8'))['animation'][0][
+            'frame'
+        ]
+        assert [frame['frame_index'] for frame in saved_frames] == [0, 1]
+        assert [frame['pixels'].strip() for frame in saved_frames] == ['.', '#']
+
+    def test_a_table_without_an_index_counts_as_its_file_position(self):
+        frame_tables = [
+            {'name': 'a', 'frame_index': 2},
+            {'name': 'b'},
+            {'name': 'c', 'frame_index': 0},
+        ]
+
+        ordered_tables = frame_tables_in_load_order(frame_tables)
+
+        assert [frame_table['name'] for frame_table in ordered_tables] == ['c', 'b', 'a']
+
+    def test_equal_indexes_keep_the_file_order(self):
+        frame_tables = [{'name': 'a', 'frame_index': 1}, {'name': 'b'}]
+
+        ordered_tables = frame_tables_in_load_order(frame_tables)
+
+        assert [frame_table['name'] for frame_table in ordered_tables] == ['a', 'b']
 
 
 class TestLookupRgbaPixelChar:

@@ -105,9 +105,9 @@ length, truncate, pad with the row's last glyph; R5, static: whole-string strip,
 with the most common glyph).
 
 **Animations**: each `[[animation]]` has `namespace` (default `"default"`), `frame_interval`
-(seconds, default 0.5), `loop` (default true), and `frame` entries. Frames play in **file order**: the engine means to sort by `frame_index`, but its sort
-key is never set, so it changes nothing (found by the golden tests while building, 2026-10-29;
-tracked in `plans/future-work.md`). Frames whose pixels are empty are skipped. A frame's own `frame_interval` overrides the animation's. A non-looping animation stops on
+(seconds, default 0.5), `loop` (default true), and `frame` entries. Frames play in **`frame_index` order**, a frame without one at its file position, ties in file
+order (the engine's `frame_tables_in_load_order`; until 2026-10-31 the engine's sort was a no-op
+and frames played in file order, BUGS.md #232). Frames whose pixels are empty are skipped. A frame's own `frame_interval` overrides the animation's. A non-looping animation stops on
 its last frame.
 
 **Static sprite name**: the single animation is named after `sprite.name` (default `"idle"`).
@@ -164,8 +164,9 @@ its last frame.
 
 ## Engine quirks noticed (reported, not fixed here)
 
-- `frame_index` never orders frames: the engine's sort key reads an attribute no frame has, so frames
-  play in file order. The preview copies that; tracked in `plans/future-work.md`.
+- ~~`frame_index` never orders frames: the engine's sort key reads an attribute no frame has, so frames
+  play in file order. The preview copies that; tracked in `plans/future-work.md`.~~ Fixed
+  2026-10-31 (BUGS.md #232): the engine and the preview both order frames by `frame_index`.
 
 - ~~Static and animated sprites normalize ragged rows differently (longest row + most-common-glyph
   pad vs most-common length + last-glyph pad + truncation), and static rows are not stripped per

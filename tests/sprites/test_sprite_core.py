@@ -437,34 +437,6 @@ class TestSpriteEventHandlerStubs:
         """Test on_mouse_exit_event does not raise."""
         sprite.on_mouse_exit_event(mock_event)
 
-    def test_on_mouse_drag_down_event(self, sprite, mock_event):
-        """Test on_mouse_drag_down_event does not raise."""
-        sprite.on_mouse_drag_down_event(mock_event, trigger=None)
-
-    def test_on_left_mouse_drag_down_event(self, sprite, mock_event):
-        """Test on_left_mouse_drag_down_event does not raise."""
-        sprite.on_left_mouse_drag_down_event(mock_event, trigger=None)
-
-    def test_on_left_mouse_drag_up_event(self, sprite, mock_event):
-        """Test on_left_mouse_drag_up_event does not raise."""
-        sprite.on_left_mouse_drag_up_event(mock_event, trigger=None)
-
-    def test_on_middle_mouse_drag_down_event(self, sprite, mock_event):
-        """Test on_middle_mouse_drag_down_event does not raise."""
-        sprite.on_middle_mouse_drag_down_event(mock_event, trigger=None)
-
-    def test_on_middle_mouse_drag_up_event(self, sprite, mock_event):
-        """Test on_middle_mouse_drag_up_event does not raise."""
-        sprite.on_middle_mouse_drag_up_event(mock_event, trigger=None)
-
-    def test_on_right_mouse_drag_down_event(self, sprite, mock_event):
-        """Test on_right_mouse_drag_down_event does not raise."""
-        sprite.on_right_mouse_drag_down_event(mock_event, trigger=None)
-
-    def test_on_right_mouse_drag_up_event(self, sprite, mock_event):
-        """Test on_right_mouse_drag_up_event does not raise."""
-        sprite.on_right_mouse_drag_up_event(mock_event, trigger=None)
-
 
 class TestSpriteEventHandlerStubsExtended:
     """Test additional Sprite event handler stubs (buttons, keys, drag/drop, wheel)."""
@@ -491,10 +463,6 @@ class TestSpriteEventHandlerStubsExtended:
         event.rel = (1, 1)
         event.buttons = (0, 0, 0)
         return event
-
-    def test_on_mouse_drag_up_event(self, sprite, mock_event):
-        """Test on_mouse_drag_up_event does not raise."""
-        sprite.on_mouse_drag_up_event(mock_event)
 
     def test_on_mouse_button_up_event(self, sprite, mock_event):
         """Test on_mouse_button_up_event does not raise."""

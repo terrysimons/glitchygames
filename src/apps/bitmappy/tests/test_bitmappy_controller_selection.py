@@ -28,6 +28,15 @@ class TestControllerSelectionFillDirection:
 
         assert selection.get_fill_direction() == 'VERTICAL'
 
+    def test_toggle_fill_direction_switches_between_the_two(self):
+        selection = ControllerSelection(controller_id=0, instance_id=0)
+
+        assert selection.get_fill_direction() == 'HORIZONTAL'
+        assert selection.toggle_fill_direction() == 'VERTICAL'
+        assert selection.get_fill_direction() == 'VERTICAL'
+        assert selection.toggle_fill_direction() == 'HORIZONTAL'
+        assert selection.get_fill_direction() == 'HORIZONTAL'
+
     def test_set_fill_direction_invalid(self):
         """Test setting invalid fill direction does nothing."""
         selection = ControllerSelection(controller_id=0, instance_id=0)

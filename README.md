@@ -203,7 +203,7 @@ All games built on GlitchyGames inherit these command-line options from the engi
 | `-r`, `--resolution` | Display resolution (e.g. `1024x768`) | `800x480` |
 | `--use-gfxdraw` | Not used yet: stored, but nothing draws with pygame.gfxdraw because of it | `False` |
 | `--update-type` | Display update method: `update` (dirty rects) or `flip` (full screen) | `update` |
-| `--video-driver` | Not applied yet: stored, but SDL picks its video driver from `SDL_VIDEODRIVER` (or `--headless`) | none |
+| `--video-driver` | SDL's video driver for the run (sets `SDL_VIDEODRIVER`; `--headless` overrides it) | `SDL_VIDEODRIVER`, or SDL's choice |
 | `--random-seed` | Master seed for every engine random stream | a random 64-bit seed |
 | `--screen-shake-intensity` | Screen shake strength, 0.0 (off) to 1.0 | `1.0` |
 | `--rumble-intensity` | Controller rumble strength, 0.0 (off) to 1.0 | `1.0` |
@@ -260,8 +260,9 @@ The other replay options (`--replay-fps`, `--audit`, `--compare-processing`, `--
 |------|-------------|---------|
 | `--font-name` | Font to use: the bundled `Vera`, `VeraBd`, `VeraIt`, `VeraBI`, or a system font | `Vera` |
 | `--font-size` | Size of the default font (text that asks for no font of its own) | `14` |
-| `--font-dpi` | Resolution freetype font sizes are scaled at (the pygame font system ignores it) | `72` |
-| `--font-bold`, `--font-italic`, `--font-antialias` | Not used yet: stored, but no font reads them | `False` |
+| `--font-dpi` | Resolution font sizes are scaled at (a size is in pixels at 72) | `72` |
+| `--font-bold`, `--font-italic` | Draw text bold or italic | `False` |
+| `--font-antialias`, `--no-font-antialias` | Antialias freetype text (pygame-font text keeps each caller's choice) | on |
 | `--font-system` | `freetype` or `pygame` | `freetype` |
 
 ### Controller Options

@@ -206,6 +206,17 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
                 self.controller_id,
             )
 
+    def toggle_fill_direction(self) -> str:
+        """Switch the fill direction between HORIZONTAL and VERTICAL (BUGS.md #200 item 7).
+
+        Returns:
+            The new fill direction.
+
+        """
+        new_direction = 'VERTICAL' if self.get_fill_direction() == 'HORIZONTAL' else 'HORIZONTAL'
+        self.set_fill_direction(new_direction)
+        return new_direction
+
     def get_fill_direction(self) -> str:
         """Get the current fill direction for this controller.
 

@@ -327,6 +327,20 @@ class TestFontEvents:
             scene.font_events_received.clear()
 
 
+def cache_key(*, font_name: str, font_size: int) -> str:
+    """Return the freetype cache key of a font with the engine's default style.
+
+    Args:
+        font_name: The font's name.
+        font_size: The font's size.
+
+    Returns:
+        The key (a pygame.font font's is this with a 'pygame_' prefix).
+
+    """
+    return FontManager.font_settings({'font_name': font_name, 'font_size': font_size}).cache_key
+
+
 class TestFontManagerCoverage:
     """Test coverage for FontManager class."""
 
@@ -355,7 +369,7 @@ class TestFontManagerCoverage:
         font = FontManager.get_font(font_system='freetype', font_config={'font_name': 'Vera'})
 
         assert isinstance(font, pygame.font.Font)
-        assert 'pygame_Vera_14' in FontManager._font_cache
+        assert 'pygame_' + cache_key(font_name='Vera', font_size=14) in FontManager._font_cache
 
     def test_font_manager_initialization(self):
         """Test FontManager initialization."""
@@ -391,9 +405,12 @@ class TestFontManagerCoverage:
         font_config = {'font_name': 'arial', 'font_size': 16}
         result = FontManager.font(font_config)
 
-        system_font_lookup.assert_called_once_with(name='arial', size=16)
+        system_font_lookup.assert_called_once()
+        lookup_arguments = system_font_lookup.call_args.kwargs
+        assert (lookup_arguments['name'], lookup_arguments['size']) == ('arial', 16)
+        assert (lookup_arguments['bold'], lookup_arguments['italic']) == (False, False)
         assert result is system_font
-        assert FontManager._font_cache['arial_16'] is system_font
+        assert FontManager._font_cache[cache_key(font_name='arial', font_size=16)] is system_font
 
     def test_font_method_freetype_fallback(self, mocker):
         """Test font method with freetype fallback to the bundled font."""
@@ -405,7 +422,7 @@ class TestFontManagerCoverage:
 
         assert isinstance(result, pygame.freetype.Font)
         assert Path(result.path).name == 'Vera.ttf'
-        assert FontManager._font_cache['arial_16'] is result
+        assert FontManager._font_cache[cache_key(font_name='arial', font_size=16)] is result
 
     def test_pygame_font_method_success(self, mocker):
         """Test pygame_font method with successful system font loading."""
@@ -415,9 +432,12 @@ class TestFontManagerCoverage:
         font_config = {'font_name': 'arial', 'font_size': 16}
         result = FontManager.pygame_font(font_config)
 
-        system_font_lookup.assert_called_once_with('arial', 16)
+        system_font_lookup.assert_called_once_with('arial', 16, bold=False, italic=False)
         assert result is system_font
-        assert FontManager._font_cache['pygame_arial_16'] is system_font
+        assert (
+            FontManager._font_cache['pygame_' + cache_key(font_name='arial', font_size=16)]
+            is system_font
+        )
 
     def test_pygame_font_method_fallback(self, mocker):
         """Test pygame_font method with fallback to pygame's default font."""
@@ -429,7 +449,7 @@ class TestFontManagerCoverage:
         font_config = {'font_name': 'arial', 'font_size': 16}
         result = FontManager.pygame_font(font_config)
 
-        system_font_lookup.assert_called_once_with('arial', 16)
+        system_font_lookup.assert_called_once_with('arial', 16, bold=False, italic=False)
         assert isinstance(result, pygame.font.Font)
         # pygame's default font at the requested size
         assert result.get_height() == pygame.font.Font(None, 16).get_height()
@@ -443,9 +463,9 @@ class TestFontManagerCoverage:
 
         result = FontManager.pygame_font(None)
 
-        system_font_lookup.assert_called_once_with('arial', 16)
+        system_font_lookup.assert_called_once_with('arial', 16, bold=False, italic=False)
         assert result is system_font
-        assert 'pygame_arial_16' in FontManager._font_cache
+        assert 'pygame_' + cache_key(font_name='arial', font_size=16) in FontManager._font_cache
 
     def test_args_method(self):
         """Test args class method."""
@@ -467,7 +487,7 @@ class TestFontManagerCoverage:
         result = FontManager.font()
 
         assert result is system_font
-        assert 'arial_16' in FontManager._font_cache
+        assert cache_key(font_name='arial', font_size=16) in FontManager._font_cache
 
     def test_font_method_with_partial_config(self, mocker):
         """Test font method with partial configuration."""
@@ -480,7 +500,8 @@ class TestFontManagerCoverage:
         result = FontManager.font({'font_name': 'times'})
 
         assert result is system_font
-        assert 'times_14' in FontManager._font_cache  # The hard-coded default size, 14
+        # The hard-coded default size, 14
+        assert cache_key(font_name='times', font_size=14) in FontManager._font_cache
 
     def test_font_method_with_missing_font_name_config(self):
         """A config without a font name loads the default font, the bundled Vera (BUGS.md #156)."""
@@ -492,12 +513,12 @@ class TestFontManagerCoverage:
         assert isinstance(result, pygame.freetype.Font)
         assert Path(result.path).name == 'Vera.ttf'
         assert result.size == 20
-        assert FontManager._font_cache['Vera_20'] is result
+        assert FontManager._font_cache[cache_key(font_name='Vera', font_size=20)] is result
 
     def test_font_method_cache_hit(self):
         """Test font method cache hit behavior."""
         cached_font = bundled_freetype_font(size=14)
-        FontManager._font_cache['arial_14'] = cached_font
+        FontManager._font_cache[cache_key(font_name='arial', font_size=14)] = cached_font
 
         config = {'font_name': 'arial', 'font_size': 14}
 

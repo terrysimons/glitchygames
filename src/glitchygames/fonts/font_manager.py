@@ -5,7 +5,9 @@ This module contains the FontManager class for loading and managing fonts.
 
 from __future__ import annotations
 
+import argparse
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -20,7 +22,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    import argparse
+    from collections.abc import Callable
 
     from glitchygames.events.base import HashableEvent
 
@@ -100,6 +102,70 @@ BUNDLED_FONT_FILE_NAMES: dict[str, str] = {
     'verait': 'VeraIt.ttf',
     'verabi': 'VeraBI.ttf',
 }
+
+
+# The size a font configuration that names none gets
+DEFAULT_FONT_SIZE = 14
+
+# pygame.freetype's own default resolution, at which a size in points is a size in pixels.
+# pygame.font has no resolution, so a pygame font's size is scaled by font_dpi / BASE_FONT_DPI
+# (BUGS.md #210), and both font systems draw the same size at any --font-dpi.
+BASE_FONT_DPI = 72
+
+# The style options a font configuration may give, and the values used when neither it nor the
+# engine's options (FontManager.OPTIONS) give one. Antialiasing is on, as pygame.freetype's is.
+FONT_STYLE_DEFAULTS: dict[str, bool | int] = {
+    'font_bold': False,
+    'font_italic': False,
+    'font_antialias': True,
+    'font_dpi': BASE_FONT_DPI,
+}
+
+
+@dataclass(frozen=True)
+class FontSettings:
+    """Everything a loaded font depends on: its name, size and style.
+
+    Attributes:
+        name: The font's name (a bundled font or a system font).
+        size: The size in points (pixels at BASE_FONT_DPI).
+        bold: Drawn bold (pygame.freetype's strong, pygame.font's set_bold).
+        italic: Drawn italic (pygame.freetype's oblique, pygame.font's set_italic).
+        antialias: pygame.freetype's antialiased; pygame.font antialiases per render call, so
+            each caller of its render still chooses.
+        dpi: The resolution sizes are scaled at.
+
+    """
+
+    name: str
+    size: int
+    bold: bool
+    italic: bool
+    antialias: bool
+    dpi: int
+
+    @property
+    def cache_key(self) -> str:
+        """The font cache key: two configurations share a font only if all fields match.
+
+        Returns:
+            The key (without the font system's prefix).
+
+        """
+        return (
+            f'{self.name}_{self.size}_bold{int(self.bold)}_italic{int(self.italic)}'
+            f'_antialias{int(self.antialias)}_dpi{self.dpi}'
+        )
+
+    @property
+    def pygame_font_size(self) -> int:
+        """The size to give pygame.font, which has no resolution of its own.
+
+        Returns:
+            The size scaled by dpi / BASE_FONT_DPI (at least 1).
+
+        """
+        return max(1, round(self.size * self.dpi / BASE_FONT_DPI))
 
 
 def bundled_font_path(*, font_name: str) -> Path | None:
@@ -194,10 +260,10 @@ class FontManager(ResourceManager):
         # Set up the default options.
         FontManager.OPTIONS['font_name'] = self.game.OPTIONS['font_name']
         FontManager.OPTIONS['font_size'] = self.game.OPTIONS['font_size']
-        FontManager.OPTIONS['font_bold'] = self.game.OPTIONS['font_bold']
-        FontManager.OPTIONS['font_italic'] = self.game.OPTIONS['font_italic']
-        FontManager.OPTIONS['font_antialias'] = self.game.OPTIONS['font_antialias']
-        FontManager.OPTIONS['font_dpi'] = self.game.OPTIONS['font_dpi']
+        # A style option the game's options leave out gets the engine's default (antialiasing
+        # on), so options not built by the engine's parser still load fonts
+        for style_option, default_value in FONT_STYLE_DEFAULTS.items():
+            FontManager.OPTIONS[style_option] = self.game.OPTIONS.get(style_option, default_value)
 
         # Set font system based on command line argument
         font_system: str = self.game.OPTIONS.get('font_system', 'freetype')
@@ -265,33 +331,37 @@ class FontManager(ResourceManager):
                 '(default: %(default)s)'
             ),
         )
-        # Stored in FontManager.OPTIONS, but no font loader or renderer reads them yet
+        # The style options apply to every font the manager loads, unless the font's own
+        # configuration gives a value (BUGS.md #210)
         group.add_argument(
             '--font-bold',
             action='store_true',
-            default=False,
-            help='not used yet: stored, but no text is drawn bold because of it',
+            default=FONT_STYLE_DEFAULTS['font_bold'],
+            help='draw text bold',
         )
         group.add_argument(
             '--font-italic',
             action='store_true',
-            default=False,
-            help='not used yet: stored, but no text is drawn italic because of it',
+            default=FONT_STYLE_DEFAULTS['font_italic'],
+            help='draw text italic',
         )
+        # On by default (pygame.freetype's own default), so --no-font-antialias turns it off
         group.add_argument(
             '--font-antialias',
-            action='store_true',
-            default=False,
-            help='not used yet: stored, but each text widget chooses its own antialiasing',
+            action=argparse.BooleanOptionalAction,
+            default=FONT_STYLE_DEFAULTS['font_antialias'],
+            help=(
+                'antialias freetype text; the pygame font system antialiases per call, so its '
+                "text keeps each caller's choice (default: %(default)s)"
+            ),
         )
         group.add_argument(
             '--font-dpi',
             type=int,
-            default=72,
+            default=FONT_STYLE_DEFAULTS['font_dpi'],
             help=(
-                'the resolution, in dots per inch, freetype font sizes are scaled at (sets '
-                "pygame.freetype's default resolution); the pygame font system ignores it "
-                '(default: %(default)s)'
+                'the resolution, in dots per inch, font sizes are scaled at (a size is in pixels '
+                f'at {BASE_FONT_DPI}) (default: %(default)s)'
             ),
         )
         group.add_argument(
@@ -324,41 +394,36 @@ class FontManager(ResourceManager):
             GameFont
 
         """
-        if not font_config:
-            font_config = FontManager.OPTIONS
-
-        # Provide default font configuration if not set
-        if 'font_name' not in font_config:
-            font_config['font_name'] = DEFAULT_FONT_NAME
-        if 'font_size' not in font_config:
-            font_config['font_size'] = 14
-
-        # Create cache key
-        cache_key = f'{font_config["font_name"]}_{font_config["font_size"]}'
+        settings = cls.font_settings(font_config)
+        cache_key = settings.cache_key
 
         # Check cache first
         if cache_key in FontManager._font_cache:
             return FontManager._font_cache[cache_key]
 
-        log.info('Loading Font: %s', font_config['font_name'])
-        log.info('Font Size: %s', font_config['font_size'])
+        log.info('Loading Font: %s', settings.name)
+        log.info('Font Size: %s', settings.size)
 
         # A bundled font loads from its file: no system font scan (BUGS.md #156).
-        font_path = bundled_font_path(font_name=font_config['font_name'])
+        font_path = bundled_font_path(font_name=settings.name)
         if font_path is not None:
             loaded_font: GameFont = cast(
-                'GameFont',
-                pygame.freetype.Font(file=font_path, size=font_config['font_size']),
+                'GameFont', _styled_freetype_font(font_path=font_path, settings=settings)
             )
             FontManager._font_cache[cache_key] = loaded_font
             return loaded_font
 
         try:
+            # SysFont picks a bold or italic face when the system has one and asks the
+            # constructor to embolden or slant only when it has none
             loaded_font = cast(
                 'GameFont',
                 pygame.freetype.SysFont(
-                    name=font_config['font_name'],
-                    size=font_config['font_size'],
+                    name=settings.name,
+                    size=settings.size,
+                    bold=settings.bold,
+                    italic=settings.italic,
+                    constructor=_freetype_font_constructor(settings=settings),
                 ),
             )
         except TypeError, FileNotFoundError:
@@ -373,9 +438,9 @@ class FontManager(ResourceManager):
             # the requested size (it used to load at 12 whatever was asked for).
             loaded_font = cast(
                 'GameFont',
-                pygame.freetype.Font(
-                    file=BUNDLED_FONT_DIRECTORY / BUNDLED_FONT_FILE_NAMES['vera'],
-                    size=font_config['font_size'],
+                _styled_freetype_font(
+                    font_path=BUNDLED_FONT_DIRECTORY / BUNDLED_FONT_FILE_NAMES['vera'],
+                    settings=settings,
                 ),
             )
 
@@ -394,45 +459,79 @@ class FontManager(ResourceManager):
             GameFont: A regular pygame font object.
 
         """
-        if not font_config:
-            font_config = FontManager.OPTIONS
-
-        # Provide default font configuration if not set
-        if 'font_name' not in font_config:
-            font_config['font_name'] = DEFAULT_FONT_NAME
-        if 'font_size' not in font_config:
-            font_config['font_size'] = 14
-
-        # Create cache key for pygame fonts
-        cache_key = f'pygame_{font_config["font_name"]}_{font_config["font_size"]}'
+        settings = cls.font_settings(font_config)
+        cache_key = f'pygame_{settings.cache_key}'
 
         # Check cache first
         if cache_key in FontManager._font_cache:
             return FontManager._font_cache[cache_key]
 
         # A bundled font loads from its file: no system font scan (BUGS.md #156).
-        font_path = bundled_font_path(font_name=font_config['font_name'])
+        font_path = bundled_font_path(font_name=settings.name)
         if font_path is not None:
-            loaded_font: GameFont = cast(
-                'GameFont',
-                pygame.font.Font(font_path, font_config['font_size']),
-            )
+            pygame_font = pygame.font.Font(font_path, settings.pygame_font_size)
+            pygame_font.set_bold(settings.bold)
+            pygame_font.set_italic(settings.italic)
+            loaded_font: GameFont = cast('GameFont', pygame_font)
             FontManager._font_cache[cache_key] = loaded_font
             return loaded_font
 
         try:
-            # Try to load system font
+            # SysFont picks a bold or italic face when the system has one, and emboldens or
+            # slants the font itself when it has none
             loaded_font = cast(
                 'GameFont',
-                pygame.font.SysFont(font_config['font_name'], font_config['font_size']),
+                pygame.font.SysFont(
+                    settings.name,
+                    settings.pygame_font_size,
+                    bold=settings.bold,
+                    italic=settings.italic,
+                ),
             )
         except TypeError, FileNotFoundError:
             # Fall back to default font
-            loaded_font = cast('GameFont', pygame.font.Font(None, font_config['font_size']))
+            fallback_font = pygame.font.Font(None, settings.pygame_font_size)
+            fallback_font.set_bold(settings.bold)
+            fallback_font.set_italic(settings.italic)
+            loaded_font = cast('GameFont', fallback_font)
 
         # Cache the result
         FontManager._font_cache[cache_key] = loaded_font
         return loaded_font
+
+    @classmethod
+    def font_settings(cls, font_config: dict[str, Any] | None = None) -> FontSettings:
+        """Return the settings a font configuration asks for, without changing the configuration.
+
+        An empty or missing configuration asks for the engine's default font
+        (FontManager.OPTIONS). A name or size the configuration leaves out gets
+        DEFAULT_FONT_NAME or DEFAULT_FONT_SIZE; a style option it leaves out gets the engine's
+        option, then FONT_STYLE_DEFAULTS, so --font-bold and the rest reach every font.
+
+        Args:
+            font_config: The font configuration.
+
+        Returns:
+            The font's settings.
+
+        """
+        source = font_config or FontManager.OPTIONS
+
+        def option(key: str, *, default: bool | int) -> bool | int:
+            for options in (source, FontManager.OPTIONS):
+                value = options.get(key)
+                if value is not None:
+                    return value
+            return default
+
+        return FontSettings(
+            name=source.get('font_name') or DEFAULT_FONT_NAME,
+            size=source.get('font_size') or DEFAULT_FONT_SIZE,
+            bold=bool(option('font_bold', default=FONT_STYLE_DEFAULTS['font_bold'])),
+            italic=bool(option('font_italic', default=FONT_STYLE_DEFAULTS['font_italic'])),
+            antialias=bool(option('font_antialias', default=FONT_STYLE_DEFAULTS['font_antialias'])),
+            dpi=int(option('font_dpi', default=FONT_STYLE_DEFAULTS['font_dpi'])),
+        )
 
     @classmethod
     def get_font(
@@ -533,3 +632,55 @@ class FontManager(ResourceManager):
                 'type': 'pygame.freetype.Font',
             },
         }
+
+
+def _styled_freetype_font(
+    *, font_path: Path | str | None, settings: FontSettings
+) -> pygame.freetype.Font:
+    """Return a freetype font from a file, at the settings' size, resolution and style.
+
+    Args:
+        font_path: The font file (None: pygame's own default font).
+        settings: The font's settings.
+
+    Returns:
+        The font.
+
+    """
+    freetype_font = pygame.freetype.Font(
+        file=font_path, size=settings.size, resolution=settings.dpi
+    )
+    freetype_font.strong = settings.bold
+    freetype_font.oblique = settings.italic
+    freetype_font.antialiased = settings.antialias
+    return freetype_font
+
+
+def _freetype_font_constructor(*, settings: FontSettings) -> Callable[..., pygame.freetype.Font]:
+    """Return a constructor for pygame.freetype.SysFont that keeps the settings' resolution.
+
+    SysFont calls it with the matched file, the size and whether it must embolden or slant
+    (False when it found a bold or italic face; pygame's sysfont.SysFont).
+
+    Args:
+        settings: The font's settings.
+
+    Returns:
+        The constructor.
+
+    """
+
+    def construct(
+        font_path: str | None,
+        size: int,
+        # SysFont calls it positionally
+        bold: bool,  # ruff: ignore[boolean-type-hint-positional-argument]
+        italic: bool,  # ruff: ignore[boolean-type-hint-positional-argument]
+    ) -> pygame.freetype.Font:
+        freetype_font = pygame.freetype.Font(file=font_path, size=size, resolution=settings.dpi)
+        freetype_font.strong = bold
+        freetype_font.oblique = italic
+        freetype_font.antialiased = settings.antialias
+        return freetype_font
+
+    return construct

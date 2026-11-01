@@ -20,6 +20,7 @@ import pytest
 from glitchygames.display_mode import set_display_mode
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import (
+    BASE_FONT_DPI,
     BUNDLED_FONT_DIRECTORY,
     DEFAULT_FONT_NAME,
     bundled_font_path,
@@ -33,6 +34,20 @@ FAKE_SYSTEM_FONT_NAME = 'glitchytestsystemfont'
 FAKE_SYSTEM_FONT_FILE = BUNDLED_FONT_DIRECTORY / 'VeraBd.ttf'
 DEFAULT_FONT_FILE = BUNDLED_FONT_DIRECTORY / 'Vera.ttf'
 SAMPLE_TEXT = 'Glitchy Games 123'
+
+
+def cache_key(*, font_name: str, font_size: int) -> str:
+    """Return the cache key of a font with the default style.
+
+    Args:
+        font_name: The font's name.
+        font_size: The font's size.
+
+    Returns:
+        The key, without the font system's prefix.
+
+    """
+    return FontManager.font_settings({'font_name': font_name, 'font_size': font_size}).cache_key
 
 
 @pytest.fixture(autouse=True)
@@ -176,14 +191,22 @@ class TestDefaultFontWithoutFontconfig:
         assert isinstance(loaded_font, pygame.freetype.Font)
         assert Path(loaded_font.path) == DEFAULT_FONT_FILE
         assert loaded_font.size == 14
-        assert FontManager._font_cache[f'{DEFAULT_FONT_NAME}_14'] is loaded_font
+        assert (
+            FontManager._font_cache[cache_key(font_name=DEFAULT_FONT_NAME, font_size=14)]
+            is loaded_font
+        )
 
     def test_the_pygame_default_font_is_the_bundled_vera(self, fontconfig_unavailable):
         loaded_font = FontManager.pygame_font({})
 
         assert isinstance(loaded_font, pygame.font.Font)
         assert loaded_font.size(SAMPLE_TEXT) == rendered_size(font_file=DEFAULT_FONT_FILE, size=14)
-        assert FontManager._font_cache[f'pygame_{DEFAULT_FONT_NAME}_14'] is loaded_font
+        assert (
+            FontManager._font_cache[
+                'pygame_' + cache_key(font_name=DEFAULT_FONT_NAME, font_size=14)
+            ]
+            is loaded_font
+        )
 
     def test_the_engine_options_default_font_is_the_bundled_vera(self, fontconfig_unavailable):
         parser = FontManager.args(argparse.ArgumentParser())
@@ -214,7 +237,9 @@ class TestNamedSystemFont:
 
         loaded_font = FontManager.font({'font_name': FAKE_SYSTEM_FONT_NAME, 'font_size': 18})
 
-        system_font.assert_called_once_with(name=FAKE_SYSTEM_FONT_NAME, size=18)
+        system_font.assert_called_once()
+        assert system_font.call_args.kwargs['name'] == FAKE_SYSTEM_FONT_NAME
+        assert system_font.call_args.kwargs['size'] == 18
         assert isinstance(loaded_font, pygame.freetype.Font)
         assert Path(loaded_font.path) == FAKE_SYSTEM_FONT_FILE
 
@@ -223,7 +248,7 @@ class TestNamedSystemFont:
 
         loaded_font = FontManager.pygame_font({'font_name': FAKE_SYSTEM_FONT_NAME, 'font_size': 18})
 
-        system_font.assert_called_once_with(FAKE_SYSTEM_FONT_NAME, 18)
+        system_font.assert_called_once_with(FAKE_SYSTEM_FONT_NAME, 18, bold=False, italic=False)
         assert isinstance(loaded_font, pygame.font.Font)
         assert loaded_font.size(SAMPLE_TEXT) == rendered_size(
             font_file=FAKE_SYSTEM_FONT_FILE, size=18
@@ -249,8 +274,13 @@ class TestNamedSystemFont:
 
         loaded_font = FontManager.pygame_font({'font_name': FAKE_SYSTEM_FONT_NAME})
 
-        system_font.assert_called_once_with(FAKE_SYSTEM_FONT_NAME, 14)
-        assert FontManager._font_cache[f'pygame_{FAKE_SYSTEM_FONT_NAME}_14'] is loaded_font
+        system_font.assert_called_once_with(FAKE_SYSTEM_FONT_NAME, 14, bold=False, italic=False)
+        assert (
+            FontManager._font_cache[
+                'pygame_' + cache_key(font_name=FAKE_SYSTEM_FONT_NAME, font_size=14)
+            ]
+            is loaded_font
+        )
 
 
 class TestFontCache:
@@ -473,12 +503,19 @@ class TestFontManagerArgs:
         assert str(option.help).endswith('(default: %(default)s)')
 
     @pytest.mark.parametrize('destination', ['font_bold', 'font_italic', 'font_antialias'])
-    def test_the_unread_style_flags_say_they_are_not_used(self, destination):
-        """--font-bold, --font-italic and --font-antialias are stored but no font reads them."""
+    def test_no_style_flag_says_it_is_unused(self, destination):
+        """The style flags are read now (BUGS.md #210), so their help no longer says otherwise."""
         parser = FontManager.args(argparse.ArgumentParser())
         style_flag = next(action for action in parser._actions if action.dest == destination)
 
-        assert str(style_flag.help).startswith('not used yet')
+        assert 'not used' not in str(style_flag.help)
+
+    def test_antialiasing_is_on_unless_turned_off(self):
+        parser = FontManager.args(argparse.ArgumentParser())
+
+        assert parser.parse_args([]).font_antialias is True
+        assert parser.parse_args(['--font-antialias']).font_antialias is True
+        assert parser.parse_args(['--no-font-antialias']).font_antialias is False
 
     def test_font_name_defaults_to_the_bundled_vera(self):
         parser = FontManager.args(argparse.ArgumentParser())
@@ -515,5 +552,133 @@ class TestInputBoxFont:
     def test_input_box_font_comes_from_the_font_manager(self, display):
         input_box = InputBox(x=10, y=20, width=200, height=30)
 
-        assert input_box.font is FontManager._font_cache[f'pygame_{DEFAULT_FONT_NAME}_14']
+        assert (
+            input_box.font
+            is FontManager._font_cache[
+                'pygame_' + cache_key(font_name=DEFAULT_FONT_NAME, font_size=14)
+            ]
+        )
         assert isinstance(input_box.font, pygame.font.Font)
+
+
+def engine_font_manager(*arguments: str) -> FontManager:
+    """Return a FontManager whose options come from parsing the given command line.
+
+    Args:
+        *arguments: The command-line arguments.
+
+    Returns:
+        The font manager (FontManager.OPTIONS now holds the parsed options).
+
+    """
+    parser = FontManager.args(argparse.ArgumentParser())
+    engine_options = vars(parser.parse_args(list(arguments)))
+    return FontManager(game=types.SimpleNamespace(OPTIONS=engine_options))
+
+
+class TestFontStyleOptions:
+    """The font style and resolution options reach the fonts (BUGS.md #210)."""
+
+    def test_the_default_style_matches_the_font_systems_own(self):
+        engine_font_manager()
+
+        freetype_font = FontManager.get_font(font_system='freetype')
+        pygame_font = FontManager.get_font(font_system='pygame')
+
+        assert isinstance(freetype_font, pygame.freetype.Font)
+        assert (freetype_font.strong, freetype_font.oblique) == (False, False)
+        assert freetype_font.antialiased is True
+        assert freetype_font.resolution == BASE_FONT_DPI
+        assert isinstance(pygame_font, pygame.font.Font)
+        assert (pygame_font.get_bold(), pygame_font.get_italic()) == (False, False)
+        assert pygame_font.size(SAMPLE_TEXT) == rendered_size(font_file=DEFAULT_FONT_FILE, size=14)
+
+    def test_options_without_the_style_options_get_the_defaults(self):
+        """A game whose options lack the style options gets antialiased, upright, regular text."""
+        FontManager(
+            game=types.SimpleNamespace(OPTIONS={'font_name': DEFAULT_FONT_NAME, 'font_size': 14})
+        )
+
+        freetype_font = FontManager.get_font(font_system='freetype')
+
+        assert FontManager.OPTIONS['font_antialias'] is True
+        assert isinstance(freetype_font, pygame.freetype.Font)
+        assert freetype_font.antialiased is True
+        assert (freetype_font.strong, freetype_font.oblique) == (False, False)
+        assert freetype_font.resolution == BASE_FONT_DPI
+
+    def test_bold_and_italic_reach_both_font_systems(self):
+        engine_font_manager('--font-bold', '--font-italic')
+
+        freetype_font = FontManager.get_font(font_system='freetype')
+        pygame_font = FontManager.get_font(font_system='pygame')
+
+        assert isinstance(freetype_font, pygame.freetype.Font)
+        assert (freetype_font.strong, freetype_font.oblique) == (True, True)
+        assert isinstance(pygame_font, pygame.font.Font)
+        assert (pygame_font.get_bold(), pygame_font.get_italic()) == (True, True)
+
+    def test_no_antialias_reaches_freetype_fonts(self):
+        engine_font_manager('--no-font-antialias')
+
+        freetype_font = FontManager.get_font(font_system='freetype')
+
+        assert isinstance(freetype_font, pygame.freetype.Font)
+        assert freetype_font.antialiased is False
+
+    def test_the_dpi_scales_both_font_systems_alike(self):
+        engine_font_manager('--font-dpi', '144')
+
+        freetype_font = FontManager.get_font(font_system='freetype')
+        pygame_font = FontManager.get_font(font_system='pygame')
+
+        assert isinstance(freetype_font, pygame.freetype.Font)
+        assert freetype_font.resolution == 144
+        assert isinstance(pygame_font, pygame.font.Font)
+        assert pygame_font.size(SAMPLE_TEXT) == rendered_size(font_file=DEFAULT_FONT_FILE, size=28)
+
+    def test_a_font_a_caller_configures_gets_the_engine_style(self):
+        """A configuration naming only a font and size still follows --font-bold."""
+        engine_font_manager('--font-bold')
+
+        freetype_font = FontManager.font({'font_name': DEFAULT_FONT_NAME, 'font_size': 20})
+
+        assert isinstance(freetype_font, pygame.freetype.Font)
+        assert freetype_font.strong is True
+
+    def test_a_configured_style_overrides_the_engine_option(self):
+        engine_font_manager('--font-bold')
+
+        freetype_font = FontManager.font({'font_name': DEFAULT_FONT_NAME, 'font_bold': False})
+
+        assert isinstance(freetype_font, pygame.freetype.Font)
+        assert freetype_font.strong is False
+
+    def test_a_system_font_keeps_the_dpi(self, fake_system_fonts):
+        engine_font_manager('--font-dpi', '96')
+
+        freetype_font = FontManager.font({'font_name': FAKE_SYSTEM_FONT_NAME, 'font_size': 18})
+
+        assert isinstance(freetype_font, pygame.freetype.Font)
+        assert Path(freetype_font.path) == FAKE_SYSTEM_FONT_FILE
+        assert freetype_font.resolution == 96
+
+    @pytest.mark.parametrize(
+        'style',
+        [{'font_bold': True}, {'font_italic': True}, {'font_antialias': False}, {'font_dpi': 96}],
+    )
+    def test_another_style_loads_another_font(self, style):
+        """The cache key holds every style option, so a style change never reuses a font."""
+        plain_font = FontManager.font({'font_name': DEFAULT_FONT_NAME, 'font_size': 14})
+        styled_font = FontManager.font({'font_name': DEFAULT_FONT_NAME, 'font_size': 14, **style})
+
+        assert styled_font is not plain_font
+
+    @pytest.mark.parametrize('font_system', ['freetype', 'pygame'])
+    def test_loading_leaves_the_configuration_unchanged(self, font_system):
+        """A configuration's missing keys are filled in a copy, not written into it."""
+        font_config = {'font_size': 12}
+
+        FontManager.get_font(font_system=font_system, font_config=font_config)
+
+        assert font_config == {'font_size': 12}
