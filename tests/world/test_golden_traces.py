@@ -43,7 +43,7 @@ from brave_adventurer.player import Player as AdventurerPlayer
 from brave_adventurer_core import constants as brave_core_constants
 from brave_adventurer_papyrus.player import PapyrusPlayer
 from brave_adventurer_papyrus.sprite_utils import (
-    apply_transparency_and_scale,
+    refresh_drawn_image,
 )
 from clockwork_keep.constants import PLAYER_HEIGHT, PLAYER_WIDTH
 from clockwork_keep.drawing import draw_tinker
@@ -816,7 +816,7 @@ def papyrus_running_and_falling_poses() -> tuple[int, frozenset[int]]:
             player.set_animation(state)
             for frame_index in range(player.current_animation_frame_count):
                 player.set_frame(frame_index)
-                apply_transparency_and_scale(player)
+                refresh_drawn_image(player)
                 offset_x, _ = collision_rect_offset(player)
                 hitbox_width = get_sprite_collision_rect(player).width
                 edges[state]['left'].add(offset_x)
@@ -1000,7 +1000,7 @@ def papyrus_fell_in_its_falling_pose(difference: TraceDifference, frame: FrameWo
 
 
 # Filled in by later tasks of the world-space plan; every entry must say why it is expected.
-# Papyrus's sprites drawn at SPRITE_SCALE through apply_transparency_and_scale, whose rect
+# Papyrus's sprites drawn at SPRITE_SCALE (AnimatedSprite.scale, BUGS.md #144), whose rect
 # now has the drawn image's size (BUGS.md #59) where the baseline kept the native frame's
 PAPYRUS_SCALED_SPRITE_PATTERNS = (
     'PapyrusPlayer#*',

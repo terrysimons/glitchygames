@@ -350,7 +350,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
         self.canvas.pixel_height = pixel_size
 
         self.canvas.pixels = [(255, 0, 255, 255)] * (width * height)
-        self.canvas.dirty_pixels = [True] * len(self.canvas.pixels)
 
         # A pan gesture of the old canvas must not carry over to the new one
         self.canvas.end_panning()

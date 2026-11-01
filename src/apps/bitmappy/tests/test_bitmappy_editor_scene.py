@@ -92,7 +92,6 @@ def _setup_canvas(editor, mocker):
     editor.canvas.active_color = (128, 64, 32, 255)
     editor.canvas.canvas_interface = mocker.Mock()
     editor.canvas.pixels = [(255, 0, 255)] * (32 * 32)
-    editor.canvas.dirty_pixels = [False] * (32 * 32)
     editor.canvas.current_animation = 'default'
     editor.canvas.current_frame = 0
     # No pan gesture in progress, as on a real canvas (a Mock attribute would look like one)
@@ -1713,7 +1712,6 @@ class TestFramePasteCommandUndoRedo:
         mock_editor.selected_frame = 0
         new_pixels = [(100, 50, 25)] * 10
         mock_editor.canvas.pixels = [(0, 0, 0)] * 10
-        mock_editor.canvas.dirty_pixels = [False] * 10
         command = FramePasteCommand(
             editor=mock_editor,
             animation='default',

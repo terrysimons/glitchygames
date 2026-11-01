@@ -190,17 +190,10 @@ class TestInitializeDimensions:
 class TestInitializePixelArrays:
     """Test _initialize_pixel_arrays method."""
 
-    def test_pixel_array_length(self, mocker):
-        """Test pixel array has correct length for canvas size."""
+    def test_the_canvas_keeps_no_dirty_pixel_list(self, mocker):
+        """The per-pixel dirty list is gone: nothing read it (BUGS.md #178 item 15)."""
         canvas, _ = _make_canvas(mocker, config=CanvasConfig(pixels_across=4, pixels_tall=4))
-        # Pixels are updated from animated sprite frame data during init,
-        # but dirty_pixels should match the expected count
-        assert len(canvas.dirty_pixels) == PIXEL_COUNT
-
-    def test_dirty_pixels_initialized_true(self, mocker):
-        """Test all dirty pixels start as True after initialization."""
-        canvas, _ = _make_canvas(mocker, config=CanvasConfig(pixels_across=4, pixels_tall=4))
-        assert all(canvas.dirty_pixels)
+        assert not hasattr(canvas, 'dirty_pixels')
 
     def test_background_color_set(self, mocker):
         """Test background color is set to gray."""
@@ -845,7 +838,6 @@ class TestOnPixelUpdateEvent:
 
         canvas.on_pixel_update_event(event, trigger)
         assert canvas.pixels[5] == RED_RGBA
-        assert canvas.dirty_pixels[5] is True
         assert canvas.dirty == 1
 
     def test_pixel_update_without_pixel_number_does_nothing(self, mocker):
@@ -1281,20 +1273,26 @@ class TestNavigationWithParentScene:
         ]
         assert switches == [('walk', 0), ('idle', 0)]
 
-    def test_switching_to_an_empty_animation_uses_frame_zero(self, mocker):
-        """An animation with no frames is entered at frame 0."""
+    def test_animation_steps_skip_an_animation_with_no_frames(self):
+        """next/previous_animation step over an animation with no frames (BUGS.md #138.6)."""
         canvas, animated_sprite = _make_real_canvas()
+        surface = pygame.Surface((CANVAS_SIZE, CANVAS_SIZE))
         animated_sprite._animations['empty'] = []
-        canvas.current_frame = 2
-        show_frame = mocker.spy(canvas, 'show_frame')
+        animated_sprite.add_animation('walk', [SpriteFrame(surface)])
+        parent_scene = ParentSceneStandIn()
+        canvas.parent_scene = parent_scene
 
         canvas.next_animation()
-        canvas.current_animation = 'empty'
-        canvas.current_frame = 2
+        assert canvas.current_animation == 'walk'
         canvas.previous_animation()
+        assert canvas.current_animation == 'idle'
 
-        assert show_frame.call_args_list[0].args == ('empty', 0)
-        assert show_frame.call_args_list[1].args == ('idle', 2)
+        switches = [
+            arguments
+            for name, arguments in parent_scene.film_strip_coordinator.notifications
+            if name == 'switch_to_film_strip'
+        ]
+        assert switches == [('walk', 0), ('idle', 0)]
 
     def test_set_frame_tells_the_undo_manager_and_resumes_playback(self):
         """Selecting a frame while playing updates the undo manager and keeps playing."""
@@ -2225,8 +2223,8 @@ class TestNavigationEdges:
 
         assert (canvas.current_animation, canvas.current_frame) == ('idle', 1)
 
-    def test_previous_animation_without_frames_asks_for_frame_zero(self):
-        """Stepping back to an animation with no frames tells the scene to show its frame 0."""
+    def test_animation_steps_with_only_empty_others_change_nothing(self):
+        """When every other animation has no frames, stepping changes neither canvas nor strip."""
         canvas, animated_sprite = _make_real_canvas()
         animated_sprite._animations = {'empty': [], **animated_sprite._animations}
         parent_scene = ParentSceneStandIn()
@@ -2234,12 +2232,14 @@ class TestNavigationEdges:
         canvas.current_frame = 2
 
         canvas.previous_animation()
+        canvas.next_animation()
 
-        assert parent_scene.film_strip_coordinator.notifications[-1] == (
-            'switch_to_film_strip',
-            ('empty', 0),
-        )
         assert (canvas.current_animation, canvas.current_frame) == ('idle', 2)
+        assert not [
+            name
+            for name, _ in parent_scene.film_strip_coordinator.notifications
+            if name == 'switch_to_film_strip'
+        ]
 
     def test_set_frame_out_of_range_changes_nothing(self):
         """A frame index past the end of the animation is ignored."""

@@ -1238,7 +1238,7 @@ display before every present. The test guard judges what the window shows
 **Hitboxes** (`src/glitchygames/collision/`): default to the image's visible pixels (alpha/colorkey
 trimmed, `collision/bounds.py`, measured every query so redrawn images are fine);
 `TRIM_TRANSPARENT_HITBOX = False` opts out and TOML hitboxes win (native pixels times
-`AnimatedSprite.hitbox_scale`; `hitbox_flip_x = True` mirrors them for a sprite drawn facing
+`AnimatedSprite.scale`; `hitbox_flip_x = True` mirrors them for a sprite drawn facing
 left). `AnimatedSprite.common_hitbox_x_range()` is the x-span every frame shares (use it for
 standing support so a wider frame cannot catch a ledge), and
 `collision.layers.collision_rect_offset(sprite)` places a sprite so its collision rect is flush

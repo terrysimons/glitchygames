@@ -158,7 +158,6 @@ class PixelCanvasSprite(Protocol):
     """The canvas sprite StaticCanvasInterface edits (AnimatedCanvasSprite satisfies it)."""
 
     pixels: list[tuple[int, ...]]
-    dirty_pixels: list[bool]
     dirty: int
     pixels_across: int
     pixels_tall: int
@@ -186,8 +185,7 @@ class StaticCanvasInterface:
     def set_pixel_data(self, pixels: list[tuple[int, int, int, int]]) -> None:
         """Set the pixel data from a list of RGBA tuples."""
         self.canvas_sprite.pixels = pixels.copy()
-        # Mark all pixels as dirty
-        self.canvas_sprite.dirty_pixels = [True] * len(pixels)
+        # Mark the canvas dirty so it redraws
         self.canvas_sprite.dirty = 1
 
     def get_dimensions(self) -> tuple[int, int]:
@@ -224,7 +222,6 @@ class StaticCanvasInterface:
         if 0 <= x < self.canvas_sprite.pixels_across and 0 <= y < self.canvas_sprite.pixels_tall:
             pixel_num = y * self.canvas_sprite.pixels_across + x
             self.canvas_sprite.pixels[pixel_num] = color
-            self.canvas_sprite.dirty_pixels[pixel_num] = True
             self.canvas_sprite.dirty = 1
 
     def get_surface(self) -> pygame.Surface:
@@ -321,8 +318,7 @@ class AnimatedCanvasInterface:
             frame.set_pixel_data(pixels)
         else:
             self.canvas_sprite.pixels = pixels.copy()
-            # Mark all pixels as dirty
-            self.canvas_sprite.dirty_pixels = [True] * len(pixels)
+            # Mark the canvas dirty so it redraws
             self.canvas_sprite.dirty = 1
 
     def get_dimensions(self) -> tuple[int, int]:
@@ -423,7 +419,6 @@ class AnimatedCanvasInterface:
         if skip_drag_ops:
             # Fast path: just update the pixel data, skip everything else
             self.canvas_sprite.pixels[pixel_num] = color
-            self.canvas_sprite.dirty_pixels[pixel_num] = True
             self.canvas_sprite.dirty = 1
             return
 
@@ -574,7 +569,6 @@ class AnimatedCanvasInterface:
                 animated.clear_surface_cache()
 
                 # Mark canvas as dirty so it will redraw
-                self.canvas_sprite.dirty_pixels[pixel_num] = True
                 self.canvas_sprite.dirty = 1
 
                 # Trigger pixel update event to notify film strip
@@ -584,7 +578,6 @@ class AnimatedCanvasInterface:
                     self.canvas_sprite.on_pixel_update_event(mock_event, mock_trigger)
         else:
             self.canvas_sprite.pixels[pixel_num] = color
-            self.canvas_sprite.dirty_pixels[pixel_num] = True
             self.canvas_sprite.dirty = 1
 
     def get_surface(self) -> pygame.Surface:

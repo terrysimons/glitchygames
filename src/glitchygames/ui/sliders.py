@@ -7,6 +7,7 @@ and the one formatter and parser for the text typed into a slider's text box.
 from __future__ import annotations
 
 import logging
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
@@ -51,6 +52,19 @@ MAX_COLOR_TEXT_INPUT_LENGTH = 3
 DECIMAL_INPUT_FORMAT = '%d'
 HEX_INPUT_FORMAT = '%X'
 HEX_DIGIT_LETTERS = 'abcdef'
+
+
+class ColorChannel(StrEnum):
+    """A color slider's channel; the value is the slider's name and its events' name.
+
+    A StrEnum, so a member equals its letter ('R' == ColorChannel.RED) and events and
+    recordings carry the same letters as before (BUGS.md #155 item 3).
+    """
+
+    RED = 'R'
+    GREEN = 'G'
+    BLUE = 'B'
+    ALPHA = 'A'
 
 
 def format_channel(value: int, input_format: str) -> str:
@@ -354,11 +368,11 @@ class SliderSprite(BitmappySprite):
         """Draw the slider's gradient on its image, column by column, and keep a copy of it."""
         for x in range(int(self.width)):
             intensity = int((x / self.width) * 255)
-            if self.name == 'R':
+            if self.name == ColorChannel.RED:
                 color = (intensity, 0, 0)
-            elif self.name == 'G':
+            elif self.name == ColorChannel.GREEN:
                 color = (0, intensity, 0)
-            elif self.name == 'B':
+            elif self.name == ColorChannel.BLUE:
                 color = (0, 0, intensity)
             else:
                 color = (intensity, intensity, intensity)

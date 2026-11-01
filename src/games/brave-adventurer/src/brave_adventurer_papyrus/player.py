@@ -18,8 +18,8 @@ from brave_adventurer_papyrus.constants import (
     STARTING_LIVES,
 )
 from brave_adventurer_papyrus.sprite_utils import (
-    apply_transparency_and_scale,
     prepare_papyrus_sprite,
+    refresh_drawn_image,
 )
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.physics import (
@@ -212,9 +212,9 @@ class PapyrusPlayer(AnimatedSprite):
         context = self.physics.get_animation_context()
         self.state_machine.evaluate(context, dt)
 
-        # Advance TOML animation frames and fix transparency
+        # Advance TOML animation frames, then start from a fresh copy of the drawn frame
         AnimatedSprite.update(self, dt)
-        apply_transparency_and_scale(self)
+        refresh_drawn_image(self)
 
         # Flip image when facing left, and mirror the hitbox with it
         self.hitbox_flip_x = not self.facing_right

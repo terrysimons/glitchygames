@@ -8,7 +8,7 @@ import pygame
 import pytest
 
 from glitchygames.events.base import HashableEvent
-from glitchygames.ui import ColorWellSprite, SliderSprite
+from glitchygames.ui import ColorChannel, ColorWellSprite, SliderSprite
 
 # Test constants to avoid magic values
 TEST_X_POS = 10
@@ -699,6 +699,34 @@ class TestSliderSpriteWithRealSurfaces:
 
         assert pygame.image.tobytes(slider.image, 'RGB') == gradient_colours
         assert (pygame.surfarray.array_alpha(slider.image) == 255).all()
+
+    @pytest.mark.parametrize(
+        ('channel', 'full_color'),
+        [
+            (ColorChannel.RED, (255, 0, 0)),
+            (ColorChannel.GREEN, (0, 255, 0)),
+            (ColorChannel.BLUE, (0, 0, 255)),
+            (ColorChannel.ALPHA, (255, 255, 255)),
+        ],
+    )
+    def test_each_channel_draws_its_own_gradient(self, channel, full_color):
+        """A slider named by a ColorChannel ramps that channel; alpha ramps grey (#155.3)."""
+        slider = SliderSprite(
+            x=TEST_X_POS, y=TEST_Y_POS, width=TEST_WIDTH, height=TEST_HEIGHT, name=channel
+        )
+        slider.update_slider_appearance()
+
+        last_column = TEST_WIDTH - 1
+        expected = tuple(
+            int((last_column / TEST_WIDTH) * 255) if component else 0 for component in full_color
+        )
+        assert slider.image.get_at((last_column, 0))[:3] == expected
+        assert slider.image.get_at((0, 0))[:3] == (0, 0, 0)
+
+    def test_a_channel_is_its_letter(self):
+        """The enum's members equal the letters slider events and recordings carry."""
+        assert [str(channel) for channel in ColorChannel] == ['R', 'G', 'B', 'A']
+        assert ColorChannel('G') is ColorChannel.GREEN
 
     def test_typing_a_key_that_is_not_a_hex_digit_is_ignored(self, slider):
         slider.text_sprite.is_active = True

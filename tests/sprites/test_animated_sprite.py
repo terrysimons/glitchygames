@@ -2593,12 +2593,36 @@ class TestAnimatedSpriteVisiblePixelHitbox:
 
         assert sprite.hitbox == pygame.Rect(0, 0, 5, 6)
 
-    def test_hitbox_scale_defaults_to_one(self):
+    def test_scale_defaults_to_one(self):
         """Unscaled sprites keep native-pixel hitboxes."""
         sprite = AnimatedSprite()
-        assert sprite.hitbox_scale == 1
+        assert sprite.scale == 1
 
-    def test_hitbox_scale_multiplies_explicit_frame_hitbox(self):
+    def test_scale_draws_every_frame_larger(self):
+        """Image and rect stay scaled across frame changes, not just after setting scale (#144)."""
+        sprite = AnimatedSprite()
+        first = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
+        second = self._frame_with_visible_box(pygame.Rect(0, 0, 16, 24))
+        sprite.add_animation('idle', [first, second])
+        sprite.set_animation('idle')
+        sprite.scale = 2
+        assert sprite.image.get_size() == sprite.rect.size == (32, 48)
+
+        sprite.set_frame(1)
+
+        assert sprite.image.get_size() == sprite.rect.size == (32, 48)
+        assert sprite.drawn_frame_surface().get_size() == (32, 48)
+        assert second.image.get_size() == (16, 24)  # the frame itself stays native
+
+    @pytest.mark.parametrize('bad_scale', [0, -1, 1.5, True])
+    def test_scale_must_be_a_positive_integer(self, bad_scale):
+        """A scale that is not a positive int is refused and the old scale kept."""
+        sprite = AnimatedSprite()
+        with pytest.raises(ValueError, match='positive integer'):
+            sprite.scale = bad_scale
+        assert sprite.scale == 1
+
+    def test_scale_multiplies_explicit_frame_hitbox(self):
         """A sprite drawn at 2x gets its per-frame TOML hitbox at 2x offset and size."""
         sprite = AnimatedSprite()
         frame = self._frame_with_visible_box(
@@ -2606,7 +2630,7 @@ class TestAnimatedSpriteVisiblePixelHitbox:
         )
         sprite.add_animation('idle', [frame])
         sprite.set_animation('idle')
-        sprite.hitbox_scale = 2
+        sprite.scale = 2
 
         assert sprite.hitbox == pygame.Rect(6, 0, 22, 54)
         assert frame.hitbox == pygame.Rect(3, 0, 11, 27)  # the frame's own hitbox is untouched
@@ -2614,25 +2638,25 @@ class TestAnimatedSpriteVisiblePixelHitbox:
             106, 200, 22, 54
         )
 
-    def test_hitbox_scale_multiplies_default_hitbox(self):
+    def test_scale_multiplies_default_hitbox(self):
         """The sprite-level default hitbox is scaled too."""
         sprite = AnimatedSprite()
         frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
         sprite.add_animation('idle', [frame])
         sprite.set_animation('idle')
         sprite.default_hitbox = pygame.Rect(1, 2, 12, 20)
-        sprite.hitbox_scale = 2
+        sprite.scale = 2
 
         assert sprite.hitbox == pygame.Rect(2, 4, 24, 40)
         assert sprite.default_hitbox == pygame.Rect(1, 2, 12, 20)
 
-    def test_hitbox_scale_multiplies_trimmed_fallback(self):
+    def test_scale_multiplies_trimmed_fallback(self):
         """The visible-pixel fallback, measured on the native frame, is scaled too."""
         sprite = AnimatedSprite()
         frame = self._frame_with_visible_box(pygame.Rect(3, 4, 10, 18))
         sprite.add_animation('idle', [frame])
         sprite.set_animation('idle')
-        sprite.hitbox_scale = 3
+        sprite.scale = 3
 
         assert sprite.hitbox == pygame.Rect(9, 12, 30, 54)
 
@@ -2648,7 +2672,7 @@ class TestAnimatedSpriteVisiblePixelHitbox:
         )
         sprite.add_animation('idle', [frame])
         sprite.set_animation('idle')
-        sprite.hitbox_scale = 2
+        sprite.scale = 2
         sprite.hitbox_flip_x = True
 
         # Drawn (6, 0, 22, 54) mirrored in 16 * 2 = 32 px: x = 32 - (6 + 22) = 4
@@ -2680,7 +2704,7 @@ class TestAnimatedSpriteVisiblePixelHitbox:
         sprite.set_animation('idle')
 
         assert sprite.common_hitbox_x_range() == (3, 10)
-        sprite.hitbox_scale = 2
+        sprite.scale = 2
         assert sprite.common_hitbox_x_range() == (6, 20)
         sprite.hitbox_flip_x = True  # mirrored in 16 * 2 = 32 px
         assert sprite.common_hitbox_x_range() == (12, 26)
@@ -2920,7 +2944,7 @@ class TestAnimatedSpriteFrameAnchor:
         pygame.Rect(0, 5, 19, 19),
     )
 
-    def _sprite(self, frame_anchor, *, hitbox_scale=1, hitbox_flip_x=False):
+    def _sprite(self, frame_anchor, *, scale=1, hitbox_flip_x=False):
         """A three-frame sprite in one animation, anchored as given.
 
         Returns:
@@ -2936,7 +2960,7 @@ class TestAnimatedSpriteFrameAnchor:
         sprite.add_animation('cycle', frames)
         sprite.set_animation('cycle')
         sprite.frame_anchor = frame_anchor
-        sprite.hitbox_scale = hitbox_scale
+        sprite.scale = scale
         sprite.hitbox_flip_x = hitbox_flip_x
         return sprite
 
@@ -2982,7 +3006,7 @@ class TestAnimatedSpriteFrameAnchor:
             )
             # Where the frame's visible pixels land when drawn at rect = position + draw_offset
             visible = frame.image.get_bounding_rect()
-            scale = sprite.hitbox_scale
+            scale = sprite.scale
             drawn_x = visible.x * scale
             if sprite.hitbox_flip_x:
                 drawn_x = frame.rect.width * scale - (drawn_x + visible.width * scale)
@@ -3002,7 +3026,7 @@ class TestAnimatedSpriteFrameAnchor:
     )
     def test_anchor_point_is_identical_for_every_frame(self, frame_anchor):
         """The anchor point of every frame's hitbox and drawing lands on the reference's."""
-        sprite = self._sprite(frame_anchor, hitbox_scale=2)
+        sprite = self._sprite(frame_anchor, scale=2)
         reference = self.FRAME_HITBOXES[0].unionall(self.FRAME_HITBOXES[1:])
         scaled_reference = pygame.Rect(
             reference.x * 2, reference.y * 2, reference.width * 2, reference.height * 2
@@ -3024,7 +3048,7 @@ class TestAnimatedSpriteFrameAnchor:
     )
     def test_edge_anchors_leave_the_other_axis_as_authored(self, frame_anchor, free_axis):
         """TOP/BOTTOM never move a frame in x; LEFT/RIGHT never move it in y."""
-        sprite = self._sprite(frame_anchor, hitbox_scale=2)
+        sprite = self._sprite(frame_anchor, scale=2)
         for frame_index in range(len(self.FRAME_HITBOXES)):
             sprite.set_frame(frame_index)
             assert sprite.draw_offset[free_axis] == 0
@@ -3078,7 +3102,7 @@ class TestAnimatedSpriteFrameAnchor:
         sprite.add_animation('cycle', frames)
         sprite.set_animation('cycle')
         sprite.frame_anchor = frame_anchor
-        sprite.hitbox_scale = 2
+        sprite.scale = 2
         sprite.hitbox_flip_x = True
 
         hitbox_points, drawn_points = self._points_per_frame(sprite)
@@ -3707,7 +3731,7 @@ class TestAnimatedSpriteWithoutUsableFrames:
     def test_hitbox_without_a_frame_is_the_unscaled_sprite_rect(self):
         """With no frame the hitbox is the sprite's own rect, already in drawn pixels."""
         sprite = AnimatedSprite()
-        sprite.hitbox_scale = 3
+        sprite.scale = 3
         assert sprite.hitbox == pygame.Rect(0, 0, sprite.rect.width, sprite.rect.height)
 
     def test_draw_offset_without_a_frame_is_zero(self):

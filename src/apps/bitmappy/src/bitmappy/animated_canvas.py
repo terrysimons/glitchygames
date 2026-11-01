@@ -186,7 +186,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         """Initialize pixel arrays and color settings."""
         # Initialize pixels with magenta as the transparent/background color (RGBA)
         self.pixels = [(255, 0, 255, 255) for _ in range(self.pixels_across * self.pixels_tall)]
-        self.dirty_pixels = [True] * len(self.pixels)
         self.background_color = (128, 128, 128)
         # Declared RGBA so apply_color can assign any color (BUGS.md #155 item 6)
         self.active_color: tuple[int, int, int, int] = (0, 0, 0, 255)
@@ -351,7 +350,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
         if animation == self.current_animation and frame_index == self.current_frame:
             self.pixels = list(pixels)
-            self.dirty_pixels = [True] * len(self.pixels)
             self.dirty = 1
 
         if self.parent_scene:
@@ -513,7 +511,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 len(set(frame_pixels)) == 1,
             )
             self.pixels = frame_pixels
-            self.dirty_pixels = [True] * len(self.pixels)
             self.log.info('Updated canvas pixels from frame %s', current_frame)
             # Mark canvas dirty to ensure redraw applies per-pixel alpha on load
             self.dirty = 1
@@ -658,8 +655,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                     [(255, 0, 255)] * (self.pixels_across * self.pixels_tall),
                 )
 
-            # Mark all pixels as dirty
-            self.dirty_pixels = [True] * len(self.pixels)
+            # Mark the canvas dirty so it redraws
             self.dirty = 1
 
             # Notify parent scene to update film strips
@@ -712,88 +708,58 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 )
 
     def next_animation(self) -> None:
-        """Move to the next animation."""
-        self.log.debug('next_animation called, current_animation=%s', self.current_animation)
-        frames = self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
-        animations = list(frames.keys())
-        self.log.debug('Available animations: %s', animations)
-        if animations:
-            current_index = animations.index(self.current_animation)
-            next_index = (current_index + 1) % len(animations)
-            next_animation = animations[next_index]
-
-            # Preserve the current frame number when switching animations
-            preserved_frame = self.current_frame
-            # Ensure the frame number is within bounds for the new animation
-            if next_animation in frames and len(frames[next_animation]) > 0:
-                max_frame = len(frames[next_animation]) - 1
-                preserved_frame = min(preserved_frame, max_frame)
-            else:
-                preserved_frame = 0
-            self.log.debug(
-                'Moving from animation %s (index %s) to %s (index %s), preserving frame %s',
-                self.current_animation,
-                current_index,
-                next_animation,
-                next_index,
-                preserved_frame,
-            )
-            self.show_frame(next_animation, preserved_frame)
-            self.log.debug(
-                'After show_frame: current_animation=%s, current_frame=%s',
-                self.current_animation,
-                self.current_frame,
-            )
-
-            # Notify the parent scene to switch film strips
-            if hasattr(self, 'parent_scene') and self.parent_scene:
-                self.log.debug('Notifying parent scene to switch to film strip %s', next_animation)
-                self.parent_scene.film_strip_coordinator.switch_to_film_strip(
-                    next_animation,
-                    preserved_frame,
-                )
+        """Move to the next animation that has frames."""
+        self._step_animation(1)
 
     def previous_animation(self) -> None:
-        """Move to the previous animation."""
-        self.log.debug('previous_animation called, current_animation=%s', self.current_animation)
+        """Move to the previous animation that has frames."""
+        self._step_animation(-1)
+
+    def _step_animation(self, step: int) -> None:
+        """Move step animations along (wrapping), skipping animations with no frames.
+
+        show_frame refuses an animation with no frames, so stepping onto one used to leave the
+        canvas on the old animation while the film strip switched to the empty one (BUGS.md
+        #138 item 6). If no other animation has frames, nothing changes.
+
+        Args:
+            step: 1 for the next animation, -1 for the previous one.
+
+        """
+        self.log.debug('Animation step %s, current_animation=%s', step, self.current_animation)
         frames = self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
         animations = list(frames.keys())
-        self.log.debug('Available animations: %s', animations)
-        if animations:
-            current_index = animations.index(self.current_animation)
-            prev_index = (current_index - 1) % len(animations)
-            prev_animation = animations[prev_index]
+        if not animations:
+            return
+        current_index = animations.index(self.current_animation)
+        for distance in range(1, len(animations)):
+            target_index = (current_index + step * distance) % len(animations)
+            target_animation = animations[target_index]
+            if frames[target_animation]:
+                break
+        else:
+            self.log.debug('No other animation has frames; staying on %s', self.current_animation)
+            return
 
-            # Preserve the current frame number when switching animations
-            preserved_frame = self.current_frame
-            # Ensure the frame number is within bounds for the new animation
-            if prev_animation in frames and len(frames[prev_animation]) > 0:
-                max_frame = len(frames[prev_animation]) - 1
-                preserved_frame = min(preserved_frame, max_frame)
-            else:
-                preserved_frame = 0
-            self.log.debug(
-                'Moving from animation %s (index %s) to %s (index %s), preserving frame %s',
-                self.current_animation,
-                current_index,
-                prev_animation,
-                prev_index,
+        # Preserve the current frame number, clamped to the target animation's last frame
+        preserved_frame = min(self.current_frame, len(frames[target_animation]) - 1)
+        self.log.debug(
+            'Moving from animation %s (index %s) to %s (index %s), preserving frame %s',
+            self.current_animation,
+            current_index,
+            target_animation,
+            target_index,
+            preserved_frame,
+        )
+        self.show_frame(target_animation, preserved_frame)
+
+        # Notify the parent scene to switch film strips
+        if hasattr(self, 'parent_scene') and self.parent_scene:
+            self.log.debug('Notifying parent scene to switch to film strip %s', target_animation)
+            self.parent_scene.film_strip_coordinator.switch_to_film_strip(
+                target_animation,
                 preserved_frame,
             )
-            self.show_frame(prev_animation, preserved_frame)
-            self.log.debug(
-                'After show_frame: current_animation=%s, current_frame=%s',
-                self.current_animation,
-                self.current_frame,
-            )
-
-            # Notify the parent scene to switch film strips
-            if hasattr(self, 'parent_scene') and self.parent_scene:
-                self.log.debug('Notifying parent scene to switch to film strip %s', prev_animation)
-                self.parent_scene.film_strip_coordinator.switch_to_film_strip(
-                    prev_animation,
-                    preserved_frame,
-                )
 
     def handle_keyboard_event(self, key: int) -> None:
         """Handle keyboard navigation events."""
@@ -858,8 +824,7 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
                 frame.set_pixel_data(self._clipboard)
                 # Update the canvas pixels
                 self.pixels = self._clipboard.copy()
-                # Mark as dirty
-                self.dirty_pixels = [True] * len(self.pixels)
+                # Mark the canvas dirty so it redraws
                 self.dirty = 1
 
     @classmethod
@@ -1089,7 +1054,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
 
         # Update pixel data for immediate visual feedback
         self.pixels[pixel_num] = self.active_color
-        self.dirty_pixels[pixel_num] = True
 
         # Update frame data immediately so renderer shows the change
         self._update_drag_frame_pixel(pixel_num, self.active_color)
@@ -1248,7 +1212,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             new_color: tuple[int, ...] = trigger.pixel_color  # type: ignore[union-attr] # ty: ignore[unresolved-attribute]
 
             self.pixels[pixel_num] = new_color
-            self.dirty_pixels[pixel_num] = True
             self.dirty = 1
 
             # Notify parent scene to update film strips
@@ -1731,7 +1694,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         self.pixels = [(255, 0, 255, 255)] * (
             sprite_width * sprite_height
         )  # Initialize with magenta
-        self.dirty_pixels = [True] * (sprite_width * sprite_height)
 
         # Update surface dimensions
         actual_width = sprite_width * pixel_size
@@ -1831,7 +1793,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         if current_frame_pixels:
             # Copy the pixels to the canvas
             self.pixels = current_frame_pixels.copy()  # ty: ignore[invalid-assignment]
-            self.dirty_pixels = [True] * len(self.pixels)
             self.dirty = 1  # Mark canvas as dirty for redraw
             self.log.debug('Copied %s pixels to canvas', len(current_frame_pixels))
             self.log.debug(

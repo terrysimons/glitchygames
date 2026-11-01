@@ -36,6 +36,41 @@ from .sprite import Sprite
 
 LOG = logging.getLogger('game.sprites')
 
+
+def _glyph_colors(rows: list[str], color_map: dict[str, Any]) -> list[list[Any]]:
+    """Return each row's pixel colors, drawing a glyph missing from color_map as magenta.
+
+    Magenta is the TOML transparency key, so an unknown glyph draws a transparent pixel. Both
+    static loaders go through here, so they agree (BUGS.md #178 item 2); each unknown glyph is
+    logged once per call.
+
+    Args:
+        rows: The pixel rows, one glyph per pixel.
+        color_map: Glyph to color.
+
+    Returns:
+        The colors, row by row.
+
+    """
+    unknown_glyphs: set[str] = set()
+    colors: list[list[Any]] = []
+    for row in rows:
+        row_colors: list[Any] = []
+        for glyph in row:
+            if glyph in color_map:
+                row_colors.append(color_map[glyph])
+            else:
+                unknown_glyphs.add(glyph)
+                row_colors.append(MAGENTA_TRANSPARENCY_KEY)
+        colors.append(row_colors)
+    if unknown_glyphs:
+        LOG.warning(
+            "Pixel glyphs %s are not in the sprite's colors; drawing them transparent (magenta)",
+            sorted(unknown_glyphs),
+        )
+    return colors
+
+
 # Error message constants for TRY003 compliance
 _ERR_CANNOT_CREATE_SURFACE = "Can't create Surface(({width}, {height}))."
 _ERR_ANIMATED_SPRITE_USE_CORRECT_CLASS = (
@@ -337,7 +372,8 @@ class BitmappySprite(Sprite):
     ) -> tuple[pygame.Surface, pygame.Rect]:
         """Inflate a sprite from a list of pixels.
 
-        A pixel character missing from the color map raises KeyError (BUGS.md #178 item 1).
+        A pixel character missing from the color map draws magenta, the transparency key, with
+        a warning (BUGS.md #178 item 2; see _glyph_colors).
 
         Args:
             width: the width of the sprite.
@@ -352,9 +388,9 @@ class BitmappySprite(Sprite):
         # Keep convert()'s result: the converted copy is the one in the display's format (#178.1)
         image = pygame.Surface((width, height)).convert()
 
-        for y, row in enumerate(pixels):
-            for x, pixel in enumerate(row):
-                pygame.draw.rect(image, color_map[pixel], (x, y, 1, 1))
+        for y, row_colors in enumerate(_glyph_colors(pixels, color_map)):
+            for x, color in enumerate(row_colors):
+                pygame.draw.rect(image, color, (x, y, 1, 1))
 
         return (image, image.get_rect())
 
@@ -731,14 +767,9 @@ class BitmappySprite(Sprite):
         self.log.debug('Calculated dimensions: %sx%s', width, height)
 
         # Convert rows to pixels
-        pixels: list[tuple[int, int, int]] = []
-        for row in rows:
-            for char in row:
-                if char in color_map:
-                    pixels.append(color_map[char])
-                else:
-                    # Default color for unknown characters
-                    pixels.append((255, 0, 255))
+        pixels: list[tuple[int, int, int]] = [
+            color for row_colors in _glyph_colors(rows, color_map) for color in row_colors
+        ]
 
         return {'pixels': pixels, 'width': width, 'height': height, 'name': name}
 

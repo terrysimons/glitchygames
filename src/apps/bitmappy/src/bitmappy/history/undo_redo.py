@@ -390,6 +390,30 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
 
     # -- Undo / Redo --------------------------------------------------------
 
+    @staticmethod
+    def _run_command_step(step: Callable[[], bool], action: str, command: UndoRedoCommand) -> bool:
+        """Run a command's undo or execute, treating an exception as a failed step.
+
+        Deliberately broad: an undo or redo must never crash the editor. The caller puts a
+        failed command back on its stack, so one that raises is kept like one that returns
+        False (BUGS.md #178 item 11: a raising frame command used to be dropped from the
+        history, and a raising global one escaped to the caller and was lost).
+
+        Args:
+            step: command.undo or command.execute.
+            action: 'undoing' or 'redoing', for the log.
+            command: The command, for the log.
+
+        Returns:
+            The step's result, or False if it raised.
+
+        """
+        try:
+            return step()
+        except Exception:
+            LOG.exception('Error %s %s', action, command.description)
+            return False
+
     def undo(self) -> bool:
         """Undo the last global command.
 
@@ -406,7 +430,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
             command = self.undo_stack.pop()
             LOG.debug('Undoing: %s', command.description)
 
-            success = command.undo()
+            success = self._run_command_step(command.undo, 'undoing', command)
 
             if success:
                 self.redo_stack.append(command)
@@ -414,7 +438,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
                 LOG.debug('Successfully undone: %s', command.description)
             else:
                 LOG.warning('Failed to undo: %s', command.description)
-                # Put it back if it failed
+                # Put it back if it failed (raised or returned False): history is never lost
                 self.undo_stack.append(command)
 
             return success
@@ -437,7 +461,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
             command = self.redo_stack.pop()
             LOG.debug('Redoing: %s', command.description)
 
-            success = command.execute()
+            success = self._run_command_step(command.execute, 'redoing', command)
 
             if success:
                 self.undo_stack.append(command)
@@ -446,6 +470,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
                 LOG.debug('Successfully redone: %s', command.description)
             else:
                 LOG.warning('Failed to redo: %s', command.description)
+                # Put it back if it failed (raised or returned False): history is never lost
                 self.redo_stack.append(command)
 
             return success
@@ -475,14 +500,8 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
 
         command = self.frame_undo_stacks[frame_key].pop()
         self.is_undoing = True
-        # Deliberately broad: a frame undo must never crash the editor. The command is dropped
-        # from the history when it raises
         try:
-            success = command.undo()
-        except Exception:
-            LOG.exception('Error undoing frame command for %s[%s]', animation, frame)
-            return False
-        else:
+            success = self._run_command_step(command.undo, 'undoing', command)
             if success:
                 self.frame_redo_stacks[frame_key].append(command)
                 LOG.debug(
@@ -490,6 +509,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
                 )
             else:
                 LOG.warning('Failed to undo frame command for %s[%s]', animation, frame)
+                # Put back whether it raised or returned False (BUGS.md #178 item 11)
                 self.frame_undo_stacks[frame_key].append(command)
             return success
         finally:
@@ -518,14 +538,8 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
 
         command = self.frame_redo_stacks[frame_key].pop()
         self.is_redoing = True
-        # Deliberately broad: a frame redo must never crash the editor. The command is dropped
-        # from the history when it raises
         try:
-            success = command.execute()
-        except Exception:
-            LOG.exception('Error redoing frame command for %s[%s]', animation, frame)
-            return False
-        else:
+            success = self._run_command_step(command.execute, 'redoing', command)
             if success:
                 self.frame_undo_stacks[frame_key].append(command)
                 LOG.debug(
@@ -533,6 +547,7 @@ class UndoRedoManager:  # ruff: ignore[too-many-public-methods]
                 )
             else:
                 LOG.warning('Failed to redo frame command for %s[%s]', animation, frame)
+                # Put back whether it raised or returned False (BUGS.md #178 item 11)
                 self.frame_redo_stacks[frame_key].append(command)
             return success
         finally:

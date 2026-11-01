@@ -174,12 +174,16 @@ class FakeCanvas:
         self.animated_sprite = None
         self.current_animation = None
         self.loaded_paths: list[str] = []
+        # Each loaded file's text, read at load time: the manager deletes an AI response's
+        # temp file once it is loaded (BUGS.md #178 item 9)
+        self.loaded_contents: list[str] = []
         self.dirty = 0
         self.redraw_count = 0
 
     def on_load_file_event(self, event: object) -> None:
         """Load the event's file as the canvas sprite."""
         self.loaded_paths.append(event.text)  # type: ignore[attr-defined]
+        self.loaded_contents.append(Path(event.text).read_text(encoding='utf-8'))  # type: ignore[attr-defined]
         self.animated_sprite = SpriteFactory.load_sprite(filename=event.text)  # type: ignore[attr-defined]
 
     def force_redraw(self) -> None:
@@ -802,16 +806,16 @@ class TestProcessAiResponse:
 
         assert len(canvas.loaded_paths) == 1
         assert canvas.animated_sprite.description == 'a red ball'
-        loaded_data = tomllib.loads(Path(canvas.loaded_paths[0]).read_text(encoding='utf-8'))
+        loaded_data = tomllib.loads(canvas.loaded_contents[0])
         assert loaded_data['sprite']['description'] == 'a red ball'
         # The rewrite keeps the pixel block exactly as the answer had it (BUGS.md #110 item 7)
         assert loaded_data['sprite']['pixels'] == '#.\n.#\n'
         assert canvas.animated_sprite.animations[canvas.animated_sprite.current_animation][
             0
         ].image.get_size() == (2, 2)
-        assert manager.last_successful_sprite_content == Path(canvas.loaded_paths[0]).read_text(
-            encoding='utf-8',
-        )
+        assert manager.last_successful_sprite_content == canvas.loaded_contents[0]
+        # The loaded response's temp file is removed (BUGS.md #178 item 9)
+        assert not Path(canvas.loaded_paths[0]).exists()
         assert manager.last_conversation_history == [
             *history,
             {'role': 'user', 'content': 'a red ball'},
@@ -834,7 +838,7 @@ class TestProcessAiResponse:
 
         assert not manager.ai_request_queue.items  # type: ignore[union-attr]
         assert len(canvas.loaded_paths) == 1
-        loaded_data = tomllib.loads(Path(canvas.loaded_paths[0]).read_text(encoding='utf-8'))
+        loaded_data = tomllib.loads(canvas.loaded_contents[0])
         assert loaded_data['sprite']['pixels'] == '#.\n.#\n'
         assert manager.pending_ai_requests == {}
 
@@ -1051,6 +1055,34 @@ class TestLoadAiSprite:
             f'\n\n--- AI Response ---\n{ANIMATED_SPRITE_TOML}'
         )
         assert 'request-1' in manager.pending_ai_requests
+
+    def test_a_response_that_fails_to_load_keeps_its_temp_file(
+        self, temporary_files_in_tmp_path, caplog
+    ):
+        """The refused response's file stays, and its path is logged, for inspection (#178.9)."""
+
+        class FailingCanvas(FakeCanvas):
+            def on_load_file_event(self, event: object) -> None:
+                msg = 'bad sprite'
+                raise ValueError(msg)
+
+        manager = _manager_with_queues(_editor(canvas=FailingCanvas()))
+
+        with caplog.at_level(logging.INFO):
+            manager._load_ai_sprite('request-1', ANIMATED_SPRITE_TOML)
+
+        (kept_file,) = temporary_files_in_tmp_path.iterdir()
+        assert str(kept_file) in caplog.text
+
+    def test_a_temp_file_that_cannot_be_removed_only_warns(self, mocker, caplog):
+        """A failed delete of a loaded response's file is a warning, not a load failure."""
+        manager = _manager_with_queues(_editor())
+        mocker.patch.object(Path, 'unlink', side_effect=PermissionError('in use'))
+
+        with caplog.at_level(logging.WARNING):
+            manager._remove_temp_file('/no/such/response.toml')
+
+        assert 'Could not remove the AI response temp file /no/such/response.toml' in caplog.text
 
     def test_load_failure_without_a_prompt_or_debug_text(self):
         """Without a pending prompt the error omits it; without a text box nothing is shown."""

@@ -360,10 +360,38 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         self._default_hitbox = value
 
     @property
+    def scale(self) -> int:
+        """The integer factor the sprite is drawn at (1 draws each TOML pixel as one pixel).
+
+        Frame surfaces (and so image and rect), hitboxes and draw_offset are all scaled by it,
+        so a game that draws a sprite larger sets this instead of scaling image itself, which
+        the next frame change would undo (BUGS.md #144).
+        """
+        return self._scale
+
+    @scale.setter
+    def scale(self, value: int) -> None:
+        """Set the draw scale and redraw the current frame at it.
+
+        Raises:
+            ValueError: If value is not a positive integer.
+
+        """
+        # type() rather than isinstance: a bool is an int, and True would mean a scale of 1
+        if type(value) is not int or value < 1:
+            message = f'AnimatedSprite.scale must be a positive integer, not {value!r}'
+            raise ValueError(message)
+        self._scale = value
+        # Cached surfaces were drawn at the old scale
+        self.clear_surface_cache()
+        self._last_drawn_frame = None
+        self._update_surface_and_mark_dirty()
+
+    @property
     def hitbox(self) -> pygame.Rect:
         """The effective hitbox for the current frame.
 
-        Hitboxes are in native (TOML) pixels and are multiplied by hitbox_scale, offset
+        Hitboxes are in native (TOML) pixels and are multiplied by scale, offset
         and size, for sprites drawn scaled up (Papyrus draws at 2x). When hitbox_flip_x is
         True (the game draws the image mirrored, e.g. facing left) the result is mirrored
         within the drawn frame width: x = drawn_width - (x + width).
@@ -450,8 +478,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             frame_size=frame_hitbox.height,
             edge=vertical_edge,
         )
-        drawn_offset_x = doubled_offset_x * self.hitbox_scale // 2
-        drawn_offset_y = doubled_offset_y * self.hitbox_scale // 2
+        drawn_offset_x = doubled_offset_x * self._scale // 2
+        drawn_offset_y = doubled_offset_y * self._scale // 2
         if self.hitbox_flip_x and horizontal_edge is not None:
             # Mirrored with the image. Each frame flips within its own width, so mirror the
             # anchored point against one common axis (the widest frame): frames narrower than
@@ -461,7 +489,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                 default=frame.rect.width,
             )
             drawn_offset_x = -drawn_offset_x + (widest_frame_width - frame.rect.width) * (
-                self.hitbox_scale
+                self._scale
             )
         return (drawn_offset_x, drawn_offset_y)
 
@@ -471,7 +499,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         With a frame_anchor other than NONE, each frame is moved so the anchor point of its
         hitbox (see FrameAnchor) lands on the same point of the reference hitbox, in drawn
-        pixels (times hitbox_scale; computed in authored space and, when hitbox_flip_x,
+        pixels (times scale; computed in authored space and, when hitbox_flip_x,
         mirrored with the image about the widest frame's width, so frames of differing widths
         stay exact). The engine adds it when placing a world-space sprite's rect
         (glitchygames.world.screen_position_for); a screen-space game adds it itself. hitbox
@@ -509,7 +537,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     def common_hitbox_x_range(self: Self) -> tuple[int, int]:
         """Return the horizontal hitbox span shared by every animation frame.
 
-        The intersection of all frames' hitbox x-ranges (drawn pixels, after hitbox_scale and
+        The intersection of all frames' hitbox x-ranges (drawn pixels, after scale and
         hitbox_flip_x), relative to the sprite's position. Unlike ``hitbox`` it does not
         change from frame to frame, so games use it for support (standing on ledges and wall
         tops): a wider falling frame then cannot catch a player that just walked off an edge
@@ -564,7 +592,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     def _drawn_hitbox(
         self: Self, native_hitbox: pygame.Rect, *, native_frame_width: int
     ) -> pygame.Rect:
-        """Return a new rect: a native hitbox scaled by hitbox_scale, mirrored if flipped.
+        """Return a new rect: a native hitbox scaled by scale, mirrored if flipped.
 
         Args:
             native_hitbox: The hitbox in native frame pixels.
@@ -574,15 +602,15 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             pygame.Rect: The hitbox in drawn pixels (never the caller's rect object).
 
         """
-        drawn_x = native_hitbox.x * self.hitbox_scale
-        drawn_width = native_hitbox.width * self.hitbox_scale
+        drawn_x = native_hitbox.x * self._scale
+        drawn_width = native_hitbox.width * self._scale
         if self.hitbox_flip_x:
-            drawn_x = native_frame_width * self.hitbox_scale - (drawn_x + drawn_width)
+            drawn_x = native_frame_width * self._scale - (drawn_x + drawn_width)
         return pygame.Rect(
             drawn_x,
-            native_hitbox.y * self.hitbox_scale,
+            native_hitbox.y * self._scale,
             drawn_width,
-            native_hitbox.height * self.hitbox_scale,
+            native_hitbox.height * self._scale,
         )
 
     def get_hitbox_world_rect(
@@ -671,9 +699,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # Sprite-level default hitbox (loaded from [sprite.hitbox] in TOML)
         self._default_hitbox: pygame.Rect | None = None
 
-        # Multiplier from native TOML pixels to drawn pixels for hitboxes (see hitbox);
-        # games that draw this sprite scaled up set it to their scale factor
-        self.hitbox_scale: int = 1
+        # Integer multiplier from native TOML pixels to drawn pixels (see the scale property):
+        # frame surfaces, rect, hitboxes and draw_offset all follow it
+        self._scale: int = 1
         # True while the game draws this sprite mirrored horizontally (see hitbox)
         self.hitbox_flip_x: bool = False
         # How frames of different shapes line up when drawn (see draw_offset); NONE draws
@@ -731,10 +759,27 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         if cache_key in self._surface_cache:
             return self._surface_cache[cache_key]
 
-        # Create and cache surface if not available
+        # Create and cache surface if not available, drawn at the sprite's scale
         surface = self._create_optimized_surface(frame)
+        if self._scale > 1:
+            surface = pygame.transform.scale(
+                surface, (surface.get_width() * self._scale, surface.get_height() * self._scale)
+            )
         self._surface_cache[cache_key] = surface
         return surface
+
+    def drawn_frame_surface(self: Self) -> pygame.Surface:
+        """Return the current frame's surface as drawn (at scale), before any game effects.
+
+        The surface is the sprite's cached one: copy it before changing it. A game that flips
+        or fades image each tick starts from a copy of this, since image is only redrawn when
+        the frame changes.
+
+        Returns:
+            pygame.Surface: The cached surface for the current frame.
+
+        """
+        return self._get_current_surface()
 
     @staticmethod
     def _create_optimized_surface(frame: SpriteFrame) -> pygame.Surface:

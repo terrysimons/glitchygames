@@ -345,7 +345,6 @@ class CanvasOperations:
         ):
             pixel_num = y * self.handler.editor.canvas.pixels_across + x
             self.handler.editor.canvas.pixels[pixel_num] = color
-            self.handler.editor.canvas.dirty_pixels[pixel_num] = True
             self.handler.editor.canvas.dirty = 1
 
     def _track_controller_drag_pixel(
@@ -428,7 +427,6 @@ class CanvasOperations:
                 ):
                     pixel_num = y * self.handler.editor.canvas.pixels_across + x
                     self.handler.editor.canvas.pixels[pixel_num] = background_color
-                    self.handler.editor.canvas.dirty_pixels[pixel_num] = True
                     self.handler.editor.canvas.dirty = 1
             self.handler.log.debug('DEBUG: Erased at canvas position %s', position.position)
 
@@ -679,7 +677,13 @@ class CanvasOperations:
         controller_id: int,
         distance: int,
     ) -> None:
-        """Paint a horizontal line of pixels starting from the controller's current position."""
+        """Paint a horizontal line of pixels starting from the controller's current position.
+
+        The cursor then moves distance pixels, onto the pixel just past the line, so repeated
+        presses chain into one unbroken line. A line that runs off the canvas is clamped to its
+        edge, and the cursor stays on the edge pixel; a pixel already the color (the edge pixel
+        on every step past the edge) is not painted again (see _paint_and_track_pixel).
+        """
         self.handler.log.debug(
             'DEBUG: canvas_paint_horizontal_line called for controller %s, distance %s',
             controller_id,
@@ -749,7 +753,13 @@ class CanvasOperations:
         controller_id: int,
         distance: int,
     ) -> None:
-        """Paint a vertical line of pixels starting from the controller's current position."""
+        """Paint a vertical line of pixels starting from the controller's current position.
+
+        The cursor then moves distance pixels, onto the pixel just past the line, so repeated
+        presses chain into one unbroken line. A line that runs off the canvas is clamped to its
+        edge, and the cursor stays on the edge pixel; a pixel already the color (the edge pixel
+        on every step past the edge) is not painted again (see _paint_and_track_pixel).
+        """
         self.handler.log.debug(
             'DEBUG: canvas_paint_vertical_line called for controller %s, distance %s',
             controller_id,
@@ -837,6 +847,10 @@ class CanvasOperations:
     ) -> None:
         """Paint a pixel and track it in the controller drag operation.
 
+        A pixel already the color is skipped, as canvas_paint_at_controller_position does:
+        repainting it would change nothing but add a duplicate to the drag's pixels_drawn
+        (BUGS.md #155 item 5: a line past the canvas edge repainted the edge pixel each step).
+
         Args:
             controller_id: The controller ID.
             pixel_x: X coordinate.
@@ -845,6 +859,14 @@ class CanvasOperations:
 
         """
         old_color = self._get_canvas_pixel_color(pixel_x, pixel_y)
+        if old_color == current_color:
+            self.handler.log.debug(
+                'DEBUG: Pixel at (%s, %s) is already %s, not painted again',
+                pixel_x,
+                pixel_y,
+                current_color,
+            )
+            return
         if old_color is None:
             old_color = (0, 0, 0)
 

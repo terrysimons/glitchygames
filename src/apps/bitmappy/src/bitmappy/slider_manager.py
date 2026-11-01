@@ -23,7 +23,7 @@ from glitchygames.ui import (
     TabControlSprite,
     TextSprite,
 )
-from glitchygames.ui.sliders import DECIMAL_INPUT_FORMAT, format_channel
+from glitchygames.ui.sliders import DECIMAL_INPUT_FORMAT, ColorChannel, format_channel
 
 from .constants import (
     MAX_COLOR_VALUE,
@@ -95,10 +95,10 @@ class SliderManager:
         alpha_slider_y = red_slider_y - bbox_height  # Alpha slider above red slider
 
         slider_y_positions = {
-            'alpha': alpha_slider_y,
-            'red': red_slider_y,
-            'green': green_slider_y,
-            'blue': blue_slider_y,
+            ColorChannel.ALPHA: alpha_slider_y,
+            ColorChannel.RED: red_slider_y,
+            ColorChannel.GREEN: green_slider_y,
+            ColorChannel.BLUE: blue_slider_y,
         }
 
         self._create_slider_labels(
@@ -146,7 +146,7 @@ class SliderManager:
         *,
         slider_x: int,
         slider_height: int,
-        slider_y_positions: dict[str, int],
+        slider_y_positions: dict[ColorChannel, int],
     ) -> None:
         """Create text labels for each color slider.
 
@@ -171,9 +171,9 @@ class SliderManager:
 
         # Alpha slider label
         self.alpha_label = TextSprite(
-            text='A',
+            text=ColorChannel.ALPHA,
             x=label_x - 2,  # Move A label 2 pixels left (same as R and G)
-            y=slider_y_positions['alpha'] + (slider_height - label_height) // 2,
+            y=slider_y_positions[ColorChannel.ALPHA] + (slider_height - label_height) // 2,
             width=label_width,
             height=label_height,
             background_color=(0, 0, 0, 0),  # Transparent background
@@ -186,9 +186,9 @@ class SliderManager:
 
         # Red slider label
         self.red_label = TextSprite(
-            text='R',
+            text=ColorChannel.RED,
             x=label_x - 2,  # Move R label 2 pixels left
-            y=slider_y_positions['red'] + (slider_height - label_height) // 2,
+            y=slider_y_positions[ColorChannel.RED] + (slider_height - label_height) // 2,
             width=label_width,
             height=label_height,
             background_color=(0, 0, 0, 0),  # Transparent background
@@ -201,9 +201,9 @@ class SliderManager:
 
         # Green slider label
         self.green_label = TextSprite(
-            text='G',
+            text=ColorChannel.GREEN,
             x=label_x - 2,  # Move G label 2 pixels left
-            y=slider_y_positions['green'] + (slider_height - label_height) // 2,
+            y=slider_y_positions[ColorChannel.GREEN] + (slider_height - label_height) // 2,
             width=label_width,
             height=label_height,
             background_color=(0, 0, 0, 0),  # Transparent background
@@ -216,9 +216,9 @@ class SliderManager:
 
         # Blue slider label
         self.blue_label = TextSprite(
-            text='B',
+            text=ColorChannel.BLUE,
             x=label_x - 1,  # Adjust B label 1 pixel left to align with R and G
-            y=slider_y_positions['blue'] + (slider_height - label_height) // 2,
+            y=slider_y_positions[ColorChannel.BLUE] + (slider_height - label_height) // 2,
             width=label_width,
             height=label_height,
             background_color=(0, 0, 0, 0),  # Transparent background
@@ -235,7 +235,7 @@ class SliderManager:
         slider_x: int,
         slider_width: int,
         slider_height: int,
-        slider_y_positions: dict[str, int],
+        slider_y_positions: dict[ColorChannel, int],
     ) -> None:
         """Create the ARGB slider sprites.
 
@@ -247,9 +247,9 @@ class SliderManager:
 
         """
         self.editor.alpha_slider = SliderSprite(
-            name='A',
+            name=ColorChannel.ALPHA,
             x=slider_x,
-            y=slider_y_positions['alpha'],
+            y=slider_y_positions[ColorChannel.ALPHA],
             width=slider_width,
             height=slider_height,
             parent=self.editor,
@@ -257,9 +257,9 @@ class SliderManager:
         )
 
         self.editor.red_slider = SliderSprite(
-            name='R',
+            name=ColorChannel.RED,
             x=slider_x,
-            y=slider_y_positions['red'],
+            y=slider_y_positions[ColorChannel.RED],
             width=slider_width,
             height=slider_height,
             parent=self.editor,
@@ -267,9 +267,9 @@ class SliderManager:
         )
 
         self.editor.green_slider = SliderSprite(
-            name='G',
+            name=ColorChannel.GREEN,
             x=slider_x,
-            y=slider_y_positions['green'],
+            y=slider_y_positions[ColorChannel.GREEN],
             width=slider_width,
             height=slider_height,
             parent=self.editor,
@@ -277,9 +277,9 @@ class SliderManager:
         )
 
         self.editor.blue_slider = SliderSprite(
-            name='B',
+            name=ColorChannel.BLUE,
             x=slider_x,
-            y=slider_y_positions['blue'],
+            y=slider_y_positions[ColorChannel.BLUE],
             width=slider_width,
             height=slider_height,
             parent=self.editor,
@@ -292,7 +292,7 @@ class SliderManager:
         slider_x: int,
         slider_width: int,
         slider_height: int,
-        slider_y_positions: dict[str, int],
+        slider_y_positions: dict[ColorChannel, int],
     ) -> None:
         """Create bounding boxes around the sliders for hover effects (initially hidden).
 
@@ -304,10 +304,10 @@ class SliderManager:
 
         """
         bbox_configs = [
-            ('alpha_slider_bbox', 'Alpha Slider BBox', slider_y_positions['alpha']),
-            ('red_slider_bbox', 'Red Slider BBox', slider_y_positions['red']),
-            ('green_slider_bbox', 'Green Slider BBox', slider_y_positions['green']),
-            ('blue_slider_bbox', 'Blue Slider BBox', slider_y_positions['blue']),
+            ('alpha_slider_bbox', 'Alpha Slider BBox', slider_y_positions[ColorChannel.ALPHA]),
+            ('red_slider_bbox', 'Red Slider BBox', slider_y_positions[ColorChannel.RED]),
+            ('green_slider_bbox', 'Green Slider BBox', slider_y_positions[ColorChannel.GREEN]),
+            ('blue_slider_bbox', 'Blue Slider BBox', slider_y_positions[ColorChannel.BLUE]),
         ]
 
         for attr_name, bbox_name, bbox_y in bbox_configs:
@@ -646,8 +646,8 @@ class SliderManager:
 
         Args:
             event (pygame.event.Event): The pygame event.
-            trigger (HashableEvent): The slider trigger, with the channel's name ('R', 'G', 'B'
-                or 'A') and its new value.
+            trigger (HashableEvent): The slider trigger, with the channel's name (a ColorChannel
+                letter) and its new value.
 
         """
         value = trigger.value
@@ -659,17 +659,22 @@ class SliderManager:
         value = max(MIN_COLOR_VALUE, min(MAX_COLOR_VALUE, value))
 
         color = {
-            'R': self.editor.red_slider.value,
-            'G': self.editor.green_slider.value,
-            'B': self.editor.blue_slider.value,
-            'A': self.editor.alpha_slider.value,
+            ColorChannel.RED: self.editor.red_slider.value,
+            ColorChannel.GREEN: self.editor.green_slider.value,
+            ColorChannel.BLUE: self.editor.blue_slider.value,
+            ColorChannel.ALPHA: self.editor.alpha_slider.value,
         }
         if trigger.name in color:
             color[trigger.name] = value
         else:
             self.log.debug('Slider event from unknown slider %s changes no slider', trigger.name)
 
-        self.apply_color(red=color['R'], green=color['G'], blue=color['B'], alpha=color['A'])
+        self.apply_color(
+            red=color[ColorChannel.RED],
+            green=color[ColorChannel.GREEN],
+            blue=color[ColorChannel.BLUE],
+            alpha=color[ColorChannel.ALPHA],
+        )
 
     def _update_slider_text_format(self, tab_format: str | None = None) -> None:
         """Update slider text display format.

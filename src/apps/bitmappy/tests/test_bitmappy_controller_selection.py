@@ -7,6 +7,7 @@ from bitmappy.controllers.selection import (
     ControllerSelection,
     ControllerSelectionState,
 )
+from glitchygames.ui.sliders import ColorChannel
 
 
 class TestControllerSelectionFillDirection:
@@ -204,25 +205,25 @@ class TestControllerSelectionSlider:
         """A valid slider name becomes the selection and counts as activity."""
         selection = ControllerSelection(controller_id=0, instance_id=0)
 
-        selection.set_slider('G')
+        selection.set_slider(ColorChannel.GREEN)
 
-        assert selection.get_slider() == 'G'
+        assert selection.get_slider() is ColorChannel.GREEN
         assert selection.state.last_update_time == 0.0
 
     def test_ignores_an_invalid_slider(self):
-        """A name other than R, G or B is ignored."""
+        """Alpha, the one channel that is not R, G or B, is ignored."""
         selection = ControllerSelection(controller_id=0, instance_id=0)
 
-        selection.set_slider('A')
+        selection.set_slider(ColorChannel.ALPHA)
 
-        assert selection.get_slider() == 'R'
+        assert selection.get_slider() is ColorChannel.RED
         assert selection.state.last_update_time == float('-inf')
 
     def test_reselecting_the_same_slider_is_not_activity(self):
         """Selecting the slider already selected changes nothing."""
         selection = ControllerSelection(controller_id=0, instance_id=0)
 
-        selection.set_slider('R')
+        selection.set_slider(ColorChannel.RED)
 
         assert selection.state.last_update_time == float('-inf')
 

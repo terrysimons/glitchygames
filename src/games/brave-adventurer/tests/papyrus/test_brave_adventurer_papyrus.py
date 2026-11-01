@@ -22,8 +22,8 @@ from brave_adventurer_papyrus.enemies import PapyrusCobra, PapyrusScarab, Papyru
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 from brave_adventurer_papyrus.player import PapyrusPlayer
 from brave_adventurer_papyrus.sprite_utils import (
-    apply_transparency_and_scale,
     prepare_papyrus_sprite,
+    refresh_drawn_image,
 )
 from brave_adventurer_papyrus.terrain import PapyrusGoldScarab
 from glitchygames.animation.state_machine import AnimationStateMachine
@@ -186,7 +186,7 @@ class TestPapyrusFeetAnchoring:
         assert player.default_hitbox is not None
         assert player.default_hitbox.bottom == tallest_bottom == 27
         assert player.frame_anchor is FrameAnchor.BOTTOM
-        assert player.hitbox_scale * 27 == PAPYRUS_PLAYER_HEIGHT
+        assert player.scale * 27 == PAPYRUS_PLAYER_HEIGHT
 
     def test_every_frame_stands_its_visible_feet_on_the_ground(self, standing_player):
         """Lowest visible row on screen == ground line - 1 and hitbox bottom == ground line."""
@@ -195,7 +195,7 @@ class TestPapyrusFeetAnchoring:
         for animation_name, frame_index in self._all_frames(player):
             player.set_animation(animation_name)
             player.set_frame(frame_index)
-            apply_transparency_and_scale(player)
+            refresh_drawn_image(player)
             # The engine places the player: snap(world) - snap(camera) plus the frame's offset
             position_world_sprites(sprites=[player], camera=scene.camera, screen_size=SCREEN_SIZE)
             screen_ground = GROUND_Y - snap_to_pixel(
@@ -391,7 +391,7 @@ class TestPapyrusEngineWorldSpace:
         player = scene.player
         player.set_animation('running')
         player.set_frame(1)
-        apply_transparency_and_scale(player)
+        refresh_drawn_image(player)
         draw_offset_x, draw_offset_y = player.draw_offset
         assert draw_offset_y != 0  # a running frame is drawn lower than the idle one
         player.world_x = 200.4
@@ -442,10 +442,9 @@ class TestPapyrusSpriteUtilities:
         image = sprite.image
 
         prepare_papyrus_sprite(sprite)
-        apply_transparency_and_scale(sprite)
 
         assert sprite.image is image
-        assert sprite.hitbox_scale == 2
+        assert sprite.scale == 2
 
     def test_scale_one_draws_a_copy_of_the_frame(self):
         _start_display()
@@ -454,13 +453,30 @@ class TestPapyrusSpriteUtilities:
         )
         prepare_papyrus_sprite(sprite, scale_factor=1)
 
-        apply_transparency_and_scale(sprite, scale_factor=1)
+        refresh_drawn_image(sprite)
 
-        frame_image = sprite.get_current_frame().image
-        assert sprite.image is not frame_image
-        assert sprite.image.get_size() == frame_image.get_size()
-        assert _surface_bytes(sprite.image) == _surface_bytes(frame_image)
-        assert sprite.hitbox_scale == 1
+        drawn_surface = sprite.drawn_frame_surface()
+        assert sprite.image is not drawn_surface
+        assert sprite.image.get_size() == sprite.get_current_frame().image.get_size()
+        assert _surface_bytes(sprite.image) == _surface_bytes(drawn_surface)
+        assert sprite.scale == 1
+
+    def test_a_flip_each_tick_does_not_stack(self):
+        """Refreshing before each flip draws the same mirrored image every tick."""
+        _start_display()
+        sprite = AnimatedSprite(
+            filename=str(SPRITES_DIR / 'cobra.toml'), groups=pygame.sprite.LayeredDirty()
+        )
+        prepare_papyrus_sprite(sprite)
+
+        flipped_images = []
+        for _ in range(2):
+            refresh_drawn_image(sprite)
+            sprite.image = pygame.transform.flip(sprite.image, flip_x=True, flip_y=False)
+            flipped_images.append(_surface_bytes(sprite.image))
+
+        assert flipped_images[0] == flipped_images[1]
+        assert _surface_bytes(sprite.drawn_frame_surface()) != flipped_images[0]
 
     @pytest.mark.parametrize(
         'make_sprite',
@@ -478,7 +494,7 @@ class TestPapyrusSpriteUtilities:
         sprite = make_sprite(pygame.sprite.LayeredDirty())
         native_size = sprite.get_current_frame().image.get_size()
 
-        apply_transparency_and_scale(sprite)
+        refresh_drawn_image(sprite)
 
         assert sprite.image.get_size() == (native_size[0] * 2, native_size[1] * 2)
         assert sprite.rect.size == sprite.image.get_size()

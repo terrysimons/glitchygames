@@ -18,6 +18,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from bitmappy.indicators import LocationType
+from glitchygames.ui.sliders import ColorChannel
 
 if TYPE_CHECKING:
     from bitmappy.controllers.event_handler import ControllerEventHandler
@@ -39,15 +40,15 @@ class ControllerMode(Enum):
 
 # The slider modes in screen order, top to bottom (alpha sits above red, BUGS.md #153), each
 # with the editor's slider attribute and the channel name its slider events carry
-SLIDER_MODE_CHANNELS: dict[ControllerMode, tuple[str, str]] = {
-    ControllerMode.A_SLIDER: ('alpha_slider', 'A'),
-    ControllerMode.R_SLIDER: ('red_slider', 'R'),
-    ControllerMode.G_SLIDER: ('green_slider', 'G'),
-    ControllerMode.B_SLIDER: ('blue_slider', 'B'),
+SLIDER_MODE_CHANNELS: dict[ControllerMode, tuple[str, ColorChannel]] = {
+    ControllerMode.A_SLIDER: ('alpha_slider', ColorChannel.ALPHA),
+    ControllerMode.R_SLIDER: ('red_slider', ColorChannel.RED),
+    ControllerMode.G_SLIDER: ('green_slider', ColorChannel.GREEN),
+    ControllerMode.B_SLIDER: ('blue_slider', ColorChannel.BLUE),
 }
 SLIDER_MODES_TOP_TO_BOTTOM: tuple[ControllerMode, ...] = tuple(SLIDER_MODE_CHANNELS)
 # Keyed by the mode's value, as the controller code matches modes (controller_mode.value)
-SLIDER_CHANNELS_BY_MODE_VALUE: dict[str, tuple[str, str]] = {
+SLIDER_CHANNELS_BY_MODE_VALUE: dict[str, tuple[str, ColorChannel]] = {
     mode.value: channel for mode, channel in SLIDER_MODE_CHANNELS.items()
 }
 SLIDER_MODE_VALUES: frozenset[str] = frozenset(SLIDER_CHANNELS_BY_MODE_VALUE)

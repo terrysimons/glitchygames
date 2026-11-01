@@ -62,7 +62,7 @@ class TestPapyrusHitboxScale:
         player = PapyrusPlayer(100.0, 200.0, pygame.sprite.LayeredDirty())
         player.dt_tick(0.0)
 
-        assert player.hitbox_scale == SPRITE_SCALE == 2
+        assert player.scale == SPRITE_SCALE == 2
         frame = player.get_current_frame()
         assert frame is not None
         native_hitbox = frame.hitbox if frame.has_explicit_hitbox else player.default_hitbox
@@ -99,7 +99,7 @@ class TestPapyrusHitboxScale:
         }
         sprite = builders[sprite_name]()
 
-        assert sprite.hitbox_scale == SPRITE_SCALE
+        assert sprite.scale == SPRITE_SCALE
         frame = sprite.get_current_frame()
         assert frame is not None
         if frame.has_explicit_hitbox:
@@ -114,16 +114,13 @@ class TestPapyrusHitboxScale:
         )
 
     def test_scale_one_keeps_native_hitbox(self):
-        """apply_transparency_and_scale with scale_factor=1 leaves hitboxes native."""
+        """A scale of 1 leaves hitboxes native."""
         from brave_adventurer_papyrus.player import PapyrusPlayer
-        from brave_adventurer_papyrus.sprite_utils import (
-            apply_transparency_and_scale,
-        )
 
         player = PapyrusPlayer(100.0, 200.0, pygame.sprite.LayeredDirty())
-        apply_transparency_and_scale(player, scale_factor=1)
+        player.scale = 1
 
-        assert player.hitbox_scale == 1
+        assert player.scale == 1
         frame = player.get_current_frame()
         assert frame is not None
         native_hitbox = frame.hitbox if frame.has_explicit_hitbox else player.default_hitbox

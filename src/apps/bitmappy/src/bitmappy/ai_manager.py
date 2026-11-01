@@ -752,6 +752,20 @@ class AIManager:
 
         return '\n'.join(lines)
 
+    def _remove_temp_file(self, tmp_path: str) -> None:
+        """Delete a loaded AI response's temp file; failing to only logs a warning.
+
+        Args:
+            tmp_path: The temp file's path.
+
+        """
+        try:
+            Path(tmp_path).unlink(missing_ok=True)
+        except OSError:
+            self.log.warning('Could not remove the AI response temp file %s', tmp_path)
+        else:
+            self.log.debug('Removed the AI response temp file %s', tmp_path)
+
     def _create_temp_file_from_content(self, content: str) -> str:
         """Create temporary file from AI content and return the path.
 
@@ -1454,9 +1468,14 @@ pixels = \"\"\"
             AttributeError,
             pygame.error,
         ) as sprite_error:
+            # Kept: the file the loader refused is the one worth inspecting
+            self.log.info('Kept the AI response that failed to load: %s', tmp_path)
             self._handle_ai_sprite_load_error(sprite_error, request_id, content)
             return
-        # Note: Temp file is kept for debugging - remove this comment when done debugging
+
+        # Loaded: the canvas has the sprite, and the content is kept below, so the file goes
+        # (each response used to leave one in the temp directory: BUGS.md #178 item 9)
+        self._remove_temp_file(tmp_path)
 
         # Save successful sprite content for future refinements
         self.last_successful_sprite_content = cleaned_content

@@ -627,6 +627,33 @@ class TestRunAiWorker:
         )
         assert response_queue.empty()
 
+    @pytest.mark.parametrize('error_type', [ValueError, OSError, EOFError])
+    def test_a_permanently_broken_queue_stops_the_worker(self, mocker, error_type):
+        """A queue whose every get() fails ends the worker after one read (BUGS.md #178.7).
+
+        The worker used to go straight back to get(), logging the same error forever.
+        """
+        mocker.patch.object(ai_worker, '_initialize_ai_client', return_value=None)
+
+        class BrokenQueue:
+            """A request queue that can never be read (closed, or its pipe gone)."""
+
+            def __init__(self) -> None:
+                self.reads = 0
+
+            def get(self) -> AIRequest | None:
+                self.reads += 1
+                msg = 'queue is closed'
+                raise error_type(msg)
+
+        broken_queue = BrokenQueue()
+        response_queue: queue.Queue = queue.Queue()
+
+        ai_worker.run_ai_worker(broken_queue, response_queue)  # type: ignore[arg-type]
+
+        assert broken_queue.reads == 1
+        assert response_queue.empty()
+
     def test_client_initialization_failure_is_fatal(self, mocker):
         """An OSError while creating the client ends the worker with that error."""
         mocker.patch.object(ai_worker, '_initialize_ai_client', side_effect=OSError('no client'))
