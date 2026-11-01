@@ -1901,7 +1901,7 @@ class PulsingScene(CountingScene):
             SceneManager().rumble.pulse(low_frequency=1.0, high_frequency=0.5, duration=0.5)
 
 
-# The input mode whose rumble counts joysticks through the devices door
+# The input mode whose rumble counted joysticks through the devices door (BUGS.md #184.1)
 JOYSTICK_MODE_ARGUMENTS = ('--input-mode', 'joystick')
 
 
@@ -1914,7 +1914,7 @@ class TestRumbleThroughAPlayback:
         )
         with running_scene(CountingScene) as manager:
             device = mocker.Mock()
-            mocker.patch.object(manager._rumble_devices, 'find', return_value=[device])
+            mocker.patch.object(manager, '_rumble_devices', return_value=[device])
             live_rumble = manager.rumble
             assert start_playback_from_recording(
                 manager=manager, path=recording_path, then=active_counting_scene(manager)
@@ -1932,15 +1932,12 @@ class TestRumbleThroughAPlayback:
             step(manager)
             device.rumble.assert_called_once()
 
-    def test_a_playback_asks_its_own_door_for_the_joysticks_as_the_recording_did(
-        self, tmp_path, mocker: MockerFixture
-    ):
-        """Each send asks the played recording's joystick count, so none is left queued.
+    def test_rumble_asks_no_devices_door(self, tmp_path, mocker: MockerFixture):
+        """Rumble goes to input_devices, so a recording holds no per-send joystick count.
 
-        A count left unasked would be read by the played scene's next enumeration of its own.
-        The live game's device cache is never asked (it would reopen joysticks afterwards).
-        Joystick mode rumbles the joysticks it counts (auto and controller mode rumble the
-        controller manager's controllers, asking nothing).
+        A count asked for rumble would be left unasked by a playback scope (which rumbles no
+        device), and the played scene's next enumeration of its own would read it (BUGS.md
+        #184.2). Joystick mode asked the count on every send before (#184.1).
         """
         recording_path = record_counting_scene(
             tmp_path=tmp_path,
@@ -1954,17 +1951,17 @@ class TestRumbleThroughAPlayback:
             for answer in frame.get('device_enumeration', [])
             if answer['call'] == JOYSTICK_COUNT_CALL
         ]
-        assert recorded_counts, 'the recorded pulse should have asked the joystick count'
+        assert recorded_counts == []
         with running_scene(CountingScene, extra_arguments=JOYSTICK_MODE_ARGUMENTS) as manager:
-            live_find = mocker.spy(manager._rumble_devices, 'find')
+            live_devices = mocker.spy(manager, '_rumble_devices')
             assert start_playback_from_recording(
                 manager=manager, path=recording_path, then=active_counting_scene(manager)
             )
             asked_counts = mocker.spy(ReplayDeviceRegistry, 'joystick_count')
             step(manager, frames=SHORT_RECORDED_FRAMES)
             assert outcome_reason(manager) == 'end_of_recording'
-            assert asked_counts.call_count == len(recorded_counts)
-            live_find.assert_not_called()
+            asked_counts.assert_not_called()
+            live_devices.assert_not_called()
 
 
 class TestOnlyScopedErrorsAreContained:

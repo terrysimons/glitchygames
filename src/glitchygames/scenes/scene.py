@@ -26,7 +26,7 @@ from glitchygames.exit_codes import BUG_REPORT_HINT
 from glitchygames.game_frames import game_frame_clock, restart_game_frame_clock
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
 from glitchygames.input.input_devices import InputDevices
-from glitchygames.input.rumble import ConnectedRumbleDevices, RumbleController
+from glitchygames.input.rumble import RumbleController
 from glitchygames.input.state import (
     IDLE_INPUT,
     apply_snapshot_changes,
@@ -293,12 +293,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self._frame_present_seconds: float = 0.0
         self.debug_overlay: DebugOverlay = DebugOverlay()
         self.rumble: RumbleController = RumbleController()
-        # The devices rumble is sent to (joysticks opened once, while their count holds), and
-        # the live game's rumble controller while a playback scope plays on its own
-        self._rumble_devices = ConnectedRumbleDevices()
-        # A playback scope's own device lookups, asked through its doors and then dropped
-        # (_rumble_devices_for_scope); new for each scope, so the live cache is never touched
-        self._scope_rumble_devices = ConnectedRumbleDevices()
+        # The live game's rumble controller while a playback scope plays on its own
         self._live_rumble_behind_scope: RumbleController | None = None
         self._live_audio: LiveAudio | None = None
 
@@ -1212,18 +1207,13 @@ class SceneManager(SceneInterface, events.EventManager):
         active_camera = self._active_camera()
         if active_camera is not None:
             shakers.append(active_camera.shake_effect)
-        # None without an engine (a bare SceneManager) and in joystick mode
-        game_engine = self.game_engine
-        controller_manager = game_engine.controller_manager if game_engine is not None else None
         self.rumble.update(
             shakers=shakers,
             dt=self.dt,
-            # A playback never rumbles the player's real devices (playback.py, rule 8)
-            devices=(
-                (lambda: self._rumble_devices_for_scope(controller_manager=controller_manager))
-                if self.in_playback_scope
-                else lambda: self._rumble_devices.find(controller_manager=controller_manager)
-            ),
+            # One send per device the game sees, whatever the input mode, asking no door (the
+            # managers opened them). A playback never rumbles the player's real devices
+            # (playback.py, rule 8): list() is no device
+            devices=list if self.in_playback_scope else self._rumble_devices,
         )
 
         # The pending transition counts: a ride creates its motor before transition_to starts it
@@ -1252,25 +1242,14 @@ class SceneManager(SceneInterface, events.EventManager):
                 paused_owners=paused_owners,
             )
 
-    def _rumble_devices_for_scope(
-        self: Self, *, controller_manager: object | None
-    ) -> list[RumbleDevice]:
-        """Ask the scope's doors for the devices as a live send would, then send to none.
-
-        A playback never rumbles the player's real devices (playback.py, rule 8), but each send
-        still asks the played recording's devices door, as the recorded run did: a joystick
-        count it answered for rumble and nobody asked would be read by the played scene's next
-        enumeration of its own.
-
-        Args:
-            controller_manager: GameEngine.controller_manager; None in joystick mode.
+    def _rumble_devices(self: Self) -> list[RumbleDevice]:
+        """Return every device the game sees (``input_devices``): each can be rumbled.
 
         Returns:
-            An empty list.
+            The devices, in ``input_devices`` order (empty without an engine).
 
         """
-        self._scope_rumble_devices.find(controller_manager=controller_manager)
-        return []
+        return list(self.input_devices)
 
     @property
     def live_audio(self: Self) -> LiveAudio:
@@ -2147,7 +2126,6 @@ class SceneManager(SceneInterface, events.EventManager):
         # that reaches no device (_update_frame_services), so the live game's waits untouched
         self._live_rumble_behind_scope = self.rumble
         self.rumble = RumbleController(intensity=self.rumble.intensity)
-        self._scope_rumble_devices = ConnectedRumbleDevices()
         LOG.info('Starting the %s playback of %s', request.kind, request.scene_class.__name__)
         self.record_control_event(
             kind=PLAYBACK_KIND, data={'source': request.kind, 'frames': request.frame_count}

@@ -209,13 +209,11 @@ of a session that played a scope cannot itself be played in-game from a frame in
 that scope: a recorder writes no ``playback_answers`` or ``resume_bridge`` (only an
 instant-replay journal does), so its scene's playback requests and its resumption after the
 scope are not known (it replays exactly with ``--replay-trace``, which runs the scope again).
-Rumble in joystick mode asks the devices door for the joysticks (glitchygames/input/rumble.py);
-inside a scope each send still asks the scope's door, with a device cache of its own, and then
-sends to no device (rule 8), so the played recording's answers are taken as it gave them. The
-scope's rumble controller starts fresh, though: a rumble the live game sent before the played
-scene began, still running when it was recorded, is not known to it, so its sends (and the
-counts they ask) can fall on other frames than the recording's; that matters only when the
-played recording's joystick count changed part way.
+Rumble goes to the devices ``input_devices`` holds and asks no devices door, so a scope's
+rumble (sent to no device, rule 8) takes no answer from the played recording. Recordings made
+before that (joystick mode asked the joystick count on each send) hold per-frame counts nobody
+asks now; the played scene's own next count reads one of them instead of a later one, which
+matters only when the recording's joystick count changed part way.
 """
 
 from __future__ import annotations
