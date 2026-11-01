@@ -993,56 +993,42 @@ def _serve_ai_requests(
             log.exception('The AI request queue cannot be read; stopping the AI worker')
             break
         request_count += 1
+        log.info('Processing AI request #%s', request_count)
+        if request is None:  # Shutdown signal
+            log.info('Received shutdown signal, closing AI worker')
+            break
         try:
-            keep_serving = _answer_ai_request(
+            _answer_ai_request(
                 request=request,
-                request_number=request_count,
                 response_queue=response_queue,
                 client=client,
                 log=log,
             )
         except (ValueError, KeyError, AttributeError, OSError) as e:
             log.exception('Error processing AI request')
-            if request:
-                response_queue.put((request.request_id, AIResponse(content=None, error=str(e))))
-            continue
-
-        if not keep_serving:
-            break
+            response_queue.put((request.request_id, AIResponse(content=None, error=str(e))))
 
 
 def _answer_ai_request(
     *,
-    request: AIRequest | None,
-    request_number: int,
+    request: AIRequest,
     response_queue: multiprocessing.Queue[tuple[str, AIResponse]],
     client: AIClient | None,
     log: logging.Logger,
-) -> bool:
+) -> None:
     """Process one request and send its response.
 
     Args:
-        request: The request, or None (the shutdown message).
-        request_number: How many messages the worker has received, this one included.
+        request: The request (the shutdown message, None, never reaches here).
         response_queue: Queue to send the response to.
         client: The AI client, or None when AI is unavailable.
         log: Logger instance.
 
-    Returns:
-        False for the shutdown message, True once a request is answered.
-
     """
-    log.info('Processing AI request #%s', request_number)
-
-    if request is None:  # Shutdown signal
-        log.info('Received shutdown signal, closing AI worker')
-        return False
-
     ai_response = _process_ai_request(request, client, log)
     response_data = (request.request_id, ai_response)
     response_queue.put(response_data)
     log.info('Response sent successfully')
-    return True
 
 
 def run_ai_worker(
