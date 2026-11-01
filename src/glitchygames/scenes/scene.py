@@ -25,7 +25,11 @@ from glitchygames.events.mouse import MousePointer
 from glitchygames.exit_codes import BUG_REPORT_HINT
 from glitchygames.game_frames import game_frame_clock, restart_game_frame_clock
 from glitchygames.input.action_map import DEFAULT_DEADZONE, normalized_axis_value
-from glitchygames.input.input_devices import InputDevices
+from glitchygames.input.input_devices import (
+    InputDevices,
+    recorded_devices,
+    scene_start_devices_record,
+)
 from glitchygames.input.rumble import RumbleController
 from glitchygames.input.state import (
     IDLE_INPUT,
@@ -40,6 +44,7 @@ from glitchygames.opacity import OPAQUE, make_opaque
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.randomness import restore_stream_states
 from glitchygames.recording import (
+    SCENE_START_DEVICES_HEADER_FIELD,
     is_input_post,
     is_live_game_post,
     live_game_code_running,
@@ -622,7 +627,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self._end_instant_replay_journal()
         game_engine = self.game_engine
         self._instant_replay_journal = InstantReplayJournal(
-            scene=scene, game=game_engine.game if game_engine is not None else None
+            scene=scene,
+            game=game_engine.game if game_engine is not None else None,
+            scene_start_devices=scene_start_devices_record(input_devices=self.input_devices),
         )
 
     def _journal_frame(self: Self, *, frame_dt: float) -> None:
@@ -2122,6 +2129,19 @@ class SceneManager(SceneInterface, events.EventManager):
             # stay pushed over the live game
             pop_scoped_sources()
             raise
+        # The played scene sees the recording's devices, opened through the scope's devices
+        # door in the input mode it was recorded in; the live game's wait untouched (BUGS.md
+        # #184.3; _exit_playback puts them back)
+        game_engine = self.game_engine
+        if game_engine is not None:
+            replay = request.sources.replay
+            game_engine.enter_playback_devices(
+                recorded=recorded_devices(
+                    options=replay.header.get('options'),
+                    scene_start_devices=replay.header.get(SCENE_START_DEVICES_HEADER_FIELD),
+                ),
+                registry=replay.devices(),
+            )
         # The playback's rumble (its scene's pulses and shakes) goes to a controller of its own
         # that reaches no device (_update_frame_services), so the live game's waits untouched
         self._live_rumble_behind_scope = self.rumble
@@ -2211,6 +2231,10 @@ class SceneManager(SceneInterface, events.EventManager):
             # Supervisors and handlers the scope's code added (its cleanup above included) end
             # with it (rule 4); the live ones stay
             self._remove_scope_supervision()
+            # The live game's devices, set aside by _enter_playback, before its doors return
+            game_engine = self.game_engine
+            if game_engine is not None:
+                game_engine.exit_playback_devices()
             pop_scoped_sources()
             restore_stream_states(states=session.saved_random_states)
             set_frame_clock_seconds(seconds=session.saved_frame_clock_seconds)

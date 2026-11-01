@@ -21,6 +21,7 @@ from glitchygames.audio.synth import Waveform
 from glitchygames.events import FPSEVENT, GAMEEVENT
 from glitchygames.exit_codes import BUG_REPORT_HINT
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, ReplayDeviceRegistry
+from glitchygames.input.input_devices import InputMode
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_name
@@ -1957,11 +1958,43 @@ class TestRumbleThroughAPlayback:
             assert start_playback_from_recording(
                 manager=manager, path=recording_path, then=active_counting_scene(manager)
             )
+            # Entering opens the recording's devices, asking its count once (#184.3); the
+            # pulse comes on the played scene's second tick, after this
+            step(manager)
+            assert manager.playback_session is not None
             asked_counts = mocker.spy(ReplayDeviceRegistry, 'joystick_count')
-            step(manager, frames=SHORT_RECORDED_FRAMES)
+            step(manager, frames=SHORT_RECORDED_FRAMES - 1)
             assert outcome_reason(manager) == 'end_of_recording'
             asked_counts.assert_not_called()
             live_devices.assert_not_called()
+
+
+class TestDevicesInAPlayback:
+    """A playback opens its recording's devices in its mode; the live ones wait (#184.3)."""
+
+    def test_a_joystick_mode_recording_plays_without_a_controller_manager(self, tmp_path):
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, extra_arguments=JOYSTICK_MODE_ARGUMENTS
+        )
+        with running_scene(CountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            live_controller_manager = engine.controller_manager
+            live_devices = engine.input_devices
+            assert live_controller_manager is not None  # auto, the default
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            step(manager)
+
+            assert manager.playback_session is not None
+            assert engine.controller_manager is None
+            assert engine.input_devices.input_mode is InputMode.JOYSTICK
+
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert engine.controller_manager is live_controller_manager
+            assert engine.input_devices is live_devices
 
 
 class TestOnlyScopedErrorsAreContained:

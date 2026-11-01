@@ -418,6 +418,15 @@ class ResourceManager:
         """
         ResourceManager.__instances__.clear()
 
+    @classmethod
+    def release_shared_instance(cls) -> None:
+        """Forget this class's shared instance, so its next construction makes a new one.
+
+        A playback scope that made a controller manager the live game has none of releases it
+        as the scope ends (``GameEngine.exit_playback_devices``).
+        """
+        ResourceManager.__instances__.pop(cls, None)
+
     def __getattr__(self: Self, attr: str) -> Callable[..., Any]:
         """Get an attribute from the first proxy that has it.
 

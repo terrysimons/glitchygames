@@ -27,7 +27,14 @@ Demos and instant replays run inside a playback scope, not a new engine run
    event timer and the scene manager's ``previous_scene`` are saved
    (``PlaybackRequest.begin_session``); the live scene is stashed without ``cleanup()``;
    ``PlaybackSources`` are pushed on top of the installed doors
-   (``push_scoped_sources``; glitchygames/sources.py); a ``playback`` control event is
+   (``push_scoped_sources``; glitchygames/sources.py); the live game's devices are set aside
+   and the recording's take their place, in the input mode it was recorded in
+   (``GameEngine.enter_playback_devices``: a recording file's are opened through the scope's
+   devices door as its engine opened them at startup, an instant replay's adopted from its
+   journal's ``scene_start_devices``), so its device events (JOYDEVICEADDED, ...) change only
+   the scope's and the live ones come back untouched as it ends (BUGS.md #184.3; a recording
+   played from a later frame than its first knows only the devices it started with); a
+   ``playback`` control event is
    recorded (a marker: replaying the session starts the scope again from the recorded input,
    so it is compared, never applied again); the scene is rebuilt (``rebuild_scene``) and made
    active as a switch would, a transition's arrival step is repeated for a scene that arrived

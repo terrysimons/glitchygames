@@ -324,6 +324,11 @@ SAVES_HEADER_FIELD = 'saves'
 # which scenes must not import (BUGS.md #224 item 16)
 GAME_HEADER_FIELD = 'game'
 DEVICES_HEADER_FIELD = 'devices'
+# An instant-replay journal's live devices as its scene started: {'input_mode': ..., 'devices':
+# [descriptor, ...]}, which its playback scope adopts (glitchygames/instant_replay.py, rule 10;
+# BUGS.md #184.3). A recording file has none: its scope opens the header's devices as the
+# recorded engine did
+SCENE_START_DEVICES_HEADER_FIELD = 'scene_start_devices'
 # The recording's start time (ISO 8601): the origin of a recorded or replayed run's wall clock
 RECORDED_AT_HEADER_FIELD = 'recorded_at'
 

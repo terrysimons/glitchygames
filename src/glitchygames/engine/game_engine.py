@@ -56,7 +56,13 @@ from glitchygames.exit_codes import BUG_REPORT_HINT, ExitCode
 from glitchygames.fonts import FontManager
 from glitchygames.host import GameHost, HostSources
 from glitchygames.input.device_listing import list_input_devices
-from glitchygames.input.input_devices import InputDevices, InputMode
+from glitchygames.input.devices import ReplayController
+from glitchygames.input.input_devices import (
+    InputDeviceChanges,
+    InputDevices,
+    InputMode,
+    RecordedDevices,
+)
 from glitchygames.input.state import current_input, reset_current_input, set_current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_name
@@ -162,6 +168,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Generator, Sequence
     from types import FrameType
 
+    from glitchygames.input.devices import OpenedController, ReplayDeviceRegistry
     from glitchygames.input.state import InputSnapshot
 
 LOG: logging.Logger = logging.getLogger('game.engine')
@@ -508,6 +515,29 @@ class UnhandledEventRecord:
     count: int
     first_seen_seconds: float
     attribute_names: tuple[str, ...]
+
+
+@dataclass
+class LiveDevicesBehindScope:
+    """The live game's devices, set aside while a playback scope plays on its own (#184.3).
+
+    Attributes:
+        joysticks: ``joystick_manager.joysticks`` as the scope began.
+        controller_manager: ``GameEngine.controller_manager`` as the scope began (None in
+            joystick mode).
+        controllers: That controller manager's ``controllers`` as the scope began (None
+            without one).
+        input_devices: ``GameEngine.input_devices`` as the scope began.
+        scope_made_the_controller_manager: True when the scope made a controller manager of
+            its own (the recording had one, the live game has none): released as it ends.
+
+    """
+
+    joysticks: dict[int, JoystickEventManager.JoystickEventProxy]
+    controller_manager: ControllerEventManager | None
+    controllers: dict[int, ControllerEventManager.ControllerEventProxy] | None
+    input_devices: InputDevices
+    scope_made_the_controller_manager: bool
 
 
 # The options whose values are paths besides the tools' (the supervising replay's handoff file)
@@ -1433,6 +1463,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Every joystick and game controller the game sees (glitchygames/input/input_devices.py),
         # following the joystick and controller managers; built with them
         self.input_devices: InputDevices = InputDevices()
+        # The live devices while a playback scope plays on its own (enter_playback_devices)
+        self._live_devices_behind_scope: LiveDevicesBehindScope | None = None
 
     def initialize_display(self: Self) -> None:
         """Initialize the display."""
@@ -1847,8 +1879,28 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         Called once the managers are made and after every device event they handle
         (glitchygames/input/input_devices.py, rule 3).
         """
+        changes = self._follow_the_managers_devices()
+        for device in changes.removed:
+            self.scene_manager.on_input_device_removed(device=device)
+        for device in changes.added:
+            self.scene_manager.on_input_device_added(device=device)
+
+    def _follow_the_managers_devices(
+        self: Self, *, controllers_complete: bool = False
+    ) -> InputDeviceChanges:
+        """Bring ``input_devices`` in line with the devices the managers hold, telling no scene.
+
+        Args:
+            controllers_complete: True when the controller manager holds every game controller
+                (``InputDevices.synchronize``): an instant replay's adopted devices.
+
+        Returns:
+            The devices added and removed.
+
+        """
         controller_manager = self.controller_manager
-        changes = self.input_devices.synchronize(
+        return self.input_devices.synchronize(
+            controllers_complete=controllers_complete,
             joysticks={
                 proxy.instance_id: proxy.joystick
                 for proxy in self.joystick_manager.joysticks.values()
@@ -1862,10 +1914,97 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 }
             ),
         )
-        for device in changes.removed:
-            self.scene_manager.on_input_device_removed(device=device)
-        for device in changes.added:
-            self.scene_manager.on_input_device_added(device=device)
+
+    def enter_playback_devices(
+        self: Self, *, recorded: RecordedDevices, registry: ReplayDeviceRegistry
+    ) -> None:
+        """Set the live devices aside and open the playback's own (SceneManager._enter_playback).
+
+        Called once the scope's doors are pushed, in the input mode the recording was made in,
+        so the played scene sees the devices the recorded run saw and its recorded device
+        events (JOYDEVICEADDED, ...) change only those (BUGS.md #184.3). A recording file's
+        devices are opened through the scope's devices door as the recorded engine opened them
+        at startup (the same calls, so the answers it gave are taken in order); an instant
+        replay's are adopted from its journal (``recorded.scene_start_devices``) asking the door
+        nothing, since its answers are the scene's own. The managers stay the same shared
+        instances; only the devices they hold change. No scene is told: the played scene is
+        rebuilt and reads ``input_devices`` as the recorded one did.
+
+        Args:
+            recorded: The recording's input mode and, for an instant replay, its devices.
+            registry: The scope's devices door (the played recording's).
+
+        Raises:
+            RuntimeError: If a scope's devices are already in place.
+
+        """
+        if self._live_devices_behind_scope is not None:
+            message = 'A playback scope already holds the devices'
+            raise RuntimeError(message)
+        input_mode = recorded.input_mode
+        live_controller_manager = self.controller_manager
+        self._live_devices_behind_scope = LiveDevicesBehindScope(
+            joysticks=self.joystick_manager.joysticks,
+            controller_manager=live_controller_manager,
+            controllers=(
+                None if live_controller_manager is None else live_controller_manager.controllers
+            ),
+            input_devices=self.input_devices,
+            scope_made_the_controller_manager=(
+                live_controller_manager is None and input_mode is not InputMode.JOYSTICK
+            ),
+        )
+        adopted = recorded.scene_start_devices
+        adopted_controllers: dict[int, OpenedController] = {}
+        if adopted is not None:
+            for descriptor in adopted:
+                device = registry.adopt_device(descriptor=descriptor)
+                if isinstance(device, ReplayController):
+                    adopted_controllers[descriptor.device_index] = device
+        # The controller layer first, as the engine makes its managers (_initialize_event_managers)
+        if input_mode is InputMode.JOYSTICK:
+            self.controller_manager = None
+        elif live_controller_manager is not None:
+            live_controller_manager.controllers = (
+                live_controller_manager.open_connected_controllers()
+                if adopted is None
+                else live_controller_manager.adopt_controllers(controllers=adopted_controllers)
+            )
+        else:
+            # A recording file's (an instant replay's mode is the live game's): it opens the
+            # recording's controllers as it is made. Its construction allows controller events
+            # at SDL: the live game (joystick mode) keeps them blocked, and the scope's events
+            # come from the recording, not SDL
+            self.controller_manager = ControllerEventManager(game=self.scene_manager)
+            pygame.event.set_blocked(events.CONTROLLER_EVENTS)
+        self.joystick_manager.joysticks = (
+            self.joystick_manager.open_connected_joysticks()
+            if adopted is None
+            else self.joystick_manager.adopt_joysticks(descriptors=adopted)
+        )
+        self.input_devices = InputDevices(input_mode=input_mode)
+        # The journal says which of its devices are game controllers: the door is not asked
+        self._follow_the_managers_devices(controllers_complete=adopted is not None)
+
+    def exit_playback_devices(self: Self) -> None:
+        """Put the live devices back as the scope ends (SceneManager._exit_playback; none if none).
+
+        The playback's devices are dropped (a replay's stand-ins hold no hardware). No scene is
+        told: the live scene's devices are the ones it had, and the player's device events
+        during the scope were held and are delivered after it (glitchygames/replay/playback.py,
+        rule 5).
+        """
+        live = self._live_devices_behind_scope
+        if live is None:
+            return
+        self._live_devices_behind_scope = None
+        self.joystick_manager.joysticks = live.joysticks
+        if live.scope_made_the_controller_manager:
+            ControllerEventManager.release_shared_instance()
+        self.controller_manager = live.controller_manager
+        if live.controller_manager is not None and live.controllers is not None:
+            live.controller_manager.controllers = live.controllers
+        self.input_devices = live.input_devices
 
     def _resolve_scene_name_for_error(self: Self) -> str:
         """Resolve the current or previous scene name for error reporting.
