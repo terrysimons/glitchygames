@@ -162,14 +162,6 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-10-22
 - **Files**: `src/glitchygames/sprites/animated.py`
 
-### 153. Controllers Cannot Adjust Alpha
-- **Description**: There is no alpha slider mode: `is_any_controller_in_slider_mode`, slider navigation and the indicators know only R, G and B
-- **Status**: Active
-- **Priority**: Low
-- **Reporter**: Found by the dead-code audit follow-ups
-- **Date Reported**: 2026-10-22
-- **Files**: `src/glitchygames/bitmappy/controllers/`
-
 ### 155. Smaller Slider Findings
 - **Description**: Deferred improvements and minor findings from the slider work
 - **Status**: Active
@@ -261,6 +253,14 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: see each item
 
 ## Resolved Bugs
+
+### 153. Controllers Cannot Adjust Alpha
+- **Description**: There is no alpha slider mode: `is_any_controller_in_slider_mode`, slider navigation and the indicators know only R, G and B
+- **Status**: Resolved (2026-11-01, bug sweep, behavior decision: `ControllerMode.A_SLIDER`, in screen order above red. L2 steps film strip, canvas, A, R, G, B; R2 the reverse; the D-pad cycles A, R, G, B. One table in `controllers/modes.py` (`SLIDER_MODE_CHANNELS`: each slider mode's editor slider and channel name, with `SLIDER_MODES_TOP_TO_BOTTOM` and `SLIDER_MODE_VALUES`) replaces the R/G/B sets and branches in the mode switcher, slider operations, visual indicators and `is_any_controller_in_slider_mode`)
+- **Priority**: Low
+- **Reporter**: Found by the dead-code audit follow-ups
+- **Date Reported**: 2026-10-22
+- **Files**: `src/glitchygames/bitmappy/controllers/`
 
 ### 151. Frame Paste Undoes Out of Order With Paint
 - **Description**: Frame paste goes on the global undo stack while paint goes on per-frame stacks; `handle_undo` tries the frame stack first, so after paint then paste, Ctrl+Z undoes the paint before the paste

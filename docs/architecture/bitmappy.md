@@ -505,7 +505,7 @@ flowchart TD
 ## Multi-Controller System
 
 Up to 4 color-coded controllers can operate simultaneously. Each controller
-independently switches between film strip, canvas and slider (R, G, B) modes using the
+independently switches between film strip, canvas and slider (A, R, G, B) modes using the
 triggers: L2 steps forward, R2 steps back (R2 does nothing in film strip mode). B undoes
 and X redoes in film strip and canvas modes.
 
@@ -522,12 +522,12 @@ flowchart TD
     subgraph Modes["Mode Switching per Controller (ModeSwitcher)"]
         FSM["Film Strip Mode\n(starting mode)"]
         CM["Canvas Mode"]
-        SLM["Slider Modes\nR, then G, then B"]
+        SLM["Slider Modes\nA, then R, G, B"]
 
         FSM -->|"L2"| CM
         CM -->|"L2"| SLM
         SLM -->|"L2 on B"| FSM
-        SLM -->|"R2 on R"| CM
+        SLM -->|"R2 on A"| CM
         CM -->|"R2"| FSM
     end
 

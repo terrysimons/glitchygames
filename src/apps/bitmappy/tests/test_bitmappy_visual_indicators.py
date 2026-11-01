@@ -85,6 +85,7 @@ class FakeEditor:
         self.visual_collision_manager = VisualCollisionManager()
         self.film_strips = {'walk': FakeFilmStrip(), 'run': FakeFilmStrip()}
         self.canvas = FakeCanvas()
+        self.alpha_slider = FakeSlider(rect=pygame.Rect(100, 100, 200, 20))
         self.red_slider = FakeSlider(rect=pygame.Rect(100, 10, 200, 20))
         self.green_slider = FakeSlider(rect=pygame.Rect(100, 40, 200, 20))
         self.blue_slider = FakeSlider(rect=pygame.Rect(100, 70, 200, 20))
@@ -529,11 +530,13 @@ class TestSliderIndicatorsWithCollisionAvoidance:
         """Controllers on different sliders are centered on their own slider."""
         add_controller(editor=editor, controller_id=0, color=RED, mode=ControllerMode.R_SLIDER)
         add_controller(editor=editor, controller_id=1, color=BLUE, mode=ControllerMode.B_SLIDER)
+        add_controller(editor=editor, controller_id=2, color=GREEN, mode=ControllerMode.A_SLIDER)
 
         handler.indicators._update_all_slider_indicators()
 
         assert handler.slider_indicators[0].rect.center == editor.red_slider.rect.center
         assert handler.slider_indicators[1].rect.center == editor.blue_slider.rect.center
+        assert handler.slider_indicators[2].rect.center == editor.alpha_slider.rect.center
 
     def test_replaces_previous_indicators(self, handler, editor):
         """Old indicator sprites are removed from the sprite group before new ones are made."""
@@ -567,9 +570,12 @@ class TestSliderIndicatorsWithCollisionAvoidance:
 
         assert handler.slider_indicators == {}
 
-    @pytest.mark.parametrize('slider_mode', ['r_slider', 'g_slider', 'b_slider', 'x_slider'])
+    @pytest.mark.parametrize(
+        'slider_mode', ['a_slider', 'r_slider', 'g_slider', 'b_slider', 'x_slider']
+    )
     def test_missing_slider_creates_nothing(self, handler, editor, slider_mode):
         """A slider mode with no slider on the editor creates no indicators."""
+        del editor.alpha_slider
         del editor.red_slider
         del editor.green_slider
         del editor.blue_slider

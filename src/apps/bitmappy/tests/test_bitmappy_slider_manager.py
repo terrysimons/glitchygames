@@ -633,6 +633,12 @@ class TestControllerSliderMode:
 
         assert editor.slider_manager.is_any_controller_in_slider_mode() is True
 
+    def test_controller_in_alpha_slider_mode_is_detected(self, editor):
+        """The alpha slider mode is a slider mode too (BUGS.md #153)."""
+        editor.mode_switcher = self._mode_switcher({0: SimpleNamespace(value='a_slider')})
+
+        assert editor.slider_manager.is_any_controller_in_slider_mode() is True
+
     def test_controllers_outside_slider_modes_are_not_detected(self, editor):
         """Controllers in other modes, or with no mode, are not in slider mode."""
         editor.mode_switcher = self._mode_switcher(

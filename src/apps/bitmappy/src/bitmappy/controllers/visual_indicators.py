@@ -11,7 +11,12 @@ from typing import TYPE_CHECKING, Any
 
 import pygame
 
-from bitmappy.controllers.modes import ControllerMode  # ruff: ignore[typing-only-first-party-import] - used at runtime
+from bitmappy.controllers.modes import (
+    SLIDER_CHANNELS_BY_MODE_VALUE,
+    SLIDER_MODE_CHANNELS,
+    SLIDER_MODE_VALUES,
+    ControllerMode,
+)
 from bitmappy.controllers.selection import (
     ControllerSelection,  # ruff: ignore[typing-only-first-party-import] - used at runtime
 )
@@ -162,7 +167,7 @@ class VisualIndicators:
         # Default position based on mode
         if new_mode.value == 'canvas':
             position = (0, 0)  # Start at top-left of canvas
-        elif new_mode.value in {'r_slider', 'g_slider', 'b_slider'}:
+        elif new_mode.value in SLIDER_MODE_VALUES:
             position = (0, 0)  # Start at top of slider
         else:  # film_strip
             position = (100, 100)  # Default position
@@ -401,9 +406,7 @@ class VisualIndicators:
 
         """
         slider_groups: dict[str, list[dict[str, Any]]] = {
-            'r_slider': [],
-            'g_slider': [],
-            'b_slider': [],
+            slider_mode.value: [] for slider_mode in SLIDER_MODE_CHANNELS
         }
 
         selections = self.handler.editor.controller_selections
@@ -426,20 +429,17 @@ class VisualIndicators:
 
         return slider_groups
 
-    def _create_slider_indicators_with_collision_avoidance(  # ruff: ignore[complex-structure]
+    def _create_slider_indicators_with_collision_avoidance(
         self,
         slider_mode: str,
         controllers: list[dict[str, Any]],
     ) -> None:
         """Create slider indicators with collision avoidance for multiple controllers."""
-        # Get the appropriate slider
+        # Get the slider the mode names; a mode that is no slider mode has none
         slider = None
-        if slider_mode == 'r_slider' and hasattr(self.handler.editor, 'red_slider'):
-            slider = self.handler.editor.red_slider
-        elif slider_mode == 'g_slider' and hasattr(self.handler.editor, 'green_slider'):
-            slider = self.handler.editor.green_slider
-        elif slider_mode == 'b_slider' and hasattr(self.handler.editor, 'blue_slider'):
-            slider = self.handler.editor.blue_slider
+        if slider_mode in SLIDER_CHANNELS_BY_MODE_VALUE:
+            slider_attribute, _channel_name = SLIDER_CHANNELS_BY_MODE_VALUE[slider_mode]
+            slider = getattr(self.handler.editor, slider_attribute, None)
 
         if not slider:
             return
