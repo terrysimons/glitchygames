@@ -23,7 +23,14 @@ import pygame
 import pytest
 
 from glitchygames import recording
-from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT
+from glitchygames.events import (
+    FPSEVENT,
+    GAMEEVENT,
+    MENUEVENT,
+    NAMED_CUSTOM_EVENT_TYPES,
+    named_custom_event_type,
+)
+from glitchygames.events import base as events_base
 from glitchygames.input import devices as devices_module
 from glitchygames.input.state import IDLE_INPUT, held_key_codes
 from glitchygames.live_sources import LiveSources
@@ -37,6 +44,7 @@ from glitchygames.recording import (
     INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
     RECORDING_SOURCE,
+    REDELIVERED_EVENTS_FIELD,
     SAVES_HEADER_FIELD,
     SAVES_OPENED_FIELD,
     SCENE_START_FIELD,
@@ -45,6 +53,8 @@ from glitchygames.recording import (
     RecordingSources,
     RecordingWriteError,
     UnrepresentableValue,
+    custom_event_type_remap,
+    custom_event_types_header,
     event_from_record,
     event_origin,
     event_to_record,
@@ -56,6 +66,7 @@ from glitchygames.recording import (
     pending_internal_posts,
     post_event,
     post_input_event,
+    remapped_event_records,
     reset_internal_post_tracking,
     set_live_game_code_running,
     start_tracking_internal_posts,
@@ -436,6 +447,91 @@ class TestEventRecords:
         """A record with no usable type or attributes is a format error naming the record."""
         with pytest.raises(TraceFormatError, match='Malformed event record'):
             event_from_record(record)
+
+
+class TestCustomEventTypeRemap:
+    """A recording's named custom event ids move to this process's (BUGS.md #211.1)."""
+
+    def test_a_recording_made_now_names_every_registered_type(self):
+        """The header holds the registry as this process allocated it."""
+        assert custom_event_types_header() == dict(NAMED_CUSTOM_EVENT_TYPES)
+        assert custom_event_types_header()['FPSEVENT'] == FPSEVENT
+
+    def test_a_recording_with_this_processs_ids_moves_nothing(self):
+        """The usual case: the same ids, so no frame is copied."""
+        assert (
+            custom_event_type_remap(header={'custom_event_types': custom_event_types_header()})
+            == {}
+        )
+
+    def test_a_legacy_recording_in_an_unshifted_process_moves_nothing(self):
+        """No field: made with USEREVENT + 1..3, which an unshifted process allocates too."""
+        assert custom_event_type_remap(header={}) == {}
+
+    def test_ids_recorded_otherwise_move_to_this_processs(self):
+        """Each named type the header gives another id moves to this process's id."""
+        header = {
+            'custom_event_types': {'FPSEVENT': 40001, 'GAMEEVENT': GAMEEVENT, 'MENUEVENT': 40003}
+        }
+
+        assert custom_event_type_remap(header=header) == {40001: FPSEVENT, 40003: MENUEVENT}
+
+    def test_a_games_named_type_moves_too(self, mocker):
+        """A type a game registered by name is moved like the engine's."""
+        mocker.patch.dict(events_base._NAMED_CUSTOM_EVENT_TYPES)
+        level_up = named_custom_event_type('TEST_LEVEL_UP')
+        header = {'custom_event_types': {**custom_event_types_header(), 'TEST_LEVEL_UP': 40010}}
+
+        assert custom_event_type_remap(header=header) == {40010: level_up}
+
+    def test_a_name_this_process_never_registered_is_left_as_recorded(self):
+        """A newer engine's or another game's type: nothing to move it to."""
+        header = {'custom_event_types': {**custom_event_types_header(), 'NOT_HERE': 40020}}
+
+        assert custom_event_type_remap(header=header) == {}
+
+    @pytest.mark.parametrize(
+        'recorded', [[32866], {'FPSEVENT': '32866'}, {'FPSEVENT': True}, {'FPSEVENT': 1.5}, None]
+    )
+    def test_a_malformed_field_is_refused(self, recorded):
+        """Not names to integer ids: the recording is malformed (bools are not ids)."""
+        with pytest.raises(TraceFormatError, match='custom_event_types must map'):
+            custom_event_type_remap(header={'custom_event_types': recorded})
+
+    def test_records_move_in_batches_and_redelivered_events_only(self):
+        """Every batch and redelivered record of a moved type moves; nothing else changes."""
+        moved_type, kept_type = 40001, pygame.KEYDOWN
+        frames = [
+            {
+                'dt': 0.1,
+                EVENT_BATCHES_FIELD: [
+                    [{'type': moved_type, 'attributes': {}}, {'type': kept_type, 'attributes': {}}],
+                    [],
+                ],
+                REDELIVERED_EVENTS_FIELD: [{'type': moved_type, 'attributes': {'n': 1}}],
+            },
+            {'dt': 0.1},
+        ]
+        original = json.loads(json.dumps(frames))
+
+        moved = remapped_event_records(frames=frames, remap={moved_type: FPSEVENT})
+
+        assert moved[0][EVENT_BATCHES_FIELD] == [
+            [{'type': FPSEVENT, 'attributes': {}}, {'type': kept_type, 'attributes': {}}],
+            [],
+        ]
+        assert moved[0][REDELIVERED_EVENTS_FIELD] == [{'type': FPSEVENT, 'attributes': {'n': 1}}]
+        assert moved[0]['dt'] == 0.1
+        # A frame without event records is the same frame; the input is never changed (frames
+        # share their records)
+        assert moved[1] is frames[1]
+        assert frames == original
+
+    def test_nothing_to_move_returns_the_same_frames(self):
+        """The usual case costs nothing."""
+        frames = [{EVENT_BATCHES_FIELD: [[{'type': FPSEVENT, 'attributes': {}}]]}]
+
+        assert remapped_event_records(frames=frames, remap={}) is frames
 
 
 class TestEventOrigin:

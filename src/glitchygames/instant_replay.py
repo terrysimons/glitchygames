@@ -116,10 +116,12 @@ from glitchygames import clock
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
 from glitchygames.logical_names import logical_name
 from glitchygames.recording import (
+    CUSTOM_EVENT_TYPES_HEADER_FIELD,
     DEVICE_ENUMERATION_FIELD,
     DEVICES_HEADER_FIELD,
     GAME_HEADER_FIELD,
     SCENE_START_DEVICES_HEADER_FIELD,
+    custom_event_types_header,
     event_batch_records,
     event_to_record,
     recorded_frame,
@@ -215,6 +217,10 @@ class InstantReplayJournal:
             'frame_seconds': None,
             'scene_class': type(scene).__name__,
             'random_seed': active_sources().random_seed,
+            # The engine's custom event ids it records with: a replay in a process that
+            # allocated them otherwise moves them (BUGS.md #211.1). Without it, a playback in a
+            # shifted process would read the journal as made with the legacy ids
+            CUSTOM_EVENT_TYPES_HEADER_FIELD: custom_event_types_header(),
         }
         if game is not None:
             self._header['game_class'] = type(game).__name__

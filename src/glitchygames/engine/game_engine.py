@@ -70,6 +70,7 @@ from glitchygames.machine_state import current_machine_state
 from glitchygames.output_files import output_refusal, partial_path
 from glitchygames.randomness import seed_engine_random
 from glitchygames.recording import (
+    CUSTOM_EVENT_TYPES_HEADER_FIELD,
     DEVICE_ENUMERATION_FIELD,
     DEVICES_HEADER_FIELD,
     RECORDED_AT_HEADER_FIELD,
@@ -78,6 +79,7 @@ from glitchygames.recording import (
     RecordingSources,
     RecordingWriteError,
     TraceRecordingAlreadyStartedError,
+    custom_event_types_header,
     forget_pending_posts,
     json_safe_value,
     pending_internal_posts,
@@ -2082,6 +2084,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             # glitchygames/replay/driver.py), so game code reading it replays exactly
             RECORDED_AT_HEADER_FIELD: clock.raw_wall_clock_time().isoformat(),
             'random_seed': self.random_seed,
+            # The engine's custom event ids this run allocated: a replay in a process that
+            # allocated them otherwise moves the recorded events to its own (BUGS.md #211.1)
+            CUSTOM_EVENT_TYPES_HEADER_FIELD: custom_event_types_header(),
             # Each run's provenance, newest first (glitchygames/recording_history.py): this one
             # paces its frames when it has a target FPS (0 is uncapped)
             MEASUREMENT_RUNS_HEADER_FIELD: [
