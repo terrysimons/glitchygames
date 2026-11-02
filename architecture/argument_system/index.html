@@ -456,6 +456,7 @@ from <code>--help</code>: the watched replay's restart internals.</p>
 <a href="../event_system/#one-device-one-event-layer">Event System</a>).</p>
 <ul>
 <li><code>--input-mode {auto,joystick,controller}</code> (<code>choice</code>): Which gamepads the game sees (default: auto, every device; a mapped pad sends controller events, any other device joystick events; joystick: every device sends joystick events; controller: mapped pads only)</li>
+<li><code>--axis-deadzone</code> (<code>unit_interval</code>): Gamepad axis deadzone from 0.0 to 1.0: an axis position nearer its center reads as centered (default: 0.15). One value for every device and both event layers (a deadzone belongs to the physical stick, which <code>--input-mode</code> can read on either layer). A game's maps follow it when built with <code>ActionMap.from_engine_options(options)</code>, as every bundled game's are; a player's deadzone saved with a map (<code>ActionMap.to_dict</code>) wins over it on load unless the game passes <code>deadzone=</code> to <code>from_dict</code></li>
 </ul>
 <h4 id="font-options">Font Options<a class="headerlink" href="#font-options" title="Permanent link">#</a></h4>
 <p>Added by <code>FontManager.args()</code> in <code>src/glitchygames/fonts/font_manager.py</code>.</p>

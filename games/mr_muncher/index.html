@@ -270,6 +270,10 @@ matter here:</p>
 <td>Which gamepad events reach the <code>ActionMap</code> (both families in <code>auto</code>)</td>
 </tr>
 <tr>
+<td><code>--axis-deadzone</code></td>
+<td>The left stick's deadzone (<code>ActionMap.from_engine_options</code>; default 0.15)</td>
+</tr>
+<tr>
 <td><code>--debug-overlay</code></td>
 <td>Shows each muncher's target tile (see <a href="#debug-overlay">Debug overlay</a>)</td>
 </tr>
@@ -1272,7 +1276,7 @@ by the autopilot, a demo could be recorded with
 </tr>
 <tr>
 <td><code>ActionMap</code></td>
-<td>Scancode bindings for the keyboard, D-pad and stick bindings for gamepads, built by <code>MrMuncherScene._create_action_map(input_mode=...)</code>. The golden replay test reads the bindings from the same function</td>
+<td>Scancode bindings for the keyboard, D-pad and stick bindings for gamepads, built by <code>MrMuncherScene._create_action_map(options=...)</code>. The golden replay test reads the bindings from the same function</td>
 </tr>
 <tr>
 <td>Pause screen</td>

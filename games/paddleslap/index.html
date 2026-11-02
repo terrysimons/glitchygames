@@ -926,8 +926,9 @@ the PaddleSlap box is what <code>Game</code>'s handlers and <code>dt_tick</code>
 <li><strong>Movement is frame-driven.</strong> Handlers only update the ActionMaps; the paddles are moved by
   <code>_process_paddle_input</code> at the top of <code>dt_tick</code>, from the held state.</li>
 <li><strong>Input mode.</strong> The ActionMaps take the engine's <code>--input-mode</code> (default <code>auto</code>: a mapped pad's
-  controller events and any other device's joystick events, each press once). PaddleSlap handles
-  both families, so a pad works in every mode.</li>
+  controller events and any other device's joystick events, each press once) and its
+  <code>--axis-deadzone</code> (<code>ActionMap.from_engine_options</code>). PaddleSlap handles both families, so a pad
+  works in every mode.</li>
 <li><strong>Instance ids, not player slots.</strong> SDL numbers devices in the order they appear, so the first
   pad connected drives the left paddle; a pad that is unplugged and plugged back in gets a new
   instance id and no longer matches its binding.</li>

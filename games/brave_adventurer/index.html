@@ -410,6 +410,11 @@ place on every keyboard layout.</p>
 <td>Passed to the <code>ActionMap</code>: which gamepad event family the D-pad, A and mic bindings answer</td>
 </tr>
 <tr>
+<td><code>--axis-deadzone</code></td>
+<td>engine</td>
+<td>Passed to the <code>ActionMap</code> (<code>ActionMap.from_engine_options</code>); the game binds no axes, so it changes nothing yet</td>
+</tr>
+<tr>
 <td><code>--screen-shake-intensity</code></td>
 <td>engine</td>
 <td>Passed to <code>Camera2D(shake_intensity=...)</code>; the game itself starts no shakes</td>
@@ -958,8 +963,9 @@ and <code>on_joy_axis_motion_event</code> (which only feeds the map). A key that
 through to <code>Scene.on_key_down_event</code>.</p>
 <p><strong>Gamepads.</strong> The D-pad and A are bound as <code>controller_button=...</code>; the <code>ActionMap</code> built with
 the scene's <code>input_mode</code> turns that into controller events, joystick events or both. The scene
-reads <code>self.options.get('input_mode', 'joystick')</code>; the engine's <code>--input-mode</code> default is
-<code>auto</code>, so a normal run binds both families and the engine delivers each press once.</p>
+builds it with <code>ActionMap.from_engine_options(self.options)</code> (the engine's <code>--input-mode</code>, default
+<code>auto</code>, and <code>--axis-deadzone</code>), so a normal run binds both families and the engine delivers each
+press once.</p>
 <p><strong>Microphone (primitives edition).</strong> <code>VoiceAssistant.discover()</code> (in <code>__init__</code>) looks for a
 controller with both a microphone and a speaker (a DualSense) and returns <code>None</code> when there is
 none. It runs only when the engine's doors serve the real devices (live play, or a recording):
