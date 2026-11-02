@@ -67,7 +67,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.code_tree import landed_code_trees
+from glitchygames.code_tree import landed_row_files
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_metrics import (
     MILLISECONDS_PER_SECOND,
@@ -83,7 +83,7 @@ from glitchygames.recording_metrics import (
     publishable_rows,
     published_ledger_text,
     read_ledger_file,
-    read_row_files,
+    read_row_files_by_name,
     short_commit,
 )
 from glitchygames.replay.tools.measure import (
@@ -838,12 +838,12 @@ def merged_ledger(
         UnreadableLedgerError: If the pending ledger exists but can't be read.
 
     """
-    repository = read_row_files(directory=project_root / settings.ledger_directory)
+    repository = read_row_files_by_name(directory=project_root / settings.ledger_directory)
     landed = (
         # Only when there are rows: a project without any needs no git
         landed_rows(
-            rows=repository,
-            landed=landed_code_trees(
+            row_files=repository,
+            landed=landed_row_files(
                 repository=project_root,
                 ledger_directory=settings.ledger_directory,
                 paths=settings.code_tree_paths,
@@ -1008,7 +1008,7 @@ def performance_pages_in(
         sys.stderr.write(f'{prefix} {error}\n')
         return ExitCode.UNUSABLE_INPUT
     except RuntimeError as error:
-        # git could not date the row files (landed_code_trees): no repository, or a broken one
+        # git could not date the row files (landed_row_files): no repository, or a broken one
         sys.stderr.write(f'{prefix} {error}\n')
         return ExitCode.UNUSABLE_INPUT
     except OSError as error:

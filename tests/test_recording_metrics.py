@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from glitchygames.build_info import RevisionSource, SourceRevision
-from glitchygames.code_tree import LandedCommit
+from glitchygames.code_tree import LandedRowFile
 from glitchygames.machine_state import MachineState, PowerSource
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
@@ -718,12 +718,15 @@ class TestLandedRows:
     LANDED_TREE = '1111111111111111111111111111111111111111'
     UNLANDED_TREE = '2222222222222222222222222222222222222222'
     LANDED_COMMIT = 'abc0000000000000000000000000000000000000'
+    ROW_FILE = 'row.json'
 
-    def landed(self) -> dict[str, LandedCommit]:
-        """Return one landed tree (the squash commit's)."""
+    def landed(self) -> dict[str, LandedRowFile]:
+        """Return one landed row file (added by the squash commit, of LANDED_TREE)."""
         return {
-            self.LANDED_TREE: LandedCommit(
-                commit=self.LANDED_COMMIT, committed_at='2026-10-25T10:00:00-07:00'
+            self.ROW_FILE: LandedRowFile(
+                commit=self.LANDED_COMMIT,
+                committed_at='2026-10-25T10:00:00-07:00',
+                code_tree=self.LANDED_TREE,
             )
         }
 
@@ -732,30 +735,48 @@ class TestLandedRows:
             update={'code_tree': self.LANDED_TREE, 'allowed_uncommitted_changes': True}
         )
 
-        (published,) = landed_rows(rows=[row], landed=self.landed(), keep_unlanded=False)
+        (published,) = landed_rows(
+            row_files={self.ROW_FILE: [row]}, landed=self.landed(), keep_unlanded=False
+        )
 
         assert published.commit == self.LANDED_COMMIT
         assert published.run.source_revision is not None
         assert published.run.source_revision.committed_at == '2026-10-25T10:00:00-07:00'
         assert published.run.source_revision.uncommitted_changes is False
 
-    def test_an_unlanded_row_is_left_out_of_a_published_build(self):
-        """An intermediate commit's, or a branch's that never merged."""
+    def test_a_row_of_another_tree_than_its_files_commit_is_left_out(self):
+        """An intermediate commit's, or a branch's that was behind main."""
         row = ledger_row().model_copy(update={'code_tree': self.UNLANDED_TREE})
 
-        assert landed_rows(rows=[row], landed=self.landed(), keep_unlanded=False) == []
+        assert (
+            landed_rows(row_files={self.ROW_FILE: [row]}, landed=self.landed(), keep_unlanded=False)
+            == []
+        )
+
+    def test_a_row_whose_file_never_landed_is_left_out(self):
+        """A branch's that never merged: its file is on no landed commit, whatever its tree."""
+        row = ledger_row().model_copy(update={'code_tree': self.LANDED_TREE})
+
+        assert (
+            landed_rows(row_files={'branch.json': [row]}, landed=self.landed(), keep_unlanded=False)
+            == []
+        )
 
     def test_a_local_build_keeps_unlanded_rows_as_they_are(self):
         """So a branch's measurements show before it merges."""
         row = ledger_row().model_copy(update={'code_tree': self.UNLANDED_TREE})
 
-        assert landed_rows(rows=[row], landed=self.landed(), keep_unlanded=True) == [row]
+        assert landed_rows(
+            row_files={self.ROW_FILE: [row]}, landed=self.landed(), keep_unlanded=True
+        ) == [row]
 
     def test_rows_without_a_code_tree_pass_through(self):
         """The history measured before rows named their code tree."""
         row = ledger_row()
 
-        assert landed_rows(rows=[row], landed=self.landed(), keep_unlanded=False) == [row]
+        assert landed_rows(
+            row_files={'history.json': [row]}, landed=self.landed(), keep_unlanded=False
+        ) == [row]
 
 
 class TestFramesPerSecond:

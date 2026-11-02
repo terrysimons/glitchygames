@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
     from pathlib import Path
 
-    from glitchygames.code_tree import LandedCommit
+    from glitchygames.code_tree import LandedRowFile
 
 LOG = logging.getLogger('game.recording_metrics')
 LOG.addHandler(logging.NullHandler())
@@ -967,6 +967,22 @@ def write_row_files(*, rows: Iterable[LedgerRow], directory: Path) -> list[Path]
     return paths
 
 
+def read_row_files_by_name(*, directory: Path) -> dict[str, tuple[LedgerRow, ...]]:
+    """Read every row file in ``directory``, by file name, in file-name order.
+
+    Returns:
+        File name -> its rows (none when the directory is missing); an unreadable file is
+        skipped as ``parse_ledger`` skips a line.
+
+    """
+    if not directory.is_dir():
+        return {}
+    return {
+        path.name: parse_ledger(text=path.read_text(encoding='utf-8')).rows
+        for path in sorted(directory.glob(f'*{ROW_FILE_SUFFIX}'))
+    }
+
+
 def read_row_files(*, directory: Path) -> list[LedgerRow]:
     """Read every row file in ``directory``, in file-name order (none when it is missing).
 
@@ -974,49 +990,51 @@ def read_row_files(*, directory: Path) -> list[LedgerRow]:
         The rows; an unreadable file is skipped as ``parse_ledger`` skips a line.
 
     """
-    if not directory.is_dir():
-        return []
-    rows: list[LedgerRow] = []
-    for path in sorted(directory.glob(f'*{ROW_FILE_SUFFIX}')):
-        rows.extend(parse_ledger(text=path.read_text(encoding='utf-8')).rows)
-    return rows
+    return [row for rows in read_row_files_by_name(directory=directory).values() for row in rows]
 
 
 def landed_rows(
-    *, rows: Iterable[LedgerRow], landed: Mapping[str, LandedCommit], keep_unlanded: bool
+    *,
+    row_files: Mapping[str, Iterable[LedgerRow]],
+    landed: Mapping[str, LandedRowFile],
+    keep_unlanded: bool,
 ) -> list[LedgerRow]:
     """Return the rows whose measured code landed, each labelled with the commit it landed in.
 
-    A row naming a code tree that landed (``code_tree.landed_code_trees``) takes that commit
-    and its date, as committed code (its game's revision does: ``_landed_run``). A row naming
-    one that did not (an intermediate commit's, a branch's that never merged or was behind
-    main) is left out, unless ``keep_unlanded`` (a local build, showing a branch's rows before
-    it merges). A row naming no code tree (the history measured by commit) passes through.
+    A row lands with the commit that added its file (``code_tree.landed_row_files``) when that
+    commit's code tree is the row's; it takes that commit and its date, as committed code (its
+    game's revision does: ``_landed_run``). So code that returns to an earlier tree dates its
+    rows by the commit that brought them (BUGS.md #220.3). A row that did not land (its file
+    not on the landed history, or its commit's tree another: an intermediate commit's, a
+    branch's that was behind main) is left out, unless ``keep_unlanded`` (a local build,
+    showing a branch's rows before it merges). A row naming no code tree (the history measured
+    by commit) passes through.
 
     Args:
-        rows: The rows.
-        landed: Code tree -> the commit it landed in.
+        row_files: File name -> its rows (``read_row_files_by_name``).
+        landed: File name -> where it landed.
         keep_unlanded: Keep the rows whose code did not land, unchanged.
 
     Returns:
-        The rows, in their order.
+        The rows, file by file, in their order.
 
     """
     kept: list[LedgerRow] = []
-    for row in rows:
-        if row.code_tree is None:
-            kept.append(row)
-            continue
-        landing = landed.get(row.code_tree)
-        if landing is None:
-            if keep_unlanded:
+    for file_name, rows in row_files.items():
+        landing = landed.get(file_name)
+        for row in rows:
+            if row.code_tree is None:
                 kept.append(row)
-            continue
-        kept.append(row.model_copy(update={'run': _landed_run(run=row.run, landing=landing)}))
+                continue
+            if landing is None or landing.code_tree != row.code_tree:
+                if keep_unlanded:
+                    kept.append(row)
+                continue
+            kept.append(row.model_copy(update={'run': _landed_run(run=row.run, landing=landing)}))
     return kept
 
 
-def _landed_run(*, run: MeasurementRun, landing: LandedCommit) -> MeasurementRun:
+def _landed_run(*, run: MeasurementRun, landing: LandedRowFile) -> MeasurementRun:
     """Return a run labelled with the commit its code tree landed in, as committed code.
 
     The code tree is the project's, so the landing commit is the game's: the game's revision
