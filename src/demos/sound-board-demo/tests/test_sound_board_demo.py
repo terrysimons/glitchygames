@@ -14,6 +14,7 @@ import pygame
 import pytest
 
 import sound_board_demo
+from glitchygames.audio import Sound
 from glitchygames.display_mode import set_display_mode
 from glitchygames.events.base import HashableEvent
 from tests.demo_runs import engine_run_environment, run_demo_main
@@ -26,6 +27,8 @@ if TYPE_CHECKING:
     from glitchygames.audio.engine import AudioEngine
 
 DEMO_DISPLAY_SIZE = (800, 600)
+# The engine's default window
+DEFAULT_WINDOW_SIZE = (800, 480)
 # Every built-in wave and noise, one row each, in the demo's order
 EXPECTED_ROW_NAMES = (
     'sine',
@@ -167,7 +170,7 @@ def test_the_label_key_cycles_names_hertz_and_steps(scene: sound_board_demo.Game
 
     scene.on_key_down_event(_key_down(pygame.KSCAN_L))
     assert [scene.step_label(step_index=index) for index in range(STEPS_PER_ROW)] == [
-        str(number) for number in range(STEPS_PER_ROW)
+        str(number) for number in range(1, STEPS_PER_ROW + 1)
     ]
 
     scene.on_key_down_event(_key_down(pygame.KSCAN_L))
@@ -203,6 +206,22 @@ def test_the_screen_shows_the_selected_row_and_is_not_black(scene: sound_board_d
         for x_position in range(0, DEMO_DISPLAY_SIZE[0], 7)
         for y_position in range(0, DEMO_DISPLAY_SIZE[1], 7)
     )
+
+
+def test_every_label_fits_inside_its_cell_and_the_screen(scene: sound_board_demo.Game) -> None:
+    """In every label mode, every row's labels are fit their cells."""
+    assert scene.screen is not None
+    for _mode in sound_board_demo.LABEL_MODES:
+        for row_index in range(len(scene.rows)):
+            for step_index in range(STEPS_PER_ROW):
+                cell = scene.cell_rect(row_index=row_index, step_index=step_index)
+                label_width = scene.font.size(scene.step_label(step_index=step_index))[0]
+                assert label_width + 2 * sound_board_demo.CELL_TEXT_INSET <= cell.width, (
+                    f'{scene.step_label(step_index=step_index)} is too wide for its cell'
+                )
+                assert cell.right <= DEFAULT_WINDOW_SIZE[0]
+                assert cell.bottom <= DEFAULT_WINDOW_SIZE[1]
+        scene.on_key_down_event(_key_down(pygame.KSCAN_L))
 
 
 def test_args_adds_the_version_flag() -> None:
@@ -244,6 +263,7 @@ def test_main_keeps_the_users_own_flags(mocker: MockerFixture) -> None:
 @pytest.mark.usefixtures('engine_run')
 def test_main_runs_the_demo_and_plays_a_key(mocker: MockerFixture) -> None:
     """A real engine run: key 1 then the chord key play, and the run quits on its own."""
+    play = mocker.spy(Sound, 'play')
     script = run_demo_main(
         mocker=mocker,
         module=sound_board_demo,
@@ -275,6 +295,9 @@ def test_main_runs_the_demo_and_plays_a_key(mocker: MockerFixture) -> None:
 
     scenes = [seen for seen in script.scenes_seen if seen is not None]
     assert isinstance(scenes[-1], sound_board_demo.Game)
+    # Key 1 and the chord key each played a voice that the engine's voice table accepted
+    assert play.call_count == 2
+    assert all(bool(handle) for handle in play.spy_return_list)
 
 
 def test_a_scene_given_sprite_groups_keeps_them() -> None:

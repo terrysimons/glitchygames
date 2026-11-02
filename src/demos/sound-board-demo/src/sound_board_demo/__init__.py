@@ -64,12 +64,14 @@ LABEL_MODES: Final[tuple[str, ...]] = (LABEL_NOTE_NAMES, LABEL_HERTZ, LABEL_SCAL
 # Layout, in pixels
 TITLE_HEIGHT: Final = 36
 ROW_HEIGHT: Final = 40
-ROW_NAME_WIDTH: Final = 150
-CELL_WIDTH: Final = 56
+ROW_NAME_WIDTH: Final = 90
+# Wide enough for the widest label ('261.63 Hz' is 63 px at 12 points) plus the text inset
+CELL_WIDTH: Final = 76
+CELL_TEXT_INSET: Final = 3
 CELL_HEIGHT: Final = 32
 CELL_GAP: Final = 4
 MARGIN: Final = 8
-FONT_SIZE: Final = 16
+FONT_SIZE: Final = 12
 
 BACKGROUND_RGB: Final = (16, 16, 32)
 ROW_RGB: Final = (48, 48, 80)
@@ -228,7 +230,7 @@ class Game(Scene):
             step_index: The step, 0 to 7.
 
         Returns:
-            The note name, the hertz or the scale step number.
+            The note name, the hertz or the scale step number (1 to 8).
 
         """
         mode = LABEL_MODES[self.label_mode_index]
@@ -237,7 +239,8 @@ class Game(Scene):
         if mode == LABEL_HERTZ:
             hertz: Hz = self.step_pitch(step_index=step_index).to_hz()
             return f'{hertz:.2f} Hz'
-        return str(step_index)
+        # Shown 1-based, as the keys 1-8 are; Scale.step stays 0-based
+        return str(step_index + 1)
 
     def cell_rect(self: Self, *, row_index: int, step_index: int) -> pygame.Rect:
         """Return where one step of one row is drawn.
@@ -284,7 +287,9 @@ class Game(Scene):
                 cell = self.cell_rect(row_index=row_index, step_index=step_index)
                 screen.fill(cell_color, cell)
                 self._draw_text(
-                    screen, self.step_label(step_index=step_index), (cell.x + 3, cell.y + 8)
+                    screen,
+                    self.step_label(step_index=step_index),
+                    (cell.x + CELL_TEXT_INSET, cell.y + 8),
                 )
         self._draw_text(screen, HELP_TEXT, (MARGIN, TITLE_HEIGHT + len(self.rows) * ROW_HEIGHT + 4))
 
