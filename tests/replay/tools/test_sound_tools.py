@@ -521,11 +521,15 @@ def test_migrate_of_a_missing_file_is_missing_input(tmp_path, capsys):
 
 @pytest.mark.parametrize(
     ('contents', 'message'),
-    [('not toml [', 'not valid TOML'), (COIN_FILE, 'is already a version 1 sound file')],
-    ids=['malformed', 'already-version-1'],
+    [
+        ('not toml [', 'not valid TOML'),
+        (COIN_FILE, 'is already a version 1 sound file'),
+        ('recipes = 5\n', 'recipes: must be a table of recipes'),
+    ],
+    ids=['malformed', 'already-version-1', 'recipes-not-a-table'],
 )
 def test_migrate_of_an_unusable_file_is_unusable_input(tmp_path, capsys, contents, message):
-    """A malformed file, or one already at version 1, is UNUSABLE_INPUT."""
+    """A malformed file, one already at version 1, or one whose recipes are no table."""
     recipes = write_recipes(tmp_path, contents)
 
     status = command.main(['sound-migrate', str(recipes)])

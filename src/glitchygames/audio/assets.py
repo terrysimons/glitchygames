@@ -1273,10 +1273,18 @@ def _load_version_zero(definitions: _Definitions) -> SoundFile:
     """Load a ``[recipes.<name>]`` file: each recipe is a short name.
 
     Returns:
-        The file, with a ``legacy_recipe`` entry per recipe. An invalid recipe is a
-        ``SoundAssetError``.
+        The file, with a ``legacy_recipe`` entry per recipe. An invalid recipe, or a
+        ``recipes`` that is not a table, is a ``SoundAssetError``.
     """
     path = definitions.path
+    recipes = definitions.document['recipes']
+    if not isinstance(recipes, dict):
+        not_a_table = _Problem(
+            'recipes',
+            f'must be a table of recipes ([recipes.<name>]), got {type(recipes).__name__}',
+        )
+        error = _asset_error(path, [not_a_table])
+        raise error
     _warn_unknown_recipe_fields(path, definitions.document)
     problems: list[_Problem] = []
     sounds: dict[str, SoundEntry] = {}

@@ -12,8 +12,9 @@ import pygame
 import pytest
 
 from glitchygames.audio import CacheMode, Instrument
+from glitchygames.audio import voices as voices_module
 from glitchygames.audio.accounting import CompileRecord
-from glitchygames.audio.engine import existing_audio_engine
+from glitchygames.audio.engine import AudioEngine, existing_audio_engine
 from glitchygames.audio.voices import ChannelPartition, reserved_channel_count
 from glitchygames.engine import GameEngine
 from glitchygames.exit_codes import ExitCode
@@ -235,6 +236,32 @@ class TestARecordedRun:
 
         assert reserved_channel_count() == 0
         assert pygame.mixer.Sound(buffer=bytes(4 * 44100)).play() is not None
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+def test_a_failing_audio_close_still_runs_the_rest_of_the_teardown_then_fails_it(mocker, caplog):
+    """GameEngine._shutdown: the reservation is given back and pygame quits, then the error.
+
+    The close's error is the teardown's failure (logged with its traceback, exit
+    INTERNAL_ERROR), as any other teardown error is, but only after the rest of the teardown ran.
+    """
+    SoundingGame.seen.clear()
+    mocker.patch.object(AudioEngine, 'close', side_effect=RuntimeError('the fades went wrong'))
+    release_channels = mocker.spy(voices_module, 'release_channels')
+    engine = build_engine(mocker, game=SoundingGame)
+
+    with (
+        caplog.at_level(logging.ERROR, logger='game.engine'),
+        pytest.raises(SystemExit) as exit_info,
+    ):
+        engine.start()
+
+    assert exit_info.value.code == ExitCode.INTERNAL_ERROR
+    assert release_channels.call_count == 1
+    assert pygame.quit.call_count >= 1  # the engine_run_environment fixture's stand-in
+    assert existing_audio_engine() is None
+    (record,) = [record for record in caplog.records if record.exc_info is not None]
+    assert 'the fades went wrong' in str(record.exc_info[1])
 
 
 @pytest.mark.usefixtures('engine_run_environment')

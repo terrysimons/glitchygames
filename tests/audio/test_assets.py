@@ -314,6 +314,15 @@ def test_a_v0_recipe_that_is_not_a_table_still_names_the_recipe(tmp_path, caplog
         load_sound_file(path)
 
 
+@pytest.mark.parametrize('recipes', ['5', '"coin"', '[1, 2]'])
+def test_a_v0_file_whose_recipes_are_no_table_names_the_file_and_the_field(tmp_path, recipes):
+    """``recipes = 5`` is a SoundAssetError naming the file and ``recipes``, not a crash."""
+    path = _write(tmp_path, 'legacy.toml', f'recipes = {recipes}\n')
+
+    with pytest.raises(SoundAssetError, match=r'legacy\.toml: recipes: must be a table of recipes'):
+        load_sound_file(path)
+
+
 @pytest.mark.parametrize('tones', ['[5]', '5'])
 def test_a_v0_tone_that_is_not_a_table_is_reported_without_a_warning(tmp_path, tones):
     """A v0 tone that is not a table is reported without a warning."""

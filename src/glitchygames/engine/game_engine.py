@@ -3231,12 +3231,23 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self.timer.close()
         # Before pygame quits: the sound library's voices fade over 50 ms, waited for at most
         # 100 ms (sound engine impl spec 10.3), then the channel reservation is given back (SDL
-        # would keep it for a mixer started again in this process)
+        # would keep it for a mixer started again in this process). Even when closing the audio
+        # engine fails, the reservation is given back and the rest of the teardown runs; the
+        # failure then propagates (the teardown failed: logged with its traceback, exit
+        # INTERNAL_ERROR)
         from glitchygames.audio.engine import discard_audio_engine
         from glitchygames.audio.voices import release_channels
 
-        discard_audio_engine()
-        release_channels()
+        try:
+            discard_audio_engine()
+        finally:
+            try:
+                release_channels()
+            finally:
+                self._finish_the_teardown()
+
+    def _finish_the_teardown(self: Self) -> None:
+        """Print the end-of-run reports (unless the replay restarts) and shut down pygame."""
         # A step back restarts the replay (glitchygames/replay/rebuild.py): not the end of the
         # run, so the end-of-run reports wait for the last replay
         if self.replay_sources is not None and self.replay_sources.result.restart_frame is not None:
