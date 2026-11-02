@@ -19,6 +19,28 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## High Priority Features
 
+### 63. Sound Engine: One-Call Sound API, Instruments and the CRT's Sound — DESIGN
+- **Description**: sound becomes a first-class retro feature (the user, 2026-11-02). One call,
+  `audio.sound(...)`, takes a short name, a path or an `Instrument`. The first request compiles
+  the sound, later requests return it from the engine's cache, and getting a sound never plays it
+  ("the way you load it is the same as the way you'd use it in the game - one API"). Pitches can
+  be notes, hertz, MIDI or scale steps, side by side. Named waves can be mixed, blended, put in
+  wavetables, drawn as points or built from harmonics, with named constants for their numbers.
+  TOML instruments; live sounds driven by game parameters; buses; offline render to WAV; retro
+  profiles; demos (Sound Board first).
+- **Spec**: `docs/specs/2026-11-02-sound-engine-feature-spec.md` and
+  `docs/specs/2026-11-02-sound-engine-implementation-spec.md` (from the user's brief,
+  `~/Documents/ChatGPT/GlitchyGames/glitchygames-sound-engine-development-brief.md`)
+- **Order (the user, 2026-11-02)**: M1 the one-call API (pitch and wave types, notes and chords,
+  the cache as `None`/`'ram'`, per-frame audio accounting, buses and voices, offline render, the
+  CRT power-on sound (#53's follow-up), the Sound Board demo); M2 live instruments, migration of
+  all five games and removal of the old sound paths; M3 measurement with the cache off, then
+  `'ram'`, then `'disk'`, with a *Sound Performance* docs page of plots; then instrument depth,
+  music and authoring
+- **Status**: DESIGN: specs drafted on `docs/sound-engine-specs` (2026-11-02), awaiting the user's
+  review; implementation plan to follow
+- **Priority**: High (requested 2026-11-02)
+
 ### 1. Memory Optimization
 - **Description**: Implement configurable buffer sizes and automatic cleanup for long-running games
 - **Use Case**: Reduced memory footprint for extended gameplay sessions, 5 9s reliability (100,000+ data points)
