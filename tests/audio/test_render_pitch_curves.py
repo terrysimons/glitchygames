@@ -7,7 +7,7 @@ from glitchygames.audio.instrument import Instrument, PitchCurve, Source
 from glitchygames.audio.pitch import Hz
 from glitchygames.audio.render import render_sound
 from glitchygames.effects.easing import get_easing
-from tests.audio.measuring import zero_crossing_frequencies
+from tests.audio.measuring import cents_between, measured_fundamental, zero_crossing_frequencies
 from tests.audio.render_specs import HELD_ENVELOPE, SAMPLE_RATE, spec_for
 
 ONE_PERCENT = 0.01
@@ -77,3 +77,18 @@ def test_a_curve_overshooting_below_zero_hertz_is_refused():
     spec = glide_spec(start_hz=2000.0, end_hz=8.0, seconds=0.1, easing='ease_out_back', length=0.1)
     with pytest.raises(ValueError, match='frequency'):
         render_sound(spec)
+
+
+def test_a_detuned_source_keeps_its_offset_through_the_glide():
+    """The curve's target is for the source's base pitch: +7 cents ends 7 cents above it."""
+    source = Source('sine', detune_cents=7.0, pitch_curve=PitchCurve(to=Hz(440.0), seconds=0.1))
+    instrument = Instrument(sources={'glide': source}, envelope=HELD_ENVELOPE, hard_edges=True)
+    samples = render_sound(spec_for(instrument, pitch=Hz(220.0), length=1.1)).samples
+    held = samples[round(0.1 * SAMPLE_RATE) :]
+    measured = measured_fundamental(held, SAMPLE_RATE)
+    assert cents_between(measured, 440.0) == pytest.approx(7.0, abs=0.05)
+    assert measured > 440.0
+    times, frequencies = zero_crossing_frequencies(samples, SAMPLE_RATE)
+    start = float(np.interp(0.01, times, frequencies))
+    expected_start = 220.0 * 2.0 ** (7.0 / 1200.0) + (440.0 - 220.0) * 2.0 ** (7.0 / 1200.0) * 0.1
+    assert start == pytest.approx(expected_start, rel=ONE_PERCENT)

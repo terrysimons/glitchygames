@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Final, Self, override
 
 import numpy as np
 
+from glitchygames.audio.pitch import SUPPORTED_HIGH_HZ, SUPPORTED_LOW_HZ
 from glitchygames.engine_context import ContextSlot, current_context
 
 if TYPE_CHECKING:
@@ -280,7 +281,7 @@ class Wave:
     ``Wave.from_points(...)`` all give a wave; ``table()`` is its 2048-sample cycle.
     """
 
-    __slots__ = ('_bands', '_built_in_name', '_duty', '_note_periods', '_table')
+    __slots__ = ('_band_peaks', '_bands', '_built_in_name', '_duty', '_note_periods', '_table')
 
     def __init__(self, name: str, *, duty: float | None = None) -> None:
         """Build a built-in wave by name.
@@ -318,6 +319,7 @@ class Wave:
         self._built_in_name: str | None = built_in_name
         self._duty: float | None = duty
         self._bands: dict[int, FloatArray] = {}
+        self._band_peaks: dict[int, float] = {}
 
     @classmethod
     def _from_table(cls, table: FloatArray, *, note_periods: int = 1) -> Self:
@@ -387,6 +389,43 @@ class Wave:
             spectrum[kept_harmonics + 1 :] = 0.0
             self._bands[kept_harmonics] = _freeze(np.fft.irfft(spectrum, n=WAVE_TABLE_LENGTH))
         return self._bands[kept_harmonics]
+
+    def band_limited_peak(self, *, sample_rate: int) -> float:
+        """The loudest sample of any band table a note in the supported range reads.
+
+        Band-limiting a wave with edges (a square, a saw) adds Gibbs overshoot above its
+        table's peak of 1, worst in the high bands where few harmonics are left. The renderer
+        divides by this so a level-1 source never clips. The bands are those read by notes from
+        8 Hz to 12 kHz (``SUPPORTED_LOW_HZ`` to ``SUPPORTED_HIGH_HZ``); a linear read between
+        table samples never exceeds them. Computed once per sample rate and cached.
+
+        Args:
+            sample_rate: Samples per second.
+
+        Returns:
+            The peak magnitude (1 or more for a normalized wave).
+        """
+        if sample_rate not in self._band_peaks:
+            nyquist = sample_rate / 2.0
+            lowest = SUPPORTED_LOW_HZ / self._note_periods
+            highest = min(SUPPORTED_HIGH_HZ / self._note_periods, nyquist)
+            first_band = max(0, math.ceil(math.log2(lowest / LOWEST_BAND_HERTZ)))
+            last_band = max(0, math.ceil(math.log2(highest / LOWEST_BAND_HERTZ)))
+            band_tops = [
+                min(LOWEST_BAND_HERTZ * 2.0**band, nyquist)
+                for band in range(first_band, last_band + 1)
+            ]
+            self._band_peaks[sample_rate] = max(
+                float(
+                    np.max(
+                        np.abs(
+                            self.band_limited_table(highest_frequency=top, sample_rate=sample_rate)
+                        )
+                    )
+                )
+                for top in band_tops
+            )
+        return self._band_peaks[sample_rate]
 
     @classmethod
     def mix(cls, **weights: float) -> Self:

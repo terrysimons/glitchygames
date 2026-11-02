@@ -24,6 +24,8 @@ def test_boundary_declick_applies_only_when_the_edge_is_loud():
     assert abs(loud_start[0]) < 1 / 1024 and abs(loud_start[-1]) < 1 / 1024
     hard = render_sound(single_note_spec(wave='square', hz=440.0, hard_edges=True)).samples
     assert abs(hard[0]) > 0.5
+    # The onset is a band-limited step from silence; keep a margin over the brief's 0.5
+    assert abs(hard[0]) > 0.54
 
 
 def test_declick_fades_last_one_and_two_milliseconds():
@@ -67,11 +69,42 @@ def test_peak_over_full_scale_is_clipped_and_reported(caplog):
     assert 'too-loud' in caplog.text
 
 
-@pytest.mark.parametrize('frequency', [55.0, 440.0, 3520.0])
-def test_a_level_one_square_does_not_clip(frequency):
-    """The PolyBLEP headroom keeps a band-limited square's Gibbs overshoot under full scale."""
-    rendered = render_sound(single_note_spec(wave='square', hz=frequency, length=0.5))
+# The single headroom every PolyBLEP wave had before the per-wave rule
+OLD_POLYBLEP_HEADROOM = 0.705
+NO_CLIP_FREQUENCIES = [55.0, 440.0, 3520.0, 8000.0]
+
+
+def rms(samples):
+    """Root mean square level.
+
+    Returns:
+        The RMS.
+    """
+    return float(np.sqrt(np.mean(np.square(samples))))
+
+
+@pytest.mark.parametrize('frequency', NO_CLIP_FREQUENCIES)
+@pytest.mark.parametrize('wave', [Wave('square'), Wave.mix(square=1.0)], ids=['polyblep', 'table'])
+def test_a_level_one_square_does_not_clip(wave, frequency):
+    """Per-wave headroom keeps a band-limited square's Gibbs overshoot under full scale."""
+    rendered = render_sound(single_note_spec(wave=wave, hz=frequency, length=0.5))
     assert rendered.clipped is False
+    # Below the worst pitch the overshoot is smaller, so the peak sits further under 1
+    assert rendered.peak > 0.75
+
+
+def test_a_polyblep_square_and_a_table_square_are_equally_loud():
+    """The two routes to a square agree within 1 dB at 440 Hz."""
+    polyblep = render_sound(single_note_spec(wave=Wave('square'), hz=440.0, length=0.5)).samples
+    table = render_sound(single_note_spec(wave=Wave.mix(square=1.0), hz=440.0, length=0.5)).samples
+    assert abs(20.0 * np.log10(rms(polyblep) / rms(table))) < 1.0
+
+
+@pytest.mark.parametrize(('wave', 'naive_rms'), [('square', 1.0), ('saw', 1.0 / np.sqrt(3.0))])
+def test_saw_and_square_are_louder_than_under_one_shared_headroom(wave, naive_rms):
+    """Per-shape headroom gives back level the worst pulse's constant took from saw and square."""
+    samples = render_sound(single_note_spec(wave=wave, hz=440.0, length=0.5)).samples
+    assert rms(samples) > 1.05 * OLD_POLYBLEP_HEADROOM * naive_rms
 
 
 @pytest.mark.parametrize(
@@ -82,19 +115,21 @@ def test_level_one_polyblep_waves_at_their_worst_measured_pitch_do_not_clip(wave
     """Each built-in at the pitch where its overshoot measured highest stays within full scale."""
     rendered = render_sound(single_note_spec(wave=wave, hz=frequency, length=0.5, hard_edges=True))
     assert rendered.clipped is False
-    assert rendered.peak > 0.8
+    assert rendered.peak > 0.9
 
 
-def test_the_worst_measured_pulse_duty_does_not_clip():
-    """A 0.7 pulse near 11.9 kHz (only DC and its fundamental left) peaked highest: 1.41."""
+@pytest.mark.parametrize('duty', [0.01, 0.16, 0.3, 0.7, 0.99])
+@pytest.mark.parametrize('frequency', [190.0, 1900.0, 11877.0])
+def test_level_one_pulses_of_any_duty_do_not_clip(duty, frequency):
+    """A pulse's headroom follows its duty, so none clips."""
     instrument = Instrument(
-        wave=Wave('pulse', duty=0.7),
+        wave=Wave('pulse', duty=duty),
         envelope=EnvelopeSpec(0.0, 0.0, 1.0, 0.0),
         hard_edges=True,
     )
-    rendered = render_sound(spec_for(instrument, pitch=Hz(11877.0), length=0.5))
+    rendered = render_sound(spec_for(instrument, pitch=Hz(frequency), length=0.3))
     assert rendered.clipped is False
-    assert rendered.peak > 0.99
+    assert rendered.peak > 0.75
 
 
 def test_a_sound_within_full_scale_reports_its_peak_unclipped():

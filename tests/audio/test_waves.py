@@ -1,5 +1,7 @@
 """Tests for named waves, mixes, blends, harmonics, wave points and the wave registry."""
 
+import math
+
 import numpy as np
 import pytest
 
@@ -426,3 +428,27 @@ def test_registry_lookup_contains_and_errors():
         registry['missing']
     with pytest.raises(ValueError, match='cannot be empty'):
         registry.register('', Wave('sine'))
+
+
+def test_a_sines_band_limited_peak_is_one():
+    """A sine has no overshoot to make room for."""
+    assert Wave('sine').band_limited_peak(sample_rate=44100) == pytest.approx(1.0, abs=1e-9)
+
+
+def test_a_mixed_squares_band_limited_peak_is_its_gibbs_overshoot():
+    """Band tables of a square overshoot its naive peak of 1, worst with one harmonic left."""
+    wave = Wave.mix(square=1.0)
+    peak = wave.band_limited_peak(sample_rate=44100)
+    assert peak == pytest.approx(4.0 / math.pi, abs=1e-3)
+    assert wave.band_limited_peak(sample_rate=44100) == peak
+
+
+def test_band_limited_peak_covers_only_the_bands_supported_pitches_read():
+    """The peak is the loudest band table read between 8 Hz and 12 kHz."""
+    wave = Wave.mix(saw=1.0)
+    bands = [
+        wave.band_limited_table(highest_frequency=frequency, sample_rate=44100)
+        for frequency in (8.0, 12000.0)
+    ]
+    expected = max(float(np.max(np.abs(band))) for band in bands)
+    assert wave.band_limited_peak(sample_rate=44100) >= expected

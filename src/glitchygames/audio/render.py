@@ -60,12 +60,23 @@ OVERSAMPLING: Final[int] = 2
 ANTI_ALIAS_CUTOFF_FRACTION: Final[float] = 0.45
 ANTI_ALIAS_TAPS: Final[int] = 101
 DRIVE_OVERSAMPLED_ABOVE: Final[float] = 2.0
-# Band-limiting a saw, square or pulse adds Gibbs overshoot above its naive peak of 1. Measured
-# peaks of the 2x output at level 1, swept from 8 Hz to Nyquist at 44100 Hz: saw 1.143 (8.3
-# Hz), square 1.272 (8.2 kHz), pulse duties 0.01-0.99 up to 1.410 (duty 0.7 near 11.9 kHz,
-# where only DC and the fundamental are left). Scaling by 1 / 1.418 keeps a level-1 source's
-# peak under full scale with about 0.5% to spare, as custom waves are normalized to peak 1.
-POLYBLEP_HEADROOM: Final[float] = 0.705
+# Headroom: every periodic source is divided by its worst band-limited peak over the supported
+# pitches (8 Hz-12 kHz), so a level-1 source never clips and waves of one shape are equally loud
+# whichever way they render. Band-limiting edges adds Gibbs overshoot above the naive peak of 1.
+# PolyBLEP peaks were measured from the 2x output at level 1, 300 pitches from 8 Hz to 12 kHz
+# at 44100 Hz, duties 0.01-0.99 in steps of 0.01 (whole notes, onset included):
+#   saw: 1.143 at 8.3 Hz.
+#   square and pulse: at most max(|2d - 1| + (4 / pi) sin(pi d), 1.296). The first term is
+#   DC plus the fundamental alone, the analytic peak once a high note keeps one harmonic (it
+#   overestimates the measured peak by up to 3.5% in mid duties, where the 2x kernel rolls the
+#   fundamental off); 1.296 is the Gibbs overshoot narrow pulses reach (measured up to 1.2955
+#   at duty 0.16, where the two terms cross). Square (d = 0.5) measured 1.269.
+# The PolyBLEP peaks are divided out with 1% to spare for pitches between those measured.
+SAW_BAND_LIMITED_PEAK: Final[float] = 1.143
+PULSE_GIBBS_PEAK: Final[float] = 1.296
+POLYBLEP_PEAK_MARGIN: Final[float] = 1.01
+# A table read never exceeds its band's peak; this only absorbs the division's rounding
+TABLE_PEAK_MARGIN: Final[float] = 1.0 + 1e-9
 # A PolyBLEP wave's first sample at phase 0: the square is high, the saw at its bottom
 SAW_START_LEVEL: Final[float] = -1.0
 SQUARE_START_LEVEL: Final[float] = 1.0
@@ -223,21 +234,24 @@ def _source_frequencies(
 ) -> FloatArray:
     """The source's frequency at each frame: its pitch, then its glide, if it has one.
 
+    A glide's target is for the source's base pitch: the source's semitone and cent offsets
+    apply to both ends, so a detuned or layered source keeps its interval all the way.
+
     Returns:
         One frequency per frame, in hertz.
     """
-    start_hz = (source.fixed_hz if source.fixed_hz is not None else event.hz) * _tuning_ratio(
-        source
-    )
+    ratio = _tuning_ratio(source)
+    start_hz = (source.fixed_hz if source.fixed_hz is not None else event.hz) * ratio
     frequencies = np.full(frame_count, start_hz)
     curve = source.pitch_curve
     if curve is not None:
+        target_hz = curve.target_hz * ratio
         glide = synth.frequency_curve(
-            start_hz, curve.target_hz, curve.seconds, easing=curve.easing, sample_rate=sample_rate
+            start_hz, target_hz, curve.seconds, easing=curve.easing, sample_rate=sample_rate
         )
         gliding = min(len(glide), frame_count)
         frequencies[:gliding] = glide[:gliding]
-        frequencies[gliding:] = curve.target_hz
+        frequencies[gliding:] = target_hz
     return frequencies
 
 
@@ -268,6 +282,18 @@ def _centered(samples: FloatArray, kernel: FloatArray) -> FloatArray:
     return synth.apply_kernel(np.concatenate((samples, np.zeros(half))), kernel)[half:]
 
 
+def _polyblep_peak(*, is_saw: bool, duty: float) -> float:
+    """The worst band-limited peak of a level-1 saw, or of a square or pulse of this duty.
+
+    Returns:
+        The peak magnitude (see the measurements above ``SAW_BAND_LIMITED_PEAK``).
+    """
+    if is_saw:
+        return SAW_BAND_LIMITED_PEAK
+    one_harmonic_peak = abs(2.0 * duty - 1.0) + 4.0 / math.pi * math.sin(math.pi * duty)
+    return max(one_harmonic_peak, PULSE_GIBBS_PEAK)
+
+
 def _polyblep_samples(
     wave: Wave, frequencies: FloatArray, *, duty: float, sample_rate: int
 ) -> FloatArray:
@@ -277,7 +303,8 @@ def _polyblep_samples(
     AUD-WAVE-006 needs 40, which 2x reaches (51 dB). The oscillator runs half a kernel past the
     note so the filter sees the wave go on, not stop. The first sample keeps its naive level:
     PolyBLEP smooths the wrap from a previous cycle, and a note's first sample has none. The
-    result is scaled by ``POLYBLEP_HEADROOM`` so its Gibbs overshoot stays under full scale.
+    result is divided by the shape's worst band-limited peak (``_polyblep_peak``) so its Gibbs
+    overshoot stays under full scale.
 
     Returns:
         One sample per frequency.
@@ -298,7 +325,8 @@ def _polyblep_samples(
     )
     samples[0] = SAW_START_LEVEL if is_saw else SQUARE_START_LEVEL
     filtered = _centered(samples, _anti_alias_kernel(sample_rate))
-    return POLYBLEP_HEADROOM * filtered[: OVERSAMPLING * len(frequencies) : OVERSAMPLING]
+    headroom = 1.0 / (POLYBLEP_PEAK_MARGIN * _polyblep_peak(is_saw=is_saw, duty=duty))
+    return headroom * filtered[: OVERSAMPLING * len(frequencies) : OVERSAMPLING]
 
 
 def _table_samples(wave: Wave, frequencies: FloatArray, *, sample_rate: int) -> FloatArray:
@@ -306,7 +334,8 @@ def _table_samples(wave: Wave, frequencies: FloatArray, *, sample_rate: int) -> 
 
     The table spans ``note_periods_per_cycle`` note periods, so it is read (and its band chosen)
     at the note frequency divided by that. A note under the lowest band, 0 Hz included (which
-    ``band_limited_table`` refuses), reads the lowest band.
+    ``band_limited_table`` refuses), reads the lowest band. The result is divided by the wave's
+    worst band-limited peak over the supported pitches, so a level-1 source never clips.
 
     Returns:
         One sample per frequency.
@@ -321,7 +350,8 @@ def _table_samples(wave: Wave, frequencies: FloatArray, *, sample_rate: int) -> 
     fraction = positions - below
     below_index = below.astype(np.intp) % WAVE_TABLE_LENGTH
     above_index = (below_index + 1) % WAVE_TABLE_LENGTH
-    return table[below_index] * (1.0 - fraction) + table[above_index] * fraction
+    headroom = 1.0 / (TABLE_PEAK_MARGIN * wave.band_limited_peak(sample_rate=sample_rate))
+    return headroom * (table[below_index] * (1.0 - fraction) + table[above_index] * fraction)
 
 
 def _noise_samples(

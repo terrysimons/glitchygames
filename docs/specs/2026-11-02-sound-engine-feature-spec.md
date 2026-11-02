@@ -1442,7 +1442,7 @@ traceability table (§14 there).
 | --- | --- | --- | --- | --- |
 | AUD-RETRO-001 | Five profiles as validation and defaults on one engine | P1 | M4 | An instrument violating its profile is rejected, naming the rule; one renderer serves all five |
 | AUD-RETRO-002 | Chip pitch quantization | P2 | M4 | The rendered frequency equals `clock / (16(p + 1))` for the chosen period |
-| AUD-RETRO-003 | Stepped envelopes and reduced-resolution waves | P1 | M1 (steps) / M4 (waves) | An envelope has exactly n levels; a wave has 2^bits levels |
+| AUD-RETRO-003 | Stepped envelopes and reduced-resolution waves | P1 | M1 (steps) / M4 (waves) | A `steps(n)` envelope has exactly n levels above silence (n + 1 values counting 0); a wave has 2^bits levels |
 | AUD-RETRO-004 | Original presets only | P0 | M4 | Review checklist: every preset authored in the repo, no sampled ROM data |
 
 ### Assets (AUD-ASSET)
