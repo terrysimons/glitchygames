@@ -24,6 +24,7 @@ class LocalScene(Scene):
         ('paddleslap', 'games.paddleslap'),
         ('drawing_fire.game', 'games.drawing_fire.game'),
         ('joystick_demo', 'demos.joystick_demo'),
+        ('sound_board_demo', 'demos.sound_board_demo'),
         ('text_input_demo', 'demos.text_input_demo'),
         ('glitchygames.scenes.builtin_scenes.pause', 'glitchygames.scenes.builtin_scenes.pause'),
         ('tests.test_logical_names', 'tests.test_logical_names'),
@@ -78,6 +79,7 @@ def test_every_member_has_a_layer():
         'bitmappy': 'apps',
         'dt_demo': 'demos',
         'joystick_demo': 'demos',
+        'sound_board_demo': 'demos',
         'text_input_demo': 'demos',
     }
 

@@ -32,6 +32,7 @@ _CODE_DIRS = [
     'src/games/drawing-fire',
     'src/demos/dt-demo',
     'src/demos/joystick-demo',
+    'src/demos/sound-board-demo',
     'src/demos/text-input-demo',
     'src/apps/bitmappy',
     'scripts',
@@ -50,6 +51,7 @@ _SOURCE_PACKAGE_DIRS = [
     'src/games/drawing-fire/src/drawing_fire',
     'src/demos/dt-demo/src/dt_demo',
     'src/demos/joystick-demo/src/joystick_demo',
+    'src/demos/sound-board-demo/src/sound_board_demo',
     'src/demos/text-input-demo/src/text_input_demo',
     'src/apps/bitmappy/src/bitmappy',
 ]
@@ -64,6 +66,7 @@ _MEMBER_DISTRIBUTIONS = [
     'drawing-fire',
     'dt-demo',
     'joystick-demo',
+    'sound-board-demo',
     'text-input-demo',
     'bitmappy',
 ]

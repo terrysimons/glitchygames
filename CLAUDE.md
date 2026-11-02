@@ -227,9 +227,9 @@ uv run glitchygames record-session paddleslap out.jsonl.gz --headless \
 Every game is its own workspace package under `src/games/` (Part 2 of
 plans/2026-10-24-workspace-packages.md; the recipe is docs/architecture/game_packages.md), with
 its code, tests and golden replay; the engine has no examples package. The `demos` layer
-(`src/demos/<demo>/src/<package>/`, Part 3) holds the three demos, each a workspace member with
-its own console script: `uv run dt-demo`, `uv run joystick-demo`, `uv run text-input-demo` (or
-`python -m dt_demo`, `joystick_demo`, `text_input_demo`); demos get no browser build. A demos-layer
+(`src/demos/<demo>/src/<package>/`, Part 3) holds the four demos, each a workspace member with
+its own console script: `uv run dt-demo`, `uv run joystick-demo`, `uv run sound-board-demo`, `uv run text-input-demo`
+(or `python -m dt_demo`, `joystick_demo`, `sound_board_demo`, `text_input_demo`); demos get no browser build. A demos-layer
 member is not a game's bundled demo recording (`<package>/demos/*.jsonl.gz`, package data).
 (Bitmappy is an app, its own package in the apps layer, `src/apps/bitmappy/`: Part 4 of the same
 plan). `uv run paddleslap` (its own workspace package `src/games/paddleslap/`, one module: `Game` is
