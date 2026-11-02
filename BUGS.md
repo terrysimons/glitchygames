@@ -78,7 +78,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 227. A Native-Driver-Only Frame Difference in the Rebaseline Early-Exit Test
 - **Description**: During Task 4's verification (sub-plan 1 of the engine context, 2026-10-25, macOS), one full `uv run pytest` run's native (cocoa) child run presented a frame differing from the dummy driver's by 9 pixels in `tests/world/test_gameplay_replay.py::TestRebaselineEndedByTheGamesOwnExit::test_a_games_own_failing_exit_writes_nothing`. It did not reproduce in the harness's re-run of the differing test or in a second full run. The change under test (moving the polled input snapshot into an engine context slot) was judged by its reviewer unable to cause it. Likely kin to #225 (an earlier native-only intermittent failure in a different test): both native run only, both order-dependent-looking
-- **Status**: Active
+- **Status**: Fixed (2026-11-02, backlog run, likely with #225: not reproduced (seen once). The one known channel by which a native run differs from dummy between runs, the machine's input reaching a shown test window, is closed by hiding real-driver test windows (`tests/hidden_test_windows.py`). Reopen with the run's log if it is seen again)
 - **Priority**: Low-Medium (an intermittent native failure fails the whole `pytest` command)
 - **Reporter**: Engine context sub-plan 1, Task 4 verification
 - **Date Reported**: 2026-10-25
@@ -96,7 +96,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 225. A World-Space Test Failed Once on the Native Driver: `WorldSprite` Has No `on_mouse_focus_event`
 - **Description**: In one full `uv run pytest` run on the docs scrub branch (2026-10-25, macOS), the native (cocoa) child run failed `test_world_sprite_is_positioned_before_render` with `AttributeError: 'WorldSprite' object has no attribute 'on_mouse_focus_event'`. It did not reproduce in the harness's re-run of the differing test or in a second full run (20,524 passed, 0 driver differences). The branch changed only docs and a docs guard test, so this is an existing order-dependent failure: likely a mouse focus event (cocoa's live window gains or loses focus) reaching a test sprite that does not implement the handler, depending on which test ran before it on that worker
-- **Status**: Active
+- **Status**: Fixed (2026-11-02, backlog run: the channel is closed; its last step is not reproduced. Proven: a mouse motion over the test's sprite gives this exact error (the test's `WorldSprite` is a plain `DirtySprite`, and the mouse manager calls `on_mouse_focus_event` on the topmost sprite under the pointer), and the golden harness's `discard_environment_events` drops window and device events but keeps mouse and keyboard input (tests post their own), so the host's input reaches a scene. Not reproduced: cocoa delivering the real pointer mid-test (synthetic HID moves never gave a terminal-started test window mouse focus). Fix: on a real video driver every test window is hidden (`tests/hidden_test_windows.py`, installed by the harness before any window opens); a hidden window draws and presents the same pixels (checked on cocoa) and receives no pointer or keyboard input. `GLITCHYGAMES_SHOW_TEST_WINDOWS=1` shows them. `tests/test_hidden_test_windows.py`)
 - **Priority**: Medium (an intermittent failure on the native run fails the whole `pytest` command)
 - **Reporter**: The docs scrub's verification run
 - **Date Reported**: 2026-10-25
