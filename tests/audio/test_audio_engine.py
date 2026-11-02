@@ -384,6 +384,30 @@ class TestHandlesAndOwners:
         assert 'system owner' in repr(SYSTEM_OWNER)
         engine.close(wait_seconds=0.0)
 
+    def test_a_fade_at_the_next_update_waits_for_it_then_runs_once(self, scene_manager):
+        """The CRT's tail fades on frame 0's first update, not when it is asked (impl 10.1)."""
+        engine = AudioEngine(
+            partition=ChannelPartition(live=(), library=tuple(range(4, 36)), legacy_count=8),
+            scene_source=lambda: None,
+        )
+        handle = engine.play(Instrument(wave='square'), pitch='C5', loop=True, persist=True)
+
+        engine.fade_out_at_next_update(handle, fade=0.5)
+
+        assert handle.is_playing
+        advance(engine, frames=1, active_scene=OtherScene())
+        assert handle.is_playing is False
+        # Done: a later update has nothing pending
+        advance(engine, frames=1, active_scene=OtherScene())
+        engine.close(wait_seconds=0.0)
+
+    def test_a_fade_at_the_next_update_refuses_a_negative_fade(self, engine):
+        """The handles' own rule, checked when asked rather than at the update."""
+        handle = engine.play('coin')
+
+        with pytest.raises(ValueError, match='fade'):
+            engine.fade_out_at_next_update(handle, fade=-0.1)
+
     def test_pause_screen_pauses_and_resumes_voices(self, engine, scene_manager):
         game_scene = scene_manager.active_scene
         pause_scene = PauseStandInScene(paused_scene=game_scene)

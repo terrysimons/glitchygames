@@ -32,6 +32,11 @@ a scene switched away from directly included, fade out over 50 ms unless they we
 ``persist=True`` (feature spec 7.4). Then each voice gains the frame's served ``dt``. (Live
 voices keep pausing behind any previous scene until M2 replaces them.)
 
+``fade_out_at_next_update(handle, fade=...)`` holds a fade until the next ``update``, which runs
+it first: the CRT power-on asks it for its tail (the bars tone or channel 3 hiss) after its last
+frame, so the tail sounds while the game is built and fades from frame 0's update (impl spec
+10.1).
+
 ``silenced(channel)`` follows ``FrameSilencer``'s stops (impl spec 7.3), and ``close()`` fades
 every voice over 50 ms and waits at most 100 ms for the fades (impl spec 10.3).
 """
@@ -315,6 +320,8 @@ class AudioEngine:
         self._compiles_counted = 0
         self._last_frame_account = AudioFrameAccount(audio_seconds=0.0, audio_work=())
         self._last_processing_seconds: float | None = None
+        # Fades held until the next update (fade_out_at_next_update): the CRT's tail
+        self._fades_at_next_update: list[tuple[SoundHandle, float]] = []
         self._closed = False
 
     # --- Sounds and plays (impl spec 8) ---
@@ -455,6 +462,25 @@ class AudioEngine:
         bus_names = None if bus is None else self._subtree(bus)
         self._voices.stop_buses(bus_names, fade_seconds=fade)
 
+    def fade_out_at_next_update(self, handle: SoundHandle, *, fade: float) -> None:
+        """Fade a voice out from the next ``update`` on, not now (impl spec 10.1).
+
+        The CRT power-on carries its tail into the game this way: asked after the power-on's
+        last frame, the fade starts at frame 0's first update, however long the game took to
+        build.
+
+        Args:
+            handle: The voice.
+            fade: The fade in seconds (as ``SoundHandle.stop``).
+
+        Raises:
+            ValueError: For a negative fade, when asked.
+        """
+        if not fade >= 0.0:
+            message = f'fade must be >= 0 seconds, got {fade}'
+            raise ValueError(message)
+        self._fades_at_next_update.append((handle, fade))
+
     def diagnostics(self) -> AudioDiagnostics:
         """What the engine has done so far (feature spec W8).
 
@@ -577,6 +603,9 @@ class AudioEngine:
             active_transitions: The running and the pending transition (either may be None).
             paused_owners: Other owners whose voices pause (a playback scope's).
         """
+        fades, self._fades_at_next_update = self._fades_at_next_update, []
+        for handle, fade in fades:
+            handle.stop(fade=fade)
         playing_owners = [
             SYSTEM_OWNER,
             *(owner for owner in (active_scene, *active_transitions) if owner is not None),

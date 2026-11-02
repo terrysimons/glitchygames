@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import itertools
 import os
+from pathlib import Path
 
 import pygame
 import pytest
@@ -334,3 +336,137 @@ def test_brightness_one_leaves_the_picture_unchanged():
     crt_power_on._set_brightness(surface=surface, brightness=1.0)
 
     assert pygame.image.tobytes(surface, 'RGB') == pygame.image.tobytes(picture, 'RGB')
+
+
+class RecordingSoundCues:
+    """A recording stand-in for the power-on's sound cues (``PowerOnSoundCues``)."""
+
+    def __init__(self) -> None:
+        """Start with nothing recorded."""
+        self.calls: list[tuple[str, float | None]] = []
+
+    def at_progress(self, progress: float) -> None:
+        """Record the progress the frame drew."""
+        self.calls.append(('at_progress', progress))
+
+    def frame(self, dt: float) -> None:
+        """Record the frame's measured time."""
+        self.calls.append(('frame', dt))
+
+    def skip(self) -> None:
+        """Record the skip."""
+        self.calls.append(('skip', None))
+
+    def kinds(self) -> list[str]:
+        """Return the calls' names, in order."""
+        return [kind for kind, _ in self.calls]
+
+    def values(self, kind: str) -> list[float | None]:
+        """Return the values passed to one kind of call, in order."""
+        return [value for called, value in self.calls if called == kind]
+
+
+def test_each_frame_cues_the_sound_with_the_progress_it_draws(mocker):
+    """Every frame: the cues hear the drawn progress, then move by the measured frame time."""
+    measured_clock(mocker, step=FRAME_SECONDS)
+    cues = RecordingSoundCues()
+
+    outcome = play_power_on(
+        screen=pygame.display.get_surface(),
+        sources=ScriptedEvents(batches=[]),
+        sleep=never_wait,
+        sound_cues=cues,
+    )
+
+    assert outcome is PowerOnOutcome.FINISHED
+    progresses = cues.values('at_progress')
+    # Alternating, one of each per frame, ending on the settled moment
+    assert cues.kinds() == ['at_progress', 'frame'] * len(progresses)
+    assert progresses == sorted(progresses)
+    assert progresses[-1] == 1.0
+    assert progresses[0] == pytest.approx(FRAME_SECONDS / SEQUENCE_SECONDS)
+    # The clock read once at the start, then once a frame: each frame's time is a frame
+    assert cues.values('frame') == pytest.approx([FRAME_SECONDS] * len(progresses))
+    assert 'skip' not in cues.kinds()
+
+
+def test_a_skip_fades_the_sound_instead_of_cueing_the_rest(mocker):
+    """A press skips the picture to the end and the sound to silence: no later cue plays."""
+    measured_clock(mocker, step=FRAME_SECONDS)
+    cues = RecordingSoundCues()
+    events = ScriptedEvents(
+        batches=[[], [], [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_SPACE)]]
+    )
+
+    outcome = play_power_on(
+        screen=pygame.display.get_surface(), sources=events, sleep=never_wait, sound_cues=cues
+    )
+
+    assert outcome is PowerOnOutcome.SKIPPED
+    assert cues.kinds() == ['at_progress', 'frame', 'at_progress', 'frame', 'skip', 'frame']
+
+
+def test_closing_the_window_fades_the_sound_too(mocker):
+    """The game quits after a QUIT: the power-on's sound fades as a skip's does."""
+    measured_clock(mocker, step=FRAME_SECONDS)
+    cues = RecordingSoundCues()
+    events = ScriptedEvents(batches=[[pygame.event.Event(pygame.QUIT)]])
+
+    outcome = play_power_on(
+        screen=pygame.display.get_surface(), sources=events, sleep=never_wait, sound_cues=cues
+    )
+
+    assert outcome is PowerOnOutcome.QUIT
+    assert cues.kinds() == ['skip', 'frame']
+
+
+def test_the_async_player_cues_the_sound_too(mocker):
+    """In a browser the same cues come once per outer tick."""
+    measured_clock(mocker, step=FRAME_SECONDS)
+    cues = RecordingSoundCues()
+
+    async def wait_for_tick() -> float:
+        await asyncio.sleep(0)
+        return 0.0
+
+    outcome = asyncio.run(
+        play_power_on_async(
+            screen=pygame.display.get_surface(),
+            sources=ScriptedEvents(batches=[]),
+            wait_for_tick=wait_for_tick,
+            sound_cues=cues,
+        )
+    )
+
+    assert outcome is PowerOnOutcome.FINISHED
+    assert cues.values('at_progress')[-1] == 1.0
+    assert cues.kinds().count('frame') == len(cues.values('at_progress'))
+
+
+def test_without_sound_cues_it_plays_silently(mocker):
+    """No cues (the sound off, or never made): the picture plays exactly as before."""
+    measured_clock(mocker, step=FRAME_SECONDS)
+
+    outcome = play_power_on(
+        screen=pygame.display.get_surface(), sources=ScriptedEvents(batches=[]), sleep=never_wait
+    )
+
+    assert outcome is PowerOnOutcome.FINISHED
+
+
+def test_the_power_on_module_stays_a_leaf_without_audio():
+    """crt_power_on.py imports no audio: the cues come in through a protocol (impl spec 10.1)."""
+    source = Path(crt_power_on.__file__).read_text(encoding='utf-8')
+    tree = ast.parse(source)
+    imported = {
+        node.module
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module is not None
+    } | {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+
+    assert not any('audio' in module for module in imported)

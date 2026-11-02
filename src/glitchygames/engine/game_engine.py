@@ -27,6 +27,7 @@ from glitchygames.argument_types import non_negative_int, unit_interval
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
     BackgroundPattern,
+    active_default_background_pattern,
     paint_default_background,
     set_active_default_background_pattern,
 )
@@ -171,6 +172,7 @@ if TYPE_CHECKING:
     from types import FrameType
 
     from glitchygames.audio.voices import ChannelPartition
+    from glitchygames.crt_power_on_sound import CrtPowerOnSound
     from glitchygames.input.devices import OpenedController, ReplayDeviceRegistry
     from glitchygames.input.state import InputSnapshot
 
@@ -3416,12 +3418,15 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         with self._crash_boundary(profiler=profiler):
             if self._begin_run():
                 if self._power_on_plays():
+                    sound_cues = self._power_on_sound_cues()
                     self._hand_back_power_on(
                         outcome=await play_power_on_async(
                             screen=self.screen,
                             sources=active_sources(),
                             wait_for_tick=wait_for_tick,
-                        )
+                            sound_cues=sound_cues,
+                        ),
+                        sound_cues=sound_cues,
                     )
                 self._build_game(paced_by_timer=False)
                 await run_frames()
@@ -3560,8 +3565,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if not self._begin_run():
             return
         if self._power_on_plays():
+            sound_cues = self._power_on_sound_cues()
             self._hand_back_power_on(
-                outcome=play_power_on(screen=self.screen, sources=active_sources())
+                outcome=play_power_on(
+                    screen=self.screen, sources=active_sources(), sound_cues=sound_cues
+                ),
+                sound_cues=sound_cues,
             )
         self._build_game(paced_by_timer=True)
         if self.host is not None:
@@ -3610,14 +3619,45 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             options=GameEngine.OPTIONS,
         )
 
-    def _hand_back_power_on(self: Self, *, outcome: PowerOnOutcome) -> None:
+    def _power_on_sound_cues(self: Self) -> CrtPowerOnSound | None:
+        """Make the power-on's sound, compiling it, unless ``--crt-power-on-sound off``.
+
+        Called only when the picture plays (``_power_on_plays``), so the sound keeps the
+        picture's rules: never under ``--headless`` (auto), before a replay, an audit, a
+        rebaseline or a recording (feature spec 12.1, AUD-CRT-002). The audio engine is made
+        here, before the game is built and so before ``SceneManager.game_engine`` is set, from
+        this engine's options and channel partition (``SceneManager.audio_for``): the game's
+        ``scene_manager.audio`` is then this same engine (rulings R34, R35).
+
+        Returns:
+            The cues (glitchygames/crt_power_on_sound.py), or None to play the picture silently.
+
+        """
+        if GameEngine.OPTIONS.get('crt_power_on_sound', 'on') == 'off':
+            return None
+        from glitchygames.crt_power_on_sound import CrtPowerOnSound
+
+        return CrtPowerOnSound(
+            audio=self.scene_manager.audio_for(game_engine=self),
+            background=active_default_background_pattern(),
+        )
+
+    def _hand_back_power_on(
+        self: Self, *, outcome: PowerOnOutcome, sound_cues: CrtPowerOnSound | None
+    ) -> None:
         """Give the game what the power-on sequence ended with: a window closed during it quits.
+
+        Its sound's tail (the bars tone or the hiss) is carried into the game, fading from
+        frame 0 (impl spec 10.1); after a skip everything is already fading.
 
         Args:
             outcome: How the sequence ended.
+            sound_cues: The sequence's sound, or None when it played silently.
 
         """
         self.log.debug('CRT power-on sequence: %s', outcome)
+        if sound_cues is not None:
+            sound_cues.carry_tail_into_the_game()
         if outcome is PowerOnOutcome.QUIT:
             post_input_event(event=pygame.event.Event(pygame.QUIT))
 

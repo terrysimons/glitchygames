@@ -1006,7 +1006,9 @@ class TestCrtPowerOnBeforeEveryGame:
 
         engine.start()
 
-        player.assert_called_once_with(screen=engine.screen, sources=active_sources())
+        player.assert_called_once()
+        assert player.call_args.kwargs['screen'] is engine.screen
+        assert player.call_args.kwargs['sources'] is active_sources()
 
     def test_closing_the_window_during_it_quits_the_game(self, mocker):
         """The QUIT is handed back to the game, which then ends the run normally."""

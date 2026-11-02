@@ -1316,7 +1316,24 @@ class SceneManager(SceneInterface, events.EventManager):
         ``GameEngine.reserved_channel_partition``) and sound options (``--sound-cache``,
         ``--sound-cache-memory``); without a game engine, on the default partition with cache
         ``ram``. Plays belong to the scene in ``setup()``, else the active scene, and short
-        names resolve in that scene's ``SOUND_DIRECTORY``.
+        names resolve in that scene's ``SOUND_DIRECTORY``. (``audio_for`` makes it for a game
+        engine not yet set here: the CRT power-on's, before the game is built.)
+        """
+        return self.audio_for(game_engine=self.game_engine)
+
+    def audio_for(self: Self, *, game_engine: GameEngine | None) -> AudioEngine:
+        """The engine context's audio engine, made on first use from ``game_engine``.
+
+        ``audio`` with the game engine given rather than read from ``game_engine``, which
+        ``GameEngine`` sets only as it builds the game: the CRT power-on asks before that
+        (rulings R34, R35), and the engine it makes is the one ``audio`` returns afterwards.
+
+        Args:
+            game_engine: The game engine whose partition and sound options the audio engine is
+                made from, or None for the default partition with cache ``ram``.
+
+        Returns:
+            The audio engine (the existing one, whatever ``game_engine`` is given, once made).
         """
         from glitchygames.audio.engine import (
             BYTES_PER_MEGABYTE,
@@ -1330,7 +1347,6 @@ class SceneManager(SceneInterface, events.EventManager):
         audio_engine = _existing_audio_engine()
         if audio_engine is not None:
             return audio_engine
-        game_engine = self.game_engine
         partition = (
             default_channel_partition()
             if game_engine is None

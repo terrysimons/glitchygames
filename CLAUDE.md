@@ -1194,7 +1194,17 @@ engine display is painted with the default before the first frame. Then, before 
 that canvas (`src/glitchygames/crt_power_on.py`): a dot, a line, the picture opening, warm-up flicker
 from fixed tables (no randomness), settling on exactly that default; any key or button skips it, a
 window closed during it quits the game. `--crt-power-on auto` (default) skips it on SDL's dummy
-driver (`--headless`, every test) and before a replay, audit, rebaseline or recording
+driver (`--headless`, every test) and before a replay, audit, rebaseline or recording. Its sound
+(`src/glitchygames/crt_power_on_sound.py`, feature spec 12.1) plays with the picture, unless
+`--crt-power-on-sound off`: a power click and a 60 Hz degauss thump at the switch, a flyback whine
+(`FLYBACK_WHINE_HZ`, owner-tunable) from the dot, static as the picture opens, then the bars' 1 kHz
+tone (or channel 3's hiss), all `Instrument`s through `audio.sound(...)`, cued by the frames'
+progress through `play_power_on(sound_cues=...)` (`PowerOnSoundCues`: `crt_power_on.py` stays a
+leaf with no audio import). Its voices are the audio engine's `SYSTEM_OWNER`'s; the engine is made
+before the power-on with the game engine's options and partition (`SceneManager.audio_for`), the
+one the game's `scene_manager.audio` returns. A skip fades every voice over 20 ms; the tail loops
+into the game and fades over 500 ms from frame 0's first audio update
+(`AudioEngine.fade_out_at_next_update`)
 
 **Pixel snapping** (`src/glitchygames/pixel_snap.py`): `PixelSnapMode` and `snap_to_pixel` convert
 sub-pixel world positions to drawn whole pixels (NEAREST_HALF_UP for smooth-motion games, FLOOR
