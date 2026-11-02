@@ -5646,6 +5646,54 @@ class TestRebaselinedHeader:
         # Outside the project (a pytest directory): its file name only (stored_path)
         assert header['rebaselined_from'] == 'old.jsonl.gz'
 
+    def test_a_rebaseline_names_this_processs_custom_event_types(self, tmp_path):
+        """NEW records the replay's events in this process's ids, not OLD's (BUGS.md #211.1)."""
+        from glitchygames.recording import (
+            CUSTOM_EVENT_TYPES_HEADER_FIELD,
+            custom_event_types_header,
+        )
+        from glitchygames.replay.rebaseline import rebaseline_header
+
+        header = rebaseline_header(
+            original_header={
+                'random_seed': 5,
+                CUSTOM_EVENT_TYPES_HEADER_FIELD: {'FPSEVENT': 40001},
+            },
+            original_path=tmp_path / 'old.jsonl.gz',
+            measurement_run=rebaseline_measurement_run(),
+            game_class=DepartureRecordedScene,
+        )
+
+        assert header[CUSTOM_EVENT_TYPES_HEADER_FIELD] == custom_event_types_header()
+
+    def test_a_replay_serves_the_recorded_events_in_this_processs_ids(self, mocker):
+        """decoded_replay_sources moves the frames' records before the sources read them."""
+        from glitchygames.events import FPSEVENT
+        from glitchygames.recording import CUSTOM_EVENT_TYPES_HEADER_FIELD, EVENT_BATCHES_FIELD
+        from glitchygames.replay import driver
+
+        made = mocker.patch.object(driver, 'ReplaySources')
+        header = {'random_seed': 5, CUSTOM_EVENT_TYPES_HEADER_FIELD: {'FPSEVENT': 40001}}
+        frames = [{EVENT_BATCHES_FIELD: [[{'type': 40001, 'attributes': {}}]]}]
+
+        driver.decoded_replay_sources(header=header, frames=frames, format_version=3)
+
+        served_frames = made.call_args.kwargs['frames']
+        assert served_frames[0][EVENT_BATCHES_FIELD] == [[{'type': FPSEVENT, 'attributes': {}}]]
+
+    def test_a_replay_refuses_malformed_custom_event_types(self):
+        """The header's field is checked like the rest of it: a format error, not a crash."""
+        from glitchygames.recording import CUSTOM_EVENT_TYPES_HEADER_FIELD
+        from glitchygames.replay import driver
+        from glitchygames.tracing import TraceFormatError
+
+        with pytest.raises(TraceFormatError, match='custom_event_types must map'):
+            driver.decoded_replay_sources(
+                header={'random_seed': 5, CUSTOM_EVENT_TYPES_HEADER_FIELD: ['FPSEVENT']},
+                frames=[],
+                format_version=3,
+            )
+
     def test_rebaselined_header_drops_the_unreleased_top_level_fields(self, tmp_path):
         """2026-10-20's unreleased format named the machine and pacing at the top level."""
         from glitchygames.replay.rebaseline import rebaseline_header

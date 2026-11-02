@@ -91,7 +91,7 @@ class MenuBar(FocusableSingletonBitmappySprite):
 
     def add_menu(self: Self, menu: MenuItem) -> None:
         """Add a menu to the menu bar."""
-        self.menu_items[menu.name] = menu  # ty: ignore[invalid-assignment]
+        self.menu_items[menu.name] = menu
         self.log.info(
             'Before offset: menu %s at x=%s, offset=%s',
             menu.name,
@@ -533,7 +533,7 @@ class MenuItem(BitmappySprite):
             menu.rect.y += self.menu_offset_y
             self.menu_offset_y += int(menu.rect.height)
 
-        self.menu_items[menu.name] = menu  # ty: ignore[invalid-assignment]
+        self.menu_items[menu.name] = menu
 
         # Now recreate the menu image for later use.
         self.menu_image = pygame.Surface((400, 300))

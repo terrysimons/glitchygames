@@ -67,7 +67,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.code_tree import landed_code_trees
+from glitchygames.code_tree import landed_row_files
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_metrics import (
     MILLISECONDS_PER_SECOND,
@@ -83,7 +83,8 @@ from glitchygames.recording_metrics import (
     publishable_rows,
     published_ledger_text,
     read_ledger_file,
-    read_row_files,
+    read_row_files_by_name,
+    row_label,
     short_commit,
 )
 from glitchygames.replay.tools.measure import (
@@ -208,7 +209,10 @@ def _hover_detail(*, row: LedgerRow) -> str:
     parts = [f'committed {committed[:10]}', f'measured {row.run.measured_at[:16]}']
     if row.frame_count is not None:
         parts.append(f'{row.frame_count} frames')
-    if row.measured_uncommitted_changes:
+    if row.unlanded:
+        # Its commit is the one it was measured on top of; its code is a branch's (#220.2)
+        parts.append(f'not landed on main: measured on top of {short_commit(run=row.run) or "?"}')
+    elif row.measured_uncommitted_changes:
         parts.append('uncommitted changes')
     return ', '.join(parts)
 
@@ -367,7 +371,7 @@ def fps_charts(*, series_list: Sequence[PerformanceSeries]) -> list[dict[str, An
     traces: list[dict[str, Any]] = []
     for slot, series in enumerate(series_list):
         points = [
-            (short_commit(run=row.run) or '', point, _hover_detail(row=row))
+            (row_label(row=row), point, _hover_detail(row=row))
             for row in series.rows
             if (point := fps_point(row=row, paced=series.paced)) is not None
         ]
@@ -425,8 +429,7 @@ def machines_chart(*, series_list: Sequence[PerformanceSeries]) -> dict[str, Any
         'x': [machine_name(row=row) for _, row, _ in bars],
         'y': [point.average for _, _, point in bars],
         'customdata': [
-            f'{_slices_hover(point=point)}<br>commit {short_commit(run=row.run) or ""}, '
-            f'{_hover_detail(row=row)}'
+            f'{_slices_hover(point=point)}<br>commit {row_label(row=row)}, {_hover_detail(row=row)}'
             for _, row, point in bars
         ],
         'error_y': _error_bars(points=[point for _, _, point in bars], width=6),
@@ -456,11 +459,11 @@ def recording_charts(*, series_list: Sequence[PerformanceSeries]) -> dict[str, A
     frame_time: list[dict[str, Any]] = []
     ordered_rows = merge_ledgers(ledgers=[[row for series in series_list for row in series.rows]])
     for row in ordered_rows:
-        label = short_commit(run=row.run)
-        if label is not None and label not in commits:
+        label = row_label(row=row)
+        if label and label not in commits:
             commits.append(label)
     for slot, series in enumerate(series_list):
-        rows = [(short_commit(run=row.run) or '', row) for row in series.rows]
+        rows = [(row_label(row=row), row) for row in series.rows]
         summaries = [(label, row, row.summary) for label, row in rows if row.summary is not None]
         for statistic, field in (
             ('p50', 'p50_processing_seconds'),
@@ -545,11 +548,7 @@ def profile_heatmap(*, series: PerformanceSeries) -> dict[str, Any] | None:
         when no row has a profile.
 
     """
-    profiled = [
-        (short_commit(run=row.run) or '', row.profile)
-        for row in series.rows
-        if row.profile is not None
-    ]
+    profiled = [(row_label(row=row), row.profile) for row in series.rows if row.profile is not None]
     if not profiled:
         return None
     width = max(len(profile.max_microseconds) for _, profile in profiled)
@@ -838,12 +837,12 @@ def merged_ledger(
         UnreadableLedgerError: If the pending ledger exists but can't be read.
 
     """
-    repository = read_row_files(directory=project_root / settings.ledger_directory)
+    repository = read_row_files_by_name(directory=project_root / settings.ledger_directory)
     landed = (
         # Only when there are rows: a project without any needs no git
         landed_rows(
-            rows=repository,
-            landed=landed_code_trees(
+            row_files=repository,
+            landed=landed_row_files(
                 repository=project_root,
                 ledger_directory=settings.ledger_directory,
                 paths=settings.code_tree_paths,
@@ -1008,7 +1007,7 @@ def performance_pages_in(
         sys.stderr.write(f'{prefix} {error}\n')
         return ExitCode.UNUSABLE_INPUT
     except RuntimeError as error:
-        # git could not date the row files (landed_code_trees): no repository, or a broken one
+        # git could not date the row files (landed_row_files): no repository, or a broken one
         sys.stderr.write(f'{prefix} {error}\n')
         return ExitCode.UNUSABLE_INPUT
     except OSError as error:

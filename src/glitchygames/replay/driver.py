@@ -292,12 +292,14 @@ from glitchygames.recording import (
     RecordedReference,
     RecordingSources,
     UnrepresentableValue,
+    custom_event_type_remap,
     event_from_record,
     event_to_record,
     forget_pending_posts,
     is_input_post,
     pending_internal_posts,
     recorded_start_time,
+    remapped_event_records,
     start_tracking_internal_posts,
     stop_tracking_internal_posts,
     take_matching_post,
@@ -2673,6 +2675,11 @@ def decoded_replay_sources(
     unreadable file (``ReplaySources.from_path``), and a playback refuses as it does any
     recording it cannot play (``playback_replay_sources``).
 
+    The frames' event records are first moved to this process's engine custom event ids
+    (``custom_event_type_remap``, from the header's ``CUSTOM_EVENT_TYPES_HEADER_FIELD``; BUGS.md
+    #211.1), so everything the sources read compares and serves this process's FPSEVENT,
+    GAMEEVENT and MENUEVENT.
+
     Known limitation: the catch covers the whole ``ReplaySources.__init__``, so a genuine
     engine bug there that raises AttributeError, KeyError, TypeError or ValueError is reported
     as a malformed recording (``UNUSABLE_INPUT``, 65), not as ``INTERNAL_ERROR`` (70); the
@@ -2689,10 +2696,11 @@ def decoded_replay_sources(
         The sources.
 
     Raises:
-        TraceFormatError: If the header has no seed or start time, or what the sources decode
-            is malformed.
+        TraceFormatError: If the header has no seed or start time, its custom event types are
+            malformed, or what the sources decode is malformed.
 
     """
+    frames = remapped_event_records(frames=frames, remap=custom_event_type_remap(header=header))
     try:
         return ReplaySources(
             header=header,

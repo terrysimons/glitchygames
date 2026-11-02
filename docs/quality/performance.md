@@ -57,10 +57,14 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    measured by the next commit (or by hand: `uv run python -m scripts.measure_staged_replays`,
    then commit). `SKIP=replay-metrics git commit ...` skips it.
 2. **The site shows what landed on `main`.** Every docs build reads the repository's row files
-   and keeps those whose code tree is the code tree of a commit that added rows: on `main`, the
-   squash merge, so each is shown under the commit its code landed in. Rows of a branch's
-   intermediate commits match none and are left out. A local build shows a branch's rows before
-   it merges; only `main` is ever published (`nox -s docs-deploy` refuses anything else).
+   and keeps each row whose code tree is the code tree of the commit that added its file: on
+   `main`, the squash merge, so each is shown under the commit its code landed in (code that
+   returns to an earlier tree is shown under the commit that brought it back). Rows of a
+   branch's intermediate commits name another tree and are left out. Each commit's tree is
+   taken with the measured paths its own `pyproject.toml` names, so changing them later never
+   drops earlier rows. A local build shows a branch's rows before
+   it merges, each as its own point labelled `<commit> unlanded` (the commit it was measured on
+   top of); only `main` is ever published (`nox -s docs-deploy` refuses anything else).
    This needs squash merges: a merge commit brings its branch's commits into `main`'s history,
    and each that added rows would land its own (intermediate) code tree, so pull requests are
    squash-merged only.

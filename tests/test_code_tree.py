@@ -17,8 +17,8 @@ from glitchygames.code_tree import (
     CodeTreePaths,
     commit_code_tree,
     commit_has_landed,
-    landed_code_trees,
     landed_ref_exists,
+    landed_row_files,
     staged_code_tree,
     untracked_measured_files,
 )
@@ -210,43 +210,166 @@ def test_a_failing_git_command_names_itself(tmp_path):
         staged_code_tree(repository=tmp_path, paths=PATHS)
 
 
-def test_landed_code_trees_name_the_commit_each_measured_tree_arrived_in(repository):
-    """A row lands with the commit that adds its file; the earliest such commit per tree.
+def landed_files(repository: Path) -> dict[str, code_tree.LandedRowFile]:
+    """Return the repository's landed row files with this repository's settings.
 
-    The fixture's first commit already added a row with its code (so it landed); a code change
-    with a row lands too; a later docs commit adding a row adds no new tree.
+    Returns:
+        Row file name -> where it landed.
+
+    """
+    return landed_row_files(repository=repository, ledger_directory=LEDGER_DIRECTORY, paths=PATHS)
+
+
+def commit_row(*, repository: Path, row: str, message: str) -> str:
+    """Add a row file and commit everything staged.
+
+    Returns:
+        The commit's full hash.
+
+    """
+    write(repository=repository, relative_path=f'{LEDGER_DIRECTORY}/{row}', text='{}\n')
+    git(repository=repository, arguments=['commit', '--quiet', '-m', message])
+    return git(repository=repository, arguments=['rev-parse', 'HEAD'])
+
+
+def test_each_row_file_lands_with_the_commit_that_added_it(repository):
+    """A row file lands with its adding commit, and that commit's code tree.
+
+    The fixture's first commit added a row with its code; a code change with a row lands
+    with its own tree; a later docs commit adding a row lands with the unchanged tree.
     """
     first_tree = commit_code_tree(repository=repository, commit='HEAD', paths=PATHS)
     first_commit = git(repository=repository, arguments=['rev-parse', 'HEAD'])
     write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 5\n')
-    write(repository=repository, relative_path=f'{LEDGER_DIRECTORY}/fast.json', text='{}\n')
-    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Faster, measured'])
+    faster_commit = commit_row(repository=repository, row='fast.json', message='Faster, measured')
     faster_tree = commit_code_tree(repository=repository, commit='HEAD', paths=PATHS)
-    faster_commit = git(repository=repository, arguments=['rev-parse', 'HEAD'])
     write(repository=repository, relative_path='README.md', text='# notes\n')
-    write(repository=repository, relative_path=f'{LEDGER_DIRECTORY}/again.json', text='{}\n')
-    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Docs, measured again'])
+    docs_commit = commit_row(repository=repository, row='again.json', message='Docs, measured')
 
-    landed = landed_code_trees(
-        repository=repository, ledger_directory=LEDGER_DIRECTORY, paths=PATHS
+    landed = landed_files(repository)
+
+    assert {name: (file.commit, file.code_tree) for name, file in landed.items()} == {
+        'first.json': (first_commit, first_tree),
+        'fast.json': (faster_commit, faster_tree),
+        'again.json': (docs_commit, faster_tree),
+    }
+    assert landed['fast.json'].committed_at
+
+
+def test_code_returning_to_an_earlier_tree_dates_its_rows_by_their_own_commit(repository):
+    """A revert's rows land with the revert, not the tree's first landing (BUGS.md #220.3)."""
+    first_tree = commit_code_tree(repository=repository, commit='HEAD', paths=PATHS)
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 9\n')
+    commit_row(repository=repository, row='changed.json', message='Changed, measured')
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 1\n')
+    revert_commit = commit_row(repository=repository, row='reverted.json', message='Reverted')
+
+    landed = landed_files(repository)
+
+    assert landed['reverted.json'].code_tree == first_tree
+    assert landed['reverted.json'].commit == revert_commit
+    assert landed['first.json'].commit != revert_commit
+
+
+def test_a_commits_tree_is_taken_with_its_own_measured_paths(repository):
+    """A measured path added later leaves earlier commits' trees as they were (BUGS.md #220.5).
+
+    The first commit names only src/ as measured; a later commit adds tools/. The first
+    commit's tree is still taken without tools/, so its rows (measured that way) still land.
+    """
+    only_src = CodeTreePaths(measured=('src',))
+    write(
+        repository=repository,
+        relative_path='pyproject.toml',
+        text='[tool.glitchygames]\nmeasured-paths = ["src"]\n',
+    )
+    write(repository=repository, relative_path='tools/measure.py', text='rounds = 1\n')
+    src_commit = commit_row(repository=repository, row='src-only.json', message='src only')
+    src_only_tree = commit_code_tree(repository=repository, commit='HEAD', paths=only_src)
+    write(
+        repository=repository,
+        relative_path='pyproject.toml',
+        text='[tool.glitchygames]\nmeasured-paths = ["src", "tools"]\n',
+    )
+    commit_row(repository=repository, row='with-tools.json', message='tools measured')
+    with_tools = CodeTreePaths(measured=('src', 'tools'))
+
+    landed = landed_row_files(
+        repository=repository, ledger_directory=LEDGER_DIRECTORY, paths=with_tools
     )
 
-    assert set(landed) == {first_tree, faster_tree}
-    assert landed[first_tree].commit == first_commit
-    assert landed[faster_tree].commit == faster_commit
-    assert landed[faster_tree].committed_at
+    assert landed['src-only.json'].commit == src_commit
+    assert landed['src-only.json'].code_tree == src_only_tree
+    assert landed['with-tools.json'].code_tree == commit_code_tree(
+        repository=repository, commit='HEAD', paths=with_tools
+    )
 
 
-def test_landed_code_trees_reads_each_commits_tree_once(mocker, repository):
+@pytest.mark.parametrize(
+    'pyproject',
+    [
+        None,
+        'not [valid toml',
+        '[project]\nname = "no-settings"\n',
+        'tool = 5\n',
+        '[tool]\nglitchygames = 5\n',
+        '[tool.glitchygames]\nmeasured-paths = "src"\n',
+        '[tool.glitchygames]\nmeasured-paths = ["src"]\nunmeasured-paths = [1]\n',
+    ],
+)
+def test_a_commit_naming_no_usable_measured_paths_uses_the_current_ones(repository, pyproject):
+    """No pyproject.toml, no settings or a malformed table: the fallback (the current paths)."""
+    if pyproject is not None:
+        write(repository=repository, relative_path='pyproject.toml', text=pyproject)
+        git(repository=repository, arguments=['commit', '--quiet', '-m', 'Settings'])
+
+    assert (
+        code_tree.commit_code_tree_paths(repository=repository, commit='HEAD', fallback=PATHS)
+        == PATHS
+    )
+
+
+def test_a_commits_own_measured_and_unmeasured_paths_are_read(repository):
+    """Both keys come from the commit's table."""
+    write(
+        repository=repository,
+        relative_path='pyproject.toml',
+        text=(
+            '[tool.glitchygames]\nmeasured-paths = ["src", "uv.lock"]\n'
+            'unmeasured-paths = [":(glob)src/*/tests/**"]\n'
+        ),
+    )
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Settings'])
+
+    assert code_tree.commit_code_tree_paths(
+        repository=repository, commit='HEAD', fallback=PATHS
+    ) == CodeTreePaths(measured=('src', 'uv.lock'), unmeasured=(':(glob)src/*/tests/**',))
+
+
+def test_landed_row_files_refuses_a_shallow_clone(repository, tmp_path_factory):
+    """A shallow clone's log stops at its depth: refused, not read as fewer landed rows (#220.8)."""
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 6\n')
+    commit_row(repository=repository, row='six.json', message='Measured')
+    shallow = tmp_path_factory.mktemp('clones') / 'shallow'
+    # --depth needs a transport: a plain path clones locally and ignores it
+    git(
+        repository=shallow.parent,
+        arguments=['clone', '--quiet', '--depth', '1', repository.as_uri(), str(shallow)],
+    )
+
+    with pytest.raises(RuntimeError, match='shallow clone'):
+        landed_files(shallow)
+
+
+def test_landed_row_files_reads_each_commits_tree_once(mocker, repository):
     """A commit's tree never changes: a second build (a mkdocs serve rebuild) reads none again."""
     write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 8\n')
-    write(repository=repository, relative_path=f'{LEDGER_DIRECTORY}/eight.json', text='{}\n')
-    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Measured'])
+    commit_row(repository=repository, row='eight.json', message='Measured')
     read_trees = mocker.spy(code_tree, 'commit_code_tree')
 
-    first = landed_code_trees(repository=repository, ledger_directory=LEDGER_DIRECTORY, paths=PATHS)
+    first = landed_files(repository)
     read_after_first = read_trees.call_count
-    again = landed_code_trees(repository=repository, ledger_directory=LEDGER_DIRECTORY, paths=PATHS)
+    again = landed_files(repository)
 
     assert again == first
     assert read_after_first == 2  # the fixture's row-adding commit, then this one
@@ -254,14 +377,12 @@ def test_landed_code_trees_reads_each_commits_tree_once(mocker, repository):
 
 
 def test_a_tree_measured_but_never_committed_has_not_landed(repository):
-    """An intermediate commit's tree is not any row-adding commit's tree."""
+    """An intermediate commit's tree is no row file's landing tree."""
     write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 7\n')
     intermediate_tree = staged_code_tree(repository=repository, paths=PATHS)
     git(repository=repository, arguments=['commit', '--quiet', '-m', 'Unmeasured'])
 
-    assert intermediate_tree not in landed_code_trees(
-        repository=repository, ledger_directory=LEDGER_DIRECTORY, paths=PATHS
-    )
+    assert intermediate_tree not in {file.code_tree for file in landed_files(repository).values()}
 
 
 def test_a_file_staged_one_way_and_edited_another_does_not_stop_it(repository):

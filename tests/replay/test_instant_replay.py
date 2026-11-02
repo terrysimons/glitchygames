@@ -1905,6 +1905,17 @@ class TestJournalLifecycleGuards:
         assert journal._devices_opened == []
         assert journal._device_enumeration == []
 
+    def test_the_header_names_the_custom_event_types_it_records_with(self, journal):
+        """Without them, a playback in a shifted process would read the legacy ids (#211.1)."""
+        from glitchygames.recording import (
+            CUSTOM_EVENT_TYPES_HEADER_FIELD,
+            custom_event_types_header,
+        )
+
+        header = journal.as_recording().header
+
+        assert header[CUSTOM_EVENT_TYPES_HEADER_FIELD] == custom_event_types_header()
+
     def test_before_its_first_logic_frame_it_records_nothing(self, journal, journal_scene):
         """Not begun: no game seconds, not recording, and batches and answers are not kept."""
         journal_scene.game_time = 5.0

@@ -24,8 +24,9 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from pathlib import Path
-from typing import TYPE_CHECKING
+import tomllib
+from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, ConfigDict
 
@@ -204,18 +205,28 @@ def commit_code_tree(*, repository: Path, commit: str, paths: CodeTreePaths) -> 
         return _measured_tree(repository=repository, index_file=index_file, paths=paths)
 
 
-# A commit's code tree never changes, so landed_code_trees looks each up once per process:
+# A commit's code tree never changes, so landed_row_files looks each up once per process:
 # (repository, full commit hash, paths) -> tree. A docs build asks for every row-adding commit
 # in the history, and `mkdocs serve` asks again on each rebuild
 _LANDED_COMMIT_CODE_TREES: dict[tuple[Path, str, CodeTreePaths], str] = {}
+# Marks a commit's line in landed_row_files' log (a file name never holds a NUL)
+_LOG_COMMIT_MARKER = '\x00'
+# The project's settings file and its keys for a code tree's paths, as
+# glitchygames/replay/tools/settings.py reads them (not imported from there: it imports this
+# module)
+PYPROJECT_FILE_NAME = 'pyproject.toml'
+MEASURED_PATHS_KEY = 'measured-paths'
+UNMEASURED_PATHS_KEY = 'unmeasured-paths'
 
 
-class LandedCommit(BaseModel):
-    """The commit a measured code tree landed in: the first one adding rows of that tree.
+class LandedRowFile(BaseModel):
+    """The commit a row file landed in (the first that added it), and that commit's code tree.
 
     Attributes:
         commit: The full commit hash.
         committed_at: Its commit date (ISO 8601 with its offset).
+        code_tree: Its code tree, by its own measured paths (``commit_code_tree_paths``): the
+            file's rows landed only if they measured this tree.
 
     """
 
@@ -223,47 +234,137 @@ class LandedCommit(BaseModel):
 
     commit: str
     committed_at: str
+    code_tree: str
 
 
-def landed_code_trees(
+def commit_code_tree_paths(
+    *, repository: Path, commit: str, fallback: CodeTreePaths
+) -> CodeTreePaths:
+    """Return what a commit's code tree held: the measured paths its own pyproject.toml names.
+
+    A row's code tree was taken with the paths of its day, so its landing commit's tree is
+    taken with that commit's (BUGS.md #220.5): adding a measured path later changes only the
+    trees measured after it, and every earlier row still lands.
+
+    Args:
+        repository: The repository's working directory (the project root).
+        commit: The commit.
+        fallback: The paths when the commit's pyproject.toml names none (or is missing or not
+            valid TOML): the project's current ones.
+
+    Returns:
+        The paths.
+
+    """
+    completed = _completed_git(
+        repository=repository, arguments=['show', f'{commit}:./{PYPROJECT_FILE_NAME}']
+    )
+    if completed.returncode != 0:
+        return fallback
+    try:
+        document = tomllib.loads(completed.stdout)
+    except tomllib.TOMLDecodeError:
+        return fallback
+    tool: object = document.get('tool', {})
+    if not isinstance(tool, dict):
+        return fallback
+    settings: object = cast('dict[str, object]', tool).get('glitchygames', {})
+    if not isinstance(settings, dict):
+        return fallback
+    table = cast('dict[str, object]', settings)
+    measured = table.get(MEASURED_PATHS_KEY)
+    unmeasured = table.get(UNMEASURED_PATHS_KEY, [])
+    if not _is_string_list(measured) or not _is_string_list(unmeasured):
+        return fallback
+    return CodeTreePaths(
+        measured=tuple(cast('list[str]', measured)), unmeasured=tuple(cast('list[str]', unmeasured))
+    )
+
+
+def _is_string_list(value: object) -> bool:
+    """Return whether a TOML value is a list of strings.
+
+    Returns:
+        True for a list whose every item is a string.
+
+    """
+    return isinstance(value, list) and all(
+        isinstance(item, str) for item in cast('list[object]', value)
+    )
+
+
+def landed_row_files(
     *, repository: Path, ledger_directory: str, paths: CodeTreePaths, revision: str = 'HEAD'
-) -> dict[str, LandedCommit]:
-    """Return each code tree that landed, with the first commit it landed in.
+) -> dict[str, LandedRowFile]:
+    """Return each row file that landed: the first commit that added it, and its code tree.
 
     A row lands with the commit that adds its file (on main: the squash merge); the code it
-    measured landed only if that commit's code tree is the row's. So every commit in
-    ``revision``'s history that added a row file is looked up, oldest first, and its code tree
-    kept with the earliest such commit. A row of an intermediate commit or of a branch that was
-    behind main names another tree: it matches none.
+    measured landed only if that commit's code tree is the row's (``recording_metrics
+    .landed_rows`` compares them). Each row is dated by its own file's commit, so code that
+    returns to an earlier tree dates its new rows by the commit that brought them, not by the
+    tree's first landing (BUGS.md #220.3). A row of an intermediate commit or of a branch that
+    was behind main names another tree than its file's commit: it does not land.
 
     Args:
         repository: The repository's working directory.
         ledger_directory: Where the row files are, relative to the repository
             (``[tool.glitchygames]`` ``ledger-directory``).
-        paths: What a code tree holds.
+        paths: What a code tree holds now: a commit whose pyproject.toml names no measured
+            paths uses them (``commit_code_tree_paths``).
         revision: Whose history (``HEAD``: the checkout's).
 
     Returns:
-        Code tree -> the commit it landed in.
+        Row file name (in the ledger directory) -> where it landed.
+
+    Raises:
+        RuntimeError: If the repository is a shallow clone: its log stops at the clone's depth,
+            so rows of older commits would silently not land (BUGS.md #220.8).
 
     Each commit's tree is cached for the process (``_LANDED_COMMIT_CODE_TREES``): the log is read
     every call, the trees only of commits not seen before.
 
     """
+    if run_git(repository=repository, arguments=['rev-parse', '--is-shallow-repository']) == 'true':
+        message = (
+            f'{repository} is a shallow clone: its history stops short, so measured rows of older '
+            f'commits would be left out. Fetch the full history first: git fetch --unshallow'
+        )
+        raise RuntimeError(message)
     resolved_repository = repository.resolve()
     output = run_git(
         repository=repository,
-        arguments=['log', '--format=%H %cI', '--diff-filter=A', revision, '--', ledger_directory],
+        arguments=[
+            'log',
+            # %x00: git writes the marker (a NUL cannot be in an argument itself)
+            '--format=%x00%H %cI',
+            '--name-only',
+            '--diff-filter=A',
+            revision,
+            '--',
+            ledger_directory,
+        ],
     )
-    landed: dict[str, LandedCommit] = {}
-    for line in reversed(output.splitlines()):
-        commit, committed_at = line.split(' ', maxsplit=1)
-        cache_key = (resolved_repository, commit, paths)
+    # Each commit's line, then the row files it added (newest commit first)
+    commits_with_files: list[tuple[str, str, list[str]]] = []
+    for line in output.splitlines():
+        if line.startswith(_LOG_COMMIT_MARKER):
+            commit, committed_at = line.removeprefix(_LOG_COMMIT_MARKER).split(' ', maxsplit=1)
+            commits_with_files.append((commit, committed_at, []))
+        elif line and commits_with_files:
+            commits_with_files[-1][2].append(PurePosixPath(line).name)
+    landed: dict[str, LandedRowFile] = {}
+    for commit, committed_at, file_names in reversed(commits_with_files):
+        commit_paths = commit_code_tree_paths(repository=repository, commit=commit, fallback=paths)
+        cache_key = (resolved_repository, commit, commit_paths)
         tree = _LANDED_COMMIT_CODE_TREES.get(cache_key)
         if tree is None:
-            tree = commit_code_tree(repository=repository, commit=commit, paths=paths)
+            tree = commit_code_tree(repository=repository, commit=commit, paths=commit_paths)
             _LANDED_COMMIT_CODE_TREES[cache_key] = tree
-        landed.setdefault(tree, LandedCommit(commit=commit, committed_at=committed_at))
+        for file_name in file_names:
+            # The first commit that added it (a file deleted and added again keeps its first)
+            landed.setdefault(
+                file_name, LandedRowFile(commit=commit, committed_at=committed_at, code_tree=tree)
+            )
     return landed
 
 

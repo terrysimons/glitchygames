@@ -142,15 +142,69 @@ def supported_events(like: str = '.*') -> list[int]:
     return event_list
 
 
+# Every named custom event type, by name: the engine's and any a game registered
+# (``named_custom_event_type``). A recording's header names them all (``custom_event_types``), so
+# a replay in a process that allocated them otherwise moves the recorded ids to its own
+# (glitchygames/recording.py ``custom_event_type_remap``; BUGS.md #211.1)
+_NAMED_CUSTOM_EVENT_TYPES: dict[str, int] = {}
+NAMED_CUSTOM_EVENT_TYPES: Mapping[str, int] = MappingProxyType(_NAMED_CUSTOM_EVENT_TYPES)
+
+
+class CustomEventNameTakenError(ValueError):
+    """A custom event type name was registered twice (two would otherwise share one id)."""
+
+
+def named_custom_event_type(name: str) -> int:
+    """Allocate a custom event type from pygame and register it by name.
+
+    Games should allocate their custom event types here rather than with
+    ``pygame.event.custom_type()`` directly: a recording names every registered type, so its
+    events replay even in a process that allocated the ids in another order. Register at import
+    (as the engine's are, below), before a recording starts, so the recording's header holds it.
+    An id allocated straight from pygame has no name, so a replay cannot move it.
+
+    Args:
+        name: The type's name, unique in the process (e.g. ``'MY_GAME_LEVEL_UP'``).
+
+    Returns:
+        The type's id.
+
+    Raises:
+        CustomEventNameTakenError: If the name is already registered.
+
+    """
+    if name in _NAMED_CUSTOM_EVENT_TYPES:
+        message = (
+            f'Custom event type {name!r} is already registered '
+            f'(id {_NAMED_CUSTOM_EVENT_TYPES[name]})'
+        )
+        raise CustomEventNameTakenError(message)
+    event_type = pygame.event.custom_type()
+    # pygame.quit() restarts pygame's allocation at USEREVENT + 1, so after one (a test suite,
+    # a tool running several engines in one process) pygame hands out ids a name already holds,
+    # FPSEVENT's first: skip those. An id allocated straight from pygame.event.custom_type()
+    # after a quit can still collide; only the named ones are kept apart
+    while event_type in _NAMED_CUSTOM_EVENT_TYPES.values():
+        event_type = pygame.event.custom_type()
+    _NAMED_CUSTOM_EVENT_TYPES[name] = event_type
+    return event_type
+
+
 # The engine's custom event types, allocated from pygame (BUGS.md #197: hard-coded as
 # USEREVENT + 1..3, a game's or library's pygame.event.custom_type() was given FPSEVENT's id).
 # pygame hands out ids from USEREVENT + 1 up, and this module is imported before any game
-# code runs, so they are still USEREVENT + 1..3: the values recordings hold (an FPSEVENT is
-# recorded as 32866). Something that calls custom_type() before glitchygames is imported shifts
-# them, and a recording made that way replays only in a process that imports the same way.
-FPSEVENT = pygame.event.custom_type()
-GAMEEVENT = pygame.event.custom_type()
-MENUEVENT = pygame.event.custom_type()
+# code runs, so they are usually USEREVENT + 1..3 (an FPSEVENT recorded as 32866). Something
+# that calls custom_type() before glitchygames is imported shifts them: the recording's header
+# names the ids it was made with, and a replay moves them (BUGS.md #211.1).
+FPSEVENT = named_custom_event_type('FPSEVENT')
+GAMEEVENT = named_custom_event_type('GAMEEVENT')
+MENUEVENT = named_custom_event_type('MENUEVENT')
+# What every recording made before headers named them holds: pygame's first three custom ids
+LEGACY_CUSTOM_EVENT_TYPES: Mapping[str, int] = MappingProxyType({
+    'FPSEVENT': pygame.USEREVENT + 1,
+    'GAMEEVENT': pygame.USEREVENT + 2,
+    'MENUEVENT': pygame.USEREVENT + 3,
+})
 
 AUDIO_EVENTS = supported_events(like='AUDIO.*?')
 APP_EVENTS = supported_events(like='APP.*?')

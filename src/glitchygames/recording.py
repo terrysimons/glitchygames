@@ -249,6 +249,7 @@ from typing import TYPE_CHECKING, Any, Protocol, Self, TypedDict, Unpack, cast
 import numpy as np
 import pygame
 
+from glitchygames.events.base import LEGACY_CUSTOM_EVENT_TYPES, NAMED_CUSTOM_EVENT_TYPES
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
@@ -264,7 +265,7 @@ from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.tracing import StableSpriteIds, TraceFormatError, TraceWriter, sample_scene_frame
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping
+    from collections.abc import Callable, Iterable, Mapping, Sequence
     from pathlib import Path
     from types import TracebackType
 
@@ -331,6 +332,11 @@ DEVICES_HEADER_FIELD = 'devices'
 SCENE_START_DEVICES_HEADER_FIELD = 'scene_start_devices'
 # The recording's start time (ISO 8601): the origin of a recorded or replayed run's wall clock
 RECORDED_AT_HEADER_FIELD = 'recorded_at'
+# The named custom event types the recording was made with, by name (the engine's and any a game
+# registered: ``glitchygames.events.base.NAMED_CUSTOM_EVENT_TYPES``): a replay moves its event
+# records to this process's ids (``custom_event_type_remap``; BUGS.md #211.1). A recording
+# without it was made with ``LEGACY_CUSTOM_EVENT_TYPES``
+CUSTOM_EVENT_TYPES_HEADER_FIELD = 'custom_event_types'
 
 # Event record fields and origins
 EVENT_TYPE_FIELD = 'type'
@@ -928,6 +934,99 @@ def event_origin(*, event: pygame.event.Event, pending: list[tuple[int, dict[str
     if post is not None or event.type >= pygame.USEREVENT:
         return INTERNAL_ORIGIN
     return EXTERNAL_ORIGIN
+
+
+def custom_event_types_header() -> dict[str, int]:
+    """Return the header's ``CUSTOM_EVENT_TYPES_HEADER_FIELD`` value for a recording made now.
+
+    Returns:
+        Every named custom event type (the engine's and the games'), as this process allocated
+        them.
+
+    """
+    return dict(NAMED_CUSTOM_EVENT_TYPES)
+
+
+def custom_event_type_remap(*, header: Mapping[str, Any]) -> dict[int, int]:
+    """Return how a recording's named custom event ids move to this process's (BUGS.md #211.1).
+
+    Something that calls ``pygame.event.custom_type()`` before glitchygames is imported (or a
+    game that registers its types in another order) shifts the ids, so a recording made in one
+    process may name FPSEVENT by another id than a replaying one does. The header names the ids
+    it was made with (``CUSTOM_EVENT_TYPES_HEADER_FIELD``; without it,
+    ``LEGACY_CUSTOM_EVENT_TYPES``). A name this process has not registered is left as recorded,
+    and so is an id allocated straight from pygame: the recording has no name for it.
+
+    Args:
+        header: The recording's header fields.
+
+    Returns:
+        Recorded id -> this process's id, for each id that differs (empty: nothing moves).
+
+    Raises:
+        TraceFormatError: If the header's field is not a mapping of names to integer ids.
+
+    """
+    recorded = header.get(CUSTOM_EVENT_TYPES_HEADER_FIELD, LEGACY_CUSTOM_EVENT_TYPES)
+    if not isinstance(recorded, dict | MappingProxyType) or not all(
+        isinstance(name, str) and type(event_type) is int
+        for name, event_type in cast('Mapping[object, object]', recorded).items()
+    ):
+        message = (
+            f'The recording is malformed: {CUSTOM_EVENT_TYPES_HEADER_FIELD} must map event '
+            f'names to integer ids, not {recorded!r}'
+        )
+        raise TraceFormatError(message)
+    recorded_types = cast('Mapping[str, int]', recorded)
+    return {
+        recorded_types[name]: event_type
+        for name, event_type in NAMED_CUSTOM_EVENT_TYPES.items()
+        if name in recorded_types and recorded_types[name] != event_type
+    }
+
+
+def remapped_event_records(
+    *, frames: Sequence[dict[str, Any]], remap: Mapping[int, int]
+) -> Sequence[dict[str, Any]]:
+    """Return the frames with their event records' types moved by ``custom_event_type_remap``.
+
+    A frame's event records are its ``EVENT_BATCHES_FIELD`` batches and its
+    ``REDELIVERED_EVENTS_FIELD``. Only a frame with a record that moves is copied (shallowly,
+    with new record lists): frames share their records (``read_trace_result``'s
+    ``share_records``), so none is changed in place.
+
+    Args:
+        frames: The recording's decoded frames.
+        remap: Recorded id -> this process's id.
+
+    Returns:
+        The frames (the same sequence when nothing moves).
+
+    """
+    if not remap:
+        return frames
+
+    def moved(record: dict[str, Any]) -> dict[str, Any]:
+        event_type = record.get(EVENT_TYPE_FIELD)
+        if type(event_type) is not int or event_type not in remap:
+            return record
+        return {**record, EVENT_TYPE_FIELD: remap[event_type]}
+
+    def frame_moved(frame: dict[str, Any]) -> dict[str, Any]:
+        batches = frame.get(EVENT_BATCHES_FIELD)
+        redelivered = frame.get(REDELIVERED_EVENTS_FIELD)
+        if not batches and not redelivered:
+            return frame
+        moved_frame = dict(frame)
+        if batches:
+            moved_frame[EVENT_BATCHES_FIELD] = [
+                [moved(record) for record in batch] for batch in batches
+            ]
+        if redelivered:
+            moved_frame[REDELIVERED_EVENTS_FIELD] = [moved(record) for record in redelivered]
+        return moved_frame
+
+    return [frame_moved(frame) for frame in frames]
 
 
 def event_batch_records(

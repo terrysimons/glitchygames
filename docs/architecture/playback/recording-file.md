@@ -17,7 +17,7 @@ header has mtime 0 and no file name, so identical traces give identical bytes (`
 ```mermaid
 flowchart TD
     file[("PATH.jsonl.gz")]
-    header["Line 1: header<br/>format_version, source, game (logical name), game_class, game_module,<br/>scene_class, options, screen_size, random_seed, recorded_at,<br/>engine/pygame/Python versions, saves, devices, device_enumeration,<br/>measurement_runs, rebaselined_from"]
+    header["Line 1: header<br/>format_version, source, game (logical name), game_class, game_module,<br/>scene_class, options, screen_size, random_seed, recorded_at,<br/>custom_event_types, engine/pygame/Python versions, saves, devices, device_enumeration,<br/>measurement_runs, rebaselined_from"]
     key["Frame line: keyframe<br/>(frame 0, a new scene object, or forced)<br/>frame, scene, sprites (full list)"]
     delta["Frame line: delta<br/>changed / added / removed / order<br/>against the previous frame"]
     always["On every frame line:<br/>dt, event_batches,<br/>content_hash [history], processing_seconds [history]"]
@@ -45,6 +45,7 @@ bool}` for every sprite in the scene's `all_sprites`, in draw order (`sample_sce
 | `options`, `screen_size` | the replay applies the recorded options (all but the replay's own) and opens the recorded display size (driver rule 1) | replay startup |
 | `game`, `scene_start.scene` (logical names) | the game and scenes are found by logical name, not by where their code lives (`src/glitchygames/logical_names.py`) | `check_recorded_game`, `find_scene_class` |
 | `recorded_at` | the wall clock of the recording, and of its replay, is this stamp plus the frame clock (driver rule 9) | `clock.wall_clock_time()` |
+| `custom_event_types` | every named custom event type the run allocated (the engine's FPSEVENT, GAMEEVENT and MENUEVENT, and any a game registered with `glitchygames.events.named_custom_event_type`): code that calls `pygame.event.custom_type()` first, or registers in another order, shifts the ids, so a replay moves the recorded event types to its own. Without it, a recording was made with pygame's first three custom ids. An id allocated straight from `pygame.event.custom_type()` has no name, so it is not moved | `decoded_replay_sources` (`custom_event_type_remap`) |
 | `saves`, `saves_opened` | save stores as they were first opened, so a replay never touches real saves (driver rule 7) | `MemorySaveManager` |
 | `devices`, `devices_opened`, `device_enumeration` | the pads the run saw, and every enumeration answer (driver rule 6) | `ReplayDeviceRegistry` |
 | `dt` | the frame time logic received; a replay serves it, so timers and physics replay exactly (driver rule 4) | `frame_seconds` door |
