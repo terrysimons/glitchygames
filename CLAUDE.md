@@ -1174,7 +1174,10 @@ SceneManager services
 (collision hitboxes by layer, physics velocities and ground state, camera panel with world edges
 and mouse world position (bounds clamp the camera's top-left, so right/bottom edges are max +
 screen size - 1), performance HUD with FPS, frame time, 1% low and a frame-time graph with a target
-line). Drawn in `SceneManager._present_frame`, never in screenshots, with the bundled Bitstream
+line), and an Audio panel after Performance (cache mode, mixer, voices, an audio-time graph stacked by
+kind of work, channel strip, bus meters, compile log; under All only its header; `--sound-diagnostics`
+opens on it; built from `AudioEngine.snapshot()` only while the overlay is visible and the engine
+already exists). Drawn in `SceneManager._present_frame`, never in screenshots, with the bundled Bitstream
 Vera Sans font on translucent cached backings. Scenes or sprites can add annotations with
 `debug_draw(surface, camera)`. `Scene.debug_subject` names the scene to inspect (normally the scene
 itself; `PauseScene` returns the paused game, so its hitboxes line up with the frozen picture and

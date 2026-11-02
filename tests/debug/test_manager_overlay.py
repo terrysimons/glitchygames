@@ -6,6 +6,11 @@ from typing import Self, override
 import pygame
 import pytest
 
+from glitchygames.audio.engine import (
+    AudioDiagnosticsSnapshot,
+    discard_audio_engine,
+    existing_audio_engine,
+)
 from glitchygames.debug import DebugFrameInfo
 from glitchygames.debug.overlay import DebugOverlay, DebugPanel
 from glitchygames.display_mode import set_display_mode
@@ -191,6 +196,29 @@ class TestDebugOverlayFlag:
         manager.game_engine = engine
         assert manager.debug_overlay.is_visible is True
 
+    def test_sound_diagnostics_starts_on_the_audio_panel(self, manager, mocker):
+        """--sound-diagnostics opens the overlay on its Audio panel, not on All."""
+        engine = mocker.Mock()
+        engine.OPTIONS = {
+            'update_type': 'update',
+            'fps_log_interval_ms': 1000,
+            'debug_overlay': False,
+            'sound_diagnostics': True,
+        }
+        manager.game_engine = engine
+        assert manager.debug_overlay.panel is DebugPanel.AUDIO
+
+    def test_the_debug_overlay_option_alone_starts_on_all_panels(self, manager, mocker):
+        """--debug-overlay without --sound-diagnostics keeps the All panel."""
+        engine = mocker.Mock()
+        engine.OPTIONS = {
+            'update_type': 'update',
+            'fps_log_interval_ms': 1000,
+            'debug_overlay': True,
+        }
+        manager.game_engine = engine
+        assert manager.debug_overlay.panel is DebugPanel.ALL
+
     def test_game_engine_setter_defaults_to_hidden(self, manager, mocker):
         """Test an engine whose options lack the key leaves the overlay hidden."""
         manager.debug_overlay.is_visible = True
@@ -276,7 +304,7 @@ class TestFrameHistory:
         spy = mocker.spy(manager.debug_overlay, 'record_frame')
         manager.dt = 0.0125
         manager._update_frame_services()
-        spy.assert_called_once_with(frame_seconds=0.0125)
+        spy.assert_called_once_with(frame_seconds=0.0125, audio_work_by_kind=None)
         assert manager.debug_overlay.frame_times() == [0.0125]
 
 
@@ -301,6 +329,86 @@ class TestPresentation:
         manager._present_frame(full_update=False)
         assert pixels_of(manager.screen.copy()) == clean_pixels
 
+    def test_the_audio_panel_is_absent_from_screenshots(self, manager, mocker):
+        """Test a capture taken after presenting the Audio panel has no overlay pixels."""
+        clean_pixels = pixels_of(manager.screen)
+        capture_at_flip(mocker, manager)
+        manager.debug_overlay.is_visible = True
+        manager.debug_overlay.panel = DebugPanel.AUDIO
+        manager._present_frame(full_update=False)
+        assert pixels_of(manager.screen.copy()) == clean_pixels
+
+    def test_frame_information_has_no_audio_before_the_engine_exists(self, manager):
+        """Drawing the panel never creates the audio engine: the frame carries audio=None."""
+        discard_audio_engine()
+        frame_info = manager._debug_frame_info(shake_offset=(0.0, 0.0), inspected_scene_label=None)
+        assert frame_info.audio is None
+        assert existing_audio_engine() is None
+
+    def test_frame_information_carries_the_audio_snapshot(self, manager):
+        """With an audio engine, the frame carries its snapshot."""
+        discard_audio_engine()
+        try:
+            audio_engine = manager.audio
+            frame_info = manager._debug_frame_info(
+                shake_offset=(0.0, 0.0), inspected_scene_label=None
+            )
+            assert isinstance(frame_info.audio, AudioDiagnosticsSnapshot)
+            assert frame_info.audio.device == audio_engine.snapshot().device
+        finally:
+            discard_audio_engine()
+
+    def test_a_hidden_overlay_builds_no_audio_snapshot(self, manager, mocker):
+        """The overlay off costs nothing: no snapshot is built for a frame it does not draw."""
+        discard_audio_engine()
+        try:
+            audio_engine = manager.audio
+            snapshot = mocker.spy(audio_engine, 'snapshot')
+            manager.debug_overlay.is_visible = False
+            manager._present_frame(full_update=False)
+            manager._update_frame_services()
+            snapshot.assert_not_called()
+        finally:
+            discard_audio_engine()
+
+    def test_audio_work_is_recorded_beside_frame_times_when_visible(self, manager, mocker):
+        """The frame's audio work goes into the history by the path that records frame times."""
+        discard_audio_engine()
+        try:
+            audio_engine = manager.audio
+            mocker.patch.object(
+                audio_engine, 'last_frame_work_by_kind', return_value={'compile': 0.002}
+            )
+            mocker.patch.object(manager, '_performance_frame_seconds', return_value=0.01)
+            manager.debug_overlay.is_visible = True
+            manager._update_frame_services()
+            assert manager.debug_overlay.graph_audio_work() == [{'compile': 0.002}]
+        finally:
+            discard_audio_engine()
+
+    def test_an_empty_work_entry_is_recorded_when_hidden(self, manager, mocker):
+        """A hidden overlay still records the frame, with no work, so the histories stay aligned."""
+        discard_audio_engine()
+        try:
+            audio_engine = manager.audio
+            work = mocker.patch.object(audio_engine, 'last_frame_work_by_kind')
+            mocker.patch.object(manager, '_performance_frame_seconds', return_value=0.01)
+            manager.debug_overlay.is_visible = False
+            manager._update_frame_services()
+            work.assert_not_called()
+            assert manager.debug_overlay.graph_audio_work() == [{}]
+        finally:
+            discard_audio_engine()
+
+    def test_no_audio_engine_records_an_empty_work_entry(self, manager, mocker):
+        """Without an engine, a visible overlay records frames with no audio work."""
+        discard_audio_engine()
+        mocker.patch.object(manager, '_performance_frame_seconds', return_value=0.01)
+        manager.debug_overlay.is_visible = True
+        manager._update_frame_services()
+        assert manager.debug_overlay.graph_audio_work() == [{}]
+        assert existing_audio_engine() is None
+
     def test_draw_receives_frame_information(self, manager, mocker):
         """Test draw is called with the scene, the pixel offset and a DebugFrameInfo."""
         capture_at_flip(mocker, manager)
@@ -316,7 +424,7 @@ class TestPresentation:
         frame_info = keyword_arguments['frame_info']
         assert isinstance(frame_info, DebugFrameInfo)
         assert frame_info.target_fps == 60.44
-        assert frame_info.live_voice_count is None
+        assert frame_info.audio is None
         assert frame_info.screen_shake_offset == (0.0, 0.0)
 
     def test_hidden_overlay_does_not_draw_and_uses_the_update_path(self, manager, mocker):

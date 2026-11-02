@@ -17,7 +17,7 @@ from glitchygames.camera import Camera2D
 from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT, RGBA_COMPONENT_COUNT
 from glitchygames.debug import DebugFrameInfo, DebugOverlay
-from glitchygames.debug.overlay import OVERLAY_KEYS
+from glitchygames.debug.overlay import OVERLAY_KEYS, DebugPanel
 from glitchygames.effects.shake import ScreenShake, Shake, ShakeTarget
 from glitchygames.effects.tween import TweenManager
 from glitchygames.engine_context import ContextSlot, current_context
@@ -406,10 +406,12 @@ class SceneManager(SceneInterface, events.EventManager):
             self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
             self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
             # --sound-diagnostics opens the overlay too (its Audio panel: sound engine impl 10.5)
+            sound_diagnostics = bool(self.OPTIONS.get('sound_diagnostics', False))
             self.debug_overlay.is_visible = bool(
-                self.OPTIONS.get('debug_overlay', False)
-                or self.OPTIONS.get('sound_diagnostics', False)
+                self.OPTIONS.get('debug_overlay', False) or sound_diagnostics
             )
+            if sound_diagnostics:
+                self.debug_overlay.panel = DebugPanel.AUDIO
         self.log.info('Screen update type: %s', self.update_type)
         self.log.info('FPS Log Interval: %sms', self.fps_log_interval_ms)
         self.log.info('Target FPS: %s', self.target_fps)
@@ -1231,7 +1233,18 @@ class SceneManager(SceneInterface, events.EventManager):
 
     def _update_frame_services(self: Self) -> None:
         """Advance services that outlive scenes: screen shake, rumble, live voices and audio."""
-        self.debug_overlay.record_frame(frame_seconds=self._performance_frame_seconds())
+        # The frame's audio work joins the frame time in the overlay's history. Hidden, an empty
+        # entry keeps the histories aligned and the audio engine unread (the overlay off costs
+        # nothing); it is read here once, so the audio panel reads it again only for its snapshot
+        audio_engine = _existing_audio_engine()
+        self.debug_overlay.record_frame(
+            frame_seconds=self._performance_frame_seconds(),
+            audio_work_by_kind=(
+                audio_engine.last_frame_work_by_kind()
+                if audio_engine is not None and self.debug_overlay.is_visible
+                else None
+            ),
+        )
         self.screen_shake.update(self.dt)
 
         shakers = [self.screen_shake]
@@ -1247,7 +1260,6 @@ class SceneManager(SceneInterface, events.EventManager):
             devices=list if self.in_playback_scope else self._rumble_devices,
         )
 
-        audio_engine = _existing_audio_engine()
         if self._live_audio is None and audio_engine is None:
             return
         # The pending transition counts: a ride creates its motor before transition_to starts it
@@ -1373,14 +1385,14 @@ class SceneManager(SceneInterface, events.EventManager):
             DebugFrameInfo: The readings for this frame.
 
         """
-        live_voice_count = (
-            self._live_audio.playing_voice_count if self._live_audio is not None else None
-        )
+        # Only an engine that already exists is read: drawing the panel never starts audio
+        audio_engine = _existing_audio_engine()
+        audio = None if audio_engine is None else audio_engine.snapshot()
         frame_input = current_input()
         mouse_position = frame_input.mouse_position if frame_input.mouse_focused else None
         return DebugFrameInfo(
             target_fps=float(self.target_fps),
-            live_voice_count=live_voice_count,
+            audio=audio,
             rumble_levels=self.rumble.sent_levels,
             screen_shake_offset=shake_offset,
             mouse_position=mouse_position,

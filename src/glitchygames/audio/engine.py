@@ -478,6 +478,17 @@ class AudioEngine:
             cache=self.sounds.statistics(),
         )
 
+    def last_frame_work_by_kind(self) -> dict[str, float]:
+        """The last finished frame's audio work in seconds, by kind (the overlay's graph).
+
+        Returns:
+            The seconds per kind (empty when the frame did no audio work).
+        """
+        work_by_kind: dict[str, float] = {}
+        for kind, _name, microseconds in self._last_frame_account.audio_work:
+            work_by_kind[kind] = work_by_kind.get(kind, 0.0) + microseconds / 1_000_000
+        return work_by_kind
+
     def snapshot(self) -> AudioDiagnosticsSnapshot:
         """The engine as the debug overlay's Audio panel draws it (ruling R3).
 
@@ -487,9 +498,6 @@ class AudioEngine:
         channels = self._voices.snapshot()
         statistics = self.sounds.statistics()
         requests = statistics.hits + statistics.misses
-        work_by_kind: dict[str, float] = {}
-        for kind, _name, microseconds in self._last_frame_account.audio_work:
-            work_by_kind[kind] = work_by_kind.get(kind, 0.0) + microseconds / 1_000_000
         return AudioDiagnosticsSnapshot(
             cache_mode=self.cache_mode,
             device=_device_description(),
@@ -502,7 +510,7 @@ class AudioEngine:
             ),
             compiles_last_second=sum(count for _seconds, count in self._compile_window),
             cache_hit_rate=None if requests == 0 else statistics.hits / requests,
-            frame_work_by_kind=work_by_kind,
+            frame_work_by_kind=self.last_frame_work_by_kind(),
             frame_processing_seconds=self._last_processing_seconds,
             channels=channels,
             bus_levels={name: self.buses[name].effective_gain() for name in self.buses.names()},
