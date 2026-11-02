@@ -19,3 +19,7 @@ class SoundRecipeError(GlitchyGamesAudioError, ValueError):
 
 class SoundRenderError(GlitchyGamesAudioError, RuntimeError):
     """A compile failed (a bug, such as non-finite samples); the message names the sound."""
+
+
+class SoundAssetError(GlitchyGamesAudioError, ValueError):
+    """A sound file is invalid or a sound name cannot be resolved; the message names the file."""

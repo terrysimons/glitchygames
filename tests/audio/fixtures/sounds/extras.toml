@@ -1,0 +1,67 @@
+[glitchygames]
+kind = "sounds"
+version = 1
+
+[waves.organ_pad]
+harmonics = { drawbars = "888000000" }
+
+[waves.soft_square]
+mix = { square = 0.7, sine = 0.3 }
+
+[waves.fade]
+blend = { from = "sine", to = "saw", amount = 0.4 }
+
+[waves.ghost]
+shape = "smooth"
+points = [
+  { at = "start", level = "center" }, { at = "quarter", level = 0.5 },
+  { at = "half", level = "center" }, { at = "three_quarters", level = -0.6 },
+  { at = "end", level = "center" },
+]
+
+[instruments.thump]
+envelope = "percussive"
+drive = 2.0
+seed = 7
+normalize = true
+hard_edges = true
+filter = { type = "low_pass", cutoff = 1800.0 }
+
+[instruments.thump.sources.body]
+wave = "sine"
+pitch_curve = { to = "A1", seconds = 0.3, easing = "ease_out_quad" }
+level = 0.8
+
+[instruments.thump.sources.rattle]
+noise = "lfsr"
+lfsr = { bits = 7, rate = "C5" }
+level = 0.4
+semitones = 2
+detune_cents = 3.5
+pitch = "C4"
+envelope = "pluck"
+filter = { type = "high_pass", cutoff = 900.0 }
+
+[instruments.tone.sources.main]
+wave = "organ_pad"
+
+[sounds.thump]
+instrument = "thump"
+pitch = "C2"
+length = 0.4
+priority = 80
+pan = -0.25
+loop = false
+
+[sounds.chord_stab]
+instrument = "tone"
+chord = ["C4", "E4", "G4"]
+transpose = 2
+
+[sounds.cross]
+instrument = "pickups.toml#pickup"
+pitch = "A5"
+
+[sounds.slap]
+file = "sfx_slap.wav"
+bus = "ui"

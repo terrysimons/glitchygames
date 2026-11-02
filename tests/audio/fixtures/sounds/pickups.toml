@@ -1,0 +1,17 @@
+# The feature spec 9.2 pickup example
+[glitchygames]
+kind = "sounds"
+version = 1
+
+[instruments.pickup]
+profile = "chip"
+envelope = { attack = 0.002, decay = 0.04, sustain = 0.0, release = 0.02, curve = "steps(16)" }
+
+[instruments.pickup.sources.tone]
+wave = "pulse_25"
+
+[sounds.coin]
+instrument = "pickup"
+notes = "B5:0.06 E6:0.18"
+bus = "effects"
+volume = 0.6

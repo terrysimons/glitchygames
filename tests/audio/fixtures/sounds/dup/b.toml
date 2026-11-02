@@ -1,0 +1,10 @@
+[glitchygames]
+kind = "sounds"
+version = 1
+
+[instruments.beep]
+wave = "square"
+
+[sounds.zap]
+instrument = "beep"
+pitch = "A4"

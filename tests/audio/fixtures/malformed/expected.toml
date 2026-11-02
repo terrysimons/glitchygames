@@ -1,0 +1,179 @@
+["missing_header.toml"]
+path = "glitchygames"
+reason = "header"
+
+["wrong_kind.toml"]
+path = "glitchygames.kind"
+reason = "must be 'sounds'"
+
+["version_99.toml"]
+path = "glitchygames.version"
+reason = "version 99"
+
+["unknown_top_level_table.toml"]
+path = "effects"
+reason = "unknown table"
+
+["unknown_instrument_field.toml"]
+path = "instruments.pickup.tempo"
+reason = "unknown field"
+
+["envelope_typo.toml"]
+path = "instruments.pickup.envlope"
+reason = "did you mean 'envelope'"
+
+["unknown_source_field.toml"]
+path = "instruments.pickup.sources.tone.brightness"
+reason = "unknown field"
+
+["wave_and_noise.toml"]
+path = "instruments.pickup.sources.tone"
+reason = "exactly one of wave, noise"
+
+["five_sources.toml"]
+path = "instruments.pickup.sources"
+reason = "at most 4"
+
+["bad_envelope_curve.toml"]
+path = "instruments.pickup.envelope.curve"
+reason = "steps(n)"
+
+["unknown_envelope_preset.toml"]
+path = "instruments.pickup.envelope"
+reason = "unknown envelope preset"
+
+["negative_attack.toml"]
+path = "instruments.pickup.envelope.attack"
+reason = "greater than or equal to 0"
+
+["sustain_over_one.toml"]
+path = "instruments.pickup.envelope.sustain"
+reason = "less than or equal to 1"
+
+["duty_one.toml"]
+path = "instruments.pickup.sources.tone.duty"
+reason = "less than or equal to 0.99"
+
+["duty_on_a_sine.toml"]
+path = "instruments.pickup.sources.tone.duty"
+reason = "only applies to the pulse wave"
+
+["unknown_wave_name.toml"]
+path = "instruments.pickup.sources.tone.wave"
+reason = "unknown wave"
+
+["invalid_lfsr_taps.toml"]
+path = "instruments.pickup.sources.tone.lfsr"
+reason = "maximal-length"
+
+["lfsr_on_white_noise.toml"]
+path = "instruments.pickup.sources.tone.lfsr"
+reason = "noise = \"lfsr\""
+
+["pink_noise_in_m1.toml"]
+path = "instruments.pickup.sources.tone.noise"
+reason = "pink arrives in M2"
+
+["band_pass_in_m1.toml"]
+path = "instruments.pickup.filter.type"
+reason = "band_pass arrives in M2"
+
+["filter_resonance_in_m1.toml"]
+path = "instruments.pickup.filter.resonance"
+reason = "resonance arrives in M2"
+
+["drive_too_high.toml"]
+path = "instruments.pickup.drive"
+reason = "less than or equal to 20"
+
+["pitch_with_notes.toml"]
+path = "sounds.coin"
+reason = "mutually exclusive"
+
+["pitch_as_integer.toml"]
+path = "sounds.coin.pitch"
+reason = "ambiguous"
+
+["unknown_pitch_name.toml"]
+path = "sounds.coin.pitch"
+reason = "H9"
+
+["malformed_note_token.toml"]
+path = "sounds.coin.notes"
+reason = "pitch:seconds"
+
+["notes_with_length.toml"]
+path = "sounds.coin"
+reason = "length does not apply to notes"
+
+["transpose_without_notes.toml"]
+path = "sounds.coin"
+reason = "transpose applies to notes and chord"
+
+["chord_of_nine.toml"]
+path = "sounds.coin.chord"
+reason = "at most 8"
+
+["unknown_bus.toml"]
+path = "sounds.coin.bus"
+reason = "music, effects, ui, ambience, dialogue"
+
+["volume_over_one.toml"]
+path = "sounds.coin.volume"
+reason = "less than or equal to 1"
+
+["routes_in_m1.toml"]
+path = "instruments.pickup.routes"
+reason = "routes arrives in M2"
+
+["wavetable_source_in_m1.toml"]
+path = "instruments.pickup.sources.tone.wavetable"
+reason = "wavetable arrives in M4"
+
+["parameters_in_m1.toml"]
+path = "sounds.coin.parameters"
+reason = "parameters arrives in M2"
+
+["sample_path_escapes.toml"]
+path = "sounds.coin.file"
+reason = "escapes"
+
+["absolute_sample_path.toml"]
+path = "sounds.coin.file"
+reason = "escapes"
+
+["missing_instrument_reference.toml"]
+path = "sounds.coin.instrument"
+reason = "did you mean 'pickup'"
+
+["instrument_file_missing.toml"]
+path = "sounds.coin.instrument"
+reason = "nowhere.toml"
+
+["sound_without_instrument_or_file.toml"]
+path = "sounds.coin"
+reason = "exactly one of instrument, file"
+
+["instrument_without_sources.toml"]
+path = "instruments.pickup.sources"
+reason = "at least one source"
+
+["wave_points_not_closed.toml"]
+path = "waves.ghost"
+reason = "end at CYCLE.END"
+
+["wave_with_two_kinds.toml"]
+path = "waves.odd"
+reason = "exactly one of mix, blend, harmonics, points"
+
+["bad_drawbars.toml"]
+path = "waves.organ.harmonics"
+reason = "drawbars need 9 digits"
+
+["mix_of_unknown_wave.toml"]
+path = "waves.odd"
+reason = "zigzag"
+
+["wave_sample_in_m1.toml"]
+path = "waves.odd.samples"
+reason = "samples arrives in M4"
