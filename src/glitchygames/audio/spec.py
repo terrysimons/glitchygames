@@ -34,6 +34,18 @@ REST_TOKEN: Final[str] = '_'  # ruff: ignore[hardcoded-password-string] - a rest
 SEED_BYTE_COUNT: Final[int] = 8
 
 
+def _coerce_floats(instance: object, *names: str) -> None:
+    """Make the named fields plain floats (None stays None).
+
+    JSON writes ``1`` and ``1.0`` differently, so an int in a float field would give one sound
+    two identity keys. Frozen dataclasses are set through ``object.__setattr__``.
+    """
+    for name in names:
+        value = getattr(instance, name)
+        if value is not None:
+            object.__setattr__(instance, name, float(value))  # ruff: ignore[unnecessary-dunder-call] - frozen dataclass
+
+
 @dataclass(frozen=True, slots=True)
 class EnvelopeSpec:
     """An attack/decay/sustain/release envelope, in seconds, with a curve.
@@ -58,6 +70,7 @@ class EnvelopeSpec:
         Raises:
             ValueError: On a negative time, a sustain outside 0-1 or an unknown curve.
         """
+        _coerce_floats(self, 'attack', 'decay', 'sustain', 'release')
         if min(self.attack, self.decay, self.release) < 0.0:
             message = 'envelope times cannot be negative'
             raise ValueError(message)
@@ -117,6 +130,7 @@ class FilterSpec:
         Raises:
             ValueError: On an unknown kind or a cutoff that is not above zero.
         """
+        _coerce_floats(self, 'cutoff_hz')
         if self.kind not in FILTER_KINDS:
             message = f'unknown filter kind {self.kind!r}; use {" or ".join(FILTER_KINDS)}'
             raise ValueError(message)
@@ -139,6 +153,10 @@ class PitchCurveSpec:
     seconds: float
     easing: str = 'linear'
 
+    def __post_init__(self) -> None:
+        """Make the float fields plain floats."""
+        _coerce_floats(self, 'target_hz', 'seconds')
+
 
 @dataclass(frozen=True, slots=True)
 class NoiseSpec:
@@ -157,6 +175,10 @@ class NoiseSpec:
     taps: tuple[int, int]
     rate_hz: float | None
     seed: int | None
+
+    def __post_init__(self) -> None:
+        """Make the float fields plain floats."""
+        _coerce_floats(self, 'rate_hz')
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,6 +209,10 @@ class SourceSpec:
     filter: FilterSpec | None
     duty: float
 
+    def __post_init__(self) -> None:
+        """Make the float fields plain floats."""
+        _coerce_floats(self, 'level', 'semitones', 'detune_cents', 'fixed_hz', 'duty')
+
 
 @dataclass(frozen=True, slots=True)
 class NoteEvent:
@@ -201,6 +227,10 @@ class NoteEvent:
     start_seconds: float
     hz: float
     length_seconds: float
+
+    def __post_init__(self) -> None:
+        """Make the float fields plain floats."""
+        _coerce_floats(self, 'start_seconds', 'hz', 'length_seconds')
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,6 +250,10 @@ class PlaybackDefaults:
     pan: float = 0.0
     priority: int = 50
     loop: bool = False
+
+    def __post_init__(self) -> None:
+        """Make the float fields plain floats."""
+        _coerce_floats(self, 'volume', 'pan')
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,6 +295,10 @@ class SoundSpec:
     live: bool
     tuning_a4: float
     playback_defaults: PlaybackDefaults
+
+    def __post_init__(self) -> None:
+        """Make the float fields plain floats."""
+        _coerce_floats(self, 'drive', 'unpitched_scale', 'tuning_a4')
 
 
 def default_seed(name: str) -> int:

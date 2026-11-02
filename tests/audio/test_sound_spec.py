@@ -403,3 +403,58 @@ def test_wave_identity_digest_distinguishes_waves():
     assert Wave('saw').identity_digest() == Wave('saw').identity_digest()
     assert Wave('pulse', duty=0.3).identity_digest() != Wave('pulse', duty=0.4).identity_digest()
     assert Wave('sine').identity_digest() != Wave('triangle').identity_digest()
+
+
+@pytest.mark.parametrize(
+    ('integer_form', 'float_form'),
+    [
+        (
+            {'instrument': Instrument(sources={'a': Source('sine', level=1, semitones=0)})},
+            {'instrument': Instrument(sources={'a': Source('sine', level=1.0, semitones=0.0)})},
+        ),
+        (
+            {'instrument': Instrument(sources={'a': Source('sine', detune_cents=0)})},
+            {'instrument': Instrument(sources={'a': Source('sine', detune_cents=0.0)})},
+        ),
+        (
+            {'instrument': Instrument(wave='sine', drive=0, filter=Filter('low_pass', 800))},
+            {'instrument': Instrument(wave='sine', drive=0.0, filter=Filter('low_pass', 800.0))},
+        ),
+        (
+            {'instrument': Instrument(wave='sine', envelope=EnvelopeSpec(0, 0, 1, 1))},
+            {'instrument': Instrument(wave='sine', envelope=EnvelopeSpec(0.0, 0.0, 1.0, 1.0))},
+        ),
+        (
+            {
+                'instrument': Instrument(
+                    sources={'a': Source('sine', pitch_curve=PitchCurve(Hz(220.0), 1))}
+                )
+            },
+            {
+                'instrument': Instrument(
+                    sources={'a': Source('sine', pitch_curve=PitchCurve(Hz(220.0), 1.0))}
+                )
+            },
+        ),
+        ({'length': 1}, {'length': 1.0}),
+        ({'pitch': None, 'notes': [('C4', 1)]}, {'pitch': None, 'notes': [('C4', 1.0)]}),
+        (
+            {'pitch': None, 'chord': ('C4',), 'transpose': 12},
+            {'pitch': None, 'chord': ('C4',), 'transpose': 12.0},
+        ),
+        ({'tuning': Tuning(a4=440)}, {'tuning': Tuning(a4=440.0)}),
+    ],
+)
+def test_an_int_and_a_float_give_equal_specs_and_one_identity_key(integer_form, float_form):
+    """Whether a number was written 1 or 1.0, it is the same sound with the same key."""
+    from_int, from_float = make_spec(**integer_form), make_spec(**float_form)
+    assert from_int == from_float
+    assert identity_key(from_int) == identity_key(from_float)
+
+
+def test_spec_float_fields_are_always_floats():
+    """No int survives in a float field, so the canonical JSON cannot differ."""
+    spec = make_spec(Instrument(sources={'a': Source('sine', level=1, semitones=0)}), length=1)
+    assert type(spec.sources[0].level) is float
+    assert type(spec.sources[0].semitones) is float
+    assert type(notes_of(spec)[0].length_seconds) is float
