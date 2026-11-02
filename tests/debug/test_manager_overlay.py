@@ -18,7 +18,6 @@ from glitchygames.engine import GameEngine
 from glitchygames.events import HashableEvent
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
-from tests.audio.library_support import stop_mixer
 from tests.display_canvas import show_canvas_on_new_display
 
 # Wider than a window manager's smallest window: XQuartz's widens a 64-pixel window to 72, so a
@@ -34,19 +33,6 @@ SHAKE_OFFSET = (0.0, 4.0)
 def initialized_pygame():
     """Initialise pygame (fonts) for tests that draw real text."""
     pygame.init()
-
-
-def release_the_audio_engine() -> None:
-    """Discard a test's audio engine and give back its channel reservation.
-
-    An audio engine reserves the live and library channels (36 of 44). SDL_mixer keeps a
-    reservation across a mixer restart, so a later test that quits and starts the mixer again (8
-    channels, 36 still reserved) gets ``IndexError: invalid channel index`` from its first
-    ``Sound.play()`` (found in the full suite: tests/test_logging.py restarted the mixer, then a
-    Clockwork Keep test's jump sound failed). ``stop_mixer`` gives the reservation back first.
-    """
-    discard_audio_engine()
-    stop_mixer()
 
 
 class InspectableScene(Scene):
@@ -370,7 +356,7 @@ class TestPresentation:
             assert isinstance(frame_info.audio, AudioDiagnosticsSnapshot)
             assert frame_info.audio.device == audio_engine.snapshot().device
         finally:
-            release_the_audio_engine()
+            discard_audio_engine()
 
     def test_a_hidden_overlay_builds_no_audio_snapshot(self, manager, mocker):
         """The overlay off costs nothing: no snapshot is built for a frame it does not draw."""
@@ -383,7 +369,7 @@ class TestPresentation:
             manager._update_frame_services()
             snapshot.assert_not_called()
         finally:
-            release_the_audio_engine()
+            discard_audio_engine()
 
     def test_audio_work_is_recorded_beside_frame_times_when_visible(self, manager, mocker):
         """The frame's audio work goes into the history by the path that records frame times."""
@@ -398,7 +384,7 @@ class TestPresentation:
             manager._update_frame_services()
             assert manager.debug_overlay.graph_audio_work() == [{'compile': 0.002}]
         finally:
-            release_the_audio_engine()
+            discard_audio_engine()
 
     def test_an_empty_work_entry_is_recorded_when_hidden(self, manager, mocker):
         """A hidden overlay still records the frame, with no work, so the histories stay aligned."""
@@ -412,7 +398,7 @@ class TestPresentation:
             work.assert_not_called()
             assert manager.debug_overlay.graph_audio_work() == [{}]
         finally:
-            release_the_audio_engine()
+            discard_audio_engine()
 
     def test_no_audio_engine_records_an_empty_work_entry(self, manager, mocker):
         """Without an engine, a visible overlay records frames with no audio work."""

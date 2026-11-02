@@ -20,6 +20,7 @@ import pygame
 
 from glitchygames import engine_context, pixel_snap, randomness, sources
 from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
+from glitchygames.audio.voices import release_channels
 from glitchygames.backgrounds import set_active_default_background_pattern
 from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
@@ -276,6 +277,13 @@ def _reset_all_singleton_instances():
     # The context's audio engine (glitchygames/audio/engine.py) is forgotten, not closed: its
     # channels may be gone with a mixer a test restarted
     current_context().reset_value(slot=AUDIO_ENGINE_SLOT)
+    # ...and its channel reservation is handed back and the remembered partition forgotten
+    # (ruling R45), so the next engine reserves afresh. SDL_mixer keeps a reservation across a
+    # mixer restart while the restarted mixer is back at 8 channels, so an engine's 36 reserved
+    # channels, left by a test that never ran the engine's shutdown, made a later test's
+    # Sound.play() raise "IndexError: invalid channel index" after another test restarted pygame
+    # (tests/test_logging.py). No engine outlives a test here, so nothing needs to keep one
+    release_channels()
 
     # Reset ResourceManager singleton instances (FontManager, event managers, etc.)
     ResourceManager.__instances__.clear()
