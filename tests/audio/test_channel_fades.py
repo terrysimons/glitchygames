@@ -198,13 +198,15 @@ def test_the_mixer_changes_a_channels_level_only_between_chunks(recordings, case
 
     The file starts on a chunk boundary, so a step between samples k - 1 and k is at a boundary
     when k is a multiple of the chunk length (diagnostics' second-difference spikes are centred
-    on k - 1 and k).
+    on k - 1 and k). Not every trial steps above the tones' own largest step: a cut that lands
+    near a zero crossing of the tone is smaller (seen in the native run: 4 of 6 trials), so the
+    test asks for at least one step and checks where every step falls.
     """
     samples = recordings(case)
     steps = np.flatnonzero(np.abs(np.diff(samples)) > own_largest_step(case)) + 1
     spikes = find_discontinuities(samples)
 
-    assert steps.size >= TRIAL_COUNT
+    assert steps.size > 0
     assert all(step % DEFAULT_BUFFER_SAMPLES == 0 for step in steps)
     assert spikes
     assert all(

@@ -642,7 +642,10 @@ class TestDiagnosticsAndSnapshot:
         assert diagnostics.stolen_voices == 0
         assert diagnostics.dropped_plays == 0
         assert diagnostics.delayed_plays == 0
-        assert diagnostics.device == '44100 Hz, 16-bit signed, 2 channels, driver dummy'
+        # The driver this run's mixer runs on: dummy, or coreaudio in the native run
+        assert diagnostics.device == (
+            f'44100 Hz, 16-bit signed, 2 channels, driver {pygame.mixer.get_driver()}'
+        )
         assert diagnostics.cache.compiles == 1
 
     def test_the_snapshot_describes_the_mixer_for_the_debug_panel(self, engine, scene_manager):

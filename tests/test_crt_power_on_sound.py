@@ -15,6 +15,7 @@ import sys
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
+import pygame
 import pytest
 
 from glitchygames import crt_power_on, crt_power_on_sound, randomness
@@ -84,6 +85,9 @@ MIX_MAX_VOLUME = 128
 DISCONTINUITY_THRESHOLD = 1.0
 # How long a cued sound's attack takes to reach the audible level (the onsets measured: < 1 ms)
 ATTACK_HEARD_SECONDS = 0.001
+# pygame's own display.quit, taken before any test patches it (engine_run_environment makes it a
+# no-op; test_no_sound_under_headless needs the real one while its engine moves to the dummy driver)
+REAL_DISPLAY_QUIT = pygame.display.quit
 ENGINE_ARGUMENTS = ('--resolution', '320x240', '--log-level', 'warning', '--target-fps', '0')
 
 
@@ -940,7 +944,18 @@ class TestInRealRuns:
         assert system_voices_started(voice_plays) == 0
 
     def test_no_sound_under_headless(self, mocker):
+        """--headless moves the run to SDL's dummy driver: neither the picture nor its sound plays.
+
+        engine_run_environment makes ``pygame.display.quit`` a no-op, so the engine's shutdown
+        leaves the display to later tests; but --headless needs the real one while the engine is
+        built, to stop a display already on another driver (the native run's cocoa) and start it
+        again on the dummy one, as a real run does. Without it the display stays on cocoa and
+        the power-on would play: the harness, not the engine.
+        """
+        mocker.patch.object(pygame.display, 'quit', REAL_DISPLAY_QUIT)
         engine = build_engine(mocker, extra_arguments=('--crt-power-on', 'auto', '--headless'))
+        mocker.patch.object(pygame.display, 'quit')  # the fixture's no-op again, for the shutdown
+        assert pygame.display.get_driver() == 'dummy'
         player = mocker.spy(game_engine_module, 'play_power_on')
         made = mocker.spy(crt_power_on_sound.CrtPowerOnSound, '__init__')
         voice_plays = mocker.spy(VoiceTable, 'play')
