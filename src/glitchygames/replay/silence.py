@@ -51,6 +51,9 @@ class _MusicFollowing:
         self.followers: list[FrameSilencer] = []
         # pygame's own pause and unpause, captured when the first follower began
         self.pygame_controls: tuple[Callable[[], None], Callable[[], None]] | None = None
+        # The last pygame_controls captured, kept after the last follower stops: a wrapper left
+        # in place then is replaced by these, never taken for pygame's own (BUGS.md #252)
+        self.last_pygame_controls: tuple[Callable[[], None], Callable[[], None]] | None = None
         self.wrappers: tuple[Callable[[], None], Callable[[], None]] | None = None
 
     def add(self: Self, *, silencer: FrameSilencer) -> None:
@@ -64,7 +67,16 @@ class _MusicFollowing:
         if self.wrappers is not None:
             return
         music = pygame.mixer.music
-        self.pygame_controls = (music.pause, music.unpause)
+        # A wrapper of ours still in place (put back by code that saved music.unpause while the
+        # wrappers were installed) is never pygame's own: taken for it, the wrapper would call
+        # itself. pygame's own, captured by an earlier following (last_pygame_controls), stand
+        # in for it: a wrapper is only ever installed after one was captured
+        known_pause, known_unpause = self.last_pygame_controls or (music.pause, music.unpause)
+        self.pygame_controls = (
+            known_pause if self._is_own_wrapper(music.pause) else music.pause,
+            known_unpause if self._is_own_wrapper(music.unpause) else music.unpause,
+        )
+        self.last_pygame_controls = self.pygame_controls
         # The bound methods made once, so the check in remove() finds this very object
         game_pause, game_unpause = self._game_pause, self._game_unpause
         self.wrappers = (game_pause, game_unpause)
@@ -94,6 +106,17 @@ class _MusicFollowing:
         )
         self.wrappers = None
         self.pygame_controls = None
+
+    def _is_own_wrapper(self: Self, function: Callable[[], None]) -> bool:
+        """Return whether ``function`` is one of this following's wrappers (a bound method).
+
+        Returns:
+            True for its ``_game_pause`` or ``_game_unpause``, bound to it.
+
+        """
+        return getattr(function, '__self__', None) is self and getattr(
+            function, '__func__', None
+        ) in {_MusicFollowing._game_pause, _MusicFollowing._game_unpause}
 
     def pygame_pause(self: Self) -> Callable[[], None]:
         """Return pygame's own pause (never a wrapper).
