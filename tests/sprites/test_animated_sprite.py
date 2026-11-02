@@ -4473,7 +4473,9 @@ def _drawn_rows(sprite: AnimatedSprite) -> list[str]:
     frame = sprite.get_current_frame()
     assert frame is not None
     width, height = frame.image.get_size()
-    glyphs_by_color = {color: glyph for glyph, color in TABLE_PALETTE.items()}
+    glyphs_by_color: dict[tuple[int, ...], str] = {
+        color: glyph for glyph, color in TABLE_PALETTE.items()
+    }
     return [
         ''.join(
             glyphs_by_color.get(tuple(frame.pixels[row * width + column][:3]), '·')

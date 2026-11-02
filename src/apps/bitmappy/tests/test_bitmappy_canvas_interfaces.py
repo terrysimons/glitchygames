@@ -1241,7 +1241,7 @@ class TestAnimatedCanvasRendererHelpers:
         canvas_sprite.pixels_across = CANVAS_SIZE
         canvas_sprite.pixels_tall = CANVAS_SIZE
         canvas_sprite.pixels = [RED_RGB] * PIXEL_COUNT
-        canvas_sprite.pixels[5] = GREEN_RGB
+        canvas_sprite.pixels[5] = GREEN_RGB  # pyright: ignore[reportCallIssue] - an RGB pixel, as a canvas may hold
 
         renderer = AnimatedCanvasRenderer(canvas_sprite)
         result = renderer._get_pixel_color_at_position(1, 1)  # pixel_index = 1*4 + 1 = 5

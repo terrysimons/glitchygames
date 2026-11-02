@@ -7,6 +7,7 @@ shared color quantization, glyph mapping and TOML generation utilities used by t
 
 import logging
 import tomllib
+from typing import Any
 
 import numpy as np
 import pygame
@@ -288,7 +289,7 @@ class TestNormalizeTomlDataLeavesTheInputAlone:
 
     def test_nested_pixels_are_normalized_in_a_copy(self):
         """The caller's nested sprite and animation tables keep their escaped newlines."""
-        config_data = {
+        config_data: dict[str, Any] = {
             'sprite': {'pixels': 'ab\\ncd'},
             'animation': [{'frame': [{'pixels': 'ef\\ngh'}]}],
         }
@@ -302,7 +303,10 @@ class TestNormalizeTomlDataLeavesTheInputAlone:
 
     def test_an_error_part_way_leaves_the_input_unnormalized(self):
         """Sprite pixels normalized before an animation error do not leak into the input."""
-        config_data = {'sprite': {'pixels': 'ab\\ncd'}, 'animation': [{'frame': None}]}
+        config_data: dict[str, Any] = {
+            'sprite': {'pixels': 'ab\\ncd'},
+            'animation': [{'frame': None}],
+        }
 
         result = normalize_toml_data(config_data)
 

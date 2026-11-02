@@ -319,8 +319,7 @@ def test_the_existing_trace_flags_are_unchanged():
         'headless',
         'random_seed',
     )
-    nothing_given = dict.fromkeys(trace_keys)
-    nothing_given.update(audit=False, headless=False)
+    nothing_given = {**dict.fromkeys(trace_keys), 'audit': False, 'headless': False}
 
     recording = vars(parser.parse_args(['--record-trace', 'run.jsonl.gz']))
     rebaselining = vars(

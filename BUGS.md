@@ -51,7 +51,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 250. basedpyright Did Not Flag Tests Calling Game Code With a Removed Keyword
 - **Description**: `tests/replay/golden_replay_controls.py` kept calling the games' `_create_action_map(input_mode=...)` after the `--axis-deadzone` change made it `_create_action_map(*, options=...)`; basedpyright reported 0 errors on the file, before and after the fix, and the pre-push hooks run no tests, so CI's collection error (PR #134) was the first sign
-- **Status**: Active
+- **Status**: Fixed (2026-11-02, bug sweep: proven: every test environment of `pyrightconfig.json` (10) set `reportCallIssue` false; a probe calling `BraveAdventurerScene._create_action_map(input_mode=...)` from `tests/` gave 0 errors as configured and `No parameter named "input_mode"` with the rule on. The overrides are gone: the 13 calls it then reported were 6 inferences made explicit (a `Callable` return, dict annotations, an integer `Rect` for pixel indexing) and 7 deliberate stand-ins, each now `# pyright: ignore[reportCallIssue]` with its reason; `tests/test_ci_config.py::test_no_type_checking_environment_turns_off_call_checks` keeps the overrides out)
 - **Priority**: Medium (a whole class of call-signature mistakes in tests goes unchecked)
 - **Reporter**: Found fixing PR #134's CI, 2026-11-01
 - **Date Reported**: 2026-11-02

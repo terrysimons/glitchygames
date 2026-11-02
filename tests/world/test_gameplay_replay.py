@@ -2637,7 +2637,7 @@ class TestReplayReport:
         with pytest.raises(ValidationError):
             ReplayOptions(fps_source='sometimes')
         with pytest.raises(ValidationError):
-            ReplayOptions(no_such_option=3)
+            ReplayOptions(no_such_option=3)  # pyright: ignore[reportCallIssue] - the unknown option under test
 
     def test_the_sources_keep_the_options_they_were_given(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)

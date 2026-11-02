@@ -429,7 +429,11 @@ class TestReusableWheel:
         directory.mkdir(parents=True, exist_ok=True)
         wheel = directory / WHEEL_NAME
         wheel.write_bytes(b'wheel')
-        info = {'wheel': WHEEL_NAME, 'source_commit': COMMIT, 'uncommitted_tracked_changes': 0}
+        info: dict[str, object] = {
+            'wheel': WHEEL_NAME,
+            'source_commit': COMMIT,
+            'uncommitted_tracked_changes': 0,
+        }
         info.update(info_overrides)
         (directory / 'build-info.json').write_text(json.dumps(info))
         return wheel
