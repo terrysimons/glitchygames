@@ -1,14 +1,16 @@
 # GlitchyGames Sound Engine — Implementation Specification
 
 - **Date:** 2026-11-02 (revision 2: the one-call `audio.sound(...)` API; builder-check fixes)
-- **Status:** DRAFT for the owner's review. Nothing here is built. The experiments in Appendix A
-  are throwaway and are not in the repository.
+- **Status:** DRAFT for the owner's review. M1 is built on this branch (2026-11-02; user docs:
+  `docs/architecture/sound.md`); M2 onwards is not. The experiments in Appendix A are throwaway
+  and are not in the repository.
 - **Companion:** `docs/specs/2026-11-02-sound-engine-feature-spec.md` (what the engine does; the
   requirement IDs used below).
 - **Branch:** `docs/sound-engine-specs`.
 
 Labels are the feature spec's: **[Owner]**, **[Fact]** (verified at `origin/main` 0f1a4b81),
-**[Measured]** (Appendix A), **[Proposal]**, **[Open]**, and **[Call]** (a routine choice settled
+**[Measured]** (Appendix A, and M1's channel-fade probes in `tests/audio/test_channel_fades.py`),
+**[Proposal]**, **[Open]**, and **[Call]** (a routine choice settled
 by the spec's author after the builder check, open to the owner's change).
 
 ---
@@ -455,7 +457,9 @@ conventions, not separate APIs.
    the same compile path.
 3. **Gameplay:** a first request inside a gameplay frame compiles there. It is timed, counted and
    listed with its frame (AUD-FUNC-003).
-4. **The engine's own sounds** (CRT) compile in `_prepare_run` before the power-on (§10.1).
+4. **The engine's own sounds** (CRT) compile before the power-on, in
+   `GameEngine._power_on_sound_cues`, which `_run_game` (the blocking start) and `start_async`
+   (the browser's) call when the power-on plays (§10.1).
 5. **Recompiles:** after eviction, a tuning change or (M4) a hot reload, the next request compiles
    again and is counted.
 
@@ -509,8 +513,15 @@ Allocation for a library play on bus *b* with priority *p*:
    lowest priority, earliest start, lowest channel. Fade it with `Channel.fadeout(10)` and mark
    its channel *fading*. The new sound starts this frame on another free or fading-complete
    channel if one exists. Otherwise it starts on the stolen channel next frame, counted as a
-   one-frame delayed play. **[Open — verify in M1]** If `Channel.play` on a channel that is
-   fading out is shown not to cut the fade audibly, the delay is removed.
+   one-frame delayed play. **[Measured]** (M1, 2026-11-02, `tests/audio/test_channel_fades.py`
+   on SDL's disk driver; pygame-ce 2.5.8, SDL 2.32.10, SDL_mixer 2.8.2): `Channel.play` straight
+   after `Channel.fadeout(10)` on the same channel replaces the fading sound at the next mixer
+   chunk, so the fade is never heard (worst step 10.3 times a 440 Hz tone's own largest, over
+   six steals), and the delay is kept. **[Open]** The delay does not make a steal smooth either:
+   SDL_mixer sets a fading channel's volume once per chunk (512 frames, 11.6 ms), so a 10 ms
+   fade is one plateau or an immediate halt (worst step 8.3 to 9.7 times the tone's own in two
+   recordings of six steals). A smooth steal needs a fade of several chunks or an
+   engine-rendered fade tail (risks R4 and R5); the owner decides.
 3. Otherwise drop and count.
 
 Which voice is stolen is decided from the table alone, so it is deterministic (AUD-MIX-003). Which
@@ -526,10 +537,15 @@ volume on play [Fact: noted in `replay/silence.py`]. The gains are:
 - with θ = (pan + 1)·π/4, a constant-power law at -3 dB centre.
 
 Bus changes re-apply to every playing channel of that bus. A bus fade is applied as one
-`set_volume` per frame (60 steps/s). Steps at 60 Hz over fades of ≥ 50 ms are inaudible as zipper
-noise for the gain ranges involved. That is to be confirmed in the M1 listening check; the
-fallback is to render the fade into a short tail sound **[Open]**. Voice stops, steals and skips
-use `Channel.fadeout`, which ramps inside SDL, not frame steps.
+`set_volume` per frame (60 steps/s). **[Measured]** (M1, 2026-11-02,
+`tests/audio/test_channel_fades.py` on SDL's disk driver): each frame's gain reaches the channel
+whole at the next mixer chunk, so a 50 ms fade from full to silence is three steps of a third
+(levels 1, 2/3, 1/3, 0, each held for one or two chunks), with a worst step 5.2 to 5.3 times a
+440 Hz tone's own largest. **[Open]** Whether those steps are heard as zipper noise for the gain
+ranges involved is the owner's listening check; the fallback is to render the fade into a short
+tail sound. Voice stops, steals and skips use `Channel.fadeout`, which SDL_mixer also steps once
+per chunk rather than ramping (§7.1, §10.1), so a fade shorter than a few chunks is a plateau or
+two and a halt.
 
 ### 7.3 Voice time without asking the device (fixes the builder check's first finding)
 
@@ -831,14 +847,22 @@ def render_to_file(sound: Sound, path: Path | str, *, sample_rate: int | None = 
     (512 frames, about 11.6 ms), so the 20 ms fade is a plateau or two and then a halt, not a
     ramp. The voices end within 20 ms plus one chunk; the step on a pure tone is measured
     against the model in `tests/test_crt_power_on_sound.py` (a strict xfail holds the "no step
-    above threshold" criterion). Experiment: Task 13 probes the real fade on SDL's disk audio
-    driver and the owner listens. Fallback: engine-rendered fade tails (risk R5);
+    above threshold" criterion). **[Measured]** (M1, 2026-11-02,
+    `tests/audio/test_channel_fades.py` on SDL's disk driver): the model holds on the device:
+    `Channel.fadeout(20)` on a 1 kHz tone is one or two plateaus then a halt, every level change
+    on a chunk boundary, with a worst step 4.5 to 4.9 times the tone's own largest (from 1.0 to
+    4.9 across twelve skips; the model's worst over eight phases is 3.4). The criterion stays
+    unmet (strict xfails in both test files). **[Open]** The owner's listening check decides
+    whether the skip is heard as a click; the fallback, engine-rendered fade tails (risk R5),
+    awaits the owner's decision;
   - `frame(dt)`, which drives `audio.update(dt=...)` for the system owner (§7.3).
 
   This keeps `crt_power_on.py` a leaf with no audio import [Fact: it is a leaf today], and tests
   pass a recording fake.
-- **Wiring:** `GameEngine._prepare_run` compiles the CRT sounds (a few ms) and passes the cues
-  when `should_play` is true and `--crt-power-on-sound` is not `off`. The headless, replay,
+- **Wiring:** `GameEngine._power_on_sound_cues` compiles the CRT sounds (a few ms) and makes the
+  cues when `--crt-power-on-sound` is not `off`; `_run_game` (the blocking start) and
+  `start_async` (the browser's) call it, and pass the cues to the power-on, when
+  `_power_on_plays()` (`should_play`) is true. The headless, replay,
   recording, audit and rebaseline rules are inherited from `should_play` [Fact].
 - **Carrying into the game:** the bars tone (or channel 3 hiss) is a system-owned, persisting
   voice. `AudioEngine` holds a pending "fade the CRT tail" action, which the first
@@ -846,7 +870,8 @@ def render_to_file(sound: Sound, path: Path | str, *, sample_rate: int | None = 
   cleanup never stops it early.
 - **Browser:** `boot.py` waits for a click before the game starts [Fact], so the audio context is
   running when the power-on plays. **[Open]** This needs a real-browser listening check
-  (AUD-PORT-003).
+  (AUD-PORT-003), the owner's: `nox -s browser -- mr-muncher`, then click the page in Chrome and
+  in Safari. Not yet done (2026-11-02).
 
 ### 10.2 Engine options (added to `GameEngine.args`)
 
@@ -1232,8 +1257,8 @@ Tests live in `tests/audio/` unless noted; benchmarks are in `tests/benchmarks/`
 | R1 | Live voices underrun on slow machines (the Raspberry Pi 4 especially) or in the browser (main-thread chunks miss the margin) | Medium–High | Audible gaps in engines and ambience | Keep the pool small; measure on the CI Linux profile and in the browser; restart-on-underrun exists [Fact]; prefer compiled loops where a sound need not follow a parameter |
 | R2 | The owner later wants real-time bus effects or sample-accurate music, which option A cannot deliver | Medium | Rework of the output layer | The renderer is pure and backend-agnostic; the native-core gate is defined (§3.4) |
 | R3 | Games request sounds first in gameplay and hitch on big instruments | Medium | Frame spikes | Diagnostics name every gameplay compile with its frame; the docs and the Sound Board model the setup convention; the A/B benchmark shows the cost |
-| R4 | `Channel.fadeout` then `play` on the same channel cuts the steal fade | Medium | Clicks on stealing | M1 verification; the §7.1 fallback (a one-frame delay) |
-| R5 | Frame-rate volume steps cause zipper noise on bus fades and ducking | Low–Medium | Audible stepping | Listening check; voice fades already use `Channel.fadeout`; fallback of rendered fade tails |
+| R4 | `Channel.fadeout` then `play` on the same channel cuts the steal fade | Measured: it does (M1, §7.1) | Clicks on stealing | The §7.1 one-frame delay, kept. It is not enough: SDL_mixer steps the 10 ms fade per chunk, so a steal is a plateau or a halt (§7.1, measured); a longer steal fade or rendered fade tails, the owner's decision |
+| R5 | Frame-rate volume steps cause zipper noise on bus fades and ducking | Measured: steps of a third at chunk boundaries for a 50 ms fade (§7.2) | Audible stepping | Listening check; `Channel.fadeout` is stepped per chunk too (§10.1, measured); fallback of rendered fade tails |
 | R6 | Variant counts (pitches × parameters) grow compile time and memory | Medium | Slow scene starts, memory pressure (44.1 kHz s16 stereo ≈ 10 MB/min) | Diagnostics, `warm` with a budget, the disk cache (M2), mono compiles panned by channel volume (halves memory), the LRU limit |
 | R7 | Browser audio differs (ScriptProcessorNode deprecation, autoplay, queue/end callbacks) | Medium | The browser is silent or glitchy | The compiled path is verified for basic play [Fact]; explicit browser checks per milestone |
 | R8 | Floating-point differences make cross-platform golden audio flaky | Medium | Flaky tests | Tolerances (§9); golden comparisons per platform tag only |

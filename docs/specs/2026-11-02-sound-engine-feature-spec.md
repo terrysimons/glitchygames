@@ -1,7 +1,8 @@
 # GlitchyGames Sound Engine — Feature Specification
 
 - **Date:** 2026-11-02 (revision 2: the one-call `audio.sound(...)` API)
-- **Status:** DRAFT for the owner's review. Nothing here is built.
+- **Status:** DRAFT for the owner's review. M1 is built on this branch (2026-11-02; user docs:
+  `docs/architecture/sound.md`); M2 onwards is not.
 - **Companion:** `docs/specs/2026-11-02-sound-engine-implementation-spec.md` (how each requirement
   is met, the traceability table, the decision and risk registers, the measurements).
 - **Source brief:** `~/Documents/ChatGPT/GlitchyGames/glitchygames-sound-engine-development-brief.md`
@@ -1430,7 +1431,7 @@ traceability table (§14 there).
 | AUD-MIX-001 | Default buses, custom buses, and volume/mute/solo applied to playing voices | P0 | M1 | Channel volumes reflect bus × sound × master after each change |
 | AUD-MIX-002 | Constant-power panning | P0 | M1 | L² + R² is constant within 0.1 dB across pan −1…1 |
 | AUD-MIX-003 | Voice limits, reservations, priorities, deterministic voice choice | P0 | M1 | A scripted storm of 200 plays steals the same voices on every run; the UI reservation is never starved |
-| AUD-MIX-004 | Stealing with a 10 ms fade | P0 | M1 | A stolen voice fades (no step above threshold); dropped plays are counted |
+| AUD-MIX-004 | Stealing with a 10 ms fade | P0 | M1 | A stolen voice fades (no step above threshold); dropped plays are counted. **[Open]** Measured on SDL's disk driver (`tests/audio/test_channel_fades.py`, 2026-11-02): SDL_mixer applies a fade once per mixer chunk (512 frames, 11.6 ms), so the 10 ms steal fade is one plateau or a halt, with a worst step 8 to 10 times a 440 Hz tone's own largest (two recordings of six steals); `play` straight after the fadeout replaces the voice at the next chunk (worst 10.3 times), so the voice table keeps its one-frame wait (impl spec 7.1). Dropped plays are counted. The fallback (a longer steal fade, or engine-rendered fade tails: impl spec risks R4 and R5) awaits the owner's decision |
 | AUD-MIX-005 | Loudness budget per bus | P2 | M2 | A storm of 20 explosions: the summed estimated peak is ≤ the budget after protection |
 | AUD-MIX-006 | Ducking | P2 | M5 | The music bus is measured at −9 dB within the attack time when dialogue plays |
 | AUD-MIX-007 | 2D positional plays | P2 | M4 | Pan and gain follow position per the stated law |
@@ -1487,7 +1488,7 @@ traceability table (§14 there).
 | --- | --- | --- | --- | --- |
 | AUD-CRT-001 | Power-on sound per the §12.1 timeline | P0 | M1 | An offline render of the sequence's sound matches the timeline's cues (onsets within 10 ms of their progress points); listening check signed off by the owner |
 | AUD-CRT-002 | Power-on sound obeys the power-on rules and its own off switch | P0 | M1 | Not played in headless runs, tests, replays or recordings; `--crt-power-on-sound off` works |
-| AUD-CRT-003 | A skip fades in 20 ms | P0 | M1 | A simulated key at 0.4 s ramps the output to silence within 20 ms, with no step above threshold. **[Open]** SDL_mixer steps a channel fade once per mixer chunk (512 frames, about 11.6 ms), so a 20 ms fade is a plateau or two and a halt: the CRT is silent within 20 ms plus one chunk, but a pure tone shows a step about 3.4 times its own largest (modelled). Pending Task 13's disk-driver probe and the owner's listening check; fallback: engine-rendered fade tails (impl spec 10.1, risk R5) |
+| AUD-CRT-003 | A skip fades in 20 ms | P0 | M1 | A simulated key at 0.4 s ramps the output to silence within 20 ms, with no step above threshold. **[Open]** SDL_mixer steps a channel fade once per mixer chunk (512 frames, about 11.6 ms), so a 20 ms fade is a plateau or two and a halt: the CRT is silent within 20 ms plus one chunk, but a pure tone shows a step about 3.4 times its own largest (modelled). Measured on SDL's disk driver (`tests/audio/test_channel_fades.py`, 2026-11-02), the model holds: one or two plateaus, then a halt, every step on a chunk boundary, the worst step 4.5 to 4.9 times a 1 kHz tone's own (from 1.0 to 4.9 across twelve skips). Pending the owner's listening check; the fallback (engine-rendered fade tails, impl spec 10.1, risk R5) awaits the owner's decision |
 | AUD-DEMO-001 | Sound Board demo | P0 | M1 | A demos-layer member with its console script (`uv run sound-board-demo`); plays every built-in wave and noise; its tests drive it headless |
 | AUD-DEMO-002 | Rev It Up demo | P1 | M2 | Runs; its engine sound follows RPM |
 | AUD-DEMO-003 | Wave Lab and Chip Jukebox | P1 | M4 | Run |

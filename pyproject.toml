@@ -796,6 +796,10 @@ known_first_party = ["glitchygames"]
 # bokeh is kept deliberately for future plotting tools (the user, 2026-10-22); nothing imports it yet
 # The demos layer's members are in the root's `demos` extra, but nothing deptry scans imports them
 # (scripts/ imports the games, not the demos; a demo's tests are its member's, under src/demos)
+# pydantic_core is pydantic's own core, installed at the exact version pydantic pins: the sound
+# file schema (src/glitchygames/audio/assets.py) raises its PydanticCustomError, which pydantic
+# does not re-export
+DEP003 = ["pydantic_core"]
 DEP002 = [
   "dt-demo",
   "joystick-demo",

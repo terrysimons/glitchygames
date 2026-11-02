@@ -318,8 +318,10 @@ games.
   exit codes). A watched replay runs through `run_watched_replay_async`
   (`src/glitchygames/replay/viewer.py`: one viewer tick per awaited tick, `ticks_externally`, steps
   until `SceneManager.last_step_was_held`); a headless replay raises RuntimeError. Replay
-  restarts need a new process, so in a browser they only show a message (`RESTARTS_AVAILABLE`). `_prepare_run()` is everything up to the first
-  frame
+  restarts need a new process, so in a browser they only show a message (`RESTARTS_AVAILABLE`). Both
+  starts share everything up to the first frame: `_begin_run()`, the CRT power-on (its sound from
+  `_power_on_sound_cues()`, handed back by `_hand_back_power_on`) and `_build_game()`; `_run_game`
+  runs them blocking, `start_async` awaiting the power-on's ticks
 
 **Exit Codes** (`src/glitchygames/exit_codes.py`; `ExitCode` IntEnum, re-exported by
 `glitchygames.engine`; never write the number in code or tests)
@@ -1111,7 +1113,7 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
 - `with context.active():` switches (a `contextvars.ContextVar`: per thread and asyncio task;
   nests; restores on exceptions). Slots today: the default snap mode, the default background,
   the polled input, the random streams, the game-frame clock, the doors with the frame clock
-  and observers, and the `SceneManager` singleton (the table in
+  and observers, the `SceneManager` singleton, the wave registry and the audio engine (the table in
   `docs/architecture/engine_context.md` lists each one's functions); each has an isolation check in `tests/test_engine_context.py`
   (`ISOLATION_CHECKS`), and a slot without one fails the suite
 - The harness fails a test that leaves another context current
@@ -1150,16 +1152,58 @@ revision: a game outside this repository names its own commit. Here both are one
   joystick modes
 - `--screen-shake-intensity`, `--rumble-intensity` (0.0-1.0)
 
-**Sound Synthesis** (`src/glitchygames/audio/synth.py`, `recipes.py`, `live.py`)
-- Toolkit: oscillators (PolyBLEP square/saw), pitch curves via easing, envelopes, FIR filters,
-  mixing, `to_sound()`
-- Recipes: `Tone`/`SoundRecipe` (TOML-loadable) played through `SoundBank`
+**Sound Synthesis** (`src/glitchygames/audio/`; user docs `docs/architecture/sound.md`, specs
+`docs/specs/2026-11-02-sound-engine-feature-spec.md` and `...-implementation-spec.md`; M1 built,
+M2 next)
+- One call: `scene_manager.audio` is the context's `AudioEngine` (`audio/engine.py`, slot
+  `AUDIO_ENGINE_SLOT`). `audio.sound(source, *, pitch, notes, chord, length, transpose)` returns
+  a compiled `Sound`: the first request for an identity compiles, later ones hit the cache, and
+  getting never plays. `Sound.play(volume=, pan=, bus=, priority=, loop=, persist=)` returns a
+  `SoundHandle` (`stop`, `cancel`, `release`, `set_volume`, `set_pan`, `is_playing`: False once
+  ended, never touching a later voice); `audio.play(...)` and `audio.beep(...)` are shorthands.
+  Request sounds in `setup()`: a gameplay compile is counted, logged and shown in red
+- Sources: a short name, looked up in the scene's `SOUND_DIRECTORY` (`'sounds'`, relative to the
+  scene's package directory; a TOML `[sounds.*]` name or a `.wav`/`.ogg` stem; a name in two
+  files raises naming both), a path (`'sounds/pickups.toml#coin'`) or an `Instrument` (waves,
+  noise, up to four sources, envelope, filter, drive). Pitches: note names, `Hz`, `Midi`,
+  `Scale(root, kind).step(n)` (`audio/pitch.py`); named waves, mixes, blends, points and
+  harmonics (`audio/waves.py`, a per-context registry). Sound files are TOML version 1
+  (`audio/assets.py`, `audio/spec.py`); version 0 recipe files load and sound as before
+- Cache (`--sound-cache`, replay-local): `ram` (default; least recently played idle sounds go
+  above `--sound-cache-memory`, 256 MB) or `none` (every play compiles in its frame); `disk`
+  arrives in M3 and is refused (`OPTIONS_REFUSED`) until then
+- Channels: partitioned once at startup: the live pool (`--live-voice-pool`, 4), the library
+  (`--sound-channels`, 32), then pygame's 8 for legacy `Sound.play()` callers. The voice table
+  (`audio/voices.py`) steals by priority (`Channel.fadeout(10)`; the stealer waits a frame for
+  the stolen channel, a delayed play), drops and counts; `is_playing` and voice ends follow
+  played time (the served `dt`), never the device, so replays see the same answers. Buses
+  (`audio/buses.py`): `master` over `music`, `effects`, `ui`, `ambience` and `dialogue` (`ui`
+  and `music` reserve two channels each). A scene's voices fade over 50 ms when it is switched
+  away from (unless `persist=True`) and pause behind a pause screen
+- Measured (`tests/audio/test_channel_fades.py`, SDL's disk driver): SDL_mixer changes a
+  channel's level only between 512-frame chunks (11.6 ms), so `Channel.fadeout` of 10 or 20 ms
+  is a plateau or two and a halt, a per-frame volume or bus fade steps once per chunk, and
+  `play` straight after `fadeout` cuts the fade (why steals wait a frame). Short fades can click:
+  the owner's listening check and decision (impl spec risks R4 and R5; strict xfails hold the
+  unmet criterion)
+- Accounting (`audio/accounting.py`): each compile, decode and cache read is timed; a frame's
+  work reaches the doors, and so recordings, as `audio_seconds` and `audio_work` (at most 32
+  entries); `audio.diagnostics()` totals compiles (setup and gameplay), steals, delayed and
+  dropped plays and the cache's hits, misses and bytes; the debug overlay's Audio panel shows
+  them per frame
 - Offline: `glitchygames.audio.render_to_file(sound, path, ...)` (`audio/offline.py`) writes a
   sound (plus `OfflineEvent`s, loops, stems) to a WAV file with no audio device; alone it is the
   compiled int16 buffer bit for bit (never cut); with `events`, the tail stops 100 ms into
-  -90 dBFS after the last nominal end (an instrument sound's last release), or at `tail_seconds`
-- Live voices: `scene_manager.live_audio.create_voice(owner=...)`, streamed in 100 ms chunks on
-  a channel pool reserved at startup (`--live-voice-pool`, default 4)
+  -90 dBFS after the last nominal end (an instrument sound's last release), or at `tail_seconds`.
+  The `glitchygames sound-render` and `sound-migrate` (v0 recipes to v1) tools use it
+- The Sound Board (`uv run sound-board-demo`) plays every built-in wave and noise by note, hertz
+  and scale step, with the Audio panel open
+- The older toolkit, kept until M2 moves the games over and removes `SoundBank`, `load_sound`
+  and `live_audio`: oscillators (PolyBLEP square/saw), pitch curves via easing, envelopes, FIR
+  filters, mixing and `to_sound()` (`synth.py`, still the renderer's building blocks);
+  `Tone`/`SoundRecipe` (TOML-loadable) played through `SoundBank` (`recipes.py`); live voices,
+  `scene_manager.live_audio.create_voice(owner=...)`, streamed in 100 ms chunks on the live pool
+  (`live.py`)
 - Mixer: 44100 Hz, signed 16-bit, stereo, 512-sample buffer (started by `pygame.init()`)
 - GIL: the engine sets `sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS)` (0.5 ms, `timing.py`) so the
   mixer callback can queue the next chunk; check with `uv run python scripts/audio_glitch_probe.py`

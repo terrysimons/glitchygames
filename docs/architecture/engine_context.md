@@ -2,7 +2,7 @@
 
 An engine context is the state one running game owns, so several games can run in one process
 (the Arcade's demo tiles; design: `plans/2026-10-25-engine-context.md`). Ordinary games never
-create one: they run in the default context, exactly as before. Only the six slots below are
+create one: they run in the default context, exactly as before. Only the nine slots below are
 per context today; the rest of the process-wide state (`GameEngine` and its `OPTIONS`,
 `SceneManager.OPTIONS`, `FontManager`, `ResourceManager`, the event managers and the other rows
 of the audit in `plans/2026-10-25-engine-context.md`) is still shared and belongs to later
@@ -39,6 +39,7 @@ tests do.
 | `glitchygames.game_frames.clock` | `src/glitchygames/game_frames.py` | `game_frame_clock`, `restart_game_frame_clock` |
 | `glitchygames.sources.registry` | `src/glitchygames/sources.py` | `active_sources`, `install_sources`, `reset_sources`, `push_scoped_sources`, `pop_scoped_sources`, `has_scoped_sources`, `redeliver_events`, `pending_redelivered_events`, `take_redelivered_events`, `discard_scope_posts`, `without_discarded_scope_posts`, `mark_frames_started`, `advance_frame_clock`, `set_frame_clock_seconds`, `frame_clock_seconds`, `observe_save_store_openings`, `stop_observing_save_store_openings`, `notify_save_store_opened`, `observe_device_answers`, `stop_observing_device_answers`, `notify_device_answer` |
 | `glitchygames.scenes.scene.scene_managers` | `src/glitchygames/scenes/scene.py` | `SceneManager()`, `SceneManager._reset()` |
+| `glitchygames.audio.waves.registry` | `src/glitchygames/audio/waves.py` | `current_wave_registry` (the named waves a sound file or `Wave` registers; `AudioEngine.waves`) |
 | `glitchygames.audio.engine.audio_engine` | `src/glitchygames/audio/engine.py` | `SceneManager.audio`, `existing_audio_engine`, `install_audio_engine`, `discard_audio_engine` |
 
 `tests/test_engine_context.py` proves, for every slot, that two contexts in one process never

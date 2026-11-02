@@ -647,8 +647,9 @@ def test_the_device_fade_steps_a_pure_tone_in_chunk_plateaus():
     strict=True,
     reason=(
         'AUD-CRT-003 [Open] (ruling R41): SDL_mixer steps a fade once per 512-frame chunk, so a '
-        '20 ms fade is about two plateaus and a halt. Pending Task 13 (disk-driver probe and the '
-        "owner's listening check); the fallback is engine-rendered fade tails (impl spec risk R5)"
+        '20 ms fade is about two plateaus and a halt (confirmed on the device: '
+        "tests/audio/test_channel_fades.py). Pending the owner's listening check; the fallback "
+        'is engine-rendered fade tails (impl spec risk R5)'
     ),
 )
 def test_a_skip_fades_a_pure_tone_without_a_step_above_threshold():

@@ -11,7 +11,10 @@ equal priority (releasing first, then lowest priority, earliest play, lowest cha
 from the table alone, so it is deterministic: AUD-MIX-003), else is dropped and counted. A
 stolen channel fades with ``Channel.fadeout(10)``; the stealer takes another free channel, or
 waits one frame for the stolen one (counted as a delayed play) because ``Channel.play`` on a
-fading channel may cut the fade audibly (impl spec 7.1 **[Open]**, verified in Task 13).
+fading channel replaces the fading sound at the next mixer chunk, so the fade is never heard
+(impl spec 7.1, measured on SDL's disk driver: tests/audio/test_channel_fades.py). SDL_mixer
+steps a fade once per chunk (512 frames, 11.6 ms), so even the delayed steal's 10 ms fade is a
+plateau or a halt, not a ramp: steals are not yet click-free (impl spec risk R4, **[Open]**).
 
 What the game sees (``SoundHandle.is_playing``, voices ending) follows each voice's
 ``played_seconds``, which ``advance`` moves by the served frame time only while the voice is not

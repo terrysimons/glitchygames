@@ -27,6 +27,7 @@ nav:
       - The Recording File: "architecture/playback/recording-file.md"
       - How We Test Playback: "architecture/playback/testing.md"
     - Engine Context: "architecture/engine_context.md"
+    - Sound: "architecture/sound.md"
     - Multi-Controller System: "multi_controller_system.md"
     - Code Complexity: "quality/complexity.md"
     - Replay Performance: "quality/performance.md"
@@ -37,6 +38,8 @@ nav:
       - glitchy.games Website on AWS: "specs/2026-10-27-glitchy-games-website-design.md"
       - Sprite QuickLook for macOS: "specs/2026-10-29-sprite-quicklook-design.md"
       - One Rule for Sprite Pixel Rows: "specs/2026-10-30-unified-pixel-rows-design.md"
+      - Sound Engine Features: "specs/2026-11-02-sound-engine-feature-spec.md"
+      - Sound Engine Implementation: "specs/2026-11-02-sound-engine-implementation-spec.md"
   - glitchygames API Reference:
     - "glitchygames/index.md"
     - glitchygames.api: "glitchygames/api/index.md"
