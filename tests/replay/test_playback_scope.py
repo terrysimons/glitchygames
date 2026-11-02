@@ -1999,7 +1999,12 @@ class TestDevicesInAPlayback:
     def test_a_playback_without_an_engine_has_no_devices_to_set_aside(
         self, tmp_path, mocker: MockerFixture
     ):
-        """A bare scene manager (no engine) plays a scope; there are no live devices to swap."""
+        """A bare scene manager (no engine) plays a scope; there are no live devices to swap.
+
+        Without an engine nothing pumps events (``SceneManager._process_events``), so the scope
+        diverges on its first frame (the recording pumped there): it still enters and ends
+        without touching the engine's devices, which is what this checks.
+        """
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
             engine = manager.game_engine
@@ -2016,7 +2021,8 @@ class TestDevicesInAPlayback:
 
             step(manager, frames=SHORT_RECORDED_FRAMES)
 
-            assert outcome_reason(manager) == 'end_of_recording'
+            assert outcome_reason(manager) == 'diverged'
+            assert manager.playback_session is None
             entered.assert_not_called()
             exited.assert_not_called()
             assert engine.input_devices is live_devices
