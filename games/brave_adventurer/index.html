@@ -1219,7 +1219,7 @@ data, terrain, background drawing, sounds and constants with the classic edition
 </tr>
 <tr>
 <td><code>GroundSegment</code> and <code>StoneWall</code> (variable-width primitives, which do not suit fixed pixel art)</td>
-<td>Sprites are scaled 2x (<code>SPRITE_SCALE</code>); TOML hitboxes are in native pixels, so <code>hitbox_scale</code> is set to 2</td>
+<td>Sprites are scaled 2x (<code>SPRITE_SCALE</code>); TOML hitboxes are in native pixels, so <code>scale</code> is set to 2</td>
 </tr>
 <tr>
 <td>The four parallax draw functions and the pits</td>
@@ -1352,7 +1352,8 @@ diagrams readable).</p>
   and it fills the base's voice hooks, which Papyrus leaves empty.</li>
 <li><strong><code>PapyrusPlayer</code></strong> has the same <code>PhysicsBody</code> and move methods as <code>Player</code>. Each <code>dt_tick</code>
   ticks physics, evaluates the TOML state machine, advances the TOML animation
-  (<code>AnimatedSprite.update(self, dt)</code>), rescales the frame (<code>apply_transparency_and_scale</code>), and
+  (<code>AnimatedSprite.update(self, dt)</code>), starts image from a fresh copy of the drawn frame
+  (<code>refresh_drawn_image</code>), and
   mirrors image and hitbox when facing left (<code>hitbox_flip_x</code>), then refits the world-edge
   bound. That keeps the pose rule: the frame collision uses is the one drawn this frame.
   <code>frame_anchor = FrameAnchor.BOTTOM</code> draws each frame lower by its <code>draw_offset</code>, so frames
@@ -1362,9 +1363,10 @@ diagrams readable).</p>
 <li><strong>The Papyrus enemies and gold scarab</strong> do the same, animating in <code>dt_tick</code>, and make
   <code>update()</code> a no-op (<code>Scene.update()</code> would call it without a dt: BUGS.md #115).</li>
 <li><strong><code>sprite_utils.py</code></strong>: <code>prepare_papyrus_sprite()</code> converts every loaded frame from the
-  magenta colour key to per-pixel alpha (so transparency survives scaling and flipping) and sets
-  <code>hitbox_scale</code>; <code>apply_transparency_and_scale()</code> scales the current frame's source surface
-  each tick, never the already scaled image.</li>
+  magenta colour key to per-pixel alpha and sets the engine's <code>AnimatedSprite.scale</code> to
+  <code>SPRITE_SCALE</code>, which draws every frame, rect, hitbox and <code>draw_offset</code> at 2x (BUGS.md #144);
+  <code>refresh_drawn_image()</code> copies the engine's drawn frame each tick, so the facing flip and the
+  respawn fade never stack or reach the engine's cached surface.</li>
 </ul>
 <table>
 <thead>
@@ -1523,7 +1525,7 @@ names; and its one browser page, the title screen, ships all four archives, the 
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py</code></td>
-<td>Colour key to alpha, 2x scaling, <code>hitbox_scale</code></td>
+<td>Colour key to alpha, <code>scale</code> set to 2x, per-tick image refresh</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/constants.py</code></td>

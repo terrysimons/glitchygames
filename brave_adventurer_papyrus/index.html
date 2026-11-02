@@ -482,7 +482,7 @@ engine places it from the camera.</p>
 <a id="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-82" name="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-82"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">state_machine</span><span class="o">.</span><span class="n">evaluate</span><span class="p">({},</span> <span class="n">dt</span><span class="p">)</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-83" name="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-83"></a>
 <a id="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-84" name="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-84"></a>        <span class="n">AnimatedSprite</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
-<a id="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-85" name="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-85"></a>        <span class="n">apply_transparency_and_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+<a id="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-85" name="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-85"></a>        <span class="n">refresh_drawn_image</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-86" name="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-86"></a>
 <a id="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-87" name="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-87"></a>    <span class="nd">@override</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-88" name="brave_adventurer_papyrus.enemies.PapyrusCobra--source--__codelineno-0-88"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.016</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -692,7 +692,7 @@ engine places it from the camera.</p>
 <a id="brave_adventurer_papyrus.enemies.PapyrusCobra.dt_tick--source--__codelineno-0-82" name="brave_adventurer_papyrus.enemies.PapyrusCobra.dt_tick--source--__codelineno-0-82"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">state_machine</span><span class="o">.</span><span class="n">evaluate</span><span class="p">({},</span> <span class="n">dt</span><span class="p">)</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusCobra.dt_tick--source--__codelineno-0-83" name="brave_adventurer_papyrus.enemies.PapyrusCobra.dt_tick--source--__codelineno-0-83"></a>
 <a id="brave_adventurer_papyrus.enemies.PapyrusCobra.dt_tick--source--__codelineno-0-84" name="brave_adventurer_papyrus.enemies.PapyrusCobra.dt_tick--source--__codelineno-0-84"></a>    <span class="n">AnimatedSprite</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
-<a id="brave_adventurer_papyrus.enemies.PapyrusCobra.dt_tick--source--__codelineno-0-85" name="brave_adventurer_papyrus.enemies.PapyrusCobra.dt_tick--source--__codelineno-0-85"></a>    <span class="n">apply_transparency_and_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+<a id="brave_adventurer_papyrus.enemies.PapyrusCobra.dt_tick--source--__codelineno-0-85" name="brave_adventurer_papyrus.enemies.PapyrusCobra.dt_tick--source--__codelineno-0-85"></a>    <span class="n">refresh_drawn_image</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -884,7 +884,7 @@ from the camera.</p>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-147" name="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-147"></a>        <span class="c1"># Horizontal movement</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-148" name="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-148"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">world_x</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">roll_speed</span> <span class="o">*</span> <span class="n">dt</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-149" name="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-149"></a>        <span class="n">AnimatedSprite</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
-<a id="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-150" name="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-150"></a>        <span class="n">apply_transparency_and_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+<a id="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-150" name="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-150"></a>        <span class="n">refresh_drawn_image</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-151" name="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-151"></a>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-152" name="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-152"></a>    <span class="nd">@override</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-153" name="brave_adventurer_papyrus.enemies.PapyrusScarab--source--__codelineno-0-153"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.016</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1104,7 +1104,7 @@ from the camera.</p>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScarab.dt_tick--source--__codelineno-0-147" name="brave_adventurer_papyrus.enemies.PapyrusScarab.dt_tick--source--__codelineno-0-147"></a>    <span class="c1"># Horizontal movement</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScarab.dt_tick--source--__codelineno-0-148" name="brave_adventurer_papyrus.enemies.PapyrusScarab.dt_tick--source--__codelineno-0-148"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">world_x</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">roll_speed</span> <span class="o">*</span> <span class="n">dt</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScarab.dt_tick--source--__codelineno-0-149" name="brave_adventurer_papyrus.enemies.PapyrusScarab.dt_tick--source--__codelineno-0-149"></a>    <span class="n">AnimatedSprite</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
-<a id="brave_adventurer_papyrus.enemies.PapyrusScarab.dt_tick--source--__codelineno-0-150" name="brave_adventurer_papyrus.enemies.PapyrusScarab.dt_tick--source--__codelineno-0-150"></a>    <span class="n">apply_transparency_and_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+<a id="brave_adventurer_papyrus.enemies.PapyrusScarab.dt_tick--source--__codelineno-0-150" name="brave_adventurer_papyrus.enemies.PapyrusScarab.dt_tick--source--__codelineno-0-150"></a>    <span class="n">refresh_drawn_image</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1317,7 +1317,7 @@ sprite: the engine places it from the camera.</p>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-220" name="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-220"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">facing_right</span> <span class="o">=</span> <span class="kc">True</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-221" name="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-221"></a>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-222" name="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-222"></a>        <span class="n">AnimatedSprite</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
-<a id="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-223" name="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-223"></a>        <span class="n">apply_transparency_and_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+<a id="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-223" name="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-223"></a>        <span class="n">refresh_drawn_image</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-224" name="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-224"></a>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-225" name="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-225"></a>        <span class="c1"># Flip image when facing left, and mirror the hitbox with it</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-226" name="brave_adventurer_papyrus.enemies.PapyrusScorpion--source--__codelineno-0-226"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">hitbox_flip_x</span> <span class="o">=</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">facing_right</span>
@@ -1559,7 +1559,7 @@ sprite: the engine places it from the camera.</p>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-220" name="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-220"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">facing_right</span> <span class="o">=</span> <span class="kc">True</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-221" name="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-221"></a>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-222" name="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-222"></a>    <span class="n">AnimatedSprite</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
-<a id="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-223" name="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-223"></a>    <span class="n">apply_transparency_and_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+<a id="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-223" name="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-223"></a>    <span class="n">refresh_drawn_image</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-224" name="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-224"></a>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-225" name="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-225"></a>    <span class="c1"># Flip image when facing left, and mirror the hitbox with it</span>
 <a id="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-226" name="brave_adventurer_papyrus.enemies.PapyrusScorpion.dt_tick--source--__codelineno-0-226"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">hitbox_flip_x</span> <span class="o">=</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">facing_right</span>
@@ -3912,9 +3912,9 @@ rect from the camera each frame, adding the anchored frame's draw_offset.</p>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-212" name="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-212"></a>        <span class="n">context</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">physics</span><span class="o">.</span><span class="n">get_animation_context</span><span class="p">()</span>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-213" name="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-213"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">state_machine</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-214" name="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-214"></a>
-<a id="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-215" name="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-215"></a>        <span class="c1"># Advance TOML animation frames and fix transparency</span>
+<a id="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-215" name="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-215"></a>        <span class="c1"># Advance TOML animation frames, then start from a fresh copy of the drawn frame</span>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-216" name="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-216"></a>        <span class="n">AnimatedSprite</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
-<a id="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-217" name="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-217"></a>        <span class="n">apply_transparency_and_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+<a id="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-217" name="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-217"></a>        <span class="n">refresh_drawn_image</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-218" name="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-218"></a>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-219" name="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-219"></a>        <span class="c1"># Flip image when facing left, and mirror the hitbox with it</span>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-220" name="brave_adventurer_papyrus.player.PapyrusPlayer--source--__codelineno-0-220"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">hitbox_flip_x</span> <span class="o">=</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">facing_right</span>
@@ -4416,9 +4416,9 @@ rect from the camera each frame, adding the anchored frame's draw_offset.</p>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-212" name="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-212"></a>    <span class="n">context</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">physics</span><span class="o">.</span><span class="n">get_animation_context</span><span class="p">()</span>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-213" name="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-213"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">state_machine</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-214" name="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-214"></a>
-<a id="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-215" name="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-215"></a>    <span class="c1"># Advance TOML animation frames and fix transparency</span>
+<a id="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-215" name="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-215"></a>    <span class="c1"># Advance TOML animation frames, then start from a fresh copy of the drawn frame</span>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-216" name="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-216"></a>    <span class="n">AnimatedSprite</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
-<a id="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-217" name="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-217"></a>    <span class="n">apply_transparency_and_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+<a id="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-217" name="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-217"></a>    <span class="n">refresh_drawn_image</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-218" name="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-218"></a>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-219" name="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-219"></a>    <span class="c1"># Flip image when facing left, and mirror the hitbox with it</span>
 <a id="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-220" name="brave_adventurer_papyrus.player.PapyrusPlayer.dt_tick--source--__codelineno-0-220"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">hitbox_flip_x</span> <span class="o">=</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">facing_right</span>
@@ -4635,145 +4635,6 @@ re-apply colorkey every frame.</p>
 <div class="doc doc-object doc-function">
 
 
-<h2 id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">apply_transparency_and_scale</span><span class="p">(</span><span class="n">sprite</span><span class="p">,</span> <span class="n">scale_factor</span><span class="o">=</span><span class="n">SPRITE_SCALE</span><span class="p">)</span></code>
-
-<a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale" class="headerlink" title="Permanent link">#</a></h2>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Scale from the original frame surface with proper alpha transparency.</p>
-<p>Always reads from the current animation frame's source surface
-(not self.image) to prevent cumulative double-scaling.
-The SRCALPHA format set by prepare_papyrus_sprite() is preserved
-through pygame.transform.scale(). Also sets the sprite's hitbox_scale,
-so its native-pixel TOML hitboxes match the scaled image, and sizes its rect to the scaled
-image.</p>
-
-
-<table class="field-list">
-  <colgroup>
-    <col class="field-name" />
-    <col class="field-body" />
-  </colgroup>
-  <tbody valign="top">
-    <tr class="field">
-      <th class="field-name">Parameters:</th>
-      <td class="field-body">
-        <ul class="first simple">
-            <li>
-              <b><code>sprite</code></b>
-                  (<code><a class="autorefs autorefs-internal" title="AnimatedSprite (glitchygames.sprites.AnimatedSprite)" href="../glitchygames/sprites/#glitchygames.sprites.animated.AnimatedSprite">AnimatedSprite</a></code>)
-              –
-              <div class="doc-md-description">
-                <p>The sprite to process.</p>
-              </div>
-            </li>
-            <li>
-              <b><code>scale_factor</code></b>
-                  (<code><span title="int">int</span></code>, default:
-                      <code><span title="brave_adventurer_papyrus.constants.SPRITE_SCALE">SPRITE_SCALE</span></code>
-)
-              –
-              <div class="doc-md-description">
-                <p>Integer scale multiplier.</p>
-              </div>
-            </li>
-        </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-68"> 68</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-69"> 69</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-70"> 70</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-71"> 71</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-72"> 72</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-73"> 73</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-74"> 74</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-75"> 75</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-76"> 76</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-77"> 77</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-78"> 78</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-79"> 79</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-80"> 80</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-81"> 81</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-82"> 82</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-83"> 83</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-84"> 84</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-85"> 85</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-86"> 86</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-87"> 87</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-88"> 88</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-89"> 89</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-90"> 90</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-91"> 91</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-92"> 92</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-93"> 93</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-94"> 94</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-95"> 95</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-96"> 96</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-97"> 97</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-98"> 98</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-99"> 99</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-100">100</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-101">101</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-102">102</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-103">103</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-104">104</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-105">105</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-106">106</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-68" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-68"></a><span class="k">def</span><span class="w"> </span><span class="nf">apply_transparency_and_scale</span><span class="p">(</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-69" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-69"></a>    <span class="n">sprite</span><span class="p">:</span> <span class="n">AnimatedSprite</span><span class="p">,</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-70" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-70"></a>    <span class="n">scale_factor</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">SPRITE_SCALE</span><span class="p">,</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-71" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-71"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-72" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-72"></a><span class="w">    </span><span class="sd">"""Scale from the original frame surface with proper alpha transparency.</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-73" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-73"></a>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-74" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-74"></a><span class="sd">    Always reads from the current animation frame's source surface</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-75" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-75"></a><span class="sd">    (not self.image) to prevent cumulative double-scaling.</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-76" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-76"></a><span class="sd">    The SRCALPHA format set by prepare_papyrus_sprite() is preserved</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-77" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-77"></a><span class="sd">    through pygame.transform.scale(). Also sets the sprite's hitbox_scale,</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-78" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-78"></a><span class="sd">    so its native-pixel TOML hitboxes match the scaled image, and sizes its rect to the scaled</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-79" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-79"></a><span class="sd">    image.</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-80" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-80"></a>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-81" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-81"></a><span class="sd">    Args:</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-82" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-82"></a><span class="sd">        sprite: The sprite to process.</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-83" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-83"></a><span class="sd">        scale_factor: Integer scale multiplier.</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-84" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-84"></a>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-85" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-85"></a><span class="sd">    """</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-86" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-86"></a>    <span class="c1"># TOML hitboxes are in native pixels; the sprite is drawn scale_factor times larger</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-87" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-87"></a>    <span class="n">sprite</span><span class="o">.</span><span class="n">hitbox_scale</span> <span class="o">=</span> <span class="n">scale_factor</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-88" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-88"></a>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-89" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-89"></a>    <span class="n">frame</span> <span class="o">=</span> <span class="n">sprite</span><span class="o">.</span><span class="n">get_current_frame</span><span class="p">()</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-90" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-90"></a>    <span class="k">if</span> <span class="n">frame</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-91" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-91"></a>        <span class="k">return</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-92" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-92"></a>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-93" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-93"></a>    <span class="n">source_surface</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">image</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-94" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-94"></a>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-95" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-95"></a>    <span class="k">if</span> <span class="n">scale_factor</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-96" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-96"></a>        <span class="n">scaled_width</span> <span class="o">=</span> <span class="n">source_surface</span><span class="o">.</span><span class="n">get_width</span><span class="p">()</span> <span class="o">*</span> <span class="n">scale_factor</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-97" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-97"></a>        <span class="n">scaled_height</span> <span class="o">=</span> <span class="n">source_surface</span><span class="o">.</span><span class="n">get_height</span><span class="p">()</span> <span class="o">*</span> <span class="n">scale_factor</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-98" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-98"></a>        <span class="n">sprite</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">scale</span><span class="p">(</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-99" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-99"></a>            <span class="n">source_surface</span><span class="p">,</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-100" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-100"></a>            <span class="p">(</span><span class="n">scaled_width</span><span class="p">,</span> <span class="n">scaled_height</span><span class="p">),</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-101" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-101"></a>        <span class="p">)</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-102" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-102"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-103" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-103"></a>        <span class="n">sprite</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="n">source_surface</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-104" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-104"></a>    <span class="c1"># The rect is the drawn image's size, not the native frame's (BUGS.md #59: a 40x56 player</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-105" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-105"></a>    <span class="c1"># had a 20x28 rect). Only its size: the engine places its position from world_x/world_y</span>
-<a id="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-106" name="brave_adventurer_papyrus.sprite_utils.apply_transparency_and_scale--source--__codelineno-0-106"></a>    <span class="n">sprite</span><span class="o">.</span><span class="n">rect</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="n">sprite</span><span class="o">.</span><span class="n">image</span><span class="o">.</span><span class="n">get_size</span><span class="p">()</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
 <h2 id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">prepare_papyrus_sprite</span><span class="p">(</span><span class="n">sprite</span><span class="p">,</span> <span class="n">scale_factor</span><span class="o">=</span><span class="n">SPRITE_SCALE</span><span class="p">)</span></code>
 
@@ -4782,11 +4643,11 @@ image.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Convert all animation frames from colorkey to per-pixel alpha.</p>
+        <p>Convert all animation frames from colorkey to per-pixel alpha, and set the draw scale.</p>
 <p>Call this immediately after AnimatedSprite.<strong>init</strong>() loads the TOML file.
 Replaces every frame surface with an SRCALPHA version where magenta
-pixels are fully transparent, and sets the sprite's hitbox_scale to the
-scale it will be drawn at, so its hitboxes are scaled from construction on
+pixels are fully transparent, and sets the sprite's scale to the scale it is
+drawn at, so its image, rect and hitboxes are scaled from construction on
 (before its first dt_tick).</p>
 
 
@@ -4846,18 +4707,13 @@ scale it will be drawn at, so its hitboxes are scaled from construction on
 <span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-57">57</a></span>
 <span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-58">58</a></span>
 <span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-59">59</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-60">60</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-61">61</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-62">62</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-63">63</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-64">64</a></span>
-<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-65">65</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-40" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-40"></a><span class="k">def</span><span class="w"> </span><span class="nf">prepare_papyrus_sprite</span><span class="p">(</span><span class="n">sprite</span><span class="p">:</span> <span class="n">AnimatedSprite</span><span class="p">,</span> <span class="n">scale_factor</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">SPRITE_SCALE</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-41" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-41"></a><span class="w">    </span><span class="sd">"""Convert all animation frames from colorkey to per-pixel alpha.</span>
+<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-60">60</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-40" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-40"></a><span class="k">def</span><span class="w"> </span><span class="nf">prepare_papyrus_sprite</span><span class="p">(</span><span class="n">sprite</span><span class="p">:</span> <span class="n">AnimatedSprite</span><span class="p">,</span> <span class="n">scale_factor</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">SPRITE_SCALE</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-41" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-41"></a><span class="w">    </span><span class="sd">"""Convert all animation frames from colorkey to per-pixel alpha, and set the draw scale.</span>
 <a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-42" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-42"></a>
 <a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-43" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-43"></a><span class="sd">    Call this immediately after AnimatedSprite.__init__() loads the TOML file.</span>
 <a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-44" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-44"></a><span class="sd">    Replaces every frame surface with an SRCALPHA version where magenta</span>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-45" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-45"></a><span class="sd">    pixels are fully transparent, and sets the sprite's hitbox_scale to the</span>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-46" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-46"></a><span class="sd">    scale it will be drawn at, so its hitboxes are scaled from construction on</span>
+<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-45" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-45"></a><span class="sd">    pixels are fully transparent, and sets the sprite's scale to the scale it is</span>
+<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-46" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-46"></a><span class="sd">    drawn at, so its image, rect and hitboxes are scaled from construction on</span>
 <a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-47" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-47"></a><span class="sd">    (before its first dt_tick).</span>
 <a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-48" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-48"></a>
 <a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-49" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-49"></a><span class="sd">    Args:</span>
@@ -4865,18 +4721,85 @@ scale it will be drawn at, so its hitboxes are scaled from construction on
 <a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-51" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-51"></a><span class="sd">        scale_factor: Integer scale the sprite is drawn at.</span>
 <a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-52" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-52"></a>
 <a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-53" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-53"></a><span class="sd">    """</span>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-54" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-54"></a>    <span class="c1"># TOML hitboxes are in native pixels; the sprite is drawn scale_factor times larger</span>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-55" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-55"></a>    <span class="n">sprite</span><span class="o">.</span><span class="n">hitbox_scale</span> <span class="o">=</span> <span class="n">scale_factor</span>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-56" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-56"></a>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-57" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-57"></a>    <span class="k">for</span> <span class="n">frames</span> <span class="ow">in</span> <span class="n">sprite</span><span class="o">.</span><span class="n">animation_data</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-58" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-58"></a>        <span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">frames</span><span class="p">:</span>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-59" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-59"></a>            <span class="n">frame</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="n">_convert_to_alpha_surface</span><span class="p">(</span><span class="n">frame</span><span class="o">.</span><span class="n">image</span><span class="p">)</span>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-60" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-60"></a>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-61" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-61"></a>    <span class="n">sprite</span><span class="o">.</span><span class="n">clear_surface_cache</span><span class="p">()</span>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-62" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-62"></a>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-63" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-63"></a>    <span class="n">current_frame</span> <span class="o">=</span> <span class="n">sprite</span><span class="o">.</span><span class="n">get_current_frame</span><span class="p">()</span>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-64" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-64"></a>    <span class="k">if</span> <span class="n">current_frame</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-65" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-65"></a>        <span class="n">sprite</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="n">current_frame</span><span class="o">.</span><span class="n">image</span>
+<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-54" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-54"></a>    <span class="k">for</span> <span class="n">frames</span> <span class="ow">in</span> <span class="n">sprite</span><span class="o">.</span><span class="n">animation_data</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-55" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-55"></a>        <span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">frames</span><span class="p">:</span>
+<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-56" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-56"></a>            <span class="n">frame</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="n">_convert_to_alpha_surface</span><span class="p">(</span><span class="n">frame</span><span class="o">.</span><span class="n">image</span><span class="p">)</span>
+<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-57" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-57"></a>
+<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-58" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-58"></a>    <span class="c1"># Clears the surface cache and redraws the current frame at the new scale; image, rect,</span>
+<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-59" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-59"></a>    <span class="c1"># hitboxes and draw_offset all follow it (BUGS.md #144)</span>
+<a id="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-60" name="brave_adventurer_papyrus.sprite_utils.prepare_papyrus_sprite--source--__codelineno-0-60"></a>    <span class="n">sprite</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="n">scale_factor</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">refresh_drawn_image</span><span class="p">(</span><span class="n">sprite</span><span class="p">)</span></code>
+
+<a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Reset the sprite's image to a fresh copy of its current frame, as the engine draws it.</p>
+<p>The engine only redraws image when the frame changes, but Papyrus sprites flip and fade
+image every tick; starting from a copy each tick keeps those effects from stacking up or
+reaching the engine's cached surface.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>sprite</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="AnimatedSprite (glitchygames.sprites.AnimatedSprite)" href="../glitchygames/sprites/#glitchygames.sprites.animated.AnimatedSprite">AnimatedSprite</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>The sprite to refresh.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-63">63</a></span>
+<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-64">64</a></span>
+<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-66">66</a></span>
+<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-67">67</a></span>
+<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-68">68</a></span>
+<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-69">69</a></span>
+<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-70">70</a></span>
+<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-71">71</a></span>
+<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-72">72</a></span>
+<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-73">73</a></span>
+<span class="normal"><a href="#brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-74">74</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-63" name="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-63"></a><span class="k">def</span><span class="w"> </span><span class="nf">refresh_drawn_image</span><span class="p">(</span><span class="n">sprite</span><span class="p">:</span> <span class="n">AnimatedSprite</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-64" name="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-64"></a><span class="w">    </span><span class="sd">"""Reset the sprite's image to a fresh copy of its current frame, as the engine draws it.</span>
+<a id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-65" name="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-65"></a>
+<a id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-66" name="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-66"></a><span class="sd">    The engine only redraws image when the frame changes, but Papyrus sprites flip and fade</span>
+<a id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-67" name="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-67"></a><span class="sd">    image every tick; starting from a copy each tick keeps those effects from stacking up or</span>
+<a id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-68" name="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-68"></a><span class="sd">    reaching the engine's cached surface.</span>
+<a id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-69" name="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-69"></a>
+<a id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-70" name="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-70"></a><span class="sd">    Args:</span>
+<a id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-71" name="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-71"></a><span class="sd">        sprite: The sprite to refresh.</span>
+<a id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-72" name="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-72"></a>
+<a id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-73" name="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-73"></a><span class="sd">    """</span>
+<a id="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-74" name="brave_adventurer_papyrus.sprite_utils.refresh_drawn_image--source--__codelineno-0-74"></a>    <span class="n">sprite</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="n">sprite</span><span class="o">.</span><span class="n">drawn_frame_surface</span><span class="p">()</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -5329,7 +5252,7 @@ sprite: the engine places it from the camera.</p>
 <a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-80" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-80"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">bob_timer</span> <span class="o">+=</span> <span class="n">dt</span>
 <a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-81" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-81"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">world_y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_world_y</span> <span class="o">+</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bob_timer</span> <span class="o">*</span> <span class="mf">3.0</span><span class="p">)</span> <span class="o">*</span> <span class="mf">4.0</span>
 <a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-82" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-82"></a>        <span class="n">AnimatedSprite</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
-<a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-83" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-83"></a>        <span class="n">apply_transparency_and_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+<a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-83" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-83"></a>        <span class="n">refresh_drawn_image</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 <a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-84" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-84"></a>
 <a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-85" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-85"></a>    <span class="nd">@override</span>
 <a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-86" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab--source--__codelineno-0-86"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">Self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.016</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -5533,7 +5456,7 @@ sprite: the engine places it from the camera.</p>
 <a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab.dt_tick--source--__codelineno-0-80" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab.dt_tick--source--__codelineno-0-80"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">bob_timer</span> <span class="o">+=</span> <span class="n">dt</span>
 <a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab.dt_tick--source--__codelineno-0-81" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab.dt_tick--source--__codelineno-0-81"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">world_y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_world_y</span> <span class="o">+</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bob_timer</span> <span class="o">*</span> <span class="mf">3.0</span><span class="p">)</span> <span class="o">*</span> <span class="mf">4.0</span>
 <a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab.dt_tick--source--__codelineno-0-82" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab.dt_tick--source--__codelineno-0-82"></a>    <span class="n">AnimatedSprite</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
-<a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab.dt_tick--source--__codelineno-0-83" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab.dt_tick--source--__codelineno-0-83"></a>    <span class="n">apply_transparency_and_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+<a id="brave_adventurer_papyrus.terrain.PapyrusGoldScarab.dt_tick--source--__codelineno-0-83" name="brave_adventurer_papyrus.terrain.PapyrusGoldScarab.dt_tick--source--__codelineno-0-83"></a>    <span class="n">refresh_drawn_image</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
