@@ -10,8 +10,9 @@ import tomllib
 from typing import Any, cast
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE
-from glitchygames.sprites.animated import toml_basic_string, toml_pixel_block
+from glitchygames.sprites.animated import toml_basic_string, toml_pixel_block, toml_tags_line
 from glitchygames.sprites.pixel_utils import normalize_pixel_rows, palette_key_problems
+from glitchygames.sprites.tags import TAGS_KEY, normalize_sprite_tags
 
 # Starts the error validate_ai_response gives when a pixel block needs repair. Bitmappy's retry
 # prompt matches it, and Bitmappy loads the last attempt anyway, repaired; so the repair texts
@@ -35,6 +36,7 @@ Return ONLY raw TOML, no markdown, no code blocks, no explanations.
 STATIC SPRITE (single frame):
 [sprite]
 name = "SpriteName"
+tags = ["item", "weapon", "sword"]
 pixels = \"\"\"
 ABC
 DEF
@@ -108,6 +110,7 @@ CRITICAL RULES:
 6. Animated frames: include namespace AND frame_index
 7. Character set: Use ASCII printable chars
 8. Add per-frame timing when frames should hold different durations
+9. tags: a few lowercase words saying what kind of thing the sprite is, most general first
 
 PER-PIXEL ALPHA (optional):
 [colors."A"]
@@ -219,6 +222,17 @@ def _pixels_line(pixels: str) -> str:
     return f'pixels = {toml_basic_string(pixels)}'
 
 
+def _tags_lines(example: dict[str, Any]) -> list[str]:
+    """Return an example's ``tags = [...]`` line, or none: so the AI sees how tags are written.
+
+    Returns:
+        list[str]: The line (without its newline), or an empty list for an untagged example.
+
+    """
+    tags_line = toml_tags_line(normalize_sprite_tags(example.get(TAGS_KEY)))
+    return [tags_line.removesuffix('\n')] if tags_line else []
+
+
 def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
     """Reconstruct static sprite TOML from example data.
 
@@ -228,6 +242,7 @@ def _reconstruct_static_sprite(example: dict[str, Any]) -> str:
     """
     lines = ['[sprite]']
     lines.append(f'name = {toml_basic_string(example.get("name", "unknown"))}')
+    lines.extend(_tags_lines(example))
 
     # Handle pixels (escaped, so any glyph is valid TOML)
     pixels = example.get('pixels', '')
@@ -259,10 +274,8 @@ def _reconstruct_animated_sprite(example: dict[str, Any]) -> str:
 
     """
     lines = ['[sprite]']
-    lines.extend((
-        f'name = {toml_basic_string(example.get("name", "unknown"))}',
-        '',
-    ))
+    lines.append(f'name = {toml_basic_string(example.get("name", "unknown"))}')
+    lines.extend((*_tags_lines(example), ''))
 
     # Add animations
     animations: list[Any] = example.get('animations', [])
