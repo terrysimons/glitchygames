@@ -39,7 +39,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Self, cast
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from glitchygames.build_info import RevisionSource, SourceRevision
 from glitchygames.process import OutputCapture, TimeoutExpired, run_command
@@ -95,6 +95,29 @@ def short_commit(*, run: MeasurementRun | None) -> str | None:
     if revision is None or revision.commit is None:
         return None
     return revision.commit[:SHORT_COMMIT_DIGITS]
+
+
+# What a local build's graphs add to an unlanded row's commit (``row_label``)
+UNLANDED_LABEL = 'unlanded'
+
+
+def row_label(*, row: LedgerRow) -> str:
+    """Return a row's point label on a graph: its short commit, marked when it never landed.
+
+    An unlanded row (a local build's branch rows, ``LedgerRow.unlanded``) names the commit it
+    was measured on top of, so it is labelled apart from that commit's own rows (BUGS.md
+    #220.2).
+
+    Args:
+        row: The row.
+
+    Returns:
+        ``<short commit>``, ``<short commit> unlanded``, or an empty string when the commit is
+        unknown.
+
+    """
+    commit = short_commit(run=row.run) or ''
+    return f'{commit} {UNLANDED_LABEL}' if row.unlanded and commit else commit
 
 
 def machine_label(*, run: MeasurementRun) -> str:
@@ -799,6 +822,9 @@ class LedgerRow(BaseModel):
         code_tree: The code the run measured, as a git tree of what can change the replays
             (glitchygames/code_tree.py), for a run the measuring pre-commit hook made; None for
             every other row (it names its code by commit instead).
+        unlanded: A local build's mark on a row whose code has not landed on main (a branch's:
+            ``landed_rows`` with ``keep_unlanded``), so its graphs show it apart from the commit
+            it was measured on top of (BUGS.md #220.2). Never written (row files, ledgers).
 
     """
 
@@ -816,6 +842,7 @@ class LedgerRow(BaseModel):
     allowed_uncommitted_changes: bool
     profile: FrameProfile | None = None
     code_tree: str | None = None
+    unlanded: bool = Field(default=False, exclude=True)
 
     @property
     def from_uncommitted_changes(self: Self) -> bool:
@@ -1013,7 +1040,7 @@ def landed_rows(
     Args:
         row_files: File name -> its rows (``read_row_files_by_name``).
         landed: File name -> where it landed.
-        keep_unlanded: Keep the rows whose code did not land, unchanged.
+        keep_unlanded: Keep the rows whose code did not land, marked ``unlanded``.
 
     Returns:
         The rows, file by file, in their order.
@@ -1028,7 +1055,7 @@ def landed_rows(
                 continue
             if landing is None or landing.code_tree != row.code_tree:
                 if keep_unlanded:
-                    kept.append(row)
+                    kept.append(row.model_copy(update={'unlanded': True}))
                 continue
             kept.append(row.model_copy(update={'run': _landed_run(run=row.run, landing=landing)}))
     return kept
@@ -1310,8 +1337,11 @@ def performance_series(
         # A moved recording's rows from before the move join its series under the new path
         recording = recording_renames.get(row.recording, row.recording)
         series_key = (recording, row.machine, row.run.processing_paced)
-        # Sorted by measurement within a commit, so the latest measurement of a commit wins
-        grouped.setdefault(series_key, {})[row.commit] = row
+        # Sorted by measurement within a commit, so the latest measurement of a commit wins. An
+        # unlanded row (a local build's branch rows) is its own point, never the latest of the
+        # commit it was measured on top of: that commit's own rows stay (BUGS.md #220.2)
+        point_key = f'{row.commit} {UNLANDED_LABEL}' if row.unlanded else row.commit
+        grouped.setdefault(series_key, {})[point_key] = row
         console_scripts[recording] = row.console_script
     return [
         PerformanceSeries(

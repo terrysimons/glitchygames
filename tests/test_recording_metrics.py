@@ -54,6 +54,7 @@ from glitchygames.recording_metrics import (
     publishable_rows,
     read_row_files,
     row_file_name,
+    row_label,
     short_commit,
     write_row_files,
 )
@@ -178,6 +179,15 @@ class TestReadingRuns:
 
     def test_a_header_without_runs_has_none(self):
         assert recorded_measurement_runs(header={MEASUREMENT_RUNS_HEADER_FIELD: 'no'}) == []
+
+    def test_a_rows_label_marks_an_unlanded_row(self):
+        """A local build's unlanded row is labelled apart from its commit's own (#220.2)."""
+        row = ledger_row()
+
+        assert row_label(row=row) == 'def5678'
+        assert row_label(row=row.model_copy(update={'unlanded': True})) == 'def5678 unlanded'
+        # No commit, nothing to label: not ' unlanded' alone
+        assert not row_label(row=ledger_row(commit=None).model_copy(update={'unlanded': True}))
 
     def test_short_commit_and_machine_label(self):
         assert short_commit(run=run(commit=NEWER_COMMIT)) == 'def5678'
@@ -568,6 +578,21 @@ class TestPerformanceSeries:
         assert [row.recording for row in moved.rows] == [old_path, new_path]
         assert only_old.recording == new_path
 
+    def test_an_unlanded_row_is_its_own_point_beside_its_commits_landed_row(self):
+        """A branch's row measured on top of a commit never replaces that commit's (#220.2).
+
+        It is measured later, so as a row of the same commit it would win "latest per commit".
+        """
+        landed = ledger_row(measured_at='2026-10-23T20:00:00+00:00', p50=0.001)
+        unlanded = ledger_row(measured_at='2026-10-23T21:00:00+00:00', p50=0.002).model_copy(
+            update={'unlanded': True}
+        )
+
+        (series,) = performance_series(rows=[unlanded, landed], recording_renames={})
+
+        assert series.rows == (landed, unlanded)
+        assert [row_label(row=row) for row in series.rows] == ['def5678', 'def5678 unlanded']
+
     def test_rows_without_a_summary_are_left_out_and_paced_runs_are_their_own_series(self):
         unsummarised = ledger_row().model_copy(update={'summary': None})
         paced = ledger_row().model_copy(
@@ -766,9 +791,20 @@ class TestLandedRows:
         """So a branch's measurements show before it merges."""
         row = ledger_row().model_copy(update={'code_tree': self.UNLANDED_TREE})
 
-        assert landed_rows(
+        (kept,) = landed_rows(
             row_files={self.ROW_FILE: [row]}, landed=self.landed(), keep_unlanded=True
-        ) == [row]
+        )
+
+        assert kept.unlanded
+        assert kept.model_copy(update={'unlanded': False}) == row
+
+    def test_the_unlanded_mark_is_never_written(self):
+        """A local build's mark: not in a row file or a ledger, and not read back."""
+        row = ledger_row()
+        marked = row.model_copy(update={'unlanded': True})
+
+        assert ledger_text(rows=[marked]) == ledger_text(rows=[row])
+        assert 'unlanded' not in ledger_text(rows=[marked])
 
     def test_rows_without_a_code_tree_pass_through(self):
         """The history measured before rows named their code tree."""

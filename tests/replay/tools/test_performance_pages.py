@@ -272,6 +272,19 @@ def test_the_engines_published_build_leaves_out_rows_from_uncommitted_changes(tm
     assert charts['heatmaps'][0]['y'] == ['abc1234']
 
 
+def test_an_unlanded_rows_hover_says_it_never_landed():
+    """A local build's unlanded row names the commit it was measured on top of (#220.2)."""
+    row = stand_in_row().model_copy(
+        update={'run': with_uncommitted_changes(stand_in_row().run), 'unlanded': True}
+    )
+
+    detail = performance_pages._hover_detail(row=row)
+
+    assert 'not landed on main: measured on top of ' in detail
+    # Said once: its uncommitted changes are the branch's code, not a second finding
+    assert 'uncommitted changes' not in detail
+
+
 def test_pages_of_recordings_that_left_the_ledger_are_removed(tmp_path):
     """A stale graph page is removed; a project that publishes nothing names its ledger file."""
     pages = tmp_path / 'pages'
