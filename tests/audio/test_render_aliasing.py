@@ -1,19 +1,19 @@
-"""Aliasing checks on the band-limited mip tables (AUD-WAVE-006).
-
-Rendering 1 s of square and saw at 3520 Hz through the renderer is Task 4's check; this file
-tests the mip tables the renderer reads.
-"""
+"""Aliasing checks (AUD-WAVE-006): the band-limited mip tables and the rendered waves."""
 
 import math
 
 import numpy as np
 import pytest
 
+from glitchygames.audio.render import render_sound
 from glitchygames.audio.waves import WAVE_TABLE_LENGTH, Wave
+from tests.audio.measuring import alias_floor_db
+from tests.audio.render_specs import single_note_spec
 
 SAMPLE_RATE = 44100
 HIGHEST_FREQUENCY = 3520.0
 ALIAS_FLOOR = 1e-9
+UNCLIPPED_LEVEL = 0.8
 
 
 @pytest.mark.parametrize('name', ['square', 'saw'])
@@ -58,3 +58,24 @@ def test_frequencies_outside_zero_to_nyquist_are_refused(highest_frequency):
     """Frequencies outside zero to nyquist are refused."""
     with pytest.raises(ValueError, match='highest_frequency must be'):
         Wave('saw').band_limited_table(highest_frequency=highest_frequency, sample_rate=SAMPLE_RATE)
+
+
+@pytest.mark.parametrize('name', ['square', 'saw'])
+def test_rendered_polyblep_waves_alias_at_least_40_db_below_the_fundamental(name):
+    """1 s of square and saw at 3520 Hz keeps every alias 40 dB under the fundamental.
+
+    A band-limited square this high holds only three harmonics and overshoots full scale by
+    about 15%, so at level 1 it would clip, and clipping makes aliases of its own. Level 0.8
+    measures the oscillator.
+    """
+    samples = render_sound(
+        single_note_spec(wave=name, hz=HIGHEST_FREQUENCY, length=1.0, level=UNCLIPPED_LEVEL)
+    ).samples
+    assert alias_floor_db(samples, HIGHEST_FREQUENCY, SAMPLE_RATE) <= -40.0
+
+
+def test_a_rendered_custom_wave_reads_a_band_limited_table():
+    """A mixed wave at 3520 Hz plays through its mip table: no aliasing."""
+    mixed = Wave.mix(square=0.5, saw=0.5)
+    samples = render_sound(single_note_spec(wave=mixed, hz=HIGHEST_FREQUENCY, length=1.0)).samples
+    assert alias_floor_db(samples, HIGHEST_FREQUENCY, SAMPLE_RATE) <= -60.0

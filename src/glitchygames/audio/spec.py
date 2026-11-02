@@ -32,6 +32,36 @@ ENVELOPE_CURVE_PATTERN: Final[re.Pattern[str]] = re.compile(r'^(linear|exponenti
 FILTER_KINDS: Final[tuple[str, ...]] = ('low_pass', 'high_pass')
 REST_TOKEN: Final[str] = '_'  # ruff: ignore[hardcoded-password-string] - a rest, not a password
 SEED_BYTE_COUNT: Final[int] = 8
+NOISE_KINDS: Final[tuple[str, ...]] = ('white', 'lfsr')
+# The only LFSR tap sets allowed (impl spec 5): maximal-length pairs, by register width. Taps
+# are bit numbers counted from 0; the pairs are from P. Alfke, "Efficient Shift Registers, LFSR
+# Counters, and Long Pseudo-Random Sequence Generators", Xilinx XAPP 052 (1996), whose table of
+# maximum-length taps counts bits from 1 (n = 15: taps 15, 14; n = 7: taps 7, 6): the
+# polynomials x^15 + x^14 + 1 and x^7 + x^6 + 1. tests/audio/test_render_noise.py measures
+# their periods (32767 and 127).
+LFSR_MAXIMAL_TAPS: Final[dict[int, tuple[tuple[int, int], ...]]] = {
+    15: ((14, 13),),
+    7: ((6, 5),),
+}
+
+
+def check_lfsr_taps(bits: int, taps: tuple[int, int]) -> None:
+    """Refuse an LFSR width or tap set that is not in ``LFSR_MAXIMAL_TAPS``.
+
+    Args:
+        bits: The register width.
+        taps: The two tap bits, counted from 0.
+
+    Raises:
+        ValueError: Unless the width and taps are a maximal-length pair from the table.
+    """
+    allowed = LFSR_MAXIMAL_TAPS.get(bits, ())
+    if tuple(taps) not in allowed:
+        message = (
+            f'LFSR taps {tuple(taps)} for {bits} bits are not a maximal-length tap set; '
+            f'allowed: {LFSR_MAXIMAL_TAPS}'
+        )
+        raise ValueError(message)
 
 
 def _coerce_floats(instance: object, *names: str) -> None:
@@ -177,8 +207,17 @@ class NoiseSpec:
     seed: int | None
 
     def __post_init__(self) -> None:
-        """Make the float fields plain floats."""
+        """Validate the kind and, for an LFSR, its tap set; make the float fields plain floats.
+
+        Raises:
+            ValueError: On an unknown kind or an LFSR tap set that is not maximal-length.
+        """
         _coerce_floats(self, 'rate_hz')
+        if self.kind not in NOISE_KINDS:
+            message = f'unknown noise kind {self.kind!r}; use {" or ".join(NOISE_KINDS)}'
+            raise ValueError(message)
+        if self.kind == 'lfsr':
+            check_lfsr_taps(self.bits, self.taps)
 
 
 @dataclass(frozen=True, slots=True)

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Final, override
 from glitchygames.audio.pitch import PitchLike, Tuning, resolve_pitch
 from glitchygames.audio.spec import (
     ENVELOPE_PRESETS,
+    NOISE_KINDS,
     EnvelopeSpec,
     FilterSpec,
     NoiseSpec,
@@ -22,6 +23,7 @@ from glitchygames.audio.spec import (
     PlaybackDefaults,
     SoundSpec,
     SourceSpec,
+    check_lfsr_taps,
     default_seed,
     parse_notes,
 )
@@ -37,7 +39,6 @@ DEFAULT_NOTE_LENGTH_SECONDS: Final[float] = 0.25
 UNPITCHED_REFERENCE_HZ: Final[float] = 440.0
 SEMITONES_PER_OCTAVE: Final[float] = 12.0
 DRIVE_HIGHEST: Final[float] = 20.0
-NOISE_KINDS: Final[tuple[str, ...]] = ('white', 'lfsr')
 LFSR_WIDTHS: Final[tuple[int, ...]] = (15, 7)
 PROFILES: Final[tuple[str, ...]] = ('hybrid', 'chip', 'wavetable', 'fm', 'sampler')
 DEFAULT_SOURCE_NAME: Final[str] = 'main'
@@ -104,8 +105,8 @@ class Noise:
         """Validate the kind, width and level.
 
         Raises:
-            ValueError: On an unknown kind, an LFSR width other than 15 or 7, or a level
-                outside 0-1.
+            ValueError: On an unknown kind, an LFSR width other than 15 or 7, an LFSR tap set
+                that is not maximal-length, or a level outside 0-1.
         """
         if self.kind not in NOISE_KINDS:
             message = f'unknown noise kind {self.kind!r}; use {" or ".join(NOISE_KINDS)}'
@@ -113,6 +114,8 @@ class Noise:
         if self.bits not in LFSR_WIDTHS:
             message = f'noise bits must be 15 or 7, got {self.bits}'
             raise ValueError(message)
+        if self.kind == 'lfsr':
+            check_lfsr_taps(self.bits, self.taps)
         if not 0.0 <= self.level <= 1.0:
             message = f'noise level must be between 0 and 1, got {self.level}'
             raise ValueError(message)

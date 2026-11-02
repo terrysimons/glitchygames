@@ -283,7 +283,7 @@ def test_instrument_is_hashable_by_content():
 def test_instrument_exposes_its_settings():
     """Properties echo the constructor."""
     instrument = Instrument(
-        noise=Noise('lfsr', bits=7), live=True, normalize=True, hard_edges=True, seed=3
+        noise=Noise('lfsr', bits=7, taps=(6, 5)), live=True, normalize=True, hard_edges=True, seed=3
     )
     assert instrument.is_unpitched
     assert (instrument.live, instrument.normalize, instrument.hard_edges, instrument.seed) == (
