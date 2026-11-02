@@ -60,10 +60,17 @@ def test_a_patched_test_does_not_leak_into_a_later_real_test(pytester, monkeypat
 
     # A fresh interpreter, so nothing earlier on this worker has already loaded the lazy modules.
     # The project's pytest settings apply (warnings are errors) without its addopts (xdist,
-    # coverage, junit); the project conftest is loaded as a plugin so its fixtures and resets apply
+    # coverage, junit); the project conftest is loaded as a plugin so its fixtures and resets apply.
+    # The rootdir is the test's own directory, not the project's (where -c alone would put it):
+    # collection walks from the rootdir to the test file, so from the project it would list every
+    # directory on the way, the system temp directory among them on Windows, where another
+    # worker's temporary directory can vanish between the listing and its lstat
+    # (FileNotFoundError while collecting)
     result = pytester.runpytest_subprocess(
         '-c',
         str(PROJECT_ROOT / 'pyproject.toml'),
+        '--rootdir',
+        str(pytester.path),
         '-p',
         'tests.harness',
         '-p',
