@@ -297,6 +297,10 @@ class SoundHandle:
         return self.table is not None and self.table.set_voice_pan(self, pan)
 
 
+# A steal counts as recent for this many frames (the debug panel flashes the channel)
+RECENT_STEAL_FRAMES = 10
+
+
 class _SlotState(enum.Enum):
     """What a library channel is doing, as the table sees it."""
 
@@ -409,6 +413,10 @@ class VoiceTable:
         self._play_numbers = itertools.count()
         self._applied_bus_revision = buses.revision
         self._steals = 0
+        # Frames (advances) run so far, and the frame of each channel's latest steal; one entry
+        # per library channel at most, so it stays bounded (the debug panel's steal flash)
+        self._frames_advanced = 0
+        self._steal_frames: dict[int, int] = {}
         self._delayed_plays = 0
         self._dropped_plays = 0
         self._warned_no_mixer = False
@@ -534,6 +542,7 @@ class VoiceTable:
             dt: The frame's served time in seconds (a replay's recorded dt).
             paused_owners: Owners whose voices are held (a pause screen, a playback scope).
         """
+        self._frames_advanced += 1
         buses_changed = self._buses.revision != self._applied_bus_revision
         self._applied_bus_revision = self._buses.revision
         for slot in self._slots:
@@ -630,6 +639,18 @@ class VoiceTable:
         for slot in self._slots:
             if slot.voice is not None:
                 self._stop_slot(slot, fade_seconds=fade_seconds)
+
+    def recently_stolen_channels(self) -> frozenset[int]:
+        """The channels whose voice was stolen within the last ``RECENT_STEAL_FRAMES`` frames.
+
+        Returns:
+            The channel indexes (for the debug panel's flash).
+        """
+        return frozenset(
+            index
+            for index, frame in self._steal_frames.items()
+            if self._frames_advanced - frame < RECENT_STEAL_FRAMES
+        )
 
     def snapshot(self) -> tuple[ChannelState, ...]:
         """Every channel's group and state, for the debug panel.
@@ -822,6 +843,7 @@ class VoiceTable:
         pygame.mixer.Channel(slot.channel_index).fadeout(STEAL_FADE_MILLISECONDS)
         self._fade_slot(slot, fade_seconds=STEAL_FADE_MILLISECONDS / MILLISECONDS_PER_SECOND)
         self._steals += 1
+        self._steal_frames[slot.channel_index] = self._frames_advanced
 
     def _start(self, slot: _Slot, voice: _Voice) -> None:
         """Play a voice on its channel, then set its gains (pygame resets volume on play)."""

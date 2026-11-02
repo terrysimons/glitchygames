@@ -114,6 +114,9 @@ AUDIO_CHANNEL_COLORS: dict[str, Color] = {
 }
 AUDIO_BUS_COLOR: Color = (90, 170, 210)
 AUDIO_BUS_MUTED_COLOR: Color = (140, 60, 60)
+AUDIO_BUS_SOLO_COLOR: Color = (200, 100, 230)
+# A channel stolen in the last few frames is drawn in this colour instead of its state's
+AUDIO_CHANNEL_STOLEN_COLOR: Color = (255, 255, 255)
 AUDIO_PANEL_TOP = HUD_MARGIN + HUD_LINE_HEIGHT
 # Under All panels only the header is drawn, below the camera panel's three possible lines
 ALL_PANEL_AUDIO_HEADER_TOP = HUD_MARGIN + 4 * HUD_LINE_HEIGHT + HUD_MARGIN
@@ -795,9 +798,13 @@ def _draw_channel_strip(
     surface: pygame.Surface,
     font: pygame.font.Font,
     channels: tuple[ChannelState, ...],
+    recently_stolen: frozenset[int],
     top: int,
 ) -> int:
     """Draw one cell per mixer channel, one labelled row per group, coloured by state.
+
+    A channel whose voice was stolen in the last few frames is drawn in
+    AUDIO_CHANNEL_STOLEN_COLOR instead, so a steal shows as a flash.
 
     Returns:
         int: The y coordinate just below the strip.
@@ -816,9 +823,14 @@ def _draw_channel_strip(
         for channel in channels:
             if channel.group != group:
                 continue
+            cell_color = (
+                AUDIO_CHANNEL_STOLEN_COLOR
+                if channel.index in recently_stolen
+                else AUDIO_CHANNEL_COLORS[channel.state]
+            )
             pygame.draw.rect(
                 surface,
-                AUDIO_CHANNEL_COLORS[channel.state],
+                cell_color,
                 pygame.Rect(cell_left, row_top, AUDIO_CELL_SIZE, AUDIO_CELL_SIZE),
             )
             cell_left += AUDIO_CELL_SIZE + AUDIO_CELL_GAP
@@ -858,16 +870,45 @@ def _draw_bus_meters(
             AUDIO_BUS_MUTED_COLOR if is_muted else AUDIO_BUS_COLOR,
             pygame.Rect(track_left, row_top, bar_width, AUDIO_CELL_SIZE),
         )
+        mark_left = track_left + AUDIO_BUS_BAR_WIDTH + HUD_MARGIN
         if is_muted:
-            blit_text(
+            mark_left += _draw_bus_mark(
+                surface=surface, font=font, label='muted', position=(mark_left, row_top), color=None
+            )
+        if name in audio.soloed_buses:
+            _draw_bus_mark(
                 surface=surface,
-                text_surface=font.render(
-                    'muted', antialias=FontManager.antialias(), color=HUD_TEXT_COLOR
-                ),
-                position=(track_left + AUDIO_BUS_BAR_WIDTH + HUD_MARGIN, row_top),
+                font=font,
+                label='solo',
+                position=(mark_left, row_top),
+                color=AUDIO_BUS_SOLO_COLOR,
             )
         row_top += AUDIO_ROW_HEIGHT
     return row_top
+
+
+def _draw_bus_mark(
+    *,
+    surface: pygame.Surface,
+    font: pygame.font.Font,
+    label: str,
+    position: tuple[int, int],
+    color: Color | None,
+) -> int:
+    """Draw a bus's mute or solo mark: an optional colour swatch, then its label.
+
+    Returns:
+        int: The width used, including the gap after the mark.
+
+    """
+    left, top = position
+    text_left = left
+    if color is not None:
+        pygame.draw.rect(surface, color, pygame.Rect(left, top, AUDIO_CELL_SIZE, AUDIO_CELL_SIZE))
+        text_left += AUDIO_CELL_SIZE + AUDIO_LEGEND_SWATCH_GAP
+    text_surface = font.render(label, antialias=FontManager.antialias(), color=HUD_TEXT_COLOR)
+    blit_text(surface=surface, text_surface=text_surface, position=(text_left, top))
+    return text_left - left + text_surface.get_width() + HUD_MARGIN
 
 
 def _draw_compile_log(
@@ -1020,7 +1061,11 @@ def draw_audio_panel(
     if audio is None:
         return
     next_top = _draw_channel_strip(
-        surface=surface, font=font, channels=audio.channels, top=next_top + AUDIO_SECTION_GAP
+        surface=surface,
+        font=font,
+        channels=audio.channels,
+        recently_stolen=audio.recently_stolen_channels,
+        top=next_top + AUDIO_SECTION_GAP,
     )
     next_top = _draw_bus_meters(
         surface=surface, font=font, audio=audio, top=next_top + AUDIO_SECTION_GAP

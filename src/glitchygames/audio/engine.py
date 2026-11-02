@@ -175,6 +175,8 @@ class AudioDiagnosticsSnapshot:
         channels: Every channel's group and state.
         bus_levels: Each bus's effective gain.
         muted_buses: The buses muted themselves.
+        soloed_buses: The buses soloed.
+        recently_stolen_channels: Channels whose voice was stolen within the last 10 frames.
         compile_log: The last eight compiles and decodes.
     """
 
@@ -190,6 +192,8 @@ class AudioDiagnosticsSnapshot:
     channels: tuple[ChannelState, ...]
     bus_levels: Mapping[str, float]
     muted_buses: frozenset[str]
+    soloed_buses: frozenset[str]
+    recently_stolen_channels: frozenset[int]
     compile_log: tuple[CompileRecord, ...]
 
 
@@ -515,6 +519,8 @@ class AudioEngine:
             channels=channels,
             bus_levels={name: self.buses[name].effective_gain() for name in self.buses.names()},
             muted_buses=frozenset(name for name in self.buses.names() if self.buses[name].mute),
+            soloed_buses=frozenset(name for name in self.buses.names() if self.buses[name].solo),
+            recently_stolen_channels=self._voices.recently_stolen_channels(),
             compile_log=self.accountant.compile_log,
         )
 

@@ -320,6 +320,23 @@ def test_a_stolen_channel_fades_for_ten_ms_and_the_stealer_starts_next_frame(cha
     assert stealer.is_playing is False
 
 
+def test_a_stolen_channel_is_recent_for_ten_frames_then_forgotten():
+    """The table remembers each steal for 10 advances (the debug panel's flash), boundedly."""
+    partition = start_reserved_mixer(live_pool=0, library_channels=1, legacy_channels=8)
+    table = make_table(partition, buses=unreserved_buses())
+    sound = baked_sound(seconds=5.0)
+    table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
+    assert table.recently_stolen_channels() == frozenset()
+
+    table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
+
+    assert table.recently_stolen_channels() == frozenset({partition.library[0]})
+    advance_frames(table, count=9)
+    assert table.recently_stolen_channels() == frozenset({partition.library[0]})
+    advance_frames(table, count=1)
+    assert table.recently_stolen_channels() == frozenset()
+
+
 def test_a_channel_still_fading_in_the_table_is_not_free_whatever_the_device_says(
     channel_calls,
 ):

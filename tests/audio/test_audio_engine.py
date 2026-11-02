@@ -647,7 +647,13 @@ class TestDiagnosticsAndSnapshot:
         assert snapshot.bus_levels['effects'] == pytest.approx(0.5)
         assert snapshot.bus_levels['music'] == 0.0
         assert snapshot.muted_buses == frozenset({'music'})
+        assert snapshot.soloed_buses == frozenset()
+        assert snapshot.recently_stolen_channels == frozenset()
         assert [record.name for record in snapshot.compile_log] == ['coin']
+
+    def test_a_soloed_bus_is_in_the_snapshot(self, engine):
+        engine.buses['music'].solo = True
+        assert engine.snapshot().soloed_buses == frozenset({'music'})
 
     def test_compiles_leave_the_last_second_after_a_second(self, engine, scene_manager):
         engine.sound('coin')

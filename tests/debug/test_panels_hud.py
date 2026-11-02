@@ -148,6 +148,8 @@ def audio_snapshot(*, live):
         channels=(),
         bus_levels={},
         muted_buses=frozenset(),
+        soloed_buses=frozenset(),
+        recently_stolen_channels=frozenset(),
         compile_log=(),
     )
 

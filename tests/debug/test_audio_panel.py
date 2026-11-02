@@ -17,7 +17,9 @@ from glitchygames.debug.overlay import (
     load_debug_font,
 )
 from glitchygames.debug.panels import (
+    AUDIO_BUS_SOLO_COLOR,
     AUDIO_CACHE_COLOR,
+    AUDIO_CHANNEL_STOLEN_COLOR,
     AUDIO_COMPILE_COLOR,
     AUDIO_DECODE_COLOR,
     AUDIO_FRAME_OUTLINE_COLOR,
@@ -102,6 +104,8 @@ def snapshot_with(**overrides):
         'channels': channels,
         'bus_levels': {'master': 1.0, 'sfx': 0.5},
         'muted_buses': frozenset(),
+        'soloed_buses': frozenset(),
+        'recently_stolen_channels': frozenset(),
         'compile_log': (),
     }
     arguments.update(overrides)
@@ -426,6 +430,35 @@ class TestChannelStrip:
         assert playing_pixels > 0
         assert idle_pixels == playing_pixels * 43
 
+    def test_a_recently_stolen_channel_flashes_in_the_stolen_colour(self, display, font):
+        """A stolen channel's cell is drawn in the stolen colour instead of its state colour."""
+        channels = tuple(
+            ChannelState(index=index, group=group, state='fading' if index == 10 else 'idle')
+            for index, group in enumerate(['live'] * 4 + ['library'] * 32 + ['legacy'] * 8)
+        )
+        snapshot = snapshot_with(channels=channels, recently_stolen_channels=frozenset({10}))
+        draw_audio_panel(
+            surface=display,
+            overlay=quiet_history(),
+            font=font,
+            frame_info=frame_info_with(snapshot),
+        )
+        cells = channel_strip_area(font=font, snapshot=snapshot)
+        assert colour_count_in(display, cells, AUDIO_CHANNEL_STOLEN_COLOR) == 64
+        assert not colour_present_in(display, cells, CHANNEL_STATE_COLOURS['fading'])
+
+    def test_a_channel_not_stolen_keeps_its_state_colour(self, display, font):
+        """Without a steal the stolen colour is absent."""
+        snapshot = snapshot_with()
+        draw_audio_panel(
+            surface=display,
+            overlay=quiet_history(),
+            font=font,
+            frame_info=frame_info_with(snapshot),
+        )
+        cells = channel_strip_area(font=font, snapshot=snapshot)
+        assert not colour_present_in(display, cells, AUDIO_CHANNEL_STOLEN_COLOR)
+
     def test_groups_are_labelled(self, display, mocker):
         """The three groups name themselves: live, library and legacy."""
         rendered = []
@@ -499,6 +532,43 @@ class TestBusMeters:
             frame_info=frame_info_with(snapshot_with(bus_levels={'full': 3.0})),
         )
         assert colour_count_in(display, LEFT_COLUMN, panels_bus_colour()) == full
+
+    def test_a_soloed_bus_is_marked_beside_the_bar(self, display, font):
+        """A soloed bus gets a solo-coloured mark; a bus that is not soloed gets none."""
+        draw_audio_panel(
+            surface=display,
+            overlay=quiet_history(),
+            font=font,
+            frame_info=frame_info_with(snapshot_with(bus_levels={'sfx': 1.0})),
+        )
+        assert not colour_present_in(display, LEFT_COLUMN, AUDIO_BUS_SOLO_COLOR)
+        display.fill((0, 0, 0))
+        draw_audio_panel(
+            surface=display,
+            overlay=quiet_history(),
+            font=font,
+            frame_info=frame_info_with(
+                snapshot_with(bus_levels={'sfx': 1.0}, soloed_buses=frozenset({'sfx'}))
+            ),
+        )
+        assert colour_present_in(display, LEFT_COLUMN, AUDIO_BUS_SOLO_COLOR)
+
+    def test_a_muted_and_soloed_bus_shows_both_marks(self, display, font):
+        """Mute and solo marks sit side by side without overlapping."""
+        draw_audio_panel(
+            surface=display,
+            overlay=quiet_history(),
+            font=font,
+            frame_info=frame_info_with(
+                snapshot_with(
+                    bus_levels={'sfx': 1.0},
+                    muted_buses=frozenset({'sfx'}),
+                    soloed_buses=frozenset({'sfx'}),
+                )
+            ),
+        )
+        assert colour_present_in(display, LEFT_COLUMN, AUDIO_BUS_SOLO_COLOR)
+        assert colour_present_in(display, LEFT_COLUMN, panels_bus_muted_colour())
 
     def test_a_muted_bus_is_marked(self, display, font):
         """A muted bus draws its bar in the muted colour instead of the level colour."""
