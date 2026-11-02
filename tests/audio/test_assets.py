@@ -1,5 +1,6 @@
 """Tests for sound files: the v1 TOML schema, v0 recipes and the malformed-file corpus."""
 
+import logging
 import os
 import tomllib
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ from glitchygames.audio.assets import (
     clear_sound_file_cache,
     is_path_reference,
     load_sound_file,
+    require_recorded_file,
 )
 from glitchygames.audio.exceptions import GlitchyGamesAudioError, SoundAssetError
 from glitchygames.audio.instrument import Instrument, Noise
@@ -269,11 +271,55 @@ def test_a_bad_v0_recipe_names_the_recipe_and_the_file(tmp_path):
         load_sound_file(path)
 
 
-def test_a_v0_file_with_another_table_is_refused(tmp_path):
-    """A v0 file with another table is refused."""
-    path = _write(tmp_path, 'legacy.toml', '[recipes.ok]\nvolume = 0.5\n\n[sounds.extra]\n')
+def test_a_v0_file_warns_about_unknown_tables_recipe_fields_and_tone_fields_and_still_loads(
+    tmp_path, caplog
+):
+    """A v0 file warns about unknown fields and still loads."""
+    path = _write(
+        tmp_path,
+        'legacy.toml',
+        '[recipes.ok]\nvolume = 0.5\nreverb = 3\n\n[[recipes.ok.tones]]\nwaveform = "sine"\n'
+        'start_frequency = 440.0\nduration = 0.1\nwobble = 1\n[recipes.ok.tones.envelope]\n'
+        'attack = 0.0\ndecay = 0.0\nsustain_level = 1.0\nrelease = 0.0\n\n[sounds.extra]\n',
+    )
 
-    with pytest.raises(SoundAssetError, match=r'sounds: unknown table'):
+    with caplog.at_level(logging.WARNING, logger='game.audio.assets'):
+        sound_file = load_sound_file(path)
+
+    assert 'ok' in sound_file.sounds
+    messages = [record.getMessage() for record in caplog.records]
+    assert len(messages) == 3
+    assert all(str(path) in message for message in messages)
+    assert any("unknown table 'sounds'" in message for message in messages)
+    assert any('recipes.ok.reverb' in message for message in messages)
+    assert any('recipes.ok.tones[0].wobble' in message for message in messages)
+
+
+def test_a_clean_v0_file_logs_nothing(caplog):
+    """A clean v0 file logs nothing."""
+    with caplog.at_level(logging.WARNING, logger='game.audio.assets'):
+        load_sound_file(FIXTURES / 'sounds' / 'legacy_recipes.toml')
+
+    assert not caplog.records
+
+
+def test_a_v0_recipe_that_is_not_a_table_still_names_the_recipe(tmp_path, caplog):
+    """A v0 recipe that is not a table still names the recipe."""
+    path = _write(tmp_path, 'legacy.toml', '[recipes]\nbad = 5\n')
+
+    with (
+        caplog.at_level(logging.WARNING, logger='game.audio.assets'),
+        pytest.raises(SoundAssetError, match=r'recipes\.bad'),
+    ):
+        load_sound_file(path)
+
+
+@pytest.mark.parametrize('tones', ['[5]', '5'])
+def test_a_v0_tone_that_is_not_a_table_is_reported_without_a_warning(tmp_path, tones):
+    """A v0 tone that is not a table is reported without a warning."""
+    path = _write(tmp_path, 'legacy.toml', f'[recipes.bad]\ntones = {tones}\n')
+
+    with pytest.raises(SoundAssetError, match=r'recipes\.bad'):
         load_sound_file(path)
 
 
@@ -377,16 +423,102 @@ def test_paths_escaping_the_package_are_refused(tmp_path, reference):
         load_sound_file(path)
 
 
-def test_a_recorded_file_must_exist_and_be_wav_or_ogg(tmp_path):
-    """A recorded file must exist and be wav or ogg."""
-    missing = _write(tmp_path, 'missing.toml', VALID_HEADER + '[sounds.coin]\nfile = "gone.wav"\n')
+def test_a_recorded_file_must_be_wav_or_ogg(tmp_path):
+    """A recorded file must be wav or ogg."""
     (tmp_path / 'clip.mp3').write_bytes(b'')
     wrong = _write(tmp_path, 'wrong.toml', VALID_HEADER + '[sounds.coin]\nfile = "clip.mp3"\n')
 
-    with pytest.raises(SoundAssetError, match=r'gone\.wav does not exist'):
-        load_sound_file(missing)
     with pytest.raises(SoundAssetError, match=r'\.wav or \.ogg'):
         load_sound_file(wrong)
+
+
+def test_a_missing_recorded_file_fails_when_requested_not_when_the_file_loads(tmp_path):
+    """A missing recorded file fails when requested, not when the file loads."""
+    (tmp_path / 'there.wav').write_bytes(b'')
+    path = _write(
+        tmp_path,
+        'mixed.toml',
+        VALID_HEADER + VALID_INSTRUMENT + '[sounds.gone]\nfile = "gone.wav"\n\n'
+        '[sounds.there]\nfile = "there.wav"\n\n[sounds.beep]\ninstrument = "beep"\n',
+    )
+
+    sound_file = load_sound_file(path)
+
+    assert require_recorded_file(sound_file.sounds['there']) == (tmp_path / 'there.wav').resolve()
+    assert sound_file.sounds['beep'].instrument is not None
+    with pytest.raises(SoundAssetError) as raised:
+        require_recorded_file(sound_file.sounds['gone'])
+    assert 'sounds.gone.file' in str(raised.value)
+    assert 'gone.wav does not exist' in str(raised.value)
+    assert 'mixed.toml' in str(raised.value)
+
+
+def test_require_recorded_file_refuses_an_instrument_sound():
+    """Require recorded file refuses an instrument sound."""
+    coin = load_sound_file(FIXTURES / 'sounds' / 'pickups.toml').sounds['coin']
+
+    with pytest.raises(SoundAssetError, match=r'sounds\.coin\.file.*not a recorded file'):
+        require_recorded_file(coin)
+
+
+def _package(tmp_path):
+    """Make a package with sounds/ and samples/ directories; return (package, sounds)."""
+    package = tmp_path / 'game'
+    (package / 'sounds').mkdir(parents=True)
+    (package / 'samples').mkdir()
+    (package / 'samples' / 'coin.wav').write_bytes(b'')
+    return package, package / 'sounds'
+
+
+def test_a_sibling_directory_is_allowed_with_a_package_root_and_refused_without(tmp_path):
+    """A sibling directory is allowed with a package root and refused without."""
+    package, sounds = _package(tmp_path)
+    path = _write(
+        sounds, 'pickups.toml', VALID_HEADER + '[sounds.coin]\nfile = "../samples/coin.wav"\n'
+    )
+
+    loaded = load_sound_file(path, package_root=package)
+
+    assert loaded.sounds['coin'].file == (package / 'samples' / 'coin.wav').resolve()
+    with pytest.raises(SoundAssetError, match='escapes the game package'):
+        load_sound_file(path)
+
+
+def test_the_cache_is_per_package_root(tmp_path):
+    """The cache is per package root."""
+    package, sounds = _package(tmp_path)
+    path = _write(
+        sounds, 'pickups.toml', VALID_HEADER + '[sounds.coin]\nfile = "../samples/coin.wav"\n'
+    )
+
+    with_root = load_sound_file(path, package_root=package)
+
+    assert load_sound_file(path, package_root=package) is with_root
+    with pytest.raises(SoundAssetError):
+        load_sound_file(path)
+
+
+def test_a_path_that_leaves_the_package_root_is_refused(tmp_path):
+    """A path that leaves the package root is refused."""
+    package, sounds = _package(tmp_path)
+    (tmp_path / 'outside.wav').write_bytes(b'')
+    path = _write(sounds, 'bad.toml', VALID_HEADER + '[sounds.coin]\nfile = "../../outside.wav"\n')
+
+    with pytest.raises(SoundAssetError, match=f'escapes the game package {package.resolve()}'):
+        load_sound_file(path, package_root=package)
+
+
+def test_a_symlink_pointing_outside_the_boundary_is_refused(tmp_path):
+    """A symlink pointing outside the boundary is refused."""
+    package, sounds = _package(tmp_path)
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (outside / 'secret.wav').write_bytes(b'')
+    (sounds / 'link').symlink_to(outside, target_is_directory=True)
+    path = _write(sounds, 'bad.toml', VALID_HEADER + '[sounds.coin]\nfile = "link/secret.wav"\n')
+
+    with pytest.raises(SoundAssetError, match='escapes the game package'):
+        load_sound_file(path, package_root=package)
 
 
 def test_an_instrument_in_another_file_resolves_relative_to_this_file(tmp_path):
@@ -428,17 +560,39 @@ def test_an_invalid_file_named_by_an_instrument_reference_is_reported(tmp_path):
         load_sound_file(path)
 
 
-def test_files_whose_instruments_refer_to_each_other_in_a_circle_are_refused(tmp_path):
-    """Files whose instruments refer to each other in a circle are refused."""
-    _write(tmp_path, 'a.toml', VALID_HEADER + '[sounds.one]\ninstrument = "b.toml#beep"\n')
+def test_files_that_use_each_others_instruments_both_load(tmp_path):
+    """Files that use each other's instruments both load."""
+    for this, other in (('a', 'b'), ('b', 'a')):
+        _write(
+            tmp_path,
+            f'{this}.toml',
+            VALID_HEADER + f'[instruments.{this}_voice.sources.main]\nwave = "sine"\n\n'
+            f'[sounds.{this}_hello]\ninstrument = "{other}.toml#{other}_voice"\npitch = "C4"\n',
+        )
+
+    loaded_a = load_sound_file(tmp_path / 'a.toml')
+    loaded_b = load_sound_file(tmp_path / 'b.toml')
+
+    assert loaded_a.sounds['a_hello'].instrument == loaded_b.instruments['b_voice']
+    assert loaded_b.sounds['b_hello'].instrument == loaded_a.instruments['a_voice']
+
+
+def test_a_broken_sound_in_another_file_does_not_break_a_reference_to_its_instrument(tmp_path):
+    """A broken sound in another file does not break a reference to its instrument."""
     _write(
         tmp_path,
         'b.toml',
-        VALID_HEADER + VALID_INSTRUMENT + '[sounds.two]\ninstrument = "a.toml#beep"\n',
+        VALID_HEADER + VALID_INSTRUMENT + '[sounds.broken]\ninstrument = "nowhere"\nvolume = 9\n',
+    )
+    path = _write(
+        tmp_path,
+        'a.toml',
+        VALID_HEADER + '[sounds.fine]\ninstrument = "b.toml#beep"\npitch = "C4"\n',
     )
 
-    with pytest.raises(SoundAssetError, match='circular'):
-        load_sound_file(tmp_path / 'a.toml')
+    assert load_sound_file(path).sounds['fine'].instrument is not None
+    with pytest.raises(SoundAssetError, match=r'sounds\.broken'):
+        load_sound_file(tmp_path / 'b.toml')
 
 
 def test_a_v0_file_cannot_supply_an_instrument(tmp_path):
@@ -626,7 +780,7 @@ INLINE_CASES = {
     'instrument_in_a_file_above': (
         VALID_HEADER + VALID_INSTRUMENT + '[sounds.coin]\ninstrument = "../other.toml#beep"\n',
         'sounds.coin.instrument',
-        "escapes the sound file's directory",
+        'escapes the game package',
     ),
     'name_that_is_a_builtin_wave': (
         VALID_HEADER + '[waves.sine]\nmix = { square = 1.0 }\n',

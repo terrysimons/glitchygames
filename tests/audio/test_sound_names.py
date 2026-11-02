@@ -123,3 +123,19 @@ def test_the_index_is_built_on_the_first_lookup_and_kept(tmp_path):
     with pytest.raises(KeyError):
         index.resolve('later')
     assert index.directory == tmp_path
+
+
+def test_the_index_loads_a_file_with_its_package_root(tmp_path):
+    """The index loads a file with its package root."""
+    package = tmp_path / 'game'
+    (package / 'sounds').mkdir(parents=True)
+    (package / 'samples').mkdir()
+    (package / 'samples' / 'coin.wav').write_bytes(b'')
+    (package / 'sounds' / 'pickups.toml').write_text(
+        HEADER + '[sounds.coin]\nfile = "../samples/coin.wav"\n'
+    )
+    index = ShortNameIndex(package / 'sounds', package_root=package)
+
+    loaded = index.load(index.resolve('coin'))
+
+    assert loaded.sounds['coin'].file == (package / 'samples' / 'coin.wav').resolve()

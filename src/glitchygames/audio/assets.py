@@ -15,8 +15,9 @@ from ``difflib.get_close_matches``, and a field that belongs to a later mileston
 "<field> arrives in <milestone>" (AUD-ASSET-003).
 """
 
+import dataclasses
 import difflib
-import os
+import logging
 import tomllib
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -47,7 +48,7 @@ from glitchygames.audio.instrument import (
     Source,
 )
 from glitchygames.audio.pitch import PitchLike, Tuning, resolve_pitch
-from glitchygames.audio.recipes import SoundRecipe
+from glitchygames.audio.recipes import SoundRecipe, Tone
 from glitchygames.audio.spec import (
     ENVELOPE_CURVE_PATTERN,
     ENVELOPE_PRESETS,
@@ -76,8 +77,15 @@ from glitchygames.engine_context import EngineContext
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+log: logging.Logger = logging.getLogger('game.audio.assets')
+
 CURRENT_SCHEMA_VERSION: Final[int] = 1
 LEGACY_SCHEMA_VERSION: Final[int] = 0
+# The fields a version 0 recipe and tone are read from (the keys SoundRecipe.to_dict writes)
+LEGACY_RECIPE_FIELDS: Final[frozenset[str]] = frozenset({'volume', 'peak', 'tones'})
+LEGACY_TONE_FIELDS: Final[frozenset[str]] = frozenset(
+    field_info.name for field_info in dataclasses.fields(Tone)
+)
 SOUND_FILE_KIND: Final[str] = 'sounds'
 SOUND_FILE_SUFFIX: Final[str] = '.toml'
 RECORDED_SOUND_SUFFIXES: Final[tuple[str, ...]] = ('.wav', '.ogg')
@@ -659,15 +667,19 @@ class HeaderTable(_Table):
         return value
 
 
-class DocumentTable(_Table):
-    """A version 1 sound file."""
+class DefinitionsTable(_Table):
+    """A version 1 sound file's header, waves and instruments (stage 1 of loading).
+
+    The ``[sounds.*]`` tables are kept raw: a sound is validated in stage 2, so a broken sound
+    never breaks another file's reference to this file's instruments.
+    """
 
     unknown_noun: ClassVar[str] = 'table'
 
     glitchygames: HeaderTable
     waves: dict[str, WaveTable] = Field(default_factory=dict)
     instruments: dict[str, InstrumentTable] = Field(default_factory=dict)
-    sounds: dict[str, SoundTable] = Field(default_factory=dict)
+    sounds: dict[str, object] = Field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -686,6 +698,7 @@ class SoundEntry:
         transpose: Semitones to shift notes or a chord.
         playback_defaults: The playback defaults, overridable in ``.play()``.
         legacy_recipe: The v0 recipe, or None.
+        source_path: The sound file that defines this entry.
     """
 
     name: str
@@ -699,6 +712,7 @@ class SoundEntry:
     transpose: float = 0.0
     playback_defaults: PlaybackDefaults = field(default_factory=PlaybackDefaults)
     legacy_recipe: SoundRecipe | None = None
+    source_path: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -785,10 +799,10 @@ def _joined(path: str, key: str) -> str:
     return f'{path}.{key}' if path else key
 
 
-def _problems_from(error: ValidationError) -> list[_Problem]:
+def _problems_from(error: ValidationError, prefix: tuple[str, ...] = ()) -> list[_Problem]:
     problems: list[_Problem] = []
     for detail in error.errors():
-        path = _toml_path(detail['loc'])
+        path = _toml_path((*prefix, *detail['loc']))
         if detail['type'] == UNKNOWN_FIELDS_ERROR:
             problems.extend(
                 _Problem(_joined(path, key), reason)
@@ -824,16 +838,22 @@ def _read_document(path: Path) -> dict[str, Any]:
         raise SoundAssetError(message) from error
 
 
-def _reference_path(base_directory: Path, reference: str) -> Path | None:
+def _reference_path(boundary: Path, base_directory: Path, reference: str) -> Path | None:
     """Resolve a path written in a file, relative to the file's directory.
 
+    Symlinks are followed, so a link that points outside the boundary escapes it.
+
     Returns:
-        The path, or None when it is absolute or leaves the file's directory.
+        The resolved path, or None when it is absolute or leaves the boundary.
     """
     if Path(reference).is_absolute():
         return None
-    joined = Path(os.path.normpath(base_directory / reference))
-    return joined if joined.is_relative_to(base_directory) else None
+    resolved = (base_directory / reference).resolve()
+    return resolved if resolved.is_relative_to(boundary.resolve()) else None
+
+
+def _escape_reason(reference: str, boundary: Path) -> str:
+    return f'{reference!r} escapes the game package {boundary}; use a relative path inside it'
 
 
 def _wave_references(table: WaveTable) -> list[str]:
@@ -1040,12 +1060,16 @@ def _build_instruments(
     return instruments
 
 
-_CACHE: dict[Path, SoundFile] = {}
+type _CacheKey = tuple[Path, Path | None]
+
+_CACHE: dict[_CacheKey, SoundFile] = {}
+_DEFINITIONS_CACHE: dict[Path, _Definitions] = {}
 
 
 def clear_sound_file_cache() -> None:
     """Forget every loaded sound file (for tests and tools)."""
     _CACHE.clear()
+    _DEFINITIONS_CACHE.clear()
 
 
 def _modification_time(path: Path) -> int:
@@ -1076,108 +1100,80 @@ def _still_current(sound_file: SoundFile) -> bool:
     return True
 
 
-def load_sound_file(path: Path) -> SoundFile:
+def load_sound_file(path: Path, *, package_root: Path | None = None) -> SoundFile:
     """Read and validate a sound file (version 1) or recipe file (version 0).
 
-    The result is cached by the file's resolved path and modification time (and those of the
-    files it took instruments from), so loading a file again is a dictionary hit.
+    The result is cached by the file's resolved path, the package root and modification time
+    (and those of the files it took instruments from), so loading a file again is a dictionary hit.
 
     Args:
         path: The ``.toml`` file.
+        package_root: The game package's directory: paths in the file (``file``, ``path#name``)
+            may point anywhere inside it. None confines them to the sound file's own directory.
 
     Returns:
         The validated file. Nothing is registered or compiled. A problem is a
         ``SoundAssetError`` naming the file, the TOML path of each problem and the reason.
     """
-    return _load(path.resolve(), chain=())
+    resolved_root = package_root.resolve() if package_root is not None else None
+    return _load(path.resolve(), package_root=resolved_root)
 
 
-def _load(path: Path, *, chain: tuple[Path, ...]) -> SoundFile:
-    """Load one file, refusing a circle of instrument references.
+@dataclass(frozen=True, slots=True)
+class _Definitions:
+    """Stage 1 of loading a file: its header, waves and instruments, with no sounds resolved.
+
+    ``tables`` is None for a version 0 file.
+    """
+
+    path: Path
+    modification_time: int
+    document: dict[str, Any]
+    tables: DefinitionsTable | None
+    waves: Mapping[str, Wave]
+    instruments: Mapping[str, Instrument]
+
+
+def _definitions(path: Path) -> _Definitions:
+    """Load stage 1 of a file (cached by modification time).
+
+    A sound in another file reaches an instrument through this stage only, so files that use each
+    other's instruments cannot form a cycle.
 
     Returns:
-        The file, from the cache when it is current.
-
-    Raises:
-        SoundAssetError: When the file is invalid or ``path`` is already being loaded.
+        The definitions. A missing header, a newer version or a bad header, wave or instrument is
+        a ``SoundAssetError``.
     """
-    if path in chain:
-        cycle = ' -> '.join(str(link) for link in (*chain[chain.index(path) :], path))
-        message = f'{path}: circular instrument references between files: {cycle}'
-        raise SoundAssetError(message)
-    cached = _CACHE.get(path)
-    if cached is not None and _still_current(cached):
-        return cached
     modification_time = _modification_time(path)
+    cached = _DEFINITIONS_CACHE.get(path)
+    if cached is not None and cached.modification_time == modification_time:
+        return cached
     document = _read_document(path)
     if 'glitchygames' in document:
-        sound_file = _load_version_one(
-            path, document, modification_time=modification_time, chain=(*chain, path)
-        )
+        found = _version_one_definitions(path, document, modification_time=modification_time)
     elif 'recipes' in document:
-        sound_file = _load_version_zero(path, document, modification_time=modification_time)
+        found = _Definitions(
+            path, modification_time, document, None, MappingProxyType({}), MappingProxyType({})
+        )
     else:
-        error = _asset_error(
-            path,
-            [
-                _Problem(
-                    'glitchygames',
-                    'the [glitchygames] header table is missing; start the file with '
-                    f'kind = "{SOUND_FILE_KIND}" and version = {CURRENT_SCHEMA_VERSION}',
-                )
-            ],
+        header_problem = _Problem(
+            'glitchygames',
+            'the [glitchygames] header table is missing; start the file with '
+            f'kind = "{SOUND_FILE_KIND}" and version = {CURRENT_SCHEMA_VERSION}',
         )
+        error = _asset_error(path, [header_problem])
         raise error
-    _CACHE[path] = sound_file
-    return sound_file
+    _DEFINITIONS_CACHE[path] = found
+    return found
 
 
-def _load_version_zero(
+def _version_one_definitions(
     path: Path, document: dict[str, Any], *, modification_time: int
-) -> SoundFile:
-    """Load a ``[recipes.<name>]`` file: each recipe is a short name.
+) -> _Definitions:
+    """Validate a version 1 file's header, waves and instruments.
 
     Returns:
-        The file, with a ``legacy_recipe`` entry per recipe. A table other than ``recipes`` or
-        an invalid recipe is a ``SoundAssetError``.
-    """
-    problems = [
-        _Problem(
-            key,
-            f"unknown table '{key}'; version {LEGACY_SCHEMA_VERSION} files hold only "
-            '[recipes.<name>] tables',
-        )
-        for key in document
-        if key != 'recipes'
-    ]
-    sounds: dict[str, SoundEntry] = {}
-    for name, data in document['recipes'].items():
-        try:
-            recipe = SoundRecipe.from_dict(name, data)
-        except (SoundRecipeError, KeyError, TypeError, ValueError, AttributeError) as error:
-            problems.append(_Problem(f'recipes.{name}', f'{type(error).__name__}: {error}'))
-            continue
-        sounds[name] = SoundEntry(name=name, legacy_recipe=recipe)
-    if problems:
-        error = _asset_error(path, problems)
-        raise error
-    return SoundFile(
-        path=path,
-        version=LEGACY_SCHEMA_VERSION,
-        waves=MappingProxyType({}),
-        instruments=MappingProxyType({}),
-        sounds=MappingProxyType(sounds),
-        modification_times=((path, modification_time),),
-    )
-
-
-def _load_version_one(
-    path: Path, document: dict[str, Any], *, modification_time: int, chain: tuple[Path, ...]
-) -> SoundFile:
-    """Load a version 1 file.
-
-    Returns:
-        The file. Every problem found is listed in one ``SoundAssetError``.
+        The definitions. Every problem found is listed in one ``SoundAssetError``.
     """
     header = document['glitchygames']
     version = cast('dict[str, object]', header).get('version') if isinstance(header, dict) else None
@@ -1187,35 +1183,147 @@ def _load_version_one(
         and version > CURRENT_SCHEMA_VERSION
     ):
         # A newer file may use fields this engine has never heard of, so say only this
-        error = _asset_error(
-            path,
-            [
-                _Problem(
-                    'glitchygames.version',
-                    f'version {version} is newer than this engine reads (version '
-                    f'{CURRENT_SCHEMA_VERSION}); update glitchygames',
-                )
-            ],
+        newer = _Problem(
+            'glitchygames.version',
+            f'version {version} is newer than this engine reads (version '
+            f'{CURRENT_SCHEMA_VERSION}); update glitchygames',
         )
+        error = _asset_error(path, [newer])
         raise error
     try:
-        tables = DocumentTable.model_validate(document)
+        tables = DefinitionsTable.model_validate(document)
     except ValidationError as error:
         wrapped = _asset_error(path, _problems_from(error))
         raise wrapped from None
     problems: list[_Problem] = []
     waves = _build_waves(tables.waves, problems)
     instruments = _build_instruments(tables.instruments, waves=waves, problems=problems)
-    dependencies: dict[Path, int] = {path: modification_time}
+    if problems:
+        error = _asset_error(path, problems)
+        raise error
+    return _Definitions(
+        path,
+        modification_time,
+        document,
+        tables,
+        MappingProxyType(waves),
+        MappingProxyType(instruments),
+    )
+
+
+def _load(path: Path, *, package_root: Path | None) -> SoundFile:
+    """Load a file completely: stage 1, then its sounds (stage 2).
+
+    Returns:
+        The file, from the cache when it is current.
+    """
+    key = (path, package_root)
+    cached = _CACHE.get(key)
+    if cached is not None and _still_current(cached):
+        return cached
+    definitions = _definitions(path)
+    if definitions.tables is None:
+        sound_file = _load_version_zero(definitions)
+    else:
+        sound_file = _load_version_one(
+            definitions, boundary=package_root if package_root is not None else path.parent
+        )
+    _CACHE[key] = sound_file
+    return sound_file
+
+
+def _warn_unknown_recipe_fields(path: Path, document: dict[str, Any]) -> None:
+    """Warn about every field a version 0 file has that this engine does not read.
+
+    Version 0 files are old and hand-edited, so unknown fields are logged and ignored
+    (feature spec 9.3) rather than refused.
+    """
+    for key in document:
+        if key != 'recipes':
+            log.warning("%s: unknown table '%s' in a version 0 file is ignored", path, key)
+    for name, recipe in document['recipes'].items():
+        if not isinstance(recipe, dict):
+            continue
+        fields = cast('dict[str, Any]', recipe)
+        for key in fields:
+            if key not in LEGACY_RECIPE_FIELDS:
+                log.warning("%s: unknown field 'recipes.%s.%s' is ignored", path, name, key)
+        tones = fields.get('tones', [])
+        if isinstance(tones, list):
+            _warn_unknown_tone_fields(path, name, cast('list[Any]', tones))
+
+
+def _warn_unknown_tone_fields(path: Path, recipe_name: str, tones: list[Any]) -> None:
+    """Warn about every field of a version 0 recipe's tones that this engine does not read."""
+    for index, tone in enumerate(tones):
+        if not isinstance(tone, dict):
+            continue
+        for key in cast('dict[str, Any]', tone):
+            if key not in LEGACY_TONE_FIELDS:
+                log.warning(
+                    "%s: unknown field 'recipes.%s.tones[%d].%s' is ignored",
+                    path,
+                    recipe_name,
+                    index,
+                    key,
+                )
+
+
+def _load_version_zero(definitions: _Definitions) -> SoundFile:
+    """Load a ``[recipes.<name>]`` file: each recipe is a short name.
+
+    Returns:
+        The file, with a ``legacy_recipe`` entry per recipe. An invalid recipe is a
+        ``SoundAssetError``.
+    """
+    path = definitions.path
+    _warn_unknown_recipe_fields(path, definitions.document)
+    problems: list[_Problem] = []
     sounds: dict[str, SoundEntry] = {}
-    for name, sound_table in tables.sounds.items():
+    for name, data in definitions.document['recipes'].items():
+        try:
+            recipe = SoundRecipe.from_dict(name, data)
+        except (SoundRecipeError, KeyError, TypeError, ValueError, AttributeError) as error:
+            problems.append(_Problem(f'recipes.{name}', f'{type(error).__name__}: {error}'))
+            continue
+        sounds[name] = SoundEntry(name=name, legacy_recipe=recipe, source_path=path)
+    if problems:
+        error = _asset_error(path, problems)
+        raise error
+    return SoundFile(
+        path=path,
+        version=LEGACY_SCHEMA_VERSION,
+        waves=MappingProxyType({}),
+        instruments=MappingProxyType({}),
+        sounds=MappingProxyType(sounds),
+        modification_times=((path, definitions.modification_time),),
+    )
+
+
+def _load_version_one(definitions: _Definitions, *, boundary: Path) -> SoundFile:
+    """Resolve a version 1 file's sounds against its definitions.
+
+    Returns:
+        The file. Every problem found in the sounds is listed in one ``SoundAssetError``.
+    """
+    path = definitions.path
+    assert definitions.tables is not None  # version 1 definitions carry their tables
+    problems: list[_Problem] = []
+    dependencies: dict[Path, int] = {path: definitions.modification_time}
+    sounds: dict[str, SoundEntry] = {}
+    for name, raw_table in definitions.tables.sounds.items():
+        try:
+            sound_table = SoundTable.model_validate(raw_table)
+        except ValidationError as error:
+            problems.extend(_problems_from(error, prefix=('sounds', name)))
+            continue
         entry = _sound_entry(
             name,
             sound_table,
             path=path,
-            instruments=instruments,
+            boundary=boundary,
+            instruments=definitions.instruments,
             dependencies=dependencies,
-            chain=chain,
             problems=problems,
         )
         if entry is not None:
@@ -1226,8 +1334,8 @@ def _load_version_one(
     return SoundFile(
         path=path,
         version=CURRENT_SCHEMA_VERSION,
-        waves=MappingProxyType(waves),
-        instruments=MappingProxyType(instruments),
+        waves=definitions.waves,
+        instruments=definitions.instruments,
         sounds=MappingProxyType(sounds),
         modification_times=tuple(dependencies.items()),
     )
@@ -1238,9 +1346,9 @@ def _sound_entry(  # ruff: ignore[too-many-arguments] - one call site
     table: SoundTable,
     *,
     path: Path,
+    boundary: Path,
     instruments: Mapping[str, Instrument],
     dependencies: dict[Path, int],
-    chain: tuple[Path, ...],
     problems: list[_Problem],
 ) -> SoundEntry | None:
     """Resolve one sound's instrument or recorded file.
@@ -1261,7 +1369,11 @@ def _sound_entry(  # ruff: ignore[too-many-arguments] - one call site
     recorded: Path | None = None
     if table.file is not None:
         recorded = _recorded_file(
-            table.file, base=path.parent, location=f'{location}.file', problems=problems
+            table.file,
+            boundary=boundary,
+            base=path.parent,
+            location=f'{location}.file',
+            problems=problems,
         )
         if recorded is None:
             return None
@@ -1270,10 +1382,10 @@ def _sound_entry(  # ruff: ignore[too-many-arguments] - one call site
         instrument = _referenced_instrument(
             table.instrument,
             instruments=instruments,
+            boundary=boundary,
             base=path.parent,
             location=f'{location}.instrument',
             dependencies=dependencies,
-            chain=chain,
             problems=problems,
         )
         if instrument is None:
@@ -1295,38 +1407,63 @@ def _sound_entry(  # ruff: ignore[too-many-arguments] - one call site
             priority=table.priority,
             loop=table.loop,
         ),
+        source_path=path,
     )
 
 
 def _recorded_file(
-    reference: str, *, base: Path, location: str, problems: list[_Problem]
+    reference: str, *, boundary: Path, base: Path, location: str, problems: list[_Problem]
 ) -> Path | None:
-    """Check a recorded sound's path.
+    """Check a recorded sound's path and suffix (not that it exists: see ``require_recorded_file``).
 
     Returns:
-        The path, or None when it escapes the file's directory, is not WAV/OGG or does not exist.
+        The resolved path, or None when it escapes the boundary or is not WAV/OGG.
     """
-    resolved = _reference_path(base, reference)
+    resolved = _reference_path(boundary, base, reference)
     if resolved is None:
-        reason = f"{reference!r} escapes the sound file's directory; use a relative path inside it"
+        reason = _escape_reason(reference, boundary)
     elif resolved.suffix.lower() not in RECORDED_SOUND_SUFFIXES:
         reason = f'{reference!r} must be a .wav or .ogg file'
-    elif not resolved.is_file():
-        reason = f'{resolved} does not exist'
     else:
         return resolved
     problems.append(_Problem(location, reason))
     return None
 
 
+def require_recorded_file(entry: SoundEntry) -> Path:
+    """Check that a recorded sound's file exists; the library calls this when the sound is compiled.
+
+    A missing file is an error when the sound is first requested, not when its file loads, so one
+    missing WAV never stops the file's other sounds.
+
+    Args:
+        entry: A ``SoundEntry`` with a ``file``.
+
+    Returns:
+        The file's path.
+
+    Raises:
+        SoundAssetError: Naming the file and ``sounds.<name>.file`` when the entry is not a
+            recorded sound or the file does not exist.
+    """
+    where = f'{entry.source_path}: sounds.{entry.name}.file'
+    if entry.file is None:
+        message = f'{where}: the sound is not a recorded file'
+        raise SoundAssetError(message)
+    if not entry.file.is_file():
+        message = f'{where}: {entry.file} does not exist'
+        raise SoundAssetError(message)
+    return entry.file
+
+
 def _referenced_instrument(  # ruff: ignore[too-many-arguments] - one call site
     reference: str,
     *,
     instruments: Mapping[str, Instrument],
+    boundary: Path,
     base: Path,
     location: str,
     dependencies: dict[Path, int],
-    chain: tuple[Path, ...],
     problems: list[_Problem],
 ) -> Instrument | None:
     """Find the instrument a sound names: this file's, or ``path#name`` in another file.
@@ -1336,7 +1473,7 @@ def _referenced_instrument(  # ruff: ignore[too-many-arguments] - one call site
     """
     if INSTRUMENT_SEPARATOR in reference:
         found = _instrument_in_other_file(
-            reference, base=base, dependencies=dependencies, chain=chain
+            reference, boundary=boundary, base=base, dependencies=dependencies
         )
     elif reference in instruments:
         found = instruments[reference]
@@ -1354,24 +1491,24 @@ def _referenced_instrument(  # ruff: ignore[too-many-arguments] - one call site
 
 
 def _instrument_in_other_file(
-    reference: str, *, base: Path, dependencies: dict[Path, int], chain: tuple[Path, ...]
+    reference: str, *, boundary: Path, base: Path, dependencies: dict[Path, int]
 ) -> Instrument | str:
-    """Load ``path#name``'s file and take its instrument.
+    """Take ``path#name``'s instrument from the other file's stage 1.
 
     Returns:
         The instrument, or the reason it cannot be had.
     """
     file_part, _, instrument_name = reference.partition(INSTRUMENT_SEPARATOR)
-    other_path = _reference_path(base, file_part)
+    other_path = _reference_path(boundary, base, file_part)
     if other_path is None:
-        return f"{file_part!r} escapes the sound file's directory"
+        return _escape_reason(file_part, boundary)
     try:
-        other = _load(other_path, chain=chain)
+        other = _definitions(other_path)
     except SoundAssetError as error:
         return f'{file_part} cannot be used: {error}'
-    dependencies.update(other.modification_times)
-    if other.version != CURRENT_SCHEMA_VERSION:
-        return f'{other_path} is a version {other.version} file: it has no instruments'
+    dependencies[other_path] = other.modification_time
+    if other.tables is None:
+        return f'{other_path} is a version {LEGACY_SCHEMA_VERSION} file: it has no instruments'
     if instrument_name not in other.instruments:
         suggestion = _suggestion(instrument_name, list(other.instruments))
         return f'{other_path.name} has no instrument {instrument_name!r}{suggestion}'
@@ -1388,19 +1525,33 @@ class ShortNameIndex:
     ``path#name``). Other kinds of TOML file (sprites, levels) are skipped.
     """
 
-    def __init__(self, directory: Path) -> None:
+    def __init__(self, directory: Path, *, package_root: Path | None = None) -> None:
         """Remember the directory; it is read on the first lookup.
 
         Args:
             directory: The sound directory.
+            package_root: The game package's directory, passed to ``load_sound_file`` by
+                ``load``; None confines each file's paths to its own directory.
         """
         self._directory = directory
+        self._package_root = package_root
         self._locations: dict[str, list[SoundLocation]] | None = None
 
     @property
     def directory(self) -> Path:
         """The sound directory."""
         return self._directory
+
+    def load(self, location: SoundLocation) -> SoundFile:
+        """Load the sound file a resolved short name lives in.
+
+        Args:
+            location: A location from ``resolve`` (a ``.toml`` file, not a recorded file).
+
+        Returns:
+            The validated file.
+        """
+        return load_sound_file(location.path, package_root=self._package_root)
 
     def resolve(self, name: str) -> SoundLocation:
         """Find where a short name is defined.
