@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, 
 import pygame
 
 from glitchygames import clock, events
-from glitchygames.argument_types import non_negative_int
+from glitchygames.argument_types import non_negative_int, unit_interval
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
     BackgroundPattern,
@@ -254,30 +254,6 @@ def pygame_needs_fastevents() -> bool:
         PYGAME_MIN_MAJOR_VERSION,
         PYGAME_MIN_MINOR_VERSION,
     )
-
-
-def unit_interval(value: str) -> float:
-    """Argparse type: a float from 0.0 to 1.0 inclusive.
-
-    Args:
-        value: The command-line text.
-
-    Returns:
-        The parsed float.
-
-    Raises:
-        argparse.ArgumentTypeError: If the text is not a number in 0.0-1.0.
-
-    """
-    try:
-        number = float(value)
-    except ValueError as error:
-        message = f'{value!r} is not a number'
-        raise argparse.ArgumentTypeError(message) from error
-    if not 0.0 <= number <= 1.0:  # Also rejects NaN, which fails every comparison
-        message = f'{value!r} must be between 0.0 and 1.0'
-        raise argparse.ArgumentTypeError(message)
-    return number
 
 
 def target_fps_value(value: str) -> float:

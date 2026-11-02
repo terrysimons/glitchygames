@@ -549,6 +549,32 @@ class TestUnbindAndClear:
         assert actions.is_held('jump') is False
 
 
+class TestFromEngineOptions:
+    """ActionMap.from_engine_options: a map in the engine's input settings."""
+
+    def test_the_input_mode_and_deadzone_come_from_the_options(self) -> None:
+        actions = ActionMap.from_engine_options({'input_mode': 'controller', 'axis_deadzone': 0.3})
+
+        assert actions.input_mode is InputMode.CONTROLLER
+        assert actions.deadzone == 0.3
+
+    def test_missing_options_are_the_defaults(self) -> None:
+        actions = ActionMap.from_engine_options({})
+
+        assert actions.input_mode is InputMode.AUTO
+        assert actions.deadzone == DEFAULT_DEADZONE
+
+    def test_the_deadzone_is_applied(self) -> None:
+        """A stick position inside the option's deadzone reads as centered."""
+        actions = ActionMap.from_engine_options({'input_mode': 'joystick', 'axis_deadzone': 0.5})
+        actions.bind('move_right', controller_axis=(pygame.CONTROLLER_AXIS_LEFTX, 0.1))
+
+        actions.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 0.4))
+        assert actions.is_held('move_right') is False
+        actions.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 0.6))
+        assert actions.is_held('move_right') is True
+
+
 def _saved_settings(input_mode: str, *, deadzone: float = DEFAULT_DEADZONE) -> dict[str, object]:
     """Return a saved map's settings entry (``SETTINGS_KEY``), as to_dict writes it.
 

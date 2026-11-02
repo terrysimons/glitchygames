@@ -9,6 +9,7 @@ replay stand-ins (``ReplayController``) from a ``ReplayDeviceRegistry``; everyth
 real: the event managers and proxies, real Scenes receiving the events, real events.
 """
 
+import argparse
 import logging
 import math
 from typing import Any, Self
@@ -24,6 +25,7 @@ from glitchygames.events import (
     UnhandledEventError,
 )
 from glitchygames.events.controller import ControllerEventManager, alias_controller_module
+from glitchygames.input.action_map import DEFAULT_DEADZONE
 from glitchygames.input.devices import (
     CONTROLLER_COUNT_CALL,
     CONTROLLER_KIND,
@@ -802,6 +804,23 @@ class TestControllerEvents:
         assert all(
             math.isclose(manager.controllers[0]._axes[axis], 0.5) for axis in controller_axes
         )
+
+
+class TestControllerOptions:
+    """ControllerEventManager.args: the gamepad options."""
+
+    def test_the_axis_deadzone_defaults_and_parses(self):
+        parser = ControllerEventManager.args(argparse.ArgumentParser())
+
+        assert parser.parse_args([]).axis_deadzone == DEFAULT_DEADZONE
+        assert parser.parse_args(['--axis-deadzone', '0.3']).axis_deadzone == 0.3
+
+    @pytest.mark.parametrize('text', ['-0.1', '1.5', 'wide'])
+    def test_an_axis_deadzone_outside_zero_to_one_is_refused(self, text):
+        parser = ControllerEventManager.args(argparse.ArgumentParser())
+
+        with pytest.raises(SystemExit):
+            parser.parse_args(['--axis-deadzone', text])
 
 
 class TestControllerEventFlow:

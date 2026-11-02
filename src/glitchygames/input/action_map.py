@@ -48,6 +48,8 @@ import pygame
 from glitchygames.input.input_devices import InputMode
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from glitchygames.events.base import HashableEvent
 
 log: logging.Logger = logging.getLogger('game.input.action_map')
@@ -196,6 +198,26 @@ class ActionMap:
     def deadzone(self) -> float:
         """The analog stick deadzone (the constructor's ``deadzone``)."""
         return self._deadzone
+
+    @classmethod
+    def from_engine_options(cls, options: Mapping[str, Any]) -> ActionMap:
+        """Make an empty map in the engine's input settings, as every game's map should be.
+
+        Reads ``input_mode`` (``--input-mode``, default 'auto') and ``axis_deadzone``
+        (``--axis-deadzone``, default ``DEFAULT_DEADZONE``), so a game that builds its map here
+        follows both, and any input setting added later.
+
+        Args:
+            options: The engine's options (``GameEngine.OPTIONS``, a scene's ``options``).
+
+        Returns:
+            The map, with no bindings.
+
+        """
+        return cls(
+            deadzone=options.get('axis_deadzone', DEFAULT_DEADZONE),
+            input_mode=options.get('input_mode', InputMode.AUTO),
+        )
 
     # --- Binding API ---
 

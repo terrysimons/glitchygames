@@ -19,6 +19,8 @@ from glitchygames.input.devices import LiveDeviceRegistry
 from glitchygames.sources import active_sources
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     import pygame
 
     from brave_adventurer.enemies import Scarab
@@ -89,17 +91,18 @@ class BraveAdventurerScene(BraveAdventurerSceneBase):
 
     @staticmethod
     @override
-    def _create_action_map(*, input_mode: str) -> ActionMap:
+    def _create_action_map(*, options: Mapping[str, Any]) -> ActionMap:
         """Bind the shared controls, then the gamepad's mic button (the voice assistant).
 
         Args:
-            input_mode: Gamepad event family ('joystick', 'controller' or 'auto').
+            options: The engine's options: the map follows its input mode and axis deadzone
+                (``ActionMap.from_engine_options``).
 
         Returns:
             The action map (the golden replays' controls check reads it too).
 
         """
-        actions = BraveAdventurerSceneBase._create_action_map(input_mode=input_mode)
+        actions = BraveAdventurerSceneBase._create_action_map(options=options)
 
         # Mic mute button — bind both APIs since button indices differ
         actions.bind(

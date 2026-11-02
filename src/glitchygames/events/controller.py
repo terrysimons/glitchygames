@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 import pygame
 
+from glitchygames.argument_types import unit_interval
 from glitchygames.events import (
     CONTROLLER_EVENTS,
     ControllerAxisEvent,
@@ -29,6 +30,7 @@ from glitchygames.events import (
     HashableEvent,
     ResourceManager,
 )
+from glitchygames.input.action_map import DEFAULT_DEADZONE
 from glitchygames.input.devices import sdl_controller_module
 from glitchygames.input.state import current_input
 from glitchygames.sources import active_sources
@@ -467,6 +469,17 @@ class ControllerEventManager(ControllerEvents, ResourceManager):
                 'Which gamepads the game sees (default: auto, every device; a mapped pad sends'
                 ' controller events, any other device joystick events; joystick: every device'
                 ' sends joystick events; controller: mapped pads only)'
+            ),
+        )
+        # One value for every device and both layers: a deadzone belongs to the physical stick,
+        # which --input-mode can read on either layer (ActionMap.from_engine_options)
+        group.add_argument(
+            '--axis-deadzone',
+            type=unit_interval,
+            default=DEFAULT_DEADZONE,
+            help=(
+                'Gamepad axis deadzone from 0.0 to 1.0: an axis position nearer its center reads'
+                f' as centered (default: {DEFAULT_DEADZONE})'
             ),
         )
 

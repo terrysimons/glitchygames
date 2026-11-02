@@ -101,6 +101,7 @@ The launcher reads `--game`; each scene's `args()` adds `-v`; everything else is
 | `--game {classic,papyrus}` | the launcher (`launcher.py`; listed in `-h` by `TitleScene.args()`) | Starts that game at once, without the title screen |
 | `-v`, `--version` | `TitleScene.args()`, `BraveAdventurerScene.args()`, `PapyrusBraveAdventurerScene.args()` | Prints the name and version and exits before anything starts (argparse's `version` action): `Brave Adventurer 1.0` (the title screen's, and Classic's with `--game classic`); with `--game papyrus`, `Brave Adventurer: Papyrus Edition 1.0` |
 | `--input-mode {auto,joystick,controller}` | engine | Passed to the `ActionMap`: which gamepad event family the D-pad, A and mic bindings answer |
+| `--axis-deadzone` | engine | Passed to the `ActionMap` (`ActionMap.from_engine_options`); the game binds no axes, so it changes nothing yet |
 | `--screen-shake-intensity` | engine | Passed to `Camera2D(shake_intensity=...)`; the game itself starts no shakes |
 | `--rumble-intensity` | engine | Scales the death and game-over rumble pulses |
 | `--target-fps` | engine | The scene sets no `TARGET_FPS`, so the default 60.01 applies |
@@ -486,8 +487,9 @@ through to `Scene.on_key_down_event`.
 
 **Gamepads.** The D-pad and A are bound as `controller_button=...`; the `ActionMap` built with
 the scene's `input_mode` turns that into controller events, joystick events or both. The scene
-reads `self.options.get('input_mode', 'joystick')`; the engine's `--input-mode` default is
-`auto`, so a normal run binds both families and the engine delivers each press once.
+builds it with `ActionMap.from_engine_options(self.options)` (the engine's `--input-mode`, default
+`auto`, and `--axis-deadzone`), so a normal run binds both families and the engine delivers each
+press once.
 
 **Microphone (primitives edition).** `VoiceAssistant.discover()` (in `__init__`) looks for a
 controller with both a microphone and a speaker (a DualSense) and returns `None` when there is

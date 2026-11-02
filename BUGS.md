@@ -4,6 +4,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 248. A Trigger Bound as an Axis on the Joystick Layer Reads Pushed at Rest (Suspected)
+- **Description**: `ActionMap`'s deadzone is a band around 0.0, but on the joystick layer many pads report a trigger from -1.0 at rest (SDL's raw axis, -32768) to 1.0 pressed; the controller layer reports it from 0.0 to 1.0. A trigger bound with `controller_axis=` and read on the joystick layer (`--input-mode joystick`, or an unmapped pad in `auto`) sits at -1.0, outside the deadzone, so a negative-threshold binding is held while the trigger is untouched and a positive one needs the trigger past its middle
+- **Status**: Active
+- **Priority**: Low (latent: no bundled game binds a trigger as an axis)
+- **Reporter**: Found discussing the `--axis-deadzone` option
+- **Date Reported**: 2026-11-01
+- **Details**: The rest value is the pad's (check on hardware, with #184.5's pads). A fix needs the binding to know the axis is a trigger, e.g. a trigger binding that rescales the joystick layer's -1.0..1.0 to 0.0..1.0 before the deadzone, or a per-axis rest value
+- **Files**: `src/glitchygames/input/action_map.py` (`normalized_axis_value`, `_handle_axis_event`)
+
 ### 228. Smaller Findings From the Engine Context Sub-Plan 1 Reviews
 - **Description**: The task reviews and the final whole-branch review of engine context sub-plan 1 (plans/2026-10-25-engine-context-1-state.md, 2026-10-25) recorded these minor findings; the final reviewer triaged them and none blocks the merge. The important findings were fixed on the branch. Item 6 (the positional calls) belongs to sub-plan 2
 - **Status**: Active

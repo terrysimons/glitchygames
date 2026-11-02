@@ -58,13 +58,12 @@ if TYPE_CHECKING:
 
 
 from glitchygames import events
-from glitchygames.argument_types import non_negative_int, non_negative_percent
+from glitchygames.argument_types import non_negative_int, non_negative_percent, unit_interval
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.engine.game_engine import (
     pygame_needs_fastevents,
     scene_class_of,
-    unit_interval,
 )
 from glitchygames.events import base as events_base
 from glitchygames.events.controller import ControllerEventManager
