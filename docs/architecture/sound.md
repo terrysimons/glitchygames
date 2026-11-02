@@ -100,7 +100,7 @@ mode):
 | Mode | What happens |
 | --- | --- |
 | `ram` (default) | Compiled sounds stay in memory. Above `--sound-cache-memory` (256 MB) the least recently played sounds that are not playing are dropped, and compiled again on their next request (counted). |
-| `none` | Nothing is kept: every `play()` compiles in its frame. This is the switch that shows what compiling in gameplay costs. |
+| `none` | Nothing is kept: every `play()` compiles in its frame. This is the switch that shows what compiling in gameplay costs. A sound's first request still compiles it once, for its `length`, `peak` and rate, then drops the samples: what a game reads of a sound never depends on the cache (a replay may run under another mode). |
 | `disk` | Arrives in M3; refused now (`OPTIONS_REFUSED`). |
 
 ## Voices, channels and buses
@@ -117,7 +117,9 @@ to steal is dropped. Steals, delayed plays and drops are counted.
 
 What a game sees never depends on the audio device: `is_playing` and voice endings follow each
 voice's played time, which advances by the frame's served `dt` (the recorded `dt` in a replay),
-so a replay sees the same answers.
+so a replay sees the same answers. Frames run in silence (a watched replay's step-back rebuild,
+an instant replay's fast-forward) only quiet the channels: their voices go on by frame time, so
+`is_playing`, voice endings and steals are the same as when those frames were heard.
 
 Buses form a tree under `master`: `music`, `effects`, `ui`, `ambience` and `dialogue` always
 exist (`ui` and `music` keep two channels each that a storm of effects cannot take), and

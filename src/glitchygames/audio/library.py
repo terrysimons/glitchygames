@@ -2,9 +2,14 @@
 
 The first request for a sound compiles it, equal requests return the same ``Sound``, and getting a
 sound never plays it (feature spec 3.1, impl spec 6.2 and 6.4). With cache ``none`` a ``Sound``
-holds only what identifies it, and every play compiles it anew (``compile_for_play``), which
-forces mid-frame rendering for benchmarks. The pieces of work are timed by the library's
-``AudioAccountant`` (impl spec 11.0).
+holds only what identifies it and what a game may read of it, and every play compiles it anew
+(``compile_for_play``), which forces mid-frame rendering for benchmarks. The pieces of work are
+timed by the library's ``AudioAccountant`` (impl spec 11.0).
+
+What a game may read of a sound (``length``, ``peak``, ``sample_rate``) never depends on the
+cache, which is replay-local: it is fixed by the sound's first compile, at its first request
+under either mode (under ``none`` that compile's samples are dropped at once), and survives
+``release()`` (the memory limit's eviction), so a replay under another mode reads the same.
 """
 
 from __future__ import annotations
@@ -150,8 +155,9 @@ class Sound:
 
     Exactly one of ``spec`` (a version 1 sound or an instrument), ``legacy_recipe`` (version 0) and
     ``recorded_file`` says how it is compiled. ``length`` and ``peak`` are 0.0 until the sound is
-    compiled (``is_compiled``); a sound the memory limit dropped is compiled again, in place, by
-    its next request.
+    first compiled; the library compiles every sound at its first request, under either cache
+    mode, and ``release()`` keeps them, so a sound got from the library always holds them. A
+    sound the memory limit dropped is compiled again, in place, by its next request.
 
     Attributes:
         name: The short name, the path stem, or a generated ``instrument-<digest>`` name.
@@ -159,7 +165,9 @@ class Sound:
         peak: The loudest sample's magnitude before clipping.
         is_live: Whether this is a live (M2) sound.
         identity_key: The cache key.
-        sample_rate: The rate of the samples (the mixer's, at request time).
+        sample_rate: The rate of the samples: the mixer's at request time, until the first
+            compile sets the samples' own (a recorded file decoded without a mixer keeps its
+            file's rate; one loaded through a mixer is converted to the mixer's).
         playback_defaults: The sound file's playback defaults.
         spec: The spec of a version 1 sound, or None.
         legacy_recipe: The version 0 recipe, or None.
@@ -329,14 +337,15 @@ class Sound:
         self._mixer_bytes = len(mixer_sound.get_raw()) if mixer_sound is not None else 0
 
     def release(self) -> None:
-        """Drop the samples and the pygame sound (the memory limit's eviction)."""
+        """Drop the samples and the pygame sound (the memory limit's eviction; cache ``none``).
+
+        ``length``, ``peak`` and ``sample_rate`` stay: a game may read them whatever the cache.
+        """
         self.samples_float = None
         self.samples_int16 = None
         self._mixer_sound = None
         self._mixer_settings = None
         self._mixer_bytes = 0
-        self.length = 0.0
-        self.peak = 0.0
 
     def mixer_sound(self) -> pygame.mixer.Sound | None:
         """The pygame sound for the running mixer, built on first use.
@@ -548,7 +557,8 @@ class SoundLibrary:
                 (live sounds arrive in M2).
 
         Returns:
-            The sound. Under cache ``none`` it holds no samples until ``compile_for_play``.
+            The sound, its ``length``, ``peak`` and ``sample_rate`` set. Under cache ``none`` it
+            holds no samples: its first request compiled it for those, then dropped them.
         """
         request = SoundRequest(
             source=source,
@@ -618,12 +628,18 @@ class SoundLibrary:
         return done / len(requests)
 
     def _ensure_compiled(self, sound: Sound, *, known: bool) -> None:
-        """Count the request and, under ``ram``, compile the sound unless it is already."""
+        """Count the request and, under ``ram``, compile the sound unless it is already.
+
+        Under ``none`` a new sound is compiled once for its ``length``, ``peak`` and
+        ``sample_rate``, which must not depend on the cache, and its samples are dropped.
+        """
         if self._cache is CacheMode.NONE:
             if known:
                 self._hits += 1
             else:
                 self._misses += 1
+                self._compile(sound)
+                sound.release()
             return
         if sound.is_compiled:
             self._hits += 1

@@ -7,6 +7,7 @@ import pytest
 from glitchygames.audio.library import CacheMode, CacheStatistics
 from glitchygames.audio.pitch import Tuning
 from tests.audio.library_support import (
+    FIXTURE_SOUNDS,
     PULSE_INSTRUMENT,
     make_library,
     start_mixer,
@@ -64,7 +65,11 @@ def test_two_spellings_of_one_identity_share_one_sound():
 
 
 def test_cache_none_keeps_no_audio_until_a_play():
-    """Under cache none, sound() holds the spec and no samples."""
+    """Under cache none, sound() holds the spec and no samples.
+
+    The first request of an identity compiles once to learn its length, peak and rate (they
+    must not depend on the cache: a replay may run under another mode), then drops the samples.
+    """
     library, _ = make_library(CacheMode.NONE)
     sound = _request(library)
 
@@ -73,8 +78,9 @@ def test_cache_none_keeps_no_audio_until_a_play():
     assert sound.samples_int16 is None
     assert not sound.is_compiled
     assert sound.mixer_sound() is None
-    assert library.statistics().compiles == 0
+    assert library.statistics().compiles == 1
     assert _request(library) is sound
+    assert library.statistics().compiles == 1
     assert library.statistics().bytes_held == 0
 
 
@@ -82,12 +88,14 @@ def test_cache_none_compiles_on_every_play():
     """Under cache none, every play compiles anew."""
     library, accountant = make_library(CacheMode.NONE)
     sound = _request(library)
+    accountant.take_frame()  # the request's own compile (its length, peak and rate)
 
     compiled = [library.compile_for_play(sound) for _ in range(5)]
 
-    assert library.statistics().compiles == 5
+    # Five plays, five compiles, beyond the request's one
+    assert library.statistics().compiles == 1 + 5
     assert len({id(each) for each in compiled}) == 5
-    assert all(each.is_compiled and each.length > 0.0 for each in compiled)
+    assert all(each.is_compiled and each.length == sound.length for each in compiled)
     assert not sound.is_compiled
     assert len(accountant.take_frame().audio_work) == 5
     np.testing.assert_array_equal(compiled[0].samples_float, compiled[1].samples_float)
@@ -275,3 +283,74 @@ def test_a_recorded_sound_counts_its_pygame_buffer(tmp_path):
 
     assert sound.retained_bytes == 1000 * (8 + 2 + 2)  # float64, int16, 16-bit mixer buffer
     assert library.statistics().bytes_held == sound.retained_bytes
+
+
+def _metadata(sound):
+    """What a game may read of a sound whatever the cache: length, peak and rate.
+
+    Returns:
+        The three values.
+    """
+    return (sound.length, sound.peak, sound.sample_rate)
+
+
+@pytest.mark.parametrize(
+    'arguments',
+    [
+        {'source': PULSE_INSTRUMENT, 'pitch': 'C5'},
+        {'source': 'coin'},
+        {'source': 'crunch_one'},
+        {'source': 'sfx_slap'},
+    ],
+    ids=['instrument', 'version-1-file', 'version-0-recipe', 'recorded-file'],
+)
+def test_length_peak_and_rate_are_the_same_under_none_and_ram(arguments):
+    """sound_cache is replay-local, so what a game reads of a sound must not depend on it."""
+    start_mixer(frequency=44100, channels=2)
+    by_mode = {}
+    for mode in (CacheMode.NONE, CacheMode.RAM):
+        library, _ = make_library(mode)
+        by_mode[mode] = library.sound(scene_sound_directory=FIXTURE_SOUNDS, **arguments)
+
+    assert _metadata(by_mode[CacheMode.NONE]) == _metadata(by_mode[CacheMode.RAM])
+    assert by_mode[CacheMode.RAM].length > 0.0
+    assert by_mode[CacheMode.RAM].peak > 0.0
+    assert not by_mode[CacheMode.NONE].is_compiled
+
+
+def test_an_evicted_sound_keeps_its_length_peak_and_rate():
+    """The memory limit drops samples, never what the game may read of the sound."""
+    probe, _ = make_library()
+    one_sound_bytes = _request(probe).retained_bytes
+    library, _ = make_library(memory_limit_bytes=one_sound_bytes + 1)
+    first = _request(library, 'C5')
+    before = _metadata(first)
+
+    _request(library, 'D5')  # evicts C5
+
+    assert not first.is_compiled
+    assert _metadata(first) == before
+    assert before[0] > 0.0
+    assert before[1] > 0.0
+
+
+def test_a_22050_hz_recorded_wav_reports_its_own_rate_before_and_after_compile(tmp_path):
+    """Without a mixer a WAV decodes at its own rate, under either cache mode, before or after.
+
+    (With a mixer, pygame converts the file to the mixer's rate as it loads it, so the samples,
+    and the rate the sound reports, are the mixer's.)
+    """
+    pygame.mixer.quit()
+    path = write_wave_file(tmp_path / 'low.wav', frames=2205, sample_rate=22050)
+    none_library, _ = make_library(CacheMode.NONE)
+    ram_library, _ = make_library(CacheMode.RAM)
+
+    uncompiled = none_library.sound(str(path), scene_sound_directory=None)
+    compiled_for_play = none_library.compile_for_play(uncompiled)
+    held = ram_library.sound(str(path), scene_sound_directory=None)
+
+    assert not uncompiled.is_compiled
+    assert uncompiled.sample_rate == 22050
+    assert compiled_for_play.sample_rate == 22050
+    assert held.sample_rate == 22050
+    assert uncompiled.length == compiled_for_play.length == held.length == pytest.approx(0.1)

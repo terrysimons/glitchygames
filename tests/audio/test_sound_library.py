@@ -401,11 +401,12 @@ def test_a_recorded_file_recompiles_under_cache_none_every_play(tmp_path, no_mix
     sound = library.sound(str(path), scene_sound_directory=None)
 
     assert not sound.is_compiled
+    assert library.statistics().compiles == 1  # the request's, for its length, peak and rate
     played = library.compile_for_play(sound)
 
     assert played.is_compiled
     assert played is not sound
-    assert library.statistics().compiles == 1
+    assert library.statistics().compiles == 2
 
 
 def test_a_recorded_short_name_resolves_by_its_stem(tmp_path, no_mixer):
@@ -519,13 +520,19 @@ def test_warm_without_a_budget_compiles_everything():
     assert library.statistics().compiles == 2
 
 
-def test_warm_under_cache_none_only_resolves():
-    """With cache none there is nothing to keep, so warm resolves and reports done."""
+def test_warm_under_cache_none_keeps_no_samples():
+    """With cache none warm compiles each new identity once and keeps no samples.
+
+    The compile gives the sound its length, peak and rate; there is nothing to keep, so warm
+    reports done.
+    """
     library, _ = make_library(CacheMode.NONE)
     requests = [SoundRequest(source=PULSE_INSTRUMENT, scene_sound_directory=None, pitch='C5')]
 
     assert library.warm(requests) == 1.0
-    assert library.statistics().compiles == 0
+    assert library.warm(requests) == 1.0
+    assert library.statistics().compiles == 1
+    assert library.statistics().bytes_held == 0
 
 
 def test_the_fixture_sfx_slap_decodes_without_a_mixer(no_mixer):

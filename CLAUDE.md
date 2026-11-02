@@ -1171,12 +1171,17 @@ M2 next)
   (`audio/assets.py`, `audio/spec.py`); version 0 recipe files load and sound as before
 - Cache (`--sound-cache`, replay-local): `ram` (default; least recently played idle sounds go
   above `--sound-cache-memory`, 256 MB) or `none` (every play compiles in its frame); `disk`
-  arrives in M3 and is refused (`OPTIONS_REFUSED`) until then
+  arrives in M3 and is refused (`OPTIONS_REFUSED`) until then. A sound's `length`, `peak` and
+  `sample_rate` never depend on the cache: its first request compiles it under either mode
+  (`none` then drops the samples) and eviction keeps them
 - Channels: partitioned once at startup: the live pool (`--live-voice-pool`, 4), the library
   (`--sound-channels`, 32), then pygame's 8 for legacy `Sound.play()` callers. The voice table
   (`audio/voices.py`) steals by priority (`Channel.fadeout(10)`; the stealer waits a frame for
   the stolen channel, a delayed play), drops and counts; `is_playing` and voice ends follow
-  played time (the served `dt`), never the device, so replays see the same answers. Buses
+  played time (the served `dt`), never the device, so replays see the same answers.
+  `FrameSilencer`'s stops (rebuild, fast-forward) only quiet the channels
+  (`AudioEngine.silenced`): the voices, their ends and steals go on by frame time. Owners are
+  compared by identity. Buses
   (`audio/buses.py`): `master` over `music`, `effects`, `ui`, `ambience` and `dialogue` (`ui`
   and `music` reserve two channels each). A scene's voices fade over 50 ms when it is switched
   away from (unless `persist=True`) and pause behind a pause screen
