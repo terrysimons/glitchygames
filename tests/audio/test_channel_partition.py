@@ -3,6 +3,7 @@
 import pygame
 import pytest
 
+from glitchygames.audio.live import reserve_live_voice_pool
 from glitchygames.audio.voices import ChannelPartition, reserve_channels
 from tests.audio.library_support import start_mixer, stop_mixer
 from tests.audio.voice_support import (
@@ -83,6 +84,35 @@ def test_reserving_again_on_the_same_mixer_leaves_the_channel_count_alone(mocker
     assert pygame.mixer.get_num_channels() == 44
 
 
+def test_a_second_smaller_partition_never_shrinks_the_mixer(mocker):
+    """BUGS.md #145: the channel table only grows; a smaller partition keeps the count."""
+    start_reserved_mixer()
+    set_num_channels = mocker.spy(pygame.mixer, 'set_num_channels')
+
+    partition = reserve_channels(live_pool=2, library_channels=4, legacy_channels=2)
+
+    set_num_channels.assert_not_called()
+    assert pygame.mixer.get_num_channels() == 44
+    assert partition == ChannelPartition(live=(0, 1), library=(2, 3, 4, 5), legacy_count=38)
+
+
+def test_the_live_pool_wrapper_after_a_partition_keeps_the_library_reserved(mocker):
+    """reserve_live_voice_pool after reserve_channels neither grows nor lowers the reservation."""
+    start_reserved_mixer()
+    set_num_channels = mocker.spy(pygame.mixer, 'set_num_channels')
+    legacy_sound = pygame.mixer.Sound(buffer=bytes(44100 * 4))
+
+    live_channels = reserve_live_voice_pool(4)
+    channels = [legacy_sound.play() for _ in range(8)]
+    ninth = legacy_sound.play()
+
+    assert live_channels == (0, 1, 2, 3)
+    set_num_channels.assert_not_called()
+    assert pygame.mixer.get_num_channels() == 44
+    assert sorted(channel.id for channel in channels) == list(range(36, 44))
+    assert ninth is None
+
+
 def test_a_restarted_mixer_is_partitioned_again():
     """A restarted mixer is back at its default count, so it is grown again."""
     start_reserved_mixer()
@@ -114,7 +144,11 @@ def test_a_negative_count_is_refused(argument):
 
 
 def test_the_channel_states_name_each_group():
-    """The snapshot lists every channel with its group; idle until something plays."""
+    """The snapshot lists every channel with its group; idle until something plays.
+
+    The mixer only grows (BUGS.md #145), so its default 8 channels stay and legacy keeps the
+    three left over.
+    """
     partition = start_reserved_mixer(live_pool=2, library_channels=3, legacy_channels=2)
     table = make_table(partition)
 
@@ -128,6 +162,7 @@ def test_the_channel_states_name_each_group():
         (4, 'library', 'idle'),
         (5, 'legacy', 'idle'),
         (6, 'legacy', 'idle'),
+        (7, 'legacy', 'idle'),
     ]
 
 
@@ -141,4 +176,5 @@ def test_the_snapshot_reads_live_and_legacy_channels_from_the_device():
 
     states = {state.index: state.state for state in table.snapshot()}
 
-    assert states == {0: 'playing', 1: 'idle', 2: 'playing'}
+    # 1 live + 1 library on the default 8 channels: 2-7 are legacy, and SDL put the play on 2
+    assert states == {0: 'playing', 1: 'idle', 2: 'playing'} | dict.fromkeys(range(3, 8), 'idle')

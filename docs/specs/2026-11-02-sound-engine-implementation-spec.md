@@ -497,11 +497,14 @@ engine in one process].
 
 Allocation for a library play on bus *b* with priority *p*:
 
-1. Take the lowest-numbered channel that is free in the table **and** not busy on the device
-   (`Channel.get_busy()`). The device check only guards against cutting a sound that is still
-   fading; it never changes what the game sees (§7.3). A free channel counts against *b*'s
-   reservation if *b* is under its reservation. Otherwise only channels not needed by other
-   buses' unmet reservations are eligible.
+1. Take a channel that is free in the table. Whether a channel is free, and so whether a play
+   steals, is decided by the table alone, so it is the same in a replay: a channel is free when
+   its voice ended by played time (§7.3), or a stop's fade has run out in frame time. The device
+   check (`Channel.get_busy()`) only chooses among the free channels: the lowest-numbered one
+   not busy on the device, else the lowest-numbered free one anyway, accepting a cut tail of at
+   most one device buffer. It never changes what the game sees (§7.3). A free channel counts
+   against *b*'s reservation if *b* is under its reservation. Otherwise only channels not needed
+   by other buses' unmet reservations are eligible.
 2. Otherwise steal: among playing voices with priority ≤ *p*, choose by releasing first, then
    lowest priority, earliest start, lowest channel. Fade it with `Channel.fadeout(10)` and mark
    its channel *fading*. The new sound starts this frame on another free or fading-complete
@@ -534,7 +537,9 @@ Each voice keeps `played_seconds`. `AudioEngine.update(dt=...)` adds the frame's
 recorded `dt` in a replay [Fact]) only while the voice is **not paused**:
 
 - **Ending:** a baked voice ends when `played_seconds ≥ length`. A looping voice ends only when
-  stopped. Stopped and stolen voices end when their fade ends.
+  stopped (or released, at the end of its pass). A stopped, cancelled or stolen voice ends at
+  once: its handle reports `is_playing` False immediately, while its channel stays *fading*
+  for allocation until the fade has run out in frame time.
 - **Pause:** pausing (a pause screen over the owner scene, a playback scope [Fact: today's
   `paused_owners`]) calls `Channel.pause()` and stops advancing `played_seconds`. Resuming calls
   `Channel.unpause()`. A paused voice is never reaped, and its channel is never reused while it

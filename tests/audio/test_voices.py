@@ -320,23 +320,69 @@ def test_a_stolen_channel_fades_for_ten_ms_and_the_stealer_starts_next_frame(cha
     assert stealer.is_playing is False
 
 
-def test_a_channel_whose_fade_the_device_finished_is_free(channel_calls):
-    """A stopped voice's channel the device has finished with is used at once, no steal."""
+def test_a_channel_still_fading_in_the_table_is_not_free_whatever_the_device_says(
+    channel_calls,
+):
+    """R30: a stopped voice's channel is not free until its fade ends in frame time.
+
+    A play steals even when the device has already finished that fade: the table alone decides.
+    """
     partition = start_reserved_mixer(live_pool=0, library_channels=2, legacy_channels=8)
     table = make_table(partition, buses=unreserved_buses())
     sound = baked_sound(seconds=1.0)
     stopped = table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
     playing = table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
     stopped.stop(fade=0.5)
-    # The device finished that fade (the table still counts it as fading)
-    pygame.mixer.Channel(0).stop()
+    pygame.mixer.Channel(0).stop()  # the device finished that fade early
     channel_calls.clear()
 
     newcomer = table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
 
-    assert [playing.is_playing, newcomer.is_playing] == [True, True]
-    assert [(index, kind) for index, kind, _ in channel_calls] == [(0, 'play'), (0, 'set_volume')]
+    assert [playing.is_playing, newcomer.is_playing] == [False, True]
+    assert [(index, kind) for index, kind, _ in channel_calls] == [(1, 'fadeout')]
+    assert table.counters == VoiceCounters(steals=1, delayed_plays=1, dropped_plays=0)
+
+
+def test_voices_ended_by_played_time_free_their_channels_while_the_device_still_plays(
+    channel_calls,
+):
+    """R30: voices ended by played time free their channels; nothing is stolen.
+
+    The device is still busy on those channels; the plays take them anyway, cutting at most one
+    device buffer of the ended voices' tails.
+    """
+    partition = start_reserved_mixer(live_pool=0, library_channels=2, legacy_channels=8)
+    table = make_table(partition, buses=unreserved_buses())
+    sound = baked_sound(seconds=1.0)
+    ended = [table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS) for _ in range(2)]
+    advance_frames(table, count=60)
+    device_busy = [pygame.mixer.Channel(index).get_busy() for index in (0, 1)]
+    channel_calls.clear()
+
+    newcomers = [table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS) for _ in range(2)]
+
+    assert device_busy == [True, True]
+    assert [handle.is_playing for handle in ended] == [False, False]
+    assert [handle.is_playing for handle in newcomers] == [True, True]
+    assert [(index, kind) for index, kind, _ in channel_calls] == [
+        (0, 'play'),
+        (0, 'set_volume'),
+        (1, 'play'),
+        (1, 'set_volume'),
+    ]
     assert table.counters == VoiceCounters(steals=0, delayed_plays=0, dropped_plays=0)
+
+
+def test_stopped_handles_answer_false_at_once_while_the_channel_fades(table, one_second_sound):
+    """R31: is_playing is False right after stop() or cancel(); the channel stays fading."""
+    stopped = table.play(one_second_sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
+    cancelled = table.play(one_second_sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
+
+    stopped.stop()
+    cancelled.cancel()
+
+    assert [stopped.is_playing, cancelled.is_playing] == [False, False]
+    assert [state.state for state in table.snapshot()[4:6]] == ['fading', 'fading']
 
 
 def test_a_stealer_its_steal_brings_under_its_reservation_plays_at_once(channel_calls):

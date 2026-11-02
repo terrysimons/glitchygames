@@ -15,9 +15,12 @@ fading channel may cut the fade audibly (impl spec 7.1 **[Open]**, verified in T
 
 What the game sees (``SoundHandle.is_playing``, voices ending) follows each voice's
 ``played_seconds``, which ``advance`` moves by the served frame time only while the voice is not
-paused, never ``Channel.get_busy()`` (impl spec 7.3), so a replay sees the same answers. The
-device is asked only whether a table-free channel is still sounding (a fade), which decides
-which channel a play lands on, never what the game sees.
+paused, never ``Channel.get_busy()`` (impl spec 7.3), so a replay sees the same answers. Which
+channels are free, and so whether a play steals, is decided by the table alone (ruling R30): a
+channel is free once its voice ended by played time, or its stop's fade ran out in frame time.
+The device is asked only which free channel to prefer (one no longer sounding), which decides
+the channel index a play lands on, never what the game sees. A stopped or cancelled voice's
+handle answers ``False`` at once while its channel finishes the fade (ruling R31).
 
 Handles are ``(slot, generation)`` values. A slot's generation moves whenever its voice ends,
 so a handle whose voice ended, was stolen or was replaced answers ``False`` and never controls
@@ -62,6 +65,10 @@ TIME_TOLERANCE_SECONDS = 1e-9
 MINIMUM_PRIORITY = 0
 MAXIMUM_PRIORITY = 100
 MILLISECONDS_PER_SECOND = 1000
+
+# The last partition's mixer: its channel count afterwards and the channels it reserved, which
+# reserved_channel_count reads back
+_partitioned_mixer: dict[str, int] = {}
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -110,19 +117,39 @@ def reserve_channels(
     if pygame.mixer.get_init() is None:
         return ChannelPartition(live=(), library=(), legacy_count=0)
     total_channels = live_pool + library_channels + legacy_channels
-    # A second engine in one process (a test run, a launcher) finds the count it set already
-    # there: changing it again would be needless, and every set_num_channels reallocates
-    # pygame's channel table while the audio thread may still finish a sound on it (BUGS.md
-    # #145). A restarted mixer is back at its default count, so it is set again. A smaller count
-    # stops sounds on the removed channels (pygame-ce 2.5.8), so this runs before anything plays.
-    if pygame.mixer.get_num_channels() != total_channels:
+    # The channel table only grows. A second engine in one process (a test run, a launcher)
+    # finds the count it set already there: changing it again would be needless, and every
+    # set_num_channels reallocates pygame's channel table while the audio thread may still finish
+    # a sound on it (BUGS.md #145). A smaller count would also stop sounds on the removed
+    # channels (pygame-ce 2.5.8). A restarted mixer is back at its default count, so it grows
+    # again.
+    if pygame.mixer.get_num_channels() < total_channels:
         pygame.mixer.set_num_channels(total_channels)
     reserved_count = pygame.mixer.set_reserved(live_pool + library_channels)
+    channel_count = pygame.mixer.get_num_channels()
+    _partitioned_mixer.clear()
+    _partitioned_mixer.update(channel_count=channel_count, reserved_count=reserved_count)
     return ChannelPartition(
         live=tuple(range(min(live_pool, reserved_count))),
         library=tuple(range(live_pool, reserved_count)),
-        legacy_count=pygame.mixer.get_num_channels() - reserved_count,
+        legacy_count=channel_count - reserved_count,
     )
+
+
+def reserved_channel_count() -> int:
+    """The channels the last partition reserved on the running mixer.
+
+    pygame cannot report its reservation, so the last partition's is remembered with the
+    channel count it left; a restarted mixer is back at its default count and no longer matches.
+
+    Returns:
+        The reserved channel count, or 0 without a mixer, a partition, or after a restart.
+    """
+    if pygame.mixer.get_init() is None or not _partitioned_mixer:
+        return 0
+    if pygame.mixer.get_num_channels() != _partitioned_mixer['channel_count']:
+        return 0
+    return _partitioned_mixer['reserved_count']
 
 
 def constant_power_gains(*, pan: float, gain: float) -> tuple[float, float]:
@@ -703,33 +730,35 @@ class VoiceTable:
         return counts
 
     def _free_slot_for(self, bus: str) -> _Slot | None:
-        """The lowest free channel ``bus`` may use (impl spec 7.1 step 1).
+        """A free channel ``bus`` may use (impl spec 7.1 step 1; ruling R30).
 
-        Free: no voice in the table, and no longer sounding on the device (a stop's fade the
-        device finished early counts as free; one still fading does not). A bus under its
+        Free is decided by the table alone, so whether a play steals is the same in a replay:
+        a channel is free when it holds no voice and no fade is running out on it in frame
+        time (a voice that ended by played time leaves it free at once). A bus under its
         reservation may take any free channel; otherwise only channels beyond the other buses'
-        unmet reservations.
+        unmet reservations. The device only chooses among the free channels: the lowest one not
+        sounding on the device, else the lowest (cutting at most a device buffer of an ended
+        voice's tail).
 
         Returns:
             The slot, or None.
         """
-        free = [
-            slot
-            for slot in self._slots
-            if slot.state in {_SlotState.IDLE, _SlotState.FADING}
-            and not pygame.mixer.Channel(slot.channel_index).get_busy()
-        ]
+        free = [slot for slot in self._slots if slot.state is _SlotState.IDLE]
         if not free:
             return None
         voices_by_bus = self._voices_by_bus()
-        if voices_by_bus.get(bus, 0) < self._buses[bus].reserved_channels:
-            return free[0]
-        unmet_elsewhere = sum(
-            max(0, self._buses[name].reserved_channels - voices_by_bus.get(name, 0))
-            for name in self._buses.names()
-            if name != bus
-        )
-        return free[0] if len(free) > unmet_elsewhere else None
+        if voices_by_bus.get(bus, 0) >= self._buses[bus].reserved_channels:
+            unmet_elsewhere = sum(
+                max(0, self._buses[name].reserved_channels - voices_by_bus.get(name, 0))
+                for name in self._buses.names()
+                if name != bus
+            )
+            if len(free) <= unmet_elsewhere:
+                return None
+        for slot in free:
+            if not pygame.mixer.Channel(slot.channel_index).get_busy():
+                return slot
+        return free[0]
 
     def _victim_for(self, bus: str, *, priority: int) -> _Slot | None:
         """The voice to steal for a play on ``bus`` at ``priority`` (impl spec 7.1 step 2).

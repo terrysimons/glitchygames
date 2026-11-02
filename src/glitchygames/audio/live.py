@@ -32,7 +32,7 @@ from glitchygames.audio.synth import (
     to_sound,
     tremolo,
 )
-from glitchygames.audio.voices import reserve_channels
+from glitchygames.audio.voices import reserve_channels, reserved_channel_count
 from glitchygames.randomness import numpy_stream
 
 if TYPE_CHECKING:
@@ -46,10 +46,6 @@ DEFAULT_CHUNK_DURATION = 0.1
 # The engine numpy stream a voice's noise comes from when none is given (glitchygames/randomness.py)
 LIVE_RANDOM_STREAM = 'audio.live'
 DEFAULT_FADE_OUT = 0.1
-
-
-# The mixer's channel count after reserve_live_voice_pool grew it, by pool size
-_pool_grown_mixer_channel_counts: dict[int, int] = {}
 
 
 def reserve_live_voice_pool(pool_size: int) -> tuple[int, ...]:
@@ -75,17 +71,21 @@ def reserve_live_voice_pool(pool_size: int) -> tuple[int, ...]:
     # A second engine in one process (a test run, a launcher) finds the pool it grew already
     # there: growing again would add channels per engine, and every set_num_channels reallocates
     # pygame's channel table while the audio thread may still finish a sound on it (BUGS.md
-    # #145). So the channels beside the pool are the count before this pool grew it. A
-    # restarted mixer is back at its default count, so it grows again.
+    # #145). So when a partition (this pool's, or reserve_channels' with library channels)
+    # already reserves at least the pool, every reserved channel stays reserved and nothing
+    # grows: lowering the reservation would hand the library's channels to Sound.play(). A
+    # restarted mixer has no partition, so it grows again.
     channel_count = pygame.mixer.get_num_channels()
-    if channel_count == _pool_grown_mixer_channel_counts.get(pool_size):
-        legacy_channels = channel_count - pool_size
+    already_reserved = reserved_channel_count()
+    if already_reserved >= pool_size:
+        library_channels = already_reserved - pool_size
+        legacy_channels = channel_count - already_reserved
     else:
+        library_channels = 0
         legacy_channels = channel_count
     partition = reserve_channels(
-        live_pool=pool_size, library_channels=0, legacy_channels=legacy_channels
+        live_pool=pool_size, library_channels=library_channels, legacy_channels=legacy_channels
     )
-    _pool_grown_mixer_channel_counts[pool_size] = pygame.mixer.get_num_channels()
     return partition.live
 
 
