@@ -242,7 +242,7 @@ changed, and a final frame with no active scene are all included (<code>recordin
 header has mtime 0 and no file name, so identical traces give identical bytes (<code>tracing.py</code>).</p>
 <pre class="mermaid"><code>flowchart TD
     file[("PATH.jsonl.gz")]
-    header["Line 1: header&lt;br/&gt;format_version, source, game (logical name), game_class, game_module,&lt;br/&gt;scene_class, options, screen_size, random_seed, recorded_at,&lt;br/&gt;engine/pygame/Python versions, saves, devices, device_enumeration,&lt;br/&gt;measurement_runs, rebaselined_from"]
+    header["Line 1: header&lt;br/&gt;format_version, source, game (logical name), game_class, game_module,&lt;br/&gt;scene_class, options, screen_size, random_seed, recorded_at,&lt;br/&gt;custom_event_types, engine/pygame/Python versions, saves, devices, device_enumeration,&lt;br/&gt;measurement_runs, rebaselined_from"]
     key["Frame line: keyframe&lt;br/&gt;(frame 0, a new scene object, or forced)&lt;br/&gt;frame, scene, sprites (full list)"]
     delta["Frame line: delta&lt;br/&gt;changed / added / removed / order&lt;br/&gt;against the previous frame"]
     always["On every frame line:&lt;br/&gt;dt, event_batches,&lt;br/&gt;content_hash [history], processing_seconds [history]"]
@@ -288,6 +288,11 @@ bool}</code> for every sprite in the scene's <code>all_sprites</code>, in draw o
 <td><code>recorded_at</code></td>
 <td>the wall clock of the recording, and of its replay, is this stamp plus the frame clock (driver rule 9)</td>
 <td><code>clock.wall_clock_time()</code></td>
+</tr>
+<tr>
+<td><code>custom_event_types</code></td>
+<td>every named custom event type the run allocated (the engine's FPSEVENT, GAMEEVENT and MENUEVENT, and any a game registered with <code>glitchygames.events.named_custom_event_type</code>): code that calls <code>pygame.event.custom_type()</code> first, or registers in another order, shifts the ids, so a replay moves the recorded event types to its own. Without it, a recording was made with pygame's first three custom ids. An id allocated straight from <code>pygame.event.custom_type()</code> has no name, so it is not moved</td>
+<td><code>decoded_replay_sources</code> (<code>custom_event_type_remap</code>)</td>
 </tr>
 <tr>
 <td><code>saves</code>, <code>saves_opened</code></td>

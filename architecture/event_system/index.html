@@ -258,7 +258,7 @@ Code inside the <code>glitchygames</code> package must always do so (<code>tests
   per-button mouse events (<code>on_left_mouse_button_down_event</code> vs raw
   <code>MOUSEBUTTONDOWN</code> with a button field).</li>
 <li><strong>Custom event types</strong> — three engine-level event types (<code>FPSEVENT</code>,
-  <code>GAMEEVENT</code>, <code>MENUEVENT</code>) allocated with <code>pygame.event.custom_type()</code>, plus an
+  <code>GAMEEVENT</code>, <code>MENUEVENT</code>) allocated by name (<code>named_custom_event_type</code>), plus an
   extensible <code>GAMEEVENT</code> bus for posting arbitrary game-specific events with
   per-subtype callbacks.</li>
 <li><strong>An unhandled event safety net</strong> — every <code>on_*_event()</code> has a default stub
@@ -464,25 +464,33 @@ but every unblocked event still travels the dispatch path (wrap in
 block the event at the pygame level with <code>pygame.event.set_blocked()</code>.</p>
 <h2 id="custom-event-types">Custom Event Types<a class="headerlink" href="#custom-event-types" title="Permanent link">#</a></h2>
 <p>GlitchyGames defines three custom event types beyond the standard pygame events,
-allocated with <code>pygame.event.custom_type()</code> when <code>glitchygames.events</code> is imported, so a
+allocated from <code>pygame.event.custom_type()</code> when <code>glitchygames.events</code> is imported, so a
 game's or library's own <code>custom_type()</code> never gets one of their ids (BUGS.md #197).
 <code>custom_type()</code> hands out <code>USEREVENT + 1</code>, <code>+ 2</code>, <code>+ 3</code>, ... in order, and the engine's
-module is imported before any game code runs, so they are <code>USEREVENT + 1</code>, <code>+ 2</code> and <code>+ 3</code>,
-the numbers recordings hold. Something that calls <code>custom_type()</code> before glitchygames is
-imported shifts them (a recording made that way replays only in a process that imports the
-same way).</p>
+module is imported before any game code runs, so they are usually <code>USEREVENT + 1</code>, <code>+ 2</code> and
+<code>+ 3</code>. Something that calls <code>custom_type()</code> before glitchygames is imported shifts them, so
+each is registered by name (<code>NAMED_CUSTOM_EVENT_TYPES</code>): a recording's header names the ids
+it was made with (<code>custom_event_types</code>), and a replay moves the recorded events to its own
+process's ids (BUGS.md #211.1).</p>
 <p>These constants are defined in <code>src/glitchygames/events/base.py</code> (exported by <code>glitchygames.events</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">FPSEVENT</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">custom_type</span><span class="p">()</span>  <span class="c1"># FPS counter updates (USEREVENT + 1)</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">GAMEEVENT</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">custom_type</span><span class="p">()</span>  <span class="c1"># Game-specific events, extensible via subtypes (+ 2)</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">MENUEVENT</span> <span class="o">=</span> <span class="n">pygame</span><span class="o">.</span><span class="n">event</span><span class="o">.</span><span class="n">custom_type</span><span class="p">()</span>  <span class="c1"># Menu item selections (+ 3)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">FPSEVENT</span> <span class="o">=</span> <span class="n">named_custom_event_type</span><span class="p">(</span><span class="s1">'FPSEVENT'</span><span class="p">)</span>  <span class="c1"># FPS counter updates (usually USEREVENT + 1)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">GAMEEVENT</span> <span class="o">=</span> <span class="n">named_custom_event_type</span><span class="p">(</span><span class="s1">'GAMEEVENT'</span><span class="p">)</span>  <span class="c1"># Game-specific events, via subtypes (+ 2)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">MENUEVENT</span> <span class="o">=</span> <span class="n">named_custom_event_type</span><span class="p">(</span><span class="s1">'MENUEVENT'</span><span class="p">)</span>  <span class="c1"># Menu item selections (+ 3)</span>
 </code></pre></div>
+<p>A game that needs its own event type should allocate it the same way, at import:
+<code>LEVEL_UP = named_custom_event_type('MY_GAME_LEVEL_UP')</code>. A name is registered once (a second
+registration raises <code>CustomEventNameTakenError</code>). A type allocated straight from
+<code>pygame.event.custom_type()</code> has no name, so a recording cannot say which id it had and a
+replay in a shifted process cannot move it. It can also collide: <code>pygame.quit()</code> restarts
+pygame's allocation at <code>USEREVENT + 1</code>, so the first raw <code>custom_type()</code> after a quit returns
+FPSEVENT's id. <code>named_custom_event_type</code> skips every id a name already holds.</p>
 <p><code>GAMEEVENT</code> is intentionally generic — game code posts events with arbitrary
 payloads via <code>GameEngine.post_game_event()</code>, and can register per-subtype
 callbacks via <code>GameEngine.register_game_event()</code> (a scene reaches both through
 <code>self.scene_manager</code>: <code>register_game_event()</code> and <code>game_engine</code>). This gives games an extensible
 event bus without consuming additional pygame event IDs.</p>
 <pre class="mermaid"><code>flowchart LR
-    subgraph CustomEvents["Custom Event Types (pygame.event.custom_type())"]
+    subgraph CustomEvents["Custom Event Types (named_custom_event_type)"]
         FPS["FPSEVENT\npygame.USEREVENT + 1\nFPS counter updates"]
         GAME_E["GAMEEVENT\npygame.USEREVENT + 2\nGame-specific events"]
         MENU["MENUEVENT\npygame.USEREVENT + 3\nMenu item selections"]
