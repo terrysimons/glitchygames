@@ -9,7 +9,8 @@
 - **Branch:** `docs/sound-engine-specs`.
 
 Labels are the feature spec's: **[Owner]**, **[Fact]** (verified at `origin/main` 0f1a4b81),
-**[Measured]** (Appendix A, and M1's channel-fade probes in `tests/audio/test_channel_fades.py`),
+**[Measured]** (Appendix A, and M1's channel-fade probes in `tests/audio/test_channel_fades.py` and
+`tests/benchmarks/test_channel_fade_relations.py`),
 **[Proposal]**, **[Open]**, and **[Call]** (a routine choice settled
 by the spec's author after the builder check, open to the owner's change).
 
@@ -513,7 +514,9 @@ Allocation for a library play on bus *b* with priority *p*:
    lowest priority, earliest start, lowest channel. Fade it with `Channel.fadeout(10)` and mark
    its channel *fading*. The new sound starts this frame on another free or fading-complete
    channel if one exists. Otherwise it starts on the stolen channel next frame, counted as a
-   one-frame delayed play. **[Measured]** (M1, 2026-11-02, `tests/audio/test_channel_fades.py`
+   one-frame delayed play. **[Measured]** (M1, 2026-11-02, `tests/benchmarks/test_channel_fade_relations.py`,
+   run under `--benchmark-only` because it depends on the mixer thread's timing, and
+   `tests/audio/test_channel_fades.py`
    on SDL's disk driver; pygame-ce 2.5.8, SDL 2.32.10, SDL_mixer 2.8.2): `Channel.play` straight
    after `Channel.fadeout(10)` on the same channel replaces the fading sound at the next mixer
    chunk, so the fade is never heard (worst step 10.3 times a 440 Hz tone's own largest, over

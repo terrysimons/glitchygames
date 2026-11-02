@@ -133,7 +133,8 @@ pause and resume.
 
 SDL_mixer (2.8.2 with pygame-ce 2.5.8) changes a channel's level only between mixer chunks, 512
 frames (11.6 ms) at 44.1 kHz. Measured through SDL's disk audio driver
-(`tests/audio/test_channel_fades.py`):
+(`tests/audio/test_channel_fades.py`; the steal's ordering, which depends on when the mixer
+thread runs, in `tests/benchmarks/test_channel_fade_relations.py` under `--benchmark-only`):
 
 - `Channel.fadeout(10)` (a steal) is one plateau or an immediate halt, and `Channel.play` straight
   after it replaces the fading sound at the next chunk, so the engine keeps its one-frame wait.

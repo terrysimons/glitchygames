@@ -18,178 +18,58 @@ strict xfails below, so a mixer that starts ramping inside a chunk shows up as a
 
 The recordings are real time (the disk driver sleeps a buffer's length per chunk), but nothing
 here asserts on time: only on the recorded samples, with several trials per recording so a
-result never rests on one phase of the tone.
+result never rests on one phase of the tone, and only what holds however the machine is loaded
+(where a level changes, which levels a fade passes through, how many plateaus a fade has). What
+depends on when the mixer thread runs (whether ``play`` lands in the fading chunk, whether a
+frame's wait spans a chunk) is in tests/benchmarks/test_channel_fade_relations.py, run only under
+``--benchmark-only`` (ruling R44). Each recording is made once per run, shared by the xdist
+workers (tests/audio/channel_fade_analysis.py).
 """
 
 from __future__ import annotations
 
-import os
-import sys
-from pathlib import Path
-
 import numpy as np
 import pytest
 
-from glitchygames.audio.diagnostics import (
-    DEFAULT_BUFFER_SAMPLES,
-    DEFAULT_SAMPLE_RATE,
-    find_discontinuities,
-    find_silent_gaps,
+from glitchygames.audio.diagnostics import DEFAULT_BUFFER_SAMPLES, find_discontinuities
+from tests.audio.channel_fade_analysis import (
+    BUS_FADE_GAINS,
+    DISCONTINUITY_THRESHOLD,
+    LEVEL_TOLERANCE,
+    MAXIMUM_CRT_FADE_PLATEAUS,
+    chunk_levels,
+    levels_after_the_action,
+    recording_directory,
+    shared_recording,
+    trial_chunks,
+    worst_step_ratio,
 )
-from glitchygames.process import OutputCapture, run_command
-from tests.audio import channel_fade_probe
 from tests.audio.channel_fade_probe import (
     BUS_FADE,
     CRT_SKIP,
     STEAL_DELAYED,
     STEAL_IMMEDIATE,
-    STEALER_TONE_HZ,
-    STOLEN_TONE_HZ,
-    TONE_AMPLITUDE,
     TRIAL_COUNT,
     own_largest_step,
 )
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-# Feature spec 16.1's metric: no step larger than the tones' own largest (the spec names no
-# number; tests/test_crt_power_on_sound.py uses the same threshold)
-DISCONTINUITY_THRESHOLD = 1.0
-# The silence between trials is 200 ms; a halted fade leaves at most a few silent chunks inside a
-# trial, so 100 ms of zeros separates trials and nothing else
-TRIAL_SEPARATING_SAMPLES = 4410
-# A recording of six trials takes about six seconds; this is far beyond it
-RECORDING_TIMEOUT_SECONDS = 120.0
-# The level of a centred tone at full volume (impl spec 7.2: -3 dB each side)
-CENTRED_FULL_LEVEL = TONE_AMPLITUDE * np.cos(np.pi / 4)
-# A chunk counts as at full level, or silent, within this fraction of the full level
-LEVEL_TOLERANCE = 0.03
-# The bus fade's per-frame gains over 50 ms at 60 frames a second (channel_fade_probe.act)
-BUS_FADE_GAINS = (1.0, 2.0 / 3.0, 1.0 / 3.0, 0.0)
-# A fade of 20 ms spans at most two chunks before SDL_mixer halts the channel (11.6 ms each)
-MAXIMUM_CRT_FADE_PLATEAUS = 2
-INT16_SCALE = 32768.0
-RATE = DEFAULT_SAMPLE_RATE
-# A tone below a tenth of its full level in a chunk is absent from it (the other tone's leakage
-# through the Hann window is a few percent)
-ABSENT_LEVEL = 0.1
-
-
-def record(case: str, directory: Path) -> np.ndarray:
-    """Record a probe case through SDL's disk audio driver in a child process.
-
-    Returns:
-        The recording's left channel, -1..1.
-    """
-    path = directory / f'{case}.raw'
-    environment = {
-        **os.environ,
-        'SDL_AUDIODRIVER': 'disk',
-        'SDL_DISKAUDIOFILE': str(path),
-        'SDL_VIDEODRIVER': 'dummy',
-    }
-    result = run_command(
-        command=[sys.executable, '-m', channel_fade_probe.__name__, case],
-        environment=environment,
-        timeout_seconds=RECORDING_TIMEOUT_SECONDS,
-        capture_output=OutputCapture.TOGETHER,
-        working_directory=REPOSITORY_ROOT,
-    )
-    assert result.returncode == 0, result.stdout
-    raw = np.fromfile(path, dtype='<i2')
-    return raw[: raw.size - raw.size % 2].reshape(-1, 2)[:, 0].astype(np.float64) / INT16_SCALE
-
 
 @pytest.fixture(scope='module')
 def recordings(tmp_path_factory):
-    """Each case's recording, made once for the module (a few seconds each).
+    """Each case's recording, made once for the run (a few seconds each).
 
     Returns:
         A function from a case to its left channel.
     """
-    directory = tmp_path_factory.mktemp('channel-fades')
+    directory = recording_directory(tmp_path_factory.getbasetemp())
     made: dict[str, np.ndarray] = {}
 
     def recording(case: str) -> np.ndarray:
         if case not in made:
-            made[case] = record(case, directory)
+            made[case] = shared_recording(case, directory)
         return made[case]
 
     return recording
-
-
-def trial_chunks(samples: np.ndarray) -> list[range]:
-    """The mixer chunks of each trial, split at the silences between the trials.
-
-    The disk driver writes whole chunks from the file's start, so chunk ``i`` is samples
-    ``i * 512 .. (i + 1) * 512``.
-
-    Returns:
-        Each trial's chunk indices, from its first sounding chunk to its last.
-    """
-    sounding = np.flatnonzero(samples)
-    gaps = find_silent_gaps(samples, minimum_samples=TRIAL_SEPARATING_SAMPLES)
-    starts = [int(sounding[0])] + [start + length for start, length in gaps]
-    ends = [start for start, _ in gaps] + [int(sounding[-1]) + 1]
-    return [
-        range(start // DEFAULT_BUFFER_SAMPLES, -(-end // DEFAULT_BUFFER_SAMPLES))
-        for start, end in zip(starts, ends, strict=True)
-    ]
-
-
-def worst_step_ratio(samples: np.ndarray, *, case: str) -> float:
-    """Feature spec 16.1's discontinuity metric over a recording.
-
-    Returns:
-        The largest sample-to-sample step relative to the case's tones' own largest step.
-    """
-    return float(np.max(np.abs(np.diff(samples)))) / own_largest_step(case)
-
-
-def chunk_levels(samples: np.ndarray, *, frequency: float | None = None) -> np.ndarray:
-    """The level of each mixer chunk, as a fraction of a centred tone's full level.
-
-    Without a frequency, the chunk's peak. With one, that tone's amplitude in the chunk: a
-    single-frequency DFT under a Hann window (the window keeps the other probe tone, 220 Hz and
-    more than two DFT bins away, out of the estimate).
-
-    Returns:
-        One level per chunk.
-    """
-    whole = samples[: samples.size - samples.size % DEFAULT_BUFFER_SAMPLES]
-    chunks = whole.reshape(-1, DEFAULT_BUFFER_SAMPLES)
-    if frequency is None:
-        return np.max(np.abs(chunks), axis=1) / CENTRED_FULL_LEVEL
-    window = np.hanning(DEFAULT_BUFFER_SAMPLES)
-    oscillator = np.exp(-2j * np.pi * frequency * np.arange(DEFAULT_BUFFER_SAMPLES) / RATE)
-    # An elementwise sum, not ``chunks @ ...``: the complex matmul goes through the system BLAS
-    # (Accelerate on macOS), which raises a spurious "divide by zero encountered in matmul" on
-    # chunks of silence (reproduced on numpy's own zeros, 2026-11-02)
-    amplitudes = 2.0 * np.abs(np.sum(chunks * (window * oscillator), axis=1)) / np.sum(window)
-    return amplitudes / CENTRED_FULL_LEVEL
-
-
-def action_chunk(levels: np.ndarray, chunks: range) -> int:
-    """The trial's first chunk below full level after its tone reached full level.
-
-    A trial's tone plays at full level until the case acts; this chunk is the first the action
-    changed.
-
-    Returns:
-        The chunk's index in the recording.
-    """
-    trial = levels[chunks.start : chunks.stop]
-    at_full = trial >= 1.0 - LEVEL_TOLERANCE
-    first_full = int(np.argmax(at_full))
-    return chunks.start + first_full + int(np.argmax(~at_full[first_full:]))
-
-
-def levels_after_the_action(levels: np.ndarray, chunks: range) -> np.ndarray:
-    """A trial's chunk levels from its action chunk to its end.
-
-    Returns:
-        The levels.
-    """
-    return levels[action_chunk(levels, chunks) : chunks.stop]
 
 
 @pytest.mark.parametrize('case', [STEAL_IMMEDIATE, STEAL_DELAYED, BUS_FADE, CRT_SKIP])
@@ -212,47 +92,6 @@ def test_the_mixer_changes_a_channels_level_only_between_chunks(recordings, case
     assert all(
         spike % DEFAULT_BUFFER_SAMPLES in {0, DEFAULT_BUFFER_SAMPLES - 1} for spike in spikes
     )
-
-
-def test_fadeout_then_play_at_once_cuts_the_stolen_voice(recordings):
-    """Impl spec 7.1's open question, answered: ``play`` right after ``fadeout(10)`` cuts the fade.
-
-    ``play`` on a channel straight after its ``fadeout(10)`` replaces the fading sound at the
-    next chunk, so the fade is never heard. In every trial the chunk where the stolen tone
-    leaves full level already holds the stealer (and no stolen tone), and the switch steps far
-    above the metric. The voice table therefore keeps its one-frame delayed play
-    (src/glitchygames/audio/voices.py).
-    """
-    samples = recordings(STEAL_IMMEDIATE)
-    stolen = chunk_levels(samples, frequency=STOLEN_TONE_HZ)
-    stealer = chunk_levels(samples, frequency=STEALER_TONE_HZ)
-    recorded_trials = trial_chunks(samples)
-
-    assert len(recorded_trials) == TRIAL_COUNT
-    for chunks in recorded_trials:
-        first_changed = action_chunk(stolen, chunks)
-        assert stolen[first_changed] <= ABSENT_LEVEL
-        assert stealer[first_changed] > ABSENT_LEVEL
-    assert worst_step_ratio(samples, case=STEAL_IMMEDIATE) > DISCONTINUITY_THRESHOLD
-
-
-def test_a_steal_with_the_one_frame_delay_lets_the_fade_run_before_the_stealer(recordings):
-    """The delayed path the voice table uses: the stolen channel's fade runs first.
-
-    The fade is a plateau or a halt (SDL_mixer's 10 ms fade is shorter than a chunk), and only
-    then does the stealer start. In every trial the chunk where the stolen tone leaves full
-    level holds no stealer: the frame of waiting (16.7 ms) is longer than a chunk (11.6 ms).
-    """
-    samples = recordings(STEAL_DELAYED)
-    stolen = chunk_levels(samples, frequency=STOLEN_TONE_HZ)
-    stealer = chunk_levels(samples, frequency=STEALER_TONE_HZ)
-    recorded_trials = trial_chunks(samples)
-
-    assert len(recorded_trials) == TRIAL_COUNT
-    for chunks in recorded_trials:
-        first_changed = action_chunk(stolen, chunks)
-        assert stealer[first_changed] <= ABSENT_LEVEL
-        assert np.any(stealer[first_changed : chunks.stop] > ABSENT_LEVEL)
 
 
 @pytest.mark.xfail(
