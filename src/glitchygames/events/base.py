@@ -180,6 +180,12 @@ def named_custom_event_type(name: str) -> int:
         )
         raise CustomEventNameTakenError(message)
     event_type = pygame.event.custom_type()
+    # pygame.quit() restarts pygame's allocation at USEREVENT + 1, so after one (a test suite,
+    # a tool running several engines in one process) pygame hands out ids a name already holds,
+    # FPSEVENT's first: skip those. An id allocated straight from pygame.event.custom_type()
+    # after a quit can still collide; only the named ones are kept apart
+    while event_type in _NAMED_CUSTOM_EVENT_TYPES.values():
+        event_type = pygame.event.custom_type()
     _NAMED_CUSTOM_EVENT_TYPES[name] = event_type
     return event_type
 

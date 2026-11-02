@@ -202,7 +202,9 @@ A game that needs its own event type should allocate it the same way, at import:
 `LEVEL_UP = named_custom_event_type('MY_GAME_LEVEL_UP')`. A name is registered once (a second
 registration raises `CustomEventNameTakenError`). A type allocated straight from
 `pygame.event.custom_type()` has no name, so a recording cannot say which id it had and a
-replay in a shifted process cannot move it.
+replay in a shifted process cannot move it. It can also collide: `pygame.quit()` restarts
+pygame's allocation at `USEREVENT + 1`, so the first raw `custom_type()` after a quit returns
+FPSEVENT's id. `named_custom_event_type` skips every id a name already holds.
 
 `GAMEEVENT` is intentionally generic — game code posts events with arbitrary
 payloads via `GameEngine.post_game_event()`, and can register per-subtype

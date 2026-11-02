@@ -1182,6 +1182,26 @@ class TestCustomEventTypes:
         assert NAMED_CUSTOM_EVENT_TYPES['TEST_LEVEL_UP'] == level_up
         assert level_up not in {FPSEVENT, GAMEEVENT, MENUEVENT}
 
+    def test_a_name_registered_after_pygame_quit_gets_a_free_id(self):
+        """pygame.quit() restarts pygame's custom ids at USEREVENT + 1: taken ids are skipped.
+
+        Found by CI: in the full suite (pygame quit many times first) a registration got 32866,
+        FPSEVENT's id.
+        """
+        level_up, engine_types = self._answer_from_a_fresh_interpreter(
+            code=(
+                'import json, pygame\n'
+                'from glitchygames.events import FPSEVENT, GAMEEVENT, MENUEVENT\n'
+                'from glitchygames.events.base import named_custom_event_type\n'
+                'pygame.init()\n'
+                'pygame.quit()\n'
+                "level_up = named_custom_event_type('TEST_LEVEL_UP')\n"
+                'print(json.dumps([level_up, [FPSEVENT, GAMEEVENT, MENUEVENT]]))\n'
+            )
+        )
+
+        assert level_up not in engine_types
+
     def test_a_name_is_registered_once(self, mocker):
         """Two registrations of one name would share an id: the second is refused."""
         mocker.patch.dict(events_base._NAMED_CUSTOM_EVENT_TYPES)
