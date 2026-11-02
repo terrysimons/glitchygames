@@ -82,6 +82,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from pathlib import Path
 
+    from glitchygames.audio.accounting import AudioFrameAccount
+    from glitchygames.audio.engine import AudioEngine
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
     from glitchygames.input.input_devices import InputDevice
@@ -205,6 +207,20 @@ def _no_scene_managers() -> dict[type[SceneManager], SceneManager | None]:
 SCENE_MANAGERS_SLOT: ContextSlot[dict[type[SceneManager], SceneManager | None]] = ContextSlot(
     name='glitchygames.scenes.scene.scene_managers', factory=_no_scene_managers
 )
+
+
+def _existing_audio_engine() -> AudioEngine | None:
+    """The engine context's audio engine, without making one (glitchygames/audio/engine.py).
+
+    Imported when called: the audio package is not imported until a frame asks.
+
+    Returns:
+        The audio engine, or None when nothing asked for audio yet.
+
+    """
+    from glitchygames.audio.engine import existing_audio_engine
+
+    return existing_audio_engine()
 
 
 def _scene_manager_for_class(*, scene_manager_class: type[SceneManager]) -> SceneManager | None:
@@ -386,7 +402,11 @@ class SceneManager(SceneInterface, events.EventManager):
             self.target_fps = self.OPTIONS.get('target_fps', DEFAULT_TARGET_FPS)
             self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
             self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
-            self.debug_overlay.is_visible = bool(self.OPTIONS.get('debug_overlay', False))
+            # --sound-diagnostics opens the overlay too (its Audio panel: sound engine impl 10.5)
+            self.debug_overlay.is_visible = bool(
+                self.OPTIONS.get('debug_overlay', False)
+                or self.OPTIONS.get('sound_diagnostics', False)
+            )
         self.log.info('Screen update type: %s', self.update_type)
         self.log.info('FPS Log Interval: %sms', self.fps_log_interval_ms)
         self.log.info('Target FPS: %s', self.target_fps)
@@ -1206,7 +1226,7 @@ class SceneManager(SceneInterface, events.EventManager):
             self._in_supervisor_slot = False
 
     def _update_frame_services(self: Self) -> None:
-        """Advance services that outlive scenes: screen shake, rumble and live audio."""
+        """Advance services that outlive scenes: screen shake, rumble, live voices and audio."""
         self.debug_overlay.record_frame(frame_seconds=self._performance_frame_seconds())
         self.screen_shake.update(self.dt)
 
@@ -1223,29 +1243,43 @@ class SceneManager(SceneInterface, events.EventManager):
             devices=list if self.in_playback_scope else self._rumble_devices,
         )
 
+        audio_engine = _existing_audio_engine()
+        if self._live_audio is None and audio_engine is None:
+            return
         # The pending transition counts: a ride creates its motor before transition_to starts it
+        pending_transition = (
+            self._pending_transition[1] if self._pending_transition is not None else None
+        )
+        active_transitions = (self._active_transition, pending_transition)
+        # A playback scope's stashed live scene, the scene it returns to and the live
+        # previous scene (the game behind a pause screen the scope began from) wait behind
+        # it: their voices pause, then play on (never released for good). The playback's own
+        # scene switches set previous_scene to playback scenes, so the live one is the saved
+        session = self._playback_session
+        paused_owners = (
+            []
+            if session is None
+            else [
+                owner
+                for owner in (session.live_scene, session.then, session.saved_previous_scene)
+                if owner is not None
+            ]
+        )
         if self._live_audio is not None:
-            pending_transition = (
-                self._pending_transition[1] if self._pending_transition is not None else None
-            )
-            # A playback scope's stashed live scene, the scene it returns to and the live
-            # previous scene (the game behind a pause screen the scope began from) wait behind
-            # it: their voices pause, then play on (never released for good). The playback's own
-            # scene switches set previous_scene to playback scenes, so the live one is the saved
-            session = self._playback_session
-            paused_owners = (
-                []
-                if session is None
-                else [
-                    owner
-                    for owner in (session.live_scene, session.then, session.saved_previous_scene)
-                    if owner is not None
-                ]
-            )
             self._live_audio.update(
                 active_scene=self.active_scene,
                 previous_scene=self.previous_scene,
-                active_transitions=(self._active_transition, pending_transition),
+                active_transitions=active_transitions,
+                paused_owners=paused_owners,
+            )
+        if audio_engine is not None:
+            # The library's voices follow the same owner rules, moved by the frame's served dt
+            # (glitchygames/audio/engine.py; sound engine impl spec 4.2)
+            audio_engine.update(
+                dt=self.dt,
+                active_scene=self.active_scene,
+                previous_scene=self.previous_scene,
+                active_transitions=active_transitions,
                 paused_owners=paused_owners,
             )
 
@@ -1257,6 +1291,56 @@ class SceneManager(SceneInterface, events.EventManager):
 
         """
         return list(self.input_devices)
+
+    @property
+    def audio(self: Self) -> AudioEngine:
+        """The engine context's audio engine (sound engine impl spec 8), made on first use.
+
+        Made from the game engine's channel partition (reserved now if it is not yet:
+        ``GameEngine.reserved_channel_partition``) and sound options (``--sound-cache``,
+        ``--sound-cache-memory``); without a game engine, on the default partition with cache
+        ``ram``. Plays belong to the scene in ``setup()``, else the active scene, and short
+        names resolve in that scene's ``SOUND_DIRECTORY``.
+        """
+        from glitchygames.audio.engine import (
+            BYTES_PER_MEGABYTE,
+            DEFAULT_CACHE_MEMORY_MEGABYTES,
+            AudioEngine,
+            default_channel_partition,
+            install_audio_engine,
+        )
+        from glitchygames.audio.library import CacheMode
+
+        audio_engine = _existing_audio_engine()
+        if audio_engine is not None:
+            return audio_engine
+        game_engine = self.game_engine
+        partition = (
+            default_channel_partition()
+            if game_engine is None
+            else game_engine.reserved_channel_partition()
+        )
+        options: Mapping[str, Any] = {} if game_engine is None else game_engine.OPTIONS
+        return install_audio_engine(
+            engine=AudioEngine(
+                partition=partition,
+                cache=CacheMode(options.get('sound_cache', CacheMode.RAM.value)),
+                memory_limit_bytes=int(
+                    options.get('sound_cache_memory', DEFAULT_CACHE_MEMORY_MEGABYTES)
+                )
+                * BYTES_PER_MEGABYTE,
+                scene_source=self._scene_for_audio,
+                frame_number=self.frame_number,
+            )
+        )
+
+    def _scene_for_audio(self: Self) -> Scene | None:
+        """The scene audio plays belong to: the one in ``setup()``, else the active scene.
+
+        Returns:
+            The scene, or None.
+        """
+        return self._scene_in_setup if self._scene_in_setup is not None else self.active_scene
 
     @property
     def live_audio(self: Self) -> LiveAudio:
@@ -1909,6 +1993,9 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         work_started_seconds = clock.measured_seconds()
         self._frame_present_seconds = 0.0
+        audio_engine = _existing_audio_engine()
+        if audio_engine is not None:
+            audio_engine.begin_frame(frame_number=self.frame_number)
         self._enter_requested_playback()
         self._apply_resume_bridge()
         self._begin_scene_logic_frame()
@@ -1924,10 +2011,20 @@ class SceneManager(SceneInterface, events.EventManager):
         processing_seconds = (
             clock.measured_seconds() - work_started_seconds - self._frame_present_seconds
         )
+        # The frame's audio work, taken once whichever doors end the frame (the engine may
+        # have been made during the frame)
+        audio_engine = _existing_audio_engine()
+        audio_frame = (
+            None
+            if audio_engine is None
+            else audio_engine.take_frame_account(processing_seconds=processing_seconds)
+        )
         session = self._playback_session
         if session is None:
             self._end_frame_at_doors(
-                frame_dt=installed_frame_dt, processing_seconds=processing_seconds
+                frame_dt=installed_frame_dt,
+                processing_seconds=processing_seconds,
+                audio_frame=audio_frame,
             )
             self._journal_frame(frame_dt=frame_dt)
         else:
@@ -1948,6 +2045,7 @@ class SceneManager(SceneInterface, events.EventManager):
                 scene=self.active_scene,
                 control_events=self._frame_control_events,
                 processing_seconds=processing_seconds,
+                audio_frame=audio_frame,
             )
         self._frame_control_events = []
         self.frame_number += 1
@@ -2027,12 +2125,19 @@ class SceneManager(SceneInterface, events.EventManager):
             LOG.error(BUG_REPORT_HINT)  # ruff: ignore[error-instead-of-exception]
             self._exit_playback(reason='error')
 
-    def _end_frame_at_doors(self: Self, *, frame_dt: float, processing_seconds: float) -> None:
+    def _end_frame_at_doors(
+        self: Self,
+        *,
+        frame_dt: float,
+        processing_seconds: float,
+        audio_frame: AudioFrameAccount | None,
+    ) -> None:
         """Tell the active doors the frame ended (a recording writes it, a replay compares it).
 
         Args:
             frame_dt: The frame's raw dt, read before the frame ran.
             processing_seconds: The frame's processing time (``_run_frame_steps``).
+            audio_frame: The frame's audio work, or None without an audio engine.
 
         """
         active_sources().end_frame(
@@ -2041,6 +2146,7 @@ class SceneManager(SceneInterface, events.EventManager):
             scene=self.active_scene,
             control_events=self._frame_control_events,
             processing_seconds=processing_seconds,
+            audio_frame=audio_frame,
         )
 
     def _run_in_playback_scope(self: Self, *, step: Callable[[], None]) -> None:
@@ -2648,6 +2754,10 @@ class SceneManager(SceneInterface, events.EventManager):
 
         """
         assert self.active_scene is not None
+        # Compiles from here on are the frame's, not the scene's setup (sound engine impl 6.5)
+        audio_engine = _existing_audio_engine()
+        if audio_engine is not None:
+            audio_engine.begin_logic_frame()
         # Engine-owned, so a dt_tick override that skips super() still has game time
         self.active_scene.advance_game_time(seconds=scene_dt)
         self.active_scene.dt_tick(scene_dt)
@@ -2743,6 +2853,10 @@ class SceneManager(SceneInterface, events.EventManager):
             # The scene's snap mode is active from setup() on, so positions snapped while it
             # sets itself up (camera.snap_to, collision) use it, not the previous scene's mode
             self._activate_scene_snap_mode(next_scene)
+            # Compiles until its first logic frame are its setup's (sound engine impl 6.5)
+            audio_engine = _existing_audio_engine()
+            if audio_engine is not None:
+                audio_engine.begin_scene_setup()
             self._scene_in_setup = next_scene
             try:
                 next_scene.setup()
@@ -2891,6 +3005,10 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # raw messages (SYSWMEVENT) in on_sys_wm_event; blocked by default, as SDL leaves them.
     # See allow_every_event_type in glitchygames/events/base.py
     NATIVE_WINDOW_MESSAGES: ClassVar[bool] = False
+    # Where audio.sound('coin') looks short names up: a directory relative to the scene's
+    # package directory (an absolute path is used as is), or None for no short names
+    # (glitchygames/audio/engine.py; sound engine feature spec 3.2)
+    SOUND_DIRECTORY: ClassVar[str | None] = 'sounds'
 
     def __init__(
         self: Self,

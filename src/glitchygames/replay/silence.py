@@ -15,7 +15,10 @@ path both use:
    it, a channel still playing the sound noted at ``begin`` plays on; a channel that went idle
    or plays another sound loses its note and is stopped. A live voice
    (glitchygames/audio/live.py) queues a new chunk every 100 ms, so its channel soon plays
-   another sound and is stopped, as without sparing.
+   another sound and is stopped, as without sparing. Each stop is told to the context's audio
+   engine (``AudioEngine.silenced``: one channel, or every channel after ``pygame.mixer.stop()``),
+   which ends the voices it played there, so their handles answer as the frames ended them
+   (sound engine impl spec 7.3).
 3. ``finish`` stops following the music controls and resumes the music it paused, unless the
    game's last call paused it.
 
@@ -147,6 +150,21 @@ def _set_music_controls(*, pause: Callable[[], None], unpause: Callable[[], None
 _MUSIC_FOLLOWING = _MusicFollowing()
 
 
+def _tell_the_audio_engine(*, channel_index: int | None) -> None:
+    """End the audio engine's voices on a stopped channel (None: every channel), if there is one.
+
+    Args:
+        channel_index: The channel stopped, or None after ``pygame.mixer.stop()``.
+
+    """
+    # Imported when a frame is silenced: importing the replay package never imports audio
+    from glitchygames.audio.engine import existing_audio_engine
+
+    audio_engine = existing_audio_engine()
+    if audio_engine is not None:
+        audio_engine.silenced(channel_index)
+
+
 class FrameSilencer:
     """Keeps frames silent while they run unseen (see the module docstring)."""
 
@@ -212,6 +230,7 @@ class FrameSilencer:
             self._stop_unspared_channels()
         else:
             pygame.mixer.stop()
+            _tell_the_audio_engine(channel_index=None)
         if pygame.mixer.music.get_busy():
             # pygame's own pause: the silencer's, not the game's
             _MUSIC_FOLLOWING.pygame_pause()()
@@ -227,6 +246,7 @@ class FrameSilencer:
             elif spared_sound is None or channel.get_sound() is not spared_sound:
                 self._spared_sounds.pop(channel_index, None)
                 channel.stop()
+                _tell_the_audio_engine(channel_index=channel_index)
 
     def finish(self: Self) -> None:
         """End the silence: music the silencer paused plays on, unless the game paused it last."""

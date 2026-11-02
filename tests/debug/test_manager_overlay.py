@@ -179,6 +179,18 @@ class TestDebugOverlayFlag:
         manager.game_engine = engine
         assert manager.debug_overlay.is_visible is option_value
 
+    def test_sound_diagnostics_open_the_overlay(self, manager, mocker):
+        """--sound-diagnostics starts with the overlay on (its Audio panel: impl spec 10.5)."""
+        engine = mocker.Mock()
+        engine.OPTIONS = {
+            'update_type': 'update',
+            'fps_log_interval_ms': 1000,
+            'debug_overlay': False,
+            'sound_diagnostics': True,
+        }
+        manager.game_engine = engine
+        assert manager.debug_overlay.is_visible is True
+
     def test_game_engine_setter_defaults_to_hidden(self, manager, mocker):
         """Test an engine whose options lack the key leaves the overlay hidden."""
         manager.debug_overlay.is_visible = True

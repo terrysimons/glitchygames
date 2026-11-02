@@ -19,7 +19,7 @@ from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final, cast
+from typing import TYPE_CHECKING, Any, Final, Protocol, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -53,6 +53,7 @@ from glitchygames.audio.synth import (
     mixer_sample_rate,
     to_pcm16,
 )
+from glitchygames.audio.voices import SoundHandle
 
 if TYPE_CHECKING:
     from glitchygames.audio.accounting import AudioAccountant
@@ -124,6 +125,26 @@ class SoundRequest:
     parameters: Mapping[str, float] | None = None
 
 
+class SoundPlayer(Protocol):
+    """Plays a sound with its playback arguments (the audio engine's ``Sound.play``)."""
+
+    def __call__(  # ruff: ignore[too-many-arguments] - impl spec 8's playback arguments
+        self,
+        sound: Sound,
+        *,
+        volume: float | None,
+        pan: float | None,
+        bus: str | None,
+        priority: int | None,
+        loop: bool | None,
+        at_frame: int | None,
+        persist: bool,
+        position: tuple[float, float] | None,
+    ) -> SoundHandle:
+        """Play ``sound``."""
+        ...
+
+
 class Sound:
     """A sound the library compiled (or, under cache ``none``, will compile at each play).
 
@@ -184,6 +205,62 @@ class Sound:
         self._mixer_sound: pygame.mixer.Sound | None = None
         self._mixer_settings: tuple[int, int, int] | None = None
         self._mixer_bytes = 0
+        # The audio engine that handed the sound out plays it (attach_player)
+        self._player: SoundPlayer | None = None
+        self._warned_no_player = False
+
+    def attach_player(self, player: SoundPlayer) -> None:
+        """Let ``play()`` go to an audio engine (it attaches itself when it hands the sound out).
+
+        Args:
+            player: The engine's play function.
+        """
+        self._player = player
+
+    def play(  # ruff: ignore[too-many-arguments] - impl spec 8's playback arguments
+        self,
+        *,
+        volume: float | None = None,
+        pan: float | None = None,
+        bus: str | None = None,
+        priority: int | None = None,
+        loop: bool | None = None,
+        at_frame: int | None = None,
+        persist: bool = False,
+        position: tuple[float, float] | None = None,
+    ) -> SoundHandle:
+        """Play the sound; arguments left as None take the sound file's defaults (impl spec 8).
+
+        Args:
+            volume: 0-1.
+            pan: -1 (left) to 1 (right).
+            bus: The bus name.
+            priority: 0-100, for voice stealing.
+            loop: Whether it loops until stopped or released.
+            at_frame: A frame to start on (M2).
+            persist: Whether the voice outlives its scene.
+            position: A position for positional audio (M4).
+
+        Returns:
+            The handle. A sound no audio engine handed out (a bare library's) has no voices: its
+            handle answers False, and a warning is logged once per sound.
+        """
+        if self._player is None:
+            if not self._warned_no_player:
+                self._warned_no_player = True
+                log.warning('%s was not got from an audio engine: its plays are silent', self.name)
+            return SoundHandle(slot=-1, generation=-1)
+        return self._player(
+            self,
+            volume=volume,
+            pan=pan,
+            bus=bus,
+            priority=priority,
+            loop=loop,
+            at_frame=at_frame,
+            persist=persist,
+            position=position,
+        )
 
     @property
     def retained_bytes(self) -> int:

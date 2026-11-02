@@ -4,7 +4,12 @@ import pygame
 import pytest
 
 from glitchygames.audio.live import reserve_live_voice_pool
-from glitchygames.audio.voices import ChannelPartition, reserve_channels
+from glitchygames.audio.voices import (
+    ChannelPartition,
+    release_channels,
+    reserve_channels,
+    reserved_channel_count,
+)
 from tests.audio.library_support import start_mixer, stop_mixer
 from tests.audio.voice_support import (
     GAME_SCENE,
@@ -178,3 +183,25 @@ def test_the_snapshot_reads_live_and_legacy_channels_from_the_device():
 
     # 1 live + 1 library on the default 8 channels: 2-7 are legacy, and SDL put the play on 2
     assert states == {0: 'playing', 1: 'idle', 2: 'playing'} | dict.fromkeys(range(3, 8), 'idle')
+
+
+def test_releasing_gives_the_reservation_back_for_a_restarted_mixer():
+    """SDL keeps a reservation across a mixer restart; releasing first lets Sound.play() work."""
+    start_mixer()
+    reserve_channels(live_pool=4, library_channels=32, legacy_channels=8)
+
+    release_channels()
+    pygame.mixer.quit()
+    pygame.mixer.init()
+
+    assert reserved_channel_count() == 0
+    assert pygame.mixer.Sound(buffer=bytes(4 * 44100)).play() is not None
+
+
+def test_releasing_without_a_mixer_does_nothing():
+    """Without a mixer there is nothing to give back."""
+    stop_mixer()
+
+    release_channels()
+
+    assert reserved_channel_count() == 0

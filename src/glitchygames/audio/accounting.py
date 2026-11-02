@@ -20,6 +20,10 @@ if TYPE_CHECKING:
 
 MAXIMUM_WORK_ENTRIES: Final[int] = 32
 COMPILE_LOG_LENGTH: Final[int] = 8
+# The gameplay compiles kept by name for diagnostics (the counts cover all of them)
+GAMEPLAY_COMPILE_LOG_LENGTH: Final[int] = 32
+# How many of a setup's slowest sounds its report names (impl spec 6.5)
+SLOWEST_SETUP_COMPILES_NAMED: Final[int] = 3
 NANOSECONDS_PER_MICROSECOND: Final[int] = 1000
 NANOSECONDS_PER_MILLISECOND: Final[int] = 1_000_000
 NANOSECONDS_PER_SECOND: Final[int] = 1_000_000_000
@@ -60,27 +64,63 @@ class CompileRecord:
 
 
 class AudioAccountant:
-    """Adds up a frame's audio work and remembers the last eight compiles.
+    """Adds up a frame's audio work and counts the compiles, setup apart from gameplay.
 
-    The engine sets ``frame_number`` and ``setup_mode`` (Task 8): compiles before the first logic
-    frame are setup, later ones belong to their frame.
+    The audio engine sets ``frame_number`` each frame and ``setup_mode`` from a scene's setup to
+    its first logic frame: compiles before the first logic frame are setup, later ones belong to
+    their frame. Compiles and decodes are counted; the last eight are kept in the compile log,
+    the last 32 gameplay ones by name, and a setup's total and slowest sounds until the engine
+    takes them (``take_setup_compiles``, impl spec 6.5).
 
     Attributes:
         frame_number: The frame being run, or None.
         setup_mode: Whether compiles are attributed to setup (True until the first logic frame).
+        setup_compile_count: Compiles and decodes run in setup.
+        setup_compile_milliseconds: Their total time.
+        gameplay_compile_count: Compiles and decodes run in gameplay frames.
+        gameplay_compile_milliseconds: Their total time.
     """
 
     def __init__(self) -> None:
-        """Start with an empty frame and an empty compile log."""
+        """Start with an empty frame, an empty compile log and no compiles counted."""
         self.frame_number: int | None = None
         self.setup_mode: bool = True
+        self.setup_compile_count = 0
+        self.setup_compile_milliseconds = 0.0
+        self.gameplay_compile_count = 0
+        self.gameplay_compile_milliseconds = 0.0
         self._pieces: list[tuple[str, str, int]] = []  # (kind, name, nanoseconds)
         self._compile_log: deque[CompileRecord] = deque(maxlen=COMPILE_LOG_LENGTH)
+        self._gameplay_compiles: deque[CompileRecord] = deque(maxlen=GAMEPLAY_COMPILE_LOG_LENGTH)
+        # The setup since the last take_setup_compiles: its total and its slowest compiles
+        self._setup_tally_milliseconds = 0.0
+        self._slowest_setup_compiles: list[CompileRecord] = []
 
     @property
     def compile_log(self) -> tuple[CompileRecord, ...]:
         """The last eight compiles and decodes, oldest first."""
         return tuple(self._compile_log)
+
+    @property
+    def gameplay_compiles(self) -> tuple[CompileRecord, ...]:
+        """The last 32 compiles and decodes run in gameplay frames, oldest first."""
+        return tuple(self._gameplay_compiles)
+
+    @property
+    def compile_count(self) -> int:
+        """Every compile and decode so far, setup and gameplay."""
+        return self.setup_compile_count + self.gameplay_compile_count
+
+    def take_setup_compiles(self) -> tuple[float, tuple[CompileRecord, ...]]:
+        """Return the setup compiles' total and slowest since the last call, and start afresh.
+
+        Returns:
+            The total milliseconds, and the slowest compiles (at most three), slowest first.
+        """
+        taken = (self._setup_tally_milliseconds, tuple(self._slowest_setup_compiles))
+        self._setup_tally_milliseconds = 0.0
+        self._slowest_setup_compiles = []
+        return taken
 
     @contextlib.contextmanager
     def measure(self, kind: str, name: str) -> Generator[None]:
@@ -100,7 +140,7 @@ class AudioAccountant:
             elapsed = clock.raw_counter_ns() - started
             self._pieces.append((kind, name, elapsed))
             if kind in COMPILE_KINDS:
-                self._compile_log.append(
+                self._count_compile(
                     CompileRecord(
                         frame_number=self.frame_number,
                         name=name,
@@ -108,6 +148,24 @@ class AudioAccountant:
                         during_setup=self.setup_mode,
                     )
                 )
+
+    def _count_compile(self, record: CompileRecord) -> None:
+        """Log a compile or decode and count it as setup or gameplay work."""
+        self._compile_log.append(record)
+        if record.during_setup:
+            self.setup_compile_count += 1
+            self.setup_compile_milliseconds += record.milliseconds
+            self._setup_tally_milliseconds += record.milliseconds
+            slowest = sorted(
+                [*self._slowest_setup_compiles, record],
+                key=lambda kept: kept.milliseconds,
+                reverse=True,
+            )
+            self._slowest_setup_compiles = slowest[:SLOWEST_SETUP_COMPILES_NAMED]
+        else:
+            self.gameplay_compile_count += 1
+            self.gameplay_compile_milliseconds += record.milliseconds
+            self._gameplay_compiles.append(record)
 
     def take_frame(self) -> AudioFrameAccount:
         """Return the frame's account and start a new one.

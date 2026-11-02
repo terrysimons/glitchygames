@@ -170,6 +170,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Generator, Sequence
     from types import FrameType
 
+    from glitchygames.audio.voices import ChannelPartition
     from glitchygames.input.devices import OpenedController, ReplayDeviceRegistry
     from glitchygames.input.state import InputSnapshot
 
@@ -201,6 +202,10 @@ MISSING_ATTRIBUTE_MSG = "'{cls}' object has no attribute '{attr}'"
 DEFAULT_SCREEN_SHAKE_INTENSITY = 1.0
 DEFAULT_RUMBLE_INTENSITY = 1.0
 DEFAULT_LIVE_VOICE_POOL = 4
+# The sound options' choices (sound engine impl spec 10.2; glitchygames/audio/engine.py holds the
+# channel and memory defaults)
+CRT_POWER_ON_SOUND_CHOICES = ('on', 'off')
+DEFAULT_CRT_POWER_ON_SOUND = 'on'
 # The SDL video and audio driver --headless runs on (no window, no sound)
 HEADLESS_SDL_DRIVER = 'dummy'
 # The environment variables that choose SDL's video and audio drivers (--headless sets both)
@@ -918,6 +923,12 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             action=argparse.BooleanOptionalAction,
             default=False,
         )
+        diagnostics_group.add_argument(
+            '--sound-diagnostics',
+            help='start with the debug overlay on, showing the Audio panel',
+            action='store_true',
+            default=False,
+        )
         # Read by events.unhandled_event (glitchygames/events/base.py); how this run is
         # diagnosed, not what the game does, so a replay keeps its own (REPLAY_LOCAL_OPTIONS)
         diagnostics_group.add_argument(
@@ -966,6 +977,48 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             type=non_negative_int,
             help='mixer channels reserved for real-time synth voices (default: 4)',
             default=DEFAULT_LIVE_VOICE_POOL,
+        )
+        # The sound engine's options (impl spec 10.2): imported here, as the engine's start
+        # imports the audio package (its channels are reserved then)
+        from glitchygames.audio.engine import (
+            DEFAULT_CACHE_MEMORY_MEGABYTES,
+            DEFAULT_LIBRARY_CHANNELS,
+        )
+        from glitchygames.audio.library import CacheMode
+
+        group.add_argument(
+            '--sound-channels',
+            type=non_negative_int,
+            help=(
+                'mixer channels reserved for the sound library (scene_manager.audio) '
+                f'(default: {DEFAULT_LIBRARY_CHANNELS})'
+            ),
+            default=DEFAULT_LIBRARY_CHANNELS,
+        )
+        group.add_argument(
+            '--sound-cache',
+            choices=[mode.value for mode in CacheMode],
+            help=(
+                'how compiled sounds are kept: none (compiled again at every play), ram (in '
+                'memory, default) or disk (arrives in M3; refused until then)'
+            ),
+            default=CacheMode.RAM.value,
+        )
+        group.add_argument(
+            '--sound-cache-memory',
+            metavar='MB',
+            type=non_negative_int,
+            help=(
+                'megabytes the ram sound cache may hold before the least recently played idle '
+                f'sounds go (default: {DEFAULT_CACHE_MEMORY_MEGABYTES})'
+            ),
+            default=DEFAULT_CACHE_MEMORY_MEGABYTES,
+        )
+        group.add_argument(
+            '--crt-power-on-sound',
+            choices=CRT_POWER_ON_SOUND_CHOICES,
+            help='play the CRT power-on sequence with its sound (default: on)',
+            default=DEFAULT_CRT_POWER_ON_SOUND,
         )
         group.add_argument(
             '--crt-power-on',
@@ -1373,6 +1426,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # frames numbered from 0, as reset_sources() above restarted the frame clock, and no
         # supervision, quit request, shake or playback state left from an earlier run)
         self.scene_manager.begin_run()
+        # An earlier run's audio engine in this process (a test run, a recording and then its
+        # replay) plays on that run's partition: this run makes its own on first use
+        from glitchygames.audio.engine import discard_audio_engine
+
+        discard_audio_engine(wait_seconds=0.0)
         # A watched replay pauses at each recorded breakpoint, such as a saved bookmark (rule 16
         # of glitchygames/replay/driver.py); nobody could unpause a headless one
         if self.replay_sources is not None and not self.replay_sources.options.headless:
@@ -1428,6 +1486,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.app_manager: AppEventManager
         self.audio_manager: AudioEventManager
         self.live_voice_channels: tuple[int, ...] = ()
+        # The mixer's channels: live voices, the sound library's, the legacy rest (set as the
+        # event managers are made; None before)
+        self.channel_partition: ChannelPartition | None = None
         self.drop_manager: DropEventManager
         self.controller_manager: ControllerEventManager | None = None
         self.touch_manager: TouchEventManager
@@ -1813,12 +1874,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         self.app_manager = AppEventManager(game=self.scene_manager)
         self.audio_manager = AudioEventManager(game=self.scene_manager)
 
-        # Reserve live synth voice channels now, before anything can play (see audio/live.py)
-        from glitchygames.audio.live import reserve_live_voice_pool
-
-        self.live_voice_channels = reserve_live_voice_pool(
-            int(GameEngine.OPTIONS.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL))
-        )
+        # Partition the mixer's channels now, before anything can play (sound engine impl spec
+        # 7.1), unless the game's construction already asked for audio
+        self.reserved_channel_partition()
 
         self.drop_manager = DropEventManager(game=self.scene_manager)
 
@@ -2345,6 +2403,7 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         """
         self._refuse_listing_input_devices_during_a_run(options=options)
         self._refuse_a_forced_power_on_during_a_run(options=options)
+        self._refuse_the_disk_sound_cache(options=options)
         replay_trace_path = options.get('replay_trace')
         if replay_trace_path is None:
             self._check_replay_options_without_a_recording(options=options)
@@ -2585,6 +2644,45 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             if options.get(option_name) is not None:
                 self.log.error('Cannot play the CRT power-on sequence with %s', flag)
                 exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
+
+    def reserved_channel_partition(self: Self) -> ChannelPartition:
+        """Partition the mixer's channels once per run, and return the partition (impl 7.1).
+
+        The live voices' pool (``--live-voice-pool``), the sound library's channels
+        (``--sound-channels``), then the legacy rest for ``Sound.play()`` callers. Reserved as
+        the event managers are made, or earlier, when the game's construction asks for audio
+        (``SceneManager.audio``), so the audio engine always plays on this run's partition.
+
+        Returns:
+            The partition (empty without a mixer).
+
+        """
+        if self.channel_partition is None:
+            from glitchygames.audio.engine import DEFAULT_LIBRARY_CHANNELS, LEGACY_CHANNELS
+            from glitchygames.audio.voices import reserve_channels
+
+            self.channel_partition = reserve_channels(
+                live_pool=int(GameEngine.OPTIONS.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL)),
+                library_channels=int(
+                    GameEngine.OPTIONS.get('sound_channels', DEFAULT_LIBRARY_CHANNELS)
+                ),
+                legacy_channels=LEGACY_CHANNELS,
+            )
+            self.live_voice_channels = self.channel_partition.live
+        return self.channel_partition
+
+    def _refuse_the_disk_sound_cache(self: Self, *, options: dict[str, Any]) -> None:
+        """Exit with ExitCode.OPTIONS_REFUSED for ``--sound-cache disk``, which arrives in M3.
+
+        Args:
+            options: The parsed options.
+
+        """
+        from glitchygames.audio.library import DISK_CACHE_MESSAGE, CacheMode
+
+        if options.get('sound_cache') == CacheMode.DISK.value:
+            self.log.error('Cannot use --sound-cache disk: %s', DISK_CACHE_MESSAGE)
+            exit_with(exit_code=ExitCode.OPTIONS_REFUSED)
 
     def _refuse_listing_input_devices_during_a_run(self: Self, *, options: dict[str, Any]) -> None:
         """Exit with ExitCode.OPTIONS_REFUSED for --list-input-devices with a replay or recording.
@@ -3121,6 +3219,14 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # the timer holds here, not in its finaliser, which must not log (BUGS.md #188)
         if self.timer is not None:
             self.timer.close()
+        # Before pygame quits: the sound library's voices fade over 50 ms, waited for at most
+        # 100 ms (sound engine impl spec 10.3), then the channel reservation is given back (SDL
+        # would keep it for a mixer started again in this process)
+        from glitchygames.audio.engine import discard_audio_engine
+        from glitchygames.audio.voices import release_channels
+
+        discard_audio_engine()
+        release_channels()
         # A step back restarts the replay (glitchygames/replay/rebuild.py): not the end of the
         # run, so the end-of-run reports wait for the last replay
         if self.replay_sources is not None and self.replay_sources.result.restart_frame is not None:

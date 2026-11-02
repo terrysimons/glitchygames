@@ -136,6 +136,19 @@ def reserve_channels(
     )
 
 
+def release_channels() -> None:
+    """Give back the partition's reservation (shutdown), so a restarted mixer can play anywhere.
+
+    SDL_mixer keeps its reservation across ``pygame.mixer.quit()`` and a new ``init()``, while the
+    restarted mixer is back at 8 channels (pygame-ce 2.5.8): a ``Sound.play()`` on it would then
+    land on a channel pygame does not know and raise ``IndexError: invalid channel index``.
+    Nothing happens without a mixer.
+    """
+    _partitioned_mixer.clear()
+    if pygame.mixer.get_init() is not None:
+        pygame.mixer.set_reserved(0)
+
+
 def reserved_channel_count() -> int:
     """The channels the last partition reserved on the running mixer.
 
@@ -494,6 +507,11 @@ class VoiceTable:
         return False
 
     @property
+    def voice_count(self) -> int:
+        """The voices playing, paused or waiting for their channel (by played time)."""
+        return sum(1 for slot in self._slots if slot.voice is not None)
+
+    @property
     def counters(self) -> VoiceCounters:
         """Steals, delayed plays and dropped plays so far."""
         return VoiceCounters(
@@ -588,6 +606,18 @@ class VoiceTable:
         """
         for slot in self._slots:
             if slot.voice is not None and slot.voice.owner == owner and not slot.voice.persist:
+                self._stop_slot(slot, fade_seconds=fade_seconds)
+
+    def stop_buses(self, bus_names: Collection[str] | None, *, fade_seconds: float) -> None:
+        """Fade out the voices on some buses (every voice for None), persisted ones included.
+
+        Args:
+            bus_names: The buses whose voices stop, or None for every voice.
+            fade_seconds: The fade (at least 5 ms).
+        """
+        _check_fade(fade_seconds)
+        for slot in self._slots:
+            if slot.voice is not None and (bus_names is None or slot.voice.bus in bus_names):
                 self._stop_slot(slot, fade_seconds=fade_seconds)
 
     def close(self, *, fade_seconds: float = DEFAULT_STOP_FADE_SECONDS) -> None:

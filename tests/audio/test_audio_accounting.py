@@ -125,3 +125,54 @@ def test_the_compile_log_keeps_the_last_eight():
     ]
     accountant.take_frame()
     assert len(accountant.compile_log) == 8  # taking a frame does not clear the log
+
+
+def _compile_lasting(accountant, mocker, *, name, milliseconds, kind='compile'):
+    _counter_reading(mocker, [0, round(milliseconds * 1_000_000)])
+    with accountant.measure(kind, name):
+        pass
+
+
+def test_compiles_are_counted_apart_for_setup_and_gameplay(mocker):
+    """Setup and gameplay compiles (and decodes) each get their count and milliseconds."""
+    accountant = AudioAccountant()
+    _compile_lasting(accountant, mocker, name='coin', milliseconds=2.0)
+    _compile_lasting(accountant, mocker, name='slap', milliseconds=1.0, kind='decode')
+    accountant.setup_mode = False
+    accountant.frame_number = 12
+    _compile_lasting(accountant, mocker, name='blip', milliseconds=4.0)
+    _compile_lasting(accountant, mocker, name='coin', milliseconds=0.5, kind='cache_read')
+
+    assert accountant.setup_compile_count == 2
+    assert accountant.setup_compile_milliseconds == pytest.approx(3.0)
+    assert accountant.gameplay_compile_count == 1
+    assert accountant.gameplay_compile_milliseconds == pytest.approx(4.0)
+    assert accountant.compile_count == 3
+    assert accountant.gameplay_compiles == (
+        CompileRecord(frame_number=12, name='blip', milliseconds=4.0, during_setup=False),
+    )
+
+
+def test_the_gameplay_compile_list_keeps_the_last_thirty_two(mocker):
+    """Only the most recent 32 gameplay compiles are kept by name; the counts go on."""
+    accountant = AudioAccountant()
+    accountant.setup_mode = False
+    for index in range(40):
+        _compile_lasting(accountant, mocker, name=f'sound-{index}', milliseconds=1.0)
+
+    assert accountant.gameplay_compile_count == 40
+    assert len(accountant.gameplay_compiles) == 32
+    assert accountant.gameplay_compiles[0].name == 'sound-8'
+
+
+def test_a_setup_tally_gives_its_total_and_slowest_sounds_once(mocker):
+    """take_setup_compiles returns the setup's total and its three slowest, then starts afresh."""
+    accountant = AudioAccountant()
+    for name, milliseconds in (('a', 5.0), ('b', 30.0), ('c', 1.0), ('d', 20.0), ('e', 10.0)):
+        _compile_lasting(accountant, mocker, name=name, milliseconds=milliseconds)
+
+    total_milliseconds, slowest = accountant.take_setup_compiles()
+
+    assert total_milliseconds == pytest.approx(66.0)
+    assert [record.name for record in slowest] == ['b', 'd', 'e']
+    assert accountant.take_setup_compiles() == (0.0, ())

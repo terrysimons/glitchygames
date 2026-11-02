@@ -11,6 +11,8 @@ import pytest
 from glitchygames import recording_history
 from glitchygames.recording import RecordedFrameFields
 from glitchygames.recording_history import (
+    AUDIO_SECONDS_FIELD,
+    AUDIO_WORK_FIELD,
     CONTENT_HASH_FIELD,
     CONTENT_HASH_HEX_DIGITS,
     CONTENT_HASH_SCHEME,
@@ -114,8 +116,23 @@ class TestTheContentHash:
         }
         assert set(FrameContent.model_fields) == written_fields
         measurement_fields = recording_history.MEASUREMENT_FRAME_FIELDS
-        assert measurement_fields == {PROCESSING_SECONDS_FIELD, CONTENT_HASH_FIELD}
+        assert measurement_fields == {
+            PROCESSING_SECONDS_FIELD,
+            CONTENT_HASH_FIELD,
+            AUDIO_SECONDS_FIELD,
+            AUDIO_WORK_FIELD,
+        }
         assert not measurement_fields & written_fields
+
+    def test_the_audio_measurements_leave_the_hash_unchanged(self):
+        """A frame's audio time and work (impl spec 11.0) are measurements, never hashed."""
+        measured = {
+            **FRAME,
+            AUDIO_SECONDS_FIELD: 0.0021,
+            AUDIO_WORK_FIELD: [['compile', 'coin', 2100]],
+        }
+
+        assert frame_content_hash(frame_record=measured) == frame_content_hash(frame_record=FRAME)
 
 
 class TestTheRecordingHash:

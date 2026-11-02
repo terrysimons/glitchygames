@@ -1211,6 +1211,9 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/benchmarks/test_logging_cost.py': (
         "measures what logging costs our members' goldens and bundled demos"
     ),
+    'tests/audio/test_audio_engine_goldens.py': (
+        "replays our member PaddleSlap's golden under each sound cache mode"
+    ),
     'tests/engine/test_every_game_powers_on.py': (
         "powers on every member's console script through its own main(), listed from the workspace"
     ),

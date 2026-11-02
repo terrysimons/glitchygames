@@ -67,5 +67,13 @@ def start_mixer(*, frequency: int = 44100, channels: int = 1) -> None:
 
 
 def stop_mixer() -> None:
-    """Stop the mixer."""
+    """Stop the mixer, giving back any channel reservation first.
+
+    SDL_mixer keeps its reservation across a restart (pygame-ce 2.5.8), while the restarted
+    mixer is back at 8 channels: a later ``Sound.play()`` then lands on a channel pygame does
+    not know and raises ``IndexError: invalid channel index`` (a later test's, such as
+    tests/replay/test_rebuild.py's FrameSilencer tests).
+    """
+    if pygame.mixer.get_init() is not None:
+        pygame.mixer.set_reserved(0)
     pygame.mixer.quit()

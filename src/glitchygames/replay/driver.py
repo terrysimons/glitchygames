@@ -307,7 +307,7 @@ from glitchygames.recording import (
 )
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
-    MEASUREMENT_FRAME_FIELDS,
+    HISTORY_FRAME_FIELDS,
     PROCESSING_SECONDS_FIELD,
     frame_content_hash,
     latest_measurement_run,
@@ -356,6 +356,7 @@ from glitchygames.tracing import (
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
 
+    from glitchygames.audio.accounting import AudioFrameAccount
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scene_start import SceneStart
     from glitchygames.scenes import Scene
@@ -398,6 +399,10 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     'fps_histogram',
     # --debug-events: whether unhandled events are logged, not what the game does
     'debug_events',
+    # How compiled sounds are kept and whether the Audio panel opens: how this run sounds and is
+    # watched, never what the game does, so a recording replays under any cache mode
+    'sound_cache',
+    'sound_diagnostics',
 })
 
 # How many frames before a sprite divergence its report lists (with the divergent frame itself)
@@ -706,7 +711,7 @@ class RecordedFrames:
         frame = self.frame(frame_index=frame_index)
         if frame is None:
             return {}
-        return {name: frame[name] for name in MEASUREMENT_FRAME_FIELDS if name in frame}
+        return {name: frame[name] for name in HISTORY_FRAME_FIELDS if name in frame}
 
 
 class BookmarkedCopy:
@@ -1814,7 +1819,7 @@ class ReplaySources:
             if record.get(KIND_FIELD) in REAPPLIED_CONTROL_EVENT_KINDS
         ]
 
-    def end_frame(
+    def end_frame(  # ruff: ignore[too-many-arguments] - the EngineSources door's signature
         self: Self,
         *,
         frame_number: int,
@@ -1822,6 +1827,7 @@ class ReplaySources:
         scene: Scene | None,
         control_events: list[ControlEvent],
         processing_seconds: float | None = None,
+        audio_frame: AudioFrameAccount | None = None,
     ) -> None:
         """Compare the frame with the recorded one, then move on to the next (rule 8).
 
@@ -1832,10 +1838,12 @@ class ReplaySources:
             control_events: The control events recorded in the frame.
             processing_seconds: This replay's processing time for the frame, compared with the
                 recorded one under ``--compare-processing`` (None: not measured).
+            audio_frame: The frame's audio work: a measurement a replay neither compares nor
+                writes (a rebaseline's recording doors write it).
 
         """
-        # dt is the recorded one by construction
-        del dt
+        # dt is the recorded one by construction; audio work is never compared
+        del dt, audio_frame
         frame = self._current_frame()
         # Frames run only while the recording has one: a headless replay stops after its last
         # frame, a watched one holds there (rules 8 and 14)

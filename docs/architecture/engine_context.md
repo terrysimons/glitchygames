@@ -39,6 +39,7 @@ tests do.
 | `glitchygames.game_frames.clock` | `src/glitchygames/game_frames.py` | `game_frame_clock`, `restart_game_frame_clock` |
 | `glitchygames.sources.registry` | `src/glitchygames/sources.py` | `active_sources`, `install_sources`, `reset_sources`, `push_scoped_sources`, `pop_scoped_sources`, `has_scoped_sources`, `redeliver_events`, `pending_redelivered_events`, `take_redelivered_events`, `discard_scope_posts`, `without_discarded_scope_posts`, `mark_frames_started`, `advance_frame_clock`, `set_frame_clock_seconds`, `frame_clock_seconds`, `observe_save_store_openings`, `stop_observing_save_store_openings`, `notify_save_store_opened`, `observe_device_answers`, `stop_observing_device_answers`, `notify_device_answer` |
 | `glitchygames.scenes.scene.scene_managers` | `src/glitchygames/scenes/scene.py` | `SceneManager()`, `SceneManager._reset()` |
+| `glitchygames.audio.engine.audio_engine` | `src/glitchygames/audio/engine.py` | `SceneManager.audio`, `existing_audio_engine`, `install_audio_engine`, `discard_audio_engine` |
 
 `tests/test_engine_context.py` proves, for every slot, that two contexts in one process never
 see each other's values; a slot added without such a check fails the suite.

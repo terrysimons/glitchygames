@@ -19,6 +19,7 @@ from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
 import pygame
 
 from glitchygames import engine_context, pixel_snap, randomness, sources
+from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
 from glitchygames.backgrounds import set_active_default_background_pattern
 from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
@@ -272,6 +273,9 @@ def _reset_all_singleton_instances():
     each singleton base and each of its direct subclasses is reset (BUGS.md #228 items 17, 22).
     """
     SceneManager._reset()
+    # The context's audio engine (glitchygames/audio/engine.py) is forgotten, not closed: its
+    # channels may be gone with a mixer a test restarted
+    current_context().reset_value(slot=AUDIO_ENGINE_SLOT)
 
     # Reset ResourceManager singleton instances (FontManager, event managers, etc.)
     ResourceManager.__instances__.clear()
