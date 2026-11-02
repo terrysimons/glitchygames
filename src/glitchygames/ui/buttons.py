@@ -87,7 +87,7 @@ class ButtonSprite(BitmappySprite):
             y=self.parent.rect.centery if parent else self.y,
             width=self.width,
             height=self.height,
-            name=self.name,  # ty: ignore[invalid-argument-type]
+            name=self.name,
             text=self.name,  # ty: ignore[invalid-argument-type]
             parent=self,
             groups=groups,
