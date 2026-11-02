@@ -158,9 +158,11 @@ nox -s bandit-scan         # Run bandit only
 nox -s build               # Build binary (PyInstaller) + wheel
 nox -s build-binary        # Build standalone Bitmappy binary only
 nox -s build-wheel         # Build the wheel (.whl) of every workspace package (uv build --all-packages), only
-# build, build-wheel, build-binary and test stamp the engine's commit into the package first
-# (src/glitchygames/_build_info.json, removed after; src/glitchygames/build_info.py): test's installed
-# copy is not editable, so the stamp is how it names its commit
+# build, build-wheel and build-binary stamp the engine's commit into the package first
+# (src/glitchygames/_build_info.json, removed after; refused while another build's is there;
+# src/glitchygames/build_info.py). test stamps its installed copy instead (write_build_stamp.py
+# --into, with the session's python): that copy is not editable, so the stamp is how it names
+# its commit, and the checkout never holds a test run's stamp (BUGS.md #224.47)
 
 # --- Docs ---
 nox -s docs-deploy         # Fetch gh-pages, replay-metrics (--skip-dirty), build, publish to https://terrysimons.github.io/glitchygames/ (pushes gh-pages, then clears published pending rows; `-- --build-only`: no push)

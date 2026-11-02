@@ -729,6 +729,23 @@ drafted issue text. Not posted yet:
   keep every `mkdocs serve` rebuild alive (BUGS.md #213; worked around in
   `scripts/mkdocs_hooks.py`'s `on_post_build`).
 
+## Documentation scrub (user request, 2026-11-02)
+
+- **Scrub every document against the code, across the whole stack.** Much has changed since the
+  `src/` layout scrub: workspace packages, the bug sweeps (#127-#135: input devices and
+  `--axis-deadzone`, named custom event types, the measured rows' landing rules, the build
+  stamp), and the BUGS.md audit (2026-11-02) found code comments and docs ahead of or behind
+  the tracker. Scope: the root's Markdown (`README.md`, `CLAUDE.md`, `ANIMATION_README.md`,
+  `API_README.md`, `BITMAPPY_ARCHITECTURE.md`, `CONTROLLER_CONTROLS_README.md`,
+  `LOADER_README.md`, `TEST_UPDATE_PLAN.md`: is each still current, or merged into `docs/`?),
+  the 51 pages under `docs/` (architecture, playback, games, quality), every member's README
+  (`src/games/*`, `src/demos/*`, `src/apps/bitmappy`, `src/quicklook`), and module docstrings
+  that describe behaviour (the engine's especially). For each claim: check it against the code
+  (paths, option names and defaults against `--help`, BUGS.md numbers against their entries'
+  status, named functions and classes still existing), fix or remove it, and keep American
+  spellings. Finish with `mkdocs build --strict` and the docs guard tests. Plan it as its own
+  branch (design, then plan), split by area so each piece is reviewable.
+
 ## Code quality
 
 - **Lint caps shape the replay classes.** `GameEngine.__init__` and `ReplaySources.__init__`
