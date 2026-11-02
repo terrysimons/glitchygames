@@ -1785,16 +1785,9 @@ def _stamp_installed_engine(session: nox.Session) -> None:
     )
     if not isinstance(installed_directory, str):
         session.error('Could not find the installed glitchygames package to stamp')
-    session.run(
-        'uv',
-        'run',
-        '--frozen',
-        'python',
-        'scripts/write_build_stamp.py',
-        '--into',
-        installed_directory.strip(),
-        external=True,
-    )
+    # The session's own python, not `uv run`: inside a session uv targets the session's
+    # environment and would sync it again (editable), replacing the installed copy being stamped
+    session.run('python', 'scripts/write_build_stamp.py', '--into', installed_directory.strip())
 
 
 def _build_binary(session: nox.Session) -> None:

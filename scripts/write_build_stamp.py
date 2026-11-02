@@ -10,7 +10,13 @@ A stamp already in the checkout is refused, not overwritten: another build is us
 (BUGS.md #224.47). ``--remove`` clears a stale one.
 
 ``nox -s test`` stamps its installed copy instead (``--into`` its directory): the stamp never
-appears in the checkout, so a test run and a build never share one.
+appears in the checkout, so a test run and a build never share one. It runs this with the
+session's own python, after installing: ``uv run`` there would sync the session's environment
+again (editable), replacing the installed copy being stamped.
+
+The revision is always read from the checkout this script is in (``PACKAGE_DIRECTORY``), not
+from the ``glitchygames`` it imports: under the test session's python that is the installed
+copy, which has no checkout to read.
 
 Usage:
     uv run python scripts/write_build_stamp.py [--remove | --into DIRECTORY]
@@ -24,10 +30,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from glitchygames.build_info import BUILD_STAMP_FILE_NAME, PACKAGE_DIRECTORY, write_build_stamp
+from glitchygames.build_info import BUILD_STAMP_FILE_NAME, write_build_stamp
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+# The engine package in the checkout this script is in (scripts/../src/glitchygames): where the
+# revision is read from, and where a build's stamp goes
+PACKAGE_DIRECTORY = Path(__file__).resolve().parent.parent / 'src' / 'glitchygames'
 
 
 def main(arguments: Sequence[str] | None = None) -> int:

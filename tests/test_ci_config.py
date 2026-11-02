@@ -326,6 +326,10 @@ def test_every_other_sync_installs_the_workspace_members():
     assert all('--all-packages' in sync for sync in envrc_syncs)
 
 
+# The uv commands that sync a nox session's environment (inside a session uv targets it)
+UV_SYNCS = frozenset({('uv', 'run'), ('uv', 'sync')})
+
+
 def test_the_test_session_installs_a_stamped_engine():
     """The nox test session builds its engine with the build stamp: the installed copy names HEAD.
 
@@ -339,14 +343,18 @@ def test_the_test_session_installs_a_stamped_engine():
     session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
     noxfile.test(session)
     commands = session.commands
-    stamp_installed_copy = (
-        *('uv', 'run', '--frozen', 'python', 'scripts/write_build_stamp.py'),
-        *('--into', installed),
-    )
+    # The session's python: a `uv run` after the install would sync the session's environment
+    # again (editable), replacing the installed copy it stamps
+    stamp_installed_copy = ('python', 'scripts/write_build_stamp.py', '--into', installed)
     install = next(index for index, command in enumerate(commands) if command[:2] == ('uv', 'sync'))
     pytest_run = next(index for index, command in enumerate(commands) if command[0] == 'pytest')
 
     assert install < commands.index(stamp_installed_copy) < pytest_run
+    # Nothing syncs the session's environment again after the install: the suite tests the
+    # installed (built) engine, not an editable one
+    assert not [
+        command for command in commands[install + 1 : pytest_run] if command[:2] in UV_SYNCS
+    ]
     # Never the checkout's stamp: a build running alongside keeps its own (BUGS.md #224.47)
     assert not [
         command

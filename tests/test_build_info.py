@@ -423,6 +423,11 @@ class TestWriteBuildStampScript:
         assert not (package_directory / BUILD_STAMP_FILE_NAME).exists()
         assert f'Wrote {installed / BUILD_STAMP_FILE_NAME}' in output.getvalue()
 
+    def test_the_revision_comes_from_the_checkout_the_script_is_in(self):
+        """Not the imported package: under nox -s test's python that is the installed copy."""
+        assert write_build_stamp_script.PACKAGE_DIRECTORY == CHECKOUT_ENGINE_DIRECTORY
+        assert (write_build_stamp_script.PACKAGE_DIRECTORY / 'build_info.py').is_file()
+
     def test_into_and_remove_are_one_or_the_other(self, tmp_path, mocker):
         mocker.patch.object(write_build_stamp_script.sys, 'stderr', new=io.StringIO())
 
