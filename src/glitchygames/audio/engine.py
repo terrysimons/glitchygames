@@ -23,11 +23,14 @@ sounds), ``update`` (where ``LiveAudio.update`` runs, with the same arguments: i
 and ``take_frame_account`` (the frame's audio work for the doors' ``end_frame``, impl spec
 11.0); ``begin_scene_setup`` before each scene's ``setup()``.
 
-``update`` applies today's live-voice owner rules (``LiveAudio.update``): the voices of the active
-scene, of a running or pending transition and of the system owner play; those of the previous
-scene (the game behind a pause screen) and of ``paused_owners`` (a playback scope's) pause and
-gain no played time; any other owner's voices fade out over 50 ms unless they were played with
-``persist=True`` (feature spec 7.4). Then each voice gains the frame's served ``dt``.
+``update`` takes ``LiveAudio.update``'s arguments, with one rule of its own (ruling R33): the
+voices of the active scene, of a running or pending transition and of the system owner play;
+those of ``paused_owners`` (a playback scope's) pause and gain no played time, and so do the
+previous scene's, but only while the active scene shows it as paused (``active_scene.debug_subject
+is previous_scene``: a pause screen's subject is the game it paused). Any other owner's voices,
+a scene switched away from directly included, fade out over 50 ms unless they were played with
+``persist=True`` (feature spec 7.4). Then each voice gains the frame's served ``dt``. (Live
+voices keep pausing behind any previous scene until M2 replaces them.)
 
 ``silenced(channel)`` follows ``FrameSilencer``'s stops (impl spec 7.3), and ``close()`` fades
 every voice over 50 ms and waits at most 100 ms for the fades (impl spec 10.3).
@@ -550,7 +553,8 @@ class AudioEngine:
         Args:
             dt: The frame's served time (a replay's recorded dt).
             active_scene: The active scene.
-            previous_scene: The previous scene (the game behind a pause screen).
+            previous_scene: The previous scene; held only while the active scene's
+                ``debug_subject`` is it (a pause screen over it).
             active_transitions: The running and the pending transition (either may be None).
             paused_owners: Other owners whose voices pause (a playback scope's).
         """
@@ -558,9 +562,13 @@ class AudioEngine:
             SYSTEM_OWNER,
             *(owner for owner in (active_scene, *active_transitions) if owner is not None),
         ]
+        # The previous scene is held only behind a pause screen showing it (ruling R33); a scene
+        # switched away from directly is cleaned up
+        shown_as_paused = getattr(active_scene, 'debug_subject', None) is previous_scene
+        held_candidates = (previous_scene, *paused_owners) if shown_as_paused else paused_owners
         held_owners = [
             owner
-            for owner in (previous_scene, *paused_owners)
+            for owner in held_candidates
             if owner is not None and not _contains(playing_owners, owner)
         ]
         for owner in list(self._owners):

@@ -79,6 +79,22 @@ class PlayingInSetupScene(Scene):
         self.handle = self.scene_manager.audio.play('coin')
 
 
+class PauseStandInScene(Scene):
+    """A pause screen: it shows the scene it paused as its debug subject, as PauseScene does."""
+
+    NAME = 'PauseStandInScene'
+
+    def __init__(self, *, paused_scene: Scene) -> None:
+        """Remember the paused scene."""
+        super().__init__()
+        self.paused_scene = paused_scene
+
+    @property
+    def debug_subject(self) -> Scene:
+        """The paused scene."""
+        return self.paused_scene
+
+
 class AlwaysBusyChannel(pygame.mixer.Channel):
     """A real mixer channel that the device always reports busy (a fade that never ends)."""
 
@@ -132,6 +148,15 @@ def advance(engine, *, frames, active_scene, previous_scene=None, paused_owners=
             active_transitions=NO_TRANSITIONS,
             paused_owners=paused_owners,
         )
+
+
+def library_states(engine):
+    """The library channels' states, by index.
+
+    Returns:
+        The states.
+    """
+    return [channel.state for channel in engine.snapshot().channels if channel.group == 'library']
 
 
 def frames_to_play(sound):
@@ -361,7 +386,7 @@ class TestHandlesAndOwners:
 
     def test_pause_screen_pauses_and_resumes_voices(self, engine, scene_manager):
         game_scene = scene_manager.active_scene
-        pause_scene = OtherScene()
+        pause_scene = PauseStandInScene(paused_scene=game_scene)
         handle = engine.play('coin')
         coin = engine.sound('coin')
         frames_left = frames_to_play(coin)
@@ -384,6 +409,29 @@ class TestHandlesAndOwners:
         assert handle.is_playing
         advance(engine, frames=3, active_scene=game_scene)
         assert handle.is_playing is False
+
+    def test_a_direct_switch_fades_the_previous_scenes_voice(self, engine, scene_manager):
+        game_scene = scene_manager.active_scene
+        handle = engine.play('coin', loop=True)
+
+        # B is not a pause screen over A: A was switched away from (ruling R33)
+        advance(engine, frames=1, active_scene=OtherScene(), previous_scene=game_scene)
+
+        assert handle.is_playing is False
+        assert library_states(engine).count('fading') == 1
+        # The 50 ms fade runs out in frame time: three frames of 1/60 s
+        advance(engine, frames=3, active_scene=OtherScene(), previous_scene=game_scene)
+        assert library_states(engine).count('fading') == 0
+        assert set(library_states(engine)) == {'idle'}
+
+    def test_a_persisted_voice_survives_a_direct_switch(self, engine, scene_manager):
+        game_scene = scene_manager.active_scene
+        handle = engine.play('coin', loop=True, persist=True)
+
+        advance(engine, frames=5, active_scene=OtherScene(), previous_scene=game_scene)
+
+        assert handle.is_playing
+        assert library_states(engine).count('playing') == 1
 
     def test_a_playback_scopes_paused_owners_hold_their_voices(self, engine, scene_manager):
         game_scene = scene_manager.active_scene
