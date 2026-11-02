@@ -14,6 +14,7 @@ the harmonics that fit below Nyquist at the band's highest frequency, then trans
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import math
 from dataclasses import dataclass
@@ -27,6 +28,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from numpy.typing import NDArray
+
+    from glitchygames.audio.instrument import Source
 
 log: logging.Logger = logging.getLogger('game.audio.waves')
 
@@ -541,6 +544,37 @@ class Wave:
         # The render path (PolyBLEP or table) and the period span change what is heard, so they
         # belong to the identity beside the table
         return (self._table.tobytes(), self._note_periods, self.is_built_in_polyblep, self._duty)
+
+    def identity_digest(self) -> str:
+        """A SHA-256 of the wave's identity, stable across processes.
+
+        Python's ``hash()`` is randomized per process, so anything persisted (cache keys) uses
+        this instead: the digest covers the table bytes, note periods, render path and duty.
+
+        Returns:
+            64 hex digits.
+        """
+        table_bytes, note_periods, is_polyblep, duty = self._identity()
+        digest = hashlib.sha256()
+        digest.update(table_bytes)
+        digest.update(f'|{note_periods}|{is_polyblep}|{duty!r}'.encode())
+        return digest.hexdigest()
+
+    def detuned(self, *, cents: float) -> Source:
+        """This wave as a layer detuned by ``cents``, for ``Instrument(sources=...)``.
+
+        ``Source`` lives in ``instrument.py``, which imports this module, so it is imported
+        here when called to avoid an import cycle.
+
+        Args:
+            cents: The detune in cents.
+
+        Returns:
+            A source holding this wave and the detune.
+        """
+        from glitchygames.audio.instrument import Source
+
+        return Source(self, detune_cents=cents)
 
     @override
     def __repr__(self) -> str:
