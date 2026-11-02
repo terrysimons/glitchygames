@@ -97,10 +97,12 @@ def valid_specs(draw):
     return spec_for(instrument, pitch=Hz(draw(pitches)), length=length)
 
 
-# Hypothesis draws 5% of its floats from constants harvested out of every project module imported
-# so far (hypothesis/internal/conjecture/providers.py, _get_local_constants), so even a
-# derandomized run draws different examples depending on which other test modules were collected
-# first. A denormal level only reached normalize in some orders; this example pins it in all.
+# Probable cause of the order dependence (inferred from the installed hypothesis 6.170.14 source,
+# not reproduced): Hypothesis draws about 5% of its floats from constants harvested from every
+# project module imported so far (hypothesis/internal/conjecture/providers.py,
+# _get_local_constants), so even a derandomized run may draw different examples depending on which
+# other test modules were collected first. A denormal level reached normalize only in some orders;
+# this example pins it in all of them.
 DENORMAL_LEVEL_SPEC = spec_for(
     Instrument(
         sources={'faint': Source('sine', level=2.2e-313)},
