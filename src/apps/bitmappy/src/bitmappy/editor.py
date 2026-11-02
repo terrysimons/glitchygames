@@ -68,7 +68,6 @@ if TYPE_CHECKING:
     from .history.operations import (
         CanvasOperationTracker,
         ControllerPositionOperationTracker,
-        CrossAreaOperationTracker,
         FilmStripOperationTracker,
     )
     from .history.undo_redo import UndoRedoManager
@@ -105,7 +104,6 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
     undo_redo_manager: UndoRedoManager
     canvas_operation_tracker: CanvasOperationTracker
     film_strip_operation_tracker: FilmStripOperationTracker
-    cross_area_operation_tracker: CrossAreaOperationTracker
     controller_position_operation_tracker: ControllerPositionOperationTracker
     current_pixel_changes: list[tuple[int, int, tuple[int, ...], tuple[int, ...]]]
     _is_drag_operation: bool

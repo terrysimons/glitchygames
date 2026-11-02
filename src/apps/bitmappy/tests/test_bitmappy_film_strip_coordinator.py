@@ -219,24 +219,6 @@ class _StripWidgetStandIn:
         """Remember each animation update."""
         self.animation_updates.append(dt)
 
-    def copy_current_frame(self):
-        """Report the copy result.
-
-        Returns:
-            bool: The configured result.
-
-        """
-        return self.copy_result
-
-    def paste_to_current_frame(self):
-        """Report the paste result.
-
-        Returns:
-            bool: The configured result.
-
-        """
-        return self.paste_result
-
 
 def _strip_sprite(*, widget=None, visible=True):
     """Create a film strip sprite stand-in.
@@ -1319,52 +1301,6 @@ class TestOnFrameRemoved:
 # ---------------------------------------------------------------------------
 # Copy and paste
 # ---------------------------------------------------------------------------
-
-
-class TestCopyAndPaste:
-    """_copy_current_frame and _paste_to_current_frame use the active strip."""
-
-    @pytest.mark.parametrize('method_name', ['_copy_current_frame', '_paste_to_current_frame'])
-    def test_no_strips_reports_failure(self, method_name):
-        """Without strips nothing can be copied or pasted."""
-        coordinator = FilmStripCoordinator(_EditorStandIn())
-
-        assert getattr(coordinator, method_name)() is False
-
-    @pytest.mark.parametrize('method_name', ['_copy_current_frame', '_paste_to_current_frame'])
-    def test_no_selected_animation_reports_failure(self, method_name):
-        """Without a selected animation there is no active strip."""
-        editor = _EditorStandIn()
-        editor.film_strips = {'walk': _StripWidgetStandIn()}
-        coordinator = FilmStripCoordinator(editor)
-
-        assert getattr(coordinator, method_name)() is False
-
-    @pytest.mark.parametrize('method_name', ['_copy_current_frame', '_paste_to_current_frame'])
-    def test_no_matching_strip_reports_failure(self, method_name):
-        """With no strip showing the selected animation, nothing happens."""
-        editor = _EditorStandIn()
-        widget = _StripWidgetStandIn()
-        widget.current_animation = 'idle'
-        editor.film_strips = {'idle': widget}
-        editor.selected_animation = 'walk'
-        coordinator = FilmStripCoordinator(editor)
-
-        assert getattr(coordinator, method_name)() is False
-
-    def test_active_strip_result_is_returned(self):
-        """The active strip's copy and paste results are passed back."""
-        editor = _EditorStandIn()
-        idle_widget = _StripWidgetStandIn()
-        idle_widget.current_animation = 'idle'
-        walk_widget = _StripWidgetStandIn(copy_result=True, paste_result=False)
-        walk_widget.current_animation = 'walk'
-        editor.film_strips = {'idle': idle_widget, 'walk': walk_widget}
-        editor.selected_animation = 'walk'
-        coordinator = FilmStripCoordinator(editor)
-
-        assert coordinator._copy_current_frame() is True
-        assert coordinator._paste_to_current_frame() is False
 
 
 # ---------------------------------------------------------------------------

@@ -35,7 +35,6 @@ from .constants import (
 from .history.operations import (
     CanvasOperationTracker,
     ControllerPositionOperationTracker,
-    CrossAreaOperationTracker,
     FilmStripOperationTracker,
 )
 from .history.undo_redo import UndoRedoManager
@@ -529,10 +528,6 @@ class EditorSetup:
             editor=self.editor,
         )
         self.editor.film_strip_operation_tracker = FilmStripOperationTracker(
-            self.editor.undo_redo_manager,
-            editor=self.editor,
-        )
-        self.editor.cross_area_operation_tracker = CrossAreaOperationTracker(
             self.editor.undo_redo_manager,
             editor=self.editor,
         )

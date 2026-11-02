@@ -732,47 +732,6 @@ class TestHandleKeyboardEvent:
         assert animated_sprite.is_playing is False
 
 
-class TestCopyPasteFrame:
-    """Test copy_current_frame and paste_to_current_frame methods."""
-
-    def test_copy_stores_pixel_data(self, mocker):
-        """Test copy_current_frame stores pixel data in clipboard."""
-        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(frame_count=1))
-        frame = animated_sprite._animations['idle'][0]
-        red_rgba_pixels = cast('list[tuple[int, ...]]', [RED_RGBA] * PIXEL_COUNT)
-        frame.set_pixel_data(red_rgba_pixels)
-
-        canvas.copy_current_frame()
-        assert hasattr(canvas, '_clipboard')
-        assert len(canvas._clipboard) == PIXEL_COUNT
-
-    def test_paste_applies_clipboard_data(self, mocker):
-        """Test paste_to_current_frame applies clipboard to current frame."""
-        canvas, animated_sprite = _make_canvas(mocker, config=CanvasConfig(frame_count=2))
-        # Set frame 0 to red
-        frame_0 = animated_sprite._animations['idle'][0]
-        frame_0_pixels = cast('list[tuple[int, ...]]', [RED_RGBA] * PIXEL_COUNT)
-        frame_0.set_pixel_data(frame_0_pixels)
-
-        # Copy frame 0
-        canvas.current_frame = 0
-        canvas.copy_current_frame()
-
-        # Paste to frame 1
-        canvas.current_frame = 1
-        canvas.paste_to_current_frame()
-
-        frame_1 = animated_sprite._animations['idle'][1]
-        pasted_pixels = frame_1.get_pixel_data()
-        assert pasted_pixels[0] == RED_RGBA
-
-    def test_paste_without_clipboard_does_nothing(self, mocker):
-        """Test paste without prior copy does not crash."""
-        canvas, _ = _make_canvas(mocker)
-        # No clipboard set - should not raise
-        canvas.paste_to_current_frame()
-
-
 class TestIsSingleFrameAnimation:
     """Test _is_single_frame_animation method."""
 
@@ -2250,30 +2209,6 @@ class TestNavigationEdges:
 
         assert canvas.current_frame == 1
         assert animated_sprite.current_frame == 0
-
-
-class TestCopyPasteOutOfRange:
-    """Test frame copy and paste when the current frame does not exist."""
-
-    def test_copy_of_a_missing_frame_fills_no_clipboard(self):
-        """Copying a frame index past the end leaves the clipboard empty."""
-        canvas, _ = _make_real_canvas()
-        canvas.current_frame = 9
-
-        canvas.copy_current_frame()
-
-        assert not hasattr(canvas, '_clipboard')
-
-    def test_paste_onto_a_missing_frame_changes_no_frame(self):
-        """Pasting with a frame index past the end writes nowhere."""
-        canvas, animated_sprite = _make_real_canvas()
-        canvas._clipboard = [RED_RGBA] * PIXEL_COUNT
-        canvas.current_frame = 9
-
-        canvas.paste_to_current_frame()
-
-        for frame in animated_sprite._animations['idle']:
-            assert RED_RGBA not in frame.get_pixel_data()
 
 
 class TestDragEdges:
