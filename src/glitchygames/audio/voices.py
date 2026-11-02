@@ -25,6 +25,13 @@ The device is asked only which free channel to prefer (one no longer sounding), 
 the channel index a play lands on, never what the game sees. A stopped or cancelled voice's
 handle answers ``False`` at once while its channel finishes the fade (ruling R31).
 
+A silenced frame (``FrameSilencer``: a rebuild's or a fast-forward's frames, which are compared
+with the recording) stops channels behind the table's back. ``silenced(channel)`` only marks the
+slot device-stopped: the voice keeps its generation and its played time, so ``is_playing``, voice
+ends and steal decisions are those of the run that was not silenced; only the channel is quiet,
+and the table uses it again as usual (impl spec 7.3). Owners are compared by identity, never by
+``==`` (scenes are compared as objects, as the audio engine's ``_contains`` does).
+
 Handles are ``(slot, generation)`` values. A slot's generation moves whenever its voice ends,
 so a handle whose voice ended, was stolen or was replaced answers ``False`` and never controls
 the voice that took its slot later (impl spec 4.4).
@@ -304,6 +311,15 @@ class SoundHandle:
 RECENT_STEAL_FRAMES = 10
 
 
+def _is_among(owners: Collection[object], owner: object) -> bool:
+    """Whether ``owner`` is one of ``owners``, by identity (owners are compared as objects).
+
+    Returns:
+        True when it is.
+    """
+    return any(candidate is owner for candidate in owners)
+
+
 class _SlotState(enum.Enum):
     """What a library channel is doing, as the table sees it."""
 
@@ -387,6 +403,9 @@ class _Slot:
     voice: _Voice | None = None
     fade_seconds_left: float = 0.0
     held_sounds: tuple[Sound, pygame.mixer.Sound] | None = None
+    # True once the silencer stopped the channel under a voice or a fade, until the next play
+    # on it: the table's state goes on by frame time, but the channel is quiet
+    device_stopped: bool = False
 
 
 class VoiceTable:
@@ -561,11 +580,11 @@ class VoiceTable:
                     slot,
                     voice,
                     dt=dt,
-                    paused=voice.owner in paused_owners,
+                    paused=_is_among(paused_owners, voice.owner),
                     buses_changed=buses_changed,
                 )
             elif slot.state is _SlotState.PAUSED:
-                if voice.owner not in paused_owners:
+                if not _is_among(paused_owners, voice.owner):
                     pygame.mixer.Channel(slot.channel_index).unpause()
                     slot.state = _SlotState.PLAYING
                     self._fade_out_release(slot, voice)
@@ -573,7 +592,7 @@ class VoiceTable:
                     self._apply_gains(slot, voice)
             else:  # WAITING: its stolen channel has had a frame to fade
                 self._start(slot, voice)
-                if voice.owner in paused_owners:
+                if _is_among(paused_owners, voice.owner):
                     self._pause(slot)
 
     def _advance_playing(
@@ -596,18 +615,31 @@ class VoiceTable:
         slot.state = _SlotState.PAUSED
 
     def silenced(self, channel_index: int) -> None:
-        """A channel was stopped outside the table (``FrameSilencer``): end its voice.
+        """A channel was stopped outside the table (``FrameSilencer``): only the channel is quiet.
+
+        The slot's voice (or fade) stays in the table with its generation and played time, so
+        what the game sees is what it saw in the run that was not silenced (impl spec 7.3); the
+        slot is marked device-stopped until its channel's next play.
 
         Args:
             channel_index: The mixer channel; channels outside the library are ignored.
         """
         for slot in self._slots:
-            if slot.channel_index == channel_index:
-                if slot.voice is not None:
-                    slot.generation += 1
-                slot.voice = None
-                slot.state = _SlotState.IDLE
-                slot.held_sounds = None
+            if slot.channel_index == channel_index and slot.state is not _SlotState.IDLE:
+                slot.device_stopped = True
+
+    def end_voices_without_the_device(self) -> None:
+        """End every voice in the table at once, touching no channel (the mixer's are gone).
+
+        For a close on a mixer stopped or restarted with fewer channels: there is no channel to
+        fade, so the voices end and their handles answer ``False``.
+        """
+        for slot in self._slots:
+            if slot.voice is not None:
+                slot.generation += 1
+            slot.voice = None
+            slot.state = _SlotState.IDLE
+            slot.held_sounds = None
 
     def stop_owner(self, owner: object, *, fade_seconds: float = DEFAULT_STOP_FADE_SECONDS) -> None:
         """Fade out an owner's voices (scene clean-up), except those played with ``persist``.
@@ -617,7 +649,7 @@ class VoiceTable:
             fade_seconds: The fade.
         """
         for slot in self._slots:
-            if slot.voice is not None and slot.voice.owner == owner and not slot.voice.persist:
+            if slot.voice is not None and slot.voice.owner is owner and not slot.voice.persist:
                 self._stop_slot(slot, fade_seconds=fade_seconds)
 
     def stop_buses(self, bus_names: Collection[str] | None, *, fade_seconds: float) -> None:
@@ -658,7 +690,9 @@ class VoiceTable:
     def snapshot(self) -> tuple[ChannelState, ...]:
         """Every channel's group and state, for the debug panel.
 
-        Live and legacy channels belong to others, so their state is the device's busy flag.
+        Live and legacy channels belong to others, so their state is the device's busy flag. A
+        library channel the silencer stopped shows ``idle`` until its next play, whatever its
+        voice is doing in the table.
 
         Returns:
             One state per channel, by index.
@@ -669,7 +703,9 @@ class VoiceTable:
         ]
         states.extend(
             ChannelState(
-                index=slot.channel_index, group='library', state=_SNAPSHOT_STATE[slot.state]
+                index=slot.channel_index,
+                group='library',
+                state='idle' if slot.device_stopped else _SNAPSHOT_STATE[slot.state],
             )
             for slot in self._slots
         )
@@ -707,7 +743,8 @@ class VoiceTable:
         """End the handle's looping voice after its current pass.
 
         Returns:
-            Whether the voice is releasing (False for a non-looping or ended voice).
+            Whether the voice is releasing (False for a non-looping or ended voice, and for a
+            loop of no length, which has no pass to end after).
         """
         slot = self._slot_for(handle)
         if slot is None or slot.voice is None or not slot.voice.loop:
@@ -716,6 +753,8 @@ class VoiceTable:
         if voice.releasing:
             return True
         length = voice.sound.length
+        if length <= 0.0:
+            return False
         voice.release_ends_at = voice.played_seconds + length - voice.played_seconds % length
         voice.release_fade_pending = True
         if slot.state is _SlotState.PLAYING:
@@ -856,6 +895,7 @@ class VoiceTable:
         slot.state = _SlotState.PLAYING
         slot.fade_seconds_left = 0.0
         slot.held_sounds = (voice.sound, voice.mixer_sound)
+        slot.device_stopped = False
         self._apply_gains(slot, voice)
         self._fade_out_release(slot, voice)
 

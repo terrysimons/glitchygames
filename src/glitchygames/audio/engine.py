@@ -37,8 +37,9 @@ it first: the CRT power-on asks it for its tail (the bars tone or channel 3 hiss
 frame, so the tail sounds while the game is built and fades from frame 0's update (impl spec
 10.1).
 
-``silenced(channel)`` follows ``FrameSilencer``'s stops (impl spec 7.3), and ``close()`` fades
-every voice over 50 ms and waits at most 100 ms for the fades (impl spec 10.3).
+``silenced(channel)`` follows ``FrameSilencer``'s stops: the channels are quiet, but the voices go
+on by frame time, so a silenced frame changes nothing the game sees (impl spec 7.3). ``close()``
+fades every voice over 50 ms and waits at most 100 ms for the fades (impl spec 10.3).
 """
 
 from __future__ import annotations
@@ -641,7 +642,10 @@ class AudioEngine:
         return self._last_frame_account
 
     def silenced(self, channel_index: int | None) -> None:
-        """A channel (None: every channel) was stopped outside the engine: end its voices.
+        """A channel (None: every channel) was stopped outside the engine: only it is quiet.
+
+        Its voices go on in the voice table by frame time (``VoiceTable.silenced``), so
+        ``is_playing``, voice ends and steals are those of the frames had they not been silenced.
 
         Args:
             channel_index: The mixer channel ``FrameSilencer`` stopped, or None after
@@ -665,7 +669,7 @@ class AudioEngine:
         self._closed = True
         if not self._partition_fits_the_mixer():
             # No channel to fade: the voices end in the table
-            self.silenced(None)
+            self._voices.end_voices_without_the_device()
             self._voices.close(fade_seconds=SHUTDOWN_FADE_SECONDS)
             return
         self._voices.close(fade_seconds=SHUTDOWN_FADE_SECONDS)

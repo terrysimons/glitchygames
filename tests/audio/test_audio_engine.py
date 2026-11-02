@@ -498,20 +498,47 @@ class TestStopAll:
 
 
 class TestSilencedFrames:
-    """FrameSilencer's stops end the voices in the table (impl spec 7.3)."""
+    """FrameSilencer's stops quiet the channels; the voices go on by frame time (impl spec 7.3).
 
-    def test_replay_rebuild_silence_ends_voices_in_the_table(self, engine):
+    A rebuild's and a fast-forward's frames are compared with the recording, so a silenced frame
+    must not change what the game sees: ``is_playing``, voice ends and steal decisions.
+    """
+
+    def test_a_silenced_one_second_sound_plays_on_until_one_second_of_frame_time(
+        self, scene_manager
+    ):
+        engine = scene_manager.audio
+        scene = scene_manager.active_scene
+        sound = engine.sound(Instrument(wave='sine', envelope='organ'), pitch='A4', length=1.0)
+        handle = sound.play()
         silencer = FrameSilencer()
         silencer.begin()
-        handle = engine.play('coin')
 
         silencer.silence_frame()
+        advance(engine, frames=1, active_scene=scene)
         silencer.finish()
 
+        assert handle.is_playing is True
+        frames_left = frames_to_play(sound) - 1
+        advance(engine, frames=frames_left - 1, active_scene=scene)
+        assert handle.is_playing is True
+        advance(engine, frames=1, active_scene=scene)
         assert handle.is_playing is False
-        assert engine.play('coin').is_playing
 
-    def test_a_fast_forwards_silence_ends_the_voices_it_stops(self, engine):
+    def test_a_steal_after_silencing_matches_the_run_that_was_not_silenced(self, scene_manager):
+        """Every library channel busy, a frame silenced, then one more play: it steals."""
+        unsilenced = _fill_then_steal(scene_manager=scene_manager, silenced=False)
+        discard_audio_engine(wait_seconds=0.0)
+        silenced = _fill_then_steal(scene_manager=scene_manager, silenced=True)
+
+        assert silenced == unsilenced
+        steals, delayed_plays, _dropped_plays, still_playing = silenced
+        assert (steals, delayed_plays) == (1, 1)
+        # The stolen voice is the earliest of the lowest priority: the first play
+        assert still_playing[0] is False
+        assert all(still_playing[1:])
+
+    def test_a_fast_forwards_silence_keeps_the_voices_it_stops_playing(self, engine):
         spared = engine.play('coin', loop=True)
         silencer = FrameSilencer(spares_playing_sounds=True)
         silencer.begin()
@@ -521,9 +548,9 @@ class TestSilencedFrames:
         silencer.finish()
 
         assert spared.is_playing
-        assert started_unseen.is_playing is False
+        assert started_unseen.is_playing is True
 
-    def test_silencing_one_channel_ends_only_its_voice(self, engine):
+    def test_silencing_one_channel_keeps_both_voices(self, engine):
         first = engine.play('coin')
         second = engine.play('coin')
         first_channel = next(
@@ -535,8 +562,39 @@ class TestSilencedFrames:
 
         engine.silenced(first_channel)
 
-        assert first.is_playing is False
+        assert first.is_playing is True
         assert second.is_playing
+
+
+def _fill_then_steal(*, scene_manager, silenced: bool) -> tuple[int, int, int, list[bool]]:
+    """Fill every channel the effects bus may use, run a frame (maybe silenced), play once more.
+
+    Returns:
+        The steals, delayed and dropped plays, and whether each filling play still plays.
+    """
+    engine = scene_manager.audio
+    scene = scene_manager.active_scene
+    sound = engine.sound(Instrument(wave='sine', envelope='organ'), pitch='A4', length=1.0)
+    # The effects bus may use every library channel but the ui and music reservations
+    effects_channels = LIBRARY_CHANNELS - 4
+    handles = [sound.play(priority=10) for _ in range(effects_channels)]
+    assert all(handle.is_playing for handle in handles)
+    silencer = FrameSilencer()
+    silencer.begin()
+    if silenced:
+        silencer.silence_frame()
+    advance(engine, frames=1, active_scene=scene)
+    silencer.finish()
+    stealer = sound.play(priority=90)
+    advance(engine, frames=1, active_scene=scene)
+    assert stealer.is_playing
+    diagnostics = engine.diagnostics()
+    return (
+        diagnostics.stolen_voices,
+        diagnostics.delayed_plays,
+        diagnostics.dropped_plays,
+        [handle.is_playing for handle in handles],
+    )
 
 
 class TestAccounting:

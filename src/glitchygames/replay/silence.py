@@ -17,8 +17,10 @@ path both use:
    (glitchygames/audio/live.py) queues a new chunk every 100 ms, so its channel soon plays
    another sound and is stopped, as without sparing. Each stop is told to the context's audio
    engine (``AudioEngine.silenced``: one channel, or every channel after ``pygame.mixer.stop()``),
-   which ends the voices it played there, so their handles answer as the frames ended them
-   (sound engine impl spec 7.3).
+   which marks those channels quiet and nothing more: its voices go on by frame time, so their
+   handles' ``is_playing``, their ends and the steals are those of the frames had they been
+   heard (sound engine impl spec 7.3). The frames are compared with the recording, so a
+   silenced frame must not change what the game sees.
 3. ``finish`` stops following the music controls and resumes the music it paused, unless the
    game's last call paused it.
 
@@ -33,7 +35,8 @@ another's for the game's.
 A game that asks the mixer what is playing (``get_busy``, ``Channel.get_busy``) may get a
 different answer during silent frames than when they were recorded; audio is played, never
 compared, so a replay is unaffected unless game logic depends on it (which no recording could
-replay exactly anyway). Nothing happens without a mixer.
+replay exactly anyway). The sound library's answers (``SoundHandle.is_playing``) never ask the
+mixer, so they stay replay-safe. Nothing happens without a mixer.
 """
 
 from __future__ import annotations
@@ -151,7 +154,7 @@ _MUSIC_FOLLOWING = _MusicFollowing()
 
 
 def _tell_the_audio_engine(*, channel_index: int | None) -> None:
-    """End the audio engine's voices on a stopped channel (None: every channel), if there is one.
+    """Tell the audio engine, if there is one, that a channel (None: every channel) was stopped.
 
     Args:
         channel_index: The channel stopped, or None after ``pygame.mixer.stop()``.

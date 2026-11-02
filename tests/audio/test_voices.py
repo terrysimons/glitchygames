@@ -530,8 +530,12 @@ def test_a_resumed_voice_plays_out_its_remaining_time(table, one_second_sound, c
     assert calls_named(channel_calls, 'unpause') == [(4, ())]
 
 
-def test_silenced_ends_the_voice_on_that_channel(table, one_second_sound):
-    """FrameSilencer stopped the channel; silenced() ends its voice in the table (impl 7.3)."""
+def test_silenced_keeps_the_voice_its_generation_and_its_played_time(table, one_second_sound):
+    """FrameSilencer stopped the channel; the voice still ends by frame time (impl 7.3).
+
+    A silenced frame must not change what the game sees: its handle plays on until its played
+    time reaches the sound's length, as in the run that was not silenced.
+    """
     handle = table.play(one_second_sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
     other = table.play(one_second_sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
     pygame.mixer.Channel(4).stop()
@@ -540,25 +544,121 @@ def test_silenced_ends_the_voice_on_that_channel(table, one_second_sound):
     table.silenced(0)
     table.silenced(40)
 
-    assert handle.is_playing is False
+    assert handle.is_playing is True
     assert other.is_playing is True
+    assert table.voice_count == 2
+    # Only the channel is quiet: the debug panel shows it idle
     assert table.snapshot()[4].state == 'idle'
+    assert table.snapshot()[5].state == 'playing'
+    advance_frames(table, count=59)
+    assert handle.is_playing is True
+    advance_frames(table, count=1)
+    assert handle.is_playing is False
+    assert other.is_playing is False
 
 
-def test_a_silenced_fading_or_waiting_channel_is_idle(channel_calls):
-    """A channel the silencer stopped is idle whatever it was doing, waiting play included."""
+def _steal_after_one_frame(*, silenced: bool) -> tuple[bool, bool, VoiceCounters]:
+    """Play on a one-channel table, maybe silence it, advance a frame, then play again.
+
+    Returns:
+        Whether the first and second plays' handles are playing, and the counters.
+    """
     partition = start_reserved_mixer(live_pool=0, library_channels=1, legacy_channels=8)
     table = make_table(partition, buses=unreserved_buses())
     sound = baked_sound(seconds=1.0)
-    table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
+    first = table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
+    if silenced:
+        pygame.mixer.Channel(0).stop()
+        table.silenced(0)
+    table.advance(dt=FRAME_SECONDS, paused_owners=frozenset())
+    second = table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
+    table.advance(dt=FRAME_SECONDS, paused_owners=frozenset())
+    return first.is_playing, second.is_playing, table.counters
+
+
+def test_a_steal_after_a_silenced_frame_matches_the_run_that_was_not_silenced():
+    """The steal decision follows the table, not the silenced device (impl spec 7.3)."""
+    silenced_run = _steal_after_one_frame(silenced=True)
+    unsilenced_run = _steal_after_one_frame(silenced=False)
+
+    assert silenced_run == unsilenced_run
+    assert silenced_run == (
+        False,
+        True,
+        VoiceCounters(steals=1, delayed_plays=1, dropped_plays=0),
+    )
+
+
+def test_a_silenced_waiting_channel_still_starts_its_play(channel_calls):
+    """A play waiting for its stolen channel starts on the next advance, silenced or not."""
+    partition = start_reserved_mixer(live_pool=0, library_channels=1, legacy_channels=8)
+    table = make_table(partition, buses=unreserved_buses())
+    sound = baked_sound(seconds=1.0)
+    stolen = table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
     waiting = table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS)
 
     table.silenced(0)
     table.advance(dt=FRAME_SECONDS, paused_owners=frozenset())
 
-    assert waiting.is_playing is False
-    assert table.snapshot()[0].state == 'idle'
-    assert len(calls_named(channel_calls, 'play')) == 1
+    assert stolen.is_playing is False
+    assert waiting.is_playing is True
+    assert table.snapshot()[0].state == 'playing'
+    assert len(calls_named(channel_calls, 'play')) == 2
+
+
+def test_a_silenced_fading_channel_stays_fading_until_its_fade_runs_out_in_frame_time():
+    """A channel the silencer stopped mid-fade is free only once its fade ran out (R30)."""
+    partition = start_reserved_mixer(live_pool=0, library_channels=1, legacy_channels=8)
+    table = make_table(partition, buses=unreserved_buses())
+    sound = baked_sound(seconds=1.0)
+    table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS).stop(fade=0.05)
+
+    table.silenced(0)
+
+    # Still fading for the table, with no voice to steal: the play is dropped, as unsilenced
+    assert table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS).is_playing is False
+    assert table.counters.dropped_plays == 1
+    advance_frames(table, count=3)
+    assert table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS).is_playing is True
+
+
+def test_releasing_a_zero_length_loop_is_refused(table):
+    """A looping voice of no length has no pass to end after: release() answers False."""
+    handle = table.play(
+        baked_sound(seconds=0.0), owner=GAME_SCENE, **(PLAY_DEFAULTS | {'loop': True})
+    )
+
+    assert handle.is_playing is True
+    assert handle.release() is False
+    assert handle.is_playing is True
+
+
+class _EqualToEveryOwner:
+    """An owner equal to every other object: owners are compared by identity, never ``==``."""
+
+    def __eq__(self, other: object) -> bool:
+        return True
+
+    __hash__ = object.__hash__
+
+
+def test_owners_are_compared_by_identity_for_stopping_and_pausing(table, one_second_sound):
+    """An owner equal to another but not it neither stops nor pauses that owner's voices."""
+    owner = _EqualToEveryOwner()
+    lookalike = _EqualToEveryOwner()
+    handle = table.play(one_second_sound, owner=owner, **PLAY_DEFAULTS)
+
+    table.stop_owner(lookalike)
+    advance_frames(table, count=1, paused_owners=[lookalike])
+
+    assert handle.is_playing is True
+    assert table.snapshot()[4].state == 'playing'
+    advance_frames(table, count=1, paused_owners=[owner])
+    assert table.snapshot()[4].state == 'paused'
+    advance_frames(table, count=1, paused_owners=[lookalike])
+    assert table.snapshot()[4].state == 'playing'
+    table.stop_owner(owner)
+    assert handle.is_playing is False
 
 
 def test_a_waiting_play_of_a_paused_owner_starts_paused(channel_calls):

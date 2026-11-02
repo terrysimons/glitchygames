@@ -567,7 +567,11 @@ recorded `dt` in a replay [Fact]) only while the voice is **not paused**:
   `Channel.get_busy()`. A game reading `is_playing` therefore gets the same answer in a replay
   (`replay/silence.py` warns that device-busy answers are not replay-safe [Fact]).
 - **Silenced frames:** `FrameSilencer` stops channels [Fact]. It also calls
-  `audio.silenced(channel)` (one new call), which ends the corresponding voices in the table.
+  `audio.silenced(channel)` (one new call), which marks the channel's slot device-stopped and
+  nothing more: the voice keeps its generation and its `played_seconds`, so `is_playing`, its end
+  and later steal decisions follow frame time exactly as in the run that was not silenced. Only
+  the channel is quiet; the table reuses it as usual. A rebuild's and a fast-forward's frames are
+  compared with the recording, so a silenced frame must not change what the game sees.
 - **Before frame 0:** voices started by the engine itself (the CRT) belong to the engine's
   *system owner*, not a scene. During the power-on, the power-on's frame loop calls
   `audio.update(dt=frame_seconds)` with its own measured frame time. Those voices are never
@@ -740,7 +744,8 @@ class AudioEngine:
 class Sound:                         # compiled, immutable, shared; returned by sound()
     name: str                        # the short name, the path, or a generated name
     length: float                    # seconds, including the release tail (baked)
-    peak: float
+    peak: float                      # length, peak and sample_rate are fixed at the first
+                                     # request under any cache mode and survive eviction
     is_live: bool
     def play(self, *, volume: float | None = None, pan: float | None = None,
              bus: str | None = None, priority: int | None = None, loop: bool | None = None,
@@ -891,7 +896,8 @@ def render_to_file(sound: Sound, path: Path | str, *, sample_rate: int | None = 
 
 ### 10.3 Replays, silence, scenes, shutdown
 
-- **Silence:** `FrameSilencer` stops channels [Fact] and calls `audio.silenced(...)` (§7.3).
+- **Silence:** `FrameSilencer` stops channels [Fact] and calls `audio.silenced(...)`, which quiets
+  the channels without ending their voices (§7.3).
 - **Scenes:** scene ownership and pausing behind a playback scope follow today's
   `LiveAudio.update` arguments [Fact]. `AudioEngine.update` takes the same ones.
 - **Shutdown:** `GameEngine._shutdown` calls `audio.close()` before `pygame.quit()`. That fades
