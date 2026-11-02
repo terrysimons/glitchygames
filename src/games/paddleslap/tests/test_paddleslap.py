@@ -398,7 +398,9 @@ class TestPaddleslapExample:
                 paddle.rect.left : paddle.rect.right, paddle.rect.top : paddle.rect.bottom
             ] = True
 
-        ball_box = ball.rect
+        # In whole pixels: the screen's pixel array takes integer indexes (the ball's rect may be
+        # typed as an FRect)
+        ball_box = pygame.Rect(ball.rect)
         ball_pixels = pixels[ball_box.left : ball_box.right, ball_box.top : ball_box.bottom]
         ball_box_colors = {
             tuple(int(channel) for channel in pixel) for pixel in ball_pixels.reshape(-1, 3)

@@ -24,15 +24,17 @@ from glitchygames.sprites import (
     BitmappySprite,
     SpriteFactory,
 )
+from glitchygames.sprites import animated as animated_module
+from glitchygames.sprites import pixel_utils as pixel_utils_module
 from glitchygames.sprites.animated import (
-    OPAQUE_FRAME_DEPTH,
-    OPAQUE_FRAME_MASKS,
     AnimatedSprite,
     FrameAnchor,
     frame_tables_in_load_order,
 )
 from glitchygames.sprites.frame import SpriteFrame
 from glitchygames.sprites.pixel_utils import (
+    OPAQUE_FRAME_DEPTH,
+    OPAQUE_FRAME_MASKS,
     convert_pixels_to_rgb_if_possible,
     convert_pixels_to_rgba_if_needed,
     create_alpha_surface,
@@ -2192,6 +2194,18 @@ class TestAnimatedSpriteDebugFrameInfo:
         sprite._debug_frame_pixel_data(mock_frame)
 
 
+# One frame of two opaque colors (red, blue), as a single-frame and as an animated sprite
+TWO_COLORS = (
+    '[colors."a"]\nred = 255\ngreen = 0\nblue = 0\n\n[colors."b"]\nred = 0\ngreen = 0\nblue = 255\n'
+)
+SINGLE_FRAME_TWO_COLORS_TOML = '[sprite]\nname = "single"\npixels = """\nab\n"""\n\n' + TWO_COLORS
+ANIMATED_TWO_COLORS_TOML = (
+    '[sprite]\nname = "animated"\n\n[[animation]]\nnamespace = "idle"\n\n'
+    '[[animation.frame]]\nnamespace = "idle"\nframe_index = 0\npixels = """\nab\n"""\n\n'
+    + TWO_COLORS
+)
+
+
 class TestAnimatedSpriteCreateSurfaceFromTomlPixels:
     """Test AnimatedSprite._create_surface_from_toml_pixels."""
 
@@ -2248,6 +2262,35 @@ class TestAnimatedSpriteCreateSurfaceFromTomlPixels:
         assert faded_over_sand(engine_surface) == faded_over_sand(reference)
         # The keyed pixel is never written: the sand shows through it
         assert faded_over_sand(engine_surface)[1] == (210, 186, 134)
+
+    @pytest.mark.parametrize(
+        'toml_text',
+        [SINGLE_FRAME_TWO_COLORS_TOML, ANIMATED_TWO_COLORS_TOML],
+        ids=['single-frame', 'animated'],
+    )
+    def test_a_loaded_frames_own_image_has_the_opaque_format(self, tmp_path, mocker, toml_text):
+        """Each loader makes a frame's image in the opaque format, not the display's (#253).
+
+        The suite's dummy display already has that format, so the format alone cannot tell a
+        bare pygame.Surface from opaque_surface here: the loaders are checked to make it there
+        (the native driver's pixels are compare-drivers' to check).
+        """
+        path = tmp_path / 'sprite.toml'
+        path.write_text(toml_text, encoding='utf-8')
+        made = [
+            mocker.spy(animated_module, 'opaque_surface'),
+            mocker.spy(pixel_utils_module, 'opaque_surface'),
+        ]
+
+        sprite = AnimatedSprite(str(path))
+
+        assert any(call.args[:2] == (2, 1) for spy in made for call in spy.call_args_list)
+        (frames,) = sprite._animations.values()
+        image = frames[0].image
+
+        assert image.get_bitsize() == OPAQUE_FRAME_DEPTH
+        assert image.get_masks() == OPAQUE_FRAME_MASKS
+        assert _rgb_rows(image) == [[(255, 0, 0), (0, 0, 255)]]
 
     def test_rgba_pixels(self):
         """Test surface creation from RGBA pixel data."""
@@ -4430,7 +4473,9 @@ def _drawn_rows(sprite: AnimatedSprite) -> list[str]:
     frame = sprite.get_current_frame()
     assert frame is not None
     width, height = frame.image.get_size()
-    glyphs_by_color = {color: glyph for glyph, color in TABLE_PALETTE.items()}
+    glyphs_by_color: dict[tuple[int, ...], str] = {
+        color: glyph for glyph, color in TABLE_PALETTE.items()
+    }
     return [
         ''.join(
             glyphs_by_color.get(tuple(frame.pixels[row * width + column][:3]), '·')

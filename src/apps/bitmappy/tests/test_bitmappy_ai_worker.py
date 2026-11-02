@@ -15,6 +15,7 @@ import sys
 import textwrap
 from http import HTTPStatus
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 import aisuite
 import aisuite.provider
@@ -24,6 +25,9 @@ from aisuite.provider import ProviderFactory
 from bitmappy import ai_worker
 from bitmappy.constants import AI_MODEL_DOWNLOAD_TIMEOUT, AI_TIMEOUT
 from bitmappy.models import AIRequest, AIResponse
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 LOG = logging.getLogger('test.ai_worker')
 OLLAMA_MODEL = 'ollama:tiny-model'
@@ -422,7 +426,7 @@ class RetryableError(Exception):
     status_code = HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-def _retrying(*, outcomes: list[object]) -> tuple[object, list[float], list[int]]:
+def _retrying(*, outcomes: list[object]) -> tuple[Callable[[], object], list[float], list[int]]:
     """Decorate a call that answers ``outcomes`` in turn (raising the exceptions among them).
 
     Returns:

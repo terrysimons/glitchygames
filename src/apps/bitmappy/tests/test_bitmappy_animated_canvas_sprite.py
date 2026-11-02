@@ -1191,7 +1191,7 @@ class TestNavigationWithParentScene:
         """A frame object without get_pixel_data supplies its pixels attribute instead."""
         canvas, animated_sprite = _make_real_canvas()
         frame_without_method = type('BareFrame', (), {'pixels': [GREEN_RGBA] * PIXEL_COUNT})()
-        animated_sprite._animations['idle'][1] = frame_without_method
+        animated_sprite._animations['idle'][1] = frame_without_method  # pyright: ignore[reportCallIssue] - a frame stand-in
         canvas.animated_sprite.set_frame = lambda frame_index: None
 
         canvas.show_frame('idle', 1)
@@ -2141,7 +2141,7 @@ class TestCurrentFramePixels:
     def test_frame_without_pixel_data_falls_back_to_canvas_pixels(self):
         """A frame without get_pixel_data leaves the canvas pixels as the answer."""
         canvas, animated_sprite = _make_real_canvas()
-        animated_sprite._animations['idle'][0] = object()
+        animated_sprite._animations['idle'][0] = object()  # pyright: ignore[reportCallIssue] - a frame stand-in
         canvas.pixels = [GREEN_RGBA] * PIXEL_COUNT
 
         assert canvas._get_current_frame_pixels() == [GREEN_RGBA] * PIXEL_COUNT

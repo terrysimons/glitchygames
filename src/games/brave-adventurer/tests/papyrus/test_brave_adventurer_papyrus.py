@@ -79,7 +79,7 @@ class TestPapyrusFacingLeftHitbox:
             set_display_mode(size=(800, 480))
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'sounds')
-        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=2000)]
+        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=2000)]  # pyright: ignore[reportCallIssue] - a ground stand-in
         scene.wall_sprites[:] = []
         return scene
 
@@ -159,7 +159,7 @@ class TestPapyrusFeetAnchoring:
             set_display_mode(size=(800, 480))
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'sounds')
-        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=4000)]
+        scene.ground_sprites[:] = [types.SimpleNamespace(world_x=0.0, segment_width=4000)]  # pyright: ignore[reportCallIssue] - a ground stand-in
         scene.wall_sprites[:] = []
         player = scene.player
         player.world_x = 200.0
@@ -367,7 +367,7 @@ class TestPapyrusEngineWorldSpace:
             set_display_mode(size=SCREEN_SIZE)
         scene = PapyrusBraveAdventurerScene(options={'input_mode': 'joystick'})
         mocker.patch.object(scene, 'sounds')
-        scene.ground_sprites[:] = [
+        scene.ground_sprites[:] = [  # pyright: ignore[reportCallIssue] - a ground stand-in
             types.SimpleNamespace(world_x=0.0, world_y=float(GROUND_Y), segment_width=2000)
         ]
         scene.wall_sprites[:] = []

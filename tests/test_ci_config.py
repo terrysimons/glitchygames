@@ -524,6 +524,19 @@ def test_the_pre_push_hooks_compare_the_native_driver_with_dummy():
     )
 
 
+def test_no_type_checking_environment_turns_off_call_checks():
+    """Wrong arguments in a test's call into game code are type errors (BUGS.md #250).
+
+    The test environments had reportCallIssue off, so a call with a keyword the function had
+    lost (input_mode=, after --axis-deadzone) passed basedpyright and reached CI as a collection
+    error. A deliberate wrong call takes a narrow ``# pyright: ignore[reportCallIssue]``.
+    """
+    config = (PROJECT_ROOT / 'pyrightconfig.json').read_text(encoding='utf-8')
+
+    assert '"reportCallIssue": true' in config
+    assert '"reportCallIssue": false' not in config
+
+
 def test_docs_deploy_publishes_only_from_main():
     """A deploy from a branch would publish its unlanded rows: refused before anything is pushed.
 

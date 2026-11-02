@@ -24,7 +24,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 253. The Single-Frame Loader Discards `convert()`'s Result
 - **Description**: `AnimatedSprite`'s single-frame TOML loader builds its frame surface with `surface = pygame.Surface((width, height))` and then calls `surface.convert()` without keeping the result (as #143 and #173.5 were), so the call does nothing: the frame keeps the plain surface it made
-- **Status**: Active
+- **Status**: Fixed (2026-11-02, bug sweep: the call is gone, and the surface is made by `pixel_utils.opaque_surface`, the opaque frame format of #254 (32-bit RGB, no alpha channel), as are the animated loader's (`create_indexed_surface`) and the drawn images: a bare `pygame.Surface` took the display's format, so a frame's own image differed per driver too, and keeping `convert()`'s result would have kept that; `test_a_loaded_frames_own_image_has_the_opaque_format`)
 - **Priority**: Low (harmless: what the game draws is built from the frame's pixels, `_create_optimized_surface`)
 - **Reporter**: Found checking which surface draws a single-frame sprite (#200 item 4), 2026-11-02
 - **Date Reported**: 2026-11-02
@@ -51,7 +51,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 250. basedpyright Did Not Flag Tests Calling Game Code With a Removed Keyword
 - **Description**: `tests/replay/golden_replay_controls.py` kept calling the games' `_create_action_map(input_mode=...)` after the `--axis-deadzone` change made it `_create_action_map(*, options=...)`; basedpyright reported 0 errors on the file, before and after the fix, and the pre-push hooks run no tests, so CI's collection error (PR #134) was the first sign
-- **Status**: Active
+- **Status**: Fixed (2026-11-02, bug sweep: proven: every test environment of `pyrightconfig.json` (10) set `reportCallIssue` false; a probe calling `BraveAdventurerScene._create_action_map(input_mode=...)` from `tests/` gave 0 errors as configured and `No parameter named "input_mode"` with the rule on. The overrides are gone: the 13 calls it then reported were 6 inferences made explicit (a `Callable` return, dict annotations, an integer `Rect` for pixel indexing) and 7 deliberate stand-ins, each now `# pyright: ignore[reportCallIssue]` with its reason; `tests/test_ci_config.py::test_no_type_checking_environment_turns_off_call_checks` keeps the overrides out)
 - **Priority**: Medium (a whole class of call-signature mistakes in tests goes unchecked)
 - **Reporter**: Found fixing PR #134's CI, 2026-11-01
 - **Date Reported**: 2026-11-02
