@@ -227,6 +227,25 @@ class TestSelection:
         assert [each.name for each in selected] == ['dummy', 'cocoa', 'x11-linux']
         assert 'x11-macos' in [each.name for each in left_out]
 
+    @pytest.mark.parametrize(
+        ('facts', 'names'),
+        [
+            (mac(), ['dummy', 'cocoa']),
+            (linux(wayland=True), ['dummy', 'wayland', 'x11']),
+            (linux(), ['dummy', 'x11']),
+        ],
+        ids=['macos', 'linux-wayland-and-x11', 'linux-x11'],
+    )
+    def test_native_is_every_native_configuration_available_here(self, facts, names):
+        """The pre-push comparison asks for native on any platform."""
+        selected, _left_out = select_configurations(requested=['native'], facts=facts)
+
+        assert [each.name for each in selected] == names
+
+    def test_native_with_none_available_is_refused_with_every_reason(self):
+        with pytest.raises(SelectionError, match='no native configuration can run here: cocoa'):
+            select_configurations(requested=['native'], facts=linux(x_display=False))
+
     def test_an_unknown_name_is_refused(self):
         with pytest.raises(SelectionError, match='unknown configuration x11-windows; known: '):
             select_configurations(requested=['x11-windows'], facts=mac())

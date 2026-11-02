@@ -87,6 +87,9 @@ dev = [
   "pytest-xdist",
   "pytest-benchmark",
   "pytest-mock",
+  # Shuffled test order, only where asked for (addopts blocks it; nox -s test-random, the
+  # pre-push hook, turns it on): order-dependent tests surface before CI's fixed order hides them
+  "pytest-randomly",
   # bandit scans our code; the dependencies' CVEs and licenses are scanned by syft and grype,
   # system binaries outside this environment (nox -s security-scan, .grype.yaml,
   # scripts/check_licenses.py). safety and pip-audit were dropped for them (the owner,
@@ -281,7 +284,7 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "--import-mode=importlib -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=dt_demo --cov=joystick_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "--import-mode=importlib -p no:randomly -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=dt_demo --cov=joystick_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
@@ -794,6 +797,7 @@ DEP002 = [
   "pytest-xdist",
   "pytest-benchmark",
   "pytest-mock",
+  "pytest-randomly",
   "bandit",
   "ruff",
   "pre-commit",

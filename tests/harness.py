@@ -6,6 +6,7 @@ Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 
 import contextlib
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -286,6 +287,29 @@ def _reset_all_singleton_instances():
         for subclass in singleton_base.__subclasses__():
             if hasattr(subclass, '__instance__'):
                 subclass.__instance__ = None
+
+
+# What an inner pytest run (pytester) gets, whatever the outer run's options: pytest-randomly
+# blocked, as the project's addopts block it (an inner run reads none of them). Shuffled, an
+# inner run's tests ran in a new order every time, so the frames and state they left behind
+# changed from run to run: driver comparisons flagged them (tests/test_frame_fingerprints.py's
+# TestRecordingARun, BUGS.md #255) and tests checking inner order failed (#252)
+INNER_RUN_ADDOPTS = '-p no:randomly'
+
+
+@pytest.fixture(autouse=True)
+def inner_runs_keep_their_order(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
+    """Block pytest-randomly in every inner pytest run of a test that uses ``pytester``.
+
+    Through ``PYTEST_ADDOPTS``, which every inner run reads (in process or as a subprocess);
+    the outer run has already read it, so its own order (shuffled by ``nox -s test-random``)
+    is untouched. Set after ``pytester`` is made: making it deletes ``PYTEST_ADDOPTS``, to
+    keep the outer run's options out of inner runs.
+    """
+    if 'pytester' in request.fixturenames:
+        request.getfixturevalue('pytester')
+        outer = os.environ.get('PYTEST_ADDOPTS', '')
+        monkeypatch.setenv('PYTEST_ADDOPTS', f'{outer} {INNER_RUN_ADDOPTS}'.strip())
 
 
 @pytest.fixture(autouse=True)
