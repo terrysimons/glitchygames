@@ -335,7 +335,8 @@ def landed_row_files(
         repository=repository,
         arguments=[
             'log',
-            f'--format={_LOG_COMMIT_MARKER}%H %cI',
+            # %x00: git writes the marker (a NUL cannot be in an argument itself)
+            '--format=%x00%H %cI',
             '--name-only',
             '--diff-filter=A',
             revision,

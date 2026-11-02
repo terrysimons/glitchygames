@@ -561,7 +561,8 @@ def test_row_files_outside_a_git_repository_are_unusable_input(tmp_path, capsys,
     status = command.main(['performance-pages', 'pages', '--project-root', str(tmp_path)])
 
     assert status == ExitCode.UNUSABLE_INPUT
-    assert 'git log' in capsys.readouterr().err
+    # git's own reason, whichever command meets it first (the shallow-clone check, BUGS.md #220.8)
+    assert 'not a git repository' in capsys.readouterr().err
 
 
 def test_a_directory_that_cannot_be_written_is_cannot_write_output(tmp_path, capsys):
