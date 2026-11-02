@@ -246,10 +246,20 @@ def landed_code_trees(
     Returns:
         Code tree -> the commit it landed in.
 
+    Raises:
+        RuntimeError: If the repository is a shallow clone: its log stops at the clone's depth,
+            so rows of older commits would silently not land (BUGS.md #220.8).
+
     Each commit's tree is cached for the process (``_LANDED_COMMIT_CODE_TREES``): the log is read
     every call, the trees only of commits not seen before.
 
     """
+    if run_git(repository=repository, arguments=['rev-parse', '--is-shallow-repository']) == 'true':
+        message = (
+            f'{repository} is a shallow clone: its history stops short, so measured rows of older '
+            f'commits would be left out. Fetch the full history first: git fetch --unshallow'
+        )
+        raise RuntimeError(message)
     resolved_repository = repository.resolve()
     output = run_git(
         repository=repository,

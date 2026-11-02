@@ -485,9 +485,11 @@ def _usable_cpu_count() -> int:
 def test(session: nox.Session) -> None:
     """Run tests."""
     # The installed copy is built (not editable), so it has no git checkout: the stamp gives it
-    # HEAD's commit, which the replay-metrics tests' child rebaselines record and compare
-    with _build_stamp(session):
-        _install_from_lockfile(session)
+    # HEAD's commit, which the replay-metrics tests' child rebaselines record and compare. It is
+    # written into the installed copy, never the checkout, so a build running alongside neither
+    # loses its stamp to this session's removal nor packages this one (BUGS.md #224.47)
+    _install_from_lockfile(session)
+    _stamp_installed_engine(session)
 
     # The SDL drivers are left to the suite (tests/sdl_defaults.py defaults both to dummy, and
     # outside CI tests/driver_comparison.py also runs the native driver and compares the
@@ -1738,6 +1740,10 @@ def _build_stamp(session: nox.Session) -> Generator[None]:
     stale stamp reaches a later build. Written before the session installs the package
     (``--no-editable`` builds it), so the installed copy PyInstaller collects has it too.
 
+    A stamp already in the checkout fails the write (another build's, or a killed one's: BUGS.md
+    #224.47); the write runs before the ``try``, so that failure never removes the other build's
+    stamp.
+
     Args:
         session: The nox session building.
 
@@ -1758,6 +1764,37 @@ def _build_stamp(session: nox.Session) -> Generator[None]:
             '--remove',
             external=True,
         )
+
+
+def _stamp_installed_engine(session: nox.Session) -> None:
+    """Write the build stamp into the session's installed engine (this checkout's revision).
+
+    The package is found without importing it (``find_spec`` of a top-level package runs none
+    of it), so nothing it imports, pygame's banner included, reaches the output read here.
+
+    Args:
+        session: The nox session whose installed engine to stamp.
+
+    """
+    installed_directory = session.run(
+        'python',
+        '-c',
+        'import importlib.util; '
+        "print(importlib.util.find_spec('glitchygames').submodule_search_locations[0])",
+        silent=True,
+    )
+    if not isinstance(installed_directory, str):
+        session.error('Could not find the installed glitchygames package to stamp')
+    session.run(
+        'uv',
+        'run',
+        '--frozen',
+        'python',
+        'scripts/write_build_stamp.py',
+        '--into',
+        installed_directory.strip(),
+        external=True,
+    )
 
 
 def _build_binary(session: nox.Session) -> None:

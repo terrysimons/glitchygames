@@ -289,13 +289,20 @@ def engine_source_revision() -> SourceRevision:
     return source_revision()
 
 
-def write_build_stamp(*, package_directory: Path, built_at: str) -> SourceRevision:
+def write_build_stamp(
+    *, package_directory: Path, built_at: str, stamp_directory: Path | None = None
+) -> SourceRevision:
     """Write the build stamp for a package built from a checkout (or an archive).
 
     Args:
-        package_directory: The package's directory.
+        package_directory: The package's directory (in the checkout or archive the revision is
+            read from).
         built_at: The build's time (ISO 8601; the caller reads the clock, so the package never
             does outside the engine's doors).
+        stamp_directory: Where the stamp is written (None: ``package_directory``). An installed
+            copy of the package (``nox -s test``'s) has no checkout to read: it is stamped with
+            its checkout's revision without a stamp ever appearing in the checkout (BUGS.md
+            #224.47).
 
     Returns:
         The revision written (source ``BUILD_STAMP``).
@@ -312,7 +319,8 @@ def write_build_stamp(*, package_directory: Path, built_at: str) -> SourceRevisi
     })
     stamp_fields = stamp.to_json()
     del stamp_fields['source']
-    (package_directory / BUILD_STAMP_FILE_NAME).write_text(
+    written_directory = package_directory if stamp_directory is None else stamp_directory
+    (written_directory / BUILD_STAMP_FILE_NAME).write_text(
         json.dumps(stamp_fields, indent=2, sort_keys=True) + '\n', encoding='utf-8'
     )
     return stamp

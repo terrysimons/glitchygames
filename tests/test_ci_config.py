@@ -9,6 +9,7 @@ import shlex
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
+from typing import NoReturn
 
 import pytest
 from scripts.workspace_packages import workspace_members
@@ -116,18 +117,41 @@ def test_circleci_installs_uv_at_its_pinned_version():
 class RecordingSession:
     """Stands in for a nox session: records every command, runs nothing."""
 
-    def __init__(self, *, posargs: list[str]) -> None:
-        """Start with the session's arguments and no commands."""
+    def __init__(self, *, posargs: list[str], outputs: dict[str, str] | None = None) -> None:
+        """Start with the session's arguments and no commands.
+
+        Args:
+            posargs: The session's arguments.
+            outputs: What a silent command prints, by its program (``python``): ``run`` returns
+                it, as nox does for ``silent=True``.
+
+        """
         self.posargs = posargs
+        self.outputs = {} if outputs is None else outputs
         self.commands: list[tuple[str, ...]] = []
         # Each command's environment overrides (``env=``), by command
         self.environments: dict[tuple[str, ...], object] = {}
         self.virtualenv = type('Virtualenv', (), {'location': '.nox/docs-deploy'})()
 
-    def run(self, *command: str, **options: object) -> None:
-        """Record a command the session runs, and its environment overrides."""
+    def run(self, *command: str, **options: object) -> str | None:
+        """Record a command the session runs, and its environment overrides.
+
+        Returns:
+            A silent command's canned output (``outputs``), else None.
+
+        """
         self.commands.append(command)
         self.environments[command] = options.get('env')
+        return self.outputs.get(command[0]) if options.get('silent') else None
+
+    def error(self, message: str) -> NoReturn:
+        """Fail the session, as nox's ``session.error`` does.
+
+        Raises:
+            RuntimeError: Always, with the message.
+
+        """
+        raise RuntimeError(message)
 
     def run_install(self, *command: str, **options: object) -> None:
         """Record an install command the session runs, and its environment overrides."""
@@ -311,15 +335,34 @@ def test_the_test_session_installs_a_stamped_engine():
     """
     import noxfile
 
-    session = RecordingSession(posargs=[])
+    installed = '.nox/test-3-14/lib/python3.14/site-packages/glitchygames'
+    session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
     noxfile.test(session)
     commands = session.commands
-    write_stamp = ('uv', 'run', '--frozen', 'python', 'scripts/write_build_stamp.py')
-    remove_stamp = (*write_stamp, '--remove')
+    stamp_installed_copy = (
+        *('uv', 'run', '--frozen', 'python', 'scripts/write_build_stamp.py'),
+        *('--into', installed),
+    )
     install = next(index for index, command in enumerate(commands) if command[:2] == ('uv', 'sync'))
     pytest_run = next(index for index, command in enumerate(commands) if command[0] == 'pytest')
 
-    assert commands.index(write_stamp) < install < commands.index(remove_stamp) < pytest_run
+    assert install < commands.index(stamp_installed_copy) < pytest_run
+    # Never the checkout's stamp: a build running alongside keeps its own (BUGS.md #224.47)
+    assert not [
+        command
+        for command in commands
+        if 'scripts/write_build_stamp.py' in command and '--into' not in command
+    ]
+
+
+def test_the_test_session_fails_when_it_cannot_find_its_installed_engine():
+    """No package path printed: the session stops rather than run unstamped."""
+    import noxfile
+
+    session = RecordingSession(posargs=[])
+
+    with pytest.raises(RuntimeError, match='installed glitchygames'):
+        noxfile.test(session)
 
 
 def test_docs_deploy_publishes_only_from_main():

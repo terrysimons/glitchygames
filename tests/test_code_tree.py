@@ -237,6 +237,22 @@ def test_landed_code_trees_name_the_commit_each_measured_tree_arrived_in(reposit
     assert landed[faster_tree].committed_at
 
 
+def test_landed_code_trees_refuses_a_shallow_clone(repository, tmp_path_factory):
+    """A shallow clone's log stops at its depth: refused, not read as fewer landed rows (#220.8)."""
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 6\n')
+    write(repository=repository, relative_path=f'{LEDGER_DIRECTORY}/six.json', text='{}\n')
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Measured'])
+    shallow = tmp_path_factory.mktemp('clones') / 'shallow'
+    # --depth needs a transport: a plain path clones locally and ignores it
+    git(
+        repository=shallow.parent,
+        arguments=['clone', '--quiet', '--depth', '1', repository.as_uri(), str(shallow)],
+    )
+
+    with pytest.raises(RuntimeError, match='shallow clone'):
+        landed_code_trees(repository=shallow, ledger_directory=LEDGER_DIRECTORY, paths=PATHS)
+
+
 def test_landed_code_trees_reads_each_commits_tree_once(mocker, repository):
     """A commit's tree never changes: a second build (a mkdocs serve rebuild) reads none again."""
     write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 8\n')

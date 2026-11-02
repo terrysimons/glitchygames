@@ -124,7 +124,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
   44. Closed 2026-10-31 (bug sweep, batch 3: the sentence names the member's tests directory). Was: Task 11: docs/games/mr_muncher.md:763 "Both test files" without noting they are in the member
   45. Closed 2026-10-27 (daecf457, D15 item 1): every member depends on `glitchygames>=1.0.0`, checked by `test_every_member_depends_on_the_engine_with_a_floor` (8c7b549e). Was: src/games/mr-muncher/pyproject.toml depends on glitchygames with no version floor
   46. Closed 2026-10-31 (bug sweep, batch 3: the warning no longer claims the class is not loaded). Was: Final: find_scene_class's "no scene class named X is loaded" warning misleads when the class is loaded but its module or logical name differs
-  47. Final: nox test session writes src/glitchygames/_build_info.json for its duration (race with concurrent build sessions)
+  47. Fixed 2026-11-01 (bug sweep: `nox -s test` stamps its installed copy (`scripts/write_build_stamp.py --into`), so no stamp appears in the checkout; a build refuses a stamp already in the checkout (another build's, or a killed one's) instead of overwriting it, and says how to remove a stale one; tests/test_build_info.py, tests/test_ci_config.py). Was: nox test session writes src/glitchygames/_build_info.json for its duration (race with concurrent build sessions)
   48. Closed 2026-10-31 (bug sweep, batch 3: every page carries an inline SVG tab icon (`TAB_ICON_LINK`, scripts/build_browser_bundle.py); tested). Was: Browser test (the owner): every page requests /favicon.ico and gets a 404 (no tab icon in the bundle)
 - **Files**: see each item
 
@@ -142,7 +142,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
   5. `MEASURED_PATHS` misses inputs outside it (a Python version pinned elsewhere; `scripts/replay_metrics.py`'s own measuring logic)
   6. Fixed 2026-10-25 (Task 7b): the hook wrote a recording's earlier header runs as `history-…` row files (no code tree, so always published, even a run of code that never landed) and left them untracked, and a moved recording's earlier runs were written again under its new path. Now only runs measured on a commit on `origin/main` without uncommitted changes are written (none without an `origin/main`), the hook stages every file its measurement wrote, and "already held" resolves `RECORDING_PATH_RENAMES`
   7. Closed 2026-10-31 (bug sweep, batch 3: the hook runs `uv run --locked`: a stale lock fails saying so; tested). Was: `uv run` inside the hook may rewrite a stale `uv.lock`, and the framework then fails the hook for modifying files
-  8. CircleCI's checkout is a full clone today; a shallow checkout would silently publish fewer landed rows (`git log` sees fewer commits)
+  8. Fixed 2026-11-01 (bug sweep: `landed_code_trees` refuses a shallow clone, naming `git fetch --unshallow`; tests/test_code_tree.py). Was: CircleCI's checkout is a full clone today; a shallow checkout would silently publish fewer landed rows (`git log` sees fewer commits)
 - **Files**: `src/glitchygames/code_tree.py`, `src/glitchygames/recording_metrics.py`, `scripts/measure_staged_replays.py`
 
 ### 110. Smaller Findings From the Coverage Push
