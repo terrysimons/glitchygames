@@ -212,6 +212,8 @@ uv run glitchygames verify --game paddleslap --only rally  # one game's, filtere
 uv run glitchygames unmeasured                             # what measure would measure on this machine
 uv run glitchygames measure --game paddleslap              # measure into the pending ledger
 uv run glitchygames performance-pages <directory>          # the ledger and graph pages
+uv run glitchygames sound-render sounds/pickups.toml#coin --sound-output coin.wav  # offline WAV
+uv run glitchygames sound-migrate sounds/recipes.toml      # v0 recipes -> sounds/recipes.v1.toml
 # A scripted session (PaddleSlap's golden: 622 frames, with its controls tail and quit)
 uv run glitchygames record-session paddleslap out.jsonl.gz --headless \
     --input-script scripts.golden_inputs:paddleslap_script --frame-count 600 \
@@ -596,7 +598,11 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `glitchygames unmeasured [--code-tree TREE] [--rows-directory DIR] [--pending PATH] [--game GAME
   ...]`, `glitchygames clear-published [--pending PATH]`,
   `glitchygames report PATH [--threshold PERCENT] [--minimum-ms MS] [--spans N]`,
-  `glitchygames performance-pages DIRECTORY [--published]`, each with
+  `glitchygames performance-pages DIRECTORY [--published]`,
+  `glitchygames sound-render SOURCE --sound-output PATH [--sample-format int16|float32]`,
+  `glitchygames sound-migrate FILE [--migrated-output PATH]` (`replay/tools/sound_tools.py`:
+  offline render through `glitchygames.audio.render_to_file`; v0 recipes to a v1 sound file,
+  refusing what v1 cannot say yet), each with
   `--project-root DIR`; arguments after a bare `--` go to the game). `--game` is the one
   command-only option (`COMMAND_ONLY_FLAGS` in `tests/replay/tools/test_registry.py`): a game needs
   none, it is the game. `verify` (`verify.py`) replays each recording headless in a child (no
@@ -1148,6 +1154,9 @@ revision: a game outside this repository names its own commit. Here both are one
 - Toolkit: oscillators (PolyBLEP square/saw), pitch curves via easing, envelopes, FIR filters,
   mixing, `to_sound()`
 - Recipes: `Tone`/`SoundRecipe` (TOML-loadable) played through `SoundBank`
+- Offline: `glitchygames.audio.render_to_file(sound, path, ...)` (`audio/offline.py`) writes a
+  sound (plus `OfflineEvent`s, loops, stems) to a WAV file with no audio device; alone it is the
+  compiled int16 buffer bit for bit; the tail stops 100 ms into -90 dBFS after the nominal end
 - Live voices: `scene_manager.live_audio.create_voice(owner=...)`, streamed in 100 ms chunks on
   a channel pool reserved at startup (`--live-voice-pool`, default 4)
 - Mixer: 44100 Hz, signed 16-bit, stereo, 512-sample buffer (started by `pygame.init()`)

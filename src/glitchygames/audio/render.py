@@ -520,6 +520,29 @@ def _note_events(spec: SoundSpec) -> tuple[NoteEvent, ...]:
     return (NoteEvent(0.0, UNPITCHED_REFERENCE_HZ, held_frames / rate),)
 
 
+def gate_end_frame(spec: SoundSpec) -> int:
+    """The frame the spec's last note is released at: where its held part ends (its nominal end).
+
+    The notes are placed as ``render_sound`` places them, so the release tail runs from here. A
+    pitched sound with no notes raises ``SoundRenderError`` (from ``_note_events``), as its render
+    does.
+
+    Args:
+        spec: The sound.
+
+    Returns:
+        The frame, counted from the sound's first.
+    """
+    rate = spec.sample_rate
+    return max(
+        (
+            round(event.start_seconds * rate) + round(event.length_seconds * rate)
+            for event in _note_events(spec)
+        ),
+        default=0,
+    )
+
+
 def _declicked(samples: FloatArray, sample_rate: int) -> FloatArray:
     """Fade in 1 ms when the first sample is loud, fade out 2 ms when the last one is (impl 5).
 

@@ -17,7 +17,7 @@ import sysconfig
 import wave
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Protocol, cast
 
@@ -276,18 +276,27 @@ class Sound:
         """Whether the sound holds its samples."""
         return self.samples_int16 is not None
 
-    def fresh_copy(self) -> Sound:
+    def fresh_copy(self, *, sample_rate: int | None = None) -> Sound:
         """Make an uncompiled sound that compiles the same way (cache ``none``, each play).
+
+        Args:
+            sample_rate: A rate to compile the copy at instead of this sound's (an offline
+                render's); a spec is rebuilt at that rate. A recorded file still decodes at its
+                own rate (or the mixer's). None keeps this sound's rate.
 
         Returns:
             The new sound.
         """
+        rate = self.sample_rate if sample_rate is None else sample_rate
+        spec = self.spec
+        if spec is not None and spec.sample_rate != rate:
+            spec = replace(spec, sample_rate=rate)
         return Sound(
             name=self.name,
             identity_key=self.identity_key,
-            sample_rate=self.sample_rate,
+            sample_rate=rate,
             playback_defaults=self.playback_defaults,
-            spec=self.spec,
+            spec=spec,
             legacy_recipe=self.legacy_recipe,
             recorded_file=self.recorded_file,
         )
@@ -651,26 +660,7 @@ class SoundLibrary:
         """Compile a sound into itself, timed and counted."""
         kind = 'decode' if sound.recorded_file is not None else 'compile'
         with self._accountant.measure(kind, sound.name):
-            if sound.recorded_file is not None:
-                _decode_recorded_file(sound)
-            elif sound.spec is not None:
-                rendered = render_sound(sound.spec)
-                sound.install(
-                    samples_float=rendered.samples,
-                    samples_int16=to_pcm16(rendered.samples),
-                    peak=rendered.peak,
-                    sample_rate=sound.sample_rate,
-                )
-            else:
-                assert sound.legacy_recipe is not None
-                # Version 0 recipes compile through today's renderer, unchanged (impl spec 10.4)
-                samples = sound.legacy_recipe.render(sample_rate=sound.sample_rate)
-                sound.install(
-                    samples_float=samples,
-                    samples_int16=to_pcm16(samples),
-                    peak=float(np.max(np.abs(samples))) if len(samples) else 0.0,
-                    sample_rate=sound.sample_rate,
-                )
+            compile_sound(sound)
         self._compiles += 1
 
     def _lookup(self, request: SoundRequest) -> tuple[Sound, bool]:
@@ -956,6 +946,38 @@ class SoundLibrary:
                 )
                 raise SoundAssetError(message)
             self._waves.register(wave_name, file_wave)
+
+
+def compile_sound(sound: Sound) -> None:
+    """Compile a sound into itself: the one compile path (the library's, and offline renders').
+
+    A version 1 sound or instrument renders its spec, a version 0 recipe renders through today's
+    renderer, and a recorded file is decoded. Nothing is timed or counted here: that is the
+    caller's (``SoundLibrary._compile``).
+
+    Args:
+        sound: The sound, compiled or not; its samples are replaced.
+    """
+    if sound.recorded_file is not None:
+        _decode_recorded_file(sound)
+    elif sound.spec is not None:
+        rendered = render_sound(sound.spec)
+        sound.install(
+            samples_float=rendered.samples,
+            samples_int16=to_pcm16(rendered.samples),
+            peak=rendered.peak,
+            sample_rate=sound.sample_rate,
+        )
+    else:
+        assert sound.legacy_recipe is not None
+        # Version 0 recipes compile through today's renderer, unchanged (impl spec 10.4)
+        samples = sound.legacy_recipe.render(sample_rate=sound.sample_rate)
+        sound.install(
+            samples_float=samples,
+            samples_int16=to_pcm16(samples),
+            peak=float(np.max(np.abs(samples))) if len(samples) else 0.0,
+            sample_rate=sound.sample_rate,
+        )
 
 
 def _decode_recorded_file(sound: Sound) -> None:

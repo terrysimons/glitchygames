@@ -262,6 +262,8 @@ def test_each_subcommands_project_root_help_says_what_its_tool_does_with_it():
         'clear-published': 'project',
         'report': 'unused',
         'performance-pages': 'project',
+        'sound-render': 'unused',
+        'sound-migrate': 'unused',
     }
 
 

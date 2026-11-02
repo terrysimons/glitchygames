@@ -8,6 +8,10 @@ Usage:
     coin = self.scene_manager.audio.sound('coin')   # in setup(): compiled once, cached
     coin.play()                                     # in gameplay
 
+    from glitchygames.audio import render_to_file
+
+    render_to_file(coin, 'out/coin.wav')            # offline, no audio device
+
     from glitchygames.audio import VoiceAssistant
 
     assistant = VoiceAssistant.for_controller('DualSense Wireless Controller')
@@ -28,6 +32,7 @@ from glitchygames.audio.exceptions import (
 from glitchygames.audio.instrument import Instrument, Noise
 from glitchygames.audio.library import CacheMode, Sound
 from glitchygames.audio.live import LiveAudio, LiveVoice
+from glitchygames.audio.offline import OfflineEvent, RenderReport, render_to_file
 from glitchygames.audio.pitch import Hz, Midi, Note, PitchTable, Scale, Tuning
 from glitchygames.audio.recipes import (
     SoundBank,
@@ -61,7 +66,9 @@ __all__ = [
     'Midi',
     'Noise',
     'Note',
+    'OfflineEvent',
     'PitchTable',
+    'RenderReport',
     'Scale',
     'Sound',
     'SoundAssetError',
@@ -79,6 +86,7 @@ __all__ = [
     'Waveform',
     'get_tts_backend',
     'load_sound_recipes',
+    'render_to_file',
 ]
 
 
