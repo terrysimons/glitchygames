@@ -12,7 +12,17 @@ from glitchygames.audio.waves import (
     Wave,
     WavePoint,
     WaveRegistry,
+    current_wave_registry,
 )
+from glitchygames.engine_context import EngineContext
+
+
+@pytest.fixture(autouse=True)
+def own_engine_context():
+    """Run each test in a fresh engine context, so registered waves never leak."""
+    with EngineContext(name='waves').active():
+        yield
+
 
 GHOST_POINTS = (
     WavePoint(at=CYCLE.START, level=LEVEL.CENTER),
@@ -123,10 +133,21 @@ def test_blend_is_a_crossfade_toward_the_other_wave():
     )
 
 
-def test_blend_of_zero_is_the_same_wave_and_accepts_a_wave():
-    """Blend of zero is the same wave and accepts a wave."""
+def test_blend_of_zero_matches_the_table_but_not_the_render_path():
+    """Blend of zero matches the table but not the render path."""
     saw = Wave('saw')
-    assert saw.blend(Wave('sine'), amount=0.0) == saw
+    blended = saw.blend(Wave('sine'), amount=0.0)
+    np.testing.assert_allclose(blended.table(), saw.table(), atol=1e-12)
+    assert blended != saw
+    assert blended.is_built_in_polyblep is False
+
+
+def test_equality_includes_duty_and_the_render_path():
+    """Equality includes duty and the render path."""
+    assert Wave('square') != Wave('pulse', duty=0.3)
+    assert Wave('square') == Wave('pulse')
+    assert hash(Wave('square')) == hash(Wave('pulse'))
+    assert Wave('saw') != Wave.mix(saw=1.0)
 
 
 def test_blend_amount_outside_zero_to_one_is_refused():
@@ -333,14 +354,64 @@ def test_registered_waves_mix_like_built_ins_and_built_in_names_are_reserved():
         registry.register('square', Wave('sine'))
 
 
-def test_registry_mixes_registered_and_built_in_waves():
-    """Registry mixes registered and built in waves."""
-    registry = WaveRegistry()
+def test_registered_waves_mix_by_name_through_the_current_context():
+    """Registered waves mix by name through the current context."""
     ghost = Wave.from_points(GHOST_POINTS, shape='smooth')
-    registry.register('ghost', ghost)
-    mixed = registry.mix(ghost=0.5, square=0.5)
+    current_wave_registry().register('ghost', ghost)
+    mixed = Wave.mix(ghost=0.5, square=0.5)
     expected = 0.5 * ghost.table() + 0.5 * Wave('square').table()
     np.testing.assert_allclose(mixed.table(), expected / np.max(np.abs(expected)))
+    blended = Wave('sine').blend('ghost', amount=1.0)
+    np.testing.assert_allclose(blended.table(), ghost.table() / np.max(np.abs(ghost.table())))
+
+
+def test_an_unregistered_name_in_a_mix_or_blend_is_refused_by_name():
+    """An unregistered name in a mix or blend is refused by name."""
+    with pytest.raises(ValueError, match="unknown wave 'ghost'"):
+        Wave.mix(ghost=1.0, square=1.0)
+    with pytest.raises(ValueError, match="unknown wave 'ghost'"):
+        Wave('sine').blend('ghost', amount=0.5)
+
+
+def test_a_wave_registered_in_one_context_is_unknown_in_another():
+    """A wave registered in one context is unknown in another."""
+    current_wave_registry().register('ghost', Wave('sine'))
+    with EngineContext(name='other').active(), pytest.raises(ValueError, match='ghost'):
+        Wave.mix(ghost=1.0)
+
+
+def test_the_registry_reuses_one_instance_per_built_in():
+    """The registry reuses one instance per built-in."""
+    registry = current_wave_registry()
+    assert registry['saw'] is registry['saw']
+
+
+def test_note_periods_per_cycle_is_two_only_with_sub_harmonics():
+    """Note periods per cycle is two only with sub-harmonics."""
+    assert Wave('sine').note_periods_per_cycle == 1
+    assert Wave.from_harmonics(Harmonics(octave=0.5)).note_periods_per_cycle == 1
+    assert Wave.from_harmonics(Harmonics(sub_octave=1.0)).note_periods_per_cycle == 2
+    assert Wave.from_harmonics(Harmonics(fifth=1.0)).note_periods_per_cycle == 2
+    one_period = Wave.from_harmonics(Harmonics(fundamental=1.0))
+    two_period = Wave.from_harmonics(Harmonics(sub_octave=1.0))
+    assert one_period != two_period
+
+
+def test_mixing_a_sub_octave_wave_keeps_the_sine_at_bin_two():
+    """Mixing a sub-octave wave keeps the sine at bin two."""
+    current_wave_registry().register(
+        'organ_low', Wave.from_harmonics(Harmonics(sub_octave=1.0, fundamental=0.0, octave=1.0))
+    )
+    mixed = Wave.mix(organ_low=1.0, sine=1.0)
+    assert mixed.note_periods_per_cycle == 2
+    magnitudes = np.abs(np.fft.rfft(mixed.table()))
+    # organ_low: 16' bar at bin 1, octave (harmonic 2) at bin 4; the sine's fundamental at bin 2
+    assert {int(index) for index in np.argsort(magnitudes)[-3:]} == {1, 2, 4}
+    assert magnitudes[2] > magnitudes[1]
+    assert np.max(np.delete(magnitudes, [1, 2, 4])) < 1e-9 * magnitudes[2]
+    blended = Wave('sine').blend(mixed, amount=0.0)
+    assert blended.note_periods_per_cycle == 2
+    assert np.argmax(np.abs(np.fft.rfft(blended.table()))) == 2
 
 
 def test_registry_lookup_contains_and_errors():

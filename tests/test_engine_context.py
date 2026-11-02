@@ -22,6 +22,7 @@ import pygame
 import pytest
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.audio.waves import Wave, current_wave_registry
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
     BackgroundPattern,
@@ -695,6 +696,19 @@ def check_default_background(*, first: EngineContext, second: EngineContext) -> 
     assert active_default_background_pattern() is default_pattern
 
 
+def check_wave_registry(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own registered waves, and the default context its own."""
+    default_registry = current_wave_registry()
+    with first.active():
+        current_wave_registry().register('isolation_probe', Wave('sine'))
+    with second.active():
+        assert 'isolation_probe' not in current_wave_registry()
+    with first.active():
+        assert 'isolation_probe' in current_wave_registry()
+    assert 'isolation_probe' not in default_registry
+    assert current_wave_registry() is default_registry
+
+
 def check_game_frame_clock(*, first: EngineContext, second: EngineContext) -> None:
     """Each context counts its own game frames, and the default context its own."""
     default_clock = game_frame_clock()
@@ -928,6 +942,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.pixel_snap.default_mode': check_default_snap_mode,
     'glitchygames.backgrounds.default_pattern': check_default_background,
     'glitchygames.game_frames.clock': check_game_frame_clock,
+    'glitchygames.audio.waves.registry': check_wave_registry,
     'glitchygames.input.state.current_input': check_current_input,
     'glitchygames.randomness.streams': check_random_streams,
     'glitchygames.sources.registry': check_sources_registry,

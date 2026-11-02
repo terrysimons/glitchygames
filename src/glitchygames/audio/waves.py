@@ -21,8 +21,10 @@ from typing import TYPE_CHECKING, Final, Self, override
 
 import numpy as np
 
+from glitchygames.engine_context import ContextSlot, current_context
+
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Sequence
 
     from numpy.typing import NDArray
 
@@ -275,7 +277,7 @@ class Wave:
     ``Wave.from_points(...)`` all give a wave; ``table()`` is its 2048-sample cycle.
     """
 
-    __slots__ = ('_bands', '_built_in_name', '_duty', '_table')
+    __slots__ = ('_bands', '_built_in_name', '_duty', '_note_periods', '_table')
 
     def __init__(self, name: str, *, duty: float | None = None) -> None:
         """Build a built-in wave by name.
@@ -299,22 +301,34 @@ class Wave:
             raise ValueError(message)
         resolved_duty = duty if duty is not None else BUILT_IN_DUTIES.get(name)
         self._initialize(
-            table=_naive_table(name, resolved_duty), built_in_name=name, duty=resolved_duty
+            table=_naive_table(name, resolved_duty),
+            built_in_name=name,
+            duty=resolved_duty,
+            note_periods=1,
         )
 
     def _initialize(
-        self, *, table: FloatArray, built_in_name: str | None, duty: float | None
+        self, *, table: FloatArray, built_in_name: str | None, duty: float | None, note_periods: int
     ) -> None:
+        self._note_periods: int = note_periods
         self._table: FloatArray = _freeze(table)
         self._built_in_name: str | None = built_in_name
         self._duty: float | None = duty
         self._bands: dict[int, FloatArray] = {}
 
     @classmethod
-    def _from_table(cls, table: FloatArray) -> Self:
+    def _from_table(cls, table: FloatArray, *, note_periods: int = 1) -> Self:
         wave = cls.__new__(cls)
-        wave._initialize(table=table, built_in_name=None, duty=None)
+        wave._initialize(table=table, built_in_name=None, duty=None, note_periods=note_periods)
         return wave
+
+    @property
+    def note_periods_per_cycle(self) -> int:
+        """How many periods of the played note the table's one cycle spans: 1, or 2.
+
+        A table built with ``sub_octave`` or ``fifth`` spans two note periods (see ``Harmonics``).
+        """
+        return self._note_periods
 
     @property
     def name(self) -> str | None:
@@ -344,11 +358,12 @@ class Wave:
 
         The band's top frequency is 20 Hz times a power of two at or above
         ``highest_frequency``. Only the harmonics that stay below Nyquist at that top are kept.
-        A table whose cycle holds sub-harmonics (see ``Harmonics``) is read at its own cycle
-        frequency, so the frequencies here are those of the table's cycle.
+        The frequency is that of the table's cycle: the note frequency divided by
+        ``note_periods_per_cycle`` (a table with sub-harmonics spans two note periods).
 
         Args:
-            highest_frequency: The highest cycle frequency, in hertz, that will read the table.
+            highest_frequency: The highest table-cycle frequency, in hertz, that will read the
+                table (note frequency / ``note_periods_per_cycle``).
             sample_rate: Samples per second.
 
         Returns:
@@ -372,30 +387,20 @@ class Wave:
 
     @classmethod
     def mix(cls, **weights: float) -> Self:
-        """Mix built-in waves by name; weights are normalized and the result peaks at 1.
+        """Mix waves by name; weights are normalized and the result peaks at 1.
+
+        Names are the built-in waves and the waves registered in the current engine context
+        (``current_wave_registry()``).
 
         Args:
-            **weights: Built-in wave name to weight. To mix registered waves too, use
-                ``WaveRegistry.mix``.
-
-        Returns:
-            The mixed wave.
-        """
-        return cls.mix_resolved(weights=weights, resolve=cls)
-
-    @classmethod
-    def mix_resolved(cls, *, weights: Mapping[str, float], resolve: Callable[[str], Wave]) -> Self:
-        """Mix waves found by name through ``resolve``; weights are normalized, peak is 1.
-
-        Args:
-            weights: Wave name to weight.
-            resolve: Looks a name up (``WaveRegistry.__getitem__`` for registered waves).
+            **weights: Wave name to weight.
 
         Returns:
             The mixed wave.
 
         Raises:
-            ValueError: If there are no weights, a weight is negative, or all are zero.
+            ValueError: If there are no weights, a weight is negative, all are zero, or a name
+                is neither built in nor registered.
         """
         if not weights:
             message = 'mix needs at least one wave'
@@ -407,8 +412,13 @@ class Wave:
         if total <= 0.0:
             message = 'mix weights must not all be zero'
             raise ValueError(message)
-        mixed = sum((weight / total) * resolve(name).table() for name, weight in weights.items())
-        return cls._from_table(_normalized(np.asarray(mixed)))
+        waves = {name: _wave_named(name) for name in weights}
+        note_periods = max(wave.note_periods_per_cycle for wave in waves.values())
+        mixed = sum(
+            (weight / total) * _table_spanning(waves[name], note_periods=note_periods)
+            for name, weight in weights.items()
+        )
+        return cls._from_table(_normalized(np.asarray(mixed)), note_periods=note_periods)
 
     def blend(self, other: str | Wave, *, amount: float) -> Wave:
         """Crossfade toward another wave: amount 0 is this wave, 1 is the other.
@@ -416,21 +426,24 @@ class Wave:
         The result is normalized to peak at 1, like ``mix``.
 
         Args:
-            other: A built-in wave name or a wave.
+            other: A wave, or the name of a built-in or registered wave.
             amount: 0 to 1.
 
         Returns:
             The blended wave.
 
         Raises:
-            ValueError: If the amount is outside 0-1.
+            ValueError: If the amount is outside 0-1 or the name is unknown.
         """
         if not 0.0 <= amount <= 1.0:
             message = f'amount must be between 0 and 1, got {amount}'
             raise ValueError(message)
-        other_wave = Wave(other) if isinstance(other, str) else other
-        blended = (1.0 - amount) * self._table + amount * other_wave.table()
-        return type(self)._from_table(_normalized(blended))
+        other_wave = _wave_named(other) if isinstance(other, str) else other
+        note_periods = max(self._note_periods, other_wave.note_periods_per_cycle)
+        blended = (1.0 - amount) * _table_spanning(
+            self, note_periods=note_periods
+        ) + amount * _table_spanning(other_wave, note_periods=note_periods)
+        return type(self)._from_table(_normalized(blended), note_periods=note_periods)
 
     @classmethod
     def from_harmonics(cls, harmonics: Harmonics) -> Self:
@@ -460,7 +473,7 @@ class Wave:
         table = np.zeros(WAVE_TABLE_LENGTH)
         for harmonic, level in levels.items():
             table += level * np.sin(2.0 * np.pi * harmonic * bins_per_harmonic * phase)
-        return cls._from_table(_normalized(table))
+        return cls._from_table(_normalized(table), note_periods=bins_per_harmonic)
 
     @classmethod
     def from_points(
@@ -516,13 +529,18 @@ class Wave:
 
     @override
     def __hash__(self) -> int:
-        return hash(self._table.tobytes())
+        return hash(self._identity())
 
     @override
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Wave):
             return NotImplemented
-        return self._table.tobytes() == other.table().tobytes()
+        return self._identity() == other._identity()
+
+    def _identity(self) -> tuple[bytes, int, bool, float | None]:
+        # The render path (PolyBLEP or table) and the period span change what is heard, so they
+        # belong to the identity beside the table
+        return (self._table.tobytes(), self._note_periods, self.is_built_in_polyblep, self._duty)
 
     @override
     def __repr__(self) -> str:
@@ -536,6 +554,7 @@ class WaveRegistry:
     def __init__(self) -> None:
         """Start empty."""
         self._waves: dict[str, Wave] = {}
+        self._built_ins: dict[str, Wave] = {}
 
     def register(self, name: str, wave: Wave) -> None:
         """Register a wave under a name.
@@ -570,7 +589,10 @@ class WaveRegistry:
         if name in self._waves:
             return self._waves[name]
         if name in BUILT_IN_WAVE_NAMES:
-            return Wave(name)
+            # One instance per built-in, so its mip bands are built once
+            if name not in self._built_ins:
+                self._built_ins[name] = Wave(name)
+            return self._built_ins[name]
         message = f'no wave named {name!r}'
         raise KeyError(message)
 
@@ -585,13 +607,45 @@ class WaveRegistry:
         """
         return name in self._waves or name in BUILT_IN_WAVE_NAMES
 
-    def mix(self, **weights: float) -> Wave:
-        """Mix registered and built-in waves by name, like ``Wave.mix``.
 
-        Args:
-            **weights: Wave name to weight.
+WAVE_REGISTRY_SLOT: ContextSlot[WaveRegistry] = ContextSlot(
+    name='glitchygames.audio.waves.registry', factory=WaveRegistry
+)
 
-        Returns:
-            The mixed wave.
-        """
-        return Wave.mix_resolved(weights=weights, resolve=self.__getitem__)
+
+def current_wave_registry() -> WaveRegistry:
+    """Return the current engine context's wave registry (made empty on first use).
+
+    Returns:
+        The registry.
+    """
+    return current_context().value(slot=WAVE_REGISTRY_SLOT)
+
+
+def _wave_named(name: str) -> Wave:
+    try:
+        return current_wave_registry()[name]
+    except KeyError:
+        message = f'unknown wave {name!r}: neither built in nor registered'
+        raise ValueError(message) from None
+
+
+def _table_spanning(wave: Wave, *, note_periods: int) -> FloatArray:
+    """The wave's table as a cycle that spans ``note_periods`` note periods.
+
+    A one-period table is repeated to fill a two-period cycle by moving bin k to bin 2k, so the
+    table keeps its length and its harmonics keep their levels.
+
+    Args:
+        wave: The wave.
+        note_periods: The span to give the table, at least the wave's own.
+
+    Returns:
+        The table.
+    """
+    if wave.note_periods_per_cycle == note_periods:
+        return wave.table()
+    spectrum = np.fft.rfft(wave.table())
+    spanning = np.zeros_like(spectrum)
+    spanning[::note_periods] = spectrum[: len(spectrum) // note_periods + 1]
+    return np.fft.irfft(spanning, n=WAVE_TABLE_LENGTH)
