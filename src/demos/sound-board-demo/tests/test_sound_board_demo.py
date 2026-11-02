@@ -209,7 +209,7 @@ def test_the_screen_shows_the_selected_row_and_is_not_black(scene: sound_board_d
 
 
 def test_every_label_fits_inside_its_cell_and_the_screen(scene: sound_board_demo.Game) -> None:
-    """In every label mode, every row's labels are fit their cells."""
+    """In every label mode, every row's labels fit their cells."""
     assert scene.screen is not None
     for _mode in sound_board_demo.LABEL_MODES:
         for row_index in range(len(scene.rows)):
@@ -295,9 +295,12 @@ def test_main_runs_the_demo_and_plays_a_key(mocker: MockerFixture) -> None:
 
     scenes = [seen for seen in script.scenes_seen if seen is not None]
     assert isinstance(scenes[-1], sound_board_demo.Game)
-    # Key 1 and the chord key each played a voice that the engine's voice table accepted
+    # Key 1 and the chord key each got a real voice slot (a dropped play's handle has slot -1)
     assert play.call_count == 2
-    assert all(bool(handle) for handle in play.spy_return_list)
+    for handle in play.spy_return_list:
+        assert handle.slot >= 0, 'the play was dropped: it got the silent handle'
+        assert handle.table is not None
+        assert handle.table.counters.dropped_plays == 0
 
 
 def test_a_scene_given_sprite_groups_keeps_them() -> None:
