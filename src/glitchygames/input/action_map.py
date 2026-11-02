@@ -58,6 +58,14 @@ _SDL_AXIS_MAX: float = 32767.0
 # Default deadzone for analog sticks (industry standard)
 DEFAULT_DEADZONE: float = 0.15
 
+# The to_dict key holding the map's settings, not bindings (BUGS.md #184.6, #184.7): a dict, never
+# a list, so a loader that predates it skips it as it skips any non-list value; an action cannot
+# be named this
+SETTINGS_KEY: str = '__settings__'
+# The settings it holds: the input mode the map was made in and its stick deadzone
+INPUT_MODE_SETTING: str = 'input_mode'
+DEADZONE_SETTING: str = 'deadzone'
+
 
 def normalized_axis_value(*, event_type: int, value: float) -> float:
     """Return an axis motion's position as a float from -1.0 to 1.0.
@@ -179,6 +187,16 @@ class ActionMap:
         self._just_released: set[str] = set()
         self._axis_values: dict[str, float] = {}
 
+    @property
+    def input_mode(self) -> InputMode:
+        """Which gamepad event families the map binds (the constructor's ``input_mode``)."""
+        return self._input_mode
+
+    @property
+    def deadzone(self) -> float:
+        """The analog stick deadzone (the constructor's ``deadzone``)."""
+        return self._deadzone
+
     # --- Binding API ---
 
     def bind(  # ruff: ignore[too-many-arguments]
@@ -216,7 +234,13 @@ class ActionMap:
             instance_id: Controller instance filter for button/axis
                 bindings. None accepts any controller.
 
+        Raises:
+            ValueError: If the action is named ``SETTINGS_KEY`` (a saved map's settings).
+
         """
+        if action == SETTINGS_KEY:
+            message = f"{SETTINGS_KEY!r} names a saved map's settings, not an action"
+            raise ValueError(message)
         if keyboard is not None:
             self._add_binding(
                 Binding(
@@ -484,10 +508,16 @@ class ActionMap:
         suitable for JSON or TOML serialization.
 
         Returns:
-            A dict mapping action names to lists of binding dicts.
+            A dict mapping action names to lists of binding dicts, and ``SETTINGS_KEY`` to the
+            map's settings: its input mode and deadzone (BUGS.md #184.6, #184.7).
 
         """
-        result: dict[str, list[dict[str, Any]]] = {}
+        result: dict[str, Any] = {
+            SETTINGS_KEY: {
+                INPUT_MODE_SETTING: self._input_mode.value,
+                DEADZONE_SETTING: self._deadzone,
+            }
+        }
 
         # Digital bindings (only DOWN events, UP is derived); a key position is stored as
         # 'scancode', a key code or button as 'code'. A joystick button (JOYBUTTONDOWN: a
@@ -531,25 +561,59 @@ class ActionMap:
         cls,
         data: dict[str, Any],
         defaults: ActionMap | None = None,
+        input_mode: str | None = None,
+        deadzone: float | None = None,
     ) -> ActionMap:
         """Deserialize bindings from a dict.
 
         If defaults is provided, actions not in data use the default
         bindings. Actions in data override defaults completely.
 
+        The two settings (``SETTINGS_KEY``) come from different places first (BUGS.md #184.6,
+        #184.7), since the input mode is how the game runs now and the deadzone is the
+        player's:
+
+        - input mode: ``input_mode`` when given (a game passes the mode it runs in), else the
+          defaults', else the saved one, else 'auto';
+        - deadzone: ``deadzone`` when given, else the saved one (a player's setting), else the
+          defaults', else ``DEFAULT_DEADZONE``.
+
+        A saved mode this engine does not know, or a saved deadzone that is not a number of 0
+        or more, is logged and skipped.
+
         Args:
             data: Binding data from SaveManager/serializer.
             defaults: Optional ActionMap with default bindings.
+            input_mode: The input mode to build the map in, or None (above).
+            deadzone: The deadzone to build the map with, or None (above).
 
         Returns:
             A new ActionMap with the loaded bindings.
 
         """
-        action_map = cls()
+        settings = data.get(SETTINGS_KEY)
+        saved: dict[str, Any] = (
+            cast('dict[str, Any]', settings) if isinstance(settings, dict) else {}
+        )
+        if input_mode is None:
+            input_mode = (
+                defaults.input_mode
+                if defaults is not None
+                else cls._saved_input_mode(saved=saved.get(INPUT_MODE_SETTING))
+            )
+        if deadzone is None:
+            saved_deadzone = cls._saved_deadzone(saved=saved.get(DEADZONE_SETTING))
+            if saved_deadzone is not None:
+                deadzone = saved_deadzone
+            elif defaults is not None:
+                deadzone = defaults.deadzone
+            else:
+                deadzone = DEFAULT_DEADZONE
+        action_map = cls(deadzone=deadzone, input_mode=input_mode)
         loaded_actions: set[str] = set()
 
         for action_name, binding_list in data.items():
-            if not isinstance(binding_list, list):
+            if action_name == SETTINGS_KEY or not isinstance(binding_list, list):
                 continue
             loaded_actions.add(action_name)
             for entry in cast('list[Any]', binding_list):
@@ -565,6 +629,38 @@ class ActionMap:
             cls._merge_defaults(action_map, defaults, loaded_actions)
 
         return action_map
+
+    @staticmethod
+    def _saved_input_mode(*, saved: object) -> InputMode:
+        """Return the input mode a saved map names, or 'auto' for none or an unknown one.
+
+        Returns:
+            The mode.
+
+        """
+        if saved is None:
+            return InputMode.AUTO
+        try:
+            return InputMode(saved)
+        except ValueError:
+            log.warning('The saved action map names an unknown input mode %r; using auto', saved)
+            return InputMode.AUTO
+
+    @staticmethod
+    def _saved_deadzone(*, saved: object) -> float | None:
+        """Return the deadzone a saved map names, or None for none or an unusable one.
+
+        Returns:
+            The deadzone, or None.
+
+        """
+        if saved is None:
+            return None
+        # bool is an int: True is no deadzone
+        if isinstance(saved, bool) or not isinstance(saved, int | float) or saved < 0:
+            log.warning('The saved action map names an unusable deadzone %r; skipping it', saved)
+            return None
+        return float(saved)
 
     @staticmethod
     def _load_binding_entry(

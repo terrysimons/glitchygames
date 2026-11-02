@@ -6,7 +6,8 @@ import pygame
 import pytest
 
 from glitchygames.events.base import HashableEvent
-from glitchygames.input.action_map import ActionMap
+from glitchygames.input.action_map import DEFAULT_DEADZONE, SETTINGS_KEY, ActionMap
+from glitchygames.input.input_devices import InputMode
 from glitchygames.testing.keys import qwerty_scancode
 
 
@@ -548,6 +549,16 @@ class TestUnbindAndClear:
         assert actions.is_held('jump') is False
 
 
+def _saved_settings(input_mode: str, *, deadzone: float = DEFAULT_DEADZONE) -> dict[str, object]:
+    """Return a saved map's settings entry (``SETTINGS_KEY``), as to_dict writes it.
+
+    Returns:
+        The entry, as a dict to merge into the expected data.
+
+    """
+    return {SETTINGS_KEY: {'input_mode': input_mode, 'deadzone': deadzone}}
+
+
 class TestPersistence:
     """Tests for serialization and deserialization."""
 
@@ -561,9 +572,100 @@ class TestPersistence:
         restored = ActionMap.from_dict(data)
 
         assert restored.get_action(_key_down(pygame.K_SPACE)) == 'jump'
-        # Restored default input_mode is 'joystick', so controller event won't match
-        # but joystick equivalent will
+        # Restored in the mode it was saved in (controller), so the controller event matches
+        # and the joystick one does not (BUGS.md #184.6)
+        assert restored.input_mode is InputMode.CONTROLLER
+        assert restored.get_action(_button_down(pygame.CONTROLLER_BUTTON_A)) == 'jump'
+        assert restored.get_action(_joy_button_down(pygame.CONTROLLER_BUTTON_A)) is None
+
+    def test_the_callers_mode_wins_over_the_saved_one(self) -> None:
+        """A game loads a saved map in the mode it runs in (BUGS.md #184.6)."""
+        original = ActionMap(input_mode='controller')
+        original.bind('jump', controller_button=pygame.CONTROLLER_BUTTON_A)
+        defaults = ActionMap(input_mode='auto')
+
+        restored = ActionMap.from_dict(
+            original.to_dict(), defaults=defaults, input_mode=InputMode.JOYSTICK
+        )
+
+        assert restored.input_mode is InputMode.JOYSTICK
         assert restored.get_action(_joy_button_down(pygame.CONTROLLER_BUTTON_A)) == 'jump'
+        assert restored.get_action(_button_down(pygame.CONTROLLER_BUTTON_A)) is None
+
+    def test_the_defaults_mode_wins_over_the_saved_one(self) -> None:
+        original = ActionMap(input_mode='controller')
+        original.bind('jump', keyboard=pygame.K_SPACE)
+
+        restored = ActionMap.from_dict(
+            original.to_dict(), defaults=ActionMap(input_mode='joystick')
+        )
+
+        assert restored.input_mode is InputMode.JOYSTICK
+
+    def test_a_map_saved_without_a_mode_loads_in_auto(self) -> None:
+        """A map saved before the mode was recorded."""
+        restored = ActionMap.from_dict({'jump': [{'type': 'KeyDown', 'code': pygame.K_SPACE}]})
+
+        assert restored.input_mode is InputMode.AUTO
+        assert restored.get_action(_key_down(pygame.K_SPACE)) == 'jump'
+
+    def test_an_unknown_saved_mode_loads_in_auto_and_is_logged(self, caplog) -> None:
+        with caplog.at_level('WARNING', logger='game.input.action_map'):
+            restored = ActionMap.from_dict({SETTINGS_KEY: {'input_mode': 'paddle'}})
+
+        assert restored.input_mode is InputMode.AUTO
+        assert "unknown input mode 'paddle'" in caplog.text
+
+    def test_the_saved_settings_are_no_action(self) -> None:
+        """The reserved key is skipped on load, and bind() refuses it as an action name."""
+        saved = _saved_settings('joystick', deadzone=0.3)
+        restored = ActionMap.from_dict(saved)
+
+        assert restored.to_dict() == saved
+        with pytest.raises(ValueError, match='not an action'):
+            restored.bind(SETTINGS_KEY, keyboard=pygame.K_SPACE)
+
+    def test_a_saved_deadzone_wins_over_the_defaults(self) -> None:
+        """The deadzone is the player's: their saved one beats the game's (BUGS.md #184.7)."""
+        original = ActionMap(deadzone=0.3)
+
+        restored = ActionMap.from_dict(original.to_dict(), defaults=ActionMap(deadzone=0.25))
+
+        assert restored.deadzone == 0.3
+
+    def test_the_callers_deadzone_wins_over_the_saved_one(self) -> None:
+        restored = ActionMap.from_dict(_saved_settings('auto', deadzone=0.3), deadzone=0.1)
+
+        assert restored.deadzone == 0.1
+
+    def test_without_a_saved_deadzone_the_defaults_is_used(self) -> None:
+        """A map saved before the deadzone was recorded keeps the game's tuning."""
+        restored = ActionMap.from_dict(
+            {'jump': [{'type': 'KeyDown', 'code': pygame.K_SPACE}]},
+            defaults=ActionMap(deadzone=0.25),
+        )
+
+        assert restored.deadzone == 0.25
+
+    def test_without_any_deadzone_the_default_is_used(self) -> None:
+        assert ActionMap.from_dict({}).deadzone == DEFAULT_DEADZONE
+
+    @pytest.mark.parametrize('saved', ['wide', -0.1, True])
+    def test_an_unusable_saved_deadzone_is_skipped_and_logged(self, saved, caplog) -> None:
+        with caplog.at_level('WARNING', logger='game.input.action_map'):
+            restored = ActionMap.from_dict(
+                {SETTINGS_KEY: {'deadzone': saved}}, defaults=ActionMap(deadzone=0.25)
+            )
+
+        assert restored.deadzone == 0.25
+        assert 'unusable deadzone' in caplog.text
+
+    def test_malformed_settings_are_skipped(self) -> None:
+        """Settings that are not a dict are read as none."""
+        restored = ActionMap.from_dict({SETTINGS_KEY: 'joystick'})
+
+        assert restored.input_mode is InputMode.AUTO
+        assert restored.deadzone == DEFAULT_DEADZONE
 
     def test_from_dict_with_defaults(self) -> None:
         """File data overrides defaults; missing actions use defaults."""
@@ -591,8 +693,8 @@ class TestPersistence:
         data = original.to_dict()
         restored = ActionMap.from_dict(data)
 
-        # Restored uses default joystick mode, so feed a joystick axis event
-        restored.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 0.7))
+        # Restored in the mode it was saved in (controller): a controller axis event
+        restored.handle_event(_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 20000))
         assert restored.is_held('move_right') is True
 
     def test_joystick_mode_gamepad_buttons_survive_a_round_trip(self) -> None:
@@ -620,6 +722,7 @@ class TestPersistence:
         data = original.to_dict()
 
         assert data == {
+            **_saved_settings('controller'),
             'jump': [{'type': 'ControllerButtonDown', 'code': 0, 'instance_id': 1}],
             'steer': [
                 {
@@ -631,9 +734,9 @@ class TestPersistence:
             ],
         }
         restored = ActionMap.from_dict(data)
-        restored.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 0.9, joy=2))
+        restored.handle_event(_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 30000, instance_id=2))
         assert restored.is_held('steer') is False
-        restored.handle_event(_joy_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 0.9, joy=1))
+        restored.handle_event(_axis_motion(pygame.CONTROLLER_AXIS_LEFTX, 30000, instance_id=1))
         assert restored.is_held('steer') is True
 
     def test_an_action_with_keys_and_axes_lists_both(self) -> None:
@@ -666,7 +769,10 @@ class TestPersistence:
 
         restored = ActionMap.from_dict(data)
 
-        assert restored.to_dict() == {'jump': [{'type': 'KeyDown', 'code': pygame.K_SPACE}]}
+        assert restored.to_dict() == {
+            **_saved_settings('auto'),
+            'jump': [{'type': 'KeyDown', 'code': pygame.K_SPACE}],
+        }
 
     def test_default_axes_fill_actions_the_file_leaves_out(self) -> None:
         defaults = ActionMap()
@@ -757,7 +863,10 @@ class TestScancodeBindings:
         original = ActionMap()
         original.bind('move_left', scancode=pygame.KSCAN_A)
         data = original.to_dict()
-        assert data == {'move_left': [{'type': 'KeyDown', 'scancode': pygame.KSCAN_A}]}
+        assert data == {
+            **_saved_settings('auto'),
+            'move_left': [{'type': 'KeyDown', 'scancode': pygame.KSCAN_A}],
+        }
         restored = ActionMap.from_dict(data)
         press = _positional_key_down(key=pygame.K_q, scancode=pygame.KSCAN_A)
         assert restored.get_action(press) == 'move_left'

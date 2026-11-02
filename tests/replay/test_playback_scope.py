@@ -1996,6 +1996,31 @@ class TestDevicesInAPlayback:
             assert engine.controller_manager is live_controller_manager
             assert engine.input_devices is live_devices
 
+    def test_a_playback_without_an_engine_has_no_devices_to_set_aside(
+        self, tmp_path, mocker: MockerFixture
+    ):
+        """A bare scene manager (no engine) plays a scope; there are no live devices to swap."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            live_devices = engine.input_devices
+            entered = mocker.spy(engine, 'enter_playback_devices')
+            exited = mocker.spy(engine, 'exit_playback_devices')
+            mocker.patch.object(
+                SceneManager, 'game_engine', new_callable=mocker.PropertyMock, return_value=None
+            )
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+
+            assert outcome_reason(manager) == 'end_of_recording'
+            entered.assert_not_called()
+            exited.assert_not_called()
+            assert engine.input_devices is live_devices
+
 
 class TestOnlyScopedErrorsAreContained:
     """An error of the installed doors under a scope propagates as it would outside one."""
