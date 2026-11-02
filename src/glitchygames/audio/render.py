@@ -77,6 +77,9 @@ PULSE_GIBBS_PEAK: Final[float] = 1.296
 POLYBLEP_PEAK_MARGIN: Final[float] = 1.01
 # A table read never exceeds its band's peak; this only absorbs the division's rounding
 TABLE_PEAK_MARGIN: Final[float] = 1.0 + 1e-9
+# Impl 5 "Denormals and non-finite values": magnitudes below this flush to zero, so a denormal
+# level (2.2e-313) never reaches a division such as synth.normalize's peak / loudest
+DENORMAL_FLUSH_LEVEL: Final[float] = 1e-30
 # A PolyBLEP wave's first sample at phase 0: the square is high, the saw at its bottom
 SAW_START_LEVEL: Final[float] = -1.0
 SQUARE_START_LEVEL: Final[float] = 1.0
@@ -462,7 +465,8 @@ def _render_source(  # ruff: ignore[too-many-arguments] - one call site, each ar
     if source.envelope is not None:
         levels = envelope_levels(source.envelope, gate_frames=gate_frames, sample_rate=rate)
         layer *= _fitted(levels, frame_count)
-    return source.level * layer
+    level = 0.0 if source.level < DENORMAL_FLUSH_LEVEL else source.level
+    return level * layer
 
 
 def _render_note(

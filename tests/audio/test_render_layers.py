@@ -1,8 +1,10 @@
 """Layered sources (AUD-SRC-004): every layer is heard, at its own level and shaping."""
 
+import warnings
+
 import numpy as np
 
-from glitchygames.audio.instrument import Filter, Instrument, Source
+from glitchygames.audio.instrument import Filter, Instrument, Noise, Source
 from glitchygames.audio.pitch import Hz
 from glitchygames.audio.render import render_sound
 from tests.audio.measuring import spectrum_peak_db
@@ -42,3 +44,29 @@ def test_a_layers_filter_shapes_only_that_layer():
     samples = render_sound(spec_for(instrument, pitch=Hz(200.0), length=1.0)).samples
     assert spectrum_peak_db(samples, 200.0) > -0.1
     assert spectrum_peak_db(samples, 8000.0) < -40
+
+
+def test_a_denormal_level_is_silence_not_non_finite():
+    """A level below 1e-30 counts as silent, so normalizing never divides by a denormal."""
+    instrument = Instrument(
+        sources={'faint': Source('sine', level=2.2e-313, pitch=Hz(200.0))},
+        envelope=HELD_ENVELOPE,
+        normalize=True,
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        samples = render_sound(spec_for(instrument, pitch=Hz(200.0), length=0.05)).samples
+    assert np.all(samples == 0.0)
+
+
+def test_a_denormal_noise_level_is_silence():
+    """A noise source at a denormal level renders zeros."""
+    instrument = Instrument(
+        sources={'hiss': Noise('white', level=2.2e-313, seed=1)},
+        envelope=HELD_ENVELOPE,
+        normalize=True,
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        samples = render_sound(spec_for(instrument, pitch=Hz(200.0), length=0.05)).samples
+    assert np.all(samples == 0.0)

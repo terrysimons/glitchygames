@@ -1,7 +1,7 @@
 """Fuzzed valid instruments never render NaN or infinity (AUD-RT-004)."""
 
 import numpy as np
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from glitchygames.audio.instrument import Filter, Instrument, Noise, PitchCurve, Source
@@ -97,7 +97,23 @@ def valid_specs(draw):
     return spec_for(instrument, pitch=Hz(draw(pitches)), length=length)
 
 
-@settings(derandomize=True, max_examples=200)
+# Hypothesis draws 5% of its floats from constants harvested out of every project module imported
+# so far (hypothesis/internal/conjecture/providers.py, _get_local_constants), so even a
+# derandomized run draws different examples depending on which other test modules were collected
+# first. A denormal level only reached normalize in some orders; this example pins it in all.
+DENORMAL_LEVEL_SPEC = spec_for(
+    Instrument(
+        sources={'faint': Source('sine', level=2.2e-313)},
+        envelope=EnvelopeSpec(attack=0.0, decay=0.0, sustain=1.0, release=0.0, curve='linear'),
+        normalize=True,
+    ),
+    pitch=Hz(440.0),
+    length=0.01,
+)
+
+
+@settings(derandomize=True, database=None, max_examples=200)
+@example(spec=DENORMAL_LEVEL_SPEC)
 @given(spec=valid_specs())
 def test_fuzzed_valid_specs_never_produce_non_finite_output(spec):
     """Every valid spec renders finite samples within full scale."""

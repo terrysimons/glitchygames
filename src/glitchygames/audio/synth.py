@@ -461,9 +461,16 @@ def normalize(samples: FloatArray, peak: float = 0.9) -> FloatArray:
         message = f'peak must be in (0, 1], got {peak}'
         raise ValueError(message)
     loudest = float(np.max(np.abs(samples))) if len(samples) else 0.0
-    if loudest <= 0.0:
+    # A denormal loudest sample is silence: peak / loudest would overflow to infinity and
+    # samples * infinity is NaN (and warns), so a signal that small is returned unchanged
+    if loudest < np.finfo(np.float64).tiny:
         return samples.copy()
-    return samples * (peak / loudest)
+    gain = peak / loudest
+    # Not reachable for peak in (0, 1] and a normal loudest (the gain is at most 1 / tiny), but
+    # kept so a future peak range can never turn silence-adjacent input into NaN
+    if not math.isfinite(gain):  # pragma: no cover
+        return samples.copy()
+    return samples * gain
 
 
 def to_pcm16(samples: FloatArray) -> npt.NDArray[np.int16]:
