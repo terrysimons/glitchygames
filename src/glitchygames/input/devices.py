@@ -1209,6 +1209,37 @@ class ReplayDeviceRegistry:
         """
         return self._opened_by_instance.get(instance_id)
 
+    def adopt_device(
+        self: Self, *, descriptor: DeviceDescriptor
+    ) -> ReplayJoystick | ReplayController:
+        """Make a stand-in for a device the recording held as it began, asking no answer.
+
+        An instant replay's journal records the live devices as its scene started
+        (glitchygames/instant_replay.py, rule 10); its playback scope adopts them
+        (``GameEngine.enter_playback_devices``), so the played scene sees them without taking
+        an answer the scene's own code is served. Later lookups by instance id find them.
+
+        Args:
+            descriptor: The device (a ``CONTROLLER_KIND`` one is a game controller).
+
+        Returns:
+            The stand-in: a ``ReplayController`` for a game controller, else a
+            ``ReplayJoystick``.
+
+        """
+        device: ReplayJoystick | ReplayController
+        if descriptor.kind == CONTROLLER_KIND:
+            device = ReplayController(descriptor=descriptor)
+            joystick = device.as_joystick()
+        else:
+            device = joystick = ReplayJoystick(descriptor=descriptor)
+        self._opened_by_instance[descriptor.instance_id] = joystick
+        self._opened_instances.add(descriptor.instance_id)
+        _remember_descriptor(
+            descriptors_by_instance=self._opened_descriptors_by_instance, descriptor=descriptor
+        )
+        return device
+
     def descriptor_for_instance(self: Self, *, instance_id: int) -> DeviceDescriptor | None:
         """Return the recorded descriptor of an opened stand-in by instance id, or None.
 

@@ -18,6 +18,7 @@ from glitchygames.audio.synth import Waveform
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events import FPSEVENT
 from glitchygames.input import devices as devices_module
+from glitchygames.input.input_devices import scene_start_devices_record
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.instant_replay import (
     JOURNAL_BYTES_PER_MINUTE_LIMIT,
@@ -33,6 +34,7 @@ from glitchygames.recording import (
     REDELIVERED_EVENTS_FIELD,
     RESUME_BRIDGE_FIELD,
     SAVES_OPENED_FIELD,
+    SCENE_START_DEVICES_HEADER_FIELD,
     SCENE_START_FIELD,
     post_event,
     post_input_event,
@@ -883,6 +885,30 @@ class TestThePauseScreen:
 
 class TestPlaybackScopesAndTheJournal:
     """A playback scope suspends the live scene's journal, which bridges the gap afterwards."""
+
+    def test_an_instant_replay_sees_the_live_devices_then_gives_them_back(self):
+        """The journal records the live devices; the scope adopts them (BUGS.md #184.3)."""
+        with running_scene(InstantCountingScene) as manager:
+            step(manager, frames=2)
+            engine = manager.game_engine
+            assert engine is not None
+            live_devices = engine.input_devices
+            header = journal_of(manager).as_recording().header
+            assert header[SCENE_START_DEVICES_HEADER_FIELD] == scene_start_devices_record(
+                input_devices=live_devices
+            )
+
+            assert manager.instant_replay()
+            step(manager)
+
+            assert manager.playback_session is not None
+            assert engine.input_devices is not live_devices
+            assert engine.input_devices.input_mode is live_devices.input_mode
+            assert [device.descriptor for device in engine.input_devices] == [
+                device.descriptor for device in live_devices
+            ]
+            step_until_the_scope_ends(manager=manager, stepper=step)
+            assert engine.input_devices is live_devices
 
     def test_a_scope_suspends_the_journal_and_its_scene_keeps_none(self):
         with running_scene(InstantCountingScene) as manager:
@@ -1875,6 +1901,7 @@ class TestJournalLifecycleGuards:
         assert header['scene_class'] == 'JournalOnlyScene'
         assert 'game_class' not in header
         assert 'game_module' not in header
+        assert SCENE_START_DEVICES_HEADER_FIELD not in header
         assert journal._devices_opened == []
         assert journal._device_enumeration == []
 

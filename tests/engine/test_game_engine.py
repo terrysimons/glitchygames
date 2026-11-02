@@ -36,6 +36,7 @@ Covers:
 
 import argparse
 import contextlib
+import dataclasses
 import logging
 import os
 import sys
@@ -57,20 +58,27 @@ if TYPE_CHECKING:
 
 
 from glitchygames import events
-from glitchygames.argument_types import non_negative_int, non_negative_percent
+from glitchygames.argument_types import non_negative_int, non_negative_percent, unit_interval
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.engine.game_engine import (
     pygame_needs_fastevents,
     scene_class_of,
-    unit_interval,
 )
 from glitchygames.events import base as events_base
+from glitchygames.events.controller import ControllerEventManager
 from glitchygames.exit_codes import ExitCode
-from glitchygames.input.input_devices import InputMode
+from glitchygames.input.devices import (
+    CONTROLLER_COUNT_CALL,
+    IS_CONTROLLER_CALL,
+    JOYSTICK_COUNT_CALL,
+    EnumerationAnswer,
+    ReplayDeviceRegistry,
+)
+from glitchygames.input.input_devices import InputMode, RecordedDevices
 from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene, SceneManager
-from glitchygames.sources import advance_frame_clock, install_sources
+from glitchygames.sources import active_sources, advance_frame_clock, install_sources
 from tests.display_canvas import CANVAS_PATTERN, show_canvas_on_new_display
 from tests.input.stand_in_devices import (
     STAND_IN_PAD,
@@ -2289,6 +2297,172 @@ class TestProcessControllerEvent:
         engine, _scene = _engine_with_devices(mocker)
 
         assert engine.process_controller_event(events.HashableEvent(99999)) is False
+
+
+# A played recording's devices: the stand-ins' kinds and counts, other instance ids
+RECORDED_STICK = dataclasses.replace(STAND_IN_STICK, instance_id=40)
+RECORDED_PAD = dataclasses.replace(STAND_IN_PAD, device_index=0, instance_id=41)
+# A stick the recording plugs in while it plays (device index 1, after RECORDED_STICK)
+RECORDED_LATE_STICK = dataclasses.replace(STAND_IN_STICK, device_index=1, instance_id=42)
+
+
+def _playback_door(mocker, *, descriptors, answers):
+    """Make a played recording's devices door the active one, as a playback scope pushes it.
+
+    Returns:
+        The door.
+
+    """
+    registry = ReplayDeviceRegistry(descriptors=descriptors, enumeration_answers=answers)
+    mocker.patch.object(active_sources(), 'devices', return_value=registry)
+    return registry
+
+
+@pytest.mark.usefixtures('event_blocking_restored')
+class TestPlaybackDevices:
+    """A playback scope sees its recording's devices; the live ones wait (BUGS.md #184.3)."""
+
+    def test_a_recording_files_devices_replace_the_live_ones_until_the_scope_ends(self, mocker):
+        """Opened through the scope's door in the recorded mode; put back as they were."""
+        engine, scene = _engine_with_devices(mocker)
+        live_devices = engine.input_devices
+        live_joysticks = engine.joystick_manager.joysticks
+        live_controller_manager = engine.controller_manager
+        assert live_controller_manager is not None
+        live_controllers = live_controller_manager.controllers
+        registry = _playback_door(
+            mocker,
+            descriptors=[RECORDED_STICK],
+            answers=[EnumerationAnswer(call=JOYSTICK_COUNT_CALL, device_index=None, value=1)],
+        )
+
+        engine.enter_playback_devices(
+            recorded=RecordedDevices(input_mode=InputMode.JOYSTICK, scene_start_devices=None),
+            registry=registry,
+        )
+
+        assert [device.instance_id for device in engine.input_devices] == [40]
+        assert engine.input_devices.input_mode is InputMode.JOYSTICK
+        assert engine.controller_manager is None
+        assert scene.devices_added == []  # No scene is told
+
+        engine.exit_playback_devices()
+
+        assert engine.input_devices is live_devices
+        assert engine.joystick_manager.joysticks is live_joysticks
+        assert engine.controller_manager is live_controller_manager
+        assert live_controller_manager.controllers is live_controllers
+        assert [device.instance_id for device in engine.input_devices] == [
+            STAND_IN_PAD.instance_id,
+            STAND_IN_STICK.instance_id,
+        ]
+        assert scene.devices_removed == []
+
+    def test_a_device_the_recording_plugs_in_never_reaches_the_live_game(self, mocker):
+        """The played JOYDEVICEADDED changes the scope's devices only, and goes with them."""
+        engine, _scene = _engine_with_devices(mocker)
+        registry = _playback_door(
+            mocker,
+            descriptors=[RECORDED_STICK, RECORDED_LATE_STICK],
+            answers=[EnumerationAnswer(call=JOYSTICK_COUNT_CALL, device_index=None, value=1)],
+        )
+        engine.enter_playback_devices(
+            recorded=RecordedDevices(input_mode=InputMode.JOYSTICK, scene_start_devices=None),
+            registry=registry,
+        )
+
+        engine.process_joystick_event(
+            events.HashableEvent(pygame.JOYDEVICEADDED, device_index=1, guid='g')
+        )
+        assert [device.instance_id for device in engine.input_devices] == [40, 42]
+
+        engine.exit_playback_devices()
+
+        assert RECORDED_LATE_STICK.instance_id not in engine.joystick_manager.joysticks
+        assert engine.input_devices.get(instance_id=RECORDED_LATE_STICK.instance_id) is None
+
+    def test_an_auto_recording_played_in_joystick_mode_has_a_controller_manager_of_its_own(
+        self, mocker
+    ):
+        """Made for the scope, controller events kept blocked at SDL, released as it ends."""
+        engine, _scene = _engine_with_devices(mocker, input_mode='joystick')
+        assert engine.controller_manager is None
+        registry = _playback_door(
+            mocker,
+            descriptors=[RECORDED_PAD],
+            answers=[
+                EnumerationAnswer(call=CONTROLLER_COUNT_CALL, device_index=None, value=1),
+                EnumerationAnswer(call=IS_CONTROLLER_CALL, device_index=0, value=True),
+                EnumerationAnswer(call=JOYSTICK_COUNT_CALL, device_index=None, value=1),
+            ],
+        )
+
+        engine.enter_playback_devices(
+            recorded=RecordedDevices(input_mode=InputMode.AUTO, scene_start_devices=None),
+            registry=registry,
+        )
+
+        scope_controller_manager = engine.controller_manager
+        assert scope_controller_manager is not None
+        assert list(scope_controller_manager.controllers) == [RECORDED_PAD.instance_id]
+        assert [device.controller is not None for device in engine.input_devices] == [True]
+        assert pygame.event.get_blocked(pygame.CONTROLLERDEVICEADDED)
+
+        engine.exit_playback_devices()
+
+        assert engine.controller_manager is None
+        assert ControllerEventManager not in events_base.ResourceManager.__instances__
+
+    def test_an_instant_replays_devices_are_adopted_asking_the_door_nothing(self, mocker):
+        """The journal's devices become stand-ins: no count, open or is_controller is asked.
+
+        Each of those answers is the played scene's own (its __init__ and setup()), so taking
+        one would leave the scene a wrong one.
+        """
+        engine, _scene = _engine_with_devices(mocker)
+        registry = _playback_door(mocker, descriptors=[], answers=[])
+        asked = [
+            mocker.spy(registry, name)
+            for name in (
+                'joystick_count',
+                'controller_count',
+                'is_controller',
+                'open_joystick',
+                'open_controller',
+            )
+        ]
+        unmapped_stick = dataclasses.replace(RECORDED_STICK, device_index=1)
+
+        engine.enter_playback_devices(
+            recorded=RecordedDevices(
+                input_mode=InputMode.AUTO, scene_start_devices=(RECORDED_PAD, unmapped_stick)
+            ),
+            registry=registry,
+        )
+
+        assert [
+            (device.instance_id, device.controller is not None) for device in engine.input_devices
+        ] == [(RECORDED_PAD.instance_id, True), (unmapped_stick.instance_id, False)]
+        assert registry.joystick_for_instance(instance_id=RECORDED_PAD.instance_id) is not None
+        for spy in asked:
+            spy.assert_not_called()
+
+    def test_entering_twice_is_refused(self, mocker):
+        engine, _scene = _engine_with_devices(mocker)
+        registry = _playback_door(mocker, descriptors=[], answers=[])
+        recorded = RecordedDevices(input_mode=InputMode.JOYSTICK, scene_start_devices=None)
+        engine.enter_playback_devices(recorded=recorded, registry=registry)
+
+        with pytest.raises(RuntimeError, match='already holds the devices'):
+            engine.enter_playback_devices(recorded=recorded, registry=registry)
+
+    def test_exiting_without_a_scope_changes_nothing(self, mocker):
+        engine, _scene = _engine_with_devices(mocker)
+        live_devices = engine.input_devices
+
+        engine.exit_playback_devices()
+
+        assert engine.input_devices is live_devices
 
 
 class TestProcessMidiEvent:

@@ -475,7 +475,9 @@ class TestSceneManagerInternals:
         self.scene_manager.switch_to_scene(Scene())
         assert self.scene_manager.rumble.sustained_levels == (0.0, 0.0)
         self.scene_manager.rumble.update(shakers=[], dt=0.0, devices=lambda: [device])
-        device.rumble.assert_called_once_with(1.0, 0.6, 800)
+        device.rumble.assert_called_once_with(
+            low_frequency=1.0, high_frequency=0.6, duration_milliseconds=800
+        )
 
     def test_frame_services_advance_screen_shake(self):
         """Test the per-frame services advance the screen shake by the frame time."""
@@ -514,13 +516,13 @@ class TestSceneManagerInternals:
         ]
 
     def test_frame_services_rumble_active_scene_camera_shake(self, mocker):
-        """Test a camera shake's rumble reaches the engine's controllers."""
+        """Test a camera shake's rumble reaches the engine's input devices."""
         from glitchygames.camera import Camera2D
         from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle
 
         device = mocker.Mock()
         engine = mocker.Mock()
-        engine.controller_manager.controllers = {0: device}
+        engine.input_devices = [device]
         self.scene_manager._game_engine = engine
         scene = Scene()
         scene.camera = Camera2D(screen_width=100, screen_height=100)

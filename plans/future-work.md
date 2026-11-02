@@ -56,6 +56,14 @@ local branches are deleted. The decisions made on the way, for the record:
   recorded key event given its position; a one-off check proved nothing else changed), not
   re-recorded, and `ScriptedInputSupervisor` posts with `post_input_event`. Later: a rebind
   screen saving `ActionMap.to_dict()` (it already round-trips scancodes).
+- **Per-device axis deadzones** (2026-11-01, from the `--axis-deadzone` discussion): the engine
+  option is one value for every device and both event layers (a deadzone belongs to the
+  physical stick, which `--input-mode` can read on either layer). A player with a drifting pad
+  and a precise flight stick plugged in together needs one per device: a saved setting keyed by
+  the device's GUID (stable across sessions; instance ids are not), set from a controls screen,
+  with `--axis-deadzone` as the fallback. Per-layer options (`--controller-deadzone`,
+  `--joystick-deadzone`) were considered and rejected: the same stick would get two deadzones
+  depending on the input mode.
 
 ## Sprite QuickLook (`src/quicklook`, 2026-10-29)
 

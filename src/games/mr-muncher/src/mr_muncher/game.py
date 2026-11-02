@@ -365,7 +365,7 @@ class MrMuncherScene(Scene):
         self.projector: LiveVoice | None = None
         # The projector's settings last given (cutoff, flutter rate), to change them only then
         self.projector_settings: tuple[float, float] | None = None
-        self.actions = self._create_action_map(input_mode=self.options.get('input_mode', 'auto'))
+        self.actions = self._create_action_map(options=self.options)
         self._pose_sprites()
 
     def _draw_maze_backgrounds(self: Self) -> None:
@@ -526,20 +526,20 @@ class MrMuncherScene(Scene):
         self._stop_projector()
 
     @staticmethod
-    def _create_action_map(*, input_mode: str) -> ActionMap:
+    def _create_action_map(*, options: Mapping[str, Any]) -> ActionMap:
         """Bind the controls (every key by its position, ActionMap module docstring).
 
         Arrows and WASD, a gamepad's D-pad and left stick steer; ESC, P or Start pause; Q quits.
 
         Args:
-            input_mode: Gamepad event family: 'auto' (the engine's --input-mode default: both
-                families), 'joystick' or 'controller'.
+            options: The engine's options: the map follows its input mode and axis deadzone
+                (``ActionMap.from_engine_options``).
 
         Returns:
             The action map.
 
         """
-        actions = ActionMap(input_mode=input_mode)
+        actions = ActionMap.from_engine_options(options)
         bindings = (
             ('move_up', pygame.KSCAN_UP, pygame.KSCAN_W, pygame.CONTROLLER_BUTTON_DPAD_UP),
             ('move_left', pygame.KSCAN_LEFT, pygame.KSCAN_A, pygame.CONTROLLER_BUTTON_DPAD_LEFT),

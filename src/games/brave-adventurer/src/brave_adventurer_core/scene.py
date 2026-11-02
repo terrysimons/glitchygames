@@ -66,6 +66,7 @@ from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Mapping
 
     from brave_adventurer_core.levels import LevelManager
     from brave_adventurer_core.terrain import GroundSegment, StoneWall
@@ -194,20 +195,21 @@ class BraveAdventurerSceneBase(Scene):
         self.hud_font: pygame.font.Font | None = None
 
         # Input action mapping (unifies keyboard + controller)
-        self.actions = self._create_action_map(input_mode=self.options.get('input_mode', 'auto'))
+        self.actions = self._create_action_map(options=self.options)
 
     @staticmethod
-    def _create_action_map(*, input_mode: str) -> ActionMap:
+    def _create_action_map(*, options: Mapping[str, Any]) -> ActionMap:
         """Bind the controls: arrows, SPACE, ESC and Q by position; a gamepad's D-pad and A.
 
         Args:
-            input_mode: Gamepad event family ('joystick', 'controller' or 'auto').
+            options: The engine's options: the map follows its input mode and axis deadzone
+                (``ActionMap.from_engine_options``).
 
         Returns:
             The action map (the golden replays' controls check reads it too).
 
         """
-        actions = ActionMap(input_mode=input_mode)
+        actions = ActionMap.from_engine_options(options)
         # Every control binds a physical key position (a scancode: the same place on every
         # keyboard layout), pause and quit included (ActionMap module docstring)
         actions.bind(

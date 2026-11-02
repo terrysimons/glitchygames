@@ -27,7 +27,14 @@ Demos and instant replays run inside a playback scope, not a new engine run
    event timer and the scene manager's ``previous_scene`` are saved
    (``PlaybackRequest.begin_session``); the live scene is stashed without ``cleanup()``;
    ``PlaybackSources`` are pushed on top of the installed doors
-   (``push_scoped_sources``; glitchygames/sources.py); a ``playback`` control event is
+   (``push_scoped_sources``; glitchygames/sources.py); the live game's devices are set aside
+   and the recording's take their place, in the input mode it was recorded in
+   (``GameEngine.enter_playback_devices``: a recording file's are opened through the scope's
+   devices door as its engine opened them at startup, an instant replay's adopted from its
+   journal's ``scene_start_devices``), so its device events (JOYDEVICEADDED, ...) change only
+   the scope's and the live ones come back untouched as it ends (BUGS.md #184.3; a recording
+   played from a later frame than its first knows only the devices it started with); a
+   ``playback`` control event is
    recorded (a marker: replaying the session starts the scope again from the recorded input,
    so it is compared, never applied again); the scene is rebuilt (``rebuild_scene``) and made
    active as a switch would, a transition's arrival step is repeated for a scene that arrived
@@ -209,13 +216,11 @@ of a session that played a scope cannot itself be played in-game from a frame in
 that scope: a recorder writes no ``playback_answers`` or ``resume_bridge`` (only an
 instant-replay journal does), so its scene's playback requests and its resumption after the
 scope are not known (it replays exactly with ``--replay-trace``, which runs the scope again).
-Rumble in joystick mode asks the devices door for the joysticks (glitchygames/input/rumble.py);
-inside a scope each send still asks the scope's door, with a device cache of its own, and then
-sends to no device (rule 8), so the played recording's answers are taken as it gave them. The
-scope's rumble controller starts fresh, though: a rumble the live game sent before the played
-scene began, still running when it was recorded, is not known to it, so its sends (and the
-counts they ask) can fall on other frames than the recording's; that matters only when the
-played recording's joystick count changed part way.
+Rumble goes to the devices ``input_devices`` holds and asks no devices door, so a scope's
+rumble (sent to no device, rule 8) takes no answer from the played recording. Recordings made
+before that (joystick mode asked the joystick count on each send) hold per-frame counts nobody
+asks now; the played scene's own next count reads one of them instead of a later one, which
+matters only when the recording's joystick count changed part way.
 """
 
 from __future__ import annotations

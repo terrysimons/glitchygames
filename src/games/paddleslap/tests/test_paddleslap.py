@@ -647,14 +647,14 @@ class TestPositionalKeys:
         ],
     )
     def test_a_paddle_key_is_its_position(self, player, action, scancode, qwerty_key):
-        actions = Game._create_action_maps()[player]
+        actions = Game._create_action_maps(options={})[player]
         # Another layout names the key in that place differently (AZERTY's Z is QWERTY's W)
         assert actions.get_action(key_at(key=pygame.K_F13, scancode=scancode)) == action
         # The QWERTY key code somewhere else is not the paddle key
         assert actions.get_action(key_at(key=qwerty_key, scancode=pygame.KSCAN_F13)) is None
 
     def test_pause_is_a_position_too(self):
-        pause_actions = Game._create_action_maps()[2]
+        pause_actions = Game._create_action_maps(options={})[2]
         assert (
             pause_actions.get_action(key_at(key=pygame.K_F13, scancode=pygame.KSCAN_SPACE))
             == 'pause'

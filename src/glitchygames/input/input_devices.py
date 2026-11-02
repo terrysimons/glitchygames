@@ -39,20 +39,22 @@ Rules:
 
 from __future__ import annotations
 
+import dataclasses
 import enum
 import logging
-from typing import TYPE_CHECKING, Protocol, Self
+from typing import TYPE_CHECKING, Any, Protocol, Self
 
 import pygame
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.input.devices import DeviceDescriptor
 from glitchygames.input.state import current_input
 from glitchygames.sources import active_sources
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
 
-    from glitchygames.input.devices import DeviceDescriptor, OpenedController, OpenedJoystick
+    from glitchygames.input.devices import OpenedController, OpenedJoystick
 
 LOG = logging.getLogger('game.input.input_devices')
 LOG.addHandler(logging.NullHandler())
@@ -82,6 +84,85 @@ class InputMode(enum.StrEnum):
     AUTO = 'auto'
     JOYSTICK = 'joystick'
     CONTROLLER = 'controller'
+
+
+@dataclasses.dataclass(frozen=True)
+class RecordedDevices:
+    """The devices a playback scope opens for its recording (BUGS.md #184.3).
+
+    Attributes:
+        input_mode: The input mode the recording was made in.
+        scene_start_devices: The devices its scene started with, adopted as stand-ins (an
+            instant replay's journal), or None to open the recording's devices through its
+            devices door as the recorded engine did (a recording file).
+
+    """
+
+    input_mode: InputMode
+    scene_start_devices: tuple[DeviceDescriptor, ...] | None
+
+
+def scene_start_devices_record(*, input_devices: InputDevices) -> dict[str, Any]:
+    """Return the live devices as an instant-replay journal records them as its scene starts.
+
+    Args:
+        input_devices: The engine's devices (``GameEngine.input_devices``).
+
+    Returns:
+        The header field's value: the input mode and every device's descriptor (a game
+        controller's is ``CONTROLLER_KIND``), in ``input_devices`` order.
+
+    """
+    return {
+        'input_mode': input_devices.input_mode.value,
+        'devices': [device.descriptor.to_json() for device in input_devices],
+    }
+
+
+def recorded_devices(
+    *, options: Mapping[str, Any] | None, scene_start_devices: Mapping[str, Any] | None
+) -> RecordedDevices:
+    """Return how a playback scope opens its recording's devices, from the recording's header.
+
+    Args:
+        options: The header's ``options`` (a recording file's engine options), or None.
+        scene_start_devices: The header's ``scene_start_devices`` (an instant replay's
+            journal: ``scene_start_devices_record``), or None.
+
+    Returns:
+        The journal's mode and devices when it has them; else the options' ``input_mode`` and
+        no devices to adopt. ``InputMode.AUTO`` (the default) when neither names a mode, or
+        names one this engine does not know (logged).
+
+    """
+    if scene_start_devices is not None:
+        return RecordedDevices(
+            input_mode=_known_input_mode(recorded=scene_start_devices.get('input_mode')),
+            scene_start_devices=tuple(
+                DeviceDescriptor.from_json(record)
+                for record in scene_start_devices.get('devices', [])
+            ),
+        )
+    recorded_mode = None if options is None else options.get('input_mode')
+    return RecordedDevices(
+        input_mode=_known_input_mode(recorded=recorded_mode), scene_start_devices=None
+    )
+
+
+def _known_input_mode(*, recorded: object) -> InputMode:
+    """Return the recorded input mode, or ``InputMode.AUTO`` for none or an unknown one (logged).
+
+    Returns:
+        The mode.
+
+    """
+    if recorded is None:
+        return InputMode.AUTO
+    try:
+        return InputMode(recorded)
+    except ValueError:
+        LOG.warning('The recording names an unknown input mode %r; using auto', recorded)
+        return InputMode.AUTO
 
 
 class DeviceLayer(enum.StrEnum):
@@ -508,6 +589,7 @@ class InputDevices:
         *,
         joysticks: Mapping[int, OpenedJoystick],
         controllers: Mapping[int, OpenedController],
+        controllers_complete: bool = False,
     ) -> InputDeviceChanges:
         """Follow the devices the joystick and controller managers hold (rules 2-4).
 
@@ -515,6 +597,9 @@ class InputDevices:
             joysticks: The joystick manager's opened joysticks, by instance id.
             controllers: The controller manager's opened controllers, by instance id (empty in
                 joystick mode, which has no controller manager).
+            controllers_complete: True when ``controllers`` holds every game controller (an
+                instant replay's adopted devices: ``GameEngine.enter_playback_devices``): no
+                joystick waits for its controller (rule 4), so the door is not asked.
 
         Returns:
             The devices added and removed.
@@ -544,8 +629,9 @@ class InputDevices:
                 known.attach_controller(controller=controller)
         if self._input_mode is not InputMode.CONTROLLER:
             for instance_id, joystick in joysticks.items():
-                if instance_id in self._devices or self._waits_for_its_controller(
-                    instance_id=instance_id
+                if instance_id in self._devices or (
+                    not controllers_complete
+                    and self._waits_for_its_controller(instance_id=instance_id)
                 ):
                     continue
                 device = self._new_device(

@@ -31,6 +31,7 @@ matter here:
 | `--resolution WxH` (default `800x480`) | The maze is scaled to fit (see [Layout](#layout-and-the-side-panels)). At 800x480 the tiles are 20 px and the maze starts at x = 130 |
 | `--target-fps` | The scene sets no `TARGET_FPS`, so the default is 60.01. Movement uses `dt`, so the frame rate does not change the game's speed |
 | `--input-mode {auto,joystick,controller}` | Which gamepad events reach the `ActionMap` (both families in `auto`) |
+| `--axis-deadzone` | The left stick's deadzone (`ActionMap.from_engine_options`; default 0.15) |
 | `--debug-overlay` | Shows each muncher's target tile (see [Debug overlay](#debug-overlay)) |
 | `--random-seed INT` | Seeds the frightened munchers' random turns |
 | `--screen-shake-intensity`, `--rumble-intensity` | Scale the shake and rumble when a muncher catches you |
@@ -709,7 +710,7 @@ by the autopilot, a demo could be recorded with
 | Random streams | The only randomness is the frightened munchers' turns, drawn from `random_stream('mr_muncher.munchers')` (seeded from `--random-seed`, kept in recordings) |
 | Scene starts | `replay_arguments()` returns `{'progress': starting_progress.model_dump()}` and the scene accepts a mapping as `progress`, so a recording can rebuild any reel as it began. `MrMuncherGameOverScene.replay_arguments()` returns the final score, the table and the reel reached |
 | Saves | High scores through `open_saves` (a sandbox in a replay) |
-| `ActionMap` | Scancode bindings for the keyboard, D-pad and stick bindings for gamepads, built by `MrMuncherScene._create_action_map(input_mode=...)`. The golden replay test reads the bindings from the same function |
+| `ActionMap` | Scancode bindings for the keyboard, D-pad and stick bindings for gamepads, built by `MrMuncherScene._create_action_map(options=...)`. The golden replay test reads the bindings from the same function |
 | Pause screen | The engine's `PauseScene`, which also shows the paused game in the debug overlay (`debug_subject`) |
 | Transitions | `FadeTransition` to the game-over screen |
 | Screen shake and rumble | `CAUGHT_SHAKE`: a 0.4 s `NOISE` shake of strength 6 on `ShakeTarget.SCREEN`, with gamepad rumble (low 0.8, high 0.4), when a muncher catches the player |

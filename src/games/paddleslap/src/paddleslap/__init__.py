@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Mapping
 
     from glitchygames.events.base import (
         ControllerAxisEvent,
@@ -160,7 +161,7 @@ class Game(Scene):
         )
         # Input action maps (separate per player for multi-controller)
         self.p1_actions, self.p2_actions, self.pause_actions = self._create_action_maps(
-            input_mode=self.options.get('input_mode', 'auto'),
+            options=self.options
         )
 
         self.balls: list[BallSprite] = []
@@ -919,13 +920,13 @@ class Game(Scene):
 
     @staticmethod
     def _create_action_maps(
-        input_mode: str = 'auto',
+        *, options: Mapping[str, Any]
     ) -> tuple[ActionMap, ActionMap, ActionMap]:
         """Create per-player and pause ActionMaps with default bindings.
 
         Args:
-            input_mode: Gamepad event family: 'auto' (the engine's --input-mode default: both
-                families), 'joystick' or 'controller'.
+            options: The engine's options: each map follows its input mode and axis deadzone
+                (``ActionMap.from_engine_options``).
 
         Returns:
             Tuple of (player1_actions, player2_actions, pause_actions).
@@ -933,7 +934,7 @@ class Game(Scene):
         """
         # Every control binds a physical key position (a scancode: the same place on every
         # keyboard layout), pause included (ActionMap module docstring)
-        player1_actions = ActionMap(input_mode=input_mode)
+        player1_actions = ActionMap.from_engine_options(options)
         player1_actions.bind(
             'up',
             scancode=pygame.KSCAN_W,
@@ -949,7 +950,7 @@ class Game(Scene):
             instance_id=0,
         )
 
-        player2_actions = ActionMap(input_mode=input_mode)
+        player2_actions = ActionMap.from_engine_options(options)
         player2_actions.bind(
             'up',
             scancode=pygame.KSCAN_UP,
@@ -965,7 +966,7 @@ class Game(Scene):
             instance_id=1,
         )
 
-        pause_actions = ActionMap(input_mode=input_mode)
+        pause_actions = ActionMap.from_engine_options(options)
         pause_actions.bind('pause', scancode=pygame.KSCAN_SPACE)
 
         return player1_actions, player2_actions, pause_actions

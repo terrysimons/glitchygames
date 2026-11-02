@@ -253,6 +253,7 @@ Added by `ControllerEventManager.args()` in `src/glitchygames/events/controller.
 [Event System](event_system.md#one-device-one-event-layer)).
 
 - `--input-mode {auto,joystick,controller}` (`choice`): Which gamepads the game sees (default: auto, every device; a mapped pad sends controller events, any other device joystick events; joystick: every device sends joystick events; controller: mapped pads only)
+- `--axis-deadzone` (`unit_interval`): Gamepad axis deadzone from 0.0 to 1.0: an axis position nearer its center reads as centered (default: 0.15). One value for every device and both event layers (a deadzone belongs to the physical stick, which `--input-mode` can read on either layer). A game's maps follow it when built with `ActionMap.from_engine_options(options)`, as every bundled game's are; a player's deadzone saved with a map (`ActionMap.to_dict`) wins over it on load unless the game passes `deadzone=` to `from_dict`
 
 #### Font Options
 

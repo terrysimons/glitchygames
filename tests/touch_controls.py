@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 
 import pygame
 
+from glitchygames.input.action_map import SETTINGS_KEY
+
 if TYPE_CHECKING:
     from scripts.build_browser_bundle import TouchButton, TouchLayout
 
@@ -45,7 +47,9 @@ def bound_scancodes(*action_maps: ActionMap) -> set[int]:
     return {
         binding['scancode']
         for action_map in action_maps
-        for bindings in action_map.to_dict().values()
+        for action, bindings in action_map.to_dict().items()
+        # The map's settings (input mode, deadzone) ride along under SETTINGS_KEY: no binding
+        if action != SETTINGS_KEY
         for binding in bindings
         if 'scancode' in binding
     }

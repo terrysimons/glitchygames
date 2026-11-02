@@ -81,6 +81,7 @@ from glitchygames.world import CoordinateSpace
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Mapping
 
     from glitchygames.audio.live import LiveVoice
     from glitchygames.events.base import (
@@ -326,7 +327,7 @@ class ClockworkKeepScene(Scene):
         self.saves: SaveManager = open_saves(app_name='clockwork-keep')
 
         # Input
-        self.actions = self._create_action_map(input_mode=self.options.get('input_mode', 'auto'))
+        self.actions = self._create_action_map(options=self.options)
 
         # HUD
         self.hud_font: pygame.font.Font | None = None
@@ -538,17 +539,18 @@ class ClockworkKeepScene(Scene):
             self._win()
 
     @staticmethod
-    def _create_action_map(*, input_mode: str) -> ActionMap:
+    def _create_action_map(*, options: Mapping[str, Any]) -> ActionMap:
         """Bind the controls: arrows, SPACE, W, left shift, ESC, Q by position; D-pad, A, Y, X.
 
         Args:
-            input_mode: Gamepad event family ('joystick', 'controller' or 'auto').
+            options: The engine's options: the map follows its input mode and axis deadzone
+                (``ActionMap.from_engine_options``).
 
         Returns:
             The action map (the golden replays' controls check reads it too).
 
         """
-        actions = ActionMap(input_mode=input_mode)
+        actions = ActionMap.from_engine_options(options)
         # Every control binds a physical key position (a scancode: the same place on every
         # keyboard layout), pause and quit included (ActionMap module docstring)
         actions.bind(

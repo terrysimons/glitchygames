@@ -80,6 +80,8 @@ from tests.stand_in_games import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
+
     from pytest_mock import MockerFixture
 
     from glitchygames.scenes import Scene
@@ -588,8 +590,13 @@ class FrameStreamListener:
         """Listen, and read on a thread from the first connection.
 
         Args:
-            closes_at_once: Close the connection as soon as it is made, reading nothing, and
-                abortively (a reset, not a graceful close), so a send after it fails at once.
+            closes_at_once: Close the connection once its token is read, abortively (a reset,
+                not a graceful close), so the child's next send fails at once. The token is
+                read first: reset at once, a loaded Windows runner's reset reached the child
+                before it sent the token, so it failed to connect instead of failing a frame.
+
+        Use ``frame_stream_listeners``, which stops every listener after the test, failed or
+        not (a listening socket left to the collector is a ResourceWarning in a later test).
 
         """
         self._listener = socket.create_server((compare.FRAME_STREAM_HOST, 0))
@@ -602,8 +609,14 @@ class FrameStreamListener:
         self._thread.start()
 
     def _read(self) -> None:
-        connection, _ = self._listener.accept()
+        try:
+            connection, _ = self._listener.accept()
+        except OSError:
+            # Stopped before the child connected (its test failed first): nothing to read
+            return
         if self._closes_at_once:
+            token = receive_exactly(connection=connection, count=len(self._token))
+            assert token == self._token.encode('ascii')
             # Linger on, for 0 seconds: close resets the connection rather than closing it
             # gracefully, which Windows' loopback lets sends succeed against into its buffers
             connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
@@ -637,8 +650,32 @@ class FrameStreamListener:
         """
         self._thread.join(timeout=CHILD_TIMEOUT_SECONDS)
         assert not self._thread.is_alive()
-        self._listener.close()
+        self.stop()
         return self._frames
+
+    def stop(self) -> None:
+        """Stop listening (again is harmless); a thread still waiting to accept then ends."""
+        self._listener.close()
+
+
+@pytest.fixture
+def frame_stream_listeners() -> Iterator[Callable[..., FrameStreamListener]]:
+    """Make frame stream listeners, each stopped after the test, whether it passed or not.
+
+    Yields:
+        ``FrameStreamListener``'s constructor, keeping each listener it makes.
+
+    """
+    made: list[FrameStreamListener] = []
+
+    def make(**options: bool) -> FrameStreamListener:
+        listener = FrameStreamListener(**options)
+        made.append(listener)
+        return listener
+
+    yield make
+    for listener in made:
+        listener.stop()
 
 
 @pytest.mark.parametrize(
@@ -646,15 +683,15 @@ class FrameStreamListener:
     [((), 0), (('--replay-pause-at-frame', '4'), 3)],
     ids=['from-frame-0', 'restarted-at-frame-4'],
 )
-def test_the_child_streams_one_frame_per_frame_in_order(
-    color_game, mocker, caplog, pause_arguments, first_frame
+def test_the_child_streams_one_frame_per_frame_in_order(  # ruff: ignore[too-many-arguments, too-many-positional-arguments] — pytest fixtures and parameters
+    color_game, mocker, caplog, pause_arguments, first_frame, frame_stream_listeners
 ):
     """A headless replay with a frame stream writes each frame once, in order, as presented.
 
     Restarted at a pause frame N, it writes from the frame a watched restart shows paused there
     (N - 1): the frames before it are rebuilt by the watched replay unshown.
     """
-    listener = FrameStreamListener()
+    listener = frame_stream_listeners()
 
     replay = replay_through_engine(
         mocker=mocker,
@@ -676,14 +713,14 @@ def test_the_child_streams_one_frame_per_frame_in_order(
     assert 'is ignored with --headless' not in caplog.text
 
 
-def test_a_stream_nobody_reads_any_more_ends_the_replay(color_game, mocker):
+def test_a_stream_nobody_reads_any_more_ends_the_replay(color_game, mocker, frame_stream_listeners):
     """When the parent is gone, the child stops replaying instead of running on unseen.
 
     The child writes its first frame only once the listener has reset the connection: left to
     the threads, a slow listener on a loaded Windows runner closed after the child had sent
     every frame into loopback's buffers, so the replay ended at the end of the recording.
     """
-    listener = FrameStreamListener(closes_at_once=True)
+    listener = frame_stream_listeners(closes_at_once=True)
     connect = compare.FrameStream.connect
 
     def connect_once_the_listener_is_gone(
@@ -2735,10 +2772,10 @@ def test_olds_own_pauses_are_skipped(color_game, mocker, tmp_path):
     assert run.onion_skin.frames_received == COLOR_GAME_FRAMES
 
 
-def test_the_child_streams_only_game_frames(color_game, mocker, tmp_path):
+def test_the_child_streams_only_game_frames(color_game, mocker, tmp_path, frame_stream_listeners):
     """A headless replay of a pausing run streams its game frames, numbered 0 to N - 1, only."""
     pausing = record_a_pausing_run(color_game=color_game, path=tmp_path / 'pausing.jsonl.gz')
-    listener = FrameStreamListener()
+    listener = frame_stream_listeners()
 
     replay = replay_through_engine(
         mocker=mocker,
