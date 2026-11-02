@@ -655,6 +655,27 @@ only replays; Part 2 Task 1).
   clock reads (tenacity stamps each retry's start with `time.monotonic()`; only its sleep is
   ours, through `sleep=`).
 
+## Sprite tags (user request, 2026-11-02)
+
+- **A `tags` list in the sprite file, saying what kind of thing the sprite is**, for fuzzy string
+  matching and for wiring sprites into an LLM or a vector database. Today a sprite carries only
+  its `name` and a free-text `description` (`[sprite]`; Bitmappy's AI writes the prompt there),
+  and Bitmappy's AI picks its example sprites by guessing from names
+  (`ai_worker._score_training_example`: +5 per word of the request found in an example's name).
+  Sketch: an optional `[sprite] tags = ["item", "weapon", "sword"]` (a TOML array of strings),
+  kept in order and written back as loaded, so files without it are unchanged. Decided
+  (2026-11-02): plain free-form tags for now, one list per sprite; no controlled vocabulary or
+  separate kind field, and no per-animation tags yet (either can come later on top of the list).
+  Still to decide in the design: normalization (lowercase, one spelling, singular). Touches every
+  reader and writer:
+  `AnimatedSprite` load/save (single-frame and animated), `BitmappySprite`'s static loader, the
+  sprite-file checks (`glitchygames.testing` sprite files), QuickLook's Swift reader
+  (`src/quicklook`), Bitmappy (show and edit tags; the AI writes tags for what it generates), and
+  the AI's example scoring (tags before name words). Then the search side: fuzzy matching on
+  tags, name and description (a library such as rapidfuzz, or the standard library's difflib),
+  and an export of each sprite's text (name, description, tags) for embedding into a vector
+  store, with the sprite's path as its key. Design first, then a plan.
+
 ## Assets and art
 
 - Ghosty sprite: frames 1–7 have inferred outer outlines; canvas screenshots of each frame would
