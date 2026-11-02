@@ -258,7 +258,7 @@ class AudioEngine:
         cache_mode: The cache mode.
     """
 
-    def __init__(
+    def __init__(  # ruff: ignore[too-many-arguments] - the engine's construction settings
         self,
         *,
         partition: ChannelPartition,
@@ -266,6 +266,7 @@ class AudioEngine:
         memory_limit_bytes: int = DEFAULT_MEMORY_LIMIT_BYTES,
         scene_source: Callable[[], object | None] = _no_scene,
         frame_number: int | None = None,
+        setup_mode: bool = True,
     ) -> None:
         """Make an engine over a channel partition.
 
@@ -276,6 +277,9 @@ class AudioEngine:
             scene_source: Gives the scene plays belong to and short names resolve in (the scene
                 in setup, else the active scene), or None.
             frame_number: The frame being run, for the compile log.
+            setup_mode: Whether compiles count as setup from the start: True while a scene is
+                in ``setup()`` or has run no logic frame since (and before the first scene);
+                False for an engine first made during gameplay.
         """
         self.waves: WaveRegistry = current_wave_registry()
         self.buses = BusTree()
@@ -283,6 +287,7 @@ class AudioEngine:
         self.cache_mode = cache
         self.accountant = AudioAccountant()
         self.accountant.frame_number = frame_number
+        self.accountant.setup_mode = setup_mode
         self._partition = partition
         self._scene_source = scene_source
         self._voices = VoiceTable(

@@ -533,6 +533,21 @@ class TestAccounting:
         assert diagnostics.compiles_in_gameplay == (gameplay_record,)
         assert diagnostics.gameplay_compiles == 1
 
+    def test_an_engine_made_mid_frame_starts_in_gameplay(self, scene_manager):
+        scene_manager.frame_number = 42
+        scene_manager._update_scene(scene_dt=FRAME_SECONDS)
+
+        scene_manager.audio.sound(Instrument(wave='sine'), pitch='C5')
+
+        (record,) = scene_manager.audio.snapshot().compile_log
+        assert (record.frame_number, record.during_setup) == (42, False)
+
+    def test_an_engine_made_during_setup_starts_in_setup(self, scene_manager):
+        scene_manager.switch_to_scene(PlayingInSetupScene())
+
+        (record,) = scene_manager.audio.snapshot().compile_log
+        assert record.during_setup is True
+
     def test_a_scene_switched_to_compiles_in_its_setup(self, engine, scene_manager):
         engine.begin_logic_frame()
 

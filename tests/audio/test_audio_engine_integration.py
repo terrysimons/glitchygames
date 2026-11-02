@@ -4,6 +4,7 @@ A stand-in game (this module's scenes; the engine never imports a member) runs t
 engine loop on SDL's dummy drivers (impl spec 4.2, 10.2, 10.3 and 11.0).
 """
 
+import logging
 import sys
 from typing import Any, ClassVar
 
@@ -13,7 +14,7 @@ import pytest
 from glitchygames.audio import CacheMode, Instrument
 from glitchygames.audio.accounting import CompileRecord
 from glitchygames.audio.engine import existing_audio_engine
-from glitchygames.audio.voices import reserved_channel_count
+from glitchygames.audio.voices import ChannelPartition, reserved_channel_count
 from glitchygames.engine import GameEngine
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_history import (
@@ -257,3 +258,72 @@ def _quit_at_once(scene: Scene, dt: float) -> None:
     """A dt_tick that quits."""
     del dt
     scene.scene_manager.quit()
+
+
+FIRST_AUDIO_FRAME = 3
+
+
+class LateSoundingGame(Scene):
+    """A stand-in game that first asks for audio in gameplay, at FIRST_AUDIO_FRAME."""
+
+    NAME = 'LateSoundingGame'
+    VERSION = '1.0'
+    SOUND_DIRECTORY = 'audio/fixtures/sounds'
+    seen: ClassVar[dict[str, Any]] = {}
+
+    def __init__(self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Start on frame 0."""
+        super().__init__(options=options, groups=groups)
+        self.frames_run = 0
+
+    def dt_tick(self, dt: float) -> None:
+        """Play the coin at FIRST_AUDIO_FRAME (the first audio access), then quit."""
+        super().dt_tick(dt)
+        if self.frames_run == FIRST_AUDIO_FRAME:
+            audio = self.scene_manager.audio
+            audio.play('coin')
+            LateSoundingGame.seen['diagnostics'] = audio.diagnostics()
+            self.scene_manager.quit()
+        self.frames_run += 1
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+def test_a_first_audio_access_in_gameplay_is_a_gameplay_compile(mocker, caplog):
+    """No setup() use: the compile belongs to its frame, and no setup line is logged."""
+    LateSoundingGame.seen.clear()
+
+    with caplog.at_level(logging.INFO, logger='game.audio.engine'):
+        build_engine(mocker, game=LateSoundingGame).start()
+
+    diagnostics = LateSoundingGame.seen['diagnostics']
+    (record,) = diagnostics.compiles_in_gameplay
+    assert (record.name, record.frame_number, record.during_setup) == (
+        'coin',
+        FIRST_AUDIO_FRAME,
+        False,
+    )
+    assert diagnostics.setup_compiles == 0
+    assert 'Setup compiled sounds' not in caplog.text
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+class TestTheReservedPartition:
+    """GameEngine.reserved_channel_partition keeps only a partition made on a running mixer."""
+
+    def test_a_partition_made_without_a_mixer_is_not_kept(self, mocker):
+        engine = build_engine(mocker, game=quiet_game())
+        mocker.patch('pygame.mixer.get_init', return_value=None)
+
+        empty = engine.reserved_channel_partition()
+
+        assert empty == ChannelPartition(live=(), library=(), legacy_count=0)
+        assert engine.channel_partition is None
+        mocker.stopall()
+        assert engine.reserved_channel_partition().library == tuple(range(4, 36))
+
+    def test_a_partition_made_on_a_mixer_is_kept(self, mocker):
+        engine = build_engine(mocker, game=quiet_game())
+
+        partition = engine.reserved_channel_partition()
+
+        assert engine.reserved_channel_partition() is partition

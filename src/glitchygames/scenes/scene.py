@@ -333,6 +333,9 @@ class SceneManager(SceneInterface, events.EventManager):
         self._playback_requesting_scene: Scene | None = None
         # The scene whose setup() runs now (a request made there is that scene's)
         self._scene_in_setup: Scene | None = None
+        # True from the run's start, and from each scene's setup() until its first logic frame:
+        # an audio engine made then counts its compiles as setup (sound engine impl 6.5)
+        self._awaiting_first_logic_frame: bool = True
         self._playback_session: PlaybackSession | None = None
         self._last_playback_result: ReplayResult | None = None
         self._last_playback_outcome: PlaybackOutcome | None = None
@@ -1171,6 +1174,7 @@ class SceneManager(SceneInterface, events.EventManager):
         self._last_playback_result = None
         self._last_playback_outcome = None
         self._end_instant_replay_journal()
+        self._awaiting_first_logic_frame = True
 
     def record_control_event(self: Self, *, kind: str, data: Mapping[str, Any]) -> None:
         """Record a supervisor action in this frame and hand it to its handlers.
@@ -1331,6 +1335,8 @@ class SceneManager(SceneInterface, events.EventManager):
                 * BYTES_PER_MEGABYTE,
                 scene_source=self._scene_for_audio,
                 frame_number=self.frame_number,
+                # Made in gameplay (a first audio call in dt_tick), its compiles are the frame's
+                setup_mode=self._scene_in_setup is not None or self._awaiting_first_logic_frame,
             )
         )
 
@@ -2755,6 +2761,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         assert self.active_scene is not None
         # Compiles from here on are the frame's, not the scene's setup (sound engine impl 6.5)
+        self._awaiting_first_logic_frame = False
         audio_engine = _existing_audio_engine()
         if audio_engine is not None:
             audio_engine.begin_logic_frame()
@@ -2854,6 +2861,7 @@ class SceneManager(SceneInterface, events.EventManager):
             # sets itself up (camera.snap_to, collision) use it, not the previous scene's mode
             self._activate_scene_snap_mode(next_scene)
             # Compiles until its first logic frame are its setup's (sound engine impl 6.5)
+            self._awaiting_first_logic_frame = True
             audio_engine = _existing_audio_engine()
             if audio_engine is not None:
                 audio_engine.begin_scene_setup()

@@ -2653,23 +2653,29 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         the event managers are made, or earlier, when the game's construction asks for audio
         (``SceneManager.audio``), so the audio engine always plays on this run's partition.
 
+        Only a partition made on a running mixer is kept (ruling R35): without a mixer the
+        empty partition is returned, and a later call (once the mixer runs) reserves.
+
         Returns:
             The partition (empty without a mixer).
 
         """
-        if self.channel_partition is None:
-            from glitchygames.audio.engine import DEFAULT_LIBRARY_CHANNELS, LEGACY_CHANNELS
-            from glitchygames.audio.voices import reserve_channels
+        if self.channel_partition is not None:
+            return self.channel_partition
+        from glitchygames.audio.engine import DEFAULT_LIBRARY_CHANNELS, LEGACY_CHANNELS
+        from glitchygames.audio.voices import reserve_channels
 
-            self.channel_partition = reserve_channels(
-                live_pool=int(GameEngine.OPTIONS.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL)),
-                library_channels=int(
-                    GameEngine.OPTIONS.get('sound_channels', DEFAULT_LIBRARY_CHANNELS)
-                ),
-                legacy_channels=LEGACY_CHANNELS,
-            )
-            self.live_voice_channels = self.channel_partition.live
-        return self.channel_partition
+        partition = reserve_channels(
+            live_pool=int(GameEngine.OPTIONS.get('live_voice_pool', DEFAULT_LIVE_VOICE_POOL)),
+            library_channels=int(
+                GameEngine.OPTIONS.get('sound_channels', DEFAULT_LIBRARY_CHANNELS)
+            ),
+            legacy_channels=LEGACY_CHANNELS,
+        )
+        self.live_voice_channels = partition.live
+        if pygame.mixer.get_init() is not None:
+            self.channel_partition = partition
+        return partition
 
     def _refuse_the_disk_sound_cache(self: Self, *, options: dict[str, Any]) -> None:
         """Exit with ExitCode.OPTIONS_REFUSED for ``--sound-cache disk``, which arrives in M3.
