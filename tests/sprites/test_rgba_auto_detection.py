@@ -221,10 +221,10 @@ class TestAnimatedSpriteRGBRGBA:
 
         color_map, color_order, original_alpha_values = AnimatedSprite.build_color_map(data)
 
-        # Explicit alpha=255 is stored as RGBA 4-tuple to preserve the explicit declaration
-        assert color_map['R'] == (255, 0, 0, 255)  # Explicit alpha=255 -> RGBA
-        assert color_map['G'] == (0, 255, 0, 128)  # Transparent -> RGBA
-        assert color_map['B'] == (0, 0, 255, 255)  # Explicit alpha=255 -> RGBA
+        # alpha = 255 is opaque, as no alpha is: a plain RGB color (BUGS.md #200 item 4)
+        assert color_map['R'] == (255, 0, 0)
+        assert color_map['G'] == (0, 255, 0, 128)  # Translucent -> RGBA
+        assert color_map['B'] == (0, 0, 255)
         # Only per-pixel alpha (0-254) is tracked; alpha=255 is not
         assert original_alpha_values == {'G': 128}
         assert color_order == ['R', 'G', 'B']
@@ -257,9 +257,10 @@ class TestAnimatedSpriteRGBRGBA:
 
         color_map, color_order, original_alpha_values = AnimatedSprite.build_color_map(data)
 
-        # Explicit alpha=255 is stored as RGBA 4-tuple to preserve the explicit declaration
-        assert color_map['R'] == (255, 0, 0, 255)  # RGBA
-        assert color_map['G'] == (0, 255, 0, 255)  # RGBA
+        # alpha = 255 is opaque, as no alpha is: a plain RGB color, the same shape as a color
+        # written without alpha (BUGS.md #200 item 4)
+        assert color_map['R'] == (255, 0, 0)
+        assert color_map['G'] == (0, 255, 0)
         # alpha=255 is not per-pixel alpha, so not tracked
         assert original_alpha_values == {}
         assert color_order == ['R', 'G']
@@ -350,8 +351,9 @@ class TestSpriteSaveLoadRGBRGBA:
             # Read the saved file
             content = Path(temp_path).read_text(encoding='utf-8')
 
-            # Should contain alpha values
-            assert 'alpha = 255' in content
+            # alpha only for the translucent colors (128, 0); the opaque ones are red, green and
+            # blue alone, as the animated writer saves them (BUGS.md #200 item 4)
+            assert 'alpha = 255' not in content
             assert 'alpha = 128' in content
             assert 'alpha = 0' in content
 
@@ -497,11 +499,10 @@ B = { red = 0, green = 0, blue = 255, alpha = 255 }
         try:
             sprite = AnimatedSprite(temp_path)
 
-            # Should load RGBA colors appropriately
-            # Explicit alpha=255 in TOML is preserved as RGBA 4-tuple
-            assert sprite._color_map['R'] == (255, 0, 0, 255)  # Explicit alpha=255 -> RGBA
-            assert sprite._color_map['G'] == (0, 255, 0, 128)  # Transparent -> RGBA
-            assert sprite._color_map['B'] == (0, 0, 255, 255)  # Explicit alpha=255 -> RGBA
+            # alpha = 255 is opaque, as no alpha is: a plain RGB color (BUGS.md #200 item 4)
+            assert sprite._color_map['R'] == (255, 0, 0)
+            assert sprite._color_map['G'] == (0, 255, 0, 128)  # Translucent -> RGBA
+            assert sprite._color_map['B'] == (0, 0, 255)
 
             # The drawn image blends the alpha-128 green at half strength
             assert _drawn_over_black(sprite.image) == [
@@ -696,3 +697,122 @@ class TestRGBRGBAIntegration:
 
 if __name__ == '__main__':
     pytest.main([__file__])
+
+
+# One opaque single-frame sprite, written once with alpha = 255 on its opaque colors (as the
+# single-frame writer used to) and once without (as the animated writer always has): 'R' red,
+# 'B' blue, '.' magenta, the transparency key
+OPAQUE_SPRITE_TOML = """[sprite]
+name = "opaque"
+pixels = \"\"\"
+RB
+.R
+\"\"\"
+
+[colors."R"]
+red = 255
+green = 0
+blue = 0
+{alpha}
+[colors."B"]
+red = 0
+green = 0
+blue = 255
+{alpha}
+[colors."."]
+red = 255
+green = 0
+blue = 255
+"""
+
+
+def _load_single_frame(tmp_path: Path, *, name: str, text: str) -> AnimatedSprite:
+    """Write a single-frame sprite file and load it.
+
+    Returns:
+        The loaded sprite (its ``image`` is what the game draws for its one frame).
+
+    """
+    path = tmp_path / f'{name}.toml'
+    path.write_text(text, encoding='utf-8')
+    return AnimatedSprite(str(path))
+
+
+def _pixel_data(sprite: AnimatedSprite) -> list[tuple[int, ...]]:
+    """Return the pixels the sprite's one frame holds.
+
+    Returns:
+        The pixels, row by row.
+
+    """
+    (frames,) = sprite._animations.values()
+    return frames[0].get_pixel_data()
+
+
+def _drawn(sprite: AnimatedSprite) -> tuple[list[tuple[int, ...]], tuple[int, ...] | None]:
+    """Return what the game draws for the sprite: its image's pixels and color key.
+
+    The image is built from the frame's pixels (``AnimatedSprite._create_optimized_surface``),
+    not the loader's raw ``SpriteFrame.image``: it is the one that keys magenta out or keeps
+    per-pixel alpha.
+
+    Returns:
+        The pixels, row by row, and the color key (None for a per-pixel alpha surface).
+
+    """
+    surface = sprite.image
+    width, height = surface.get_size()
+    pixels = [tuple(surface.get_at((x, y))) for y in range(height) for x in range(width)]
+    colorkey = surface.get_colorkey()
+    return pixels, None if colorkey is None else tuple(colorkey)
+
+
+class TestOpaqueAlphaIsNoAlpha:
+    """alpha = 255 is opaque, as no alpha is (BUGS.md #200 item 4): one shape, one look."""
+
+    def test_an_opaque_sprite_draws_the_same_with_or_without_alpha_255(self, tmp_path):
+        """Same surface pixels and color key, magenta keyed out in both."""
+        with_alpha = _load_single_frame(
+            tmp_path, name='with', text=OPAQUE_SPRITE_TOML.format(alpha='alpha = 255\n')
+        )
+        without_alpha = _load_single_frame(
+            tmp_path, name='without', text=OPAQUE_SPRITE_TOML.format(alpha='')
+        )
+
+        assert _drawn(with_alpha) == _drawn(without_alpha)
+        _pixels, colorkey = _drawn(without_alpha)
+        assert colorkey is not None
+        assert colorkey[:3] == (255, 0, 255)
+
+    def test_an_opaque_color_loads_as_the_same_tuple_however_it_was_written(self, tmp_path):
+        """Three-component pixels either way, so a comparison never meets two shapes."""
+        with_alpha = _load_single_frame(
+            tmp_path, name='with', text=OPAQUE_SPRITE_TOML.format(alpha='alpha = 255\n')
+        )
+        without_alpha = _load_single_frame(
+            tmp_path, name='without', text=OPAQUE_SPRITE_TOML.format(alpha='')
+        )
+
+        assert _pixel_data(with_alpha) == _pixel_data(without_alpha)
+        assert all(len(pixel) == 3 for pixel in _pixel_data(with_alpha))
+
+    def test_a_translucent_color_keeps_its_alpha_through_a_save(self, tmp_path):
+        """Saved and loaded again: the translucent color's alpha, and per-pixel alpha drawing."""
+        source = tmp_path / 'translucent.toml'
+        source.write_text(
+            '[sprite]\nname = "translucent"\npixels = """\nRG\n"""\n\n'
+            '[colors."R"]\nred = 255\ngreen = 0\nblue = 0\n\n'
+            '[colors."G"]\nred = 0\ngreen = 255\nblue = 0\nalpha = 128\n',
+            encoding='utf-8',
+        )
+        saved = tmp_path / 'saved.toml'
+        AnimatedSprite(str(source)).save(str(saved), 'toml')
+        saved_text = saved.read_text(encoding='utf-8')
+
+        reloaded = _load_single_frame(tmp_path, name='reloaded', text=saved_text)
+
+        assert 'alpha = 128' in saved_text
+        assert 'alpha = 255' not in saved_text
+        assert _pixel_data(reloaded) == [(255, 0, 0, 255), (0, 255, 0, 128)]
+        assert reloaded.image.get_flags() & pygame.SRCALPHA
+        assert tuple(reloaded.image.get_at((1, 0)))[3] == 128

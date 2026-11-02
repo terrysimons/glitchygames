@@ -25,6 +25,8 @@ from glitchygames.sprites import (
     SpriteFactory,
 )
 from glitchygames.sprites.animated import (
+    OPAQUE_FRAME_DEPTH,
+    OPAQUE_FRAME_MASKS,
     AnimatedSprite,
     FrameAnchor,
     frame_tables_in_load_order,
@@ -1664,14 +1666,14 @@ class TestAnimatedSpriteBuildColorMap:
         assert alpha_values['#'] == 128
 
     def test_build_color_map_with_explicit_opaque_alpha(self):
-        """Test _build_color_map with alpha=255 (treated as indexed)."""
+        """Alpha = 255 is opaque, as no alpha is: a plain RGB color (BUGS.md #200 item 4)."""
         data = {
             'colors': {
                 '#': {'red': 0, 'green': 0, 'blue': 0, 'alpha': 255},
             },
         }
         color_map, _color_order, alpha_values = AnimatedSprite.build_color_map(data)
-        assert color_map['#'] == (0, 0, 0, 255)
+        assert color_map['#'] == (0, 0, 0)
         assert '#' not in alpha_values
 
     def test_build_color_map_empty(self):
@@ -2205,6 +2207,47 @@ class TestAnimatedSpriteCreateSurfaceFromTomlPixels:
             [(255, 0, 0), (0, 255, 0)],
             [(0, 0, 255), (128, 128, 128)],
         ]
+
+    def test_an_opaque_frame_has_one_format_whatever_the_display(self):
+        """32-bit RGB, no alpha channel, magenta keyed: never the display's format (#254).
+
+        A surface made without an explicit format takes the display's, which has an alpha
+        channel on cocoa and none on dummy; a faded blit (set_alpha) of it then blended 1-2
+        levels apart per driver (Papyrus's respawn fade: 764 pixels of the player). The suite
+        runs on dummy, so the format itself is what is checked here; ``nox -s compare-drivers``
+        checks the pixels on each driver.
+        """
+        pixels = cast('list[tuple[int, ...]]', [(255, 0, 0), (255, 0, 255), (0, 0, 255), (9, 9, 9)])
+
+        surface = AnimatedSprite._create_surface_from_toml_pixels(2, 2, pixels)
+
+        assert surface.get_bitsize() == OPAQUE_FRAME_DEPTH
+        assert surface.get_masks() == OPAQUE_FRAME_MASKS
+        assert not surface.get_flags() & pygame.SRCALPHA
+        assert surface.get_colorkey() == (255, 0, 255, 255)
+
+    def test_a_faded_opaque_frame_blends_as_a_fixed_rgb_surface_does(self):
+        """The faded blit's pixels are a fixed-format surface's, the same on every display."""
+        pixels = cast(
+            'list[tuple[int, ...]]', [(200, 100, 50), (255, 0, 255), (10, 20, 30), (90, 90, 90)]
+        )
+        reference = pygame.Surface((2, 2), 0, OPAQUE_FRAME_DEPTH, OPAQUE_FRAME_MASKS)
+        reference.set_colorkey((255, 0, 255))
+        for index, pixel in enumerate(pixels):
+            reference.set_at((index % 2, index // 2), pixel)
+        engine_surface = AnimatedSprite._create_surface_from_toml_pixels(2, 2, pixels)
+
+        def faded_over_sand(surface: pygame.Surface) -> list[tuple[int, ...]]:
+            faded = surface.copy()
+            faded.set_alpha(41)
+            canvas = pygame.Surface((2, 2), 0, OPAQUE_FRAME_DEPTH, OPAQUE_FRAME_MASKS)
+            canvas.fill((210, 186, 134))
+            canvas.blit(faded, (0, 0))
+            return [tuple(canvas.get_at((x, y)))[:3] for y in range(2) for x in range(2)]
+
+        assert faded_over_sand(engine_surface) == faded_over_sand(reference)
+        # The keyed pixel is never written: the sand shows through it
+        assert faded_over_sand(engine_surface)[1] == (210, 186, 134)
 
     def test_rgba_pixels(self):
         """Test surface creation from RGBA pixel data."""
@@ -4053,6 +4096,27 @@ class TestSaveKeepsLoadedGlyphs:
         saved = tomllib.loads(saved_file.read_text(encoding='utf-8'))
         assert saved['colors']['Z'] == {'red': 10, 'green': 20, 'blue': 30}
         assert saved['sprite']['pixels'].strip() == 'Z.'
+
+    def test_magenta_written_with_an_alpha_keeps_its_glyph(self, tmp_path):
+        """Magenta with alpha = 0 is still the transparency key: its pixels save under its glyph.
+
+        Beside a translucent color, so the sprite saves in per-pixel alpha mode.
+        """
+        import tomllib
+
+        source_file = tmp_path / 'keyed.toml'
+        source_file.write_text(
+            '[sprite]\nname = "keyed"\npixels = """\nkG\n"""\n\n'
+            '[colors."k"]\nred = 255\ngreen = 0\nblue = 255\nalpha = 0\n\n'
+            '[colors."G"]\nred = 0\ngreen = 255\nblue = 0\nalpha = 128\n',
+            encoding='utf-8',
+        )
+        saved_file = tmp_path / 'saved.toml'
+        AnimatedSprite(str(source_file)).save(str(saved_file), 'toml')
+
+        saved = tomllib.loads(saved_file.read_text(encoding='utf-8'))
+        assert saved['sprite']['pixels'].strip() == 'kG'
+        assert saved['colors']['G']['alpha'] == 128
 
     def test_new_color_gets_a_glyph_the_loaded_file_did_not_use(self, tmp_path):
         """A color added after loading skips glyphs the file already assigned."""

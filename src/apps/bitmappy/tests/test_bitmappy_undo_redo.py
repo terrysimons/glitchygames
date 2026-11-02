@@ -4,7 +4,6 @@ import pytest
 
 from bitmappy.history.operations import (
     CanvasOperationTracker,
-    CrossAreaOperationTracker,
     FilmStripOperationTracker,
     PixelChange,
 )
@@ -314,36 +313,6 @@ class TestFilmStripOperationTracker:
         operation = self.manager.undo_stack[0]
         assert operation.operation_type == OperationType.FILM_STRIP_ANIMATION_DELETE
         assert "Deleted animation 'old_animation'" in operation.description
-
-
-class TestCrossAreaOperationTracker:
-    """Test cross-area operation tracking."""
-
-    @pytest.fixture(autouse=True)
-    def set_up_tracker(self, bitmap_editor):
-        """Set up a tracker for a real editor, on its own undo/redo manager."""
-        self.manager = UndoRedoManager()
-        self.tracker = CrossAreaOperationTracker(self.manager, editor=bitmap_editor)
-
-    def test_add_frame_copy(self):
-        """Test tracking frame copy operation."""
-        frame_data = {'width': 32, 'height': 32, 'pixels': []}
-        self.tracker.add_frame_copied(1, 'source_animation', frame_data)
-
-        assert len(self.manager.undo_stack) == 1
-        operation = self.manager.undo_stack[0]
-        assert operation.operation_type == OperationType.FRAME_COPY
-        assert "Copied frame 1 from 'source_animation'" in operation.description
-
-    def test_add_frame_paste(self):
-        """Test tracking frame paste operation."""
-        frame_data = {'width': 32, 'height': 32, 'pixels': []}
-        self.tracker.add_frame_pasted(2, 'target_animation', frame_data)
-
-        assert len(self.manager.undo_stack) == 1
-        operation = self.manager.undo_stack[0]
-        assert operation.operation_type == OperationType.FRAME_PASTE
-        assert "Pasted frame to 2 in 'target_animation'" in operation.description
 
 
 class TestOperationTypes:

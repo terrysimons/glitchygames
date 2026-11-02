@@ -77,6 +77,10 @@ def test_a_patched_test_does_not_leak_into_a_later_real_test(pytester, monkeypat
         'no:cacheprovider',
         '-p',
         'no:xdist',
+        # The inner tests run in their written order: a patched test, then real ones after it
+        # (pytest-randomly is blocked by the project's addopts, which -o addopts= clears)
+        '-p',
+        'no:randomly',
         '-o',
         'addopts=',
         str(pytester.path / 'test_patched_then_real.py'),

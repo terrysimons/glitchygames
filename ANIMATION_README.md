@@ -52,7 +52,7 @@ blue = 0
 red = 255
 green = 0
 blue = 0
-alpha = 127  # Optional - about half transparent (0-254; omit for opaque)
+alpha = 127  # Optional - about half transparent (0-254; omit for opaque: alpha = 255 loads as opaque too, and saves leave it out)
 
 [colors."A"]  # Color definition for 'A' character
 red = 255

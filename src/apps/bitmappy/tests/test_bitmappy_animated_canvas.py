@@ -233,24 +233,6 @@ class TestAnimatedCanvasSprite:
         self.canvas.handle_keyboard_event(pygame.K_DOWN)
         assert self.canvas.current_animation == 'idle'
 
-    def test_copy_paste_functionality(self):
-        """Test copying and pasting between frames."""
-        # Set a pixel in current frame
-        self.canvas.canvas_interface.set_pixel_at(0, 0, (255, 255, 255))
-
-        # Copy current frame
-        self.canvas.copy_current_frame()
-
-        # Switch to another frame
-        self.canvas.show_frame('idle', 1)
-
-        # Paste the copied frame
-        self.canvas.paste_to_current_frame()
-
-        # Verify the pixel was pasted
-        pixel_color = self.canvas.canvas_interface.get_pixel_at(0, 0)
-        assert pixel_color == (255, 255, 255, 255)
-
     def test_visual_display(self):
         """Test that the canvas displays the current frame correctly."""
         # Force redraw to update the display

@@ -314,6 +314,12 @@ ERR_TOO_MANY_COLORS = 'Too many colors (max {})'
 
 # How a transparent pixel is stored in a per-pixel alpha sprite image: the magenta key at alpha 0
 TRANSPARENT_MAGENTA = (*MAGENTA_TRANSPARENCY_KEY, 0)
+# An opaque frame's image format, the same on every display: 32-bit RGB, no alpha channel. A
+# surface made without one takes the display's, which has an alpha channel on some drivers
+# (cocoa) and not on others (dummy), and a faded blit (set_alpha) of it then blends through
+# different arithmetic: the same frame drew different pixels per driver (BUGS.md #254)
+OPAQUE_FRAME_DEPTH = 32
+OPAQUE_FRAME_MASKS = (0xFF0000, 0x00FF00, 0x0000FF, 0)
 
 
 class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruff: ignore[too-many-public-methods]
@@ -1614,8 +1620,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                     color_map[char] = (r, g, b, a)
                     original_alpha_values[char] = a
                 else:
-                    # Had alpha=255 explicitly - treat as indexed (RGBA with alpha=255)
-                    color_map[char] = (r, g, b, 255)
+                    # alpha = 255 (or out of range) is opaque, as no alpha is: a plain RGB color,
+                    # so an opaque color has one shape however its file wrote it, and alone it
+                    # never turns a frame into RGBA (BUGS.md #200 item 4)
+                    color_map[char] = (r, g, b)
             else:
                 # No alpha field in original - use RGB (indexed color)
                 color_map[char] = (r, g, b)
@@ -2082,16 +2090,13 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             # Normalize color to match how we'll look it up.
             # Map magenta to both RGB and RGBA keys so either mode can find it.
             if len(color) == RGBA_COMPONENT_COUNT:
-                r, g, b, a = color
-                if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
+                # A loaded RGBA color is translucent (build_color_map makes alpha = 255 a plain
+                # RGB color, BUGS.md #200 item 4): only its own key, but for magenta, which is
+                # the transparency key whatever its alpha
+                if color[:3] == MAGENTA_TRANSPARENCY_KEY:
                     original_color_to_char[255, 0, 255, 255] = char
                     original_color_to_char[255, 0, 255] = char
-                elif a == MAX_COLOR_CHANNEL_VALUE:
-                    # Opaque RGBA - can match as RGB or RGBA
-                    original_color_to_char[color] = char
-                    original_color_to_char[r, g, b] = char
                 else:
-                    # Has transparency - only RGBA key
                     original_color_to_char[color] = char
             elif color == MAGENTA_TRANSPARENCY_KEY:
                 original_color_to_char[255, 0, 255] = char
@@ -2399,16 +2404,23 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     ) -> dict[str, dict[str, int]]:
         """Convert a color_map (tuple→char) to TOML color definitions (char→{r,g,b[,a]}).
 
+        ``alpha`` is written only for a translucent color (0-254), as the animated writer
+        (``_toml_colors``) does: an opaque color is red, green and blue alone, so a sprite saves
+        the same with one frame or many (BUGS.md #200 item 4).
+
         Returns:
             Dict mapping character to color definition dict.
         """
         color_defs: dict[str, dict[str, int]] = {}
         for color_tuple, char in color_map.items():
-            if len(color_tuple) == RGBA_COMPONENT_COUNT:
+            if (
+                len(color_tuple) == RGBA_COMPONENT_COUNT
+                and color_tuple[3] != MAX_COLOR_CHANNEL_VALUE
+            ):
                 r, g, b, a = color_tuple
                 color_defs[char] = {'red': r, 'green': g, 'blue': b, 'alpha': a}
             else:
-                r, g, b = color_tuple
+                r, g, b = color_tuple[:3]
                 color_defs[char] = {'red': r, 'green': g, 'blue': b}
         return color_defs
 
@@ -2676,7 +2688,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         A frame with translucent pixels (alpha 1-254) gives a per-pixel alpha surface that
         keeps each pixel's alpha, its transparent pixels at alpha 0. Any other frame gives a
-        plain surface with magenta as its colorkey: it blits faster than per-pixel alpha, and
+        plain surface with magenta as its colorkey, in one 32-bit RGB format whatever the
+        display's (``OPAQUE_FRAME_MASKS``: a faded blit then draws the same pixels on every
+        driver, BUGS.md #254): it blits faster than per-pixel alpha, and
         its keyed pixels are never written, whatever the destination's alpha (a per-pixel
         alpha source over a destination pixel of alpha 0 copies its color instead of
         blending, as on a display with an alpha channel). Pixels past width * height are
@@ -2695,7 +2709,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             surface = pygame.Surface((width, height), pygame.SRCALPHA)
             transparent_color = TRANSPARENT_MAGENTA
         else:
-            surface = pygame.Surface((width, height))
+            surface = pygame.Surface((width, height), 0, OPAQUE_FRAME_DEPTH, OPAQUE_FRAME_MASKS)
             surface.set_colorkey(MAGENTA_TRANSPARENCY_KEY)
             transparent_color = MAGENTA_TRANSPARENCY_KEY
 

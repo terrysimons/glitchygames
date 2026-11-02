@@ -373,6 +373,157 @@ def test_the_test_session_fails_when_it_cannot_find_its_installed_engine():
         noxfile.test(session)
 
 
+def test_random_order_is_off_unless_asked_for():
+    """pytest-randomly is blocked in addopts: CI and every ordinary run keep the files' order."""
+    pyproject = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
+    addopts = shlex.split(pyproject['tool']['pytest']['ini_options']['addopts'])
+
+    assert '-p' in addopts
+    assert addopts[addopts.index('-p') + 1] == 'no:randomly'
+
+
+def test_the_shuffled_run_reorders_only_on_the_dummy_drivers():
+    """Nox -s test-random -- SEED: pytest-randomly back on, that seed, no reseeding, no coverage."""
+    import noxfile
+
+    session = RecordingSession(posargs=['12345'])
+    noxfile.test_random(session)
+
+    (command,) = session.commands
+    assert command[:4] == ('uv', 'run', '--frozen', 'pytest')
+    assert command[4:7] == ('-p', 'randomly', '--randomly-dont-reset-seed')
+    assert '--randomly-seed=12345' in command
+    assert '--no-cov' in command
+    assert session.environments[command] == {'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'}
+
+
+def test_a_shuffled_run_picks_a_new_seed_each_time():
+    """Without a seed given, each run draws one, in pytest-randomly's range."""
+    import noxfile
+
+    seeds = set()
+    for _ in range(3):
+        session = RecordingSession(posargs=[])
+        noxfile.test_random(session)
+        (command,) = session.commands
+        (seed_argument,) = [
+            argument for argument in command if argument.startswith('--randomly-seed=')
+        ]
+        seeds.add(int(seed_argument.removeprefix('--randomly-seed=')))
+
+    assert all(0 <= seed < noxfile.RANDOM_ORDER_SEED_LIMIT for seed in seeds)
+    assert len(seeds) > 1
+
+
+def test_a_failed_shuffled_run_names_its_seed_and_how_to_replay_it(mocker):
+    """The failure says which order failed and gives the one-process command that replays it."""
+    import noxfile
+    from nox.command import CommandFailed
+
+    session = RecordingSession(posargs=['777'])
+    mocker.patch.object(session, 'run', side_effect=CommandFailed('pytest failed'))
+
+    with pytest.raises(RuntimeError) as failure:
+        noxfile.test_random(session)
+
+    message = str(failure.value)
+    assert 'seed 777' in message
+    assert '--randomly-seed=777 -n 0' in message
+    assert 'nox -s test-random -- 777' in message
+
+
+def test_the_pre_push_hooks_run_the_shuffled_suite():
+    """Every push shuffles the suite once (the hook, not CI: CI keeps the files' order)."""
+    hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
+
+    assert 'entry: uv run --extra dev nox -s test-random' in hooks
+
+
+@pytest.mark.parametrize(
+    ('posargs', 'expected'),
+    [
+        ([], (None, False, False, [])),
+        (['--drivers', 'native', '--fail-on-difference'], ('native', False, True, [])),
+        (
+            ['--drivers=dummy,cocoa', '--sound', 'tests/scenes'],
+            ('dummy,cocoa', True, False, ['tests/scenes']),
+        ),
+    ],
+    ids=['nothing', 'the-pre-push-hooks', 'by-hand'],
+)
+def test_compare_drivers_reads_its_options(posargs, expected):
+    """--drivers, --sound and --fail-on-difference are taken out; the rest selects tests."""
+    import noxfile
+
+    assert noxfile._compare_drivers_arguments(RecordingSession(posargs=posargs)) == expected
+
+
+@pytest.mark.parametrize(
+    ('posargs', 'differing', 'fails'),
+    [
+        (['--fail-on-difference'], ['tests/a.py::test_one'], True),
+        (['--fail-on-difference'], [], False),
+        ([], ['tests/a.py::test_one'], False),
+    ],
+    ids=['a-difference-fails', 'agreement-passes', 'by-hand-only-reports'],
+)
+def test_compare_drivers_fails_on_a_difference_only_when_asked(
+    mocker, tmp_path, posargs, differing, fails
+):
+    """The failure comes after the comparison completed: its report is kept, not set aside."""
+    import noxfile
+
+    # Every folder and the lock under tmp_path: never the real test-results
+    for name in ('_COMPARE_DRIVERS_OUTPUT', '_COMPARE_DRIVERS_PREVIOUS', '_COMPARE_DRIVERS_FAILED'):
+        mocker.patch.object(noxfile, name, tmp_path / name.lower())
+    mocker.patch.object(noxfile, '_COMPARE_DRIVERS_LOCK', tmp_path / 'compare-drivers.lock')
+    mocker.patch.object(noxfile, '_set_aside_previous_comparison')
+    restore = mocker.patch.object(noxfile, '_restore_previous_comparison')
+    mocker.patch.object(noxfile, '_compare_driver_configurations', return_value=differing)
+    session = RecordingSession(posargs=posargs)
+
+    if fails:
+        with pytest.raises(
+            RuntimeError, match=r'1 test\(s\) presented different frames'
+        ) as failure:
+            noxfile.compare_drivers(session)
+        assert 'tests/a.py::test_one' in str(failure.value)
+        assert 'matrix.md' in str(failure.value)
+    else:
+        noxfile.compare_drivers(session)
+    restore.assert_not_called()
+
+
+def test_a_second_compare_drivers_is_refused_while_one_runs(mocker, tmp_path):
+    """Two at once deleted each other's runs: the second refuses, the first goes on."""
+    import noxfile
+    from filelock import FileLock
+
+    lock_path = tmp_path / 'compare-drivers.lock'
+    compare = mocker.patch.object(noxfile, '_compare_driver_configurations', return_value=[])
+    mocker.patch.object(noxfile, '_set_aside_previous_comparison')
+    mocker.patch.object(noxfile, '_COMPARE_DRIVERS_LOCK', lock_path)
+    mocker.patch.object(noxfile, '_COMPARE_DRIVERS_PREVIOUS', tmp_path / 'previous')
+
+    with FileLock(lock_path), pytest.raises(RuntimeError, match='Another compare-drivers'):
+        noxfile.compare_drivers(RecordingSession(posargs=[]))
+    compare.assert_not_called()
+
+    # Released by the one that held it: the next comparison runs
+    noxfile.compare_drivers(RecordingSession(posargs=[]))
+    compare.assert_called_once()
+
+
+def test_the_pre_push_hooks_compare_the_native_driver_with_dummy():
+    """Every push compares the drivers here, and a difference stops it."""
+    hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
+
+    assert (
+        'entry: uv run --extra dev nox -s compare-drivers -- --drivers native --fail-on-difference'
+        in hooks
+    )
+
+
 def test_docs_deploy_publishes_only_from_main():
     """A deploy from a branch would publish its unlanded rows: refused before anything is pushed.
 

@@ -118,7 +118,6 @@ from .frame_operations import FrameOperationManager
 from .history import (
     CanvasOperationTracker,
     ControllerPositionOperationTracker,
-    CrossAreaOperationTracker,
     FilmStripOperationTracker,
     Operation,
     OperationType,
@@ -217,7 +216,6 @@ __all__ = [
     'ControllerPositionOperationTracker',
     'ControllerSelection',
     'ControllerStatus',
-    'CrossAreaOperationTracker',
     'EditorContext',
     'ErrorInfo',
     'ErrorSeverity',

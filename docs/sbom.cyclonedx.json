@@ -19145,6 +19145,164 @@
       "version": "3.17.0"
     },
     {
+      "cpe": "cpe:2.3:a:python-pytest-randomly:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "name": "pytest-randomly",
+      "properties": [
+        {
+          "name": "syft:package:foundBy",
+          "value": "python-package-cataloger"
+        },
+        {
+          "name": "syft:package:language",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:type",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:metadataType",
+          "value": "python-uv-lock-entry"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-pytest-randomly:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_pytest_randomly:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_pytest_randomly:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:pytest-randomly:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:pytest-randomly:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:pytest_randomly:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:pytest_randomly:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-pytest-randomly:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-pytest-randomly:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_pytest_randomly:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_pytest_randomly:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-pytest:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-pytest:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_pytest:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_pytest:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:pytest-randomly:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:pytest-randomly:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:pytest_randomly:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:pytest_randomly:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:pytest:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:pytest:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-pytest:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-pytest:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:python-pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:python_pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_pytest:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_pytest:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:pytest:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:pytest:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:pytest-randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:pytest_randomly:5.0.0:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:location:0:path",
+          "value": "/uv.lock"
+        }
+      ],
+      "purl": "pkg:pypi/pytest-randomly@5.0.0",
+      "type": "library",
+      "version": "5.0.0"
+    },
+    {
       "cpe": "cpe:2.3:a:python-pytest-xdist:python-pytest-xdist:3.8.0:*:*:*:*:*:*:*",
       "licenses": [
         {
@@ -24948,6 +25106,7 @@
         "pkg:pypi/pytest-benchmark@5.3.1",
         "pkg:pypi/pytest-cov@7.1.0",
         "pkg:pypi/pytest-mock@3.17.0",
+        "pkg:pypi/pytest-randomly@5.0.0",
         "pkg:pypi/pytest-xdist@3.8.0",
         "pkg:pypi/pytest@9.1.1",
         "pkg:pypi/radon@5.1.0",

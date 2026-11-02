@@ -800,33 +800,6 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         else:
             self.log.debug('Unhandled key: %s', key)
 
-    def copy_current_frame(self) -> None:
-        """Copy the current frame to clipboard."""
-        # Get the current frame data
-        frames = self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
-        if self.current_animation in frames and self.current_frame < len(
-            frames[self.current_animation],
-        ):
-            frame = frames[self.current_animation][self.current_frame]
-            # Store the pixel data in a simple clipboard attribute
-            self._clipboard = frame.get_pixel_data().copy()
-
-    def paste_to_current_frame(self) -> None:
-        """Paste clipboard content to current frame."""
-        if hasattr(self, '_clipboard') and self._clipboard:
-            # Get the current frame
-            frames = self.animated_sprite._animations  # type: ignore[reportPrivateUsage]
-            if self.current_animation in frames and self.current_frame < len(
-                frames[self.current_animation],
-            ):
-                frame = frames[self.current_animation][self.current_frame]
-                # Set the pixel data
-                frame.set_pixel_data(self._clipboard)
-                # Update the canvas pixels
-                self.pixels = self._clipboard.copy()
-                # Mark the canvas dirty so it redraws
-                self.dirty = 1
-
     @classmethod
     def from_file(  # ruff: ignore[too-many-arguments]
         cls,

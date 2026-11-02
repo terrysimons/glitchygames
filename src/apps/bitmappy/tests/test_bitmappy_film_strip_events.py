@@ -159,22 +159,6 @@ class TestGetControllerSelectionColor:
         assert film_strip.event_handler.get_controller_selection_color('idle', 1) == (0, 0, 255)
 
 
-class TestPasteToCurrentFrame:
-    """Test FilmStripEventHandler.paste_to_current_frame."""
-
-    def test_paste_succeeds_when_the_scene_does_not_listen_for_pastes(self):
-        """A parent scene without _on_frame_pasted still gets the pasted frame."""
-        film_strip = make_film_strip()
-        film_strip.copied_frame = make_frame(color=(200, 0, 0, 255))
-        film_strip.current_frame = 1
-        film_strip.parent_scene = SimpleNamespace()
-
-        assert film_strip.event_handler.paste_to_current_frame() is True
-
-        pasted_frame = film_strip.animated_sprite.animations['idle'][1]
-        assert pasted_frame.pixels[0] == (200, 0, 0, 255)
-
-
 class TestSetFrameIndex:
     """Test FilmStripEventHandler.set_frame_index."""
 

@@ -1921,50 +1921,6 @@ class TestFrameSelectionCommandUndoRedo:
 # ===========================================================================
 
 
-class TestCopyCurrentFrame:
-    """Tests for _copy_current_frame."""
-
-    def test_no_film_strips_returns_false(self, mock_editor):
-        """No film strips returns False."""
-        mock_editor.film_strips = {}
-        assert mock_editor.film_strip_coordinator._copy_current_frame() is False
-
-    def test_no_selected_animation_returns_false(self, mock_editor, mocker):
-        """No matching film strip returns False."""
-        strip = mocker.Mock()
-        strip.current_animation = 'other'
-        mock_editor.film_strips = {'other': strip}
-        mock_editor.selected_animation = 'nonexistent'
-        assert mock_editor.film_strip_coordinator._copy_current_frame() is False
-
-    def test_active_strip_copies(self, mock_editor, mocker):
-        """Active film strip copy_current_frame is called."""
-        strip = mocker.Mock()
-        strip.current_animation = 'default'
-        strip.copy_current_frame.return_value = True
-        mock_editor.film_strips = {'default': strip}
-        mock_editor.selected_animation = 'default'
-        assert mock_editor.film_strip_coordinator._copy_current_frame() is True
-
-
-class TestPasteToCurrentFrame:
-    """Tests for _paste_to_current_frame."""
-
-    def test_no_film_strips_returns_false(self, mock_editor):
-        """No film strips returns False."""
-        mock_editor.film_strips = {}
-        assert mock_editor.film_strip_coordinator._paste_to_current_frame() is False
-
-    def test_active_strip_pastes(self, mock_editor, mocker):
-        """Active film strip paste_to_current_frame is called."""
-        strip = mocker.Mock()
-        strip.current_animation = 'default'
-        strip.paste_to_current_frame.return_value = True
-        mock_editor.film_strips = {'default': strip}
-        mock_editor.selected_animation = 'default'
-        assert mock_editor.film_strip_coordinator._paste_to_current_frame() is True
-
-
 class TestUpdateFilmStripSelectionState:
     """Tests for update_film_strip_selection_state."""
 

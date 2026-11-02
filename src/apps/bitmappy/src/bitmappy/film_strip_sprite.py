@@ -454,39 +454,6 @@ class FilmStripSprite(BitmappySprite):
 
         return red, green, blue, alpha
 
-    @override
-    def on_key_down_event(self, event: events.KeyEvent) -> bool | None:  # type: ignore[override] # ty: ignore[invalid-method-override]
-        """Handle keyboard events for copy/paste functionality.
-
-        Returns:
-            bool | None: True if the event was handled, False if not, None if not applicable.
-
-        """
-        if not self.film_strip_widget:
-            return None
-
-        # Check for Ctrl+C (copy)
-        if event.key == pygame.K_c and (event.get('mod', 0) & pygame.KMOD_CTRL):
-            LOG.debug('FilmStripSprite: Ctrl+C detected - copying current frame')
-            success = self.film_strip_widget.copy_current_frame()
-            if success:
-                LOG.debug('FilmStripSprite: Frame copied successfully')
-            else:
-                LOG.debug('FilmStripSprite: Failed to copy frame')
-            return True
-
-        # Check for Ctrl+V (paste)
-        if event.key == pygame.K_v and (event.get('mod', 0) & pygame.KMOD_CTRL):
-            LOG.debug('FilmStripSprite: Ctrl+V detected - pasting to current frame')
-            success = self.film_strip_widget.paste_to_current_frame()
-            if success:
-                LOG.debug('FilmStripSprite: Frame pasted successfully')
-            else:
-                LOG.debug('FilmStripSprite: Failed to paste frame')
-            return True
-
-        return False
-
     def set_parent_canvas(self, canvas: AnimatedCanvasSprite) -> None:
         """Set the parent canvas for frame changes."""
         self.parent_canvas = canvas

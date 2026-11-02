@@ -22,7 +22,6 @@ from .commands import (
 from .operations import (
     CanvasOperationTracker,
     ControllerPositionOperationTracker,
-    CrossAreaOperationTracker,
     FilmStripOperationTracker,
     PixelChange,
 )
@@ -38,7 +37,6 @@ __all__ = [
     'ControllerModeCommand',
     'ControllerPositionCommand',
     'ControllerPositionOperationTracker',
-    'CrossAreaOperationTracker',
     'FilmStripOperationTracker',
     'FloodFillCommand',
     'FrameAddCommand',
