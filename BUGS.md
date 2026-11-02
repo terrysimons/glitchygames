@@ -24,7 +24,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 253. The Single-Frame Loader Discards `convert()`'s Result
 - **Description**: `AnimatedSprite`'s single-frame TOML loader builds its frame surface with `surface = pygame.Surface((width, height))` and then calls `surface.convert()` without keeping the result (as #143 and #173.5 were), so the call does nothing: the frame keeps the plain surface it made
-- **Status**: Active
+- **Status**: Fixed (2026-11-02, bug sweep: the call is gone, and the surface is made by `pixel_utils.opaque_surface`, the opaque frame format of #254 (32-bit RGB, no alpha channel), as are the animated loader's (`create_indexed_surface`) and the drawn images: a bare `pygame.Surface` took the display's format, so a frame's own image differed per driver too, and keeping `convert()`'s result would have kept that; `test_a_loaded_frames_own_image_has_the_opaque_format`)
 - **Priority**: Low (harmless: what the game draws is built from the frame's pixels, `_create_optimized_surface`)
 - **Reporter**: Found checking which surface draws a single-frame sprite (#200 item 4), 2026-11-02
 - **Date Reported**: 2026-11-02

@@ -46,6 +46,7 @@ from .pixel_utils import (
     needs_alpha_channel,
     normalize_pixel_for_color_map,
     normalize_pixel_rows,
+    opaque_surface,
     palette_key_problems,
 )
 
@@ -314,12 +315,6 @@ ERR_TOO_MANY_COLORS = 'Too many colors (max {})'
 
 # How a transparent pixel is stored in a per-pixel alpha sprite image: the magenta key at alpha 0
 TRANSPARENT_MAGENTA = (*MAGENTA_TRANSPARENCY_KEY, 0)
-# An opaque frame's image format, the same on every display: 32-bit RGB, no alpha channel. A
-# surface made without one takes the display's, which has an alpha channel on some drivers
-# (cocoa) and not on others (dummy), and a faded blit (set_alpha) of it then blends through
-# different arithmetic: the same frame drew different pixels per driver (BUGS.md #254)
-OPAQUE_FRAME_DEPTH = 32
-OPAQUE_FRAME_MASKS = (0xFF0000, 0x00FF00, 0x0000FF, 0)
 
 
 class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruff: ignore[too-many-public-methods]
@@ -1533,9 +1528,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         pixel_rows = normalized.rows
         width, height = normalized.width, normalized.height
 
-        # Create a surface from the pixel data
-        surface = pygame.Surface((width, height))
-        surface.convert()
+        # The frame's own surface, in the opaque frame format on every display (BUGS.md #253: a
+        # bare pygame.Surface took the display's, and its convert() result was discarded)
+        surface = opaque_surface(width, height)
 
         # Convert character pixels to actual colors
         for y, row in enumerate(pixel_rows):
@@ -2709,7 +2704,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             surface = pygame.Surface((width, height), pygame.SRCALPHA)
             transparent_color = TRANSPARENT_MAGENTA
         else:
-            surface = pygame.Surface((width, height), 0, OPAQUE_FRAME_DEPTH, OPAQUE_FRAME_MASKS)
+            surface = opaque_surface(width, height)
             surface.set_colorkey(MAGENTA_TRANSPARENCY_KEY)
             transparent_color = MAGENTA_TRANSPARENCY_KEY
 

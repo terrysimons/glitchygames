@@ -494,6 +494,33 @@ def create_alpha_surface(
     return surface
 
 
+# An opaque frame's surface format, the same on every display: 32-bit RGB, no alpha channel. A
+# surface made without one takes the display's, which has an alpha channel on some drivers
+# (cocoa) and not on others (dummy): a faded blit (set_alpha) of it then blended through
+# different arithmetic, so the same frame drew different pixels per driver (BUGS.md #254), and
+# a frame's own image was a different surface per driver too (#253)
+OPAQUE_FRAME_DEPTH = 32
+OPAQUE_FRAME_MASKS = (0xFF0000, 0x00FF00, 0x0000FF, 0)
+
+
+def opaque_surface(width: int, height: int) -> pygame.Surface:
+    """Return a new opaque frame surface: 32-bit RGB without alpha, whatever the display's.
+
+    Every sprite frame without translucent pixels is made here (the loaders' frame images and
+    the drawn images), never in the display's format: none needs a display to exist, and each
+    is the same surface on every driver.
+
+    Args:
+        width: Its width in pixels.
+        height: Its height in pixels.
+
+    Returns:
+        The surface, black.
+
+    """
+    return pygame.Surface((width, height), 0, OPAQUE_FRAME_DEPTH, OPAQUE_FRAME_MASKS)
+
+
 def create_indexed_surface(
     width: int,
     height: int,
@@ -506,7 +533,7 @@ def create_indexed_surface(
         pygame.Surface with magenta as transparency key.
 
     """
-    surface = pygame.Surface((width, height))
+    surface = opaque_surface(width, height)
     surface.fill((255, 0, 255))  # Magenta background for transparency
 
     for y, row in enumerate(pixel_lines):
