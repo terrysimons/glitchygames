@@ -8,7 +8,7 @@ import pygame
 import pytest
 
 from glitchygames.audio.buses import BusTree
-from glitchygames.audio.voices import VoiceCounters, constant_power_gains
+from glitchygames.audio.voices import SoundHandle, VoiceCounters, constant_power_gains
 from tests.audio.library_support import stop_mixer
 from tests.audio.voice_support import (
     FRAME_SECONDS,
@@ -622,15 +622,24 @@ def test_a_silenced_fading_channel_stays_fading_until_its_fade_runs_out_in_frame
     assert table.play(sound, owner=GAME_SCENE, **PLAY_DEFAULTS).is_playing is True
 
 
-def test_releasing_a_zero_length_loop_is_refused(table):
-    """A looping voice of no length has no pass to end after: release() answers False."""
+@pytest.mark.parametrize('loop', [True, False])
+def test_a_zero_length_sound_is_never_handed_to_the_device(table, channel_calls, loop):
+    """A sound with no samples gets the silent handle and no channel call, looping or not.
+
+    SDL_mixer's mixing thread can loop forever on, or crash with, a zero-length chunk (an xdist
+    worker died on one), so the table never gives the device an empty sound.
+    """
     handle = table.play(
-        baked_sound(seconds=0.0), owner=GAME_SCENE, **(PLAY_DEFAULTS | {'loop': True})
+        baked_sound(seconds=0.0), owner=GAME_SCENE, **(PLAY_DEFAULTS | {'loop': loop})
     )
 
-    assert handle.is_playing is True
+    assert handle == SoundHandle(slot=-1, generation=-1)
+    assert handle.table is table
+    assert handle.is_playing is False
     assert handle.release() is False
-    assert handle.is_playing is True
+    assert channel_calls == []
+    assert table.voice_count == 0
+    assert table.counters == VoiceCounters(steals=0, delayed_plays=0, dropped_plays=1)
 
 
 class _EqualToEveryOwner:

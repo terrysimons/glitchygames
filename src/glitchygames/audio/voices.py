@@ -235,7 +235,8 @@ class VoiceCounters:
     Attributes:
         steals: Voices stolen for a new play.
         delayed_plays: Plays that waited one frame for their stolen channel.
-        dropped_plays: Plays with no channel and nothing to steal.
+        dropped_plays: Plays with no channel and nothing to steal, and plays of a sound with no
+            samples (never given to the device).
     """
 
     steals: int
@@ -488,7 +489,7 @@ class VoiceTable:
                 log.warning('no mixer: sound library plays are silent')
             return silent
         compiled = self._compile_for_play(sound)
-        mixer_sound = compiled.mixer_sound()
+        mixer_sound = self._playable_mixer_sound(compiled)
         if mixer_sound is None:
             return silent
         voice = _Voice(
@@ -519,6 +520,22 @@ class VoiceTable:
                 return SoundHandle(slot=victim.number, generation=victim.generation, table=self)
         self._start(slot, voice)
         return SoundHandle(slot=slot.number, generation=slot.generation, table=self)
+
+    def _playable_mixer_sound(self, compiled: Sound) -> pygame.mixer.Sound | None:
+        """The sound's pygame sound, or None when there is nothing to hand the device.
+
+        SDL_mixer's mixing thread can loop forever on, or crash with, a zero-length chunk whether
+        or not it loops, so an empty sound never reaches a channel. It is counted with the
+        dropped plays: the game asked for a sound and got none.
+
+        Returns:
+            The pygame sound, or None without a mixer, before compiling, or with no samples.
+        """
+        mixer_sound = compiled.mixer_sound()
+        if mixer_sound is not None and mixer_sound.get_length() <= 0.0:
+            self._dropped_plays += 1
+            return None
+        return mixer_sound
 
     def is_playing_sound(self, sound: Sound) -> bool:
         """Whether any channel still uses the sound (playing, paused, waiting or fading).
@@ -743,8 +760,7 @@ class VoiceTable:
         """End the handle's looping voice after its current pass.
 
         Returns:
-            Whether the voice is releasing (False for a non-looping or ended voice, and for a
-            loop of no length, which has no pass to end after).
+            Whether the voice is releasing (False for a non-looping or ended voice).
         """
         slot = self._slot_for(handle)
         if slot is None or slot.voice is None or not slot.voice.loop:
@@ -753,8 +769,6 @@ class VoiceTable:
         if voice.releasing:
             return True
         length = voice.sound.length
-        if length <= 0.0:
-            return False
         voice.release_ends_at = voice.played_seconds + length - voice.played_seconds % length
         voice.release_fade_pending = True
         if slot.state is _SlotState.PLAYING:
