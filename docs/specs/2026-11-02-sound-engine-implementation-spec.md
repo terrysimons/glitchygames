@@ -822,8 +822,17 @@ def render_to_file(sound: Sound, path: Path | str, *, sample_rate: int | None = 
 - **The cue hook:** `crt_power_on.play_power_on` and `play_power_on_async` get one new keyword
   argument, `sound_cues: PowerOnSoundCues | None = None`. It is a small protocol:
   - `at_progress(progress)`, called every power-on frame with the same progress value that drives
-    the picture (§12.1 cues are progress fractions);
-  - `skip()`, which fades every CRT voice with `Channel.fadeout(20)`;
+    the picture (§12.1 cues are progress fractions); each cue starts on the frame nearest its
+    point, the next frame's progress predicted from the last step (ruling R42), so at a steady
+    frame rate a sound is at most half a frame off;
+  - `skip()`, which fades every CRT voice with `Channel.fadeout(20)`. **[Open]** (AUD-CRT-003,
+    ruling R41): SDL_mixer 2.8 recomputes a fading channel's volume once per mixing callback
+    (`mix_channels` in src/mixer.c, from `SDL_GetTicks`) and applies it to the whole chunk
+    (512 frames, about 11.6 ms), so the 20 ms fade is a plateau or two and then a halt, not a
+    ramp. The voices end within 20 ms plus one chunk; the step on a pure tone is measured
+    against the model in `tests/test_crt_power_on_sound.py` (a strict xfail holds the "no step
+    above threshold" criterion). Experiment: Task 13 probes the real fade on SDL's disk audio
+    driver and the owner listens. Fallback: engine-rendered fade tails (risk R5);
   - `frame(dt)`, which drives `audio.update(dt=...)` for the system owner (§7.3).
 
   This keeps `crt_power_on.py` a leaf with no audio import [Fact: it is a leaf today], and tests

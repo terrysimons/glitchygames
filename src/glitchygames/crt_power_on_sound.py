@@ -31,8 +31,13 @@ Rules (the power-on's, extended to sound):
 - ``frame(dt)`` moves the voices by each power-on frame's measured time (impl spec 7.3: no game
   frame has run, and these voices are never game-visible) and takes that frame's audio account,
   so the power-on's work is in no game frame's.
+- Each sound starts on the frame nearest its cue point (``at_progress`` predicts the next
+  frame's progress from the last step): at 60 fps at most half a frame (8.3 ms) off.
 - A skip (any key or button, or the window closing) fades every voice over
   ``SKIP_FADE_MILLISECONDS`` (``SoundHandle.stop``: ``Channel.fadeout``) and cues nothing more.
+  SDL_mixer steps that fade once per mixer chunk (512 frames), so it is about two plateaus and
+  a halt, not a ramp: whether that is heard is AUD-CRT-003's open question (ruling R41; the
+  fallback is engine-rendered fade tails, impl spec risk R5).
 - The tail (the bars tone or the hiss) loops and persists into the game:
   ``carry_tail_into_the_game`` asks the audio engine to fade it over ``TAIL_FADE_MILLISECONDS``
   from its next update, which is frame 0's (``AudioEngine.fade_out_at_next_update``).
@@ -312,22 +317,33 @@ class CrtPowerOnSound:
         }
         self.tail_handle: SoundHandle | None = None
         self._started_count = 0
+        # The progress the last frame cued: the step to the next frame is predicted from it
+        self._previous_progress: float | None = None
         self._handles: list[SoundHandle] = []
         self._skipped = False
 
     def at_progress(self, progress: float) -> None:
-        """Start, in order, every sound cued at or before ``progress`` not started yet.
+        """Start, in order, every sound not started yet whose cue is nearest this frame (R42).
 
-        Nothing starts after a skip.
+        A cue starts on this frame when its point is reached, or when it is nearer this frame
+        than the next: the next frame's progress is predicted from this frame's step (the last
+        frame's progress to this one's), so at a steady frame rate a sound starts at most half
+        a frame from its point. The first frame has no step yet and starts only what it
+        reached. Nothing starts after a skip.
 
         Args:
             progress: The progress the frame draws (0 to 1).
         """
         if self._skipped:
             return
+        step = (
+            0.0 if self._previous_progress is None else max(0.0, progress - self._previous_progress)
+        )
+        self._previous_progress = progress
+        nearest_this_frame_up_to = progress + step / 2.0
         while (
             self._started_count < len(self.schedule)
-            and self.schedule[self._started_count].progress <= progress
+            and self.schedule[self._started_count].progress <= nearest_this_frame_up_to
         ):
             self._start(self.schedule[self._started_count])
             self._started_count += 1

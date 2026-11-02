@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import itertools
+import math
 import sys
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -74,6 +75,15 @@ AUDIBLE_LEVEL = 1.0 / 1024.0
 # AUD-CRT-003: a simulated key at 0.4 s
 SKIP_SECONDS = 0.4
 MILLISECONDS_PER_SECOND = 1000
+# The engine's mixer buffer, frames per mixing callback (CLAUDE.md, Sound Synthesis: 512)
+MIXER_CHUNK_FRAMES = 512
+# SDL_mixer's full channel volume (SDL_mixer.h, MIX_MAX_VOLUME)
+MIX_MAX_VOLUME = 128
+# The discontinuity threshold of this test: no step while fading larger than the tone's own
+# largest step (feature spec 16.1's metric; the spec names no number)
+DISCONTINUITY_THRESHOLD = 1.0
+# How long a cued sound's attack takes to reach the audible level (the onsets measured: < 1 ms)
+ATTACK_HEARD_SECONDS = 0.001
 ENGINE_ARGUMENTS = ('--resolution', '320x240', '--log-level', 'warning', '--target-fps', '0')
 
 
@@ -258,17 +268,44 @@ def test_cues_start_each_sound_at_its_progress_point():
     ]
 
 
-def test_each_sound_starts_on_the_first_frame_at_or_after_its_point():
-    """At 60 fps a cue starts on the first frame whose progress reached its point."""
+def test_each_sound_starts_on_the_frame_nearest_its_point():
+    """At 60 fps a cue starts on the frame nearest its point: at most half a frame off (R42)."""
     audio = recording_audio_engine()
     cues = CrtPowerOnSound(audio=audio, background=BackgroundPattern.TEST_PATTERN)
 
     drive(cues, audio, progresses=frame_progresses())
 
     step = 1.0 / (SIXTY_FRAMES_A_SECOND - 1)
+    assert audio.started_names(cues) == [name for _point, name in TEST_PATTERN_TIMELINE]
     for (point, name), play in zip(TEST_PATTERN_TIMELINE, audio.plays, strict=True):
-        assert audio.started_names(cues)[audio.plays.index(play)] == name
-        assert point <= play['progress'] < point + step
+        assert abs(play['progress'] - point) <= step / 2 + 1e-12, name
+    # The whine's point (0.08) is nearer frame 6 (0.0833) than frame 5 (0.0694): not early
+    by_name = dict(zip(audio.started_names(cues), audio.plays, strict=True))
+    assert by_name[FLYBACK_WHINE]['progress'] == pytest.approx(6 * step)
+
+
+def test_a_cue_nearer_this_frame_than_the_next_starts_early():
+    """Half a frame early beats more than half a frame late.
+
+    The next frame's progress is predicted from the last frame's step.
+    """
+    audio = recording_audio_engine()
+    cues = CrtPowerOnSound(audio=audio, background=BackgroundPattern.TEST_PATTERN)
+
+    # Frames 0.1 apart: the static (0.30) is 0.02 after the frame at 0.28, 0.08 before 0.38
+    drive(cues, audio, progresses=[0.0, 0.18, 0.28])
+
+    assert audio.started_names(cues)[-1] == STATIC
+
+
+def test_the_first_frame_starts_only_what_it_reached():
+    """With no step yet to predict from, the first frame starts only cues at or before it."""
+    audio = recording_audio_engine()
+    cues = CrtPowerOnSound(audio=audio, background=BackgroundPattern.TEST_PATTERN)
+
+    cues.at_progress(0.07)
+
+    assert audio.started_names(cues) == [POWER_CLICK, DEGAUSS]
 
 
 def test_channel_three_gets_the_hiss_not_the_tone():
@@ -438,6 +475,11 @@ def test_offline_render_of_the_sequence_puts_onsets_within_10_ms_of_their_cues(t
         heard = np.flatnonzero(np.abs(mix[:shared] - without[:shared]) > AUDIBLE_LEVEL)
         onset_seconds = heard[0] / rate
         assert abs(onset_seconds - point * SEQUENCE_SECONDS) <= ONSET_TOLERANCE_SECONDS, name
+        # Cued on the nearest frame (R42): within half a 60 fps frame, plus the 1 ms its attack
+        # takes to be heard
+        assert abs(onset_seconds - point * SEQUENCE_SECONDS) <= (
+            FRAME_SECONDS / 2 + ATTACK_HEARD_SECONDS
+        ), name
 
 
 # --- AUD-CRT-003: a skip ---
@@ -460,40 +502,163 @@ def test_a_skip_fades_every_voice_over_20_ms_and_cues_nothing_more():
     assert audio.fades_at_next_update == []
 
 
-def test_skip_fades_to_silence_within_20_ms_without_a_step(tmp_path):
-    """A key at 0.4 s ramps the output to silence within 20 ms, with no step (rendered).
+def sdl_mixer_fade_out_gains(
+    *, frame_count: int, fade_asked_at_frame: int, fade_milliseconds: int, sample_rate: int
+) -> np.ndarray:
+    """The gain SDL_mixer gives each output frame of a channel faded out with ``fadeout(ms)``.
 
-    The device's fade (``Channel.fadeout``) is modelled as SDL_mixer's: the channel's volume
-    ramps linearly from where it was to 0 over the fade's milliseconds (SDL_mixer, mixer.c,
-    ``Mix_FadeOutChannel``). Every CRT voice is asked for the same fade at the same moment, so
-    the mix fades as one.
+    A model of SDL_mixer 2.8 (the version pygame-ce 2.5.8 links: ``pygame.mixer.
+    get_sdl_mixer_version()`` gives (2, 8, 2)), src/mixer.c: ``Mix_FadeOutChannel`` notes
+    ``SDL_GetTicks()`` and the channel's volume; ``mix_channels``, the mixing callback, runs
+    once per chunk of the mixer's buffer and, for a fading channel, computes
+    ``ticks = SDL_GetTicks() - ticks_fade`` once: at ``ticks >= fade_length`` it halts the
+    channel, else it sets the volume to ``fade_volume * (fade_length - ticks) / fade_length``
+    (integer arithmetic, volumes 0-``MIX_MAX_VOLUME`` = 128), applied to the whole chunk. So the
+    fade is a few plateaus, one per chunk, then a halt: not a ramp.
+
+    Assumptions: the voice's level is its panning (pygame-ce's two-argument
+    ``Channel.set_volume`` is ``Mix_SetPanning``), so the fading volume starts at 128; each
+    chunk is mixed at its own start time (no device latency); a chunk mixed at or before the
+    fade was asked plays at full volume.
+
+    Returns:
+        One gain per frame, 0 to 1.
+    """
+    gains = np.ones(frame_count)
+    milliseconds_asked = math.floor(fade_asked_at_frame * MILLISECONDS_PER_SECOND / sample_rate)
+    for chunk_start in range(0, frame_count, MIXER_CHUNK_FRAMES):
+        if chunk_start <= fade_asked_at_frame:
+            continue
+        ticks = math.floor(chunk_start * MILLISECONDS_PER_SECOND / sample_rate) - milliseconds_asked
+        if ticks >= fade_milliseconds:
+            gains[chunk_start:] = 0.0
+            break
+        volume = MIX_MAX_VOLUME * (fade_milliseconds - ticks) // fade_milliseconds
+        gains[chunk_start : chunk_start + MIXER_CHUNK_FRAMES] = volume / MIX_MAX_VOLUME
+    return gains
+
+
+def skip_phases(*, skip_frame: int) -> list[int]:
+    """Frames to skip at: around ``skip_frame``, at eight places within one mixer chunk.
+
+    Returns:
+        The frames.
+    """
+    return [skip_frame + MIXER_CHUNK_FRAMES * phase // 8 for phase in range(8)]
+
+
+def test_a_skip_ends_every_crt_voice_within_20_ms_and_one_mixer_chunk(tmp_path):
+    """AUD-CRT-003's ending, on the device's real fade (modelled).
+
+    A key at 0.4 s silences the CRT within 20 ms plus one mixer chunk (SDL_mixer halts a faded
+    channel at its first chunk past the fade), wherever in a chunk the key falls.
     """
     audio = recording_audio_engine()
     cues = CrtPowerOnSound(audio=audio, background=BackgroundPattern.TEST_PATTERN)
     frame_times = np.arange(0.0, SKIP_SECONDS, FRAME_SECONDS)
     drive(cues, audio, progresses=frame_times / SEQUENCE_SECONDS)
     cues.skip()
-    fades = {fade for play in audio.plays for fade in play['handle'].fades}
+    (fade_seconds,) = {fade for play in audio.plays for fade in play['handle'].fades}
     silence = silent_sound(audio)
     mix = rendered_mix(audio.plays, tmp_path / 'skipped.wav', silence=silence)
     rate = silence.sample_rate
-
-    (fade_seconds,) = fades
+    fade_milliseconds = round(fade_seconds * MILLISECONDS_PER_SECOND)
     skip_frame = round(SKIP_SECONDS * rate)
-    fade_frames = round(fade_seconds * rate)
-    gains = np.ones(len(mix))
-    gains[skip_frame : skip_frame + fade_frames] = 1.0 - np.arange(fade_frames) / fade_frames
-    gains[skip_frame + fade_frames :] = 0.0
-    heard = mix * gains
-
-    silent_from = skip_frame + round(SKIP_FADE_MILLISECONDS / MILLISECONDS_PER_SECOND * rate)
-    assert np.all(heard[silent_from:] == 0.0)
     # Something was sounding when the key came
-    assert np.max(np.abs(mix[skip_frame - fade_frames : skip_frame])) > AUDIBLE_LEVEL
-    # No step: no sample-to-sample change while fading is larger than the sound's own before it
-    largest_step_before = np.max(np.abs(np.diff(heard[skip_frame - fade_frames : skip_frame])))
-    largest_step_fading = np.max(np.abs(np.diff(heard[skip_frame - 1 : silent_from + 1])))
-    assert largest_step_fading <= largest_step_before
+    assert np.max(np.abs(mix[skip_frame - MIXER_CHUNK_FRAMES : skip_frame])) > AUDIBLE_LEVEL
+
+    for fade_asked_at_frame in skip_phases(skip_frame=skip_frame):
+        heard = mix * sdl_mixer_fade_out_gains(
+            frame_count=len(mix),
+            fade_asked_at_frame=fade_asked_at_frame,
+            fade_milliseconds=fade_milliseconds,
+            sample_rate=rate,
+        )
+        silent_from = (
+            fade_asked_at_frame
+            + round(SKIP_FADE_MILLISECONDS / MILLISECONDS_PER_SECOND * rate)
+            + MIXER_CHUNK_FRAMES
+        )
+        assert np.all(heard[silent_from:] == 0.0), fade_asked_at_frame
+
+
+def device_fade_discontinuity(*, tone: np.ndarray, frequency: float, sample_rate: int) -> float:
+    """The worst step SDL_mixer's 20 ms fade puts in a pure tone, over the key's chunk phases.
+
+    The discontinuity metric of feature spec 16.1: the largest sample-to-sample step while
+    fading, relative to the tone's own largest step (its peak slope, 2 pi f / rate times its
+    amplitude). A smooth fade stays at or below 1; a gain step at a crest stands out.
+
+    Returns:
+        The worst ratio.
+    """
+    amplitude = float(np.max(np.abs(tone)))
+    own_largest_step = 2.0 * math.pi * frequency / sample_rate * amplitude
+    fade_asked = len(tone) // 2
+    worst = 0.0
+    for fade_asked_at_frame in skip_phases(skip_frame=fade_asked):
+        heard = tone * sdl_mixer_fade_out_gains(
+            frame_count=len(tone),
+            fade_asked_at_frame=fade_asked_at_frame,
+            fade_milliseconds=SKIP_FADE_MILLISECONDS,
+            sample_rate=sample_rate,
+        )
+        fading = heard[fade_asked_at_frame : fade_asked_at_frame + 4 * MIXER_CHUNK_FRAMES]
+        worst = max(worst, float(np.max(np.abs(np.diff(fading)))) / own_largest_step)
+    return worst
+
+
+def bars_tone_samples() -> tuple[np.ndarray, int]:
+    """The bars tone's compiled samples (a pure 1 kHz sine) and their rate.
+
+    Returns:
+        The samples and the sample rate.
+    """
+    cues = CrtPowerOnSound(
+        audio=recording_audio_engine(), background=BackgroundPattern.TEST_PATTERN
+    )
+    tone = cues.sounds[BARS_TONE]
+    assert tone.samples_float is not None
+    return np.asarray(tone.samples_float), tone.sample_rate
+
+
+def test_the_device_fade_steps_a_pure_tone_in_chunk_plateaus():
+    """Measured on a pure tone, not the noisy mix: SDL_mixer's fade is per-chunk plateaus.
+
+    Each gain change falls on a chunk boundary, there are at most three (two plateaus and the
+    halt), and the worst step is several times the tone's own: this is AUD-CRT-003's open
+    question (feature spec 15, impl spec 10.1), measured.
+    """
+    tone, rate = bars_tone_samples()
+    gains = sdl_mixer_fade_out_gains(
+        frame_count=len(tone),
+        fade_asked_at_frame=len(tone) // 2,
+        fade_milliseconds=SKIP_FADE_MILLISECONDS,
+        sample_rate=rate,
+    )
+    changes = np.flatnonzero(np.diff(gains)) + 1
+
+    assert len(changes) <= 3
+    assert all(change % MIXER_CHUNK_FRAMES == 0 for change in changes)
+    assert device_fade_discontinuity(tone=tone, frequency=BARS_TONE_HZ, sample_rate=rate) > 1.0
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        'AUD-CRT-003 [Open] (ruling R41): SDL_mixer steps a fade once per 512-frame chunk, so a '
+        '20 ms fade is about two plateaus and a halt. Pending Task 13 (disk-driver probe and the '
+        "owner's listening check); the fallback is engine-rendered fade tails (impl spec risk R5)"
+    ),
+)
+def test_a_skip_fades_a_pure_tone_without_a_step_above_threshold():
+    """AUD-CRT-003's "no step above threshold" on the device's fade: not met by SDL_mixer."""
+    tone, rate = bars_tone_samples()
+
+    assert (
+        device_fade_discontinuity(tone=tone, frequency=BARS_TONE_HZ, sample_rate=rate)
+        <= DISCONTINUITY_THRESHOLD
+    )
 
 
 # --- On a real audio engine: the tail into frame 0 ---

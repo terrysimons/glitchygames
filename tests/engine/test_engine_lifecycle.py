@@ -20,6 +20,7 @@ import pygame
 import pytest
 
 from glitchygames.crt_power_on import PowerOnOutcome
+from glitchygames.crt_power_on_sound import CrtPowerOnSound
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.events.audio import AudioEventManager
@@ -1009,6 +1010,8 @@ class TestCrtPowerOnBeforeEveryGame:
         player.assert_called_once()
         assert player.call_args.kwargs['screen'] is engine.screen
         assert player.call_args.kwargs['sources'] is active_sources()
+        # And its sound (--crt-power-on-sound on, the default): glitchygames/crt_power_on_sound.py
+        assert isinstance(player.call_args.kwargs['sound_cues'], CrtPowerOnSound)
 
     def test_closing_the_window_during_it_quits_the_game(self, mocker):
         """The QUIT is handed back to the game, which then ends the run normally."""

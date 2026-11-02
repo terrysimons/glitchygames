@@ -206,8 +206,10 @@ DEFAULT_RUMBLE_INTENSITY = 1.0
 DEFAULT_LIVE_VOICE_POOL = 4
 # The sound options' choices (sound engine impl spec 10.2; glitchygames/audio/engine.py holds the
 # channel and memory defaults)
-CRT_POWER_ON_SOUND_CHOICES = ('on', 'off')
-DEFAULT_CRT_POWER_ON_SOUND = 'on'
+CRT_POWER_ON_SOUND_ON = 'on'
+CRT_POWER_ON_SOUND_OFF = 'off'
+CRT_POWER_ON_SOUND_CHOICES = (CRT_POWER_ON_SOUND_ON, CRT_POWER_ON_SOUND_OFF)
+DEFAULT_CRT_POWER_ON_SOUND = CRT_POWER_ON_SOUND_ON
 # The SDL video and audio driver --headless runs on (no window, no sound)
 HEADLESS_SDL_DRIVER = 'dummy'
 # The environment variables that choose SDL's video and audio drivers (--headless sets both)
@@ -3633,7 +3635,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             The cues (glitchygames/crt_power_on_sound.py), or None to play the picture silently.
 
         """
-        if GameEngine.OPTIONS.get('crt_power_on_sound', 'on') == 'off':
+        sound_choice = GameEngine.OPTIONS.get('crt_power_on_sound', DEFAULT_CRT_POWER_ON_SOUND)
+        if sound_choice == CRT_POWER_ON_SOUND_OFF:
             return None
         from glitchygames.crt_power_on_sound import CrtPowerOnSound
 

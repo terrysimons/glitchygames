@@ -1487,7 +1487,7 @@ traceability table (§14 there).
 | --- | --- | --- | --- | --- |
 | AUD-CRT-001 | Power-on sound per the §12.1 timeline | P0 | M1 | An offline render of the sequence's sound matches the timeline's cues (onsets within 10 ms of their progress points); listening check signed off by the owner |
 | AUD-CRT-002 | Power-on sound obeys the power-on rules and its own off switch | P0 | M1 | Not played in headless runs, tests, replays or recordings; `--crt-power-on-sound off` works |
-| AUD-CRT-003 | A skip fades in 20 ms | P0 | M1 | A simulated key at 0.4 s ramps the output to silence within 20 ms, with no step above threshold |
+| AUD-CRT-003 | A skip fades in 20 ms | P0 | M1 | A simulated key at 0.4 s ramps the output to silence within 20 ms, with no step above threshold. **[Open]** SDL_mixer steps a channel fade once per mixer chunk (512 frames, about 11.6 ms), so a 20 ms fade is a plateau or two and a halt: the CRT is silent within 20 ms plus one chunk, but a pure tone shows a step about 3.4 times its own largest (modelled). Pending Task 13's disk-driver probe and the owner's listening check; fallback: engine-rendered fade tails (impl spec 10.1, risk R5) |
 | AUD-DEMO-001 | Sound Board demo | P0 | M1 | A demos-layer member with its console script (`uv run sound-board-demo`); plays every built-in wave and noise; its tests drive it headless |
 | AUD-DEMO-002 | Rev It Up demo | P1 | M2 | Runs; its engine sound follows RPM |
 | AUD-DEMO-003 | Wave Lab and Chip Jukebox | P1 | M4 | Run |
