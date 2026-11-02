@@ -45,6 +45,18 @@ LFSR_MAXIMAL_TAPS: Final[dict[int, tuple[tuple[int, int], ...]]] = {
 }
 
 
+def default_lfsr_taps(bits: int) -> tuple[int, int]:
+    """The tap set an LFSR of this width uses when none is given: the table's first.
+
+    Args:
+        bits: The register width (15 or 7).
+
+    Returns:
+        The tap pair.
+    """
+    return LFSR_MAXIMAL_TAPS[bits][0]
+
+
 def check_lfsr_taps(bits: int, taps: tuple[int, int]) -> None:
     """Refuse an LFSR width or tap set that is not in ``LFSR_MAXIMAL_TAPS``.
 

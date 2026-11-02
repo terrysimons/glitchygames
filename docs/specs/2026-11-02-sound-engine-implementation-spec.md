@@ -245,13 +245,13 @@ happens once, at the end (`synth.to_pcm16` [Fact]).
 | --- | --- | --- | --- | --- | --- |
 | Phase | Exclusive running sum of `f/fs` in cycles, wrapped `% 1.0` (today's `oscillator` [Fact]); float64 keeps sub-cent accuracy for minutes | `phase` float | f ∈ [0, fs/2] | O(n) | AUD-PITCH-006 FFT measurement |
 | Phase reset | `phase_reset = "note"` (restart at 0 for each note of `notes`/`chord`) or `"free"` (continue across notes) | per source | — | — | onset waveform check |
-| Saw, square, pulse | Naive shape + PolyBLEP residual at each discontinuity (today's [Fact]); pulse is square with `duty` | — | duty 0.01–0.99 | O(n) | alias floor test (AUD-WAVE-006) |
+| Saw, square, pulse | Naive shape + PolyBLEP residual at each discontinuity (today's [Fact]); pulse is square with `duty`. Compiled, they render at 2× and are filtered down (a 101-tap Hamming-windowed sinc at 0.45 fs, applied centred): PolyBLEP alone measured aliases only 26.8 dB under a 3520 Hz fundamental, 2× gives 51 dB. The result is scaled by a fixed headroom (`POLYBLEP_HEADROOM` = 0.705, from the measured Gibbs overshoot, worst 1.41 for a pulse near 11.9 kHz) so a level-1 source peaks under full scale, as custom waves are normalized to peak 1. Live voices (M2, `draft` tier) do not oversample | — | duty 0.01–0.99 | 2× O(n) + 101-tap convolution at 2× | alias floor test (AUD-WAVE-006); no-clip test at level 1 |
 | Triangle | Naive (harmonics fall at 12 dB/oct [Fact: comment in `synth.py`]); the Chip profile's 4-bit stepped triangle is quantized and *intentionally* unsmoothed | — | — | O(n) | shape + spectrum |
 | Custom waves and wavetables | **Band-limited mip tables.** For each octave band, the wave's FFT is truncated to the harmonics below Nyquist at that band's highest frequency, then inverse-transformed into a 2048-sample table. Reading is linear interpolation within the table, with the band chosen per chunk from the highest frequency in it. Wavetable position crossfades two neighbouring waves' tables | tables per wave, built at registration (≈ 11 bands × 2048 × 8 B ≈ 180 KB per wave) | position ∈ [0, n−1] | O(n) per source | spectral alias test; morph discontinuity test |
 | `Harmonics` | Direct additive synthesis into the 2048-sample table, then the mip tables above | — | up to 32 harmonics | build time only | harmonic level check (AUD-WAVE-004) |
 | `WavePoint` | `linear`: piecewise linear. `smooth`: monotone cubic (Fritsch–Carlson), so it never overshoots between points — *reference: F. N. Fritsch and R. E. Carlson, "Monotone Piecewise Cubic Interpolation", SIAM J. Numer. Anal. 17(2), 1980*. `steps`: sample-and-hold. Then DC removal and normalization | — | — | build time | point reproduction |
 | White noise | `numpy.random.Generator(PCG64(seed)).uniform(-1, 1)` per source; seed per §6.3 | generator | — | O(n) | identical recompile |
-| LFSR noise | Galois LFSR stepped at `rate`; output ±1, held between steps. 15-bit taps (14, 13) and a 7-bit "short" mode; a table of maximal-length tap sets is the only allowed input | register int | rate up to fs/2 | One full period (≤ 32,767 values) is precomputed once per tap set and bit width; output is an indexed gather at the step positions, O(n) | period test |
+| LFSR noise | Galois LFSR stepped at `rate`; output ±1, held between steps. 15-bit taps (14, 13) and a 7-bit "short" mode with taps (6, 5); a table of maximal-length tap sets (Xilinx XAPP 052) is the only allowed input, and `taps=None` takes the width's entry | register int | rate up to fs (at most one step per sample; the public `Noise(rate=...)` is a pitch, so at most Nyquist) | One full period (≤ 32,767 values) is precomputed once per tap set and bit width; output is an indexed gather at the step positions, O(n) | period test |
 | Pink noise (M2) | Paul Kellett's "refined" filter of white noise (seven one-pole sections) — *reference: P. Kellett, "Filter to make pink noise from white", musicdsp.org (2000)*. Each section is a first-order IIR; it is computed per section with `scipy`-free numpy by chunked recursion. Cost measured in M2 against the live budget | 7 floats | — | O(n) per section | slope test |
 | Envelopes | Piecewise segments in closed form per sample index: linear; exponential (a time constant that reaches 99% of the stage's target in its stated time); `steps(n)` quantized | stage, level | stage times ≥ 0.5 ms | O(n) | stage timing test |
 | Pitch curves | `synth.frequency_curve` with the engine's easings [Fact: `glitchygames.effects.easing`] | — | — | O(n) | AUD-INST-008 |
@@ -261,7 +261,7 @@ happens once, at the end (`synth.to_pcm16` [Fact]).
 | Ring modulation (M4) | Sample-wise product of two sources | — | — | O(n) | spectrum |
 | Hard sync (M4) | The slave's phase resets at each master wrap, with PolyBLEP on the reset step | slave phase | — | O(n), vectorized via wrap indices | spectrum + shape |
 | Samples (M4) | Fractional read position; **cubic Hermite** interpolation (quality `full`, compiled) or **linear** (quality `draft`, live); loops get an equal-power crossfade of `crossfade` frames rendered at compile time | read position | rate 1/16–16 | O(n) | rate/duration test; loop boundary test |
-| Drive (exists) | `tanh` waveshaper [Fact: `synth.distort`]; compiled at 2× oversampling (polyphase halfband) when drive > 2 | — | — | 2× O(n) | alias test |
+| Drive (exists) | `tanh` waveshaper [Fact: `synth.distort`]; compiled at 2× oversampling when drive > 2: zero-stuffed, then the same 101-tap windowed-sinc kernel as the discontinuous waves, applied directly and centred (latency 0; a polyphase form would halve the work) | — | — | 2× O(n·taps) | finite, bounded, zero-latency test |
 | Bit / rate reduction (M2) | Quantize to 2^bits levels; sample-and-hold at the reduced rate. These *intentionally* alias | — | bits 1–16; rate 500 Hz–fs | O(n) | level count |
 | Delay (M4) | Circular buffer, feedback ≤ 0.9, optional one-pole damping | buffer ≤ 2 s | — | O(n) | tail bound |
 | Wow/flutter (M4) | A delay-line read modulated by two LFOs (≈ 0.5 Hz, ≈ 7 Hz), with cubic read | buffer ≤ 50 ms | depth ≤ 30 cents | O(n) | modulation depth |
@@ -273,8 +273,10 @@ below 1e-30 to zero at chunk boundaries. Every compiled buffer and live chunk is
 surfaced at the request). A live chunk that fails it is replaced by silence, the voice is
 released, and the event is counted (AUD-RT-004).
 
-**Oversampling:** only for drive above 2 and for FM with `index > 4` (2×, compile-time only, so
-it is bounded by the sound's length). Live voices never oversample. **Quality tiers:** `full`
+**Oversampling:** only for compiled saw, square and pulse (PolyBLEP alone measured 26.8 dB at
+3520 Hz, short of AUD-WAVE-006's 40), for drive above 2 and for FM with `index > 4` (2×,
+compile-time only, so it is bounded by the sound's length). Live voices (M2, `draft` tier) never
+oversample. **Quality tiers:** `full`
 (compiled: cubic interpolation and oversampling where listed) and `draft` (live: linear
 interpolation, no oversampling). Neither tier is described as hardware emulation.
 
@@ -617,7 +619,8 @@ class PitchTable(Mapping[str, Hz]):
 class Tuning:
     a4: float = 440.0
 
-def resolve_pitch(pitch: PitchLike, *, tuning: Tuning) -> Hz: ...   # the one conversion point
+def resolve_pitch(pitch: PitchLike, *, tuning: Tuning,
+                  sample_rate: int = 44100) -> Hz: ...   # the one conversion point
 
 # --- waves.py ---
 class CYCLE:
@@ -661,7 +664,7 @@ class Wave:
 
 class Noise:
     def __init__(self, kind: str = 'white', *, level: float = 1.0, seed: int | None = None,
-                 bits: int = 15, taps: tuple[int, int] = (14, 13),
+                 bits: int = 15, taps: tuple[int, int] | None = None,
                  rate: PitchLike | None = None) -> None: ...
 
 class WaveTable:                                                 # M4

@@ -7,8 +7,10 @@ import pytest
 
 from glitchygames.audio.exceptions import GlitchyGamesAudioError, SoundRenderError
 from glitchygames.audio.instrument import Filter, Instrument, Noise
+from glitchygames.audio.pitch import Hz
 from glitchygames.audio.render import RenderedSound, render_sound
 from glitchygames.audio.spec import EnvelopeSpec
+from glitchygames.audio.waves import Wave
 from tests.audio.measuring import measured_fundamental, spectrum_peak_db
 from tests.audio.render_specs import SAMPLE_RATE, single_note_spec, spec_for
 
@@ -61,8 +63,38 @@ def test_peak_over_full_scale_is_clipped_and_reported(caplog):
             single_note_spec(wave='square', hz=440.0, level=3.0, name='too-loud')
         )
     assert rendered.clipped and np.max(np.abs(rendered.samples)) <= 1.0
-    assert rendered.peak > 2.5
+    assert rendered.peak > 2.0
     assert 'too-loud' in caplog.text
+
+
+@pytest.mark.parametrize('frequency', [55.0, 440.0, 3520.0])
+def test_a_level_one_square_does_not_clip(frequency):
+    """The PolyBLEP headroom keeps a band-limited square's Gibbs overshoot under full scale."""
+    rendered = render_sound(single_note_spec(wave='square', hz=frequency, length=0.5))
+    assert rendered.clipped is False
+
+
+@pytest.mark.parametrize(
+    ('wave', 'frequency'),
+    [('saw', 8.3), ('square', 8178.0), ('pulse_12', 2328.0), ('pulse_75', 12000.0)],
+)
+def test_level_one_polyblep_waves_at_their_worst_measured_pitch_do_not_clip(wave, frequency):
+    """Each built-in at the pitch where its overshoot measured highest stays within full scale."""
+    rendered = render_sound(single_note_spec(wave=wave, hz=frequency, length=0.5, hard_edges=True))
+    assert rendered.clipped is False
+    assert rendered.peak > 0.8
+
+
+def test_the_worst_measured_pulse_duty_does_not_clip():
+    """A 0.7 pulse near 11.9 kHz (only DC and its fundamental left) peaked highest: 1.41."""
+    instrument = Instrument(
+        wave=Wave('pulse', duty=0.7),
+        envelope=EnvelopeSpec(0.0, 0.0, 1.0, 0.0),
+        hard_edges=True,
+    )
+    rendered = render_sound(spec_for(instrument, pitch=Hz(11877.0), length=0.5))
+    assert rendered.clipped is False
+    assert rendered.peak > 0.99
 
 
 def test_a_sound_within_full_scale_reports_its_peak_unclipped():
@@ -168,13 +200,6 @@ def test_an_empty_sound_renders_no_samples():
     assert len(rendered.samples) == 0
     assert rendered.peak == 0.0
     assert not rendered.clipped
-
-
-def test_a_filter_at_or_above_nyquist_is_refused():
-    """A FIR cutoff must sit below Nyquist."""
-    spec = single_note_spec(wave='sine', hz=440.0, filter=Filter('low_pass', 30000.0))
-    with pytest.raises(ValueError, match='cutoff'):
-        render_sound(spec)
 
 
 def test_a_source_level_scales_noise_too():

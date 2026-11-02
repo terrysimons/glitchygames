@@ -1,6 +1,7 @@
 """Tests for sound specs, instruments, note parsing and identity keys."""
 
 import dataclasses
+import re
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs this interpreter
 import sys
 import textwrap
@@ -283,7 +284,7 @@ def test_instrument_is_hashable_by_content():
 def test_instrument_exposes_its_settings():
     """Properties echo the constructor."""
     instrument = Instrument(
-        noise=Noise('lfsr', bits=7, taps=(6, 5)), live=True, normalize=True, hard_edges=True, seed=3
+        noise=Noise('lfsr', bits=7), live=True, normalize=True, hard_edges=True, seed=3
     )
     assert instrument.is_unpitched
     assert (instrument.live, instrument.normalize, instrument.hard_edges, instrument.seed) == (
@@ -321,6 +322,25 @@ def test_envelope_presets_and_legacy_envelopes():
     )
     custom = EnvelopeSpec(0.1, 0.1, 0.5, 0.1, 'steps(4)')
     assert Instrument(wave='sine', envelope=custom).envelope is custom
+
+
+@pytest.mark.parametrize('cutoff', [22050.0, 30000.0])
+def test_a_filter_cutoff_at_or_above_nyquist_is_refused_when_the_spec_is_built(cutoff):
+    """build_spec knows the sample rate, so it refuses a cutoff the FIR could not make."""
+    expected = f'filter cutoff {cutoff} Hz must be below Nyquist (22050.0 Hz at 44100 Hz)'
+    with pytest.raises(ValueError, match=re.escape(expected)):
+        make_spec(Instrument(wave='sine', filter=Filter('low_pass', cutoff)))
+    layered = Instrument(
+        sources={'main': Source('sine', filter=Filter('high_pass', cutoff))}, envelope='organ'
+    )
+    with pytest.raises(ValueError, match='Nyquist'):
+        make_spec(layered)
+
+
+def test_a_cutoff_just_under_nyquist_is_accepted():
+    """A cutoff below Nyquist builds."""
+    spec = make_spec(Instrument(wave='sine', filter=Filter('low_pass', 22049.0)))
+    assert spec.filter is not None
 
 
 def test_envelope_and_filter_validation():

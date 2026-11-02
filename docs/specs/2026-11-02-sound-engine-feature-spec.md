@@ -568,7 +568,7 @@ points = [
 Every noise source has its own seed. The default seed is derived from the sound's identity and
 the source's position in it, so a sound's noise is identical on every compile and never draws
 from a game's random streams. The engine keeps named, seeded streams in
-`glitchygames/randomness.py`, and replays require games' streams to be untouched [Fact].
+`src/glitchygames/randomness.py`, and replays require games' streams to be untouched [Fact].
 
 ### 4.4 Samples
 

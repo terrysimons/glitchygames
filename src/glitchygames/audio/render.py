@@ -60,6 +60,12 @@ OVERSAMPLING: Final[int] = 2
 ANTI_ALIAS_CUTOFF_FRACTION: Final[float] = 0.45
 ANTI_ALIAS_TAPS: Final[int] = 101
 DRIVE_OVERSAMPLED_ABOVE: Final[float] = 2.0
+# Band-limiting a saw, square or pulse adds Gibbs overshoot above its naive peak of 1. Measured
+# peaks of the 2x output at level 1, swept from 8 Hz to Nyquist at 44100 Hz: saw 1.143 (8.3
+# Hz), square 1.272 (8.2 kHz), pulse duties 0.01-0.99 up to 1.410 (duty 0.7 near 11.9 kHz,
+# where only DC and the fundamental are left). Scaling by 1 / 1.418 keeps a level-1 source's
+# peak under full scale with about 0.5% to spare, as custom waves are normalized to peak 1.
+POLYBLEP_HEADROOM: Final[float] = 0.705
 # A PolyBLEP wave's first sample at phase 0: the square is high, the saw at its bottom
 SAW_START_LEVEL: Final[float] = -1.0
 SQUARE_START_LEVEL: Final[float] = 1.0
@@ -270,7 +276,8 @@ def _polyblep_samples(
     At 1x the PolyBLEP residual leaves aliases only 27 dB under a 3520 Hz fundamental (measured);
     AUD-WAVE-006 needs 40, which 2x reaches (51 dB). The oscillator runs half a kernel past the
     note so the filter sees the wave go on, not stop. The first sample keeps its naive level:
-    PolyBLEP smooths the wrap from a previous cycle, and a note's first sample has none.
+    PolyBLEP smooths the wrap from a previous cycle, and a note's first sample has none. The
+    result is scaled by ``POLYBLEP_HEADROOM`` so its Gibbs overshoot stays under full scale.
 
     Returns:
         One sample per frequency.
@@ -291,7 +298,7 @@ def _polyblep_samples(
     )
     samples[0] = SAW_START_LEVEL if is_saw else SQUARE_START_LEVEL
     filtered = _centered(samples, _anti_alias_kernel(sample_rate))
-    return filtered[: OVERSAMPLING * len(frequencies) : OVERSAMPLING]
+    return POLYBLEP_HEADROOM * filtered[: OVERSAMPLING * len(frequencies) : OVERSAMPLING]
 
 
 def _table_samples(wave: Wave, frequencies: FloatArray, *, sample_rate: int) -> FloatArray:

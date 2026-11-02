@@ -52,8 +52,31 @@ def test_a_noise_spec_with_bad_taps_or_kind_is_refused():
 
 def test_white_noise_ignores_lfsr_settings():
     """White noise takes no taps, so its unused tap fields are not checked."""
-    white = Noise('white', bits=7)
+    white = Noise('white', bits=7, taps=(14, 13))
     assert white.taps == (14, 13)
+
+
+@pytest.mark.parametrize(('bits', 'taps'), [(15, (14, 13)), (7, (6, 5))])
+def test_lfsr_taps_default_to_the_widths_table_entry(bits, taps):
+    """Without taps, an LFSR takes its width's maximal-length set."""
+    assert Noise('lfsr', bits=bits).taps == taps
+    assert Noise('white', bits=bits).taps == taps
+
+
+def test_given_taps_are_kept():
+    """Taps given explicitly are kept as given."""
+    assert Noise('lfsr', bits=7, taps=(6, 5)).taps == (6, 5)
+
+
+def test_a_seven_bit_lfsr_with_default_taps_renders_its_short_period():
+    """Noise('lfsr', bits=7) needs no taps and repeats every 127 steps."""
+    instrument = Instrument(
+        noise=Noise('lfsr', bits=7, seed=3), envelope=HELD_ENVELOPE, hard_edges=True
+    )
+    spec = spec_for(instrument, length=0.05)
+    (source,) = spec.sources
+    assert source.noise is not None
+    assert source.noise.taps == (6, 5)
 
 
 def test_lfsr_seed_moves_the_start_in_the_sequence():

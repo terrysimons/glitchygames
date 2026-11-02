@@ -24,6 +24,7 @@ from glitchygames.audio.spec import (
     SoundSpec,
     SourceSpec,
     check_lfsr_taps,
+    default_lfsr_taps,
     default_seed,
     parse_notes,
 )
@@ -89,7 +90,8 @@ class Noise:
         level: Layer level, 0-1.
         seed: The noise's own seed; None derives it from the sound's seed.
         bits: LFSR width, 15 or 7.
-        taps: The two LFSR tap bits.
+        taps: The two LFSR tap bits; None (the default) is the width's maximal-length set,
+            (14, 13) for 15 bits and (6, 5) for 7 bits. Always set after construction.
         rate: LFSR clock rate as a pitch; None follows the note.
     """
 
@@ -98,11 +100,11 @@ class Noise:
     level: float = 1.0
     seed: int | None = None
     bits: int = 15
-    taps: tuple[int, int] = (14, 13)
+    taps: tuple[int, int] | None = None
     rate: PitchLike | None = None
 
     def __post_init__(self) -> None:
-        """Validate the kind, width and level.
+        """Validate the kind, width and level; resolve default taps from the width.
 
         Raises:
             ValueError: On an unknown kind, an LFSR width other than 15 or 7, an LFSR tap set
@@ -114,8 +116,10 @@ class Noise:
         if self.bits not in LFSR_WIDTHS:
             message = f'noise bits must be 15 or 7, got {self.bits}'
             raise ValueError(message)
+        taps = self.taps if self.taps is not None else default_lfsr_taps(self.bits)
+        object.__setattr__(self, 'taps', taps)  # frozen dataclass: set through object
         if self.kind == 'lfsr':
-            check_lfsr_taps(self.bits, self.taps)
+            check_lfsr_taps(self.bits, taps)
         if not 0.0 <= self.level <= 1.0:
             message = f'noise level must be between 0 and 1, got {self.level}'
             raise ValueError(message)
@@ -357,6 +361,7 @@ def _source_spec(source: Source, *, tuning: Tuning, sample_rate: int) -> SourceS
     level = source.level
     duty = 0.5
     if isinstance(content, Noise):
+        assert content.taps is not None  # Noise.__post_init__ sets the width's default
         noise_spec = NoiseSpec(
             kind=content.kind,
             bits=content.bits,
@@ -499,6 +504,27 @@ def _note_events(  # ruff: ignore[too-many-arguments] - one call site, mirrors b
     return None, 1.0
 
 
+def _refuse_filters_at_or_above_nyquist(instrument: Instrument, *, sample_rate: int) -> None:
+    """Refuse a filter cutoff the FIR filter cannot make at this sample rate.
+
+    Raises:
+        ValueError: Naming the cutoff and the Nyquist frequency, for the instrument's filter or a
+            source's at or above Nyquist.
+    """
+    nyquist = sample_rate / 2.0
+    cutoffs = [
+        *([instrument.filter.cutoff_hz] if instrument.filter is not None else []),
+        *(source.filter.cutoff for _, source in instrument.sources if source.filter is not None),
+    ]
+    for cutoff in cutoffs:
+        if cutoff >= nyquist:
+            message = (
+                f'filter cutoff {cutoff} Hz must be below Nyquist ({nyquist} Hz at '
+                f'{sample_rate} Hz)'
+            )
+            raise ValueError(message)
+
+
 def build_spec(  # ruff: ignore[too-many-arguments] - mirrors the brief's signature
     instrument: Instrument,
     *,
@@ -535,6 +561,7 @@ def build_spec(  # ruff: ignore[too-many-arguments] - mirrors the brief's signat
     Returns:
         The spec.
     """
+    _refuse_filters_at_or_above_nyquist(instrument, sample_rate=sample_rate)
     events, unpitched_scale = _note_events(
         instrument,
         pitch=pitch,
