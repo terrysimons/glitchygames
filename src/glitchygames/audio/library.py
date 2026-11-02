@@ -183,6 +183,16 @@ class Sound:
         self.samples_int16: Int16Array | None = None
         self._mixer_sound: pygame.mixer.Sound | None = None
         self._mixer_settings: tuple[int, int, int] | None = None
+        self._mixer_bytes = 0
+
+    @property
+    def retained_bytes(self) -> int:
+        """Every byte the sound holds: both sample arrays and the pygame sound's buffer."""
+        held = self._mixer_bytes
+        for samples in (self.samples_float, self.samples_int16):
+            if samples is not None:
+                held += samples.nbytes
+        return held
 
     @property
     def is_compiled(self) -> bool:
@@ -230,6 +240,7 @@ class Sound:
         self.length = len(samples_int16) / sample_rate
         self._mixer_sound = mixer_sound
         self._mixer_settings = pygame.mixer.get_init() if mixer_sound is not None else None
+        self._mixer_bytes = len(mixer_sound.get_raw()) if mixer_sound is not None else 0
 
     def release(self) -> None:
         """Drop the samples and the pygame sound (the memory limit's eviction)."""
@@ -237,6 +248,7 @@ class Sound:
         self.samples_int16 = None
         self._mixer_sound = None
         self._mixer_settings = None
+        self._mixer_bytes = 0
         self.length = 0.0
         self.peak = 0.0
 
@@ -274,7 +286,17 @@ class Sound:
         # pygame.sndarray.make_sound has incomplete type stubs for its ndarray parameter
         self._mixer_sound = pygame.sndarray.make_sound(np.ascontiguousarray(frames))  # pyright: ignore[reportUnknownMemberType]
         self._mixer_settings = settings
+        self._mixer_bytes = int(frames.nbytes)
         return self._mixer_sound
+
+
+def _nothing_plays(_sound: Sound) -> bool:
+    """The default ``is_playing``: no sound is playing.
+
+    Returns:
+        False.
+    """
+    return False
 
 
 def _resample(samples: Int16Array, *, from_rate: int, to_rate: int) -> Int16Array:
@@ -326,12 +348,10 @@ def _digest(payload: Mapping[str, Any]) -> str:
 class SoundLibrary:
     """Resolves, compiles and caches sounds (the engine's ``audio.sound`` lives here).
 
-    Attributes:
-        playing_predicate: Says whether a sound is playing, so eviction spares it; the mixer
-            (Task 8) sets it. The default says nothing is playing.
+    The memory limit counts every byte a compiled sound retains (``Sound.retained_bytes``).
     """
 
-    def __init__(
+    def __init__(  # ruff: ignore[too-many-arguments] - mirrors the brief's signature
         self,
         *,
         cache: CacheMode,
@@ -339,6 +359,7 @@ class SoundLibrary:
         waves: WaveRegistry,
         tuning_source: Callable[[], Tuning],
         memory_limit_bytes: int = DEFAULT_MEMORY_LIMIT_BYTES,
+        is_playing: Callable[[Sound], bool] = _nothing_plays,
     ) -> None:
         """Make a library.
 
@@ -348,7 +369,10 @@ class SoundLibrary:
             waves: The registry the wave tables of loaded sound files are registered in; it must
                 be the current context's (``build_spec`` looks waves up there).
             tuning_source: Gives the tuning at each request.
-            memory_limit_bytes: The int16 bytes held before the least recently played sounds go.
+            memory_limit_bytes: The bytes compiled sounds may retain (both sample arrays and the
+                pygame sound) before the least recently played idle sounds go.
+            is_playing: Says whether a sound is playing, so eviction spares it; the mixer
+                supplies it. The default says nothing is playing.
 
         Raises:
             ValueError: For cache ``disk``, which arrives in M3.
@@ -360,7 +384,7 @@ class SoundLibrary:
         self._waves = waves
         self._tuning_source = tuning_source
         self._memory_limit_bytes = memory_limit_bytes
-        self.playing_predicate: Callable[[Sound], bool] = lambda _sound: False
+        self._is_playing = is_playing
         self._recipes: dict[str, SoundRecipe] = {}
         self._indexes: dict[tuple[Path, Path | None], ShortNameIndex] = {}
         # request -> identity key, so a repeated request is a dictionary hit (impl spec 6.2).
@@ -372,7 +396,6 @@ class SoundLibrary:
         self._hits = 0
         self._misses = 0
         self._compiles = 0
-        self._bytes_held = 0
 
     def add_recipes(self, recipes: Iterable[SoundRecipe]) -> None:
         """Add version 0 recipes by name; they are looked up before the sound directory.
@@ -403,7 +426,7 @@ class SoundLibrary:
             hits=self._hits,
             misses=self._misses,
             compiles=self._compiles,
-            bytes_held=self._bytes_held,
+            bytes_held=self._bytes_held(),
         )
 
     def sound(  # ruff: ignore[too-many-arguments] - impl spec 8
@@ -528,19 +551,24 @@ class SoundLibrary:
         assert sound.samples_int16 is not None
         self._play_order[sound.identity_key] = sound
         self._play_order.move_to_end(sound.identity_key)
-        self._bytes_held += sound.samples_int16.nbytes
-        if self._bytes_held <= self._memory_limit_bytes:
+        if self._bytes_held() <= self._memory_limit_bytes:
             return
         for candidate in list(self._play_order.values()):
             # The sound just asked for stays, and so does anything that is playing
-            if candidate is sound or self.playing_predicate(candidate):
+            if candidate is sound or self._is_playing(candidate):
                 continue
-            assert candidate.samples_int16 is not None
-            self._bytes_held -= candidate.samples_int16.nbytes
             del self._play_order[candidate.identity_key]
             candidate.release()
-            if self._bytes_held <= self._memory_limit_bytes:
+            if self._bytes_held() <= self._memory_limit_bytes:
                 break
+
+    def _bytes_held(self) -> int:
+        """Every byte the held sounds retain (a pygame sound built after compiling counts).
+
+        Returns:
+            The byte count.
+        """
+        return sum(held.retained_bytes for held in self._play_order.values())
 
     def _compile(self, sound: Sound) -> None:
         """Compile a sound into itself, timed and counted."""

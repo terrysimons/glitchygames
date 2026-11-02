@@ -58,6 +58,13 @@ def _isolated_context_and_file_cache():
     clear_sound_file_cache()
 
 
+@pytest.fixture(autouse=True)
+def _mixer_stopped_afterwards():
+    """Stop the mixer after each test so the harness restarts it with the run's format."""
+    yield
+    stop_mixer()
+
+
 @pytest.fixture
 def no_mixer():
     """Run the test with no mixer."""
@@ -519,3 +526,15 @@ def test_warm_under_cache_none_only_resolves():
 
     assert library.warm(requests) == 1.0
     assert library.statistics().compiles == 0
+
+
+def test_the_fixture_sfx_slap_decodes_without_a_mixer(no_mixer):
+    """The bundled recorded fixture is a real WAV that decodes by its short name."""
+    library, _ = make_library()
+
+    sound = library.sound('sfx_slap', scene_sound_directory=FIXTURE_SOUNDS)
+
+    assert sound.is_compiled
+    assert len(sound.samples_int16) == 400
+    assert sound.sample_rate == 44100
+    assert sound.peak > 0.0

@@ -1,11 +1,24 @@
 """Tests for the sound cache: modes, compile counts, memory limit, eviction and recompiles."""
 
 import numpy as np
+import pygame
 import pytest
 
 from glitchygames.audio.library import CacheMode, CacheStatistics
 from glitchygames.audio.pitch import Tuning
-from tests.audio.library_support import PULSE_INSTRUMENT, make_library
+from tests.audio.library_support import (
+    PULSE_INSTRUMENT,
+    make_library,
+    start_mixer,
+    write_wave_file,
+)
+
+
+@pytest.fixture(autouse=True)
+def _mixer_stopped_afterwards():
+    """Stop the mixer after each test so the harness restarts it with the run's format."""
+    yield
+    pygame.mixer.quit()
 
 
 def _request(library, pitch='C5'):
@@ -30,7 +43,7 @@ def test_statistics_count_hits_misses_compiles_and_bytes():
 
     statistics = library.statistics()
     assert statistics == CacheStatistics(
-        hits=2, misses=1, compiles=1, bytes_held=first.samples_int16.nbytes
+        hits=2, misses=1, compiles=1, bytes_held=first.retained_bytes
     )
 
 
@@ -131,10 +144,12 @@ def test_a_tuning_change_is_another_identity_and_compiles_again():
 def test_memory_limit_evicts_least_recently_played_sounds_that_are_not_playing():
     """Past the memory limit the least recently played idle sounds lose their audio."""
     probe, _ = make_library()
-    one_sound_bytes = _request(probe).samples_int16.nbytes
-    library, _ = make_library(memory_limit_bytes=one_sound_bytes * 2 + one_sound_bytes // 2)
+    one_sound_bytes = _request(probe).retained_bytes
     playing = set()
-    library.playing_predicate = lambda sound: sound in playing
+    library, _ = make_library(
+        memory_limit_bytes=one_sound_bytes * 2 + one_sound_bytes // 2,
+        is_playing=lambda sound: sound in playing,
+    )
 
     first = _request(library, 'C5')
     second = _request(library, 'D5')
@@ -152,8 +167,7 @@ def test_memory_limit_evicts_least_recently_played_sounds_that_are_not_playing()
 
 def test_playing_sounds_are_never_evicted_even_over_the_limit():
     """When every other sound is playing, the cache stays over its limit."""
-    library, _ = make_library(memory_limit_bytes=1)
-    library.playing_predicate = lambda sound: True
+    library, _ = make_library(memory_limit_bytes=1, is_playing=lambda _sound: True)
     first = _request(library, 'C5')
     second = _request(library, 'D5')
 
@@ -174,7 +188,7 @@ def test_the_sound_just_compiled_is_kept_even_when_it_alone_exceeds_the_limit():
 def test_an_evicted_sound_is_recompiled_in_place_on_its_next_request_and_counted():
     """An evicted sound recompiles into the same object on its next request or play."""
     probe, _ = make_library()
-    one_sound_bytes = _request(probe).samples_int16.nbytes
+    one_sound_bytes = _request(probe).retained_bytes
     library, _ = make_library(memory_limit_bytes=one_sound_bytes + 1)
     first = _request(library, 'C5')
     before = first.samples_float
@@ -227,3 +241,37 @@ def test_parameters_identify_a_request_but_not_a_baked_sound():
     assert with_parameters is plain
     assert reordered is plain
     assert library.statistics().compiles == 1
+
+
+def test_retained_bytes_count_both_sample_arrays_and_the_pygame_sound():
+    """The limit counts float samples, int16 samples and the pygame sound's buffer."""
+    start_mixer(frequency=44100, channels=2)
+    library, _ = make_library()
+    sound = _request(library)
+    samples_only = sound.samples_float.nbytes + sound.samples_int16.nbytes
+    assert sound.retained_bytes == samples_only
+    assert library.statistics().bytes_held == samples_only
+
+    sound.mixer_sound()  # a stereo buffer of 16-bit frames
+
+    assert sound.retained_bytes == samples_only + len(sound.samples_int16) * 2 * 2
+    assert library.statistics().bytes_held == sound.retained_bytes
+    sound_bytes = sound.retained_bytes
+    small_library, _ = make_library(memory_limit_bytes=sound_bytes + 1)
+    first = _request(small_library, 'C5')
+    first.mixer_sound()
+    _request(small_library, 'D5')  # the first now counts its pygame buffer too
+    assert not first.is_compiled
+    assert first.retained_bytes == 0
+
+
+def test_a_recorded_sound_counts_its_pygame_buffer(tmp_path):
+    """A recorded file loaded through the mixer counts the mixer sound it holds."""
+    path = write_wave_file(tmp_path / 'blip.wav', frames=1000)
+    start_mixer(frequency=44100)
+    library, _ = make_library()
+
+    sound = library.sound(str(path), scene_sound_directory=None)
+
+    assert sound.retained_bytes == 1000 * (8 + 2 + 2)  # float64, int16, 16-bit mixer buffer
+    assert library.statistics().bytes_held == sound.retained_bytes

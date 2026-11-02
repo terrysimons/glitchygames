@@ -18,7 +18,11 @@ FIXTURES = Path(__file__).parent / 'fixtures'
 
 
 def make_library(
-    cache=CacheMode.RAM, *, memory_limit_bytes=256 * 1024 * 1024, tuning_source=None
+    cache=CacheMode.RAM,
+    *,
+    memory_limit_bytes=256 * 1024 * 1024,
+    tuning_source=None,
+    is_playing=None,
 ) -> tuple[SoundLibrary, AudioAccountant]:
     """Build a library over the current context's wave registry.
 
@@ -33,6 +37,7 @@ def make_library(
         waves=current_wave_registry(),
         tuning_source=tuning_source if tuning_source is not None else (lambda: default_tuning),
         memory_limit_bytes=memory_limit_bytes,
+        **({'is_playing': is_playing} if is_playing is not None else {}),
     )
     return library, accountant
 
