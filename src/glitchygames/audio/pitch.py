@@ -32,6 +32,7 @@ MIDI_HIGHEST: Final[int] = 127
 SEMITONES_PER_OCTAVE: Final[int] = 12
 CENTS_PER_SEMITONE: Final[float] = 100.0
 DEFAULT_SCALE_ROOT_OCTAVE: Final[int] = 4
+CENTS_TOLERANCE: Final[float] = 1e-9  # Float noise below this is treated as no offset
 
 NOTE_NAME_PATTERN: Final[re.Pattern[str]] = re.compile(r'^([A-G])(#|b)?(-?\d)$')
 PITCH_CLASS_PATTERN: Final[re.Pattern[str]] = re.compile(r'^([A-G])(#|b)?$')
@@ -195,30 +196,38 @@ class Midi(int):
 
 
 class Note:
-    """A note name such as 'C4', 'F#4' or 'Bb3'; C4 is middle C and A4 is 440 Hz.
+    """A note name such as 'C4', 'F#4' or 'Bb3', optionally shifted by cents.
 
-    Notes compare and hash by pitch, so 'Bb3' equals 'A#3'.
+    C4 is middle C and A4 is 440 Hz (at the default tuning). Shifts made by up, down and
+    detune stay symbolic: the tuning is applied only when the note is converted to hertz, so
+    a detuned note follows the engine's tuning. Notes compare and hash by pitch and offset, so
+    'Bb3' equals 'A#3'.
     """
 
-    __slots__ = ('_midi_number', '_name')
+    __slots__ = ('_cents', '_midi_number', '_name')
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, *, cents: float = 0.0) -> None:
         """Parse a note name.
 
         Args:
             name: A letter A-G, an optional '#' or 'b', then an octave digit (optionally
                 negative, so 'C-1' is MIDI 0).
+            cents: An offset from the named note in hundredths of a semitone.
 
         Raises:
-            ValueError: If the name is not a valid note name.
+            ValueError: If the name is not a valid note name or cents is not finite.
 
         """
         match = NOTE_NAME_PATTERN.match(name) if isinstance(name, str) else None  # pyright: ignore[reportUnnecessaryIsInstance] - callers may pass anything at runtime
         if match is None:
             message = f"Invalid note name {name!r}; expected e.g. 'C4', 'F#4' or 'Bb3'"
             raise ValueError(message)
+        if not math.isfinite(cents):
+            message = f'Note cents must be finite, got {cents!r}'
+            raise ValueError(message)
         letter, accidental, octave = match.groups()
         self._name: str = name
+        self._cents: float = float(cents)
         self._midi_number: int = (
             SEMITONES_PER_OCTAVE * (int(octave) + 1)
             + LETTER_SEMITONES[letter]
@@ -226,19 +235,20 @@ class Note:
         )
 
     @classmethod
-    def from_midi_number(cls, midi_number: int) -> Note:
+    def from_midi_number(cls, midi_number: int, *, cents: float = 0.0) -> Note:
         """Build the note (spelled with sharps) for a MIDI note number.
 
         Args:
             midi_number: The note number; 60 is C4. It may lie outside 0 to 127, as long as
                 the octave stays a single digit.
+            cents: An offset from the note in hundredths of a semitone.
 
         Returns:
             The note.
 
         """
         octave, pitch_class = divmod(midi_number, SEMITONES_PER_OCTAVE)
-        return cls(f'{SHARP_NAMES[pitch_class]}{octave - 1}')
+        return cls(f'{SHARP_NAMES[pitch_class]}{octave - 1}', cents=cents)
 
     @property
     def name(self) -> str:
@@ -247,28 +257,37 @@ class Note:
 
     @property
     def midi_number(self) -> int:
-        """The MIDI note number of this note."""
+        """The MIDI note number of the named note, before any cents offset."""
         return self._midi_number
 
-    def up(self, *, semitones: float = 0.0, cents: float = 0.0) -> Note | Hz:
-        """Move up in pitch.
+    @property
+    def cents(self) -> float:
+        """The offset from the named note in cents; 0.0 for a plain note."""
+        return self._cents
+
+    def up(self, *, semitones: float = 0.0, cents: float = 0.0) -> Note:
+        """Move up in pitch, staying relative to whatever tuning is applied later.
 
         Args:
             semitones: Semitones to move up.
             cents: Hundredths of a semitone to move up.
 
         Returns:
-            A Note when the move is a whole number of semitones, otherwise the shifted Hz
-            (at A4 = 440 Hz; use resolve_pitch for another tuning).
+            A note; a plain named note when the total shift is a whole number of semitones,
+            otherwise the nearest named note carrying the remaining cents offset.
 
         """
-        no_detune = cents == 0.0  # ruff: ignore[float-equality-comparison] - exact zero means none
-        if no_detune and float(semitones).is_integer():
-            return Note.from_midi_number(self._midi_number + int(semitones))
-        total_semitones = semitones + cents / CENTS_PER_SEMITONE
-        return Tuning().hertz_for_midi_number(self._midi_number + total_semitones)
+        total_cents = self._cents + semitones * CENTS_PER_SEMITONE + cents
+        whole_semitones = round(total_cents / CENTS_PER_SEMITONE)
+        remaining_cents = total_cents - whole_semitones * CENTS_PER_SEMITONE
+        if math.isclose(remaining_cents, 0.0, abs_tol=CENTS_TOLERANCE):
+            remaining_cents = 0.0
+        return Note.from_midi_number(
+            self._midi_number + whole_semitones,
+            cents=remaining_cents,
+        )
 
-    def down(self, *, semitones: float = 0.0, cents: float = 0.0) -> Note | Hz:
+    def down(self, *, semitones: float = 0.0, cents: float = 0.0) -> Note:
         """Move down in pitch.
 
         Args:
@@ -276,27 +295,25 @@ class Note:
             cents: Hundredths of a semitone to move down.
 
         Returns:
-            A Note when the move is a whole number of semitones, otherwise the shifted Hz.
+            The lowered note; see up.
 
         """
         return self.up(semitones=-semitones, cents=-cents)
 
-    def detune(self, *, cents: float) -> Hz:
+    def detune(self, *, cents: float) -> Note:
         """Shift slightly sharp (positive) or flat (negative).
 
         Args:
             cents: Hundredths of a semitone.
 
         Returns:
-            The detuned frequency (at A4 = 440 Hz).
+            The detuned note; see up.
 
         """
-        return Tuning().hertz_for_midi_number(
-            self._midi_number + cents / CENTS_PER_SEMITONE,
-        )
+        return self.up(cents=cents)
 
     def to_hz(self, *, tuning: Tuning | None = None) -> Hz:
-        """Convert to hertz.
+        """Convert to hertz: the tuning is applied first, then the cents offset.
 
         Args:
             tuning: The tuning to use; A4 = 440 Hz when omitted.
@@ -305,29 +322,31 @@ class Note:
             The frequency in hertz.
 
         """
-        return (tuning or Tuning()).hertz_for_midi_number(self._midi_number)
+        return (tuning or Tuning()).hertz_for_midi_number(
+            self._midi_number + self._cents / CENTS_PER_SEMITONE,
+        )
 
     @override
     def __eq__(self, other: object) -> bool:
-        """Compare by pitch.
+        """Compare by pitch and cents offset.
 
         Returns:
-            True if other is a Note of the same pitch.
+            True if other is a Note of the same pitch and offset.
 
         """
         if not isinstance(other, Note):
             return NotImplemented
-        return self._midi_number == other._midi_number
+        return (self._midi_number, self._cents) == (other._midi_number, other._cents)
 
     @override
     def __hash__(self) -> int:
-        """Hash by pitch.
+        """Hash by pitch and cents offset.
 
         Returns:
-            The hash of the MIDI note number.
+            The hash of the MIDI note number and offset.
 
         """
-        return hash(('Note', self._midi_number))
+        return hash(('Note', self._midi_number, self._cents))
 
     @override
     def __repr__(self) -> str:
@@ -337,6 +356,8 @@ class Note:
             The representation.
 
         """
+        if self._cents:
+            return f'Note({self._name!r}, cents={self._cents!r})'
         return f'Note({self._name!r})'
 
 

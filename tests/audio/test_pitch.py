@@ -220,13 +220,40 @@ def test_note_moves():
     assert Note('C4').up(semitones=7) == Note('G4')
     assert Note('C4').down(semitones=12) == Note('C3')
     assert Note('C4').up() == Note('C4')
-    assert Note('A4').up(cents=100.0) == pytest.approx(440.0 * 2 ** (1 / 12))
-    assert isinstance(Note('A4').up(semitones=0.5), Hz)
-    assert Note('A4').down(semitones=1, cents=50.0) == pytest.approx(440.0 * 2 ** (-1.5 / 12))
-    assert Note('A4').detune(cents=-1200.0) == pytest.approx(220.0)
-    assert isinstance(Note('A4').detune(cents=-8), Hz)
+    assert Note('C4').up(semitones=11, cents=100.0) == Note('C5')
+    assert Note('A4').detune(cents=-1200.0) == Note('A3')
+    assert Note('A4').up(cents=100.0) == Note('A#4')
+    moved = Note('A4').up(semitones=0.5)
+    assert moved.cents == pytest.approx(50.0)
+    assert moved != Note('A4')
+    assert hash(moved) == hash(Note('A4').up(cents=50.0))
+    assert Note('A4').down(semitones=1, cents=50.0).to_hz() == pytest.approx(
+        440.0 * 2 ** (-1.5 / 12),
+    )
     assert Note('A4').to_hz() == pytest.approx(440.0)
     assert Note('A4').to_hz(tuning=Tuning(a4=432.0)) == pytest.approx(432.0)
+
+
+def test_cents_offsets_stay_relative_to_the_tuning():
+    """Detuned and fractional notes follow the tuning, not a fixed A4 of 440."""
+    for tuning in (Tuning(), Tuning(a4=432.0)):
+        base = resolve_pitch('C4', tuning=tuning)
+        detuned = resolve_pitch(Note('C4').detune(cents=-8), tuning=tuning)
+        assert detuned == pytest.approx(base * 2 ** (-8 / 1200), rel=1e-9)
+        halfway = resolve_pitch(Note('C4').up(semitones=0.5), tuning=tuning)
+        assert halfway == pytest.approx(base * 2 ** (50 / 1200), rel=1e-9)
+        lowered = resolve_pitch(Note('C4').down(cents=25.0), tuning=tuning)
+        assert lowered == pytest.approx(base * 2 ** (-25 / 1200), rel=1e-9)
+    assert resolve_pitch(Note('A4').detune(cents=0.0), tuning=Tuning(a4=432.0)) == 432.0
+
+
+def test_note_cents_repr_and_validation():
+    """Cents show in repr and must be finite."""
+    assert repr(Note('C4', cents=-8.0)) == "Note('C4', cents=-8.0)"
+    assert Note('C4', cents=-8.0) == Note('C4', cents=-8.0)
+    assert Note('C4', cents=-8.0) != Note('C4')
+    with pytest.raises(ValueError, match='cents must be finite'):
+        Note('C4', cents=float('nan'))
 
 
 def test_midi_validation_and_value_semantics():
