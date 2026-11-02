@@ -352,6 +352,10 @@ class MenuBar(FocusableSingletonBitmappySprite):
                     self.name,
                     mouse,
                 )
+                # The item takes the release as a press on purpose: its dropdown stays open for a
+                # choice after the click that opened it. Its sub-items take the release, which is
+                # how a choice is made (BUGS.md #165: not a bug; tests/ui/test_menubar_events.py
+                # pins both)
                 sprite.on_left_mouse_button_down_event(event)
 
                 for menu_item in sprite.menu_items:
