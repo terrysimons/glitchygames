@@ -27,7 +27,7 @@ from glitchygames.replay.tools.sound_tools import (
     sound_render_on_the_game,
 )
 from glitchygames.scenes import Scene
-from tests.audio.library_support import make_library, stop_mixer
+from tests.audio.library_support import FIXTURE_SOUNDS, make_library, stop_mixer
 
 SAMPLE_RATE = 44100
 # A version 1 sound file with one sound
@@ -398,8 +398,14 @@ def test_migrate_names_every_field_version_1_cannot_say_and_writes_nothing(tmp_p
 
     errors = capsys.readouterr().err
     assert status == ExitCode.UNUSABLE_INPUT
-    assert 'recipes.flash.tones[0].offset' in errors
-    assert 'recipes.flash.tones[0].tremolo' in errors
+    assert (
+        'recipes.flash.tones[0].offset: 0.05 s needs per-tone offsets, which version 1 sound '
+        'files gain in M4'
+    ) in errors
+    assert (
+        'recipes.flash.tones[0].tremolo: needs a tremolo LFO, which version 1 sound files gain '
+        'in M4'
+    ) in errors
     assert 'recipes.flash.tones[1].duration' in errors
     assert not (tmp_path / f'recipes{MIGRATED_SUFFIX}').exists()
 
@@ -410,7 +416,7 @@ def test_migrate_names_every_field_version_1_cannot_say_and_writes_nothing(tmp_p
         (
             'waveform = "sine"\nstart_frequency = 440.0\nduration = 0.1\ndistortion = 0.5\n',
             'tones[0].distortion',
-            'no version 1 form',
+            'which no milestone gives',
         ),
         (
             (
@@ -624,3 +630,25 @@ def test_the_migrated_document_of_a_file_it_cannot_migrate_is_a_value_error(tmp_
 
     with pytest.raises(ValueError, match=r'recipes\.flash\.tones\[0\]\.offset'):
         migrated_document(load_sound_file(recipes))
+
+
+def test_migrate_refuses_the_engines_own_v0_fixture_naming_the_milestones(tmp_path, capsys):
+    """None of the fixture's three recipes can be said in version 1 yet: each is refused.
+
+    Games keep such files at version 0, which compile bit-identically through the legacy
+    renderer (R36); each refusal names the milestone that would allow it, or says none plans it.
+    """
+    recipes = tmp_path / 'legacy_recipes.toml'
+    recipes.write_bytes((FIXTURE_SOUNDS / 'legacy_recipes.toml').read_bytes())
+
+    status = command.main(['sound-migrate', str(recipes)])
+
+    errors = capsys.readouterr().err
+    assert status == ExitCode.UNUSABLE_INPUT
+    for name in ('crunch_one', 'sugar_rush', 'camera_flash'):
+        assert f'recipes.{name}.' in errors
+    assert 'which version 1 sound files gain in M4' in errors
+    problem_lines = [line for line in errors.splitlines() if line.startswith('  recipes.')]
+    assert problem_lines
+    assert all(('in M4' in line) or ('milestone' in line) for line in problem_lines), errors
+    assert not (tmp_path / f'legacy_recipes{MIGRATED_SUFFIX}').exists()

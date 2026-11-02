@@ -273,7 +273,7 @@ def test_loops_repeat_the_sound_back_to_back(tmp_path, library_without_mixer):
 
 
 def test_the_nominal_end_of_an_instrument_sound_is_its_last_gate(library_without_mixer):
-    """An instrument sound's nominal end is where its last note's gate ends; others' their end."""
+    """In an events mix, an instrument sound's nominal end is its last gate; others' their end."""
     sound = library_without_mixer.sound(
         PULSE_INSTRUMENT, scene_sound_directory=None, notes='B5:0.06 E6:0.18'
     )
@@ -284,43 +284,79 @@ def test_the_nominal_end_of_an_instrument_sound_is_its_last_gate(library_without
         0.18 * SAMPLE_RATE
     )
     assert nominal_end_frame(legacy, sample_rate=SAMPLE_RATE) == len(legacy.samples_float)
+    # At another rate the spec's notes are placed at that rate
+    assert nominal_end_frame(sound, sample_rate=22050) == round(0.06 * 22050) + round(0.18 * 22050)
 
 
-def test_tail_stops_after_100_ms_below_minus_90_dbfs(tmp_path, library_without_mixer):
-    """After the last nominal end, the render stops once the output stays quiet for 100 ms.
+def stepped_mix(library):
+    """A held tone with a long silent release, mixed with a short blip at 0 (an events mix).
 
-    The stepped release is silent for its last 0.25 s: the file keeps 100 ms of that silence
-    and drops the rest.
+    Returns:
+        The tone, the blip and their mono float mix.
+    """
+    tone = library.sound(
+        STEPPED_RELEASE_INSTRUMENT, scene_sound_directory=None, pitch='A4', length=0.2
+    )
+    blip = library.sound(PULSE_INSTRUMENT, scene_sound_directory=None, pitch='C5', length=0.05)
+    assert len(blip.samples_float) < round(0.2 * SAMPLE_RATE)  # it ends inside the tone's hold
+    mix = tone.samples_float.copy()
+    mix[: len(blip.samples_float)] += blip.samples_float
+    return tone, blip, mix
+
+
+def test_a_sound_alone_is_never_cut_however_long_its_quiet_tail(tmp_path, library_without_mixer):
+    """Alone, a sound whose release stays below -90 dBFS for over 100 ms is still written whole.
+
+    Its nominal end is its buffer's end (R37), so the file is its compiled buffer bit for bit
+    (AUD-FUNC-008), whatever ``tail_seconds`` says.
     """
     sound = library_without_mixer.sound(
         STEPPED_RELEASE_INSTRUMENT, scene_sound_directory=None, pitch='A4', length=0.2
     )
     samples = sound.samples_float
+    loud = np.flatnonzero(np.abs(samples) >= QUIET_LEVEL)
+    window = round(QUIET_SECONDS * SAMPLE_RATE)
+    assert len(samples) - (int(loud[-1]) + 1) > window  # over 100 ms of quiet at its end
+
+    report = render_to_file(sound, tmp_path / 'whole.wav')
+    capped = render_to_file(sound, tmp_path / 'capped.wav', tail_seconds=0.0)
+
+    assert np.array_equal(read_wav_int16(report.path), sound.samples_int16)
+    assert np.array_equal(read_wav_int16(capped.path), sound.samples_int16)
+
+
+def test_tail_stops_after_100_ms_below_minus_90_dbfs(tmp_path, library_without_mixer):
+    """In an events mix, the render stops 100 ms into quiet after the last nominal end.
+
+    The last nominal end is the tone's release, which is stepped: silent for its last 0.25 s. The
+    file keeps 100 ms of that silence and drops the rest.
+    """
+    tone, blip, mix = stepped_mix(library_without_mixer)
     gate_end = round(0.2 * SAMPLE_RATE)
-    loud = np.flatnonzero(np.abs(samples[gate_end:]) >= QUIET_LEVEL)
+    loud = np.flatnonzero(np.abs(mix[gate_end:]) >= QUIET_LEVEL)
     quiet_from = gate_end + int(loud[-1]) + 1
     window = round(QUIET_SECONDS * SAMPLE_RATE)
-    assert len(samples) - quiet_from > window  # the sound's own tail is longer than the window
+    assert len(mix) - quiet_from > window  # the mix's own tail is longer than the window
 
-    report = render_to_file(sound, tmp_path / 'tail.wav')
+    report = render_to_file(tone, tmp_path / 'tail.wav', events=[OfflineEvent(0.0, blip)])
 
     assert pytest.approx(10.0 ** (-90.0 / 20.0)) == QUIET_LEVEL
     assert pytest.approx(0.1) == QUIET_SECONDS
     assert report.frames == quiet_from + window
-    assert np.array_equal(read_wav_int16(report.path), sound.samples_int16[: quiet_from + window])
+    assert np.array_equal(read_wav_int16(report.path), to_pcm16(mix[: quiet_from + window]))
 
 
 def test_tail_seconds_ends_the_render_earlier(tmp_path, library_without_mixer):
-    """``tail_seconds`` stops the render that long after the nominal end, if that is sooner."""
-    sound = library_without_mixer.sound(
-        STEPPED_RELEASE_INSTRUMENT, scene_sound_directory=None, pitch='A4', length=0.2
-    )
+    """In an events mix, ``tail_seconds`` stops the render that long after the nominal end."""
+    tone, blip, mix = stepped_mix(library_without_mixer)
 
-    report = render_to_file(sound, tmp_path / 'short.wav', tail_seconds=0.05)
+    report = render_to_file(
+        tone, tmp_path / 'short.wav', tail_seconds=0.05, events=[OfflineEvent(0.0, blip)]
+    )
 
     expected_frames = round(0.2 * SAMPLE_RATE) + round(0.05 * SAMPLE_RATE)
     assert report.frames == expected_frames
-    assert np.array_equal(read_wav_int16(report.path), sound.samples_int16[:expected_frames])
+    assert np.array_equal(read_wav_int16(report.path), to_pcm16(mix[:expected_frames]))
 
 
 def test_a_quiet_stretch_cut_short_by_the_end_keeps_the_whole_buffer(

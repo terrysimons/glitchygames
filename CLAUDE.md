@@ -1156,7 +1156,8 @@ revision: a game outside this repository names its own commit. Here both are one
 - Recipes: `Tone`/`SoundRecipe` (TOML-loadable) played through `SoundBank`
 - Offline: `glitchygames.audio.render_to_file(sound, path, ...)` (`audio/offline.py`) writes a
   sound (plus `OfflineEvent`s, loops, stems) to a WAV file with no audio device; alone it is the
-  compiled int16 buffer bit for bit; the tail stops 100 ms into -90 dBFS after the nominal end
+  compiled int16 buffer bit for bit (never cut); with `events`, the tail stops 100 ms into
+  -90 dBFS after the last nominal end (an instrument sound's last release), or at `tail_seconds`
 - Live voices: `scene_manager.live_audio.create_voice(owner=...)`, streamed in 100 ms chunks on
   a channel pool reserved at startup (`--live-voice-pool`, default 4)
 - Mixer: 44100 Hz, signed 16-bit, stereo, 512-sample buffer (started by `pygame.init()`)

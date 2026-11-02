@@ -16,11 +16,13 @@ The rules:
   every event (the sound itself included, at the centre) takes the voices' constant-power pan
   law (``voices.constant_power_gains``, impl spec 7.2); otherwise it is mono.
 - **Loops:** the sound plays ``loops`` times back to back, as the device replays a baked buffer.
-- **Tail:** the render stops once the output has stayed below -90 dBFS for 100 ms after the last
-  event's nominal end (an instrument sound's last note release, where its held part ends; the
-  end of any other sound's buffer), keeping those 100 ms, or ``tail_seconds`` after that nominal
-  end if that is sooner. A quiet stretch the buffers end before 100 ms stops nothing: the whole
-  mix is written.
+- **Tail (R37):** a sound rendered alone (no ``events``, any ``loops``) is never cut: its
+  nominal end is its buffer's end, so the file is the compiled buffer bit for bit for every
+  sound (AUD-FUNC-008). In a mix with ``events``, each buffer's nominal end is an instrument
+  sound's last note release (where its held part ends) or any other sound's buffer end, and the
+  render stops once the output has stayed below -90 dBFS for 100 ms after the last of them,
+  keeping those 100 ms, or ``tail_seconds`` after it if that is sooner. A quiet stretch the
+  buffers end before 100 ms stops nothing: the whole mix is written.
 - **Clipping:** the report gives the peak and the number of samples beyond full scale. A float32
   file keeps them; an int16 file clips them (never silently: they are counted).
 - **Stems:** with ``stems=True`` each bus's events (by the sound's playback bus) are also written
@@ -161,7 +163,8 @@ def render_to_file(  # ruff: ignore[too-many-arguments] - impl spec 8's signatur
         sample_format: ``'int16'`` (PCM) or ``'float32'`` (IEEE float, overs kept).
         loops: How many times the sound plays, back to back.
         tail_seconds: The most the render runs past the last nominal end, or None for the
-            -90 dBFS rule alone.
+            -90 dBFS rule alone (alone, a sound's nominal end is its buffer's end, so neither
+            cuts it).
         stems: Also write each bus's events to a file of its own (the output is then stereo).
         parameter_timeline: Live parameters over time; must be None until live sounds (M2).
         events: More sounds placed in the mix.
@@ -211,7 +214,9 @@ def render_to_file(  # ruff: ignore[too-many-arguments] - impl spec 8's signatur
 
 
 def nominal_end_frame(sound: Sound, *, sample_rate: int) -> int:
-    """Where a sound's nominal end is, at a rate: the tail rule counts quiet from here.
+    """Where a sound's nominal end is in a mix with events, at a rate (the tail counts from here).
+
+    A sound rendered alone is never cut: its nominal end there is its buffer's end.
 
     Args:
         sound: The sound.
@@ -250,11 +255,14 @@ def _placed_buffers(
 ) -> list[_Placed]:
     """Place the sound's loops and every event's buffer.
 
+    Alone (no events) the sound's nominal end is its buffer's end, so the tail rule never cuts
+    it; in a mix with events every buffer's is ``_nominal_end``'s.
+
     Returns:
         The buffers, the sound's loops first.
     """
     samples = _samples_at(sound, rate=rate)
-    end = _nominal_end(sound, samples, rate=rate)
+    end = _nominal_end(sound, samples, rate=rate) if events else len(samples)
     placed = [
         _Placed(
             offset=index * len(samples),

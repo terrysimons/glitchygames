@@ -21,8 +21,10 @@ Both run no game (registry.py's ``TOOLS``):
   sounds follow the version 1 renderer (band-limited waves, its envelope stages, its noise seed),
   so they are close to the recipe, not equal to it: impl spec 10.4 checks them by listening.
 
-  A recipe version 1 cannot say yet is refused, every such field named, and nothing is written:
-  a tone that starts late (``offset``; sequences arrive in M5), a ``tremolo`` (LFOs arrive in M4),
+  A recipe version 1 cannot say yet is refused, every such field named with the milestone that
+  would make it migratable (or that none plans it), and nothing is written (games keep their
+  version 0 files, which compile bit-identically through the legacy renderer): a tone that starts
+  late (``offset``; per-tone offsets arrive in M4), a ``tremolo`` (LFOs arrive in M4),
   ``distortion`` (no version 1 form), both filters on one tone, tones held for different
   durations or with different envelopes (a version 1 sound has one length and the instrument one
   envelope), a tone not longer than its envelope's stages, more than four tones, a tone or
@@ -303,12 +305,17 @@ def _recipe_problems(recipe: SoundRecipe) -> list[str]:
     where = f'recipes.{recipe.name}'
     tones = recipe.tones
     if not tones:
-        return [f'{where}.tones: a version 1 instrument needs at least one source; give a tone']
+        return [
+            (
+                f'{where}.tones: a version 1 instrument needs at least one source in every '
+                'milestone; give a tone'
+            )
+        ]
     problems: list[str] = []
     if len(tones) > MAXIMUM_SOURCES:
         problems.append(
             f'{where}.tones: {len(tones)} tones; a version 1 instrument has at most '
-            f'{MAXIMUM_SOURCES} sources'
+            f'{MAXIMUM_SOURCES} sources, and no milestone raises that'
         )
     for index, tone in enumerate(tones):
         problems.extend(_tone_problems(tone, first=tones[0], where=f'{where}.tones[{index}]'))
@@ -316,7 +323,7 @@ def _recipe_problems(recipe: SoundRecipe) -> list[str]:
     if volume > HIGHEST_LEVEL:
         problems.append(
             f'{where}.volume: {recipe.volume} at peak {recipe.peak} needs a version 1 volume of '
-            f'{volume:.3f}, above {HIGHEST_LEVEL}'
+            f'{volume:.3f}, above {HIGHEST_LEVEL}, which no milestone allows'
         )
     return problems
 
@@ -330,40 +337,46 @@ def _tone_problems(tone: Tone, *, first: Tone, where: str) -> list[str]:
     problems: list[str] = []
     if tone.offset > 0.0:  # never negative: Tone refuses that
         problems.append(
-            f'{where}.offset: {tone.offset} s; every version 1 source starts with the note '
-            '(sequences arrive in M5)'
+            f'{where}.offset: {tone.offset} s needs per-tone offsets, which version 1 sound '
+            'files gain in M4'
         )
     if tone.tremolo is not None:
-        problems.append(f'{where}.tremolo: LFOs arrive in M4')
+        problems.append(
+            f'{where}.tremolo: needs a tremolo LFO, which version 1 sound files gain in M4'
+        )
     if tone.distortion is not None:
         problems.append(
-            f"{where}.distortion: has no version 1 form (drive is the whole instrument's, and "
-            'shapes differently)'
+            f'{where}.distortion: needs per-tone distortion, which no milestone gives version 1 '
+            "sound files (drive is the whole instrument's, and shapes differently)"
         )
     if tone.low_pass_cutoff is not None and tone.high_pass_cutoff is not None:
         problems.append(
-            f'{where}.high_pass_cutoff: a version 1 source has one filter, and this tone has a '
-            'low-pass filter too'
+            f'{where}.high_pass_cutoff: needs a second filter on one tone (it has a low-pass '
+            'too), which no milestone gives version 1 sources (one filter each)'
         )
     if tone.volume > HIGHEST_LEVEL:
         problems.append(
-            f'{where}.volume: {tone.volume}; a version 1 source level is at most {HIGHEST_LEVEL}'
+            f'{where}.volume: {tone.volume}; a version 1 source level is at most '
+            f'{HIGHEST_LEVEL}, and no milestone raises that'
         )
     envelope = tone.envelope
     stages = envelope.attack + envelope.decay + envelope.release
     if tone.duration != first.duration:
         problems.append(
-            f'{where}.duration: {tone.duration} s, but tones[0] is held {first.duration} s; the '
-            'tones of a version 1 sound share one length'
+            f'{where}.duration: {tone.duration} s, but tones[0] is held {first.duration} s; '
+            'needs per-tone lengths, which no milestone gives version 1 sound files yet (a sound '
+            'has one length)'
         )
     elif envelope.release >= tone.duration or stages > tone.duration:
         problems.append(
             f'{where}.duration: {tone.duration} s must be longer than its envelope '
-            f'(attack, decay and release: {stages} s)'
+            f'(attack, decay and release: {stages} s); version 1 never cuts an envelope short, '
+            'in any milestone'
         )
     if envelope != first.envelope:
         problems.append(
-            f"{where}.envelope: differs from tones[0]'s; a version 1 instrument has one envelope"
+            f"{where}.envelope: differs from tones[0]'s; needs one envelope per tone, which no "
+            'milestone gives version 1 instruments yet (one amplifier envelope)'
         )
     return problems
 
