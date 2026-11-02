@@ -311,6 +311,7 @@ def test_a_commits_tree_is_taken_with_its_own_measured_paths(repository):
         None,
         'not [valid toml',
         '[project]\nname = "no-settings"\n',
+        'tool = 5\n',
         '[tool]\nglitchygames = 5\n',
         '[tool.glitchygames]\nmeasured-paths = "src"\n',
         '[tool.glitchygames]\nmeasured-paths = ["src"]\nunmeasured-paths = [1]\n',

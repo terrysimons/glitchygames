@@ -527,6 +527,14 @@ class TestCustomEventTypeRemap:
         assert moved[1] is frames[1]
         assert frames == original
 
+    def test_a_frame_with_only_redelivered_events_moves_them(self):
+        """No event batches (a frame a playback scope's held events reach first)."""
+        frames = [{REDELIVERED_EVENTS_FIELD: [{'type': 40001, 'attributes': {}}]}]
+
+        (moved,) = remapped_event_records(frames=frames, remap={40001: FPSEVENT})
+
+        assert moved == {REDELIVERED_EVENTS_FIELD: [{'type': FPSEVENT, 'attributes': {}}]}
+
     def test_nothing_to_move_returns_the_same_frames(self):
         """The usual case costs nothing."""
         frames = [{EVENT_BATCHES_FIELD: [[{'type': FPSEVENT, 'attributes': {}}]]}]
