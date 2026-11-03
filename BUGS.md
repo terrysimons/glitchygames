@@ -13,6 +13,22 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Details**: #252's per-file blocks (`tests/test_memory_guard.py`'s `INNER_RUN_ARGUMENTS`, `tests/world/test_mock_isolation.py`) predate this and are kept, explicit, though the harness now covers them. The hook's cost: the full comparison took 11 minutes (dummy twice, cocoa 6 minutes)
 - **Files**: `tests/harness.py`, `tests/test_inner_runs.py`
 
+### 259. An Inner pytest Run Listed the System Temp Directory and Lost a Race on Windows
+- **Description**: CircleCI build 2730 (`build-and-test-windows`, PR #143) failed `tests/world/test_mock_isolation.py::test_a_patched_test_does_not_leak_into_a_later_real_test`: its inner run errored collecting, `FileNotFoundError: [WinError 2] ... Temp\\replay-metrics-apve9n69` (another worker's `TemporaryDirectory`, from `replay/tools/measure.py`, gone between the listing and its `lstat`). The inner run uses the project's config (`-c pyproject.toml`) on a test file in the temp directory; `--rootdir` was already set to avoid exactly this, but pytest builds a directory node for every parent of the test file inside the **confcutdir**, which defaults to the config file's directory, and a parent counts as inside unless it is an ancestor of the project's: so the system temp directory was listed
+- **Status**: Fixed (2026-11-03, backlog run: proven locally with an audit hook on `os.scandir`: the inner run listed the temp root from `_pytest/main.py`'s `Session.collect`, and with `--confcutdir` set to the test's own directory it never does. The test now passes `--confcutdir` too. It is the only inner run using the project's config from outside the project)
+- **Priority**: Medium (an intermittent CI failure fails the whole job)
+- **Reporter**: CircleCI pipeline for PR #143, build 2730
+- **Date Reported**: 2026-11-03
+- **Files**: `tests/world/test_mock_isolation.py`
+
+### 258. Ball Tests Checked That a 39 ms Sound Was Still Playing
+- **Description**: CircleCI build 2739 (`build-and-test-windows`, PR #139) failed `tests/game_objects/test_ball.py::TestBallSpriteBounce::test_do_bounce_top_wall`: `assert ball.snd.get_num_channels() == 1` got 0. Six ball and paddle tests play the real bounce or slap sound and then check it is still playing; the bounce sound lasts 39 ms and SDL mixes in real time, so a runner paused longer than that between `play()` and the check saw it finished. Intermittent, timing only
+- **Status**: Fixed (2026-11-03, backlog run: proven: after a 50 ms pause the real bounce sound reports 0 channels. The six tests play a real sound of 10 seconds of silence (`_still_playing_when_checked`), which no pause outlasts, so the check still proves the code played its sound; the harness stops every channel after each test)
+- **Priority**: Medium (an intermittent CI failure fails the whole job)
+- **Reporter**: CircleCI pipeline for PR #139, build 2739
+- **Date Reported**: 2026-11-03
+- **Files**: `tests/game_objects/test_ball.py`
+
 ### 257. The Memory Guard's Thread Read a Test's Fake File and Errored the Linux CI Run
 - **Description**: CircleCI build 2682 (`build-and-test-linux`, PR #139) ended with 1 error: `PytestUnhandledThreadExceptionWarning: Exception in thread memory-guard`, `ValueError: invalid literal for int() with base 10: b'\n [sprite]\n pixels = [1, 2, 3] ...'`. The guard samples memory from its own thread (on Linux, the container's cgroup files and `/proc/self/statm`) through `Path.read_text`, which opens through `Path.open`; `tests/sprites/test_sprite_factory.py` patched `pathlib.Path.open` for the whole process to feed `SpriteFactory` fake TOML, so a sample taken during one of those tests read the fake sprite. Intermittent (a sample must land in the patch's few milliseconds) and Linux only (macOS has no cgroup files); unrelated to PR #139's change
 - **Status**: Fixed (2026-11-02, backlog run: reproduced on demand (the guard's reader under the test's patch raises the CI error exactly). The guard reads through `os.open`/`os.read` (`tests/memory_guard.py`'s `_read_ascii`), which no test patches; `tests/test_memory_guard.py::test_the_readers_ignore_a_tests_patched_file_reading` (fails without the fix with the CI error). The four `SpriteFactory` tests read real temporary files instead of patching `Path.open`)
