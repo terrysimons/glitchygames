@@ -46,6 +46,7 @@ from tests.display_canvas import (
 )
 from tests.engine_source import ENGINE_DIRECTORY
 from tests.garbage_collection import process_peak_memory_collector, release_test_instance
+from tests.git_environment import clear_git_repository_variables
 from tests.hidden_test_windows import hide_test_windows
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import (
@@ -64,6 +65,9 @@ CHECKOUT_ENGINE_DIRECTORY = PROJECT_ROOT / ENGINE_DIRECTORY
 # Before any window opens: a real driver's test windows are hidden, so the machine's pointer and
 # keyboard never reach a test (tests/hidden_test_windows.py, BUGS.md #225)
 TEST_WINDOWS_HIDDEN = hide_test_windows()
+# Before any test, worker or native run: git finds repositories where tests point it, not the one a
+# git hook (pre-push) was started for (tests/git_environment.py)
+GIT_VARIABLES_CLEARED_AT_STARTUP = clear_git_repository_variables()
 
 
 def imported_engine_directory() -> Path:
