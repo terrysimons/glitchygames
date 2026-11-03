@@ -22,7 +22,7 @@ from glitchygames import crt_power_on, crt_power_on_sound, randomness
 from glitchygames.audio import OfflineEvent, render_to_file
 from glitchygames.audio.engine import SYSTEM_OWNER, AudioEngine, discard_audio_engine
 from glitchygames.audio.library import CacheMode
-from glitchygames.audio.voices import VoiceTable
+from glitchygames.audio.voices import ChannelPartition, VoiceTable, reserve_channels
 from glitchygames.backgrounds import BackgroundPattern
 from glitchygames.crt_power_on import (
     DOT_STAGE_START,
@@ -51,8 +51,16 @@ from glitchygames.engine_context import EngineContext
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene
 from tests import demo_runs
-from tests.audio.library_support import make_library, stop_mixer
-from tests.audio.voice_support import RecordingChannel, calls_named, start_reserved_mixer
+from tests.audio.library_support import make_library, start_mixer, stop_mixer
+from tests.audio.voice_support import (
+    LEGACY_CHANNELS,
+    LIBRARY_CHANNELS,
+    LIVE_POOL,
+    SAMPLE_RATE,
+    RecordingChannel,
+    calls_named,
+    start_reserved_mixer,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -88,6 +96,8 @@ ATTACK_HEARD_SECONDS = 0.001
 # pygame's own display.quit, taken before any test patches it (engine_run_environment makes it a
 # no-op; test_no_sound_under_headless needs the real one while its engine moves to the dummy driver)
 REAL_DISPLAY_QUIT = pygame.display.quit
+# Another mixer rate than the run's (44100): the CRT's sounds compile anew at it
+HALF_MIXER_RATE = SAMPLE_RATE // 2
 ENGINE_ARGUMENTS = ('--resolution', '320x240', '--log-level', 'warning', '--target-fps', '0')
 
 
@@ -140,6 +150,16 @@ class RecordingAudioEngine:
             The sound.
         """
         sound = self.library.sound(source, scene_sound_directory=None, pitch=pitch, length=length)
+        sound.attach_player(self._play)
+        return sound
+
+    def engine_sound(self, instrument, *, pitch=None, length=None) -> Sound:
+        """Get one of the engine's own sounds for real (the process cache); its plays come here.
+
+        Returns:
+            The sound.
+        """
+        sound = self.library.engine_sound(instrument, pitch=pitch, length=length)
         sound.attach_player(self._play)
         return sound
 
@@ -1014,3 +1034,233 @@ def test_no_sound_of_the_sequence_clips(background):
     assert {name: sound.peak <= 1.0 for name, sound in cues.sounds.items()} == dict.fromkeys(
         cues.sounds, True
     )
+
+
+# --- Compiled once per process (the owner, 2026-11-02; impl spec 10.1) ---
+
+
+def power_on_compiles(audio: AudioEngine, *, background=BackgroundPattern.TEST_PATTERN) -> int:
+    """Make the power-on's cues on an audio engine and count the compiles that took.
+
+    Returns:
+        The compiles the engine counted for the cues.
+    """
+    compiles_before = audio.diagnostics().compiles
+    CrtPowerOnSound(audio=audio, background=background)
+    return audio.diagnostics().compiles - compiles_before
+
+
+def crt_sound_count() -> int:
+    """How many sounds the test pattern's power-on has (its schedule).
+
+    Returns:
+        The count.
+    """
+    return len(crt_power_on_sound.crt_sound_schedule(background=BackgroundPattern.TEST_PATTERN))
+
+
+def test_two_power_ons_in_one_process_compile_the_sounds_once():
+    """A second game run in one process (the Arcade, repeated engines) compiles no CRT sound."""
+    first = AudioEngine(partition=start_reserved_mixer())
+    first_compiles = power_on_compiles(first)
+    first.close(wait_seconds=0.0)
+    second = AudioEngine(partition=start_reserved_mixer())
+
+    second_compiles = power_on_compiles(second)
+
+    assert (first_compiles, second_compiles) == (crt_sound_count(), 0)
+    assert second.diagnostics().cache.hits == crt_sound_count()
+    assert second.diagnostics().cache.misses == 0
+    second.close(wait_seconds=0.0)
+
+
+def test_a_power_on_again_on_the_same_audio_engine_compiles_nothing():
+    """The engine's own sounds are counted hits the second time, never compiles."""
+    audio = AudioEngine(partition=start_reserved_mixer())
+    power_on_compiles(audio)
+    hits_before = audio.diagnostics().cache.hits
+
+    assert power_on_compiles(audio) == 0
+    assert audio.diagnostics().cache.hits - hits_before == crt_sound_count()
+    audio.close(wait_seconds=0.0)
+
+
+def split_partition(partition: ChannelPartition) -> tuple[ChannelPartition, ChannelPartition]:
+    """Give two games in one process half the library channels each (no shared channel).
+
+    Returns:
+        The first game's partition and the second's.
+    """
+    half = len(partition.library) // 2
+    return (
+        ChannelPartition(
+            live=partition.live,
+            library=partition.library[:half],
+            legacy_count=partition.legacy_count,
+        ),
+        ChannelPartition(live=(), library=partition.library[half:], legacy_count=0),
+    )
+
+
+def test_two_engine_contexts_powering_on_compile_the_sounds_once():
+    """Every engine context reuses the process's compiled CRT sounds."""
+    first_partition, second_partition = split_partition(start_reserved_mixer())
+    first = AudioEngine(partition=first_partition)
+    with EngineContext(name='a second game in the process').active():
+        second = AudioEngine(partition=second_partition)
+        assert (power_on_compiles(first), power_on_compiles(second)) == (crt_sound_count(), 0)
+    first.close(wait_seconds=0.0)
+    second.close(wait_seconds=0.0)
+
+
+def test_the_first_compile_is_counted_in_the_context_that_made_it():
+    """The compile is attributed like any compile: to setup, logged by name, timed."""
+    audio = AudioEngine(partition=start_reserved_mixer())
+    power_on_compiles(audio)
+
+    diagnostics = audio.diagnostics()
+    assert diagnostics.setup_compiles == crt_sound_count()
+    assert diagnostics.cache.misses == crt_sound_count()
+    assert len(audio.accountant.compile_log) == crt_sound_count()
+    audio.close(wait_seconds=0.0)
+
+
+def test_another_mixer_rate_compiles_the_sounds_anew():
+    """The identity key holds the mixer's rate: a restarted mixer never reuses a wrong rate."""
+    first = AudioEngine(partition=start_reserved_mixer())
+    first_cues = CrtPowerOnSound(audio=first, background=BackgroundPattern.TEST_PATTERN)
+    first.close(wait_seconds=0.0)
+    stop_mixer()
+    start_mixer(frequency=HALF_MIXER_RATE, channels=2)
+    second = AudioEngine(
+        partition=reserve_channels(
+            live_pool=LIVE_POOL, library_channels=LIBRARY_CHANNELS, legacy_channels=LEGACY_CHANNELS
+        )
+    )
+
+    second_cues = CrtPowerOnSound(audio=second, background=BackgroundPattern.TEST_PATTERN)
+
+    assert second.diagnostics().compiles == crt_sound_count()
+    assert {name: sound.sample_rate for name, sound in second_cues.sounds.items()} == dict.fromkeys(
+        second_cues.sounds, HALF_MIXER_RATE
+    )
+    assert first_cues.sounds[BARS_TONE].sample_rate == SAMPLE_RATE
+    second.close(wait_seconds=0.0)
+
+
+def test_cache_none_still_reuses_the_process_cache():
+    """Cache ``none`` is the game's benchmark switch: the engine's own sounds stay compiled."""
+    first = AudioEngine(partition=start_reserved_mixer(), cache=CacheMode.NONE)
+    first_cues = CrtPowerOnSound(audio=first, background=BackgroundPattern.TEST_PATTERN)
+    for progress in frame_progresses():
+        first_cues.at_progress(float(progress))
+        first_cues.frame(FRAME_SECONDS)
+    # Every sound played, and its plays compiled nothing
+    assert first.diagnostics().compiles == crt_sound_count()
+    assert all(sound.is_compiled for sound in first_cues.sounds.values())
+    first.close(wait_seconds=0.0)
+    second = AudioEngine(partition=start_reserved_mixer(), cache=CacheMode.NONE)
+
+    assert power_on_compiles(second) == 0
+    second.close(wait_seconds=0.0)
+
+
+def test_the_memory_limit_never_evicts_the_engines_sounds():
+    """A game's sounds over the memory limit evict the game's, never the CRT's."""
+    audio = AudioEngine(partition=start_reserved_mixer(), memory_limit_bytes=1)
+    cues = CrtPowerOnSound(audio=audio, background=BackgroundPattern.TEST_PATTERN)
+    from glitchygames.audio.instrument import Instrument
+
+    for pitch in (220.0, 330.0, 440.0):
+        audio.sound(Instrument(wave='square'), pitch=pitch, length=0.05)
+
+    assert all(sound.is_compiled for sound in cues.sounds.values())
+    assert audio.diagnostics().cache.bytes_held < sum(
+        sound.retained_bytes for sound in cues.sounds.values()
+    )
+    audio.close(wait_seconds=0.0)
+
+
+def test_each_context_gets_its_own_sound_sharing_the_compiled_samples():
+    """The samples are shared and read-only; each context's ``Sound`` plays on its own engine."""
+    first_partition, second_partition = split_partition(start_reserved_mixer())
+    first = AudioEngine(partition=first_partition)
+    first_cues = CrtPowerOnSound(audio=first, background=BackgroundPattern.TEST_PATTERN)
+    with EngineContext(name='a second game in the process').active():
+        second = AudioEngine(partition=second_partition)
+        second_cues = CrtPowerOnSound(audio=second, background=BackgroundPattern.TEST_PATTERN)
+    first_tone = first_cues.sounds[BARS_TONE]
+    second_tone = second_cues.sounds[BARS_TONE]
+
+    assert second_tone is not first_tone
+    assert second_tone.identity_key == first_tone.identity_key
+    assert second_tone.samples_int16 is first_tone.samples_int16
+    assert second_tone.samples_float is first_tone.samples_float
+    assert first_tone.samples_int16 is not None
+    assert not first_tone.samples_int16.flags.writeable
+    assert first_tone.samples_float is not None
+    assert not first_tone.samples_float.flags.writeable
+    first.close(wait_seconds=0.0)
+    second.close(wait_seconds=0.0)
+
+
+def test_the_shared_sound_plays_from_a_second_context():
+    """The second context's bars tone plays on its own voices, its samples on the device."""
+    first_partition, second_partition = split_partition(start_reserved_mixer())
+    first = AudioEngine(partition=first_partition)
+    first_cues = CrtPowerOnSound(audio=first, background=BackgroundPattern.TEST_PATTERN)
+    first_handle = first_cues.sounds[BARS_TONE].play(volume=0.1, loop=True, persist=True)
+    with EngineContext(name='a second game in the process').active():
+        second = AudioEngine(partition=second_partition)
+        second_cues = CrtPowerOnSound(audio=second, background=BackgroundPattern.TEST_PATTERN)
+        second_tone = second_cues.sounds[BARS_TONE]
+
+        second_handle = second_tone.play(volume=0.1, loop=True, persist=True)
+
+        assert second_handle.is_playing
+        assert first_handle.is_playing
+        assert second.diagnostics().voices_playing == 1
+        assert first.diagnostics().voices_playing == 1
+        busy_sounds = [
+            pygame.mixer.Channel(index).get_sound()
+            for index in (*first_partition.library, *second_partition.library)
+            if pygame.mixer.Channel(index).get_busy()
+        ]
+        expected = np.repeat(
+            np.asarray(second_tone.samples_int16)[:, np.newaxis], 2, axis=1
+        ).tobytes()
+        assert [sound is not None and sound.get_raw() == expected for sound in busy_sounds] == [
+            True,
+            True,
+        ]
+    first.close(wait_seconds=0.0)
+    second.close(wait_seconds=0.0)
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+def test_two_game_runs_in_one_process_compile_the_crt_once(mocker):
+    """The test harness's repeated engines (and the Arcade's) power on with no CRT compile."""
+    from glitchygames.audio import library as library_module
+
+    compiles = mocker.spy(library_module, 'compile_sound')
+    for _run in range(2):
+        engine = build_engine(mocker, extra_arguments=('--crt-power-on', 'on'))
+        mocker.patch.object(
+            game_engine_module, 'play_power_on', return_value=PowerOnOutcome.FINISHED
+        )
+        engine.start()
+
+    assert compiles.call_count == crt_sound_count()
+
+
+@pytest.mark.parametrize('test_order', ['first', 'second'])
+def test_every_test_starts_with_an_empty_engine_sound_cache(test_order):
+    """The harness empties the process cache around each test, so tests stay independent."""
+    from glitchygames.audio.library import ENGINE_SOUND_CACHE
+
+    assert len(ENGINE_SOUND_CACHE) == 0
+    audio = AudioEngine(partition=start_reserved_mixer())
+
+    assert power_on_compiles(audio) == crt_sound_count()
+    assert len(ENGINE_SOUND_CACHE) == crt_sound_count(), test_order
+    audio.close(wait_seconds=0.0)

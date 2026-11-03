@@ -26,7 +26,11 @@ tests do.
    when started with `context=contextvars.copy_context()` (or on an interpreter whose
    `sys.flags.thread_inherit_context` is set, such as free-threaded 3.14 builds).
 6. A context owns only what its slots hold. The display, the mixer, SDL's event queue and the
-   joystick subsystem are one per process.
+   joystick subsystem are one per process. So are read-only caches of values computed only from their keys,
+   such as the background pattern cache and the engine's own compiled sounds
+   (`glitchygames.audio.library.ENGINE_SOUND_CACHE`: the CRT power-on's, compiled once per
+   process and shared by every context as read-only samples; each context makes its own `Sound`
+   over them).
 
 ## What belongs to a context today
 

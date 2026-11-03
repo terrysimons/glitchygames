@@ -1243,6 +1243,8 @@ Rules (the power-on's existing rules [Fact: module docstring], extended to sound
 - `--crt-power-on-sound off` silences it without removing the picture **[Proposal]**.
 - The engine compiles these sounds before the sequence starts. They are short and compile in a few
   milliseconds.
+- They compile once per process and every later power-on reuses them, in any engine context (the
+  Arcade), whatever the sound cache mode **[Owner]** (impl spec 10.1).
 - **CRT power-off:** a falling whine and a soft thump, for when the collapse animation is built
   (`plans/future-features.md` #53). It is specified with that feature.
 

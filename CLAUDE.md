@@ -1170,7 +1170,8 @@ M2 next)
   harmonics (`audio/waves.py`, a per-context registry). Sound files are TOML version 1
   (`audio/assets.py`, `audio/spec.py`); version 0 recipe files load and sound as before
 - Cache (`--sound-cache`, replay-local): `ram` (default; least recently played idle sounds go
-  above `--sound-cache-memory`, 256 MB) or `none` (every play compiles in its frame); `disk`
+  above `--sound-cache-memory`, 256 MB) or `none` (every play compiles in its frame; the CRT
+  power-on's sounds, the engine's own, are compiled once per process and exempt); `disk`
   arrives in M3 and is refused (`OPTIONS_REFUSED`) until then. A sound's `length`, `peak` and
   `sample_rate` never depend on the cache, and eviction keeps them. Under `none` getting a sound
   renders or decodes nothing (5 plays, 5 compiles): a synthesized sound's `length` is derived
@@ -1252,7 +1253,13 @@ driver (`--headless`, every test) and before a replay, audit, rebaseline or reco
 (`FLYBACK_WHINE_HZ`, owner-tunable) from the dot, static as the picture opens, then the bars' 1 kHz
 tone (or channel 3's hiss), all `Instrument`s through `audio.sound(...)`, cued by the frames'
 progress through `play_power_on(sound_cues=...)` (`PowerOnSoundCues`: `crt_power_on.py` stays a
-leaf with no audio import). Its voices are the audio engine's `SYSTEM_OWNER`'s; the engine is made
+leaf with no audio import). They are requested through `audio.engine_sound(...)` and compile once
+per process (the owner, 2026-11-02): the engine's process-wide `ENGINE_SOUND_CACHE`
+(`audio/library.py`) keeps their read-only samples by identity key (mixer rate and tuning
+included), so every later power-on and engine context (the Arcade) compiles nothing; each context
+gets its own `Sound` over the shared samples. It is exempt from the memory limit and from
+`--sound-cache none`; the first compile is counted where it happens, reuses are cache hits; tests
+start empty (`tests/harness.py` `empty_engine_sound_cache`). Its voices are the audio engine's `SYSTEM_OWNER`'s; the engine is made
 before the power-on with the game engine's options and partition (`SceneManager.audio_for`), the
 one the game's `scene_manager.audio` returns. A skip fades every voice over 20 ms; the tail loops
 into the game and fades over 500 ms from frame 0's first audio update

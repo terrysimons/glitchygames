@@ -12,6 +12,9 @@ voices and short-name index; ``existing_audio_engine()`` reads it without making
   ``setup()`` the scene being set up is the one asked.
 - ``play(...)`` is ``sound(identity...).play(playback...)``; ``beep(...)`` is
   ``sound(Instrument(wave=...), pitch=..., length=...).play(...)``.
+- ``engine_sound(...)`` is the engine's own sounds' ``sound`` (the CRT power-on's): compiled once
+  per process and reused by every later power-on and engine context, whatever the cache mode,
+  never evicted (``SoundLibrary.engine_sound``).
 - Plays belong to the scene that started them (the scene in setup, else the active scene), or,
   with no scene, to the engine's ``SYSTEM_OWNER`` (the CRT power-on's sounds, Task 11), which no
   scene clean-up stops.
@@ -365,6 +368,27 @@ class AudioEngine:
             transpose=transpose,
             parameters=parameters,
         )
+        sound.attach_player(self._play_sound)
+        return sound
+
+    def engine_sound(
+        self, instrument: Instrument, *, pitch: PitchLike | None, length: float | None
+    ) -> Sound:
+        """Get one of the engine's own sounds (the CRT power-on's): compiled once per process.
+
+        The process's first request compiles it, counted and attributed here like any compile;
+        every later one (another power-on, another engine context) reuses the compiled samples,
+        a counted hit. The cache mode and the memory limit do not apply.
+
+        Args:
+            instrument: The instrument.
+            pitch: Its pitch, or None for a noise.
+            length: Seconds before the release.
+
+        Returns:
+            The sound; its ``play()`` plays it through this engine.
+        """
+        sound = self.sounds.engine_sound(instrument, pitch=pitch, length=length)
         sound.attach_player(self._play_sound)
         return sound
 

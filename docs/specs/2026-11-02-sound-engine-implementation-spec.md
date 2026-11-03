@@ -460,7 +460,8 @@ conventions, not separate APIs.
    listed with its frame (AUD-FUNC-003).
 4. **The engine's own sounds** (CRT) compile before the power-on, in
    `GameEngine._power_on_sound_cues`, which `_run_game` (the blocking start) and `start_async`
-   (the browser's) call when the power-on plays (§10.1).
+   (the browser's) call when the power-on plays (§10.1); only the process's first power-on
+   compiles them, every later one reuses them (§10.1, compiled once per process).
 5. **Recompiles:** after eviction, a tuning change or (M4) a hot reload, the next request compiles
    again and is counted.
 
@@ -842,7 +843,36 @@ def render_to_file(sound: Sound, path: Path | str, *, sample_rate: int | None = 
 - **The sounds:** a new leaf module, `src/glitchygames/crt_power_on_sound.py`, holds the CRT
   instruments and their tunable named constants (`FLYBACK_WHINE_HZ`, `DEGAUSS_HUM_HZ = 60.0`,
   `BARS_TONE_HZ = 1000.0`, `STATIC_SEED`). It requests them through
-  `audio.sound(Instrument(...), ...)`, the same API games use.
+  `audio.engine_sound(Instrument(...), pitch=..., length=...)`, the engine's own sounds' `sound`
+  (`SoundLibrary.engine_sound`): the same identity, compile path and accounting as games'
+  `audio.sound`, with one cache of its own.
+- **Compiled once per process** **[Owner]** (2026-11-02: "it'll be used at least once, but
+  possibly multiple times, if we're playing in the arcade"): the CRT's compiled samples are kept
+  in a process-wide cache owned by the engine (`glitchygames.audio.library.ENGINE_SOUND_CACHE`),
+  keyed by each sound's identity key (§6.2: it holds the mixer's rate and the tuning, so a mixer
+  restarted at another rate compiles anew and never reuses a wrong-rate sound). Every later
+  power-on in the process reuses them: a second game run in one process (the Arcade, the test
+  harness's repeated engines) and every engine context compiles nothing for the CRT.
+  - **Scope:** only the engine's own CRT sounds. Game sounds stay per engine context in each
+    context's `SoundLibrary`, and each context keeps its own `AudioEngine`, voices and accounting.
+  - **What is shared:** the compiled samples (float64 and int16, made read-only) with their peak
+    and rate, never a `Sound`: each library makes its own `Sound` over them, because a `Sound`
+    carries its context's player (`attach_player`, the engine whose voices play it) and its own
+    pygame sound, built from the samples on its first play. A pygame `Sound` could be played from
+    several channels at once, but sharing one would tie every context to the mixer it was built
+    on; building one per context is a copy of the samples, not a compile. The cache is a
+    read-only cache in the engine context's sense (`plans/2026-10-25-engine-context.md`: values
+    computed only from their keys, never written after they are made).
+  - **Cache mode and memory limit:** the cache is exempt from both. Under `--sound-cache none`
+    the CRT's sounds stay compiled and their plays compile nothing (`none` is a game's benchmark
+    switch; the CRT is engine-owned); the memory limit never evicts them, and `bytes_held` leaves
+    them out.
+  - **Accounting:** the first compile is counted and attributed like any compile, in the context
+    that triggered it (a miss, a setup compile, in its compile log); every reuse is a counted
+    cache hit.
+  - **Lazy:** they compile on the first power-on that plays its sound, so headless runs, tests
+    that never power on and `--crt-power-on-sound off` pay nothing. Tests start with an empty
+    cache (`tests/harness.py` `empty_engine_sound_cache`).
 - **The cue hook:** `crt_power_on.play_power_on` and `play_power_on_async` get one new keyword
   argument, `sound_cues: PowerOnSoundCues | None = None`. It is a small protocol:
   - `at_progress(progress)`, called every power-on frame with the same progress value that drives
@@ -867,8 +897,8 @@ def render_to_file(sound: Sound, path: Path | str, *, sample_rate: int | None = 
 
   This keeps `crt_power_on.py` a leaf with no audio import [Fact: it is a leaf today], and tests
   pass a recording fake.
-- **Wiring:** `GameEngine._power_on_sound_cues` compiles the CRT sounds (a few ms) and makes the
-  cues when `--crt-power-on-sound` is not `off`; `_run_game` (the blocking start) and
+- **Wiring:** `GameEngine._power_on_sound_cues` compiles the CRT sounds (a few ms, the first time
+  in the process) and makes the cues when `--crt-power-on-sound` is not `off`; `_run_game` (the blocking start) and
   `start_async` (the browser's) call it, and pass the cues to the power-on, when
   `_power_on_plays()` (`should_play`) is true. The headless, replay,
   recording, audit and rebaseline rules are inherited from `should_play` [Fact].

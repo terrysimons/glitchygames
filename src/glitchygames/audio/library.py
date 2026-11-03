@@ -20,6 +20,18 @@ them. Under ``none`` (Rulings R49 and R50) nothing renders or decodes at request
 - ``peak`` likewise comes from a compile on its first read.
 That compile is counted and attributed like any other, and what it gives is kept. A play's
 compile gives them too, so a read after a play compiles nothing more.
+
+The engine's own sounds (the CRT power-on's, ``engine_sound``) compile once per process
+(the owner, 2026-11-02): their compiled samples are kept in ``ENGINE_SOUND_CACHE``, by identity
+key (impl spec 6.2: the key holds the mixer's rate and the tuning, so a mixer restarted at another
+rate compiles anew), and every later request, in any library of any engine context, reuses them.
+The first compile is counted and attributed like any compile, in the library that asked; a reuse
+is a counted hit. They are outside a library's cache mode and memory limit: under ``none`` they
+stay compiled and their plays compile nothing, the memory limit never evicts them, and
+``bytes_held`` leaves them out. Each library makes its own ``Sound`` of them (its own player and
+pygame sound) over the shared samples, which are read-only (impl spec 10.1). The cache is a
+read-only cache in the engine context's sense (plans/2026-10-25-engine-context.md, the audit's
+read-only rows): values computed only from their keys, never written after they are made.
 """
 
 from __future__ import annotations
@@ -88,6 +100,87 @@ WAVE_SAMPLE_WIDTH_BYTES: Final[int] = 2  # 16-bit PCM
 DISK_CACHE_MESSAGE: Final[str] = 'the disk cache arrives in M3'
 
 
+@dataclass(frozen=True, slots=True)
+class CompiledSamples:
+    """A compiled sound's samples and what a game may read of them, shared read-only.
+
+    Attributes:
+        samples_float: Mono float64 samples (read-only).
+        samples_int16: The same as signed 16-bit PCM (read-only).
+        peak: The loudest magnitude before clipping.
+        sample_rate: The rate of the samples.
+    """
+
+    samples_float: FloatArray
+    samples_int16: Int16Array
+    peak: float
+    sample_rate: int
+
+
+class EngineSoundCache:
+    """The engine's own sounds' compiled samples, one cache per process, by identity key.
+
+    Only the engine's sounds (the CRT power-on's, ``SoundLibrary.engine_sound``) are kept here;
+    a game's sounds stay in its context's library. Nothing here is ever evicted: the engine's
+    sounds are few and short (the CRT's five or six, about 0.5 MB at 44.1 kHz). ``clear`` exists
+    for the test harness, which starts every test with an empty cache.
+    """
+
+    def __init__(self) -> None:
+        """Start empty."""
+        self._compiled: dict[str, CompiledSamples] = {}
+
+    def __len__(self) -> int:
+        """The number of sounds kept.
+
+        Returns:
+            The count.
+        """
+        return len(self._compiled)
+
+    def compiled(self, identity_key: str) -> CompiledSamples | None:
+        """The compiled samples of a sound, if this process compiled it already.
+
+        Args:
+            identity_key: The sound's identity key.
+
+        Returns:
+            The samples, or None.
+        """
+        return self._compiled.get(identity_key)
+
+    def keep(self, sound: Sound) -> CompiledSamples:
+        """Keep a freshly compiled sound's samples, made read-only, for every later request.
+
+        Args:
+            sound: The compiled sound.
+
+        Returns:
+            The samples kept.
+        """
+        assert sound.samples_float is not None
+        assert sound.samples_int16 is not None
+        # Shared by every context's Sound: nothing may write them in place
+        sound.samples_float.flags.writeable = False
+        sound.samples_int16.flags.writeable = False
+        compiled = CompiledSamples(
+            samples_float=sound.samples_float,
+            samples_int16=sound.samples_int16,
+            peak=sound.peak,
+            sample_rate=sound.sample_rate,
+        )
+        self._compiled[sound.identity_key] = compiled
+        return compiled
+
+    def clear(self) -> None:
+        """Forget every sound (the test harness's reset; the next request compiles)."""
+        self._compiled.clear()
+
+
+# The process's one cache of the engine's own compiled sounds (see the module docstring)
+ENGINE_SOUND_CACHE: Final[EngineSoundCache] = EngineSoundCache()
+
+
 class CacheMode(enum.StrEnum):
     """How compiled audio is kept (feature spec 9.3)."""
 
@@ -104,7 +197,8 @@ class CacheStatistics:
         hits: Requests answered by a sound that was already compiled.
         misses: Requests that needed a compile (a new sound, or one evicted from memory).
         compiles: Compiles and decodes run, including every play under cache ``none``.
-        bytes_held: The int16 bytes of the compiled sounds held in memory.
+        bytes_held: The int16 bytes of the compiled sounds held in memory (the game's: the
+            engine's own sounds, shared by the process, are left out).
     """
 
     hits: int
@@ -174,6 +268,7 @@ class Sound:
     Attributes:
         name: The short name, the path stem, or a generated ``instrument-<digest>`` name.
         is_live: Whether this is a live (M2) sound.
+        is_engine_sound: Whether this is one of the engine's own sounds (``engine_sound``).
         identity_key: The cache key.
         playback_defaults: The sound file's playback defaults.
         spec: The spec of a version 1 sound, or None.
@@ -214,6 +309,9 @@ class Sound:
         self.legacy_recipe = legacy_recipe
         self.recorded_file = recorded_file
         self.is_live = spec.live if spec is not None else False
+        # The engine's own sound (engine_sound): compiled once per process, never evicted or
+        # compiled again for a play, whatever the cache mode
+        self.is_engine_sound = False
         # None until known: a compile sets them, or (cache none) describe_lazily's derivation,
         # or a first read's compile through _compile_for_metadata
         self._length: float | None = None
@@ -565,6 +663,8 @@ class SoundLibrary:
         # A sound file edited after its first request is not re-read: hot reload is M4.
         self._memo: dict[tuple[object, ...], str] = {}
         self._sounds: dict[str, Sound] = {}
+        # The engine's own sounds this library handed out, by request (engine_sound)
+        self._engine_sounds: dict[tuple[object, ...], Sound] = {}
         # Compiled sounds, least recently played first
         self._play_order: OrderedDict[str, Sound] = OrderedDict()
         self._hits = 0
@@ -664,9 +764,13 @@ class SoundLibrary:
         Args:
             sound: A sound from ``sound()``.
 
+        The engine's own sounds (``engine_sound``) are always compiled: they play as they are.
+
         Returns:
             The compiled sound.
         """
+        if sound.is_engine_sound:
+            return sound
         if self._cache is CacheMode.NONE:
             fresh = self._compiled_copy(sound)
             # A later read of what the sound did not know yet reuses this play's compile
@@ -678,6 +782,52 @@ class SoundLibrary:
             self._hold(sound)
         else:
             self._play_order.move_to_end(sound.identity_key)
+        return sound
+
+    def engine_sound(
+        self, instrument: Instrument, *, pitch: PitchLike | None, length: float | None
+    ) -> Sound:
+        """Get one of the engine's own sounds (the CRT power-on's): compiled once per process.
+
+        The first request in the process compiles it here, counted, timed and attributed like
+        any compile (a miss); every later one, in this library or any other context's, reuses
+        the process's compiled samples (a hit) and compiles nothing. The cache mode and the
+        memory limit do not apply (see the module docstring).
+
+        Args:
+            instrument: The instrument.
+            pitch: Its pitch, or None for a noise.
+            length: Seconds before the release.
+
+        Returns:
+            The library's own ``Sound`` over the shared samples, compiled.
+        """
+        sample_rate = mixer_sample_rate()
+        tuning = self._tuning_source()
+        request_key = (instrument, _freeze(pitch), length, sample_rate, tuning)
+        handed_out = self._engine_sounds.get(request_key)
+        if handed_out is not None:
+            self._hits += 1
+            return handed_out
+        request = SoundRequest(
+            source=instrument, scene_sound_directory=None, pitch=pitch, length=length
+        )
+        sound = self._build(request, sample_rate=sample_rate, tuning=tuning)
+        sound.is_engine_sound = True
+        compiled = ENGINE_SOUND_CACHE.compiled(sound.identity_key)
+        if compiled is None:
+            self._misses += 1
+            self._compile(sound)
+            ENGINE_SOUND_CACHE.keep(sound)
+        else:
+            self._hits += 1
+            sound.install(
+                samples_float=compiled.samples_float,
+                samples_int16=compiled.samples_int16,
+                peak=compiled.peak,
+                sample_rate=compiled.sample_rate,
+            )
+        self._engine_sounds[request_key] = sound
         return sound
 
     def warm(self, requests: Sequence[SoundRequest], *, budget_ms: float | None = None) -> float:

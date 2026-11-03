@@ -177,8 +177,23 @@ the overlay is visible, and never appears in screenshots.
 The CRT power-on sequence (`src/glitchygames/crt_power_on.py`) plays with a sound
 (`src/glitchygames/crt_power_on_sound.py`, feature spec 12.1): a power click and a 60 Hz degauss
 thump at the switch, the flyback whine from the dot, static as the picture opens, then the bars'
-1 kHz tone (or channel 3's hiss). All are `Instrument`s requested through `audio.sound(...)`. The
-cues follow the progress that draws the picture, each starting on the frame nearest its point,
+1 kHz tone (or channel 3's hiss). All are `Instrument`s requested through
+`audio.engine_sound(...)`, the engine's own sounds' `audio.sound`.
+
+They compile once per process, on the first power-on that plays its sound, and every later
+power-on reuses them: a second game run in one process (the Arcade, the test harness's repeated
+engines) and every engine context compiles nothing for the CRT. The compiled samples are kept in
+the engine's process-wide cache (`glitchygames.audio.library.ENGINE_SOUND_CACHE`), keyed by each
+sound's identity key, which holds the mixer's rate and the tuning: a mixer restarted at another
+rate compiles them anew. Only the samples are shared, read-only; each context gets its own
+`Sound` over them (its own player and pygame sound), and game sounds stay in each context's
+library. The cache is exempt from the memory limit's eviction and from `--sound-cache none` (the
+CRT is the engine's, not something a game benchmarks): under `none` the CRT's plays compile
+nothing. The first compile is counted and attributed like any compile in the context that
+triggered it; every reuse is a cache hit. Headless runs, tests that never power on and
+`--crt-power-on-sound off` compile nothing.
+
+The cues follow the progress that draws the picture, each starting on the frame nearest its point,
 so at a steady 60 frames a second or more every onset is within 10 ms of its point (AUD-CRT-001);
 a hitch can delay a cue by a frame.
 

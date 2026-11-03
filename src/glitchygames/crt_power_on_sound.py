@@ -3,8 +3,8 @@
 Feature spec 12.1 is the timeline; impl spec 10.1 is the wiring. Every game opens with the CRT
 power-on (glitchygames/crt_power_on.py); when its picture plays and ``--crt-power-on-sound`` is
 not ``off``, ``GameEngine`` makes a ``CrtPowerOnSound`` (compiling these sounds, a few
-milliseconds) and passes it to the power-on as its ``sound_cues``. The cue points are the
-picture's own stage starts, as fractions of the sequence:
+milliseconds, the first time in the process) and passes it to the power-on as its
+``sound_cues``. The cue points are the picture's own stage starts, as fractions of the sequence:
 
 ==========================  ==========================================================
 Progress                    Sound
@@ -23,9 +23,12 @@ Progress                    Sound
 
 Rules (the power-on's, extended to sound):
 
-- Every sound is an ``Instrument`` requested through ``audio.sound(...)``, the API games use,
-  and played before any scene exists, so it belongs to the audio engine's ``SYSTEM_OWNER``
-  (no scene clean-up stops it).
+- Every sound is an ``Instrument`` requested through ``audio.engine_sound(...)``, the engine's
+  own sounds' ``audio.sound``: compiled once per process, on the first power-on that plays, and
+  reused by every later power-on and engine context (a second game in one process, the Arcade),
+  whatever the ``--sound-cache`` mode, never evicted (the owner, 2026-11-02; impl spec 10.1).
+  They are played before any scene exists, so they belong to the audio engine's
+  ``SYSTEM_OWNER`` (no scene clean-up stops them).
 - No game random stream: the noises have their own fixed seeds (``STATIC_SEED``...), which
   the renderer turns into their own generators (impl spec 6.3).
 - ``frame(dt)`` moves the voices by each power-on frame's measured time (impl spec 7.3: no game
@@ -295,12 +298,13 @@ class CrtPowerOnSound:
     Attributes:
         audio: The audio engine the sounds play on.
         schedule: The sounds in cue order.
-        sounds: Each sound by name, compiled as the cues are made.
+        sounds: Each sound by name, compiled (or the process's compile reused) as the cues are
+            made.
         tail_handle: The tail's voice once it started, else None.
     """
 
     def __init__(self, *, audio: AudioEngine, background: BackgroundPattern) -> None:
-        """Get (and so compile) every sound of the sequence, before it starts (impl spec 6.5).
+        """Get every sound of the sequence before it starts (impl spec 6.5): once per process.
 
         Args:
             audio: The audio engine (the context's, made with the game engine's options).
@@ -310,7 +314,7 @@ class CrtPowerOnSound:
         self.audio = audio
         self.schedule = crt_sound_schedule(background=background)
         self.sounds: dict[str, Sound] = {
-            crt_sound.name: audio.sound(
+            crt_sound.name: audio.engine_sound(
                 crt_sound.instrument, pitch=crt_sound.pitch, length=crt_sound.length
             )
             for crt_sound in self.schedule
