@@ -99,6 +99,8 @@ class Binding:
         instance_id: Controller instance filter (None accepts any controller).
         is_scancode: True for a physical key position (``bind(scancode=...)``), matched
             against the event's ``scancode``; False for a key code, matched against ``key``.
+        controller_layer_only: True for a ``bind(controller_layer_button=...)`` binding (the
+            controller layer only, in every input mode; saved with its flag so it loads so).
 
     """
 
@@ -107,6 +109,7 @@ class Binding:
     input_code: int
     instance_id: int | None = None
     is_scancode: bool = False
+    controller_layer_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -230,6 +233,7 @@ class ActionMap:
         controller_button: int | None = None,
         controller_axis: tuple[int, float] | None = None,
         joystick_button: int | None = None,
+        controller_layer_button: int | None = None,
         instance_id: int | None = None,
     ) -> None:
         """Bind physical inputs to a named action.
@@ -251,8 +255,15 @@ class ActionMap:
                 JOYBUTTONDOWN/UP regardless of input_mode. Use for
                 non-standard buttons (e.g. DualSense mic mute) on the raw
                 joystick API. In 'auto' mode the engine dispatches a mapped
-                pad's controller events only, so bind its controller_button
-                too (as Brave Adventurer's mic does: CONTROLLER_BUTTON 15).
+                pad's controller events only, so bind the button's controller-layer
+                number too, with controller_layer_button (as Brave Adventurer's mic does:
+                15 there, 16 raw).
+            controller_layer_button: A gamepad button constant bound on the controller layer
+                only (CONTROLLERBUTTONDOWN/UP), in every input_mode: the counterpart of
+                joystick_button, for a button whose raw index differs from its
+                controller-layer number. controller_button would bind the raw button with the
+                same number too in 'joystick' and 'auto' mode (BUGS.md #178.26). Never fires
+                in 'joystick' mode, which dispatches no controller-layer events.
             instance_id: Controller instance filter for button/axis
                 bindings. None accepts any controller.
 
@@ -290,28 +301,6 @@ class ActionMap:
                     )
                 )
 
-        if controller_button is not None:
-            # Register the event families of the input mode:
-            # 'joystick' → JOYBUTTONDOWN/UP, 'controller' → CONTROLLERBUTTONDOWN/UP (SDL Game
-            # Controller API), 'auto' → both (each device dispatches one of them)
-            for down_type, up_type in self._button_event_types:
-                self._add_binding(
-                    Binding(
-                        action=action,
-                        event_type=down_type,
-                        input_code=controller_button,
-                        instance_id=instance_id,
-                    )
-                )
-                self._add_binding(
-                    Binding(
-                        action=action,
-                        event_type=up_type,
-                        input_code=controller_button,
-                        instance_id=instance_id,
-                    )
-                )
-
         if controller_axis is not None:
             axis_constant, threshold = controller_axis
             axis_binding = AxisBinding(
@@ -322,26 +311,37 @@ class ActionMap:
             )
             self._axis_bindings.append(axis_binding)
 
-        if joystick_button is not None:
-            # Always use JOYBUTTONDOWN/UP regardless of input_mode.
-            # For non-standard buttons (mic mute, etc.) that only
-            # arrive through the raw joystick API.
-            self._add_binding(
-                Binding(
-                    action=action,
-                    event_type=pygame.JOYBUTTONDOWN,
-                    input_code=joystick_button,
-                    instance_id=instance_id,
-                )
-            )
-            self._add_binding(
-                Binding(
-                    action=action,
-                    event_type=pygame.JOYBUTTONUP,
-                    input_code=joystick_button,
-                    instance_id=instance_id,
-                )
-            )
+        # Gamepad buttons: each keyword's button, the (down, up) event types it binds, and
+        # whether it is a controller-layer-only binding
+        button_bindings: list[tuple[int | None, tuple[tuple[int, int], ...], bool]] = [
+            # The input mode's families: 'joystick' → JOYBUTTONDOWN/UP, 'controller' →
+            # CONTROLLERBUTTONDOWN/UP (SDL Game Controller API), 'auto' → both (each device
+            # dispatches one of them)
+            (controller_button, self._button_event_types, False),
+            # The controller layer only, whatever the input mode's families (BUGS.md #178.26)
+            (
+                controller_layer_button,
+                ((pygame.CONTROLLERBUTTONDOWN, pygame.CONTROLLERBUTTONUP),),
+                True,
+            ),
+            # The raw joystick layer only, whatever the input mode: for non-standard buttons
+            # (mic mute, etc.) that only arrive through the raw joystick API
+            (joystick_button, ((pygame.JOYBUTTONDOWN, pygame.JOYBUTTONUP),), False),
+        ]
+        for button, event_type_pairs, controller_layer_only in button_bindings:
+            if button is None:
+                continue
+            for event_type_pair in event_type_pairs:
+                for event_type in event_type_pair:
+                    self._add_binding(
+                        Binding(
+                            action=action,
+                            event_type=event_type,
+                            input_code=button,
+                            instance_id=instance_id,
+                            controller_layer_only=controller_layer_only,
+                        )
+                    )
 
     def unbind(self, action: str) -> None:
         """Remove all bindings for an action.
@@ -561,6 +561,8 @@ class ActionMap:
                 }
                 if binding.instance_id is not None:
                     entry['instance_id'] = binding.instance_id
+                if binding.controller_layer_only:
+                    entry['controller_layer_only'] = True
                 result[binding.action].append(entry)
 
         # Axis bindings
@@ -729,6 +731,14 @@ class ActionMap:
 
         if event_type == pygame.KEYDOWN:
             action_map.bind(action_name, keyboard=int(code))
+        elif (
+            event_type == pygame.CONTROLLERBUTTONDOWN and entry.get('controller_layer_only') is True
+        ):
+            action_map.bind(
+                action_name,
+                controller_layer_button=int(code),
+                instance_id=instance_id,
+            )
         elif event_type == pygame.CONTROLLERBUTTONDOWN:
             action_map.bind(
                 action_name,

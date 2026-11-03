@@ -1,7 +1,8 @@
 """Checks of a sprite file, for the engine's tests and for every package that ships sprites.
 
-Every pixel row is the same width, and a save round trip keeps a sprite's timings, hitboxes,
-pixels, metadata and transitions. The engine runs these checks on its own sprites
+Every pixel row is the same width, the tags are well formed, and a save round trip keeps a
+sprite's timings, hitboxes, pixels, metadata and transitions. The engine runs these checks on its
+own sprites
 (tests/sprites/test_engine_sprite_files.py), the repository runs them on every workspace member's
 sprites, discovered (tests/test_workspace_sprite_files.py), and a package with sprites of its own
 may run them from its own tests too (Papyrus's, and Bitmappy's sprite library)::
@@ -32,6 +33,7 @@ import pytest
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.sprites.animated import frame_tables_in_load_order
 from glitchygames.sprites.pixel_utils import normalize_pixel_rows, palette_key_problems
+from glitchygames.sprites.tags import TAGS_KEY, sprite_tags_problems
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -153,10 +155,10 @@ def _metadata(*, sprite: AnimatedSprite) -> tuple[object, ...]:
     """Return what a save must keep of a sprite besides its pixels.
 
     Returns:
-        tuple[object, ...]: The sprite's name, description, frame_anchor and hitbox.
+        tuple[object, ...]: The sprite's name, description, tags, frame_anchor and hitbox.
 
     """
-    return (sprite.name, sprite.description, sprite.frame_anchor, sprite.hitbox)
+    return (sprite.name, sprite.description, sprite.tags, sprite.frame_anchor, sprite.hitbox)
 
 
 def _save_and_reload(
@@ -311,9 +313,10 @@ def check_pixels_survive_a_save_round_trip(*, sprite_file: Path, directory: Path
 
 
 def check_metadata_survives_a_save_round_trip(*, sprite_file: Path, directory: Path) -> None:
-    """Check that load -> save -> reload keeps the [sprite] name, description, frame_anchor, hitbox.
+    """Check that load -> save -> reload keeps the [sprite] metadata.
 
-    The single-frame (static) writer used to drop description.
+    Name, description, tags, frame_anchor and hitbox. The single-frame (static) writer used to
+    drop description.
 
     Args:
         sprite_file: The sprite file to check.
@@ -330,6 +333,27 @@ def check_metadata_survives_a_save_round_trip(*, sprite_file: Path, directory: P
     reloaded_metadata = _metadata(sprite=reloaded_sprite)
     if reloaded_metadata != original_metadata:
         message = f'{sprite_file}: reloaded metadata {reloaded_metadata} != {original_metadata}'
+        raise AssertionError(message)
+
+
+def check_sprite_tags_are_well_formed(*, sprite_file: Path) -> None:
+    """Check that the file's ``[sprite] tags``, if any, is an array of strings.
+
+    A malformed value loads without its bad tags (logged; glitchygames/sprites/tags.py), so a
+    shipped sprite is checked here instead.
+
+    Args:
+        sprite_file: The sprite file to check.
+
+    Raises:
+        AssertionError: The tags are malformed; the message names the file and each problem.
+
+    """
+    with sprite_file.open('rb') as file:
+        data = tomllib.load(file)
+    problems = sprite_tags_problems(data.get('sprite', {}).get(TAGS_KEY))
+    if problems:
+        message = f'{sprite_file}: {"; ".join(problems)}'
         raise AssertionError(message)
 
 

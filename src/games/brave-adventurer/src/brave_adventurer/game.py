@@ -104,10 +104,11 @@ class BraveAdventurerScene(BraveAdventurerSceneBase):
         """
         actions = BraveAdventurerSceneBase._create_action_map(options=options)
 
-        # Mic mute button — bind both APIs since button indices differ
+        # Mic mute button: its number differs per layer, so each layer gets its own, and the
+        # raw button numbered as the controller layer's is not bound (BUGS.md #178.26)
         actions.bind(
             'mic_toggle',
-            controller_button=MIC_BUTTON_CONTROLLER,
+            controller_layer_button=MIC_BUTTON_CONTROLLER,
             joystick_button=MIC_BUTTON_JOYSTICK,
         )
         return actions

@@ -999,3 +999,70 @@ class TestAutoMode:
         """Only InputMode's modes are accepted."""
         with pytest.raises(ValueError, match='gamepad'):
             ActionMap(input_mode='gamepad')
+
+
+class TestControllerLayerButton:
+    """``controller_layer_button=`` binds the controller layer only, in every mode (#178.26).
+
+    The counterpart of ``joystick_button=``: for a button whose raw joystick index differs from
+    its controller-layer number (Brave Adventurer's mic: 15 and 16), so the raw button with the
+    controller-layer number is not bound too.
+    """
+
+    MIC = 15
+
+    @pytest.mark.parametrize('input_mode', ['auto', 'controller', 'joystick'])
+    def test_only_the_controller_layer_is_bound(self, input_mode: str) -> None:
+        """The raw button with the same number is not bound, in any mode."""
+        actions = ActionMap(input_mode=input_mode)
+        actions.bind('mic_toggle', controller_layer_button=self.MIC)
+
+        assert actions.get_action(_button_down(self.MIC)) == 'mic_toggle'
+        assert actions.get_action(_button_up(self.MIC)) == 'mic_toggle'
+        assert actions.get_action(_joy_button_down(self.MIC)) is None
+        assert actions.get_action(_joy_button_up(self.MIC)) is None
+
+    def test_a_controller_button_binds_the_raw_button_too(self) -> None:
+        """What the new keyword avoids: controller_button binds both layers in auto mode."""
+        actions = ActionMap(input_mode='auto')
+        actions.bind('jump', controller_button=self.MIC)
+
+        assert actions.get_action(_joy_button_down(self.MIC)) == 'jump'
+
+    def test_the_instance_filter_applies(self) -> None:
+        """Only the given controller's press is the action."""
+        actions = ActionMap()
+        actions.bind('mic_toggle', controller_layer_button=self.MIC, instance_id=2)
+
+        assert actions.get_action(_button_down(self.MIC, instance_id=2)) == 'mic_toggle'
+        assert actions.get_action(_button_down(self.MIC, instance_id=1)) is None
+
+    @pytest.mark.parametrize('input_mode', ['auto', 'controller', 'joystick'])
+    def test_a_saved_map_loads_the_binding_as_it_was(self, input_mode: str) -> None:
+        """Saved with its flag, it loads on the controller layer only again."""
+        original = ActionMap(input_mode=input_mode)
+        original.bind('mic_toggle', controller_layer_button=self.MIC, instance_id=2)
+
+        saved = original.to_dict()
+        restored = ActionMap.from_dict(saved, input_mode=input_mode)
+
+        assert saved['mic_toggle'] == [
+            {
+                'type': 'ControllerButtonDown',
+                'code': self.MIC,
+                'instance_id': 2,
+                'controller_layer_only': True,
+            }
+        ]
+        assert restored.get_action(_button_down(self.MIC, instance_id=2)) == 'mic_toggle'
+        assert restored.get_action(_joy_button_down(self.MIC)) is None
+        assert restored.to_dict() == saved
+
+    def test_an_entry_without_the_flag_loads_as_a_controller_button(self) -> None:
+        """A save from before the keyword (or from a controller_button) binds both layers."""
+        saved = {'jump': [{'type': 'ControllerButtonDown', 'code': self.MIC}]}
+
+        restored = ActionMap.from_dict(saved, input_mode='auto')
+
+        assert restored.get_action(_button_down(self.MIC)) == 'jump'
+        assert restored.get_action(_joy_button_down(self.MIC)) == 'jump'
