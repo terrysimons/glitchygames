@@ -25,7 +25,7 @@ from .operations import (
     FilmStripOperationTracker,
     PixelChange,
 )
-from .undo_redo import Operation, OperationType, UndoRedoManager
+from .undo_redo import OperationType, UndoRedoManager
 
 __all__ = [
     'AnimationAddCommand',
@@ -45,7 +45,6 @@ __all__ = [
     'FramePasteCommand',
     'FrameReorderCommand',
     'FrameSelectionCommand',
-    'Operation',
     'OperationType',
     'PixelChange',
     'UndoRedoCommand',

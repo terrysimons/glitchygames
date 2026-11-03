@@ -49,6 +49,7 @@ from .pixel_utils import (
     opaque_surface,
     palette_key_problems,
 )
+from .tags import TAGS_KEY, normalize_sprite_tags
 
 # Characters TOML basic strings must escape with a short escape sequence
 # (https://toml.io/en/v1.0.0#string)
@@ -109,6 +110,21 @@ def toml_pixel_block(pixel_text: str) -> str:
     # toml_basic_string quotes a row; the quotes are dropped, the escapes kept
     escaped_rows = [toml_basic_string(row)[1:-1] for row in rows]
     return '"""\n' + '\n'.join(escaped_rows) + '\n"""'
+
+
+def toml_tags_line(tags: list[str]) -> str:
+    """Return the ``tags = [...]`` line a writer puts in ``[sprite]``, or '' for no tags.
+
+    Args:
+        tags: The tags (``glitchygames.sprites.tags``: already in their one spelling).
+
+    Returns:
+        The line, with its newline, or ''.
+
+    """
+    if not tags:
+        return ''
+    return f'{TAGS_KEY} = [{", ".join(toml_basic_string(tag) for tag in tags)}]\n'
 
 
 def toml_multiline_basic_string(value: str) -> str:
@@ -652,6 +668,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # Animation state
         self.name = 'animated_sprite'  # Default name
         self.description = ''  # Description field for metadata
+        # What kind of thing the sprite is ([sprite] tags; sprites/tags.py), in order
+        self.tags: list[str] = []
         self._animations: dict[str, list[SpriteFrame]] = {}
         # Each animation's [[animation]] frame_interval and loop as loaded, so a save writes
         # them back (frames without a per-frame override use the animation's frame_interval).
@@ -1205,9 +1223,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     def copy_sprite_metadata_from(self: Self, source: AnimatedSprite) -> None:
         """Copy every sprite-level field the TOML writers save from another sprite.
 
-        name, description, frame_anchor, the sprite-level default hitbox, the transitions,
-        and the loaded color glyphs and their order (so a save reuses the source file's
-        characters). Bitmappy uses it when it builds a new sprite to save from a loaded one.
+        name, description, tags, frame_anchor, the sprite-level default hitbox, the
+        transitions, and the loaded color glyphs and their order (so a save reuses the source
+        file's characters). Bitmappy uses it when it builds a new sprite to save from a loaded
+        one.
 
         Args:
             source (AnimatedSprite): The sprite whose metadata to copy.
@@ -1215,6 +1234,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         """
         self.name = source.name
         self.description = source.description
+        self.tags = list(source.tags)
         self.frame_anchor = source.frame_anchor
         self.default_hitbox = (
             None if source.default_hitbox is None else source.default_hitbox.copy()
@@ -1415,6 +1435,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         self.name = data.get('sprite', {}).get('name', 'animated_sprite')
         self.description = data.get('sprite', {}).get('description', '')
+        # Optional [sprite] tags = ["item", ...], each in its one spelling (sprites/tags.py)
+        self.tags = normalize_sprite_tags(data.get('sprite', {}).get(TAGS_KEY))
 
         # Parse sprite-level default hitbox from [sprite.hitbox]
         self._default_hitbox = AnimatedSprite._parse_hitbox_data(
@@ -1954,6 +1976,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             # The same [sprite] keys, in the same format, as _write_toml_sprite_section
             if self.description:
                 f.write(f'description = {toml_multiline_basic_string(self.description)}\n')
+            f.write(toml_tags_line(self.tags))
             if self.frame_anchor is not FrameAnchor.NONE:
                 f.write(f'frame_anchor = "{self.frame_anchor.value}"\n')
             f.write(f'pixels = {toml_pixel_block("\n".join(pixel_rows))}\n\n')
@@ -2192,6 +2215,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             'name': self.name or 'animated_sprite',
             'description': self.description or '',
         }
+        if self.tags:
+            sprite_section[TAGS_KEY] = list(self.tags)
         if self.frame_anchor is not FrameAnchor.NONE:
             sprite_section['frame_anchor'] = self.frame_anchor.value
 
@@ -2356,6 +2381,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         if data['sprite'].get('description'):
             description = data['sprite']['description']
             f.write(f'description = {toml_multiline_basic_string(description)}\n')
+        f.write(toml_tags_line(data['sprite'].get(TAGS_KEY, [])))
         if 'frame_anchor' in data['sprite']:
             f.write(f'frame_anchor = "{data["sprite"]["frame_anchor"]}"\n')
         f.write('\n')

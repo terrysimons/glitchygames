@@ -660,6 +660,12 @@ only replays; Part 2 Task 1).
 
 ## Sprite tags (user request, 2026-11-02)
 
+- **Done** 2026-11-02 (`feat/sprite-tags`, design and plan `plans/2026-11-02-sprite-tags.md`):
+  `[sprite] tags`, normalized as below (casefold, single spaces, repeats dropped), through every
+  reader and writer, the sprite-file checks, Bitmappy's AI (asked for tags, examples carry and
+  show them, +8 per tag word in example choice) and `glitchygames.sprites.catalog` (fuzzy search
+  with difflib, JSON lines export). **Still open:** editing tags in Bitmappy's UI (its only text
+  box is the AI prompt) and merging plurals.
 - **A `tags` list in the sprite file, saying what kind of thing the sprite is**, for fuzzy string
   matching and for wiring sprites into an LLM or a vector database. Today a sprite carries only
   its `name` and a free-text `description` (`[sprite]`; Bitmappy's AI writes the prompt there),
