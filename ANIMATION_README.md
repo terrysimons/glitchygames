@@ -118,6 +118,7 @@ blue = 255  # Magenta: the transparency key
 #### `[sprite]` Section
 - **`name`** (required): The sprite's display name (a static sprite's single animation is named after it)
 - **`description`** (optional): Free text, kept on save
+- **`tags`** (optional): What kind of thing the sprite is, an array of plain words or phrases (`tags = ["item", "weapon", "sword"]`), for search and for handing sprites to an LLM or a vector store. Each is kept in one spelling (stripped, lowercase, single-spaced; repeats dropped, order kept: `src/glitchygames/sprites/tags.py`). Search and export them with `python -m glitchygames.sprites.catalog search QUERY PATH...` and `... export OUTPUT.jsonl PATH...` (`src/glitchygames/sprites/catalog.py`)
 - **`pixels`** (static only): Required for static sprites, forbidden for animated sprites (a file with both is refused)
 - **`frame_anchor`** (optional): How frames of different shapes line up when drawn (`FrameAnchor` values: `"none"` (default), `"top_left"`, `"top"`, `"top_right"`, `"left"`, `"center"`, `"right"`, `"bottom_left"`, `"bottom"`, `"bottom_right"`)
 - **`[sprite.hitbox]`** (optional): Default hitbox in native pixels (`offset_x`, `offset_y`, `width`, `height`); without one, collision uses the visible pixels

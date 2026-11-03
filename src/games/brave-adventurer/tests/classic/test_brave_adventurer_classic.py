@@ -194,6 +194,26 @@ class TestVoiceAssistantMicButton:
 
         voice_assistant.stop_listening_and_respond.assert_called_once_with()
 
+    @pytest.mark.parametrize('input_mode', ['auto', 'joystick', 'controller'])
+    def test_the_mic_is_each_layers_own_button_only(self, input_mode):
+        """Controller-layer 15 and raw 16 are the mic; raw 15 is not, in any mode (#178.26)."""
+        actions = BraveAdventurerScene._create_action_map(options={'input_mode': input_mode})
+
+        if input_mode != 'joystick':
+            assert (
+                actions.get_action(
+                    _controller_button_event(pygame.CONTROLLERBUTTONDOWN, MIC_BUTTON_CONTROLLER)
+                )
+                == 'mic_toggle'
+            )
+        assert (
+            actions.get_action(_joystick_button_event(pygame.JOYBUTTONDOWN, MIC_BUTTON_JOYSTICK))
+            == 'mic_toggle'
+        )
+        assert 'mic_toggle' not in actions.get_actions(
+            _joystick_button_event(pygame.JOYBUTTONDOWN, MIC_BUTTON_CONTROLLER)
+        )
+
     def test_mic_button_without_an_assistant_does_nothing(self, brave_scene):
         """No controller with a microphone was found: the mic button is ignored."""
         controller_scene = self._controller_scene()
