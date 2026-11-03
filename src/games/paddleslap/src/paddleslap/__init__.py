@@ -7,10 +7,11 @@ This is a simple game where you try to keep the ball from hitting your side of t
 from __future__ import annotations
 
 import copy
+import itertools
 import logging
 import math
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import TYPE_CHECKING, Any, Self, cast, override
 
 if TYPE_CHECKING:
     import argparse
@@ -54,6 +55,9 @@ log = logging.getLogger('game')
 
 # Threshold below which speed changes are considered noise
 SPEED_CHANGE_NOISE_FLOOR = 0.001
+
+# Frames a pair of balls that just collided cannot collide again
+BALL_COLLISION_COOLDOWN_FRAMES = 10
 
 # Minimum direction component to be considered significant for separation
 SIGNIFICANT_DIRECTION_THRESHOLD = 0.1
@@ -113,6 +117,44 @@ def _random_ball_color() -> tuple[int, int, int]:
     green = color_random.randrange(COLOR_CHANNEL_LEVELS)
     blue = color_random.randrange(COLOR_CHANNEL_LEVELS)
     return (red, green, blue)
+
+
+def first_contact_fraction(
+    *,
+    start: tuple[float, float],
+    motion: tuple[float, float],
+    contact_distance: float,
+) -> float | None:
+    """Return the first fraction of a frame at which a closing pair is ``contact_distance`` apart.
+
+    The pair's separation (one ball's centre from the other's) moves in a straight line from
+    ``start`` to ``start + motion`` over the frame; the fraction ``t`` solves
+    ``|start + t * motion| == contact_distance``.
+
+    Args:
+        start: The separation at the frame's start.
+        motion: How the separation changes over the frame.
+        contact_distance: The separation at which the pair touches.
+
+    Returns:
+        0.0 for a pair already touching (or closer) at the start, the fraction in (0, 1) at
+        which it touches, or None: the pair is not closing, passes wide, or touches only at or
+        after the frame's end.
+
+    """
+    approach = start[0] * motion[0] + start[1] * motion[1]
+    if approach >= 0:
+        # Not closing (or not moving)
+        return None
+    motion_squared = motion[0] * motion[0] + motion[1] * motion[1]
+    start_gap_squared = start[0] * start[0] + start[1] * start[1] - contact_distance**2
+    if start_gap_squared <= 0:
+        return 0.0
+    discriminant = approach * approach - motion_squared * start_gap_squared
+    if discriminant < 0:
+        return None
+    fraction = (-approach - math.sqrt(discriminant)) / motion_squared
+    return fraction if fraction < 1.0 else None
 
 
 class Game(Scene):
@@ -633,6 +675,10 @@ class Game(Scene):
         self._tick_collision_cooldowns()
         self._ball_collision_pairs = []
 
+        # First the pairs whose paths met within the frame where the end-of-frame check below
+        # misses them or gets them wrong: apart again, on the same centre, or crossed (BUGS.md
+        # #174). Each one collided is in cooldown, so the check below skips it
+        self._collide_balls_that_met_within_the_frame()
         # Use collision manager for same-layer pair detection (AABB broad phase)
         self.collisions.check_overlap(
             'balls',
@@ -640,13 +686,118 @@ class Game(Scene):
             callback=self._on_ball_ball_collision,
         )
 
+    def _collide_balls_that_met_within_the_frame(self: Self) -> None:
+        """Collide the pairs whose paths touched during the frame that the end check would miss.
+
+        The end-of-frame check samples the balls where the frame left them, so a pair closing
+        fast can go from apart to crossed without being seen touching: apart again on the far
+        side, on the same centre (no contact direction exists), or overlapping on the wrong
+        sides (the direction it computes is reversed). Each pair's relative path from its
+        frame-start positions (``frame_start_world_position``) to its end positions is
+        followed instead: if it first touched at a fraction of the frame and ended in one of
+        those states, both balls are put back where they touched and collide there as the end
+        check would (the same exchange, cap, separation and cooldown). Every other pair is left
+        to the end check, as before: an overlap that did not cross, or a pair only reaching
+        touching at the frame's end (the next frame's), so play in which no pair crosses or
+        passes is unchanged.
+        """
+        layer_balls = cast('list[BallSprite]', self.collisions.get_layer('balls').sprites)
+        balls = [ball for ball in layer_balls if ball.alive()]
+        for ball1, ball2 in itertools.combinations(balls, 2):
+            if (id(ball1), id(ball2)) in self._ball_collision_cooldowns or (
+                id(ball2),
+                id(ball1),
+            ) in self._ball_collision_cooldowns:
+                continue
+            contact = self._swept_contact(ball1, ball2)
+            if contact is None:
+                continue
+            contact_fraction, collision_distance = contact
+            self._collide_at_contact(
+                ball1,
+                ball2,
+                contact_fraction=contact_fraction,
+                collision_distance=collision_distance,
+            )
+
+    @staticmethod
+    def _swept_contact(ball1: BallSprite, ball2: BallSprite) -> tuple[float, int] | None:
+        """Return when in the frame two balls first touched, if the end-of-frame check misses it.
+
+        Returns:
+            (the fraction of the frame at first contact, the collision distance), or None: the
+            pair did not touch while approaching, touches only at the frame's end, or ended
+            overlapping without crossing (the end-of-frame check's case).
+
+        """
+        if ball1.frame_start_world_position is None or ball2.frame_start_world_position is None:
+            return None
+        # Relative positions (ball2 from ball1) at the frame's start and end: the centres'
+        # offsets from world_x/world_y cancel for balls of one size, and stay fixed otherwise
+        start_x = ball2.frame_start_world_position[0] - ball1.frame_start_world_position[0]
+        start_y = ball2.frame_start_world_position[1] - ball1.frame_start_world_position[1]
+        end_x = ball2.world_x - ball1.world_x
+        end_y = ball2.world_y - ball1.world_y
+        _dx, _dy, end_distance, collision_distance = Game._calculate_ball_distance(ball1, ball2)
+        contact_fraction = first_contact_fraction(
+            start=(start_x, start_y),
+            motion=(end_x - start_x, end_y - start_y),
+            contact_distance=collision_distance,
+        )
+        if contact_fraction is None:
+            return None
+        # Crossed: the end separation points against the separation at contact
+        contact_x = start_x + (end_x - start_x) * contact_fraction
+        contact_y = start_y + (end_y - start_y) * contact_fraction
+        crossed = end_x * contact_x + end_y * contact_y <= 0
+        # Measured as the end check measures (whole-pixel centres), so it keeps every pair it
+        # handled before
+        end_check_sees_it = SPEED_CHANGE_NOISE_FLOOR <= end_distance <= collision_distance
+        if end_check_sees_it and not crossed:
+            return None
+        return contact_fraction, collision_distance
+
+    def _collide_at_contact(
+        self: Self,
+        ball1: BallSprite,
+        ball2: BallSprite,
+        *,
+        contact_fraction: float,
+        collision_distance: int,
+    ) -> None:
+        """Put two balls back where they touched in the frame and collide them there."""
+        for ball in (ball1, ball2):
+            start_position = ball.frame_start_world_position
+            assert start_position is not None  # _swept_contact checked both
+            ball.world_x = start_position[0] + (ball.world_x - start_position[0]) * contact_fraction
+            ball.world_y = start_position[1] + (ball.world_y - start_position[1]) * contact_fraction
+        dx = ball2.world_x - ball1.world_x
+        dy = ball2.world_y - ball1.world_y
+        distance = math.hypot(dx, dy)
+        if hasattr(ball1, 'snd') and ball1.snd is not None:  # type: ignore[reportUnnecessaryComparison]
+            ball1.snd.play()
+        normal_x = dx / distance
+        normal_y = dy / distance
+        self._apply_elastic_collision(ball1, ball2, normal_x, normal_y)
+        self._cap_ball_speeds(ball1, ball2)
+        self._separate_overlapping_balls(
+            ball1,
+            ball2,
+            normal_x=normal_x,
+            normal_y=normal_y,
+            collision_distance=collision_distance,
+            distance=distance,
+        )
+        self._ball_collision_cooldowns[id(ball1), id(ball2)] = BALL_COLLISION_COOLDOWN_FRAMES
+        self._ball_collision_pairs.append((ball1, ball2))
+
     def _on_ball_ball_collision(self: Self, ball1: BallSprite, ball2: BallSprite) -> None:
         """Handle a ball-ball collision candidate from the collision manager.
 
         The collision manager found an AABB overlap. We do the precise
         circle-distance check here, then apply elastic collision physics.
         """
-        cooldown_frames = 10
+        cooldown_frames = BALL_COLLISION_COOLDOWN_FRAMES
 
         # Skip pairs still in cooldown
         pair_key = (id(ball1), id(ball2))
