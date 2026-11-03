@@ -371,11 +371,21 @@ def test_a_corrupt_wav_with_a_mixer_is_a_sound_asset_error(tmp_path):
         library.sound(str(broken), scene_sound_directory=None)
 
 
+def _decode_through(library, cache, path):
+    """Request a recorded file and, under cache none (whose request decodes nothing), play it.
+
+    A decode's ``SoundAssetError`` reaches the caller.
+    """
+    sound = library.sound(str(path), scene_sound_directory=None)
+    if cache is CacheMode.NONE:
+        library.compile_for_play(sound)
+
+
 @pytest.mark.parametrize('cache', [CacheMode.RAM, CacheMode.NONE])
 def test_ogg_and_odd_wav_formats_need_a_mixer(tmp_path, no_mixer, cache):
     """OGG and non-16-bit WAV files cannot be decoded without a mixer, under either cache.
 
-    Under none the request reads only a WAV's header, and refuses what a decode would.
+    Under none the request decodes nothing, so the refusal comes at the first play.
     """
     library, _ = make_library(cache)
     ogg = tmp_path / 'music.ogg'
@@ -383,20 +393,20 @@ def test_ogg_and_odd_wav_formats_need_a_mixer(tmp_path, no_mixer, cache):
     eight_bit = write_wave_file(tmp_path / 'eight.wav', frames=10, width=1)
 
     with pytest.raises(SoundAssetError, match='mixer'):
-        library.sound(str(ogg), scene_sound_directory=None)
+        _decode_through(library, cache, ogg)
     with pytest.raises(SoundAssetError, match='16-bit'):
-        library.sound(str(eight_bit), scene_sound_directory=None)
+        _decode_through(library, cache, eight_bit)
 
 
 @pytest.mark.parametrize('cache', [CacheMode.RAM, CacheMode.NONE])
 def test_a_corrupt_wav_without_a_mixer_is_a_sound_asset_error(tmp_path, no_mixer, cache):
-    """A WAV the wave module cannot read names the file, at its request under either cache."""
+    """A WAV the wave module cannot read names the file (under none, at its first play)."""
     broken = tmp_path / 'broken.wav'
     broken.write_bytes(b'not a wave file at all')
     library, _ = make_library(cache)
 
     with pytest.raises(SoundAssetError, match=r'broken\.wav'):
-        library.sound(str(broken), scene_sound_directory=None)
+        _decode_through(library, cache, broken)
 
 
 def test_a_recorded_file_recompiles_under_cache_none_every_play(tmp_path, no_mixer):
@@ -406,7 +416,7 @@ def test_a_recorded_file_recompiles_under_cache_none_every_play(tmp_path, no_mix
     sound = library.sound(str(path), scene_sound_directory=None)
 
     assert not sound.is_compiled
-    assert library.statistics().compiles == 0  # its length and rate come from its header
+    assert library.statistics().compiles == 0  # nothing decodes until a play or a read
     played = library.compile_for_play(sound)
 
     assert played.is_compiled

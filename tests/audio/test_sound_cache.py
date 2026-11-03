@@ -404,51 +404,124 @@ def test_length_and_rate_under_none_equal_rams_without_rendering(arguments, mixe
     assert none_library.statistics().compiles == 0
 
 
+def _truncated_wave_file(path):
+    """A WAV whose header claims 1000 frames but whose data stops 200 frames short.
+
+    Returns:
+        The path.
+    """
+    write_wave_file(path, frames=1000, sample_rate=22050)
+    size = path.stat().st_size
+    with path.open('r+b') as wave_bytes:
+        wave_bytes.truncate(size - 200 * 2)
+    return path
+
+
+@pytest.mark.parametrize('with_mixer', [True, False], ids=['mixer', 'no-mixer'])
 @pytest.mark.parametrize(
-    ('frames', 'sample_rate', 'channels'), [(2205, 22050, 1), (4411, 44100, 2), (1, 8000, 1)]
+    'source_kind', ['fixture-wav', 'stereo-22050-wav', 'truncated-wav', 'one-frame-wav']
 )
-def test_a_recorded_wav_without_a_mixer_reads_its_header_under_none(
-    tmp_path, frames, sample_rate, channels
+def test_a_recorded_file_under_none_decodes_only_when_its_metadata_is_first_read(
+    tmp_path, with_mixer, source_kind
 ):
-    """Without a mixer, a WAV's length and rate come from its header: nothing is decoded."""
-    pygame.mixer.quit()
-    path = write_wave_file(
-        tmp_path / 'clip.wav', frames=frames, sample_rate=sample_rate, channels=channels
-    )
-    none_library, _ = make_library(CacheMode.NONE)
+    """Under none a recorded sound's request decodes nothing (Ruling R50).
+
+    Its length and rate come from one decode on their first read (counted), then are kept, and
+    equal ram's: a header could claim more frames than a truncated file decodes.
+    """
+    if with_mixer:
+        start_mixer(frequency=44100)
+    else:
+        pygame.mixer.quit()
+    sources = {
+        'fixture-wav': lambda: 'sfx_slap',
+        'stereo-22050-wav': lambda: str(
+            write_wave_file(tmp_path / 'stereo.wav', frames=4411, sample_rate=22050, channels=2)
+        ),
+        'truncated-wav': lambda: str(_truncated_wave_file(tmp_path / 'truncated.wav')),
+        'one-frame-wav': lambda: str(
+            write_wave_file(tmp_path / 'one.wav', frames=1, sample_rate=8000)
+        ),
+    }
+    source = sources[source_kind]()
+    none_library, accountant = make_library(CacheMode.NONE)
     ram_library, _ = make_library(CacheMode.RAM)
 
-    uncompiled = none_library.sound(str(path), scene_sound_directory=None)
-    held = ram_library.sound(str(path), scene_sound_directory=None)
+    uncompiled = none_library.sound(source, scene_sound_directory=FIXTURE_SOUNDS)
+    held = ram_library.sound(source, scene_sound_directory=FIXTURE_SOUNDS)
 
     assert none_library.statistics().compiles == 0
+    accountant.setup_mode = False
+    accountant.frame_number = 7
     assert uncompiled.length == held.length
-    assert uncompiled.sample_rate == held.sample_rate == sample_rate
-    played = none_library.compile_for_play(uncompiled)
-    assert played.length == uncompiled.length
     assert none_library.statistics().compiles == 1
+    assert accountant.compile_log[-1].frame_number == 7
+    assert uncompiled.sample_rate == held.sample_rate
+    assert uncompiled.peak == held.peak
+    assert none_library.statistics().compiles == 1
+    assert not uncompiled.is_compiled
 
 
-def test_a_recorded_file_through_a_mixer_still_decodes_at_its_request_under_none(tmp_path):
-    """Through a mixer, a recorded file's request decodes it once under none too.
+def test_a_recorded_files_rate_read_first_under_none_decodes_it_once(tmp_path):
+    """Read before its length, a recorded file's rate comes from one decode, kept for length."""
+    pygame.mixer.quit()
+    path = str(write_wave_file(tmp_path / 'low.wav', frames=2205, sample_rate=22050))
+    library, _ = make_library(CacheMode.NONE)
+    sound = library.sound(path, scene_sound_directory=None)
 
-    pygame converts the file to the mixer's format as it loads it, so its length is known only
-    by loading it: the request decodes it for its length, peak and rate and drops the samples
-    (a play decodes again, counted).
-    """
-    start_mixer(frequency=44100)
-    path = write_wave_file(tmp_path / 'clip.wav', frames=1000, sample_rate=22050)
+    assert sound.sample_rate == 22050
+    assert library.statistics().compiles == 1
+    assert sound.length == 2205 / 22050
+    assert library.statistics().compiles == 1
+
+
+def test_a_truncated_wav_reports_its_decoded_length_under_none_and_ram(tmp_path):
+    """The length is what the decode reads (800 frames), never the header's 1000."""
+    pygame.mixer.quit()
+    path = str(_truncated_wave_file(tmp_path / 'truncated.wav'))
     none_library, _ = make_library(CacheMode.NONE)
     ram_library, _ = make_library(CacheMode.RAM)
 
-    uncompiled = none_library.sound(str(path), scene_sound_directory=None)
-    held = ram_library.sound(str(path), scene_sound_directory=None)
+    uncompiled = none_library.sound(path, scene_sound_directory=None)
+    held = ram_library.sound(path, scene_sound_directory=None)
 
-    assert none_library.statistics().compiles == 1
-    assert not uncompiled.is_compiled
-    assert _metadata(uncompiled) == _metadata(held)
+    assert held.length == 800 / 22050
+    assert uncompiled.length == held.length
+
+
+def test_sfx_slap_under_none_with_a_mixer_compiles_once_per_play():
+    """Under none with a mixer, sound('sfx_slap') compiles 0 times and 5 plays compile 5."""
+    start_mixer(frequency=44100, channels=2)
+    library, _ = make_library(CacheMode.NONE)
+
+    sound = library.sound('sfx_slap', scene_sound_directory=FIXTURE_SOUNDS)
+    assert library.statistics().compiles == 0
+
+    played = [library.compile_for_play(sound) for _ in range(5)]
+
+    assert library.statistics().compiles == 5
+    assert all(each.is_compiled for each in played)
+    assert not sound.is_compiled
+
+
+@pytest.mark.parametrize(
+    'arguments',
+    [{'source': PULSE_INSTRUMENT, 'pitch': 'C5'}, {'source': 'crunch_one'}, {'source': 'sfx_slap'}],
+    ids=['instrument', 'version-0-recipe', 'recorded-file'],
+)
+def test_metadata_read_after_a_play_reuses_that_plays_compile(arguments):
+    """A peak, length or rate read after a play compiles nothing more (Ruling R50)."""
+    start_mixer(frequency=44100, channels=2)
+    none_library, _ = make_library(CacheMode.NONE)
+    ram_library, _ = make_library(CacheMode.RAM)
+    uncompiled = none_library.sound(scene_sound_directory=FIXTURE_SOUNDS, **arguments)
+    held = ram_library.sound(scene_sound_directory=FIXTURE_SOUNDS, **arguments)
+
     none_library.compile_for_play(uncompiled)
-    assert none_library.statistics().compiles == 2
+    assert none_library.statistics().compiles == 1
+
+    assert _metadata(uncompiled) == _metadata(held)
+    assert none_library.statistics().compiles == 1
 
 
 @pytest.mark.parametrize(
@@ -484,20 +557,6 @@ def test_reading_peak_under_none_compiles_once_then_keeps_it(arguments):
     assert uncompiled.peak == first_read
     assert none_library.statistics().compiles == 1
     assert len(accountant.compile_log) == 1
-
-
-def test_a_recorded_wav_without_a_mixer_renders_its_peak_on_first_read(tmp_path):
-    """A header gives a WAV's length and rate; its peak is decoded on first read, once."""
-    pygame.mixer.quit()
-    path = write_wave_file(tmp_path / 'clip.wav', frames=441)
-    none_library, _ = make_library(CacheMode.NONE)
-    ram_library, _ = make_library(CacheMode.RAM)
-    uncompiled = none_library.sound(str(path), scene_sound_directory=None)
-    held = ram_library.sound(str(path), scene_sound_directory=None)
-
-    assert uncompiled.peak == held.peak
-    assert uncompiled.peak == held.peak
-    assert none_library.statistics().compiles == 1
 
 
 def test_an_uncompiled_sound_outside_a_library_reads_peak_and_length_as_zero():

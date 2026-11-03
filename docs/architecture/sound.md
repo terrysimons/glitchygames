@@ -100,7 +100,7 @@ mode):
 | Mode | What happens |
 | --- | --- |
 | `ram` (default) | Compiled sounds stay in memory. Above `--sound-cache-memory` (256 MB) the least recently played sounds that are not playing are dropped, and compiled again on their next request (counted). |
-| `none` | Nothing is kept: every `play()` compiles in its frame. This is the switch that shows what compiling in gameplay costs. Getting a sound renders nothing, and a sound played 5 times compiles 5 times. What a game reads of a sound never depends on the cache (a replay may run under another mode): `length` and `sample_rate` are worked out from the sound without rendering, exactly as a compile would size it (a WAV file's from its header), and `peak` is rendered on its first read, counted like any compile, then kept. A recorded file loaded through a mixer (pygame converts it as it loads), or an OGG file, is the exception: its request decodes it once, for those, then drops the samples. |
+| `none` | Nothing is kept: every `play()` compiles in its frame. This is the switch that shows what compiling in gameplay costs. Getting a sound renders nothing, and a sound played 5 times compiles 5 times. What a game reads of a sound never depends on the cache (a replay may run under another mode): a synthesized sound's `length` is worked out without rendering, exactly as a compile would size it; whatever only a compile can tell (every `peak`, and a recorded file's `length` and rate) comes from one compile on its first read, counted like any compile, then kept. A play's compile gives them too, so a read after a play compiles nothing more. |
 | `disk` | Arrives in M3; refused now (`OPTIONS_REFUSED`). |
 
 ## Voices, channels and buses

@@ -10,12 +10,16 @@ by the library's ``AudioAccountant`` (impl spec 11.0).
 What a game may read of a sound (``length``, ``peak``, ``sample_rate``) never depends on the
 cache, which is replay-local, so a replay under another mode reads the same, bit for bit. Under
 ``ram`` the request's compile sets them, and ``release()`` (the memory limit's eviction) keeps
-them. Under ``none`` the request derives ``length`` and ``sample_rate`` without rendering, the
-way the compile sizes its samples (``render.rendered_frame_count``, ``SoundRecipe.frame_count``,
-a WAV file's header), and ``peak`` is rendered on its first read (one compile, counted and
-attributed like any other), then kept. A recorded file loaded through a mixer (pygame converts it
-to the mixer's format as it loads) or an OGG file is the exception: its request decodes it once
-under ``none`` too, for those three, and drops the samples.
+them. Under ``none`` (Rulings R49 and R50) nothing renders or decodes at request:
+- a spec's and a version 0 recipe's ``length`` is derived the way the compile sizes its samples
+  (``render.rendered_frame_count``, ``SoundRecipe.frame_count``), and their ``sample_rate`` is
+  the rate they compile at;
+- a recorded file's ``length`` and ``sample_rate`` are known only by decoding it (a mixer
+  converts it as it loads; a truncated WAV decodes fewer frames than its header claims), so
+  they come from a decode on their first read;
+- ``peak`` likewise comes from a compile on its first read.
+That compile is counted and attributed like any other, and what it gives is kept. A play's
+compile gives them too, so a read after a play compiles nothing more.
 """
 
 from __future__ import annotations
@@ -160,22 +164,17 @@ class Sound:
     """A sound the library compiled (or, under cache ``none``, will compile at each play).
 
     Exactly one of ``spec`` (a version 1 sound or an instrument), ``legacy_recipe`` (version 0) and
-    ``recorded_file`` says how it is compiled. ``length`` and ``peak`` are 0.0 until the sound is
-    compiled or the library describes it: a sound got from the library always holds its
-    ``length`` and ``sample_rate`` (cache ``none`` derives them without rendering, see the module
-    docstring) and gives its ``peak`` (``none`` renders it on its first read), and ``release()``
-    keeps all three. A sound the memory limit dropped is compiled again, in place, by its next
-    request.
+    ``recorded_file`` says how it is compiled. ``length``, ``peak`` and ``sample_rate`` are what a
+    game may read of it, the same under either cache (see the module docstring): a sound got from
+    the library gives all three (under ``none`` the ones not derived come from one compile on
+    their first read), and ``release()`` keeps them. A sound neither compiled nor got from a
+    library reads ``length`` and ``peak`` as 0.0. A sound the memory limit dropped is compiled
+    again, in place, by its next request.
 
     Attributes:
         name: The short name, the path stem, or a generated ``instrument-<digest>`` name.
-        length: Seconds, including the release tail.
         is_live: Whether this is a live (M2) sound.
         identity_key: The cache key.
-        sample_rate: The rate of the samples: the mixer's at request time, until the first
-            compile (or a WAV header read under cache ``none``) sets the samples' own (a
-            recorded file decoded without a mixer keeps its file's rate; one loaded through a
-            mixer is converted to the mixer's).
         playback_defaults: The sound file's playback defaults.
         spec: The spec of a version 1 sound, or None.
         legacy_recipe: The version 0 recipe, or None.
@@ -208,16 +207,19 @@ class Sound:
         """
         self.name = name
         self.identity_key = identity_key
-        self.sample_rate = sample_rate
+        # The rate to compile at; a recorded file's decode replaces it with the samples' own
+        self._sample_rate = sample_rate
         self.playback_defaults = playback_defaults
         self.spec = spec
         self.legacy_recipe = legacy_recipe
         self.recorded_file = recorded_file
         self.is_live = spec.live if spec is not None else False
-        self.length = 0.0
-        # None until compiled; under cache none, _measure_peak renders it on the first read
+        # None until known: a compile sets them, or (cache none) describe_lazily's derivation,
+        # or a first read's compile through _compile_for_metadata
+        self._length: float | None = None
         self._peak: float | None = None
-        self._measure_peak: Callable[[Sound], float] | None = None
+        self._sample_rate_known = True
+        self._compile_for_metadata: Callable[[Sound], Sound] | None = None
         self.samples_float: FloatArray | None = None
         self.samples_int16: Int16Array | None = None
         self._mixer_sound: pygame.mixer.Sound | None = None
@@ -281,25 +283,68 @@ class Sound:
         )
 
     @property
+    def length(self) -> float:
+        """Seconds, including the release tail (0.0 for a sound neither compiled nor described)."""
+        if self._length is None:
+            self._compile_for_unknown_metadata()
+        return 0.0 if self._length is None else self._length
+
+    @property
     def peak(self) -> float:
-        """The loudest sample's magnitude before clipping.
-
-        Under cache ``none`` the first read renders the sound once (``measure_peak_on_read``)
-        and keeps the answer; a sound neither compiled nor described reads 0.0.
-        """
+        """The loudest sample's magnitude before clipping (0.0 until known, as ``length``)."""
         if self._peak is None:
-            if self._measure_peak is None:
-                return 0.0
-            self._peak = self._measure_peak(self)
-        return self._peak
+            self._compile_for_unknown_metadata()
+        return 0.0 if self._peak is None else self._peak
 
-    def measure_peak_on_read(self, measure: Callable[[Sound], float]) -> None:
-        """Have the first read of ``peak`` measure it (cache ``none``: a request renders nothing).
+    @property
+    def sample_rate(self) -> int:
+        """The rate of the samples.
+
+        The rate the sound compiles at (the mixer's at request time), except a recorded file's:
+        decoded without a mixer it keeps its file's rate, and loaded through a mixer it is
+        converted to the mixer's, known once it is decoded.
+        """
+        if not self._sample_rate_known:
+            self._compile_for_unknown_metadata()
+        return self._sample_rate
+
+    def describe_lazily(
+        self,
+        *,
+        length: float | None,
+        sample_rate_known: bool,
+        compile_for_metadata: Callable[[Sound], Sound],
+    ) -> None:
+        """Hold what cache ``none`` knows of the sound without compiling it.
 
         Args:
-            measure: Renders the sound and gives its peak (the library's, counted and timed).
+            length: The derived length, or None when only a compile can tell it.
+            sample_rate_known: False when only a compile can tell the rate (a recorded file).
+            compile_for_metadata: Compiles a copy of the sound (the library's, counted and
+                timed); the first read of a value not yet known calls it once.
         """
-        self._measure_peak = measure
+        self._length = length
+        self._sample_rate_known = sample_rate_known
+        self._compile_for_metadata = compile_for_metadata
+
+    def adopt_metadata(self, compiled: Sound) -> None:
+        """Keep a compiled copy's length, peak and rate where this sound does not know them yet.
+
+        Args:
+            compiled: A compiled copy of this sound (a play's, or a first read's).
+        """
+        if self._length is None:
+            self._length = compiled.length
+        if self._peak is None:
+            self._peak = compiled.peak
+        if not self._sample_rate_known:
+            self._sample_rate = compiled.sample_rate
+            self._sample_rate_known = True
+
+    def _compile_for_unknown_metadata(self) -> None:
+        """Compile a copy for what is not yet known, when the library gave a way to (``none``)."""
+        if self._compile_for_metadata is not None:
+            self.adopt_metadata(self._compile_for_metadata(self))
 
     @property
     def retained_bytes(self) -> int:
@@ -326,7 +371,9 @@ class Sound:
         Returns:
             The new sound.
         """
-        rate = self.sample_rate if sample_rate is None else sample_rate
+        # The rate it compiles at, read without a first-read compile (a recorded file's decode
+        # finds its own rate whatever this is)
+        rate = self._sample_rate if sample_rate is None else sample_rate
         spec = self.spec
         if spec is not None and spec.sample_rate != rate:
             spec = replace(spec, sample_rate=rate)
@@ -361,8 +408,9 @@ class Sound:
         self.samples_float = samples_float
         self.samples_int16 = samples_int16
         self._peak = peak
-        self.sample_rate = sample_rate
-        self.length = len(samples_int16) / sample_rate
+        self._sample_rate = sample_rate
+        self._sample_rate_known = True
+        self._length = len(samples_int16) / sample_rate
         self._mixer_sound = mixer_sound
         self._mixer_settings = pygame.mixer.get_init() if mixer_sound is not None else None
         self._mixer_bytes = len(mixer_sound.get_raw()) if mixer_sound is not None else 0
@@ -588,10 +636,9 @@ class SoundLibrary:
                 (live sounds arrive in M2).
 
         Returns:
-            The sound, its ``length``, ``peak`` and ``sample_rate`` set. Under cache ``none`` it
-            holds no samples and nothing was rendered: ``length`` and ``sample_rate`` are
-            derived and ``peak`` renders on its first read (a recorded file through a mixer, or
-            an OGG file, is decoded once here instead; see the module docstring).
+            The sound. Under cache ``none`` it holds no samples and nothing was rendered or
+            decoded: what is not derived comes from one compile on its first read (see the
+            module docstring).
         """
         request = SoundRequest(
             source=source,
@@ -621,8 +668,9 @@ class SoundLibrary:
             The compiled sound.
         """
         if self._cache is CacheMode.NONE:
-            fresh = sound.fresh_copy()
-            self._compile(fresh)
+            fresh = self._compiled_copy(sound)
+            # A later read of what the sound did not know yet reuses this play's compile
+            sound.adopt_metadata(fresh)
             return fresh
         if not sound.is_compiled:
             self._misses += 1
@@ -680,40 +728,37 @@ class SoundLibrary:
         self._hold(sound)
 
     def _describe(self, sound: Sound) -> None:
-        """Give a new cache ``none`` sound what a game may read of it, equal to ``ram``'s.
+        """Give a new cache ``none`` sound what can be known of it without compiling.
 
         ``length`` is the compile's frame count over the rate it compiles at, the same division
         ``Sound.install`` makes, so it is ``ram``'s bit for bit: a spec's from
         ``rendered_frame_count`` (the renderer's own buffer size), a version 0 recipe's from
-        ``SoundRecipe.frame_count`` (``mix``'s own), a WAV decoded without a mixer from its
-        header (the frames and rate the decode reads). ``peak`` renders on its first read. A
-        recorded file through a mixer, or an OGG file, cannot be sized without loading it, so it
-        is decoded once here (counted) and its samples dropped.
+        ``SoundRecipe.frame_count`` (``mix``'s own). A recorded file's length and rate are known
+        only by decoding it, and every peak only by compiling: those come from
+        ``_compiled_copy`` on their first read.
         """
+        compile_rate = sound.sample_rate  # known for every sound until it is described
         if sound.spec is not None:
-            frames = rendered_frame_count(sound.spec)
+            length = rendered_frame_count(sound.spec) / compile_rate
         elif sound.legacy_recipe is not None:
-            frames = sound.legacy_recipe.frame_count(sample_rate=sound.sample_rate)
+            length = sound.legacy_recipe.frame_count(sample_rate=compile_rate) / compile_rate
         else:
-            path = sound.recorded_file
-            assert path is not None
-            if pygame.mixer.get_init() is not None or path.suffix.lower() != '.wav':
-                self._compile(sound)
-                sound.release()
-                return
-            frames, sound.sample_rate = _wave_header(path)
-        sound.length = frames / sound.sample_rate
-        sound.measure_peak_on_read(self._render_peak)
+            length = None
+        sound.describe_lazily(
+            length=length,
+            sample_rate_known=sound.recorded_file is None,
+            compile_for_metadata=self._compiled_copy,
+        )
 
-    def _render_peak(self, sound: Sound) -> float:
-        """Compile a copy of a cache ``none`` sound for its peak (timed, counted), then drop it.
+    def _compiled_copy(self, sound: Sound) -> Sound:
+        """Compile a copy of a cache ``none`` sound (timed and counted).
 
         Returns:
-            The peak.
+            The compiled copy.
         """
         copy = sound.fresh_copy()
         self._compile(copy)
-        return copy.peak
+        return copy
 
     def _hold(self, sound: Sound) -> None:
         """Keep a compiled sound in memory; over the limit, drop the least recently played."""
@@ -1114,31 +1159,6 @@ def _decode_recorded_file(sound: Sound) -> None:
         peak=float(np.max(np.abs(samples))) / PCM16_SCALE if len(samples) else 0.0,
         sample_rate=rate,
     )
-
-
-def _wave_header(path: Path) -> tuple[int, int]:
-    """A WAV file's frame count and rate, read from its header (cache ``none``: no decode).
-
-    The frame count is the header's, which the decode reads (``readframes(getnframes())``); a file
-    cut short of its header's frames would decode fewer (a truncated file).
-
-    Returns:
-        (frames, rate).
-
-    Raises:
-        SoundAssetError: For what the decode refuses: a file the wave module cannot read, or one
-            that is not 16-bit.
-    """
-    try:
-        with wave.open(str(path), 'rb') as wave_file:
-            width = wave_file.getsampwidth()
-            frames = wave_file.getnframes()
-            rate = wave_file.getframerate()
-    except (wave.Error, EOFError) as error:
-        message = f'{path}: cannot be decoded as a WAV file: {error}'
-        raise SoundAssetError(message) from error
-    _require_16_bit(path, width)
-    return frames, rate
 
 
 def _require_16_bit(path: Path, width: int) -> None:

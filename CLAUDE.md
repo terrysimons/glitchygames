@@ -1173,10 +1173,10 @@ M2 next)
   above `--sound-cache-memory`, 256 MB) or `none` (every play compiles in its frame); `disk`
   arrives in M3 and is refused (`OPTIONS_REFUSED`) until then. A sound's `length`, `peak` and
   `sample_rate` never depend on the cache, and eviction keeps them. Under `none` getting a sound
-  renders nothing (5 plays, 5 compiles): `length` and `sample_rate` are derived exactly as the
-  compile sizes it (`render.rendered_frame_count`, `SoundRecipe.frame_count`, a WAV header) and
-  `peak` renders once on its first read (counted); a recorded file through a mixer, or an OGG,
-  still decodes once at its request
+  renders or decodes nothing (5 plays, 5 compiles): a synthesized sound's `length` is derived
+  exactly as the compile sizes it (`render.rendered_frame_count`, `SoundRecipe.frame_count`);
+  every `peak`, and a recorded file's `length` and rate, come from one counted compile on first
+  read (a play's compile counts as that read), then are kept
 - Channels: partitioned once at startup: the live pool (`--live-voice-pool`, 4), the library
   (`--sound-channels`, 32), then pygame's 8 for legacy `Sound.play()` callers. The voice table
   (`audio/voices.py`) steals by priority (`Channel.fadeout(10)`; the stealer waits a frame for
