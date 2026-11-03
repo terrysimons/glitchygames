@@ -57,6 +57,11 @@ from brave_adventurer_core.sounds import GameSounds
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.collision.solids import (
+    entered_from_left,
+    world_x_flush_left_of,
+    world_x_flush_right_of,
+)
 from glitchygames.fonts import FontManager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
@@ -447,8 +452,10 @@ class BraveAdventurerSceneBase(Scene):
                     and player_left < segment_left
                 ):
                     # Hitbox right edge flush with the segment's left edge
-                    self.player.world_x = float(
-                        segment_left - (player_offset_x + player_rect.width)
+                    self.player.world_x = world_x_flush_left_of(
+                        solid_left=segment_left,
+                        collision_offset_x=player_offset_x,
+                        collision_width=player_rect.width,
                     )
                     break
 
@@ -459,7 +466,9 @@ class BraveAdventurerSceneBase(Scene):
                     and player_right > segment_right
                 ):
                     # Hitbox left edge flush with the segment's right edge
-                    self.player.world_x = float(segment_right - player_offset_x)
+                    self.player.world_x = world_x_flush_right_of(
+                        solid_right=segment_right, collision_offset_x=player_offset_x
+                    )
                     break
 
     def _resolve_player_wall_collision(self: Self) -> None:
@@ -521,9 +530,15 @@ class BraveAdventurerSceneBase(Scene):
                 if self._entered_wall_from_left(
                     player_rect=player_rect, wall_left=wall_left, wall_right=wall_right
                 ):
-                    self.player.world_x = float(wall_left - (player_offset_x + player_rect.width))
+                    self.player.world_x = world_x_flush_left_of(
+                        solid_left=wall_left,
+                        collision_offset_x=player_offset_x,
+                        collision_width=player_rect.width,
+                    )
                 else:
-                    self.player.world_x = float(wall_right - player_offset_x)
+                    self.player.world_x = world_x_flush_right_of(
+                        solid_right=wall_right, collision_offset_x=player_offset_x
+                    )
 
     def _player_support_span(self: Self) -> tuple[int, int]:
         """Return the player's support span in world pixels: (left, right), right exclusive.
@@ -557,14 +572,15 @@ class BraveAdventurerSceneBase(Scene):
             bool: True to push the player out to the left of the wall, False to the right.
 
         """
-        displacement_x = self.player.velocity_x * self.dt
-        previous_left = player_rect.left - displacement_x
-        previous_right = player_rect.right - displacement_x
-        if previous_right <= wall_left:
-            return True
-        if previous_left >= wall_right:
-            return False
-        return player_rect.centerx < (wall_left + wall_right) / 2
+        return entered_from_left(
+            mover_left=player_rect.left,
+            mover_right=player_rect.right,
+            displacement_x=self.player.velocity_x * self.dt,
+            solid_left=wall_left,
+            solid_right=wall_right,
+            mover_center_x=player_rect.centerx,
+            solid_center_x=(wall_left + wall_right) / 2,
+        )
 
     def _scarab_class(self: Self) -> type[Any]:
         """Return the game's scarab: the enemy that follows the ground and turns at walls.
@@ -628,9 +644,15 @@ class BraveAdventurerSceneBase(Scene):
                 if scarab_rect.right > wall_left and scarab_rect.left < wall_right:
                     # Scarab is overlapping wall -- reverse direction
                     if enemy.roll_speed < 0:
-                        enemy.world_x = float(wall_right - scarab_offset_x)
+                        enemy.world_x = world_x_flush_right_of(
+                            solid_right=wall_right, collision_offset_x=scarab_offset_x
+                        )
                     else:
-                        enemy.world_x = float(wall_left - (scarab_offset_x + scarab_rect.width))
+                        enemy.world_x = world_x_flush_left_of(
+                            solid_left=wall_left,
+                            collision_offset_x=scarab_offset_x,
+                            collision_width=scarab_rect.width,
+                        )
                     enemy.roll_speed = -enemy.roll_speed
 
     def _check_enemy_collisions(self: Self) -> None:

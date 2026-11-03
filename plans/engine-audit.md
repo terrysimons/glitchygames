@@ -26,7 +26,7 @@ Unused by games: tweens and easing (`effects/`) outside transitions.
 
 | # | Item | Status | Evidence / notes |
 |---|---|---|---|
-| 1 | Solid/terrain collision resolution (ground, walls, one-way platforms) | Open | 7 `_resolve_*_collision` methods across the games; `CollisionManager` detects but does not resolve. `_player_support_span` and `_entered_wall_from_left` are duplicated between Brave Adventurer and Papyrus (candidates for the solid-collision design) |
+| 1 | Solid/terrain collision resolution (ground, walls, one-way platforms) | **Phase 1 done** (`feat/solid-collision`): the shared rules in `glitchygames/collision/solids.py`; phases 2-3 planned | The duplication this row once named was merged on 2026-10-26 (Brave Adventurer's editions share `brave_adventurer_core/scene.py`). Design and phases: `plans/2026-11-02-solid-collision.md` |
 | 2 | Expressions phase 2: `and` / `or` / `not` / parentheses | **Done** (branch `feature/expressions-phase-2`) | Grammar, whole-word keywords (fixes `abs`-prefix tokenizer bug); the three `_FallingCondition` copies became `when` strings (Papyrus's in `sprites/player.toml`) |
 | 3 | Screen shake | **Done** (this branch) | `plans/2026-10-17-screen-shake-and-synth.md` |
 | 4 | High-score table | Open | `_save_high_score` copied into 4 games |
@@ -48,7 +48,7 @@ Nice to have, not needed by current games: sprite-sheet import, localization, pa
 
 1. ~~**Engine world space** (#6)~~ — **Done** (`feature/engine-world-space`, with #15).
 2. ~~**Expressions phase 2** (#2) — small; removes three copies of `_FallingCondition`.~~ — **Done** (see the table).
-3. **Solid collision** (#1) together with **balls on CollisionManager** (#7) — one collision design.
+3. **Solid collision** (#1) together with **balls on CollisionManager** (#7): phase 1 done (the shared rules, no behavior change); phase 2 (solids as data) waits on the level tools' tilemap format. Design: `plans/2026-11-02-solid-collision.md`.
 4. Remaining items as small independent branches.
 
 Process lesson from the screen-shake branch: run full-project basedpyright and ty at least once
