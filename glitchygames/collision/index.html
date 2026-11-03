@@ -5532,6 +5532,634 @@ sprites with only rect (UI elements).</p>
 
 </div>
 
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="glitchygames.collision.solids" class="doc doc-heading">
+            <code>solids</code>
+
+
+<a href="#glitchygames.collision.solids" class="headerlink" title="Permanent link">#</a></h2>
+
+    <div class="doc doc-contents ">
+
+        <p>Solid collision primitives: the rules games use to keep sprites out of solids.</p>
+<p>Detection is <code>CollisionManager</code>'s; these decide what a game does once a sprite overlaps a solid
+(ground, a wall, a platform, a paddle), so every game resolves with the same rules
+(plans/2026-11-02-solid-collision.md):</p>
+<ul>
+<li><code>entered_from_left</code>: which side of a solid an overlapping mover came in from, from where it
+  was before this frame's move (Brave Adventurer's walls, the ball's paddles).</li>
+<li><code>world_x_flush_left_of</code> / <code>world_x_flush_right_of</code>: the world x that puts a sprite's
+  collision rect flush against a solid's side (walls, pit edges, a scarab turning).</li>
+<li><code>feet_land_on_surface</code>: a swept landing test, so a long tick cannot carry falling feet
+  through a surface (Clockwork Keep's platforms, BUGS.md #205).</li>
+</ul>
+<p>They take plain numbers, so each game keeps its own measures (a snapped or raw position, an
+integer or a float centre) and resolves exactly as before.</p>
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.collision.solids.entered_from_left" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">entered_from_left</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">mover_left</span><span class="p">,</span> <span class="n">mover_right</span><span class="p">,</span> <span class="n">displacement_x</span><span class="p">,</span> <span class="n">solid_left</span><span class="p">,</span> <span class="n">solid_right</span><span class="p">,</span> <span class="n">mover_center_x</span><span class="p">,</span> <span class="n">solid_center_x</span><span class="p">)</span></code>
+
+<a href="#glitchygames.collision.solids.entered_from_left" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Decide which side of a solid an overlapping mover is pushed out of.</p>
+<p>Looks at where the mover was before this frame's move (its edges less <code>displacement_x</code>):
+clear of the solid on one side means it came in from that side, even when a long frame
+carried its centre past the solid's centre. If it already overlapped (it widened, or is
+not moving), the side of the solid's centre its own centre is on decides, so it is pushed
+out on its own side, never through the solid.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>mover_left</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The mover's left edge now.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>mover_right</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The mover's right edge now.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>displacement_x</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>How far it moved in x this frame (velocity times the frame's dt).</p>
+              </div>
+            </li>
+            <li>
+              <b><code>solid_left</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The solid's left edge.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>solid_right</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The solid's right edge.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>mover_center_x</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The mover's centre, as the game measures it.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>solid_center_x</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The solid's centre, as the game measures it.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="bool">bool</span></code>
+              –
+              <div class="doc-md-description">
+                <p>True to push the mover out to the solid's left, False to its right.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/glitchygames/collision/solids.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-21">21</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-22">22</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-23">23</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-24">24</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-25">25</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-26">26</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-27">27</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-28">28</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-29">29</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-30">30</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-31">31</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-32">32</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-33">33</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-34">34</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-35">35</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-36">36</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-37">37</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-38">38</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-39">39</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-40">40</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-41">41</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-42">42</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-43">43</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-44">44</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-45">45</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-46">46</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-47">47</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-48">48</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-49">49</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-50">50</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-51">51</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-52">52</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-53">53</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-54">54</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-55">55</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-56">56</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-57">57</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.entered_from_left--source--__codelineno-0-58">58</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-21" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-21"></a><span class="k">def</span><span class="w"> </span><span class="nf">entered_from_left</span><span class="p">(</span>  <span class="c1"># ruff: ignore[too-many-arguments]</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-22" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-22"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-23" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-23"></a>    <span class="n">mover_left</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-24" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-24"></a>    <span class="n">mover_right</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-25" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-25"></a>    <span class="n">displacement_x</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-26" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-26"></a>    <span class="n">solid_left</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-27" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-27"></a>    <span class="n">solid_right</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-28" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-28"></a>    <span class="n">mover_center_x</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-29" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-29"></a>    <span class="n">solid_center_x</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-30" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-30"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-31" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-31"></a><span class="w">    </span><span class="sd">"""Decide which side of a solid an overlapping mover is pushed out of.</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-32" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-32"></a>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-33" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-33"></a><span class="sd">    Looks at where the mover was before this frame's move (its edges less ``displacement_x``):</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-34" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-34"></a><span class="sd">    clear of the solid on one side means it came in from that side, even when a long frame</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-35" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-35"></a><span class="sd">    carried its centre past the solid's centre. If it already overlapped (it widened, or is</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-36" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-36"></a><span class="sd">    not moving), the side of the solid's centre its own centre is on decides, so it is pushed</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-37" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-37"></a><span class="sd">    out on its own side, never through the solid.</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-38" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-38"></a>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-39" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-39"></a><span class="sd">    Args:</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-40" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-40"></a><span class="sd">        mover_left: The mover's left edge now.</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-41" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-41"></a><span class="sd">        mover_right: The mover's right edge now.</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-42" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-42"></a><span class="sd">        displacement_x: How far it moved in x this frame (velocity times the frame's dt).</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-43" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-43"></a><span class="sd">        solid_left: The solid's left edge.</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-44" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-44"></a><span class="sd">        solid_right: The solid's right edge.</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-45" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-45"></a><span class="sd">        mover_center_x: The mover's centre, as the game measures it.</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-46" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-46"></a><span class="sd">        solid_center_x: The solid's centre, as the game measures it.</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-47" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-47"></a>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-48" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-48"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-49" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-49"></a><span class="sd">        True to push the mover out to the solid's left, False to its right.</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-50" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-50"></a>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-51" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-51"></a><span class="sd">    """</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-52" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-52"></a>    <span class="n">previous_left</span> <span class="o">=</span> <span class="n">mover_left</span> <span class="o">-</span> <span class="n">displacement_x</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-53" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-53"></a>    <span class="n">previous_right</span> <span class="o">=</span> <span class="n">mover_right</span> <span class="o">-</span> <span class="n">displacement_x</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-54" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-54"></a>    <span class="k">if</span> <span class="n">previous_right</span> <span class="o">&lt;=</span> <span class="n">solid_left</span><span class="p">:</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-55" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-55"></a>        <span class="k">return</span> <span class="kc">True</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-56" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-56"></a>    <span class="k">if</span> <span class="n">previous_left</span> <span class="o">&gt;=</span> <span class="n">solid_right</span><span class="p">:</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-57" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-57"></a>        <span class="k">return</span> <span class="kc">False</span>
+<a id="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-58" name="glitchygames.collision.solids.entered_from_left--source--__codelineno-0-58"></a>    <span class="k">return</span> <span class="n">mover_center_x</span> <span class="o">&lt;</span> <span class="n">solid_center_x</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.collision.solids.feet_land_on_surface" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">feet_land_on_surface</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">velocity_y</span><span class="p">,</span> <span class="n">feet_now</span><span class="p">,</span> <span class="n">feet_start</span><span class="p">,</span> <span class="n">surface_top</span><span class="p">,</span> <span class="n">tolerance</span><span class="p">)</span></code>
+
+<a href="#glitchygames.collision.solids.feet_land_on_surface" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Whether falling (or standing) feet land on a surface this tick, swept from their start.</p>
+<p>They land when they end the tick at or below the surface's top, and started it no more than
+<code>tolerance</code> below it; a rising sprite never lands (a one-way surface is jumped through).</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>velocity_y</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The sprite's vertical velocity (positive falls).</p>
+              </div>
+            </li>
+            <li>
+              <b><code>feet_now</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The feet's world y now.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>feet_start</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The feet's world y before the tick (<code>feet_now</code> when unknown).</p>
+              </div>
+            </li>
+            <li>
+              <b><code>surface_top</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The surface's top.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>tolerance</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>How far below the top the feet may have started and still land.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="bool">bool</span></code>
+              –
+              <div class="doc-md-description">
+                <p>True if the feet land on the surface.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/glitchygames/collision/solids.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-94"> 94</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-95"> 95</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-96"> 96</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-97"> 97</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-98"> 98</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-99"> 99</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-100">100</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-101">101</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-102">102</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-103">103</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-104">104</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-105">105</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-106">106</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-107">107</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-108">108</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-109">109</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-110">110</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-111">111</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-112">112</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-113">113</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-114">114</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-115">115</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-116">116</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-117">117</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-118">118</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-119">119</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-120">120</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-94" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-94"></a><span class="k">def</span><span class="w"> </span><span class="nf">feet_land_on_surface</span><span class="p">(</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-95" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-95"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-96" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-96"></a>    <span class="n">velocity_y</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-97" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-97"></a>    <span class="n">feet_now</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-98" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-98"></a>    <span class="n">feet_start</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-99" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-99"></a>    <span class="n">surface_top</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-100" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-100"></a>    <span class="n">tolerance</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-101" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-101"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-102" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-102"></a><span class="w">    </span><span class="sd">"""Whether falling (or standing) feet land on a surface this tick, swept from their start.</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-103" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-103"></a>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-104" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-104"></a><span class="sd">    They land when they end the tick at or below the surface's top, and started it no more than</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-105" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-105"></a><span class="sd">    ``tolerance`` below it; a rising sprite never lands (a one-way surface is jumped through).</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-106" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-106"></a>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-107" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-107"></a><span class="sd">    Args:</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-108" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-108"></a><span class="sd">        velocity_y: The sprite's vertical velocity (positive falls).</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-109" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-109"></a><span class="sd">        feet_now: The feet's world y now.</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-110" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-110"></a><span class="sd">        feet_start: The feet's world y before the tick (``feet_now`` when unknown).</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-111" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-111"></a><span class="sd">        surface_top: The surface's top.</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-112" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-112"></a><span class="sd">        tolerance: How far below the top the feet may have started and still land.</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-113" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-113"></a>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-114" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-114"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-115" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-115"></a><span class="sd">        True if the feet land on the surface.</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-116" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-116"></a>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-117" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-117"></a><span class="sd">    """</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-118" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-118"></a>    <span class="k">if</span> <span class="n">velocity_y</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">feet_now</span> <span class="o">&lt;</span> <span class="n">surface_top</span><span class="p">:</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-119" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-119"></a>        <span class="k">return</span> <span class="kc">False</span>
+<a id="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-120" name="glitchygames.collision.solids.feet_land_on_surface--source--__codelineno-0-120"></a>    <span class="k">return</span> <span class="n">feet_start</span> <span class="o">&lt;=</span> <span class="n">surface_top</span> <span class="o">+</span> <span class="n">tolerance</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.collision.solids.world_x_flush_left_of" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">world_x_flush_left_of</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">solid_left</span><span class="p">,</span> <span class="n">collision_offset_x</span><span class="p">,</span> <span class="n">collision_width</span><span class="p">)</span></code>
+
+<a href="#glitchygames.collision.solids.world_x_flush_left_of" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return the world x putting a sprite's collision rect flush against a solid's left side.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>solid_left</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The solid's left edge.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>collision_offset_x</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The collision rect's x offset from the sprite's (snapped) world x
+(<code>collision_rect_offset</code>).</p>
+              </div>
+            </li>
+            <li>
+              <b><code>collision_width</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The collision rect's width.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="float">float</span></code>
+              –
+              <div class="doc-md-description">
+                <p>The sprite's world x.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/glitchygames/collision/solids.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-61">61</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-62">62</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-63">63</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-64">64</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-66">66</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-67">67</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-68">68</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-69">69</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-70">70</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-71">71</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-72">72</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-73">73</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-74">74</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-75">75</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-76">76</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-61" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-61"></a><span class="k">def</span><span class="w"> </span><span class="nf">world_x_flush_left_of</span><span class="p">(</span>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-62" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-62"></a>    <span class="o">*</span><span class="p">,</span> <span class="n">solid_left</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">collision_offset_x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">collision_width</span><span class="p">:</span> <span class="nb">int</span>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-63" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-63"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-64" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-64"></a><span class="w">    </span><span class="sd">"""Return the world x putting a sprite's collision rect flush against a solid's left side.</span>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-65" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-65"></a>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-66" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-66"></a><span class="sd">    Args:</span>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-67" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-67"></a><span class="sd">        solid_left: The solid's left edge.</span>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-68" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-68"></a><span class="sd">        collision_offset_x: The collision rect's x offset from the sprite's (snapped) world x</span>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-69" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-69"></a><span class="sd">            (``collision_rect_offset``).</span>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-70" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-70"></a><span class="sd">        collision_width: The collision rect's width.</span>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-71" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-71"></a>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-72" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-72"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-73" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-73"></a><span class="sd">        The sprite's world x.</span>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-74" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-74"></a>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-75" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-75"></a><span class="sd">    """</span>
+<a id="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-76" name="glitchygames.collision.solids.world_x_flush_left_of--source--__codelineno-0-76"></a>    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">solid_left</span> <span class="o">-</span> <span class="p">(</span><span class="n">collision_offset_x</span> <span class="o">+</span> <span class="n">collision_width</span><span class="p">))</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="glitchygames.collision.solids.world_x_flush_right_of" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">world_x_flush_right_of</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">solid_right</span><span class="p">,</span> <span class="n">collision_offset_x</span><span class="p">)</span></code>
+
+<a href="#glitchygames.collision.solids.world_x_flush_right_of" class="headerlink" title="Permanent link">#</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return the world x putting a sprite's collision rect flush against a solid's right side.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>solid_right</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The solid's right edge.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>collision_offset_x</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>The collision rect's x offset from the sprite's (snapped) world x
+(<code>collision_rect_offset</code>).</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="float">float</span></code>
+              –
+              <div class="doc-md-description">
+                <p>The sprite's world x.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>src/glitchygames/collision/solids.py</code></summary>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-79">79</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-80">80</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-81">81</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-82">82</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-83">83</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-84">84</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-85">85</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-86">86</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-87">87</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-88">88</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-89">89</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-90">90</a></span>
+<span class="normal"><a href="#glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-91">91</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-79" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-79"></a><span class="k">def</span><span class="w"> </span><span class="nf">world_x_flush_right_of</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">solid_right</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">collision_offset_x</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-80" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-80"></a><span class="w">    </span><span class="sd">"""Return the world x putting a sprite's collision rect flush against a solid's right side.</span>
+<a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-81" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-81"></a>
+<a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-82" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-82"></a><span class="sd">    Args:</span>
+<a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-83" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-83"></a><span class="sd">        solid_right: The solid's right edge.</span>
+<a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-84" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-84"></a><span class="sd">        collision_offset_x: The collision rect's x offset from the sprite's (snapped) world x</span>
+<a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-85" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-85"></a><span class="sd">            (``collision_rect_offset``).</span>
+<a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-86" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-86"></a>
+<a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-87" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-87"></a><span class="sd">    Returns:</span>
+<a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-88" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-88"></a><span class="sd">        The sprite's world x.</span>
+<a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-89" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-89"></a>
+<a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-90" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-90"></a><span class="sd">    """</span>
+<a id="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-91" name="glitchygames.collision.solids.world_x_flush_right_of--source--__codelineno-0-91"></a>    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">solid_right</span> <span class="o">-</span> <span class="n">collision_offset_x</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
 
   </div>
 
