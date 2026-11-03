@@ -6,7 +6,7 @@ from hypothesis import strategies as st
 
 from glitchygames.audio.instrument import Filter, Instrument, Noise, PitchCurve, Source
 from glitchygames.audio.pitch import Hz
-from glitchygames.audio.render import render_sound
+from glitchygames.audio.render import render_sound, rendered_frame_count
 from glitchygames.audio.spec import EnvelopeSpec
 from glitchygames.audio.waves import BUILT_IN_WAVE_NAMES
 from tests.audio.render_specs import SAMPLE_RATE, spec_for
@@ -123,3 +123,10 @@ def test_fuzzed_valid_specs_never_produce_non_finite_output(spec):
     assert np.all(np.isfinite(rendered.samples))
     assert np.max(np.abs(rendered.samples), initial=0.0) <= 1.0
     assert np.isfinite(rendered.peak)
+
+
+@settings(derandomize=True, database=None, max_examples=200)
+@given(spec=valid_specs())
+def test_the_rendered_frame_count_is_the_render_length(spec):
+    """``rendered_frame_count`` (a sound's length without rendering) is what the render gives."""
+    assert rendered_frame_count(spec) == len(render_sound(spec).samples)

@@ -10,7 +10,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import math
-from typing import assert_never
+from typing import TYPE_CHECKING, assert_never
 
 import numpy as np
 import numpy.typing as npt
@@ -19,6 +19,9 @@ import pygame
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.effects.easing import get_easing
 from glitchygames.randomness import numpy_stream
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 FloatArray = npt.NDArray[np.float64]
 
@@ -420,11 +423,23 @@ def mix(
             message = f'offset must be >= 0, got {offset}'
             raise ValueError(message)
         placements.append((samples, sample_count(offset, rate)))
-    total = max((start + len(samples) for samples, start in placements), default=0)
+    total = mixed_frame_count((start, len(samples)) for samples, start in placements)
     result = np.zeros(total)
     for samples, start in placements:
         result[start : start + len(samples)] += samples
     return result
+
+
+def mixed_frame_count(placements: Iterable[tuple[int, int]]) -> int:
+    """How long ``mix`` makes its result: long enough for the last layer to end.
+
+    Args:
+        placements: Each layer's (start frame, frame count).
+
+    Returns:
+        The frame count (0 for no layers).
+    """
+    return max((start + frames for start, frames in placements), default=0)
 
 
 def concatenate(*arrays: FloatArray) -> FloatArray:

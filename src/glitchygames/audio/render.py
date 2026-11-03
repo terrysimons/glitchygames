@@ -533,14 +533,51 @@ def gate_end_frame(spec: SoundSpec) -> int:
     Returns:
         The frame, counted from the sound's first.
     """
+    return max((start + gate for start, gate, _ in _placed_notes(spec)), default=0)
+
+
+def _placed_notes(spec: SoundSpec) -> list[tuple[int, int, NoteEvent]]:
+    """Each note's first frame and held frames, as ``render_sound`` places it.
+
+    A pitched sound with no notes raises ``SoundRenderError`` (from ``_note_events``).
+
+    Returns:
+        (start frame, gate frames, event) per note.
+    """
     rate = spec.sample_rate
-    return max(
-        (
-            round(event.start_seconds * rate) + round(event.length_seconds * rate)
-            for event in _note_events(spec)
-        ),
-        default=0,
-    )
+    return [
+        (round(event.start_seconds * rate), round(event.length_seconds * rate), event)
+        for event in _note_events(spec)
+    ]
+
+
+def _buffer_frames(spec: SoundSpec, placed: list[tuple[int, int, NoteEvent]]) -> int:
+    """How many frames ``render_sound`` renders: the last note's end plus the release.
+
+    Each note renders its held frames plus the amplifier's release (``envelope_levels``), and
+    nothing after it changes the count (filters are centred, drive keeps it, the de-click,
+    normalization and clip work in place).
+
+    Returns:
+        The frame count.
+    """
+    release_frames = round(spec.envelope.release * spec.sample_rate)
+    return max((start + gate + release_frames for start, gate, _ in placed), default=0)
+
+
+def rendered_frame_count(spec: SoundSpec) -> int:
+    """How many frames ``render_sound(spec)`` gives, without rendering (cache ``none``'s length).
+
+    Args:
+        spec: The sound.
+
+    A pitched sound with no notes raises ``SoundRenderError`` (from ``_note_events``), as its
+    render does.
+
+    Returns:
+        The frame count, exactly the render's: both size the buffer with ``_buffer_frames``.
+    """
+    return _buffer_frames(spec, _placed_notes(spec))
 
 
 def _declicked(samples: FloatArray, sample_rate: int) -> FloatArray:
@@ -578,13 +615,8 @@ def render_sound(spec: SoundSpec) -> RenderedSound:
         SoundRenderError: For a pitched sound with no notes, or a render that is not finite.
     """
     rate = spec.sample_rate
-    events = _note_events(spec)
-    release_frames = round(spec.envelope.release * rate)
-    placed = [
-        (round(event.start_seconds * rate), round(event.length_seconds * rate), event)
-        for event in events
-    ]
-    total = max((start + gate + release_frames for start, gate, _ in placed), default=0)
+    placed = _placed_notes(spec)
+    total = _buffer_frames(spec, placed)
     # Per impl spec 6.3: each noise source's seed (its own, else the sound's) combined with its
     # index. default_rng of a list of ints is Generator(PCG64(SeedSequence(that list))), the
     # form the randomness guard (tests/test_unseeded_randomness_guard.py) reads as seeded

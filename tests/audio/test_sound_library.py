@@ -371,9 +371,13 @@ def test_a_corrupt_wav_with_a_mixer_is_a_sound_asset_error(tmp_path):
         library.sound(str(broken), scene_sound_directory=None)
 
 
-def test_ogg_and_odd_wav_formats_need_a_mixer(tmp_path, no_mixer):
-    """OGG and non-16-bit WAV files cannot be decoded without a mixer."""
-    library, _ = make_library()
+@pytest.mark.parametrize('cache', [CacheMode.RAM, CacheMode.NONE])
+def test_ogg_and_odd_wav_formats_need_a_mixer(tmp_path, no_mixer, cache):
+    """OGG and non-16-bit WAV files cannot be decoded without a mixer, under either cache.
+
+    Under none the request reads only a WAV's header, and refuses what a decode would.
+    """
+    library, _ = make_library(cache)
     ogg = tmp_path / 'music.ogg'
     ogg.write_bytes(b'OggS')
     eight_bit = write_wave_file(tmp_path / 'eight.wav', frames=10, width=1)
@@ -384,11 +388,12 @@ def test_ogg_and_odd_wav_formats_need_a_mixer(tmp_path, no_mixer):
         library.sound(str(eight_bit), scene_sound_directory=None)
 
 
-def test_a_corrupt_wav_without_a_mixer_is_a_sound_asset_error(tmp_path, no_mixer):
-    """A WAV the wave module cannot read names the file."""
+@pytest.mark.parametrize('cache', [CacheMode.RAM, CacheMode.NONE])
+def test_a_corrupt_wav_without_a_mixer_is_a_sound_asset_error(tmp_path, no_mixer, cache):
+    """A WAV the wave module cannot read names the file, at its request under either cache."""
     broken = tmp_path / 'broken.wav'
     broken.write_bytes(b'not a wave file at all')
-    library, _ = make_library()
+    library, _ = make_library(cache)
 
     with pytest.raises(SoundAssetError, match=r'broken\.wav'):
         library.sound(str(broken), scene_sound_directory=None)
@@ -401,12 +406,12 @@ def test_a_recorded_file_recompiles_under_cache_none_every_play(tmp_path, no_mix
     sound = library.sound(str(path), scene_sound_directory=None)
 
     assert not sound.is_compiled
-    assert library.statistics().compiles == 1  # the request's, for its length, peak and rate
+    assert library.statistics().compiles == 0  # its length and rate come from its header
     played = library.compile_for_play(sound)
 
     assert played.is_compiled
     assert played is not sound
-    assert library.statistics().compiles == 2
+    assert library.statistics().compiles == 1
 
 
 def test_a_recorded_short_name_resolves_by_its_stem(tmp_path, no_mixer):
@@ -520,18 +525,14 @@ def test_warm_without_a_budget_compiles_everything():
     assert library.statistics().compiles == 2
 
 
-def test_warm_under_cache_none_keeps_no_samples():
-    """With cache none warm compiles each new identity once and keeps no samples.
-
-    The compile gives the sound its length, peak and rate; there is nothing to keep, so warm
-    reports done.
-    """
+def test_warm_under_cache_none_only_resolves():
+    """With cache none there is nothing to keep, so warm resolves and reports done."""
     library, _ = make_library(CacheMode.NONE)
     requests = [SoundRequest(source=PULSE_INSTRUMENT, scene_sound_directory=None, pitch='C5')]
 
     assert library.warm(requests) == 1.0
     assert library.warm(requests) == 1.0
-    assert library.statistics().compiles == 1
+    assert library.statistics().compiles == 0
     assert library.statistics().bytes_held == 0
 
 

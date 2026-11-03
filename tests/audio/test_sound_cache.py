@@ -4,6 +4,7 @@ import numpy as np
 import pygame
 import pytest
 
+from glitchygames.audio.instrument import Instrument
 from glitchygames.audio.library import CacheMode, CacheStatistics
 from glitchygames.audio.pitch import Tuning
 from tests.audio.library_support import (
@@ -65,10 +66,10 @@ def test_two_spellings_of_one_identity_share_one_sound():
 
 
 def test_cache_none_keeps_no_audio_until_a_play():
-    """Under cache none, sound() holds the spec and no samples.
+    """Under cache none, sound() holds the spec and no samples, and renders nothing.
 
-    The first request of an identity compiles once to learn its length, peak and rate (they
-    must not depend on the cache: a replay may run under another mode), then drops the samples.
+    Its length and rate are derived from the spec without rendering (they must not depend on
+    the cache: a replay may run under another mode).
     """
     library, _ = make_library(CacheMode.NONE)
     sound = _request(library)
@@ -78,22 +79,21 @@ def test_cache_none_keeps_no_audio_until_a_play():
     assert sound.samples_int16 is None
     assert not sound.is_compiled
     assert sound.mixer_sound() is None
-    assert library.statistics().compiles == 1
+    assert library.statistics().compiles == 0
     assert _request(library) is sound
-    assert library.statistics().compiles == 1
+    assert library.statistics().compiles == 0
     assert library.statistics().bytes_held == 0
 
 
 def test_cache_none_compiles_on_every_play():
-    """Under cache none, every play compiles anew."""
+    """Under cache none, a sound played 5 times compiles 5 times (AUD-MEAS-001)."""
     library, accountant = make_library(CacheMode.NONE)
     sound = _request(library)
-    accountant.take_frame()  # the request's own compile (its length, peak and rate)
+    assert library.statistics().compiles == 0
 
     compiled = [library.compile_for_play(sound) for _ in range(5)]
 
-    # Five plays, five compiles, beyond the request's one
-    assert library.statistics().compiles == 1 + 5
+    assert library.statistics().compiles == 5
     assert len({id(each) for each in compiled}) == 5
     assert all(each.is_compiled and each.length == sound.length for each in compiled)
     assert not sound.is_compiled
@@ -354,3 +354,156 @@ def test_a_22050_hz_recorded_wav_reports_its_own_rate_before_and_after_compile(t
     assert compiled_for_play.sample_rate == 22050
     assert held.sample_rate == 22050
     assert uncompiled.length == compiled_for_play.length == held.length == pytest.approx(0.1)
+
+
+NOISE_INSTRUMENT = Instrument(noise='white', envelope='pluck')
+
+
+@pytest.mark.parametrize('mixer_rate', [44100, 22050])
+@pytest.mark.parametrize(
+    'arguments',
+    [
+        {'source': PULSE_INSTRUMENT, 'pitch': 'C5'},
+        {'source': PULSE_INSTRUMENT, 'pitch': 'C5', 'length': 0.123457},
+        {'source': PULSE_INSTRUMENT, 'notes': 'C5:0.0731 E5:0.1179 G5:0.0013'},
+        {'source': PULSE_INSTRUMENT, 'chord': ['C4', 'E4', 'G4'], 'length': 0.3001},
+        {'source': NOISE_INSTRUMENT},
+        {'source': 'coin'},
+        {'source': 'chord_stab'},
+        {'source': 'thump'},
+        {'source': 'crunch_one'},
+    ],
+    ids=[
+        'instrument',
+        'instrument-odd-length',
+        'notes',
+        'chord',
+        'unpitched-noise',
+        'version-1-file-notes',
+        'version-1-file-chord',
+        'version-1-file-layered',
+        'version-0-recipe',
+    ],
+)
+def test_length_and_rate_under_none_equal_rams_without_rendering(arguments, mixer_rate):
+    """Under none, sound() renders nothing, yet its length and rate equal ram's bit for bit."""
+    start_mixer(frequency=mixer_rate, channels=2)
+    none_library, none_accountant = make_library(CacheMode.NONE)
+    ram_library, _ = make_library(CacheMode.RAM)
+
+    uncompiled = none_library.sound(scene_sound_directory=FIXTURE_SOUNDS, **arguments)
+    held = ram_library.sound(scene_sound_directory=FIXTURE_SOUNDS, **arguments)
+
+    assert none_library.statistics().compiles == 0
+    assert not none_accountant.compile_log
+    assert not uncompiled.is_compiled
+    assert uncompiled.length > 0.0
+    # Exact equality: a game timing on length must replay the same under either mode
+    assert uncompiled.length == held.length
+    assert uncompiled.sample_rate == held.sample_rate
+    assert none_library.statistics().compiles == 0
+
+
+@pytest.mark.parametrize(
+    ('frames', 'sample_rate', 'channels'), [(2205, 22050, 1), (4411, 44100, 2), (1, 8000, 1)]
+)
+def test_a_recorded_wav_without_a_mixer_reads_its_header_under_none(
+    tmp_path, frames, sample_rate, channels
+):
+    """Without a mixer, a WAV's length and rate come from its header: nothing is decoded."""
+    pygame.mixer.quit()
+    path = write_wave_file(
+        tmp_path / 'clip.wav', frames=frames, sample_rate=sample_rate, channels=channels
+    )
+    none_library, _ = make_library(CacheMode.NONE)
+    ram_library, _ = make_library(CacheMode.RAM)
+
+    uncompiled = none_library.sound(str(path), scene_sound_directory=None)
+    held = ram_library.sound(str(path), scene_sound_directory=None)
+
+    assert none_library.statistics().compiles == 0
+    assert uncompiled.length == held.length
+    assert uncompiled.sample_rate == held.sample_rate == sample_rate
+    played = none_library.compile_for_play(uncompiled)
+    assert played.length == uncompiled.length
+    assert none_library.statistics().compiles == 1
+
+
+def test_a_recorded_file_through_a_mixer_still_decodes_at_its_request_under_none(tmp_path):
+    """Through a mixer, a recorded file's request decodes it once under none too.
+
+    pygame converts the file to the mixer's format as it loads it, so its length is known only
+    by loading it: the request decodes it for its length, peak and rate and drops the samples
+    (a play decodes again, counted).
+    """
+    start_mixer(frequency=44100)
+    path = write_wave_file(tmp_path / 'clip.wav', frames=1000, sample_rate=22050)
+    none_library, _ = make_library(CacheMode.NONE)
+    ram_library, _ = make_library(CacheMode.RAM)
+
+    uncompiled = none_library.sound(str(path), scene_sound_directory=None)
+    held = ram_library.sound(str(path), scene_sound_directory=None)
+
+    assert none_library.statistics().compiles == 1
+    assert not uncompiled.is_compiled
+    assert _metadata(uncompiled) == _metadata(held)
+    none_library.compile_for_play(uncompiled)
+    assert none_library.statistics().compiles == 2
+
+
+@pytest.mark.parametrize(
+    'arguments',
+    [
+        {'source': PULSE_INSTRUMENT, 'pitch': 'C5'},
+        {'source': PULSE_INSTRUMENT, 'chord': ['C4', 'E4', 'G4'], 'length': 0.3},
+        {'source': 'coin'},
+        {'source': 'crunch_one'},
+    ],
+    ids=['instrument', 'chord', 'version-1-file', 'version-0-recipe'],
+)
+def test_reading_peak_under_none_compiles_once_then_keeps_it(arguments):
+    """Under none, peak is rendered on its first read (counted, attributed), then kept."""
+    none_library, accountant = make_library(CacheMode.NONE)
+    ram_library, _ = make_library(CacheMode.RAM)
+    uncompiled = none_library.sound(scene_sound_directory=FIXTURE_SOUNDS, **arguments)
+    held = ram_library.sound(scene_sound_directory=FIXTURE_SOUNDS, **arguments)
+    assert none_library.statistics().compiles == 0
+    accountant.setup_mode = False
+    accountant.frame_number = 12
+
+    first_read = uncompiled.peak
+
+    assert none_library.statistics().compiles == 1
+    assert accountant.compile_log[-1].frame_number == 12
+    assert accountant.compile_log[-1].name == uncompiled.name
+    assert first_read == held.peak
+    assert first_read > 0.0
+    assert not uncompiled.is_compiled
+    assert none_library.statistics().bytes_held == 0
+
+    assert uncompiled.peak == first_read
+    assert none_library.statistics().compiles == 1
+    assert len(accountant.compile_log) == 1
+
+
+def test_a_recorded_wav_without_a_mixer_renders_its_peak_on_first_read(tmp_path):
+    """A header gives a WAV's length and rate; its peak is decoded on first read, once."""
+    pygame.mixer.quit()
+    path = write_wave_file(tmp_path / 'clip.wav', frames=441)
+    none_library, _ = make_library(CacheMode.NONE)
+    ram_library, _ = make_library(CacheMode.RAM)
+    uncompiled = none_library.sound(str(path), scene_sound_directory=None)
+    held = ram_library.sound(str(path), scene_sound_directory=None)
+
+    assert uncompiled.peak == held.peak
+    assert uncompiled.peak == held.peak
+    assert none_library.statistics().compiles == 1
+
+
+def test_an_uncompiled_sound_outside_a_library_reads_peak_and_length_as_zero():
+    """A sound no library described (an offline render's fresh copy) reads 0.0 until compiled."""
+    library, _ = make_library()
+    copy = _request(library).fresh_copy()
+
+    assert copy.length == 0.0
+    assert copy.peak == 0.0

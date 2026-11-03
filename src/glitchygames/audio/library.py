@@ -1,15 +1,21 @@
 """The sound library: one-call ``sound()``, the cache modes and compile accounting.
 
 The first request for a sound compiles it, equal requests return the same ``Sound``, and getting a
-sound never plays it (feature spec 3.1, impl spec 6.2 and 6.4). With cache ``none`` a ``Sound``
-holds only what identifies it and what a game may read of it, and every play compiles it anew
-(``compile_for_play``), which forces mid-frame rendering for benchmarks. The pieces of work are
-timed by the library's ``AudioAccountant`` (impl spec 11.0).
+sound never plays it (feature spec 3.1, impl spec 6.2 and 6.4). With cache ``none`` getting a
+sound renders nothing: a ``Sound`` holds only what identifies it and what a game may read of it,
+and every play compiles it anew (``compile_for_play``), which forces mid-frame rendering for
+benchmarks; a sound played 5 times compiles 5 times (AUD-MEAS-001). The pieces of work are timed
+by the library's ``AudioAccountant`` (impl spec 11.0).
 
 What a game may read of a sound (``length``, ``peak``, ``sample_rate``) never depends on the
-cache, which is replay-local: it is fixed by the sound's first compile, at its first request
-under either mode (under ``none`` that compile's samples are dropped at once), and survives
-``release()`` (the memory limit's eviction), so a replay under another mode reads the same.
+cache, which is replay-local, so a replay under another mode reads the same, bit for bit. Under
+``ram`` the request's compile sets them, and ``release()`` (the memory limit's eviction) keeps
+them. Under ``none`` the request derives ``length`` and ``sample_rate`` without rendering, the
+way the compile sizes its samples (``render.rendered_frame_count``, ``SoundRecipe.frame_count``,
+a WAV file's header), and ``peak`` is rendered on its first read (one compile, counted and
+attributed like any other), then kept. A recorded file loaded through a mixer (pygame converts it
+to the mixer's format as it loads) or an OGG file is the exception: its request decodes it once
+under ``none`` too, for those three, and drops the samples.
 """
 
 from __future__ import annotations
@@ -44,7 +50,7 @@ from glitchygames.audio.assets import (
 )
 from glitchygames.audio.exceptions import AudioUnavailableError, SoundAssetError, SoundRenderError
 from glitchygames.audio.instrument import Instrument, build_spec
-from glitchygames.audio.render import render_sound
+from glitchygames.audio.render import render_sound, rendered_frame_count
 from glitchygames.audio.spec import (
     AUDIO_RENDER_VERSION,
     PlaybackDefaults,
@@ -155,19 +161,21 @@ class Sound:
 
     Exactly one of ``spec`` (a version 1 sound or an instrument), ``legacy_recipe`` (version 0) and
     ``recorded_file`` says how it is compiled. ``length`` and ``peak`` are 0.0 until the sound is
-    first compiled; the library compiles every sound at its first request, under either cache
-    mode, and ``release()`` keeps them, so a sound got from the library always holds them. A
-    sound the memory limit dropped is compiled again, in place, by its next request.
+    compiled or the library describes it: a sound got from the library always holds its
+    ``length`` and ``sample_rate`` (cache ``none`` derives them without rendering, see the module
+    docstring) and gives its ``peak`` (``none`` renders it on its first read), and ``release()``
+    keeps all three. A sound the memory limit dropped is compiled again, in place, by its next
+    request.
 
     Attributes:
         name: The short name, the path stem, or a generated ``instrument-<digest>`` name.
         length: Seconds, including the release tail.
-        peak: The loudest sample's magnitude before clipping.
         is_live: Whether this is a live (M2) sound.
         identity_key: The cache key.
         sample_rate: The rate of the samples: the mixer's at request time, until the first
-            compile sets the samples' own (a recorded file decoded without a mixer keeps its
-            file's rate; one loaded through a mixer is converted to the mixer's).
+            compile (or a WAV header read under cache ``none``) sets the samples' own (a
+            recorded file decoded without a mixer keeps its file's rate; one loaded through a
+            mixer is converted to the mixer's).
         playback_defaults: The sound file's playback defaults.
         spec: The spec of a version 1 sound, or None.
         legacy_recipe: The version 0 recipe, or None.
@@ -207,7 +215,9 @@ class Sound:
         self.recorded_file = recorded_file
         self.is_live = spec.live if spec is not None else False
         self.length = 0.0
-        self.peak = 0.0
+        # None until compiled; under cache none, _measure_peak renders it on the first read
+        self._peak: float | None = None
+        self._measure_peak: Callable[[Sound], float] | None = None
         self.samples_float: FloatArray | None = None
         self.samples_int16: Int16Array | None = None
         self._mixer_sound: pygame.mixer.Sound | None = None
@@ -271,6 +281,27 @@ class Sound:
         )
 
     @property
+    def peak(self) -> float:
+        """The loudest sample's magnitude before clipping.
+
+        Under cache ``none`` the first read renders the sound once (``measure_peak_on_read``)
+        and keeps the answer; a sound neither compiled nor described reads 0.0.
+        """
+        if self._peak is None:
+            if self._measure_peak is None:
+                return 0.0
+            self._peak = self._measure_peak(self)
+        return self._peak
+
+    def measure_peak_on_read(self, measure: Callable[[Sound], float]) -> None:
+        """Have the first read of ``peak`` measure it (cache ``none``: a request renders nothing).
+
+        Args:
+            measure: Renders the sound and gives its peak (the library's, counted and timed).
+        """
+        self._measure_peak = measure
+
+    @property
     def retained_bytes(self) -> int:
         """Every byte the sound holds: both sample arrays and the pygame sound's buffer."""
         held = self._mixer_bytes
@@ -329,7 +360,7 @@ class Sound:
         """
         self.samples_float = samples_float
         self.samples_int16 = samples_int16
-        self.peak = peak
+        self._peak = peak
         self.sample_rate = sample_rate
         self.length = len(samples_int16) / sample_rate
         self._mixer_sound = mixer_sound
@@ -558,7 +589,9 @@ class SoundLibrary:
 
         Returns:
             The sound, its ``length``, ``peak`` and ``sample_rate`` set. Under cache ``none`` it
-            holds no samples: its first request compiled it for those, then dropped them.
+            holds no samples and nothing was rendered: ``length`` and ``sample_rate`` are
+            derived and ``peak`` renders on its first read (a recorded file through a mixer, or
+            an OGG file, is decoded once here instead; see the module docstring).
         """
         request = SoundRequest(
             source=source,
@@ -630,16 +663,14 @@ class SoundLibrary:
     def _ensure_compiled(self, sound: Sound, *, known: bool) -> None:
         """Count the request and, under ``ram``, compile the sound unless it is already.
 
-        Under ``none`` a new sound is compiled once for its ``length``, ``peak`` and
-        ``sample_rate``, which must not depend on the cache, and its samples are dropped.
+        Under ``none`` a new sound is described without rendering (``_describe``).
         """
         if self._cache is CacheMode.NONE:
             if known:
                 self._hits += 1
             else:
                 self._misses += 1
-                self._compile(sound)
-                sound.release()
+                self._describe(sound)
             return
         if sound.is_compiled:
             self._hits += 1
@@ -647,6 +678,42 @@ class SoundLibrary:
         self._misses += 1
         self._compile(sound)
         self._hold(sound)
+
+    def _describe(self, sound: Sound) -> None:
+        """Give a new cache ``none`` sound what a game may read of it, equal to ``ram``'s.
+
+        ``length`` is the compile's frame count over the rate it compiles at, the same division
+        ``Sound.install`` makes, so it is ``ram``'s bit for bit: a spec's from
+        ``rendered_frame_count`` (the renderer's own buffer size), a version 0 recipe's from
+        ``SoundRecipe.frame_count`` (``mix``'s own), a WAV decoded without a mixer from its
+        header (the frames and rate the decode reads). ``peak`` renders on its first read. A
+        recorded file through a mixer, or an OGG file, cannot be sized without loading it, so it
+        is decoded once here (counted) and its samples dropped.
+        """
+        if sound.spec is not None:
+            frames = rendered_frame_count(sound.spec)
+        elif sound.legacy_recipe is not None:
+            frames = sound.legacy_recipe.frame_count(sample_rate=sound.sample_rate)
+        else:
+            path = sound.recorded_file
+            assert path is not None
+            if pygame.mixer.get_init() is not None or path.suffix.lower() != '.wav':
+                self._compile(sound)
+                sound.release()
+                return
+            frames, sound.sample_rate = _wave_header(path)
+        sound.length = frames / sound.sample_rate
+        sound.measure_peak_on_read(self._render_peak)
+
+    def _render_peak(self, sound: Sound) -> float:
+        """Compile a copy of a cache ``none`` sound for its peak (timed, counted), then drop it.
+
+        Returns:
+            The peak.
+        """
+        copy = sound.fresh_copy()
+        self._compile(copy)
+        return copy.peak
 
     def _hold(self, sound: Sound) -> None:
         """Keep a compiled sound in memory; over the limit, drop the least recently played."""
@@ -1037,9 +1104,7 @@ def _decode_recorded_file(sound: Sound) -> None:
     except (wave.Error, EOFError) as error:
         message = f'{path}: cannot be decoded as a WAV file: {error}'
         raise SoundAssetError(message) from error
-    if width != WAVE_SAMPLE_WIDTH_BYTES:
-        message = f'{path}: only 16-bit WAV files decode without a mixer, got {width * 8}-bit'
-        raise SoundAssetError(message)
+    _require_16_bit(path, width)
     # WAV data is little-endian by definition
     interleaved = np.frombuffer(raw, dtype='<i2').reshape(-1, channels)
     samples = _as_mono(interleaved)
@@ -1049,6 +1114,42 @@ def _decode_recorded_file(sound: Sound) -> None:
         peak=float(np.max(np.abs(samples))) / PCM16_SCALE if len(samples) else 0.0,
         sample_rate=rate,
     )
+
+
+def _wave_header(path: Path) -> tuple[int, int]:
+    """A WAV file's frame count and rate, read from its header (cache ``none``: no decode).
+
+    The frame count is the header's, which the decode reads (``readframes(getnframes())``); a file
+    cut short of its header's frames would decode fewer (a truncated file).
+
+    Returns:
+        (frames, rate).
+
+    Raises:
+        SoundAssetError: For what the decode refuses: a file the wave module cannot read, or one
+            that is not 16-bit.
+    """
+    try:
+        with wave.open(str(path), 'rb') as wave_file:
+            width = wave_file.getsampwidth()
+            frames = wave_file.getnframes()
+            rate = wave_file.getframerate()
+    except (wave.Error, EOFError) as error:
+        message = f'{path}: cannot be decoded as a WAV file: {error}'
+        raise SoundAssetError(message) from error
+    _require_16_bit(path, width)
+    return frames, rate
+
+
+def _require_16_bit(path: Path, width: int) -> None:
+    """Refuse a WAV file that is not 16-bit (only those decode without a mixer).
+
+    Raises:
+        SoundAssetError: Naming the file and its width.
+    """
+    if width != WAVE_SAMPLE_WIDTH_BYTES:
+        message = f'{path}: only 16-bit WAV files decode without a mixer, got {width * 8}-bit'
+        raise SoundAssetError(message)
 
 
 def _as_mono(frames: Int16Array) -> Int16Array:
