@@ -122,9 +122,12 @@ local branches are deleted. The decisions made on the way, for the record:
 
 - ~~Engine world space (#6) with the `_finish_frame()` consolidation (#15)~~ **Done** on
   `feature/engine-world-space` (see `plans/engine-audit.md`).
-- **Next: solid collision (#1) with the rest of balls on `CollisionManager` (#7).** Brave Adventurer
-  and Papyrus now duplicate `_player_support_span` / `_entered_wall_from_left`; the solid-collision
-  design should absorb them.
+- **Solid collision (#1) with balls on `CollisionManager` (#7): phase 1 done** 2026-11-02
+  (`feat/solid-collision`): the side rule, flush placement and swept landing are engine
+  primitives (`src/glitchygames/collision/solids.py`) used by Brave Adventurer, Clockwork Keep and the
+  ball, with no behavior change (the editions' duplicated helpers had already been merged on
+  2026-10-26). **Next:** phase 2, solids as data on the tilemap format's property layers
+  (`plans/2026-11-02-solid-collision.md`).
 - **Level tools / Glitchy Studio (#11):** `plans/2026-10-18-level-tools.md` and sub-plans A–E
   (tilemap format with object layers, Mapsmith, Tilesmith, Bitmappy updates, Galimore import). Each
   needs a brainstormed spec before implementation.

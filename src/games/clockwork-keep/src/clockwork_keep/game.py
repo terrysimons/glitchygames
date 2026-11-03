@@ -67,6 +67,7 @@ from glitchygames.audio.recipes import SoundBank, Tremolo
 from glitchygames.audio.synth import Waveform
 from glitchygames.camera import Camera2D, FollowAxes
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
+from glitchygames.collision.solids import feet_land_on_surface
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeAxis, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
 from glitchygames.fonts import FontManager
@@ -697,9 +698,13 @@ class ClockworkKeepScene(Scene):
             True if the feet land on the surface.
 
         """
-        if self.player.velocity_y < 0 or player_bottom < surface_top:
-            return False
-        return feet_start <= surface_top + GROUND_SNAP_TOLERANCE
+        return feet_land_on_surface(
+            velocity_y=self.player.velocity_y,
+            feet_now=player_bottom,
+            feet_start=feet_start,
+            surface_top=surface_top,
+            tolerance=GROUND_SNAP_TOLERANCE,
+        )
 
     def _land_on_moving_gear(
         self: Self, *, player_rect: pygame.Rect, player_bottom: float, feet_start: float
