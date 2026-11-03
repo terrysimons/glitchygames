@@ -974,8 +974,9 @@ enumerates audio devices and a recorded mic press neither listens nor calls the 
 (<code>_discover_voice_assistant</code>). Pressing the mic button starts listening; releasing it sends the recording through
 speech-to-text, an AI model and text-to-speech back to the controller's speaker, and
 <code>dt_tick</code> collects finished responses (<code>voice_assistant.update()</code>). The DualSense reports its
-mic button as 15 on the controller API and 16 on the raw joystick API, so both are bound
-(<code>MIC_BUTTON_CONTROLLER</code>, <code>MIC_BUTTON_JOYSTICK</code>). The Papyrus Edition has no voice assistant.</p>
+mic button as 15 on the controller API and 16 on the raw joystick API, so each layer binds its
+own: <code>controller_layer_button=MIC_BUTTON_CONTROLLER</code> (the controller layer only, so raw button
+15 is not the mic) and <code>joystick_button=MIC_BUTTON_JOYSTICK</code>. The Papyrus Edition has no voice assistant.</p>
 <h2 id="sound">Sound<a class="headerlink" href="#sound" title="Permanent link">#</a></h2>
 <p><code>brave_adventurer_core/sounds.py</code> generates five effects once, in <code>setup()</code> (<code>GameSounds.initialize()</code>), with the
 engine's synthesizer toolkit (<code>glitchygames.audio.synth</code>: <code>oscillator</code>, <code>frequency_curve</code>,
