@@ -736,6 +736,26 @@ class TestReconstructStaticSprite:
         result = _reconstruct_static_sprite(example)
         assert '"""' in result
 
+    def test_an_examples_tags_are_shown_to_the_ai(self):
+        """A tagged example shows its tags (static and animated): the AI sees how to write them."""
+        static_example = {
+            'name': 'test',
+            'tags': ['item', 'gem'],
+            'pixels': 'A',
+            'colors': {'A': {'red': 255, 'green': 0, 'blue': 0}},
+        }
+        animated_example = {'name': 'test', 'tags': ['item', 'gem'], 'animations': []}
+
+        assert tomllib.loads(_reconstruct_static_sprite(static_example))['sprite']['tags'] == [
+            'item',
+            'gem',
+        ]
+        assert tomllib.loads(_reconstruct_animated_sprite(animated_example))['sprite']['tags'] == [
+            'item',
+            'gem',
+        ]
+        assert 'tags' not in _reconstruct_static_sprite({**static_example, 'tags': []})
+
     def test_non_dict_color_entry_keeps_only_its_section_header(self):
         """A color that is not a table gets its header but no channel lines."""
         example = {'name': 'test', 'pixels': 'A', 'colors': {'A': 'not_a_table'}}

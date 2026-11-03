@@ -1181,6 +1181,23 @@ class TestConstructTomlWithPreservedFormatting:
         ]
         assert reparsed['colors'] == data['colors']
 
+    def test_the_ais_tags_are_kept_in_their_one_spelling(self):
+        """Tags the AI wrote survive the rewrite (it used to keep only name and description)."""
+        data = tomllib.loads(STATIC_SPRITE_TOML)
+        data['sprite']['tags'] = ['Ball ', 'TOY', 'ball']
+
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(data)  # type: ignore[arg-type]
+
+        assert tomllib.loads(content)['sprite']['tags'] == ['ball', 'toy']
+
+    def test_an_untagged_sprite_is_written_without_tags(self):
+        """No tags from the AI, no tags line."""
+        content = AIManager(_editor())._construct_toml_with_preserved_formatting(  # type: ignore[arg-type]
+            tomllib.loads(STATIC_SPRITE_TOML)
+        )
+
+        assert 'tags' not in tomllib.loads(content)['sprite']
+
     def test_rewriting_twice_adds_no_blank_lines_to_pixel_blocks(self):
         """A rewrite of a rewrite keeps every pixel block unchanged (BUGS.md #110 item 7)."""
         manager = AIManager(_editor())  # type: ignore[arg-type]
@@ -1489,13 +1506,14 @@ class TestLoadTempTomlAsExample:
     """Test AIManager._load_temp_toml_as_example."""
 
     def test_example_keeps_pixel_newlines_and_removes_the_file(self, tmp_path):
-        """The example has the sprite's name, raw pixel rows and colors; the file is deleted."""
+        """The example has the sprite's name, tags, raw pixel rows and colors; the file goes."""
         sprite_path = _write_sprite(tmp_path=tmp_path, name='e.toml', content=STATIC_SPRITE_TOML)
 
         example = AIManager(_editor())._load_temp_toml_as_example(sprite_path)  # type: ignore[arg-type]
 
         assert example == {
             'name': 'ball',
+            'tags': [],
             'sprite_type': 'static',
             'pixels': '#.\n.#',
             'colors': {
