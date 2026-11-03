@@ -41,8 +41,10 @@ from glitchygames.sprites.animated import (
     toml_basic_string,
     toml_multiline_basic_string,
     toml_pixel_block,
+    toml_tags_line,
 )
 from glitchygames.sprites.constants import DEFAULT_FILE_FORMAT
+from glitchygames.sprites.tags import TAGS_KEY, normalize_sprite_tags
 
 from .ai_worker import (
     build_retry_prompt,
@@ -724,6 +726,10 @@ class AIManager:
                 lines.append(
                     f'description = {toml_multiline_basic_string(sprite_data["description"])}'
                 )
+            # The AI's tags (the format asks for them), in their one spelling; none, no line
+            tags_line = toml_tags_line(normalize_sprite_tags(sprite_data.get(TAGS_KEY)))
+            if tags_line:
+                lines.append(tags_line.removesuffix('\n'))
             if 'pixels' in sprite_data:
                 # Escaped rows, the closing quotes' line ending the last (see
                 # _format_animation_sections)
@@ -1190,6 +1196,7 @@ pixels = \"\"\"
 
         """
         sprite_name = config_data.get('sprite', {}).get('name', 'current_frame')
+        tags = normalize_sprite_tags(config_data.get('sprite', {}).get(TAGS_KEY))
         colors = config_data.get('colors', {})
 
         animations = config_data.get('animation', [])
@@ -1197,6 +1204,7 @@ pixels = \"\"\"
             pixels_data = config_data.get('sprite', {}).get('pixels', '')
             return {
                 'name': sprite_name,
+                'tags': tags,
                 'sprite_type': 'static',
                 'pixels': pixels_data.removesuffix('\n'),
                 'colors': colors,
@@ -1212,6 +1220,7 @@ pixels = \"\"\"
         ]
         return {
             'name': sprite_name,
+            'tags': tags,
             'sprite_type': 'animated',
             # Every frame's rows, one blank line between frames
             'pixels': '\n\n'.join(every_frame_pixels),

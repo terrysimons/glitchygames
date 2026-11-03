@@ -669,6 +669,10 @@ def _score_size_match(requested_size: tuple[int, int], example: dict[str, Any]) 
     return 0
 
 
+# What a request word that is one of an example's tags (or a word of one) adds to its score:
+# more than a word of its name (+5), since a tag says what the example is
+TAG_WORD_SCORE = 8
+
 _ANIMATED_KEYWORDS = frozenset(['animated', 'animation', 'frame', 'walk', 'run', 'idle'])
 _STATIC_KEYWORDS = frozenset(['static', 'single', 'one'])
 _COLOR_KEYWORDS = frozenset([
@@ -720,6 +724,11 @@ def _score_training_example(
     # Size matching
     if requested_size:
         score += _score_size_match(requested_size, example)
+
+    # Tag matching (+8 per request word that is a tag or a word of one): a tag says what the
+    # example is, so it counts before a word of its name (sprites/tags.py; tags are lowercase)
+    tag_words = {word for tag in example.get('tags', []) for word in tag.split()}
+    score += len(user_words & tag_words) * TAG_WORD_SCORE
 
     # Name keyword matching (+5 per matching word)
     score += len(user_words & set(name.split())) * 5

@@ -507,6 +507,33 @@ class TestProcessAiRequest:
         assert len(completions.calls) == 1
 
 
+class TestTagsInExampleScoring:
+    """A request word that is one of an example's tags scores more than a word of its name."""
+
+    @staticmethod
+    def _score(example, request):
+        return ai_worker._score_training_example(
+            example,
+            request,
+            set(request.split()),
+            wants_alpha=False,
+            requested_size=None,
+        )
+
+    def test_a_tag_word_scores_more_than_a_name_word(self):
+        tagged = {'name': 'thing', 'tags': ['weapon', 'short sword']}
+        named = {'name': 'sword thing', 'tags': []}
+
+        assert self._score(tagged, 'a sword') - self._score(tagged, 'a ghost') == (
+            ai_worker.TAG_WORD_SCORE
+        )
+        assert self._score(tagged, 'a sword') > self._score(named, 'a sword')
+
+    def test_an_untagged_example_scores_as_before(self):
+        """No tags key at all (an example from before tags): its name word (+5), no alpha (+1)."""
+        assert self._score({'name': 'sword'}, 'a sword') == 5 + 1
+
+
 class TestExtractExampleSizeBranches:
     """Branches of _extract_example_size for animated examples."""
 
