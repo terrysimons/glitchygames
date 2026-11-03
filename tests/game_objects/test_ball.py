@@ -1221,6 +1221,22 @@ class TestDtTickMovementMismatch:
         drawn_x, drawn_y = drawn_position(ball)
         assert drawn_x != original_x or drawn_y != original_y
 
+    def test_dt_tick_records_where_the_frame_started(self):
+        """None before any tick; then the world position each tick moved from (BUGS.md #174)."""
+        ball = BallSprite(x=100, y=100)
+        ball.speed.x = 60.0
+        ball.speed.y = 0.0
+        assert ball.frame_start_world_position is None
+        before_first_tick = (ball.world_x, ball.world_y)
+
+        ball.dt_tick(0.5)
+        assert ball.frame_start_world_position == before_first_tick
+        before_second_tick = (ball.world_x, ball.world_y)
+        ball.dt_tick(0.5)
+
+        assert ball.frame_start_world_position == before_second_tick
+        assert before_second_tick[0] == pytest.approx(before_first_tick[0] + 30.0)
+
 
 def _speed_cap_paddle(*, x):
     """A real VerticalPaddle at (x, 90), 20x100, with no collision sound."""

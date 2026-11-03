@@ -440,6 +440,10 @@ class BallSprite(Sprite):
         # The dt of the last dt_tick, so handle_paddle_collision can tell where the ball was
         # before this frame's move (0.0 until the first tick: no move to undo)
         self._last_tick_dt = 0.0
+        # Where the last dt_tick started (world_x, world_y), so a game can follow the ball's
+        # path through the frame (PaddleSlap's swept ball-ball check, BUGS.md #174); None until
+        # the first tick
+        self.frame_start_world_position: tuple[float, float] | None = None
 
         # Collision tracking (set by callers like PaddleSlap)
         self.collision_cooldowns: dict[str, float] = {}
@@ -727,6 +731,7 @@ class BallSprite(Sprite):
 
         """
         self._last_tick_dt = dt
+        self.frame_start_world_position = (self.world_x, self.world_y)
 
         # Check for continuous speed-up
         self._advance_continuous_speed_up(dt)
