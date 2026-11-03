@@ -123,7 +123,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 174. Fast Balls Can Pass Through Each Other in PaddleSlap
 - **Description**: Ball-to-ball collisions are checked once per frame with no check along the path between frames. Two balls closing at 10 px or more per frame (the circle's full collision distance) can go from just touching, to centres on the same pixel (where no contact direction exists and the pair is skipped), to touching on the far side, passing straight through each other. A head-on pair at 300 px/s each does it; the 500 px/s speed cap allows faster
-- **Status**: Active
+- **Status**: Fixed (2026-11-02, backlog run: a swept check runs before the end-of-frame check. `BallSprite` records where each `dt_tick` started (`frame_start_world_position`); `paddleslap.first_contact_fraction` finds when a closing pair first touched within the frame, and `Game._swept_contact` takes the pair only when the end check would miss it or get it wrong: on the same centre (the pinned case), apart again on the far side, or crossed and overlapping on the wrong sides (at the 500 px/s cap a pair closes 16.7 px a frame, so from 11 px apart it ends crossed, where the end check reversed the contact direction: a third failure the pin did not show). Both balls are put back where they touched and collide there as before (exchange, cap, separation, cooldown); every pair the end check handled before stays with it. The strict xfails now pass; `TestSweptBallCollision`, `TestFirstContactFraction`. Plan: `plans/2026-11-02-swept-ball-collisions.md`)
 - **Priority**: Medium
 - **Reporter**: Found moving the ball physics tests onto real pygame
 - **Date Reported**: 2026-10-22
