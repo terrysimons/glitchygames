@@ -409,6 +409,29 @@ def test_the_cgroup_reader_leaves_out_the_reclaimable_page_cache(tmp_path: Path)
     assert reader() == mebibytes(1900 - 600 + 50)
 
 
+def test_the_readers_ignore_a_tests_patched_file_reading(tmp_path: Path, mocker):
+    """A test patching Path.open or open process-wide cannot feed the guard's thread its file.
+
+    test_sprite_factory.py patched pathlib.Path.open with fake sprite TOML; a sample taken
+    then read it and failed the Linux CI run (int() of the TOML's bytes).
+    """
+    cgroup = write_cgroup(
+        tmp_path / 'cgroup', limit='2147483648', current=mebibytes(10), file=0, shmem=0
+    )
+    statm = tmp_path / 'statm'
+    statm.write_text('1000 250 0 0 0 0 0\n', encoding='ascii')
+    cgroup_reader = cgroup_memory_reader(directory=cgroup)
+    statm_reader = statm_resident_reader(path=statm, page_bytes=lambda: 4096)
+    assert cgroup_reader is not None
+    assert statm_reader is not None
+    fake_path_open = mocker.patch('pathlib.Path.open')
+    fake_path_open.return_value.__enter__.return_value.read.return_value = b'[sprite]\n'
+    mocker.patch('builtins.open', side_effect=AssertionError('the guard used open'))
+
+    assert cgroup_reader() == mebibytes(10)
+    assert statm_reader() == 250 * 4096
+
+
 @pytest.mark.parametrize('limit', ['max', None], ids=['no limit', 'no cgroup'])
 def test_without_a_limited_cgroup_there_is_no_container_reader(tmp_path: Path, limit):
     """No memory limit (not a container's cgroup), or no cgroup files: no reader."""

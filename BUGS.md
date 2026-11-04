@@ -20,6 +20,29 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Reporter**: The #190 investigation, 2026-11-02
 - **Date Reported**: 2026-11-02
 - **Files**: `scripts/compare_driver_frames.py`
+### 259. An Inner pytest Run Listed the System Temp Directory and Lost a Race on Windows
+- **Description**: CircleCI build 2730 (`build-and-test-windows`, PR #143) failed `tests/world/test_mock_isolation.py::test_a_patched_test_does_not_leak_into_a_later_real_test`: its inner run errored collecting, `FileNotFoundError: [WinError 2] ... Temp\\replay-metrics-apve9n69` (another worker's `TemporaryDirectory`, from `replay/tools/measure.py`, gone between the listing and its `lstat`). The inner run uses the project's config (`-c pyproject.toml`) on a test file in the temp directory; `--rootdir` was already set to avoid exactly this, but pytest builds a directory node for every parent of the test file inside the **confcutdir**, which defaults to the config file's directory, and a parent counts as inside unless it is an ancestor of the project's: so the system temp directory was listed
+- **Status**: Fixed (2026-11-03, backlog run: proven locally with an audit hook on `os.scandir`: the inner run listed the temp root from `_pytest/main.py`'s `Session.collect`, and with `--confcutdir` set to the test's own directory it never does. The test now passes `--confcutdir` too. It is the only inner run using the project's config from outside the project)
+- **Priority**: Medium (an intermittent CI failure fails the whole job)
+- **Reporter**: CircleCI pipeline for PR #143, build 2730
+- **Date Reported**: 2026-11-03
+- **Files**: `tests/world/test_mock_isolation.py`
+
+### 258. Ball Tests Checked That a 39 ms Sound Was Still Playing
+- **Description**: CircleCI build 2739 (`build-and-test-windows`, PR #139) failed `tests/game_objects/test_ball.py::TestBallSpriteBounce::test_do_bounce_top_wall`: `assert ball.snd.get_num_channels() == 1` got 0. Six ball and paddle tests play the real bounce or slap sound and then check it is still playing; the bounce sound lasts 39 ms and SDL mixes in real time, so a runner paused longer than that between `play()` and the check saw it finished. Intermittent, timing only
+- **Status**: Fixed (2026-11-03, backlog run: proven: after a 50 ms pause the real bounce sound reports 0 channels. The six tests play a real sound of 10 seconds of silence (`_still_playing_when_checked`), which no pause outlasts, so the check still proves the code played its sound; the harness stops every channel after each test)
+- **Priority**: Medium (an intermittent CI failure fails the whole job)
+- **Reporter**: CircleCI pipeline for PR #139, build 2739
+- **Date Reported**: 2026-11-03
+- **Files**: `tests/game_objects/test_ball.py`
+
+### 257. The Memory Guard's Thread Read a Test's Fake File and Errored the Linux CI Run
+- **Description**: CircleCI build 2682 (`build-and-test-linux`, PR #139) ended with 1 error: `PytestUnhandledThreadExceptionWarning: Exception in thread memory-guard`, `ValueError: invalid literal for int() with base 10: b'\n [sprite]\n pixels = [1, 2, 3] ...'`. The guard samples memory from its own thread (on Linux, the container's cgroup files and `/proc/self/statm`) through `Path.read_text`, which opens through `Path.open`; `tests/sprites/test_sprite_factory.py` patched `pathlib.Path.open` for the whole process to feed `SpriteFactory` fake TOML, so a sample taken during one of those tests read the fake sprite. Intermittent (a sample must land in the patch's few milliseconds) and Linux only (macOS has no cgroup files); unrelated to PR #139's change
+- **Status**: Fixed (2026-11-02, backlog run: reproduced on demand (the guard's reader under the test's patch raises the CI error exactly). The guard reads through `os.open`/`os.read` (`tests/memory_guard.py`'s `_read_ascii`), which no test patches; `tests/test_memory_guard.py::test_the_readers_ignore_a_tests_patched_file_reading` (fails without the fix with the CI error). The four `SpriteFactory` tests read real temporary files instead of patching `Path.open`)
+- **Priority**: Medium (an intermittent CI failure fails the whole job)
+- **Reporter**: CircleCI pipeline 969, build 2682
+- **Date Reported**: 2026-11-02
+- **Files**: `tests/memory_guard.py`, `tests/sprites/test_sprite_factory.py`
 
 ### 254. A Faded Sprite Blended Differently per Driver: Opaque Frames Took the Display's Pixel Format
 - **Description**: Papyrus's golden presented 764 different pixels on cocoa than on dummy at frame 888 (the player, mid respawn fade at alpha 41; 688 at the last frame), every run, since #144 (PR #133). Proven by bisecting with verified native runs (#132 clean, #144's commit `1c2817cf` not), by `nox -s compare-drivers` (each driver its own run: same result) and by a minimal script per driver (the player built as #144 draws it, faded to 41 and blitted: 764 of 2240 pixels differ; built as before #144: 0). Mechanism: #144 made Papyrus draw the engine's frame surface (`drawn_frame_surface`) instead of its own SRCALPHA one; the engine made an opaque frame's surface with a bare `pygame.Surface((width, height))`, which takes the display's pixel format: an alpha channel on cocoa (mask 0xFF000000), none on dummy. SDL picks its blend by the source's format, so a `set_alpha` blit rounded 1-2 levels apart per driver. Any game fading a sprite with `set_alpha` would show it; Papyrus is the one that does. Not #190 (it is not timing) and not the alpha rule of #200 item 4 (no Papyrus sprite has an `alpha` key)
@@ -86,7 +109,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 227. A Native-Driver-Only Frame Difference in the Rebaseline Early-Exit Test
 - **Description**: During Task 4's verification (sub-plan 1 of the engine context, 2026-10-25, macOS), one full `uv run pytest` run's native (cocoa) child run presented a frame differing from the dummy driver's by 9 pixels in `tests/world/test_gameplay_replay.py::TestRebaselineEndedByTheGamesOwnExit::test_a_games_own_failing_exit_writes_nothing`. It did not reproduce in the harness's re-run of the differing test or in a second full run. The change under test (moving the polled input snapshot into an engine context slot) was judged by its reviewer unable to cause it. Likely kin to #225 (an earlier native-only intermittent failure in a different test): both native run only, both order-dependent-looking
-- **Status**: Active
+- **Status**: Fixed (2026-11-02, backlog run, likely with #225: not reproduced (seen once). The one known channel by which a native run differs from dummy between runs, the machine's input reaching a shown test window, is closed by hiding real-driver test windows (`tests/hidden_test_windows.py`). Reopen with the run's log if it is seen again)
 - **Priority**: Low-Medium (an intermittent native failure fails the whole `pytest` command)
 - **Reporter**: Engine context sub-plan 1, Task 4 verification
 - **Date Reported**: 2026-10-25
@@ -104,7 +127,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 225. A World-Space Test Failed Once on the Native Driver: `WorldSprite` Has No `on_mouse_focus_event`
 - **Description**: In one full `uv run pytest` run on the docs scrub branch (2026-10-25, macOS), the native (cocoa) child run failed `test_world_sprite_is_positioned_before_render` with `AttributeError: 'WorldSprite' object has no attribute 'on_mouse_focus_event'`. It did not reproduce in the harness's re-run of the differing test or in a second full run (20,524 passed, 0 driver differences). The branch changed only docs and a docs guard test, so this is an existing order-dependent failure: likely a mouse focus event (cocoa's live window gains or loses focus) reaching a test sprite that does not implement the handler, depending on which test ran before it on that worker
-- **Status**: Active
+- **Status**: Fixed (2026-11-02, backlog run: the channel is closed; its last step is not reproduced. Proven: a mouse motion over the test's sprite gives this exact error (the test's `WorldSprite` is a plain `DirtySprite`, and the mouse manager calls `on_mouse_focus_event` on the topmost sprite under the pointer), and the golden harness's `discard_environment_events` drops window and device events but keeps mouse and keyboard input (tests post their own), so the host's input reaches a scene. Not reproduced: cocoa delivering the real pointer mid-test (synthetic HID moves never gave a terminal-started test window mouse focus). Fix: on a real video driver every test window is hidden (`tests/hidden_test_windows.py`, installed by the harness before any window opens); a hidden window draws and presents the same pixels (checked on cocoa) and receives no pointer or keyboard input. `GLITCHYGAMES_SHOW_TEST_WINDOWS=1` shows them. `tests/test_hidden_test_windows.py`)
 - **Priority**: Medium (an intermittent failure on the native run fails the whole `pytest` command)
 - **Reporter**: The docs scrub's verification run
 - **Date Reported**: 2026-10-25

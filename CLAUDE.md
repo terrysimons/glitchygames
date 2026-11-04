@@ -1436,6 +1436,8 @@ Features:
   it reports every pair in `test-results/driver-comparison/nox/matrix.md` without failing on a
   difference; it fails, keeping the last complete report, when a run recorded no test
   (`docs/quality/driver_comparison.md`)
+  On a real driver the test windows are hidden, so the machine's pointer and keys never reach a
+  test (`tests/hidden_test_windows.py`, BUGS.md #225; `GLITCHYGAMES_SHOW_TEST_WINDOWS=1` shows them)
   After each test the variables, display and mixer a test moved off the run's drivers (a
   constructed `--headless` engine moves them to `dummy`) are put back, the display showing the
   canvas (`tests/sdl_driver_isolation.py`; a few microseconds when nothing changed)
