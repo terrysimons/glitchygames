@@ -19,6 +19,37 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## High Priority Features
 
+### 63. Sound Engine: One-Call Sound API, Instruments and the CRT's Sound — M1 BUILT
+- **Description**: sound becomes a first-class retro feature (the user, 2026-11-02). One call,
+  `audio.sound(...)`, takes a short name, a path or an `Instrument`. The first request compiles
+  the sound, later requests return it from the engine's cache, and getting a sound never plays it
+  ("the way you load it is the same as the way you'd use it in the game - one API"). Pitches can
+  be notes, hertz, MIDI or scale steps, side by side. Named waves can be mixed, blended, put in
+  wavetables, drawn as points or built from harmonics, with named constants for their numbers.
+  TOML instruments; live sounds driven by game parameters; buses; offline render to WAV; retro
+  profiles; demos (Sound Board first).
+- **Spec**: `docs/specs/2026-11-02-sound-engine-feature-spec.md` and
+  `docs/specs/2026-11-02-sound-engine-implementation-spec.md` (from the user's brief,
+  `~/Documents/ChatGPT/GlitchyGames/glitchygames-sound-engine-development-brief.md`)
+- **Order (the user, 2026-11-02)**: M1 the one-call API (pitch and wave types, notes and chords,
+  the cache as `None`/`'ram'`, per-frame audio accounting, buses and voices, offline render, the
+  CRT power-on sound (#53's follow-up), the Sound Board demo); M2 live instruments, migration of
+  all five games and removal of the old sound paths; M3 measurement with the cache off, then
+  `'ram'`, then `'disk'`, with a *Sound Performance* docs page of plots; then instrument depth,
+  music and authoring
+- **Status**: M1 BUILT on `docs/sound-engine-specs` (2026-11-02; plan
+  `plans/2026-11-02-sound-engine-m1-implementation.md`, user docs `docs/architecture/sound.md`):
+  the one-call API, pitches and waves, sound files, the `none` and `ram` caches, accounting,
+  voices and buses, the Audio debug panel, offline render, the CRT power-on sound and the Sound
+  Board. The owner's listening check passed (2026-11-02: the Sound Board, the CRT power-on and
+  its skip with no clicks, and the browser build). The instrument catalog (2026-11-03, the
+  owner's "every instrument, every variant"): `glitchygames.audio.instruments`, 431 instruments
+  in 18 families with their ranges, voices from soprano to basso profundo on five vowels
+  (`docs/architecture/sound.md`, "The instrument catalog"), audited against published references
+  the same day: 28 ranges, the soprano and tenor "o" formants and the chime, bell and tine
+  partials corrected. M2 next, in the order above
+- **Priority**: High (requested 2026-11-02)
+
 ### 1. Memory Optimization
 - **Description**: Implement configurable buffer sizes and automatic cleanup for long-running games
 - **Use Case**: Reduced memory footprint for extended gameplay sessions, 5 9s reliability (100,000+ data points)
@@ -161,8 +192,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
      brightness, a frame or two of vertical roll or jitter), slight bloom and scanlines, a
      brief degauss-style colour wobble
   4. settles into the steady pattern, then the first scene's frame replaces it
-- **Possible extras**: the power-on sound (a synth recipe: the click, the high whine, the static
-  crackle; src/glitchygames/audio/recipes.py), a matching CRT power-off collapse when the game quits
+- **Possible extras**: the power-on sound (BUILT 2026-11-02 with the sound engine's M1, #63:
+  `src/glitchygames/crt_power_on_sound.py`), a matching CRT power-off collapse when the game quits
 - **Rules it must keep**:
   - visual only, before frame 0: never in recordings, screenshots or golden traces, and it
     changes no game state, random stream or clock a replay serves
@@ -180,7 +211,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   (CLAUDE.md, Scene backgrounds); the sequence replaces that single paint
 - **Status**: BUILT 2026-10-24 (`src/glitchygames/crt_power_on.py`, plan
   plans/2026-10-24-crt-power-on.md); being tested by the user, the stage constants tuned by eye
-  from that. The power-on sound and a power-off collapse are follow-ups
+  from that. The power-on sound is built (2026-11-02, #63's M1: a power click, the degauss thump,
+  the flyback whine, static, then the bars' tone or channel 3's hiss; `--crt-power-on-sound`);
+  a power-off collapse is a follow-up
 
 ### 57. A pygame-examples-Like Demos Experience — TODO (plan later)
 - **Description**: the demos (today `dt_demo`, `joystick_demo` and `text_input_demo`, each a member of the

@@ -4,7 +4,7 @@ import numpy as np
 import pygame
 import pytest
 
-from glitchygames.audio import live
+from glitchygames.audio import live, voices
 from glitchygames.audio.live import LiveAudio, LiveVoice, VoiceState, reserve_live_voice_pool
 from glitchygames.audio.recipes import Tremolo
 from glitchygames.audio.synth import Waveform
@@ -66,7 +66,7 @@ class TestPoolReservation:
     @pytest.fixture(autouse=True)
     def no_remembered_pool(self, mocker):
         """Start each test as if no engine had reserved a pool in this process."""
-        mocker.patch.dict(live._pool_grown_mixer_channel_counts, clear=True)
+        mocker.patch.dict(voices._partitioned_mixer, clear=True)
 
     def test_grows_mixer_and_reserves_low_channels(self, mocker):
         mocker.patch('pygame.mixer.get_init', return_value=(RATE, -16, 2))

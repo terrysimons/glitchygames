@@ -23,6 +23,7 @@ import pygame
 import pytest
 
 from glitchygames import recording
+from glitchygames.audio.accounting import AudioFrameAccount
 from glitchygames.events import (
     FPSEVENT,
     GAMEEVENT,
@@ -74,6 +75,8 @@ from glitchygames.recording import (
     value_from_json,
 )
 from glitchygames.recording_history import (
+    AUDIO_SECONDS_FIELD,
+    AUDIO_WORK_FIELD,
     CONTENT_HASH_FIELD,
     PROCESSING_SECONDS_FIELD,
     frame_content_hash,
@@ -782,6 +785,25 @@ class TestFrameHistories:
         assert frame[PROCESSING_SECONDS_FIELD] == [0.0021]
         assert frame[CONTENT_HASH_FIELD] == [frame_content_hash(frame_record=frame)]
 
+    def test_a_frame_with_audio_work_carries_its_audio_measurements(self, tmp_path):
+        path = tmp_path / 'play.jsonl.gz'
+        account = AudioFrameAccount(
+            audio_seconds=0.00212345678, audio_work=(('compile', 'coin', 2100), ('decode', 's', 23))
+        )
+        with GameplayRecorder(path=path, header={}) as recorder:
+            recorder.record_frame(dt=0.01, scene=None, audio_frame=account)
+            recorder.record_frame(
+                dt=0.01, scene=None, audio_frame=AudioFrameAccount(audio_seconds=0.0, audio_work=())
+            )
+            recorder.record_frame(dt=0.01, scene=None)
+        worked, idle, unaccounted = read_trace_result(path=path).trace['frames']
+        assert worked[AUDIO_SECONDS_FIELD] == 0.002123
+        assert worked[AUDIO_WORK_FIELD] == [['compile', 'coin', 2100], ['decode', 's', 23]]
+        assert worked[CONTENT_HASH_FIELD] == [frame_content_hash(frame_record=worked)]
+        for frame in (idle, unaccounted):
+            assert AUDIO_SECONDS_FIELD not in frame
+            assert AUDIO_WORK_FIELD not in frame
+
     def test_an_unmeasured_frame_keeps_its_place(self, tmp_path):
         path = tmp_path / 'play.jsonl.gz'
         with GameplayRecorder(path=path, header={}) as recorder:
@@ -1123,6 +1145,20 @@ class TestRecordingSources:
         assert tuple(surface.get_at((1, 1))) == (0, 0, 0, 255)
         (frame,) = read_trace_result(path=path).trace['frames']
         assert 'overlay' not in json.dumps(frame)
+
+    def test_recording_sources_write_the_frames_audio_account(self, tmp_path):
+        """Only the recording doors write the account; the inner doors get it too."""
+        path = tmp_path / 'unit.jsonl.gz'
+        sources, recorder, _inner = _recording_sources(path=path)
+        account = AudioFrameAccount(audio_seconds=0.001, audio_work=(('compile', 'coin', 1000),))
+
+        sources.end_frame(
+            frame_number=0, dt=0.016, scene=None, control_events=[], audio_frame=account
+        )
+        recorder.close()
+
+        (frame,) = read_trace_result(path=path).trace['frames']
+        assert frame[AUDIO_WORK_FIELD] == [['compile', 'coin', 1000]]
 
     def test_recording_sources_write_only_non_empty_fields(self, tmp_path):
         """A frame with no control events has no control_events field."""

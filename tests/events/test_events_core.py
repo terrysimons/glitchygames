@@ -1202,6 +1202,22 @@ class TestCustomEventTypes:
 
         assert level_up not in engine_types
 
+    def test_an_id_a_name_already_holds_is_skipped_in_this_process(self, mocker):
+        """The skip above, in this process: pygame handing out FPSEVENT's id is passed over.
+
+        The fresh-interpreter test proves the cause; this one runs the skip where coverage sees
+        it, whatever order the suite runs in (pygame hands out a taken id only after a quit, which
+        only some test orders do before a registration).
+        """
+        mocker.patch.dict(events_base._NAMED_CUSTOM_EVENT_TYPES)
+        free_id = pygame.event.custom_type()
+        mocker.patch('pygame.event.custom_type', side_effect=[FPSEVENT, free_id])
+
+        level_up = named_custom_event_type('TEST_LEVEL_UP')
+
+        assert level_up == free_id
+        assert NAMED_CUSTOM_EVENT_TYPES['TEST_LEVEL_UP'] == free_id
+
     def test_a_name_is_registered_once(self, mocker):
         """Two registrations of one name would share an id: the second is refused."""
         mocker.patch.dict(events_base._NAMED_CUSTOM_EVENT_TYPES)

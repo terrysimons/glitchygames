@@ -1,0 +1,14 @@
+[glitchygames]
+kind = "sounds"
+version = 1
+
+[instruments.pickup]
+envelope = "pluck"
+
+[instruments.pickup.sources.tone]
+wave = "sine"
+duty = 0.3
+
+[sounds.coin]
+instrument = "pickup"
+pitch = "C5"

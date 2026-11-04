@@ -22,6 +22,14 @@ import pygame
 import pytest
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.audio.engine import (
+    AudioEngine,
+    discard_audio_engine,
+    existing_audio_engine,
+    install_audio_engine,
+)
+from glitchygames.audio.voices import ChannelPartition
+from glitchygames.audio.waves import Wave, current_wave_registry
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
     BackgroundPattern,
@@ -696,6 +704,36 @@ def check_default_background(*, first: EngineContext, second: EngineContext) -> 
     assert active_default_background_pattern() is default_pattern
 
 
+def check_wave_registry(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own registered waves, and the default context its own."""
+    default_registry = current_wave_registry()
+    with first.active():
+        current_wave_registry().register('isolation_probe', Wave('sine'))
+    with second.active():
+        assert 'isolation_probe' not in current_wave_registry()
+    with first.active():
+        assert 'isolation_probe' in current_wave_registry()
+    assert 'isolation_probe' not in default_registry
+    assert current_wave_registry() is default_registry
+
+
+def check_audio_engine(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own audio engine, and the default context its own."""
+    default_engine = existing_audio_engine()
+    no_channels = ChannelPartition(live=(), library=(), legacy_count=0)
+    with first.active():
+        first_engine = install_audio_engine(engine=AudioEngine(partition=no_channels))
+        # Its waves are its own context's
+        assert first_engine.waves is current_wave_registry()
+    with second.active():
+        assert existing_audio_engine() is None
+    with first.active():
+        assert existing_audio_engine() is first_engine
+        discard_audio_engine(wait_seconds=0.0)
+        assert existing_audio_engine() is None
+    assert existing_audio_engine() is default_engine
+
+
 def check_game_frame_clock(*, first: EngineContext, second: EngineContext) -> None:
     """Each context counts its own game frames, and the default context its own."""
     default_clock = game_frame_clock()
@@ -929,6 +967,8 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.pixel_snap.default_mode': check_default_snap_mode,
     'glitchygames.backgrounds.default_pattern': check_default_background,
     'glitchygames.game_frames.clock': check_game_frame_clock,
+    'glitchygames.audio.waves.registry': check_wave_registry,
+    'glitchygames.audio.engine.audio_engine': check_audio_engine,
     'glitchygames.input.state.current_input': check_current_input,
     'glitchygames.randomness.streams': check_random_streams,
     'glitchygames.sources.registry': check_sources_registry,

@@ -207,6 +207,10 @@ Added by `GameEngine.args()` in `src/glitchygames/engine/game_engine.py`.
 - `--screen-shake-intensity SCREEN_SHAKE_INTENSITY` (`float`): screen shake strength from 0.0 (off) to 1.0 (default: 1.0)
 - `--rumble-intensity RUMBLE_INTENSITY` (`float`): controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)
 - `--live-voice-pool LIVE_VOICE_POOL` (`int`): mixer channels reserved for real-time synth voices (default: 4)
+- `--sound-channels SOUND_CHANNELS` (`int`): mixer channels reserved for the sound library (scene_manager.audio) (default: 32)
+- `--sound-cache {none,ram,disk}` (`choice`, default `ram`): how compiled sounds are kept: none (compiled again at every play), ram (in memory, default) or disk (arrives in M3; refused with OPTIONS_REFUSED until then). Replay-local: a recording replays under any mode
+- `--sound-cache-memory MB` (`int`, default `256`): megabytes the ram sound cache may hold before the least recently played idle sounds go
+- `--crt-power-on-sound {on,off}` (`choice`, default `on`): play the CRT power-on sequence with its sound
 - `--crt-power-on {auto,on,off}` (`choice`, default `auto`): show the game's canvas switching on like a CRT before the game starts: auto (default: when someone can see it, so not on SDL's dummy driver or before a replay, audit, rebaseline or recording), on (always; refused with a replay or a recording) or off
 - `--default-background {test-pattern,channel-3}` (`choice`): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)
 - `--video-driver {cocoa,offscreen,dummy}` (`choice`, default `None`): SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: SDL_VIDEODRIVER's own value, or SDL's choice; --headless overrides it)
@@ -232,6 +236,7 @@ from `--help`: the watched replay's restart internals.
 - `--perf-trim-percent PERF_TRIM_PERCENT` (`float`, default `5.0`): percent of frames to trim from top and bottom in global FPS report
 - `--fps-histogram {equal-range,target-relative}` (`choice`, default `equal-range`): FPS histogram buckets in the shutdown report: equal-range (10 equal buckets spanning the analyzed min to max, default) or target-relative (10% steps of the target FPS)
 - `--debug-overlay, --no-debug-overlay` (`bool`, default `False`): show the debug overlay at startup (F3 toggles, F4 cycles panels)
+- `--sound-diagnostics` (`store_true`, default `False`): start with the debug overlay on, showing the Audio panel (replay-local)
 - `--debug-events` (`store_true`, default `False`): log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one instead)
 - `--record-trace PATH` (`PATH`): record the session (sprites, frame times, input events, random seed) to a gzip JSON Lines trace for inspection and later replay (default: off)
 - `--replay-trace PATH` (`PATH`): replay a --record-trace recording exactly through the engine, comparing every frame with it and reporting the first divergence (default: off)

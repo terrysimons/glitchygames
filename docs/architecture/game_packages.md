@@ -17,9 +17,10 @@ src/
                        engine itself ships
   games/<game>/        one member per game: every game (mr-muncher, clockwork-keep,
                        brave-adventurer, paddleslap, drawing-fire)
-  demos/<demo>/        one member per demo (dt-demo, joystick-demo, text-input-demo): a small
+  demos/<demo>/        one member per demo (dt-demo, joystick-demo, sound-board-demo,
+                       text-input-demo): a small
                        program that shows one engine feature (console scripts `dt-demo`,
-                       `joystick-demo`, `text-input-demo`; no browser build)
+                       `joystick-demo`, `sound-board-demo`, `text-input-demo`; no browser build)
   apps/<app>/          one member per application (Bitmappy)
 tests/                 the engine's own tests
 scripts/               tools

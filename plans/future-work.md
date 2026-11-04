@@ -586,6 +586,54 @@ only replays; Part 2 Task 1).
 
 ## Performance and pacing
 
+- **Raspberry Pi hardware runners** (the user, 2026-11-02; do this on its own branch, separate from
+  the sound engine work). Self-hosted CI runners on the user's Raspberry Pis, so the replay ledger
+  and the sound benchmarks (`docs/specs/2026-11-02-sound-engine-implementation-spec.md` §11) are
+  measured on real hardware, each board its own line on the performance pages. The user has two
+  boards of each tier:
+
+  | Tier | Board | Storage | Cooling | Clocks |
+  | --- | --- | --- | --- | --- |
+  | Worst case (sets the gates) | Raspberry Pi 4 (RAM TBD; 2 GB preferred) | SD card | Passive (case TBD) | stock |
+  | Mid | Raspberry Pi 5 (RAM TBD) | SD card | Official Raspberry Pi 5 case with its fan | stock |
+  | High | Raspberry Pi 5 16 GB | NVMe SSD (PCIe) | Thrml Neo 5 NVMe PCIe case: direct-contact heatsink and fan | overclocked within the warranty |
+
+  - **Operating systems:** Ubuntu 26.04 and the latest Raspberry Pi OS. Suggestion: in each tier,
+    one board runs each OS, so the two compare on identical hardware. Swapping the two SD cards
+    between the boards once separates board-to-board variance from the OS.
+  - **One interpreter on both:** Python 3.14 from uv (python-build-standalone) on both OSes, not
+    the distribution's Python, so the OSes differ only in kernel, audio stack and libraries.
+  - **Passive case for the Pi 4** (to choose; validate before buying the second):
+    - The EDATec aluminium passive cooler has an independent test. Tom's Hardware measured a Pi 4
+      at 54.5 °C under stress at stock clocks, but only for a five-minute stress run.
+    - Pimoroni's Aluminium Heatsink Case is the most widely recommended, but has only the maker's
+      claim of 10–15 °C cooler.
+    - Neither has a published sustained test, so validate the chosen one with our own 30-minute
+      soak that logs `vcgencmd get_throttled` and the ARM clock.
+  - **Provenance per row:** extend `src/glitchygames/machine_state.py` (today: CPU, memory, power,
+    the macOS thermal report, CI) with what a Pi needs:
+    - board model and revision, and RAM;
+    - OS release and kernel;
+    - boot storage device and model;
+    - cooling (a label from the runner's config);
+    - overclock settings read from `config.txt`;
+    - SoC temperature and ARM clock at the start and end;
+    - `vcgencmd get_throttled` at the end. A run during which throttling occurred is marked.
+  - **Thermal protocol:** measure after a warm-up (a soak run before the timed run), so the passive
+    tier reports its steady-state worst case. Optionally also record a cold run.
+  - **The gates** come from the worst-case tier, from the slower of its two OSes.
+
+  Things to settle first:
+  - **Wheels:** `uv.lock` resolves numpy to 1.26.4, which has no prebuilt wheel for Python 3.14
+    on any platform, so every install builds numpy from source (slow on a Pi, and it needs a
+    compiler). miniaudio 1.71 has no Linux ARM64 wheel. pygame-ce 2.5.8 has one
+    (`manylinux2014_aarch64`). Find what keeps numpy below 2.x.
+  - **Audio output:** the Pi 5 has no 3.5 mm jack (HDMI, USB or I2S audio only); the Pi 4 has one.
+  - **The SD card** is the worst-case tier's boot storage on purpose, so the disk cache is
+    measured there as is. Record the card's model, since cards differ a lot.
+  - **Runner registration:** CircleCI self-hosted runners for ARM64, and the `(CI)` marking on the
+    performance pages.
+
 - Cull pickups by distance before `check_overlap` (Brave Adventurer checks all 46 collectibles per
   frame; each now measures visible pixels, ~0.15 ms/frame). Final review M5.
 - Vsync-locked presentation to remove the remaining beat between 60.01 FPS and a 60 Hz display.

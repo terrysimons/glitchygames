@@ -27,6 +27,7 @@ nav:
       - The Recording File: "architecture/playback/recording-file.md"
       - How We Test Playback: "architecture/playback/testing.md"
     - Engine Context: "architecture/engine_context.md"
+    - Sound: "architecture/sound.md"
     - Multi-Controller System: "multi_controller_system.md"
     - Code Complexity: "quality/complexity.md"
     - Replay Performance: "quality/performance.md"
@@ -37,6 +38,8 @@ nav:
       - glitchy.games Website on AWS: "specs/2026-10-27-glitchy-games-website-design.md"
       - Sprite QuickLook for macOS: "specs/2026-10-29-sprite-quicklook-design.md"
       - One Rule for Sprite Pixel Rows: "specs/2026-10-30-unified-pixel-rows-design.md"
+      - Sound Engine Features: "specs/2026-11-02-sound-engine-feature-spec.md"
+      - Sound Engine Implementation: "specs/2026-11-02-sound-engine-implementation-spec.md"
   - glitchygames API Reference:
     - "glitchygames/index.md"
     - glitchygames.api: "glitchygames/api/index.md"
@@ -74,6 +77,7 @@ nav:
   - Demos API Reference:
     - dt_demo: "dt_demo/index.md"
     - joystick_demo: "joystick_demo/index.md"
+    - sound_board_demo: "sound_board_demo/index.md"
     - text_input_demo: "text_input_demo/index.md"
   - Apps API Reference:
     - bitmappy: "bitmappy/index.md"
@@ -180,6 +184,7 @@ plugins:
             - src/games/drawing-fire/src
             - src/demos/dt-demo/src
             - src/demos/joystick-demo/src
+            - src/demos/sound-board-demo/src
             - src/demos/text-input-demo/src
             - src/apps/bitmappy/src
           options:
