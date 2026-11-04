@@ -14,8 +14,10 @@ blend = { from = "sine", to = "saw", amount = 0.4 }
 [waves.ghost]
 shape = "smooth"
 points = [
-  { at = "start", level = "center" }, { at = "quarter", level = 0.5 },
-  { at = "half", level = "center" }, { at = "three_quarters", level = -0.6 },
+  { at = "start", level = "center" },
+  { at = "quarter", level = 0.5 },
+  { at = "half", level = "center" },
+  { at = "three_quarters", level = -0.6 },
   { at = "end", level = "center" },
 ]
 
