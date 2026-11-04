@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast, override
 
 import pygame
@@ -2856,6 +2857,26 @@ class SceneManager(SceneInterface, events.EventManager):
         # The scene's target_fps is already set by _configure_scene_fps()
 
 
+def pin_dirty_rect_drawing(group: object) -> None:
+    """Keep a LayeredDirty group drawing in dirty-rect mode, however long a draw takes.
+
+    pygame's ``LayeredDirty.draw`` times itself (``pygame.time.get_ticks``) and draws the next
+    frame in full-screen mode when a draw took longer than its threshold (1000/80 ms by
+    default), dirty-rect mode otherwise, so which pixels a frame shows depended on the
+    machine's speed: forcing full-screen mode changed the frames 184 tests present (BUGS.md
+    #190), and the engine's own draws assume dirty-rect mode (``Scene.render`` returns only
+    the dirty rects). An unreachable threshold keeps every draw after the first (always
+    full-screen: nothing drawn yet) in dirty-rect mode, which is what a fast machine got.
+    Anything else (a test's stand-in group) is left alone.
+
+    Args:
+        group: The group (pinned only if it is a ``LayeredDirty``).
+
+    """
+    if isinstance(group, pygame.sprite.LayeredDirty):
+        group.set_timing_threshold(math.inf)
+
+
 class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     """Scene object base class.
 
@@ -3298,6 +3319,16 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         if self.dirty:
             for sprite in self.all_sprites:
                 sprite.dirty = 1 if not sprite.dirty else sprite.dirty
+
+    @property
+    def all_sprites(self: Self) -> pygame.sprite.LayeredDirty[Any]:
+        """The scene's sprites, the group it draws: dirty-rect drawing pinned (BUGS.md #190)."""
+        return self._all_sprites
+
+    @all_sprites.setter
+    def all_sprites(self: Self, group: pygame.sprite.LayeredDirty[Any]) -> None:
+        pin_dirty_rect_drawing(group)
+        self._all_sprites = group
 
     @override
     def render(self: Self, screen: pygame.Surface) -> None:
