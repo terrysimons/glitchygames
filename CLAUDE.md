@@ -1207,6 +1207,14 @@ M2 next)
   The `glitchygames sound-render` and `sound-migrate` (v0 recipes to v1) tools use it
 - The Sound Board (`uv run sound-board-demo`) plays every built-in wave and noise by note, hertz
   and scale step, with the Audio panel open
+- Instrument catalog (`audio/instruments/`): `instruments.get('violin')` is an ordinary
+  `Instrument` (built once per process), `instruments.entry(name)` its title, family and range
+  (`lowest`/`highest`, sounding; None for unpitched drums, whose fixed tones ignore the pitch
+  given). 431 entries in 18 `Family`s (every size of each family, voices soprano to basso
+  profundo on five vowels), each built by a shape in `timbres.py` (`blown`, `plucked`, `struck`,
+  `drum`, `with_drones`) from overtone series (`falling_series`, `plucked_series`,
+  `formant_series`); `tests/audio/test_instrument_catalog.py` renders every entry across its
+  range and checks each harmonic one's pitch. `scripts/make_instrument_demos.py` writes WAVs
 - The older toolkit, kept until M2 moves the games over and removes `SoundBank`, `load_sound`
   and `live_audio`: oscillators (PolyBLEP square/saw), pitch curves via easing, envelopes, FIR
   filters, mixing and `to_sound()` (`synth.py`, still the renderer's building blocks);

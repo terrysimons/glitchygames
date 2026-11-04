@@ -41,10 +41,13 @@ This document tracks planned future features for the GlitchyGames project. Featu
   `plans/2026-11-02-sound-engine-m1-implementation.md`, user docs `docs/architecture/sound.md`):
   the one-call API, pitches and waves, sound files, the `none` and `ram` caches, accounting,
   voices and buses, the Audio debug panel, offline render, the CRT power-on sound and the Sound
-  Board. Open, the owner's: the listening check (the CRT timeline, the skip, steals, bus fades:
-  SDL_mixer steps short fades once per 11.6 ms chunk, measured in
-  `tests/audio/test_channel_fades.py`, so whether to render fade tails is the owner's call) and
-  the browser check (AUD-PORT-003). M2 next, in the order above
+  Board. The owner's listening check passed (2026-11-02: the Sound Board, the CRT power-on and
+  its skip with no clicks, and the browser build). The instrument catalog (2026-11-03, the
+  owner's "every instrument, every variant"): `glitchygames.audio.instruments`, 431 instruments
+  in 18 families with their ranges, voices from soprano to basso profundo on five vowels
+  (`docs/architecture/sound.md`, "The instrument catalog"), audited against published references
+  the same day: 28 ranges, the soprano and tenor "o" formants and the chime, bell and tine
+  partials corrected. M2 next, in the order above
 - **Priority**: High (requested 2026-11-02)
 
 ### 1. Memory Optimization

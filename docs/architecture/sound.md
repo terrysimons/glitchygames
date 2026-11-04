@@ -202,6 +202,62 @@ or two and a halt, as measured above). Otherwise the tail loops into the game an
 500 ms from frame 0's first audio update. `--crt-power-on-sound off` plays the picture silently;
 the sound never plays where the picture does not (`--headless`, tests, replays, recordings).
 
+## The instrument catalog
+
+`glitchygames.audio.instruments` holds 431 ready-made instruments in 18 families. Each is an
+ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
+layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
+and renders offline like any other:
+
+```python
+from glitchygames.audio import instruments
+
+violin = instruments.get('violin')                       # built once, then kept
+tune = audio.sound(violin, notes='G3:0.5 D4:0.5 A4:1')
+instruments.entry('alto saxophone').playing_range        # (Note('Db3'), Note('Ab5'))
+instruments.names(family=instruments.Family.BRASS)       # every brass instrument
+```
+
+| Family | Entries | Examples |
+| --- | --- | --- |
+| `flutes` | 30 | piccolo to contrabass flute, wooden flutes, sopranino to contrabass recorders, whistles, shakuhachi, ocarinas |
+| `clarinets` | 9 | E-flat to contrabass clarinet, basset horn, chalumeau |
+| `saxophones` | 8 | sopranino to contrabass, C melody |
+| `double reeds` | 23 | oboe family, bassoon and contrabassoon, shawms, crumhorns, suona, duduk |
+| `bagpipes` | 8 | Highland, uilleann, smallpipes, gaita, gaida, musette (drones built in) |
+| `free reeds` | 13 | accordions (dry, musette, bass), bandoneon, concertina, harmonicas, melodicas, sheng |
+| `brass` | 42 | piccolo trumpet to contrabass tuba, alto to contrabass trombone, mutes, historic and folk horns |
+| `bowed strings` | 27 | violin to double bass, sections, pizzicato, viols, erhu, hurdy-gurdy |
+| `plucked strings` | 58 | guitars (nylon, steel, twelve-string, electric clean to distortion), basses, ukuleles, banjos, mandolins, lutes, sitar, koto |
+| `harps` | 7 | concert, lever, wire-strung, triple harp, lyre, kora |
+| `struck strings` | 5 | hammered dulcimer, cimbalom, santur, yangqin, berimbau |
+| `keyboards` | 14 | pianos, harpsichords, clavichord, electric pianos, clavinet, celesta |
+| `organs` | 16 | pipe organ stops and plenum, tonewheel registrations and percussion, calliope |
+| `electronic` | 15 | theremin, ondes Martenot, leads, pads, basses, chiptune pulses |
+| `tuned percussion` | 27 | glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan |
+| `drums and percussion` | 61 | kits (kicks, snares, toms, hi-hats, cymbals), hand drums, shakers, blocks |
+| `voices` | 55 | soprano, mezzo, alto, treble, countertenor, tenor, baritone, bass and basso profundo on ah, eh, ee, oh, oo and humming; whistling |
+| `choirs` | 13 | soprano, alto, tenor and bass sections on ah, oh and oo; children's choir |
+
+- Names and families are lowercase words separated by spaces (`'tenor saxophone'`, `'double
+  reeds'`). `get`, `entry`, `names` and `entries` lowercase what they are given, so
+  `instruments.get('Tenor Saxophone')` is the same instrument.
+- Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding
+  pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
+  have no range: their tones are fixed, so give any pitch (`pitch='A4'`); it does not change
+  the sound.
+- They are synthesized approximations. The engine has no recorded samples, vibrato or moving
+  filters yet, so sustained tones are steady, and a voice's vowel is truest in the middle of its
+  range (its formants are placed for that pitch and move with the note elsewhere).
+- The ranges and models were audited against published references (orchestration texts, the
+  Vienna Symphonic Library, makers' specifications, Fletcher and Rossing, the Csound formant
+  table) on 2026-11-03 and corrected. An organ's range is its keys at 8' pitch (C2-C7; a 16'
+  stop sounds an octave lower). Paired strings double every note, though a twelve-string
+  guitar's or a bouzouki's octave pairs are only on its lower courses, and a church bell leaves
+  out its weak quint, as an instrument has at most four sources.
+- `uv run python -m scripts.make_instrument_demos [DIRECTORY] [--only TEXT]` renders every
+  instrument climbing its range (or four hits) to `build/instruments/<family>/<name>.wav`.
+
 ## The Sound Board
 
 `uv run sound-board-demo` (`src/demos/sound-board-demo/`) plays every built-in wave and noise:
