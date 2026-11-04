@@ -524,8 +524,7 @@ def test_a_bare_name_import_of_a_members_test_module_is_found(tmp_path):
 # Living documentation writes repository paths from the repository root (the engine at
 # src/glitchygames/, the workspace layers at src/games/, src/demos/ and src/apps/). Finished
 # plans (plans/*.md except the ones below) and resolved BUGS.md entries are history: they name
-# the locations as they were when written, so they are not scanned (TEST_UPDATE_PLAN.md says
-# "complete (historical)" and is among them).
+# the locations as they were when written, so they are not scanned.
 LIVING_PLAN_FILES = (
     'plans/future-features.md',
     'plans/future-work.md',
@@ -1751,6 +1750,10 @@ FORMER_EXAMPLES_EXEMPT_PATHS: dict[str, str] = {
     ),
     'tests/replay/tools/test_settings.py': (
         'the recording-renames our settings must give, copied from the constant they replaced'
+    ),
+    'scripts/docs_claims.py': (
+        "a recorded exception: clockwork_keep.md names the package as the one its move left "
+        'nothing of'
     ),
     'src/demos/dt-demo/tests/test_dt_demo_install_location.py': (
         'the move out of the engine: nothing is left of the old package'

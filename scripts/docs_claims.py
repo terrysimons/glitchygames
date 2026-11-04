@@ -6,9 +6,11 @@ dated specs; every member's README.md) is read for the claims a machine can chec
 claim that does not hold is listed:
 
   path    A repository path (``src/...``, ``tests/...``, ``scripts/...``, ``docs/...``,
-          ``plans/...``, ``quality/...``) that does not exist, from the repository root or the
-          document's own directory (a member's README names its own ``tests/``). A path with a
-          placeholder (``<game>``, ``*``, ``{a,b}``) is no claim about one file: not checked.
+          ``plans/...``, ``quality/...``) that exists neither from the repository root nor
+          inside any member (a directory under src/ with its own pyproject.toml): a page may
+          name a member's path as each member has it (``tests/fixtures/replays/``, every
+          game's goldens), and a member's README names its own. A path with a placeholder
+          (``<game>``, ``*``, ``{a,b}``) is no claim about one file: not checked.
   file    A backticked Python file name (```synth.py```) that no tracked file has. One that
           starts with ``_`` names a suffix (```_wheel.py```: each member's
           ``test_<member>_wheel.py``) and holds when some tracked file name ends with it.
@@ -61,9 +63,11 @@ CLAIMS_FOUND = 1
 CLAIM_KINDS = ('path', 'file', 'name', 'option', 'bug')
 
 # The root directories a repository path starts with. Anything else (`games/x.md`, a link
-# relative to its document) is mkdocs' to check (`mkdocs build --strict`)
+# relative to its document) is mkdocs' to check (`mkdocs build --strict`). A path after a colon
+# is another ref's (`origin/gh-pages:quality/metrics/x.jsonl`, git's REF:PATH), not the work
+# tree's
 REPOSITORY_PATH = re.compile(
-    r'(?<![\w./~-])(?:src|tests|scripts|docs|plans|quality)/[\w./<>*{},@+-]*'
+    r'(?<![\w./~:-])(?:src|tests|scripts|docs|plans|quality)/[\w./<>*{},@+-]*'
 )
 # What a path claim may end with that is not part of it: a line number (`x.py:12`), a test id
 # (`x.py::test_y`); and prose punctuation (TRAILING_PUNCTUATION)
@@ -107,12 +111,41 @@ OPTION_SOURCES = ('noxfile.py', 'pyproject.toml', '.pre-commit-config.yaml', '.c
 # Pages under docs/ that are not checked: generated (gitignored) ones, and the dated specs, a
 # record of decisions that describes the code of its date (as plans/ does)
 UNCHECKED_DOCS = ('docs/quality/graphs/', 'docs/quality/metrics/', 'docs/specs/')
+# Single documents that are not checked: document -> why
+UNCHECKED_DOCUMENTS: dict[str, str] = {
+    'docs/galimore.md': (
+        "notes on another code base (Galimore's C++ files and functions), kept for future work "
+        "(the owner, 2026-11-04): its paths and names are that code base's, not this one's"
+    ),
+}
+MEMBER_MANIFEST = 'pyproject.toml'
 # A mkdocstrings stub (the API reference): its page is generated from the code
 API_STUB = re.compile(r'^:::\s', re.MULTILINE)
 SELF_NAMES = frozenset({'self', 'cls'})
 
 # Claims that hold though no check can see it: (document, claim text) -> why
-RECORDED_EXCEPTIONS: dict[tuple[str, str], str] = {}
+RECORDED_EXCEPTIONS: dict[tuple[str, str], str] = {
+    ('CLAUDE.md', 'tests/test_specific.py'): 'an example command line: any test file',
+    ('README.md', 'tests/test_specific.py'): 'an example command line: any test file',
+    ('CLAUDE.md', 'tests/x'): 'an example of a test path',
+    ('CLAUDE.md', 'src/glitchygames/_build_info.json'): (
+        'the build stamp, which exists only while a build runs (gitignored, removed after)'
+    ),
+    ('CLAUDE.md', 'scripts/replay_metrics.py'): 'named as deleted: its tools moved to measure',
+    ('CLAUDE.md', 'scripts/recording_report.py'): 'named as deleted: it moved to report',
+    ('CLAUDE.md', 'tests/workspace_expectations.MEMBER_PACKAGES'): (
+        "a module's constant written path-style (tests/workspace_expectations.py)"
+    ),
+    ('CLAUDE.md', 'recording.recorded_frame_fields()'): (
+        'a variable typed with the RecordedFrameFieldSource protocol (recording.py)'
+    ),
+    ('docs/architecture/gameplay_replay.md', 'glitchygames.bitmappy.editor'): (
+        "named as the logical module Bitmappy's scene left"
+    ),
+    ('docs/games/clockwork_keep.md', 'glitchygames.examples.clockwork_keep'): (
+        'named as the module the move left nothing of'
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -165,6 +198,8 @@ class Evidence:
         index: What its Python files define.
         option_text: The text its options are spelled in (``option_source_text``).
         bug_statuses: Each BUGS.md entry's number -> its status word.
+        member_roots: Each member's directory (``src/games/paddleslap``), where a path a page
+            writes as each member has it is looked for.
 
     """
 
@@ -172,6 +207,7 @@ class Evidence:
     index: CodeIndex
     option_text: str
     bug_statuses: dict[int, str]
+    member_roots: tuple[Path, ...]
 
 
 def tracked_files(*, project_root: Path) -> list[str]:
@@ -351,13 +387,15 @@ def living_documents(*, project_root: Path, files: Iterable[str]) -> list[str]:
         files: Its tracked files.
 
     Returns:
-        Their repository paths, sorted. docs/'s unchecked pages (``UNCHECKED_DOCS``) and API
-        stubs are left out.
+        Their repository paths, sorted. docs/'s unchecked pages (``UNCHECKED_DOCS``), the
+        unchecked documents (``UNCHECKED_DOCUMENTS``) and API stubs are left out.
 
     """
     documents: list[str] = []
     for relative in files:
         if not relative.endswith('.md') or relative == 'BUGS.md':
+            continue
+        if relative in UNCHECKED_DOCUMENTS:
             continue
         is_root = '/' not in relative
         is_docs = relative.startswith('docs/') and not relative.startswith(UNCHECKED_DOCS)
@@ -390,14 +428,34 @@ def document_lines(text: str) -> Iterator[tuple[int, str, bool]]:
         yield line_number, line, fence_marker is not None
 
 
-def missing_paths(*, line: str, project_root: Path, document_directory: Path) -> list[str]:
-    """Return the repository paths a line names that do not exist.
+def member_roots(*, project_root: Path, files: Iterable[str]) -> tuple[Path, ...]:
+    """Return each member's directory: a directory under src/ with its own pyproject.toml.
+
+    Args:
+        project_root: The repository.
+        files: Its tracked files.
+
+    Returns:
+        The directories, sorted.
+
+    """
+    return tuple(
+        sorted(
+            (project_root / relative).parent
+            for relative in files
+            if relative.startswith('src/') and relative.endswith(f'/{MEMBER_MANIFEST}')
+        )
+    )
+
+
+def missing_paths(*, line: str, project_root: Path, roots: Sequence[Path]) -> list[str]:
+    """Return the repository paths a line names that exist neither at the root nor in a member.
 
     Args:
         line: The line.
         project_root: The repository.
-        document_directory: The document's directory: a member's README names its own
-            ``tests/`` and ``src/`` (relative to the member), so a path holds from either.
+        roots: The members' directories: a path written as each member has it holds when one
+            of them has it.
 
     Returns:
         The missing paths, as written (without trailing punctuation or a line number).
@@ -409,7 +467,7 @@ def missing_paths(*, line: str, project_root: Path, document_directory: Path) ->
         path = PATH_TAIL.sub('', path).rstrip(TRAILING_PUNCTUATION)
         if PATH_PLACEHOLDER.search(path):
             continue
-        if not (project_root / path).exists() and not (document_directory / path).exists():
+        if not any((root / path).exists() for root in (project_root, *roots)):
             missing.append(path)
     return missing
 
@@ -591,14 +649,13 @@ def document_claims(*, document: str, text: str, evidence: Evidence) -> list[Cla
 
     """
     found: list[tuple[int, str, str]] = []
-    document_directory = (evidence.project_root / document).parent
     for line_number, line, fenced in document_lines(text):
         found.extend(
             (line_number, 'path', path)
             for path in missing_paths(
                 line=line,
                 project_root=evidence.project_root,
-                document_directory=document_directory,
+                roots=evidence.member_roots,
             )
         )
         for backticked in BACKTICKED.findall(line):
@@ -634,6 +691,7 @@ def all_claims(*, project_root: Path, kinds: Sequence[str] = CLAIM_KINDS) -> lis
         index=code_index(project_root=project_root, files=files),
         option_text=option_source_text(project_root=project_root, files=files),
         bug_statuses=bug_statuses(project_root=project_root),
+        member_roots=member_roots(project_root=project_root, files=files),
     )
     claims: list[Claim] = []
     for document in living_documents(project_root=project_root, files=files):

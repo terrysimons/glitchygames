@@ -573,7 +573,7 @@ Two sound effects, loaded with `glitchygames.game_objects.load_sound` from
 
 | Feature | How PaddleSlap uses it |
 | --- | --- |
-| Random streams | Serves draw from `ball.serve` (`SERVE_RANDOM_STREAM`), spawn positions from `paddleslap.spawn`, ball colours from `paddleslap.colors`: separate streams, so a colour draw never moves where the next ball spawns. `--random-seed` fixes them all |
+| Random streams | Serves draw from `'ball.serve'` (`SERVE_RANDOM_STREAM`), spawn positions from `'paddleslap.spawn'` (`SPAWN_RANDOM_STREAM`), ball colors from `'paddleslap.colors'` (`COLOR_RANDOM_STREAM`): separate streams, so a color draw never moves where the next ball spawns. `--random-seed` fixes them all |
 | `Scene.game_time` | The spawn cooldown and the game-over idle wait |
 | Collision layers | `balls` and `paddles`, `check_overlap` for the broad phase |
 | World space | The balls (identity camera); the paddles stay screen space |

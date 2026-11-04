@@ -89,29 +89,90 @@ from the same worklist.
 6. Promote the cheap checks to tests beside the path guard.
 7. `mkdocs build --strict`, the docs guard tests, the full suite; push; PR.
 
-## Worklist (scripts/docs_claims.py, 2026-11-04: 68 claims in 11 documents)
+## Worklist (scripts/docs_claims.py)
 
-Triage before the reading pass; each item is decided there, against the code.
+2026-11-04, first run: 68 claims in 11 documents. The owner's decisions the same day:
+- `TEST_UPDATE_PLAN.md`: removed once verified accounted for (it was: the YAML and INI
+  rejection tests, static and animated, and the unsupported-format message are in
+  `tests/sprites/test_sprite_file_formats.py`; TOML save and load are tested; the factory
+  detects `.yaml` only to name it in its refusal). One stale docstring found and fixed with it:
+  `bitmappy/canvas_interfaces.py` `save()` said it wrote `"ini" or "yaml"`.
+- `docs/galimore.md`: kept for future work; not checked (`UNCHECKED_DOCUMENTS`: its paths and
+  names are another code base's).
+- Member-relative paths (`tests/fixtures/replays/`, each game's) are right as written: the
+  checker looks for a path in every member as well as at the root.
+- Stale names updated. On reading, all but the docstring were right and only looked stale: the
+  context slots and random streams are strings (now written quoted), a gh-pages `REF:PATH` is
+  another ref's path (the checker skips a path after a colon), and the rest name deleted or
+  moved things as deleted or moved (recorded exceptions, each with its reason).
+- `docs/architecture/game_packages.md`: plan its update (below).
 
-- **Retire candidates** (25 of the 68): `TEST_UPDATE_PLAN.md` (16: a finished plan naming test
-  files that were merged or renamed; a plan, so it moves out of the root or is retired) and
-  `docs/galimore.md` (9: it describes another code base's C++ files and functions; keep as the
-  history page it is, and record its claims as exceptions, or move it).
-- **`docs/architecture/game_packages.md`** (16): the move's own history, partly still in the
-  present tense: `src/glitchygames/examples/`, `tests/examples`, `glitchygames.bitmappy`,
-  `src/paddleslap/`. Rewrite as the layout now, the move as one paragraph of history.
-- **Paths written relative to a member** in engine pages: `tests/fixtures/replays/` (each
-  game's) in `CLAUDE.md`, `gameplay_replay.md`, `game_packages.md`, `performance.md`: write them
-  as `src/games/<game>/tests/fixtures/replays/` (a placeholder, so no claim about one file).
-- **`docs/architecture/engine_context.md`** (8): the context keys are written as dotted names
-  (`glitchygames.audio.engine.audio_engine`); check each is the key's string, then write them as
-  strings (quoted) or record them.
-- **Stale names and scripts**: `CLAUDE.md` `scripts/replay_metrics.py`,
-  `scripts/recording_report.py`, `recording.recorded_frame_fields()`, `_build_info.json` (a build
-  artifact: say so); `gameplay_replay.md` `glitchygames.bitmappy.editor`,
-  `quality/metrics/replay-ledger.jsonl`; `clockwork_keep.md` `glitchygames.examples.
-  clockwork_keep`; `drawing_fire.md` `tests/test_drawing_fire_golden_replay.py`;
-  `paddleslap.md` `paddleslap.spawn`, `paddleslap.colors`.
-- **Examples, not claims** (record as exceptions): `tests/test_specific.py` (`README.md`,
-  `CLAUDE.md`), `tests/x`, `tests/workspace_expectations.MEMBER_PACKAGES` (a module's constant,
-  written path-style).
+After those: 12 claims, all in `game_packages.md`.
+
+## `docs/architecture/game_packages.md`
+
+### Design
+
+**What is wrong.** Its claims report holds 12 stale paths and names (`src/glitchygames/
+examples/`, `tests/examples`, `glitchygames.bitmappy`, `src/paddleslap/__init__.py`,
+`docs/glitchygames/examples/index.md`, PaddleSlap "a game that is one module" `paddleslap.py`),
+but the larger problem is its shape. Over half the page (its lines 139-367, nine steps) is the
+recipe for moving a game out of the engine's `examples` package, which is finished (Part 3,
+2026-10-26): every game, demo and Bitmappy are members. What a reader needs now, adding a new
+game, demo or app, has no recipe: the page says only "a new game or demo starts as a fresh
+member". (`scripts/create.py` makes a cookiecutter template game, not a member.) The one member
+added fresh, the Sound Board demo (#147), is the ground truth for what adding one takes.
+
+**The page after.** Same title and place (five game pages and `bitmappy.md` link to it; no link
+names an anchor):
+
+1. **The layout**, **What a member is**, **Working with a member**: kept; each list and command
+   checked against the workspace (the layers' members, the extras, `uv sync` flags).
+2. **Adding a member** (new; replaces the move recipe as the page's recipe): create the member
+   (`pyproject.toml`, `README.md`, `src/<package>/`, `tests/` with the subject-named move tests
+   a fresh member has: `_logical_names`, `_install_location` without the old-example check,
+   `_entry_points`, and `_wheel`/`_package_data` when it ships data); register it in the root
+   configuration (the table of files and keys, re-derived from #147's sound-board-demo diff
+   and from what `tests/test_workspace_config.py` now derives on its own, so the table lists
+   only what a person must write); the engine's tables (`MEMBER_LAYERS`); a game's golden
+   inputs, scripted-session and golden-trace tables and the cross-member expectations
+   (`tests/workspace_expectations.py`), for a game only; the browser build (games only: demos
+   have none); its docs page and API page; verify (the existing step 8 commands, without the
+   move's); commit (the `replay-metrics` hook).
+3. **Special cases**: kept, in the present tense: several games in one member (Brave
+   Adventurer), a game whose package is its `__init__` (PaddleSlap: `Game` must stay in
+   `src/games/paddleslap/src/paddleslap/__init__.py` for its logical name), bundled demos,
+   engine-private names, the member-test seams exemption.
+4. **Pitfalls**: the ones that apply to any member (the dev tools, the coverage gate on a
+   subset, the console script needing `--all-packages`).
+5. **History: the moves out of the engine** (new, short): what moved and when (the plans);
+   what still matters for old recordings and old checkouts: logical names did not change for
+   games already in a layer, Bitmappy's did (`glitchygames.bitmappy.editor` ->
+   `apps.bitmappy.editor`, converted by a rebaseline), `recording-renames` keeps moved
+   recordings' ledger history, and a checkout from before the moves can hold ignored
+   leftovers (`src/glitchygames/examples`, `src/glitchygames/bitmappy`, `tests/examples`) that
+   the members' `test_the_old_example_module_is_gone` and
+   `test_the_engines_examples_directory_is_gone` catch (`rm -rf` them). The step-by-step move
+   recipe itself is left to the plans that record it (`plans/2026-10-24-workspace-packages*.md`).
+
+**Not changed:** the members, the configuration, the tests. If writing "Adding a member" finds
+a step the workspace guards do not catch, it is reported, not fixed here.
+
+**Done when:** `scripts/docs_claims.py` lists nothing for the page (no recorded exception
+needed: history names old paths in prose a reader sees as history, so the history section
+writes them without backticks only where they are not claims; where they are, as exceptions
+with the reason), `mkdocs build --strict` passes, and `CLAUDE.md:231` ("the recipe is
+docs/architecture/game_packages.md") still reads true.
+
+### Plan
+
+1. Inventory: list every file and key #147 touched to add `sound-board-demo` (`git show
+   e8e88b44 -- pyproject.toml pyrightconfig.json noxfile.py mkdocs.yml wily.cfg`), and what
+   `tests/test_workspace_config.py` checks; from them, the "register it" table.
+2. Re-check sections 1 (layout, member, working) against the workspace; fix what differs.
+3. Write "Adding a member" from the inventory and the old steps 2-9 (keeping what applies to a
+   fresh member).
+4. Rewrite the special cases and pitfalls in the present tense with today's paths; write the
+   history section; delete the move recipe.
+5. `scripts/docs_claims.py` (nothing for the page), `mkdocs build --strict`, the docs guard
+   tests; commit as the page's own commit in the docs/architecture area.

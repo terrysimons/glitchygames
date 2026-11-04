@@ -1,11 +1,12 @@
 """Tests for scripts/docs_claims.py: the documentation claims the code no longer backs.
 
 Each check runs on a small throwaway git repository holding a claim that holds and one that
-does not, of each kind: paths (from the root and from a member's README), Python file names
+does not, of each kind: paths (from the root, and as each member has them: in a member's
+README and in an engine page), Python file names
 (whole and suffixes), dotted names (module, class and inherited members, an instance named
 for its class, another library's), command-line options, and BUGS.md entries called open
-after they were fixed. The pages that are not checked (dated specs, API stubs) and the
-recorded exceptions are left out of the report.
+after they were fixed. The pages that are not checked (dated specs, API stubs, a document
+listed as unchecked) and the recorded exceptions are left out of the report.
 """
 
 from __future__ import annotations
@@ -86,6 +87,9 @@ MEMBER_README = """\
 
 Its golden is tests/fixtures/real.txt; its other one tests/fixtures/gone.txt.
 """
+MEMBER_RELATIVE_PAGE = """\
+Each game keeps its golden in tests/fixtures/real.txt; none has tests/fixtures/nowhere.txt.
+"""
 UNCHECKED_SPEC = 'The spec names src/glitchygames/old.py, as of its date.\n'
 API_STUB = '::: glitchygames.camera\n\nsrc/glitchygames/stub-gone.py\n'
 
@@ -103,6 +107,7 @@ def repository(tmp_path: Path) -> Path:
         'src/glitchygames/camera.py': ENGINE_CAMERA,
         'src/glitchygames/scenes/__init__.py': '',
         'src/glitchygames/scenes/scene.py': ENGINE_SCENE,
+        'src/games/x/pyproject.toml': '[project]\nname = "x-game"\n',
         'src/games/x/src/x_game/__init__.py': MEMBER_GAME,
         'src/games/x/tests/test_x_game_wheel.py': '',
         'src/games/x/tests/fixtures/real.txt': 'golden\n',
@@ -111,6 +116,8 @@ def repository(tmp_path: Path) -> Path:
         'CLAUDE.md': CLAUDE,
         'docs/specs/2026-01-01-spec.md': UNCHECKED_SPEC,
         'docs/reference/camera.md': API_STUB,
+        'docs/galimore.md': 'Another code base: src/galibmap.cpp.\n',
+        'docs/games/x.md': MEMBER_RELATIVE_PAGE,
     }
     for relative, text in files.items():
         path = tmp_path / relative
@@ -140,6 +147,7 @@ def test_every_kind_of_stale_claim_is_listed_and_every_holding_one_is_not(reposi
         'CLAUDE.md:9: bug: #5 (Fixed)',
         'CLAUDE.md:9: bug: #5 (Fixed)',
         'CLAUDE.md:12: path: src/glitchygames/fenced-gone.py',
+        'docs/games/x.md:1: path: tests/fixtures/nowhere.txt',
         'src/games/x/README.md:3: path: tests/fixtures/gone.txt',
     ]
 
@@ -210,6 +218,7 @@ def test_main_exits_success_when_every_claim_holds(repository, monkeypatch, caps
     """No claim: no output but the count, and success."""
     (repository / 'CLAUDE.md').write_text('See `--real-option`.\n', encoding='utf-8')
     (repository / 'src/games/x/README.md').write_text('# X\n', encoding='utf-8')
+    (repository / 'docs/games/x.md').write_text('# X\n', encoding='utf-8')
     monkeypatch.setattr(docs_claims, 'PROJECT_ROOT', repository)
 
     status = main([])
