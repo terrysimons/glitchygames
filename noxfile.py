@@ -1728,6 +1728,15 @@ def timer_report(session: nox.Session) -> None:
     session.run('python', 'scripts/timer_report.py')
 
 
+# The only places with tests that take pytest-benchmark's ``benchmark`` fixture. performance-test
+# collects just these: given the whole suite, --benchmark-only collected every test and skipped
+# all the others. tests/test_benchmark_paths.py fails if a benchmark is added anywhere else
+_BENCHMARK_PATHS = [
+    'tests/benchmarks',
+    'src/apps/bitmappy/tests/test_bitmappy_benchmarks.py',
+]
+
+
 @nox.session(python=['3.14'], reuse_venv=False, name='performance-test', default=False)
 def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""
@@ -1743,6 +1752,7 @@ def performance_test(session: nox.Session) -> None:
         'no:xdist',
         '--benchmark-only',
         '--benchmark-save=baseline',
+        *_BENCHMARK_PATHS,
     )
 
 
