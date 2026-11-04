@@ -91,6 +91,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../engine_context/">Engine Context</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../sound/">Sound</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
@@ -110,6 +112,10 @@
                 <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-29-sprite-quicklook-design/">Sprite QuickLook for macOS</a>
                 </li>
                 <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-30-unified-pixel-rows-design/">One Rule for Sprite Pixel Rows</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-feature-spec/">Sound Engine Features</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-implementation-spec/">Sound Engine Implementation</a>
                 </li>
     </ul>
                   </li>
@@ -190,6 +196,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../sound_board_demo/">sound_board_demo</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
                   </li>
               </ul>
@@ -242,12 +250,13 @@ order of the moves are in the plan, <code>plans/2026-10-24-workspace-packages.md
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                       engine itself ships
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  games/&lt;game&gt;/        one member per game: every game (mr-muncher, clockwork-keep,
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                       brave-adventurer, paddleslap, drawing-fire)
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  demos/&lt;demo&gt;/        one member per demo (dt-demo, joystick-demo, text-input-demo): a small
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                       program that shows one engine feature (console scripts `dt-demo`,
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                       `joystick-demo`, `text-input-demo`; no browser build)
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>  apps/&lt;app&gt;/          one member per application (Bitmappy)
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>tests/                 the engine's own tests
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>scripts/               tools
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  demos/&lt;demo&gt;/        one member per demo (dt-demo, joystick-demo, sound-board-demo,
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                       text-input-demo): a small
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                       program that shows one engine feature (console scripts `dt-demo`,
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                       `joystick-demo`, `sound-board-demo`, `text-input-demo`; no browser build)
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>  apps/&lt;app&gt;/          one member per application (Bitmappy)
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>tests/                 the engine's own tests
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>scripts/               tools
 </code></pre></div>
 <p>Nothing at the repository root is importable as one of our packages. Tests and tools run from
 the root import the installed engine and members (<code>uv sync</code> installs them editable, nox

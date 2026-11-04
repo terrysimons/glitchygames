@@ -91,6 +91,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../engine_context/">Engine Context</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../sound/">Sound</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
@@ -110,6 +112,10 @@
                 <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-29-sprite-quicklook-design/">Sprite QuickLook for macOS</a>
                 </li>
                 <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-30-unified-pixel-rows-design/">One Rule for Sprite Pixel Rows</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-feature-spec/">Sound Engine Features</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-implementation-spec/">Sound Engine Implementation</a>
                 </li>
     </ul>
                   </li>
@@ -189,6 +195,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../sound_board_demo/">sound_board_demo</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
                   </li>
@@ -395,6 +403,10 @@ each with its type and default, then its help text.</p>
 <li><code>--screen-shake-intensity SCREEN_SHAKE_INTENSITY</code> (<code>float</code>): screen shake strength from 0.0 (off) to 1.0 (default: 1.0)</li>
 <li><code>--rumble-intensity RUMBLE_INTENSITY</code> (<code>float</code>): controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)</li>
 <li><code>--live-voice-pool LIVE_VOICE_POOL</code> (<code>int</code>): mixer channels reserved for real-time synth voices (default: 4)</li>
+<li><code>--sound-channels SOUND_CHANNELS</code> (<code>int</code>): mixer channels reserved for the sound library (scene_manager.audio) (default: 32)</li>
+<li><code>--sound-cache {none,ram,disk}</code> (<code>choice</code>, default <code>ram</code>): how compiled sounds are kept: none (compiled again at every play), ram (in memory, default) or disk (arrives in M3; refused with OPTIONS_REFUSED until then). Replay-local: a recording replays under any mode</li>
+<li><code>--sound-cache-memory MB</code> (<code>int</code>, default <code>256</code>): megabytes the ram sound cache may hold before the least recently played idle sounds go</li>
+<li><code>--crt-power-on-sound {on,off}</code> (<code>choice</code>, default <code>on</code>): play the CRT power-on sequence with its sound</li>
 <li><code>--crt-power-on {auto,on,off}</code> (<code>choice</code>, default <code>auto</code>): show the game's canvas switching on like a CRT before the game starts: auto (default: when someone can see it, so not on SDL's dummy driver or before a replay, audit, rebaseline or recording), on (always; refused with a replay or a recording) or off</li>
 <li><code>--default-background {test-pattern,channel-3}</code> (<code>choice</code>): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)</li>
 <li><code>--video-driver {cocoa,offscreen,dummy}</code> (<code>choice</code>, default <code>None</code>): SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: SDL_VIDEODRIVER's own value, or SDL's choice; --headless overrides it)</li>
@@ -437,6 +449,7 @@ from <code>--help</code>: the watched replay's restart internals.</p>
 <li><code>--perf-trim-percent PERF_TRIM_PERCENT</code> (<code>float</code>, default <code>5.0</code>): percent of frames to trim from top and bottom in global FPS report</li>
 <li><code>--fps-histogram {equal-range,target-relative}</code> (<code>choice</code>, default <code>equal-range</code>): FPS histogram buckets in the shutdown report: equal-range (10 equal buckets spanning the analyzed min to max, default) or target-relative (10% steps of the target FPS)</li>
 <li><code>--debug-overlay, --no-debug-overlay</code> (<code>bool</code>, default <code>False</code>): show the debug overlay at startup (F3 toggles, F4 cycles panels)</li>
+<li><code>--sound-diagnostics</code> (<code>store_true</code>, default <code>False</code>): start with the debug overlay on, showing the Audio panel (replay-local)</li>
 <li><code>--debug-events</code> (<code>store_true</code>, default <code>False</code>): log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one instead)</li>
 <li><code>--record-trace PATH</code> (<code>PATH</code>): record the session (sprites, frame times, input events, random seed) to a gzip JSON Lines trace for inspection and later replay (default: off)</li>
 <li><code>--replay-trace PATH</code> (<code>PATH</code>): replay a --record-trace recording exactly through the engine, comparing every frame with it and reporting the first divergence (default: off)</li>

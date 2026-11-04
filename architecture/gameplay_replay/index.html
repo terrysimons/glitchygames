@@ -91,6 +91,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../engine_context/">Engine Context</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../sound/">Sound</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
@@ -110,6 +112,10 @@
                 <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-29-sprite-quicklook-design/">Sprite QuickLook for macOS</a>
                 </li>
                 <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-30-unified-pixel-rows-design/">One Rule for Sprite Pixel Rows</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-feature-spec/">Sound Engine Features</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-implementation-spec/">Sound Engine Implementation</a>
                 </li>
     </ul>
                   </li>
@@ -189,6 +195,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../sound_board_demo/">sound_board_demo</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
                   </li>
@@ -1179,7 +1187,8 @@ object (<code>identity.py</code>).</p>
   nearest directory at or above the current one whose <code>pyproject.toml</code> has
   <code>[tool.glitchygames]</code>, else the nearest with a <code>pyproject.toml</code>, else the current directory);
   for <code>record-trace</code>, <code>replay-trace</code>, <code>record-golden-trace</code> and <code>record-session</code>, the directory
-  the game runs in (default: the current directory); <code>report</code> reads only its recording.</li>
+  the game runs in (default: the current directory); <code>report</code>, <code>sound-render</code> and
+  <code>sound-migrate</code> read only what they are given.</li>
 </ul>
 <p>Both front ends are generated from one table, <code>TOOLS</code> in
 <code>src/glitchygames/replay/tools/registry.py</code>, which is the reference for every flag, option,
@@ -1257,6 +1266,18 @@ own git repository.</p>
 <td>no</td>
 <td><code>--performance-pages DIRECTORY [--published]</code></td>
 <td><code>glitchygames performance-pages DIRECTORY [--published]</code></td>
+</tr>
+<tr>
+<td><code>sound-render</code></td>
+<td>no</td>
+<td><code>--sound-render SOURCE --sound-output PATH [--sample-format int16\|float32]</code> (SOURCE: <code>sounds/pickups.toml#coin</code> or a WAV file; offline, no audio device)</td>
+<td><code>glitchygames sound-render SOURCE</code> with the same options</td>
+</tr>
+<tr>
+<td><code>sound-migrate</code></td>
+<td>no</td>
+<td><code>--sound-migrate FILE [--migrated-output PATH]</code> (a version 0 recipe file to version 1, default <code>&lt;stem&gt;.v1.toml</code> beside it, never over FILE)</td>
+<td><code>glitchygames sound-migrate FILE [--migrated-output PATH]</code></td>
 </tr>
 </tbody>
 </table>

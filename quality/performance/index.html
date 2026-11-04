@@ -91,6 +91,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../architecture/engine_context/">Engine Context</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../architecture/sound/">Sound</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../complexity/">Code Complexity</a>
@@ -110,6 +112,10 @@
                 <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-29-sprite-quicklook-design/">Sprite QuickLook for macOS</a>
                 </li>
                 <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-30-unified-pixel-rows-design/">One Rule for Sprite Pixel Rows</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-feature-spec/">Sound Engine Features</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-implementation-spec/">Sound Engine Implementation</a>
                 </li>
     </ul>
                   </li>
@@ -189,6 +195,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../sound_board_demo/">sound_board_demo</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
                   </li>
@@ -349,7 +357,7 @@ CRITICAL record a run): a logger that does has a level set behind the command li
 (BUGS.md #236), which <code>tests/replay/test_replays_log_quietly.py</code>
 and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary test run.</p>
 <p>Until a build generates them, this page has only this text.</p>
-<p>Generated from 213 ledger rows (1498 in the repository, 213 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
+<p>Generated from 220 ledger rows (1575 in the repository, 213 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
 <h2 id="latest-measurements">Latest measurements<a class="headerlink" href="#latest-measurements" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -368,71 +376,71 @@ and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary t
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>c78867e</code></td>
+<td><code>e8e88b4</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">1.656</td>
-<td style="text-align: right;">1.862</td>
-<td style="text-align: right;">5.205</td>
+<td style="text-align: right;">1.721</td>
+<td style="text-align: right;">1.913</td>
+<td style="text-align: right;">3.787</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>c78867e</code></td>
+<td><code>e8e88b4</code></td>
 <td style="text-align: right;">472</td>
-<td style="text-align: right;">1.738</td>
-<td style="text-align: right;">2.112</td>
-<td style="text-align: right;">3.649</td>
+<td style="text-align: right;">1.809</td>
+<td style="text-align: right;">2.137</td>
+<td style="text-align: right;">4.068</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>c78867e</code></td>
+<td><code>e8e88b4</code></td>
 <td style="text-align: right;">532</td>
-<td style="text-align: right;">0.415</td>
-<td style="text-align: right;">0.715</td>
-<td style="text-align: right;">2.774</td>
+<td style="text-align: right;">0.422</td>
+<td style="text-align: right;">0.729</td>
+<td style="text-align: right;">2.785</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>c78867e</code></td>
+<td><code>e8e88b4</code></td>
 <td style="text-align: right;">1614</td>
-<td style="text-align: right;">0.394</td>
-<td style="text-align: right;">0.580</td>
-<td style="text-align: right;">5.200</td>
+<td style="text-align: right;">0.400</td>
+<td style="text-align: right;">0.596</td>
+<td style="text-align: right;">4.848</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>c78867e</code></td>
+<td><code>e8e88b4</code></td>
 <td style="text-align: right;">2072</td>
-<td style="text-align: right;">0.629</td>
-<td style="text-align: right;">0.822</td>
-<td style="text-align: right;">3.840</td>
+<td style="text-align: right;">0.658</td>
+<td style="text-align: right;">0.963</td>
+<td style="text-align: right;">4.633</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>c78867e</code></td>
+<td><code>e8e88b4</code></td>
 <td style="text-align: right;">450</td>
-<td style="text-align: right;">0.078</td>
-<td style="text-align: right;">0.211</td>
-<td style="text-align: right;">0.305</td>
+<td style="text-align: right;">0.090</td>
+<td style="text-align: right;">0.184</td>
+<td style="text-align: right;">0.325</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
 <td><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
-<td><code>c78867e</code></td>
+<td><code>e8e88b4</code></td>
 <td style="text-align: right;">622</td>
-<td style="text-align: right;">0.079</td>
-<td style="text-align: right;">0.140</td>
-<td style="text-align: right;">2.989</td>
+<td style="text-align: right;">0.088</td>
+<td style="text-align: right;">0.237</td>
+<td style="text-align: right;">3.240</td>
 <td style="text-align: right;">0</td>
 </tr>
 </tbody>

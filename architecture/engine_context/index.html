@@ -91,6 +91,8 @@
                   </li>
                   <li class="toctree-l1 current"><a class="reference internal current" href="#">Engine Context</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../sound/">Sound</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
@@ -110,6 +112,10 @@
                 <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-29-sprite-quicklook-design/">Sprite QuickLook for macOS</a>
                 </li>
                 <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-30-unified-pixel-rows-design/">One Rule for Sprite Pixel Rows</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-feature-spec/">Sound Engine Features</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-implementation-spec/">Sound Engine Implementation</a>
                 </li>
     </ul>
                   </li>
@@ -190,6 +196,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../sound_board_demo/">sound_board_demo</a>
+                  </li>
                   <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
                   </li>
               </ul>
@@ -220,7 +228,7 @@
   </ul>
     <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
         <a href="../playback/testing/" class="btn btn-neutral float-left" title="How We Test Playback"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
-        <a href="../../multi_controller_system/" class="btn btn-neutral float-right" title="Multi-Controller System">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+        <a href="../sound/" class="btn btn-neutral float-right" title="Sound">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
     </div>
   <hr/>
 </div>
@@ -230,7 +238,7 @@
                 <h1 id="engine-context">Engine Context<a class="headerlink" href="#engine-context" title="Permanent link">#</a></h1>
 <p>An engine context is the state one running game owns, so several games can run in one process
 (the Arcade's demo tiles; design: <code>plans/2026-10-25-engine-context.md</code>). Ordinary games never
-create one: they run in the default context, exactly as before. Only the six slots below are
+create one: they run in the default context, exactly as before. Only the nine slots below are
 per context today; the rest of the process-wide state (<code>GameEngine</code> and its <code>OPTIONS</code>,
 <code>SceneManager.OPTIONS</code>, <code>FontManager</code>, <code>ResourceManager</code>, the event managers and the other rows
 of the audit in <code>plans/2026-10-25-engine-context.md</code>) is still shared and belongs to later
@@ -253,7 +261,11 @@ tests do.</p>
    when started with <code>context=contextvars.copy_context()</code> (or on an interpreter whose
    <code>sys.flags.thread_inherit_context</code> is set, such as free-threaded 3.14 builds).</li>
 <li>A context owns only what its slots hold. The display, the mixer, SDL's event queue and the
-   joystick subsystem are one per process.</li>
+   joystick subsystem are one per process. So are read-only caches of values computed only from their keys,
+   such as the background pattern cache and the engine's own compiled sounds
+   (<code>glitchygames.audio.library.ENGINE_SOUND_CACHE</code>: the CRT power-on's, compiled once per
+   process and shared by every context as read-only samples; each context makes its own <code>Sound</code>
+   over them).</li>
 </ol>
 <h2 id="what-belongs-to-a-context-today">What belongs to a context today<a class="headerlink" href="#what-belongs-to-a-context-today" title="Permanent link">#</a></h2>
 <table>
@@ -300,6 +312,16 @@ tests do.</p>
 <td><code>src/glitchygames/scenes/scene.py</code></td>
 <td><code>SceneManager()</code>, <code>SceneManager._reset()</code></td>
 </tr>
+<tr>
+<td><code>glitchygames.audio.waves.registry</code></td>
+<td><code>src/glitchygames/audio/waves.py</code></td>
+<td><code>current_wave_registry</code> (the named waves a sound file or <code>Wave</code> registers; <code>AudioEngine.waves</code>)</td>
+</tr>
+<tr>
+<td><code>glitchygames.audio.engine.audio_engine</code></td>
+<td><code>src/glitchygames/audio/engine.py</code></td>
+<td><code>SceneManager.audio</code>, <code>existing_audio_engine</code>, <code>install_audio_engine</code>, <code>discard_audio_engine</code></td>
+</tr>
 </tbody>
 </table>
 <p><code>tests/test_engine_context.py</code> proves, for every slot, that two contexts in one process never
@@ -309,7 +331,7 @@ see each other's values; a slot added without such a check fails the suite.</p>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
         <a href="../playback/testing/" class="btn btn-neutral float-left" title="How We Test Playback"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../../multi_controller_system/" class="btn btn-neutral float-right" title="Multi-Controller System">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../sound/" class="btn btn-neutral float-right" title="Sound">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -339,7 +361,7 @@ see each other's values; a slot added without such a check fails the suite.</p>
       <span><a href="../playback/testing/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../../multi_controller_system/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../sound/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

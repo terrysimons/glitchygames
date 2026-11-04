@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://terrysimons.github.io/glitchygames/architecture/sound/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Sound - GlitchyGames</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../css/full-width.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Sound";
+        var mkdocs_page_input_path = "architecture/sound.md";
+        var mkdocs_page_url = "/glitchygames/architecture/sound/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> GlitchyGames
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">GlitchyGames Getting Started</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="" href="https://terrysimons.github.io/glitchygames/play/">Play in the Browser</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Documentation</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../bitmappy/">Bitmappy Architecture</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Games</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../game_packages/">Games as Their Own Packages</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/paddleslap/">PaddleSlap Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/brave_adventurer/">Brave Adventurer Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/clockwork_keep/">Clockwork Keep Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/mr_muncher/">Mr. Muncher Architecture</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../games/drawing_fire/">Drawing Fire Architecture</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../event_system/">Event System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../argument_system/">Argument System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gameplay_replay/">Gameplay Recording and Replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Playback</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../playback/">Gameplay Playback</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../playback/how-a-frame-runs/">How a Frame Runs</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../playback/speeds-and-timing/">Speeds and Timing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../playback/recording-file/">The Recording File</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../playback/testing/">How We Test Playback</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../engine_context/">Engine Context</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Sound</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../multi_controller_system/">Multi-Controller System</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/complexity/">Code Complexity</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/performance/">Replay Performance</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/driver_comparison/">Driver Comparison</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../quality/upstream_issues/">Upstream Issues</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../galimore/">Galimore Survey</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Designs</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-27-glitchy-games-website-design/">glitchy.games Website on AWS</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-29-sprite-quicklook-design/">Sprite QuickLook for macOS</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-10-30-unified-pixel-rows-design/">One Rule for Sprite Pixel Rows</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-feature-spec/">Sound Engine Features</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../specs/2026-11-02-sound-engine-implementation-spec/">Sound Engine Implementation</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+                <ul><li>
+                    <a href="../../glitchygames/" style="padding: 0; font-size: inherit; line-height: inherit">
+              <p class="caption"><span class="caption-text">glitchygames API Reference</span></p>
+                    </a>
+                </li></ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/api/">glitchygames.api</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/audio/">glitchygames.audio</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/collision/">glitchygames.collision</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/color/">glitchygames.color</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/effects/">glitchygames.effects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/engine/">glitchygames.engine</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/events/">glitchygames.events</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/fonts/">glitchygames.font</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/game_objects/">glitchygames.game_objects</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/input/">glitchygames.input</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/interfaces/">glitchygames.interfaces</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/movement/">glitchygames.movement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/physics/">glitchygames.physics</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/pixels/">glitchygames.pixels</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/replay/">glitchygames.replay</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/scenes/">glitchygames.scenes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/sprites/">glitchygames.sprites</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/state/">glitchygames.state</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/templates/">glitchygames.templates</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/tools/">glitchygames.tools</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/transitions/">glitchygames.transitions</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../glitchygames/ui/">glitchygames.ui</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Games API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../mr_muncher/">mr_muncher</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_core/">brave_adventurer_core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer/">brave_adventurer</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_papyrus/">brave_adventurer_papyrus</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../brave_adventurer_modes/">brave_adventurer_modes</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../clockwork_keep/">clockwork_keep</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../paddleslap/">paddleslap</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../drawing_fire/">drawing_fire</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Demos API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../dt_demo/">dt_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../joystick_demo/">joystick_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../sound_board_demo/">sound_board_demo</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../text_input_demo/">text_input_demo</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Apps API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../bitmappy/">bitmappy</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">GlitchyGames</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Documentation</li>
+      <li class="breadcrumb-item active">Sound</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/terrysimons/glitchygames/edit/master/docs/architecture/sound.md">Edit on glitchygames</a>
+    </li>
+  </ul>
+    <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Breadcrumb Navigation">
+        <a href="../engine_context/" class="btn btn-neutral float-left" title="Engine Context"><span class="icon icon-circle-arrow-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../multi_controller_system/" class="btn btn-neutral float-right" title="Multi-Controller System">Next <span class="icon icon-circle-arrow-right" aria-hidden="true"></span></a>
+    </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="sound">Sound<a class="headerlink" href="#sound" title="Permanent link">#</a></h1>
+<p>The sound engine's first milestone (M1) gives every game one call for sound:
+<code>scene_manager.audio.sound(...)</code>. It takes a short name, a path or an <code>Instrument</code>, compiles the
+sound the first time it is asked for, and hands back the same compiled sound on every later
+request. Getting a sound never plays it.</p>
+<p>The design is in two specifications:</p>
+<ul>
+<li><a href="../../specs/2026-11-02-sound-engine-feature-spec/">Sound engine feature specification</a>: what
+  the engine does, with the requirement ids (<code>AUD-*</code>) used below.</li>
+<li><a href="../../specs/2026-11-02-sound-engine-implementation-spec/">Sound engine implementation specification</a>:
+  how each requirement is met, the decision and risk registers, and the measurements.</li>
+</ul>
+<p>M2 adds live instruments (sounds that follow game parameters), moves the five games onto this
+API and removes the old sound paths (<code>SoundBank</code>, <code>load_sound</code>, <code>live_audio</code>). Until then those
+keep working beside it on channels of their own.</p>
+<h2 id="one-call">One call<a class="headerlink" href="#one-call" title="Permanent link">#</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.audio</span><span class="w"> </span><span class="kn">import</span> <span class="n">Instrument</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.scenes</span><span class="w"> </span><span class="kn">import</span> <span class="n">Scene</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">Game</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="n">audio</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene_manager</span><span class="o">.</span><span class="n">audio</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">coin</span> <span class="o">=</span> <span class="n">audio</span><span class="o">.</span><span class="n">sound</span><span class="p">(</span><span class="s1">'coin'</span><span class="p">)</span>                        <span class="c1"># a short name</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">slap</span> <span class="o">=</span> <span class="n">audio</span><span class="o">.</span><span class="n">sound</span><span class="p">(</span><span class="s1">'sounds/sfx_slap.wav'</span><span class="p">)</span>         <span class="c1"># a path</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">zap</span> <span class="o">=</span> <span class="n">audio</span><span class="o">.</span><span class="n">sound</span><span class="p">(</span><span class="n">Instrument</span><span class="p">(</span><span class="n">wave</span><span class="o">=</span><span class="s1">'square'</span><span class="p">),</span> <span class="n">pitch</span><span class="o">=</span><span class="s1">'C5'</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">jingle</span> <span class="o">=</span> <span class="n">audio</span><span class="o">.</span><span class="n">sound</span><span class="p">(</span><span class="s1">'coin'</span><span class="p">,</span> <span class="n">notes</span><span class="o">=</span><span class="s1">'C5:0.1 E5:0.1 G5:0.2'</span><span class="p">)</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">on_key_down_event</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">coin</span><span class="o">.</span><span class="n">play</span><span class="p">(</span><span class="n">volume</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">pan</span><span class="o">=-</span><span class="mf">0.5</span><span class="p">)</span>                  <span class="c1"># a SoundHandle</span>
+</code></pre></div>
+<ul>
+<li><code>audio.sound(source, *, pitch=None, notes=None, chord=None, length=None, transpose=0.0,
+  parameters=None)</code> returns a compiled <code>Sound</code>. What it is (the source and those arguments) is
+  its identity: the same identity is compiled once and cached.</li>
+<li><code>Sound.play(*, volume, pan, bus, priority, loop, persist, ...)</code> plays it and returns a
+  <code>SoundHandle</code>: <code>stop(fade=...)</code>, <code>cancel()</code>, <code>release()</code> (a loop ends after its pass),
+  <code>set_volume(volume, fade=...)</code>, <code>set_pan(pan)</code> and <code>is_playing</code>. Every method answers False
+  once the voice has ended, and never touches a later voice on the same channel.</li>
+<li><code>audio.play(source, ...)</code> is <code>audio.sound(source, ...).play(...)</code> in one call, and
+  <code>audio.beep(pitch='A4', wave='square', length=0.1)</code> plays a basic wave.</li>
+<li>Pitches may be note names (<code>'A4'</code>, <code>'C#5'</code>), hertz (<code>Hz(440.0)</code> or a float), MIDI numbers
+  (<code>Midi(69)</code>) or scale steps (<code>Scale('C', 'major').step(2)</code>, step 0 being the root in octave
+  4), mixed freely. A4 is 440 Hz.</li>
+<li>Waves are named (<code>sine</code>, <code>square</code>, <code>saw</code>, <code>triangle</code>, the pulse widths, ...), and new ones can
+  be mixed, blended, drawn as points or built from harmonics (<code>Wave</code>, <code>Harmonics</code>,
+  <code>WavePoint</code>, with the <code>CYCLE</code> and <code>LEVEL</code> named positions). Each engine context has its own
+  wave registry.</li>
+</ul>
+<p>Compile in <code>setup()</code>. That is the convention, not a rule: a sound first asked for during gameplay
+compiles in that frame, and the engine counts it, logs it and shows it in the Audio panel as a
+gameplay compile, so you can move it into <code>setup()</code>. A setup whose compiles take more than 50 ms
+logs one INFO line naming its slowest sounds. A loading screen can spread compiles across frames
+with <code>audio.sounds.warm(requests, budget_ms=...)</code>.</p>
+<h2 id="short-names-and-paths">Short names and paths<a class="headerlink" href="#short-names-and-paths" title="Permanent link">#</a></h2>
+<p>A short name (<code>'coin'</code>) is looked up in the active scene's <code>SOUND_DIRECTORY</code> (a class attribute,
+<code>'sounds'</code> by default), relative to the scene's package directory. Every sound file there
+contributes its sounds by name; two files defining the same name are an error naming both. A
+recorded file is a short name too: <code>sounds/sfx_slap.wav</code> is <code>'sfx_slap'</code>.</p>
+<p>A path (<code>'sounds/pickups.toml#coin'</code>, <code>'sounds/sfx_slap.wav'</code>) is relative to the scene's package
+directory and always works, whatever the short-name index holds.</p>
+<p>A sound file is TOML (version 1):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">[glitchygames]</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">kind</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"sounds"</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">[instruments.pickup]</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">profile</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"chip"</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">envelope</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">attack</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.002</span><span class="p">,</span><span class="w"> </span><span class="n">decay</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.04</span><span class="p">,</span><span class="w"> </span><span class="n">sustain</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="n">release</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.02</span><span class="p">,</span><span class="w"> </span><span class="n">curve</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">"steps(16)"</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="k">[instruments.pickup.sources.tone]</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="n">wave</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"pulse_25"</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="k">[sounds.coin]</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="n">instrument</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"pickup"</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="n">notes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"B5:0.06 E6:0.18"</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="n">bus</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"effects"</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="n">volume</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.6</span>
+</code></pre></div>
+<p>Version 0 recipe files (<code>[recipes.*]</code>) still load and sound exactly as before;
+<code>glitchygames sound-migrate FILE</code> converts one to version 1.</p>
+<h2 id="cache-modes">Cache modes<a class="headerlink" href="#cache-modes" title="Permanent link">#</a></h2>
+<p><code>--sound-cache</code> chooses how compiled sounds are kept (replay-local: a recording replays under any
+mode):</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ram</code> (default)</td>
+<td>Compiled sounds stay in memory. Above <code>--sound-cache-memory</code> (256 MB) the least recently played sounds that are not playing are dropped, and compiled again on their next request (counted).</td>
+</tr>
+<tr>
+<td><code>none</code></td>
+<td>Nothing is kept: every <code>play()</code> compiles in its frame. This is the switch that shows what compiling in gameplay costs. Getting a sound renders nothing, and a sound played 5 times compiles 5 times. What a game reads of a sound never depends on the cache (a replay may run under another mode): a synthesized sound's <code>length</code> is worked out without rendering, exactly as a compile would size it; whatever only a compile can tell (every <code>peak</code>, and a recorded file's <code>length</code> and rate) comes from one compile on its first read, counted like any compile, then kept. A play's compile gives them too, so a read after a play compiles nothing more.</td>
+</tr>
+<tr>
+<td><code>disk</code></td>
+<td>Arrives in M3; refused now (<code>OPTIONS_REFUSED</code>).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="voices-channels-and-buses">Voices, channels and buses<a class="headerlink" href="#voices-channels-and-buses" title="Permanent link">#</a></h2>
+<p>The mixer's channels are partitioned once at startup: the live voice pool (<code>--live-voice-pool</code>,
+4), then the sound library's channels (<code>--sound-channels</code>, 32), then pygame's 8 for legacy
+<code>Sound.play()</code> callers. Neither side can take the other's channels.</p>
+<p>A play takes the lowest free library channel its bus may use. When none is free it steals a
+playing voice of lower or equal priority (releasing voices first, then the lowest priority, the
+earliest play): the stolen channel fades with <code>Channel.fadeout(10)</code> and the new sound starts on
+another free channel, or on the stolen one a frame later (a <em>delayed play</em>). A play with nothing
+to steal is dropped. Steals, delayed plays and drops are counted.</p>
+<p>What a game sees never depends on the audio device: <code>is_playing</code> and voice endings follow each
+voice's played time, which advances by the frame's served <code>dt</code> (the recorded <code>dt</code> in a replay),
+so a replay sees the same answers. Frames run in silence (a watched replay's step-back rebuild,
+an instant replay's fast-forward) only quiet the channels: their voices go on by frame time, so
+<code>is_playing</code>, voice endings and steals are the same as when those frames were heard.</p>
+<p>Buses form a tree under <code>master</code>: <code>music</code>, <code>effects</code>, <code>ui</code>, <code>ambience</code> and <code>dialogue</code> always
+exist (<code>ui</code> and <code>music</code> keep two channels each that a storm of effects cannot take), and
+<code>audio.buses.add(name, parent=...)</code> adds more. A bus has a <code>volume</code>, <code>mute</code> and <code>solo</code>; changes
+reach every playing voice of the bus at the next frame. <code>audio.stop_all(fade=..., bus=...)</code> fades
+a bus and the buses under it, or everything.</p>
+<p>Plays belong to the scene that started them. When a scene is switched away from directly, its
+voices fade over 50 ms unless they were played with <code>persist=True</code>; behind a pause screen they
+pause and resume.</p>
+<h3 id="fades-on-the-device-measured">Fades on the device (measured)<a class="headerlink" href="#fades-on-the-device-measured" title="Permanent link">#</a></h3>
+<p>SDL_mixer (2.8.2 with pygame-ce 2.5.8) changes a channel's level only between mixer chunks, 512
+frames (11.6 ms) at 44.1 kHz. Measured through SDL's disk audio driver
+(<code>tests/audio/test_channel_fades.py</code>; the steal's ordering, which depends on when the mixer
+thread runs, in <code>tests/benchmarks/test_channel_fade_relations.py</code> under <code>--benchmark-only</code>):</p>
+<ul>
+<li><code>Channel.fadeout(10)</code> (a steal) is one plateau or an immediate halt, and <code>Channel.play</code> straight
+  after it replaces the fading sound at the next chunk, so the engine keeps its one-frame wait.</li>
+<li>A volume or bus fade stepped once per frame over 50 ms reaches the channel as three gain steps
+  of a third, each at a chunk boundary.</li>
+<li>The CRT skip's <code>Channel.fadeout(20)</code> is one or two plateaus and then a halt.</li>
+</ul>
+<p>None of these is a smooth ramp by the feature spec's discontinuity metric (16.1), so steals,
+short fades and the CRT skip can click. Whether they are heard is the owner's listening check;
+the fallback, fades rendered into the sound by the engine, is the owner's decision (impl spec
+risks R4 and R5).</p>
+<h2 id="accounting">Accounting<a class="headerlink" href="#accounting" title="Permanent link">#</a></h2>
+<p>Every compile, file decode and cache read is timed. Each frame's audio work goes to the
+recording doors as <code>audio_seconds</code> (the total) and <code>audio_work</code> (<code>(kind, name, microseconds)</code>
+entries, at most 32 a frame, the rest summed as <code>other</code>), so a recording holds what audio cost
+frame by frame; the times are measurements and never change what is drawn or played.</p>
+<p><code>audio.diagnostics()</code> returns the totals: voices playing and the voice limit; compiles and their
+milliseconds, split into setup and gameplay; the last 32 gameplay compiles with their frames;
+stolen voices, delayed plays and dropped plays; the device format; and the cache's hits, misses,
+compiles and bytes held.</p>
+<h2 id="the-audio-panel">The Audio panel<a class="headerlink" href="#the-audio-panel" title="Permanent link">#</a></h2>
+<p>The debug overlay (<code>--debug-overlay</code>, F3; F4 cycles panels) has an Audio panel after
+Performance. <code>--sound-diagnostics</code> opens the overlay on it. It shows the cache mode, the mixer's
+format and the voice counts; an audio-time graph stacked by kind of work (compile red, decode
+orange, live blue, cache grey) on the same time axis as the frame-time graph; a strip with one
+cell per channel (idle, playing, fading, paused; a stolen channel flashes); the bus meters (a
+soloed bus is marked); and the compile log, with gameplay compiles in red. Under the All panel
+only its header lines are drawn. The panel is built from <code>AudioEngine.snapshot()</code> only while
+the overlay is visible, and never appears in screenshots.</p>
+<h2 id="the-crt-power-on-sound">The CRT power-on sound<a class="headerlink" href="#the-crt-power-on-sound" title="Permanent link">#</a></h2>
+<p>The CRT power-on sequence (<code>src/glitchygames/crt_power_on.py</code>) plays with a sound
+(<code>src/glitchygames/crt_power_on_sound.py</code>, feature spec 12.1): a power click and a 60 Hz degauss
+thump at the switch, the flyback whine from the dot, static as the picture opens, then the bars'
+1 kHz tone (or channel 3's hiss). All are <code>Instrument</code>s requested through
+<code>audio.engine_sound(...)</code>, the engine's own sounds' <code>audio.sound</code>.</p>
+<p>They compile once per process, on the first power-on that plays its sound, and every later
+power-on reuses them: a second game run in one process (the Arcade, the test harness's repeated
+engines) and every engine context compiles nothing for the CRT. The compiled samples are kept in
+the engine's process-wide cache (<code>glitchygames.audio.library.ENGINE_SOUND_CACHE</code>), keyed by each
+sound's identity key, which holds the mixer's rate and the tuning: a mixer restarted at another
+rate compiles them anew. Only the samples are shared, read-only; each context gets its own
+<code>Sound</code> over them (its own player and pygame sound), and game sounds stay in each context's
+library. The cache is exempt from the memory limit's eviction and from <code>--sound-cache none</code> (the
+CRT is the engine's, not something a game benchmarks): under <code>none</code> the CRT's plays compile
+nothing. The first compile is counted and attributed like any compile in the context that
+triggered it; every reuse is a cache hit. Headless runs, tests that never power on and
+<code>--crt-power-on-sound off</code> compile nothing.</p>
+<p>The cues follow the progress that draws the picture, each starting on the frame nearest its point,
+so at a steady 60 frames a second or more every onset is within 10 ms of its point (AUD-CRT-001);
+a hitch can delay a cue by a frame.</p>
+<p>A key or button skips the sequence and fades every CRT voice over 20 ms (on the device: a plateau
+or two and a halt, as measured above). Otherwise the tail loops into the game and fades over
+500 ms from frame 0's first audio update. <code>--crt-power-on-sound off</code> plays the picture silently;
+the sound never plays where the picture does not (<code>--headless</code>, tests, replays, recordings).</p>
+<h2 id="the-instrument-catalog">The instrument catalog<a class="headerlink" href="#the-instrument-catalog" title="Permanent link">#</a></h2>
+<p><code>glitchygames.audio.instruments</code> holds 431 ready-made instruments in 18 families. Each is an
+ordinary <code>Instrument</code>, built from the engine's own parts (waves from overtone series, noise,
+layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
+and renders offline like any other:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.audio</span><span class="w"> </span><span class="kn">import</span> <span class="n">instruments</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">violin</span> <span class="o">=</span> <span class="n">instruments</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'violin'</span><span class="p">)</span>                       <span class="c1"># built once, then kept</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">tune</span> <span class="o">=</span> <span class="n">audio</span><span class="o">.</span><span class="n">sound</span><span class="p">(</span><span class="n">violin</span><span class="p">,</span> <span class="n">notes</span><span class="o">=</span><span class="s1">'G3:0.5 D4:0.5 A4:1'</span><span class="p">)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">instruments</span><span class="o">.</span><span class="n">entry</span><span class="p">(</span><span class="s1">'alto saxophone'</span><span class="p">)</span><span class="o">.</span><span class="n">playing_range</span>        <span class="c1"># (Note('Db3'), Note('Ab5'))</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">instruments</span><span class="o">.</span><span class="n">names</span><span class="p">(</span><span class="n">family</span><span class="o">=</span><span class="n">instruments</span><span class="o">.</span><span class="n">Family</span><span class="o">.</span><span class="n">BRASS</span><span class="p">)</span>       <span class="c1"># every brass instrument</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Entries</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>flutes</code></td>
+<td>30</td>
+<td>piccolo to contrabass flute, wooden flutes, sopranino to contrabass recorders, whistles, shakuhachi, ocarinas</td>
+</tr>
+<tr>
+<td><code>clarinets</code></td>
+<td>9</td>
+<td>E-flat to contrabass clarinet, basset horn, chalumeau</td>
+</tr>
+<tr>
+<td><code>saxophones</code></td>
+<td>8</td>
+<td>sopranino to contrabass, C melody</td>
+</tr>
+<tr>
+<td><code>double reeds</code></td>
+<td>23</td>
+<td>oboe family, bassoon and contrabassoon, shawms, crumhorns, suona, duduk</td>
+</tr>
+<tr>
+<td><code>bagpipes</code></td>
+<td>8</td>
+<td>Highland, uilleann, smallpipes, gaita, gaida, musette (drones built in)</td>
+</tr>
+<tr>
+<td><code>free reeds</code></td>
+<td>13</td>
+<td>accordions (dry, musette, bass), bandoneon, concertina, harmonicas, melodicas, sheng</td>
+</tr>
+<tr>
+<td><code>brass</code></td>
+<td>42</td>
+<td>piccolo trumpet to contrabass tuba, alto to contrabass trombone, mutes, historic and folk horns</td>
+</tr>
+<tr>
+<td><code>bowed strings</code></td>
+<td>27</td>
+<td>violin to double bass, sections, pizzicato, viols, erhu, hurdy-gurdy</td>
+</tr>
+<tr>
+<td><code>plucked strings</code></td>
+<td>58</td>
+<td>guitars (nylon, steel, twelve-string, electric clean to distortion), basses, ukuleles, banjos, mandolins, lutes, sitar, koto</td>
+</tr>
+<tr>
+<td><code>harps</code></td>
+<td>7</td>
+<td>concert, lever, wire-strung, triple harp, lyre, kora</td>
+</tr>
+<tr>
+<td><code>struck strings</code></td>
+<td>5</td>
+<td>hammered dulcimer, cimbalom, santur, yangqin, berimbau</td>
+</tr>
+<tr>
+<td><code>keyboards</code></td>
+<td>14</td>
+<td>pianos, harpsichords, clavichord, electric pianos, clavinet, celesta</td>
+</tr>
+<tr>
+<td><code>organs</code></td>
+<td>16</td>
+<td>pipe organ stops and plenum, tonewheel registrations and percussion, calliope</td>
+</tr>
+<tr>
+<td><code>electronic</code></td>
+<td>15</td>
+<td>theremin, ondes Martenot, leads, pads, basses, chiptune pulses</td>
+</tr>
+<tr>
+<td><code>tuned percussion</code></td>
+<td>27</td>
+<td>glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan</td>
+</tr>
+<tr>
+<td><code>drums and percussion</code></td>
+<td>61</td>
+<td>kits (kicks, snares, toms, hi-hats, cymbals), hand drums, shakers, blocks</td>
+</tr>
+<tr>
+<td><code>voices</code></td>
+<td>55</td>
+<td>soprano, mezzo, alto, treble, countertenor, tenor, baritone, bass and basso profundo on ah, eh, ee, oh, oo and humming; whistling</td>
+</tr>
+<tr>
+<td><code>choirs</code></td>
+<td>13</td>
+<td>soprano, alto, tenor and bass sections on ah, oh and oo; children's choir</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Names and families are lowercase words separated by spaces (<code>'tenor saxophone'</code>, <code>'double
+  reeds'</code>). <code>get</code>, <code>entry</code>, <code>names</code> and <code>entries</code> lowercase what they are given, so
+  <code>instruments.get('Tenor Saxophone')</code> is the same instrument.</li>
+<li>Each entry has a <code>title</code>, a <code>family</code> and its playing range, <code>lowest</code> and <code>highest</code> (sounding
+  pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
+  have no range: their tones are fixed, so give any pitch (<code>pitch='A4'</code>); it does not change
+  the sound.</li>
+<li>They are synthesized approximations. The engine has no recorded samples, vibrato or moving
+  filters yet, so sustained tones are steady, and a voice's vowel is truest in the middle of its
+  range (its formants are placed for that pitch and move with the note elsewhere).</li>
+<li>The ranges and models were audited against published references (orchestration texts, the
+  Vienna Symphonic Library, makers' specifications, Fletcher and Rossing, the Csound formant
+  table) on 2026-11-03 and corrected. An organ's range is its keys at 8' pitch (C2-C7; a 16'
+  stop sounds an octave lower). Paired strings double every note, though a twelve-string
+  guitar's or a bouzouki's octave pairs are only on its lower courses, and a church bell leaves
+  out its weak quint, as an instrument has at most four sources.</li>
+<li><code>uv run python -m scripts.make_instrument_demos [DIRECTORY] [--only TEXT]</code> renders every
+  instrument climbing its range (or four hits) to <code>build/instruments/&lt;family&gt;/&lt;name&gt;.wav</code>.</li>
+<li><code>uv run python scripts/make_pipes.py [DIRECTORY]</code> renders a Highland bagpipe and uilleann
+  pipes (chanter, drones and regulators) and <em>Sí Bheag, Sí Mhór</em> to <code>build/pipes/</code>;
+  <code>uv run python -m scripts.pipe_tunes scripts/pipe_tunes_abc [DIRECTORY]</code> plays the 20
+  public-domain tunes in <code>scripts/pipe_tunes_abc/</code> (ABC notation, sources in its
+  <code>index.json</code>) on them, to <code>build/pipes/tunes/</code>.</li>
+</ul>
+<h2 id="the-sound-board">The Sound Board<a class="headerlink" href="#the-sound-board" title="Permanent link">#</a></h2>
+<p><code>uv run sound-board-demo</code> (<code>src/demos/sound-board-demo/</code>) plays every built-in wave and noise:
+one row per wave, the eight notes of C major on keys 1-8, Up and Down to pick a row, L to switch
+the labels between note names, hertz and scale steps (the same pitches play), and C for a C major
+chord. It starts with the Audio panel open; every sound is requested in <code>setup()</code>, so playing a
+key never compiles anything.</p>
+<h2 id="offline-rendering">Offline rendering<a class="headerlink" href="#offline-rendering" title="Permanent link">#</a></h2>
+<p><code>glitchygames.audio.render_to_file(sound, path, ...)</code> writes a sound to a WAV file with no audio
+device; <code>glitchygames sound-render SOURCE --sound-output PATH</code> does the same from the command
+line. A sound rendered alone is its compiled buffer, bit for bit.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../engine_context/" class="btn btn-neutral float-left" title="Engine Context"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../../multi_controller_system/" class="btn btn-neutral float-right" title="Multi-Controller System">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/terrysimons/glitchygames" class="fa fa-code-fork" style="color: #fcfcfc"> glitchygames</a>
+        </span>
+    
+    
+      <span><a href="../engine_context/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../../multi_controller_system/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js"></script>
+      <script src="../../js/mermaid-init.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
