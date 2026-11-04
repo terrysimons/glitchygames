@@ -81,21 +81,3 @@ def test_every_benchmark_path_exists_and_holds_benchmarks() -> None:
         assert any((PROJECT_ROOT / file).is_relative_to(root) for file in files), (
             f'noxfile.py _BENCHMARK_PATHS names a path with no benchmarks: {path}'
         )
-
-
-def test_performance_test_session_runs_only_the_benchmark_paths() -> None:
-    """The performance-test session passes _BENCHMARK_PATHS to pytest."""
-    module = ast.parse(NOXFILE_PATH.read_text(encoding='utf-8'))
-    session = next(
-        node
-        for node in module.body
-        if isinstance(node, ast.FunctionDef) and node.name == 'performance_test'
-    )
-    starred_names = {
-        node.value.id
-        for node in ast.walk(session)
-        if isinstance(node, ast.Starred) and isinstance(node.value, ast.Name)
-    }
-    assert '_BENCHMARK_PATHS' in starred_names, (
-        'performance_test must pass *_BENCHMARK_PATHS to pytest'
-    )

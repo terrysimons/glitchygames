@@ -551,8 +551,12 @@ def test_docs_deploy_publishes_only_from_main():
     assert on_main not in docs_deploy_commands(posargs=['--build-only'])
 
 
-def test_the_performance_session_benchmarks_every_testpath():
-    """Benchmarks live in several packages' tests: pytest is given no directory to narrow it."""
+def test_the_performance_session_collects_only_the_benchmark_paths():
+    """The session gives pytest exactly ``_BENCHMARK_PATHS``, so it collects only benchmarks.
+
+    Benchmarks live in several packages' tests; tests/test_benchmark_paths.py fails if one is
+    added outside these paths.
+    """
     import noxfile
 
     session = RecordingSession(posargs=[])
@@ -560,7 +564,7 @@ def test_the_performance_session_benchmarks_every_testpath():
 
     pytest_command = next(command for command in session.commands if command[0] == 'pytest')
     assert '--benchmark-only' in pytest_command
-    assert not [argument for argument in pytest_command if argument.startswith('tests')]
+    assert pytest_command[-len(noxfile._BENCHMARK_PATHS) :] == tuple(noxfile._BENCHMARK_PATHS)
 
 
 def test_the_wheel_build_builds_every_workspace_package(mocker):
