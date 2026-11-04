@@ -17,6 +17,12 @@ Outside CI, `uv run pytest` (and `nox -s test`) runs the suite twice at once:
    split between the two runs (the native run gets two thirds: it is slower per test), so the
    machine is no busier than for one run.
 
+The native run's windows are hidden (`tests/hidden_test_windows.py`): a shown window under the
+pointer, or holding the keyboard, receives the machine's mouse and keys as events, which reached
+tests (BUGS.md #225). A hidden window draws and presents the same pixels and receives no input.
+`GLITCHYGAMES_SHOW_TEST_WINDOWS=1` shows them again, to watch a run; the same holds for any run on
+a real driver (`SDL_VIDEODRIVER=cocoa uv run pytest ...`, `nox -s compare-drivers`).
+
 Both runs record a fingerprint (size and SHA-256 of the RGB bytes, as the window shows them) of
 every frame each test presents (`src/glitchygames/testing/frame_fingerprints.py`). When both have
 finished, the frames are compared (`src/glitchygames/testing/frame_comparison.py`; its command line

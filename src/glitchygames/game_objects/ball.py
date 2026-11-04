@@ -17,6 +17,7 @@ import pygame
 from glitchygames import game_objects
 from glitchygames.collision.detection import get_collision_rect, snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
+from glitchygames.collision.solids import entered_from_left
 from glitchygames.color import WHITE
 from glitchygames.movement import Speed
 
@@ -440,6 +441,10 @@ class BallSprite(Sprite):
         # The dt of the last dt_tick, so handle_paddle_collision can tell where the ball was
         # before this frame's move (0.0 until the first tick: no move to undo)
         self._last_tick_dt = 0.0
+        # Where the last dt_tick started (world_x, world_y), so a game can follow the ball's
+        # path through the frame (PaddleSlap's swept ball-ball check, BUGS.md #174); None until
+        # the first tick
+        self.frame_start_world_position: tuple[float, float] | None = None
 
         # Collision tracking (set by callers like PaddleSlap)
         self.collision_cooldowns: dict[str, float] = {}
@@ -727,6 +732,7 @@ class BallSprite(Sprite):
 
         """
         self._last_tick_dt = dt
+        self.frame_start_world_position = (self.world_x, self.world_y)
 
         # Check for continuous speed-up
         self._advance_continuous_speed_up(dt)
@@ -1011,16 +1017,15 @@ class BallSprite(Sprite):
             bool: True to push the ball out of the paddle's left face, False its right face.
 
         """
-        displacement_x = self.speed.x * self._last_tick_dt
-        previous_left = ball_rect.left - displacement_x
-        previous_right = ball_rect.right - displacement_x
-        if previous_right <= paddle_rect.left:
-            return True
-        if previous_left >= paddle_rect.right:
-            return False
-        ball_center_x = ball_rect.left + ball_rect.width / 2
-        paddle_center_x = paddle_rect.x + paddle_rect.width / 2
-        return ball_center_x < paddle_center_x
+        return entered_from_left(
+            mover_left=ball_rect.left,
+            mover_right=ball_rect.right,
+            displacement_x=self.speed.x * self._last_tick_dt,
+            solid_left=paddle_rect.left,
+            solid_right=paddle_rect.right,
+            mover_center_x=ball_rect.left + ball_rect.width / 2,
+            solid_center_x=paddle_rect.x + paddle_rect.width / 2,
+        )
 
     def handle_paddle_collision(self: Self, paddle: Sprite) -> bool:
         """Bounce off a paddle if the ball's visible circle touches it.
