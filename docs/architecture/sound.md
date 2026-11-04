@@ -257,6 +257,11 @@ instruments.names(family=instruments.Family.BRASS)       # every brass instrumen
   out its weak quint, as an instrument has at most four sources.
 - `uv run python -m scripts.make_instrument_demos [DIRECTORY] [--only TEXT]` renders every
   instrument climbing its range (or four hits) to `build/instruments/<family>/<name>.wav`.
+- `uv run python scripts/make_pipes.py [DIRECTORY]` renders a Highland bagpipe and uilleann
+  pipes (chanter, drones and regulators) and *Sí Bheag, Sí Mhór* to `build/pipes/`;
+  `uv run python -m scripts.pipe_tunes scripts/pipe_tunes_abc [DIRECTORY]` plays the 20
+  public-domain tunes in `scripts/pipe_tunes_abc/` (ABC notation, sources in its
+  `index.json`) on them, to `build/pipes/tunes/`.
 
 ## The Sound Board
 
