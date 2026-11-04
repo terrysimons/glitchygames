@@ -21,6 +21,13 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Date Reported**: 2026-11-03
 - **Files**: `src/glitchygames/build_info.py`, `tests/test_build_info.py`
 
+### 256. compare_driver_frames Reported Agreement for a Run That Recorded No Test
+- **Description**: `python -m scripts.compare_driver_frames compare A=DIR B=DIR` with a run directory holding no records (pytest refused its options, or ran no test) printed "Driver differences: 0" and exited `SUCCESS`: an empty comparison reads as full agreement. #192 fixed this for `scripts/driver_frame_matrix.py` (and `nox -s compare-drivers`) only
+- **Status**: Fixed (2026-11-02, backlog run: found when the #190 experiment's three runs failed to start and the comparisons still reported 0 differences. `run_compare` refuses a run that recorded no test, naming it on stderr, and exits `UNUSABLE_INPUT`, as the matrix does; `tests/test_compare_driver_frames.py::TestCommandLine::test_a_run_that_recorded_no_test_is_refused`. `test_main_exits_with_the_exit_code` had relied on the bug: it compared an empty directory and expected success)
+- **Priority**: Low (a false all-clear from a manual tool)
+- **Reporter**: The #190 investigation, 2026-11-02
+- **Date Reported**: 2026-11-02
+- **Files**: `scripts/compare_driver_frames.py`
 ### 259. An Inner pytest Run Listed the System Temp Directory and Lost a Race on Windows
 - **Description**: CircleCI build 2730 (`build-and-test-windows`, PR #143) failed `tests/world/test_mock_isolation.py::test_a_patched_test_does_not_leak_into_a_later_real_test`: its inner run errored collecting, `FileNotFoundError: [WinError 2] ... Temp\\replay-metrics-apve9n69` (another worker's `TemporaryDirectory`, from `replay/tools/measure.py`, gone between the listing and its `lstat`). The inner run uses the project's config (`-c pyproject.toml`) on a test file in the temp directory; `--rootdir` was already set to avoid exactly this, but pytest builds a directory node for every parent of the test file inside the **confcutdir**, which defaults to the config file's directory, and a parent counts as inside unless it is an ancestor of the project's: so the system temp directory was listed
 - **Status**: Fixed (2026-11-03, backlog run: proven locally with an audit hook on `os.scandir`: the inner run listed the temp root from `_pytest/main.py`'s `Session.collect`, and with `--confcutdir` set to the test's own directory it never does. The test now passes `--confcutdir` too. It is the only inner run using the project's config from outside the project)
@@ -183,7 +190,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ### 190. LayeredDirty Chooses How to Draw the Next Frame From Wall-Clock Time (Suspected)
 - **Description**: pygame's `LayeredDirty.draw` times itself with `pygame.time.get_ticks()` and draws the next frame in full-screen mode (the background over the whole surface, then every visible sprite) when a draw took longer than its threshold (1000/80 ms by default), and in dirty-rect mode (only the dirty areas cleared and redrawn) otherwise. Which mode a frame is drawn in therefore depends on the machine's speed and load, not on the game. Where the two modes draw different pixels (anything drawn on the surface before `draw()` outside the dirty areas, a non-dirty sprite outside them after the surface was filled) a slow machine presents different frames from a fast one
-- **Status**: Active
+- **Status**: Fixed (2026-11-02, backlog run: proven. Three dummy runs of the whole suite fingerprinting every frame: forcing full-screen mode (a slow machine) changed the frames of 184 tests and failed 4 that expect dirty-rect drawing; pinning dirty-rect mode after the first draw changed none. `Scene.all_sprites` is now a property whose setter pins the group (`pin_dirty_rect_drawing`: an unreachable timing threshold), so every scene's group is pinned however it is given, PaddleSlap's later assignment included. `tests/scenes/test_dirty_rect_drawing.py`. Plan: `plans/2026-11-02-layered-dirty-mode.md`)
 - **Priority**: Low (not observed: no frame differed between two dummy runs or between dummy and cocoa for this reason in the driver comparison, `nox -s compare-drivers`)
 - **Reporter**: Found investigating the dummy/cocoa driver comparison
 - **Date Reported**: 2026-10-23
