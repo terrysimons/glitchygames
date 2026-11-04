@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -432,6 +433,22 @@ def test_paths_escaping_the_package_are_refused(tmp_path, reference):
         load_sound_file(path)
 
 
+def test_an_absolute_path_is_refused_on_every_platform(tmp_path):
+    """An absolute path is refused as one, on every platform.
+
+    ``/usr/share/slap.wav`` is absolute only on POSIX: on Windows it has no drive, so it is
+    refused for leaving the package instead. A path from the temporary directory, written with
+    forward slashes (``C:/...`` on Windows), is absolute everywhere.
+    """
+    reference = (tmp_path / 'elsewhere.wav').resolve().as_posix()
+    path = _write(
+        tmp_path, 'absolute.toml', VALID_HEADER + f'[sounds.coin]\nfile = "{reference}"\n'
+    )
+
+    with pytest.raises(SoundAssetError, match='escapes'):
+        load_sound_file(path)
+
+
 def test_a_recorded_file_must_be_wav_or_ogg(tmp_path):
     """A recorded file must be wav or ogg."""
     (tmp_path / 'clip.mp3').write_bytes(b'')
@@ -513,7 +530,8 @@ def test_a_path_that_leaves_the_package_root_is_refused(tmp_path):
     (tmp_path / 'outside.wav').write_bytes(b'')
     path = _write(sounds, 'bad.toml', VALID_HEADER + '[sounds.coin]\nfile = "../../outside.wav"\n')
 
-    with pytest.raises(SoundAssetError, match=f'escapes the game package {package.resolve()}'):
+    escapes = re.escape(f'escapes the game package {package.resolve()}')
+    with pytest.raises(SoundAssetError, match=escapes):
         load_sound_file(path, package_root=package)
 
 

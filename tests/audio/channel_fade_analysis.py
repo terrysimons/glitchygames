@@ -9,6 +9,7 @@ for the file (``shared_recording``).
 
 from __future__ import annotations
 
+import operator
 import os
 import sys
 from pathlib import Path
@@ -23,14 +24,15 @@ from glitchygames.audio.diagnostics import (
 )
 from glitchygames.process import OutputCapture, run_command
 from tests.audio import channel_fade_probe
-from tests.audio.channel_fade_probe import TONE_AMPLITUDE, own_largest_step
+from tests.audio.channel_fade_probe import TONE_AMPLITUDE, TRIAL_COUNT, own_largest_step
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 # Feature spec 16.1's metric: no step larger than the tones' own largest (the spec names no
 # number; tests/test_crt_power_on_sound.py uses the same threshold)
 DISCONTINUITY_THRESHOLD = 1.0
-# The silence between trials is 200 ms; a halted fade leaves at most a few silent chunks inside a
-# trial, so 100 ms of zeros separates trials and nothing else
+# The silence between trials is 200 ms; a halted fade leaves a few silent chunks inside a trial,
+# and on a loaded machine a late sleep leaves more (104 ms on CircleCI macOS, 2026-11-03). So a
+# silence of 100 ms or more may separate trials, and the TRIAL_COUNT - 1 longest of them do
 TRIAL_SEPARATING_SAMPLES = 4410
 # A recording of six trials takes about six seconds; this is far beyond it
 RECORDING_TIMEOUT_SECONDS = 120.0
@@ -135,6 +137,9 @@ def read_recording(path: Path) -> np.ndarray:
 def trial_chunks(samples: np.ndarray) -> list[range]:
     """The mixer chunks of each trial, split at the silences between the trials.
 
+    The probe plays TRIAL_COUNT trials, so the TRIAL_COUNT - 1 longest silences of at least
+    TRIAL_SEPARATING_SAMPLES separate them; a shorter one (a late sleep inside a trial) stays in
+    its trial. Fewer such silences give fewer trials, which the callers' count check catches.
     The disk driver writes whole chunks from the file's start, so chunk ``i`` is samples
     ``i * 512 .. (i + 1) * 512``.
 
@@ -142,7 +147,9 @@ def trial_chunks(samples: np.ndarray) -> list[range]:
         Each trial's chunk indices, from its first sounding chunk to its last.
     """
     sounding = np.flatnonzero(samples)
-    gaps = find_silent_gaps(samples, minimum_samples=TRIAL_SEPARATING_SAMPLES)
+    candidates = find_silent_gaps(samples, minimum_samples=TRIAL_SEPARATING_SAMPLES)
+    longest = sorted(candidates, key=operator.itemgetter(1), reverse=True)[: TRIAL_COUNT - 1]
+    gaps = sorted(longest)
     starts = [int(sounding[0])] + [start + length for start, length in gaps]
     ends = [start for start, _ in gaps] + [int(sounding[-1]) + 1]
     return [

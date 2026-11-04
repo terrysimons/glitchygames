@@ -1,5 +1,6 @@
 """Tests for the short-name index: names, recorded-file stems, duplicates and unknown names."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -86,8 +87,9 @@ def test_an_unknown_name_names_the_directory_and_suggests_close_matches():
     with pytest.raises(KeyError) as raised:
         ShortNameIndex(SOUNDS).resolve('coinn')
 
-    assert str(SOUNDS) in str(raised.value)
-    assert "did you mean 'coin'" in str(raised.value)
+    message = raised.value.args[0]  # a KeyError's str() is the message's repr
+    assert str(SOUNDS) in message
+    assert "did you mean 'coin'" in message
 
 
 def test_an_unknown_name_with_no_close_match_has_no_suggestion():
@@ -95,13 +97,14 @@ def test_an_unknown_name_with_no_close_match_has_no_suggestion():
     with pytest.raises(KeyError) as raised:
         ShortNameIndex(SOUNDS).resolve('zzzzzzzz')
 
-    assert 'did you mean' not in str(raised.value)
-    assert str(SOUNDS) in str(raised.value)
+    message = raised.value.args[0]  # a KeyError's str() is the message's repr
+    assert 'did you mean' not in message
+    assert str(SOUNDS) in message
 
 
 def test_a_missing_sound_directory_is_a_key_error_naming_it(tmp_path):
     """A missing sound directory is a key error naming it."""
-    with pytest.raises(KeyError, match=str(tmp_path / 'sounds')):
+    with pytest.raises(KeyError, match=re.escape(str(tmp_path / 'sounds'))):
         ShortNameIndex(tmp_path / 'sounds').resolve('coin')
 
 

@@ -173,3 +173,27 @@ def test_a_crt_skip_on_the_device_has_no_step_above_threshold(recordings):
     samples = recordings(CRT_SKIP)
 
     assert worst_step_ratio(samples, case=CRT_SKIP) <= DISCONTINUITY_THRESHOLD
+
+
+def test_a_stalled_trial_stays_one_trial():
+    """A long stall inside a trial does not split it: trials split at their separating silences.
+
+    On a loaded machine the probe's one-frame sleep can run long (CircleCI macOS, 2026-11-03: a
+    104 ms silence inside a steal-delayed trial), longer than the 100 ms that once marked a trial
+    boundary. The recording still has TRIAL_COUNT trials, each silence between them the longest.
+    """
+    sounding = np.full(DEFAULT_BUFFER_SAMPLES * 20, 0.5)
+    between_trials = np.zeros(round(0.300 * 44100))
+    stall = np.zeros(4608)
+    trials = [sounding] * TRIAL_COUNT
+    trials[4] = np.concatenate([sounding, stall, sounding])
+    pieces: list[np.ndarray] = []
+    for trial in trials:
+        pieces.extend([trial, between_trials])
+    samples = np.concatenate(pieces[:-1])
+
+    recorded_trials = trial_chunks(samples)
+
+    assert len(recorded_trials) == TRIAL_COUNT
+    stalled = recorded_trials[4]
+    assert len(stalled) >= 2 * 20 + stall.size // DEFAULT_BUFFER_SAMPLES

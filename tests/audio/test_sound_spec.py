@@ -1,6 +1,7 @@
 """Tests for sound specs, instruments, note parsing and identity keys."""
 
 import dataclasses
+import os
 import re
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs this interpreter
 import sys
@@ -229,7 +230,14 @@ def test_identity_key_is_stable_across_processes():
             check=True,
             capture_output=True,
             text=True,
-            env={'PYTHONHASHSEED': seed, 'SDL_AUDIODRIVER': 'dummy', 'SDL_VIDEODRIVER': 'dummy'},
+            # The parent's environment with the seed and drivers set: Windows' Python needs
+            # SYSTEMROOT and PATH (numpy's DLLs) to start
+            env={
+                **os.environ,
+                'PYTHONHASHSEED': seed,
+                'SDL_AUDIODRIVER': 'dummy',
+                'SDL_VIDEODRIVER': 'dummy',
+            },
         ).stdout.splitlines()[-1]
         for seed in ('1', '2')
     }
