@@ -12,6 +12,10 @@ carries two newest-first history lists, and the header a third:
   the game's behaviour changed.
 - ``processing_seconds``: the frame's processing time (glitchygames/replay/processing.py),
   rounded to the microsecond; None when it was not measured.
+- ``audio_seconds`` and ``audio_work`` (impl spec 11.0 of the sound engine): the frame's audio
+  work (compiles, decodes, cache reads, live chunks), its total in seconds and ``[kind, name,
+  microseconds]`` per piece (at most 32). Plain values, not histories: each run writes its own,
+  and only on frames that did audio work (glitchygames/audio/accounting.py).
 - ``measurement_runs`` (header): each run's provenance (``MeasurementRun``: machine, pacing and
   its timer, versions, when it measured, what it was rebaselined from, the hash scheme).
 
@@ -51,6 +55,9 @@ if TYPE_CHECKING:
 # Frame fields that hold histories, and the header field of the runs' provenance
 PROCESSING_SECONDS_FIELD = 'processing_seconds'
 CONTENT_HASH_FIELD = 'content_hash'
+# The frame's audio work (sound engine impl spec 11.0): measurements, written by a recorder only
+AUDIO_SECONDS_FIELD = 'audio_seconds'
+AUDIO_WORK_FIELD = 'audio_work'
 MEASUREMENT_RUNS_HEADER_FIELD = 'measurement_runs'
 
 # How many runs each history keeps (newest first; read at call time, so tests can tune them)
@@ -65,8 +72,15 @@ CONTENT_HASH_HEX_DIGITS = 16
 # Processing times are kept to the microsecond: finer is noise, and every digit costs file size
 PROCESSING_SECONDS_DIGITS = 6
 
+# Frame fields that hold this run's and earlier runs' measurements (newest first)
+HISTORY_FRAME_FIELDS: tuple[str, ...] = (CONTENT_HASH_FIELD, PROCESSING_SECONDS_FIELD)
 # Frame fields that are measurements: never hashed
-MEASUREMENT_FRAME_FIELDS: frozenset[str] = frozenset({PROCESSING_SECONDS_FIELD, CONTENT_HASH_FIELD})
+MEASUREMENT_FRAME_FIELDS: frozenset[str] = frozenset({
+    PROCESSING_SECONDS_FIELD,
+    CONTENT_HASH_FIELD,
+    AUDIO_SECONDS_FIELD,
+    AUDIO_WORK_FIELD,
+})
 
 
 class UnclassifiedFrameFieldError(ValueError):

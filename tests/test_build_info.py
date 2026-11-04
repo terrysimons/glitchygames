@@ -55,6 +55,9 @@ REPOSITORY_LOCATION_VARIABLES = (
 ARCHIVAL_TEMPLATE = 'commit: $Format:%H$\ncommitted: $Format:%cI$\n'
 BUILT_AT = '2026-10-23T12:00:00+00:00'
 MODULE_FILE_NAME = 'module.py'
+# How long the slowest git seen answering took: a game's lookup on a loaded Windows CI runner
+# (CircleCI build 2767, BUGS.md #260)
+SLOW_GIT_SECONDS = 10.0
 
 
 def _git(*arguments: str, directory: Path) -> str:
@@ -223,6 +226,30 @@ class TestGitCheckout:
         mocker.patch.object(build_info, 'run_command', side_effect=failure)
 
         assert git_checkout_revision(package_directory=package_directory) is None
+
+    def test_a_slow_git_that_answers_still_names_the_commit(self, tmp_path, mocker):
+        """A git that answers within the timeout is waited for, however busy the machine.
+
+        Each git call is made to take ``SLOW_GIT_SECONDS`` (the 10 s a loaded Windows runner
+        took, BUGS.md #260) without sleeping: a call whose timeout is shorter raises
+        TimeoutExpired, as ``run_command`` would; a longer one runs the real git.
+        """
+        package_directory = _repository_with_package(tmp_path)
+        real_run_command = build_info.run_command
+
+        def run_command_taking_slow_git_seconds(**keywords):
+            if keywords['timeout_seconds'] < SLOW_GIT_SECONDS:
+                raise TimeoutExpired(cmd='git', timeout=keywords['timeout_seconds'])
+            return real_run_command(**keywords)
+
+        mocker.patch.object(
+            build_info, 'run_command', side_effect=run_command_taking_slow_git_seconds
+        )
+
+        revision = git_checkout_revision(package_directory=package_directory)
+
+        assert revision is not None
+        assert revision.commit == _git('rev-parse', 'HEAD', directory=tmp_path)
 
     def test_a_repository_without_commits_is_no_answer(self, tmp_path):
         package_directory = tmp_path / 'package'

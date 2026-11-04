@@ -1,0 +1,15 @@
+[glitchygames]
+kind = "sounds"
+version = 1
+
+[waves.odd]
+samples = [0.0, 0.5]
+[instruments.pickup]
+envelope = "pluck"
+
+[instruments.pickup.sources.tone]
+wave = "pulse_25"
+
+[sounds.coin]
+instrument = "pickup"
+pitch = "C5"

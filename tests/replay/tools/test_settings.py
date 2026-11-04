@@ -93,6 +93,7 @@ OUR_GAMES = (
     'joystick-demo',
     'mr-muncher',
     'paddleslap',
+    'sound-board-demo',
     'text-input-demo',
 )
 # Our goldens: directly in each member's tests/fixtures/replays/

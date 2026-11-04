@@ -5,6 +5,8 @@ import types
 import pygame
 import pytest
 
+from glitchygames.audio.engine import AudioDiagnosticsSnapshot
+from glitchygames.audio.library import CacheMode
 from glitchygames.camera import Camera2D
 from glitchygames.collision.layers import CollisionManager
 from glitchygames.debug import overlay as overlay_module
@@ -117,13 +119,39 @@ def build_frame_info(**overrides):
     """
     arguments = {
         'target_fps': 60.0,
-        'live_voice_count': None,
+        'audio': None,
         'rumble_levels': (0.0, 0.0),
         'screen_shake_offset': (0.0, 0.0),
         'mouse_position': None,
     }
     arguments.update(overrides)
     return DebugFrameInfo(**arguments)
+
+
+def audio_snapshot(*, live):
+    """Build an audio snapshot with a count of playing live voices.
+
+    Returns:
+        An AudioDiagnosticsSnapshot.
+
+    """
+    return AudioDiagnosticsSnapshot(
+        cache_mode=CacheMode.RAM,
+        device='no mixer',
+        voices_live=live,
+        voices_library=0,
+        voices_legacy=0,
+        compiles_last_second=0,
+        cache_hit_rate=None,
+        frame_work_by_kind={},
+        frame_processing_seconds=None,
+        channels=(),
+        bus_levels={},
+        muted_buses=frozenset(),
+        soloed_buses=frozenset(),
+        recently_stolen_channels=frozenset(),
+        compile_log=(),
+    )
 
 
 def pixels_of_color(surface, *, color):
@@ -422,11 +450,11 @@ class TestPerformancePanel:
         assert 'frame: 16.5 ms' in rendered_texts(font)
 
     def test_voice_line_only_when_count_given(self, surface, font):
-        """The live voices line appears only when a count is supplied."""
+        """The voices line appears only when an audio snapshot is supplied."""
         overlay = DebugOverlay(visible=True)
-        draw_performance(surface=surface, overlay=overlay, font=font, live_voice_count=None)
+        draw_performance(surface=surface, overlay=overlay, font=font, audio=None)
         assert not any('voices' in text for text in rendered_texts(font))
-        draw_performance(surface=surface, overlay=overlay, font=font, live_voice_count=3)
+        draw_performance(surface=surface, overlay=overlay, font=font, audio=audio_snapshot(live=3))
         assert any('voices: 3' in text for text in rendered_texts(font))
 
     def test_rumble_line_only_when_a_level_is_positive(self, surface, font):

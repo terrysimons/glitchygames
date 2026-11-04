@@ -20,6 +20,9 @@ from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
 import pygame
 
 from glitchygames import engine_context, pixel_snap, randomness, sources
+from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
+from glitchygames.audio.library import ENGINE_SOUND_CACHE
+from glitchygames.audio.voices import release_channels
 from glitchygames.backgrounds import set_active_default_background_pattern
 from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
@@ -283,6 +286,16 @@ def _reset_all_singleton_instances():
     each singleton base and each of its direct subclasses is reset (BUGS.md #228 items 17, 22).
     """
     SceneManager._reset()
+    # The context's audio engine (glitchygames/audio/engine.py) is forgotten, not closed: its
+    # channels may be gone with a mixer a test restarted
+    current_context().reset_value(slot=AUDIO_ENGINE_SLOT)
+    # ...and its channel reservation is handed back and the remembered partition forgotten
+    # (ruling R45), so the next engine reserves afresh. SDL_mixer keeps a reservation across a
+    # mixer restart while the restarted mixer is back at 8 channels, so an engine's 36 reserved
+    # channels, left by a test that never ran the engine's shutdown, made a later test's
+    # Sound.play() raise "IndexError: invalid channel index" after another test restarted pygame
+    # (tests/test_logging.py). No engine outlives a test here, so nothing needs to keep one
+    release_channels()
 
     # Reset ResourceManager singleton instances (FontManager, event managers, etc.)
     ResourceManager.__instances__.clear()
@@ -365,6 +378,19 @@ def restore_gil_switch_interval():
     previous_interval = sys.getswitchinterval()
     yield
     sys.setswitchinterval(previous_interval)
+
+
+@pytest.fixture(autouse=True)
+def empty_engine_sound_cache():
+    """Start and end each test with an empty process cache of the engine's own sounds.
+
+    The CRT power-on's sounds compile once per process (glitchygames.audio.library
+    ``ENGINE_SOUND_CACHE``): without this, whether a test compiles them would depend on which
+    test ran before it on the worker.
+    """
+    ENGINE_SOUND_CACHE.clear()
+    yield
+    ENGINE_SOUND_CACHE.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -643,7 +669,10 @@ def per_context_state_resets(
 
 @pytest.fixture
 def engine_service_resets(
-    desktop_user_files, in_process_clipboard, restore_game_engine_class_state
+    desktop_user_files,
+    in_process_clipboard,
+    restore_game_engine_class_state,
+    empty_engine_sound_cache,
 ):
     """Group the resets of the engine's other installed state, for the leak check.
 
@@ -651,6 +680,7 @@ def engine_service_resets(
         desktop_user_files: Requested only to be torn down after the leak check.
         in_process_clipboard: Requested only to be torn down after the leak check.
         restore_game_engine_class_state: Requested only to be torn down after the leak check.
+        empty_engine_sound_cache: Requested only to be torn down after the leak check.
 
     """
 

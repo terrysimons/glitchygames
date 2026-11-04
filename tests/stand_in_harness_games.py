@@ -18,6 +18,16 @@ session records external key events) and polls no input (it needs no
 moves a fixed step per frame, so a replay is deterministic; it posts no event of its own; its
 only controls are the arrows, and the base scene's quit keys (Q, ESC) end it (``pygame.K_x``
 does nothing).
+
+``SoundingRallyScene`` stands in for a game that uses the sound library: what it reads of the
+audio engine is put into its sprites, so a replay compares it. Its facts: it asks for its two
+sounds in ``setup()`` (``Instrument`` sounds: no sound directory); ``length_probe`` sits at
+``x`` = its blip's length in milliseconds and ``y`` = its peak in hundredths; ``playing_probe``
+moves right while its long note (``LONG_NOTE_SECONDS``, played on ``LONG_NOTE_FRAME``) plays;
+on ``BURST_FRAME`` it plays ``BURST_PLAYS`` blips, more than the effects bus has channels, so
+the long note and some blips are stolen; ``burst_probe`` sits at ``x`` = how many of the burst's
+handles still play and ``y`` = the steals so far. It takes no input, and ends the run itself
+after ``SOUNDING_RALLY_FRAMES`` frames (``SceneManager.quit``: no event).
 """
 
 from __future__ import annotations
@@ -26,6 +36,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
+from glitchygames.audio import Instrument
 from glitchygames.replay.tools.golden_traces import InputScript, press, release
 from glitchygames.scenes import Scene
 from glitchygames.transitions.elevator import ElevatorTransition
@@ -269,3 +280,92 @@ def steered_paddle_script() -> InputScript:
     script.at(STEER_DOWN_FRAME, press(pygame.K_DOWN))
     script.at(STEER_DOWN_RELEASE_FRAME, release(pygame.K_DOWN))
     return script
+
+
+# The sounding rally's frames and sounds: the long note plays from LONG_NOTE_FRAME, the burst
+# from BURST_FRAME, more blips than the effects bus's channels (the library's 32 less the ui and
+# music reservations of two each), so it steals
+LONG_NOTE_FRAME = 2
+LONG_NOTE_SECONDS = 0.6
+BURST_FRAME = 12
+BURST_PLAYS = 32
+SOUNDING_RALLY_FRAMES = 48
+BLIP_SECONDS = 0.2
+LONG_NOTE_PRIORITY = 10
+BURST_PRIORITY = 50
+PROBE_SIZE = (4, 4)
+PROBE_COLOR = (240, 200, 80)
+MILLISECONDS_PER_SECOND = 1000
+HUNDREDTHS = 100
+PLAYING_PROBE_STEP = 2
+
+
+class SoundProbe(pygame.sprite.DirtySprite):
+    """A small sprite whose place shows a value the scene read of the audio engine."""
+
+    def __init__(self) -> None:
+        """Create the probe at the origin."""
+        super().__init__()
+        self.image = pygame.Surface(PROBE_SIZE)
+        self.image.fill(PROBE_COLOR)
+        self.rect = self.image.get_rect()
+        self.dirty = 2
+
+    def update_nested_sprites(self) -> None:
+        """Scene.update() calls this on every sprite; this sprite has no nested sprites."""
+
+    def on_mouse_motion_event(self, event: pygame.event.Event) -> None:
+        """The mouse manager calls this on the sprite under the pointer; it ignores it."""
+
+
+class SoundingRallyScene(Scene):
+    """A stand-in for a game playing library sounds and reading what the engine says of them."""
+
+    NAME = 'Sounding Rally'
+    VERSION = '1.0'
+
+    def __init__(self: Self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Add the three probes."""
+        super().__init__(options=options, groups=groups)
+        self.length_probe = SoundProbe()
+        self.playing_probe = SoundProbe()
+        self.burst_probe = SoundProbe()
+        self.all_sprites.add(self.length_probe, self.playing_probe, self.burst_probe)
+        self.frames_run = 0
+        self.long_handle = None
+        self.burst_handles: list[Any] = []
+
+    @override
+    def setup(self: Self) -> None:
+        """Ask for the blip and the long note before the first frame."""
+        audio = self.scene_manager.audio
+        self.blip = audio.sound(
+            Instrument(wave='square', envelope='pluck'), pitch='E5', length=BLIP_SECONDS
+        )
+        self.long_note = audio.sound(
+            Instrument(wave='sine', envelope='organ'), pitch='A3', length=LONG_NOTE_SECONDS
+        )
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Play on the scheduled frames, put what the engine says into the probes; maybe quit."""
+        super().dt_tick(dt)
+        if self.frames_run == LONG_NOTE_FRAME:
+            self.long_handle = self.long_note.play(priority=LONG_NOTE_PRIORITY)
+        if self.frames_run == BURST_FRAME:
+            self.burst_handles = [
+                self.blip.play(priority=BURST_PRIORITY) for _ in range(BURST_PLAYS)
+            ]
+        self.length_probe.rect.topleft = (
+            round(self.blip.length * MILLISECONDS_PER_SECOND),
+            round(self.blip.peak * HUNDREDTHS),
+        )
+        if self.long_handle is not None and self.long_handle.is_playing:
+            self.playing_probe.rect.x += PLAYING_PROBE_STEP
+        self.burst_probe.rect.topleft = (
+            sum(1 for handle in self.burst_handles if handle.is_playing),
+            self.scene_manager.audio.diagnostics().stolen_voices,
+        )
+        self.frames_run += 1
+        if self.frames_run == SOUNDING_RALLY_FRAMES:
+            self.scene_manager.quit()

@@ -21,7 +21,7 @@ class TestToggleAndCycle:
         """F4 cycles through the panels in declaration order and wraps to ALL."""
         overlay = DebugOverlay(visible=True)
         seen_panels = []
-        for _ in range(6):
+        for _ in range(7):
             seen_panels.append(overlay.panel)
             overlay.cycle_panel()
         assert seen_panels == [
@@ -30,6 +30,7 @@ class TestToggleAndCycle:
             DebugPanel.PHYSICS,
             DebugPanel.CAMERA,
             DebugPanel.PERFORMANCE,
+            DebugPanel.AUDIO,
             DebugPanel.ALL,
         ]
 

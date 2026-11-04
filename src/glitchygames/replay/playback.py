@@ -269,6 +269,7 @@ if TYPE_CHECKING:
     from datetime import datetime
     from pathlib import Path
 
+    from glitchygames.audio.accounting import AudioFrameAccount
     from glitchygames.input.devices import DeviceRegistry
     from glitchygames.input.state import InputSnapshot
     from glitchygames.replay.driver import ReplaySources
@@ -843,7 +844,7 @@ class PlaybackSources:
         """
         return self.base.control_events_for_frame(frame_number=frame_number)
 
-    def end_frame(
+    def end_frame(  # ruff: ignore[too-many-arguments] - the EngineSources door's signature
         self: Self,
         *,
         frame_number: int,
@@ -851,6 +852,7 @@ class PlaybackSources:
         scene: Scene | None,
         control_events: list[ControlEvent],
         processing_seconds: float | None = None,
+        audio_frame: AudioFrameAccount | None = None,
     ) -> None:
         """Compare the frame with the recording, then let the installed doors end it (rule 5).
 
@@ -870,6 +872,7 @@ class PlaybackSources:
                 scene=scene,
                 control_events=control_events,
                 processing_seconds=processing_seconds,
+                audio_frame=audio_frame,
             )
 
     def compare_frame(

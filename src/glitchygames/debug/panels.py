@@ -19,6 +19,10 @@ from glitchygames.debug.protocols import HasPhysicsBody
 from glitchygames.fonts import FontManager
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator, Mapping
+
+    from glitchygames.audio.engine import AudioDiagnosticsSnapshot
+    from glitchygames.audio.voices import ChannelState
     from glitchygames.camera import Camera2D
     from glitchygames.collision.layers import CollisionManager
     from glitchygames.debug.overlay import DebugOverlay, DebugPanel
@@ -82,6 +86,50 @@ SLOW_FRAME_TOLERANCE_MILLISECONDS = 1.0
 TARGET_LINE_COLOR: Color = (255, 255, 0)
 MILLISECONDS_PER_SECOND = 1000.0
 
+# The Audio panel (sound engine impl spec 10.5): the audio-time graph shares the frame-time
+# graph's place, size and x-axis; the rest stacks down the left side under the header
+AUDIO_COMPILE_COLOR: Color = (230, 60, 60)
+AUDIO_DECODE_COLOR: Color = (240, 150, 40)
+AUDIO_LIVE_COLOR: Color = (70, 130, 240)
+AUDIO_CACHE_COLOR: Color = (150, 150, 150)
+# Stacked from the bottom of a bar upward, in this order; any other kind is drawn like a cache read
+AUDIO_KIND_COLORS: dict[str, Color] = {
+    'compile': AUDIO_COMPILE_COLOR,
+    'decode': AUDIO_DECODE_COLOR,
+    'live_chunk': AUDIO_LIVE_COLOR,
+    'cache_read': AUDIO_CACHE_COLOR,
+}
+AUDIO_KIND_LEGEND: tuple[tuple[str, Color], ...] = (
+    ('compile', AUDIO_COMPILE_COLOR),
+    ('decode', AUDIO_DECODE_COLOR),
+    ('live', AUDIO_LIVE_COLOR),
+    ('cache', AUDIO_CACHE_COLOR),
+)
+AUDIO_FRAME_OUTLINE_COLOR: Color = (50, 50, 70)  # the frame's whole duration, behind its bar
+AUDIO_CHANNEL_COLORS: dict[str, Color] = {
+    'idle': (60, 60, 60),
+    'playing': (80, 200, 100),
+    'fading': (230, 200, 60),
+    'paused': (120, 120, 200),
+}
+AUDIO_BUS_COLOR: Color = (90, 170, 210)
+AUDIO_BUS_MUTED_COLOR: Color = (140, 60, 60)
+AUDIO_BUS_SOLO_COLOR: Color = (200, 100, 230)
+# A channel stolen in the last few frames is drawn in this colour instead of its state's
+AUDIO_CHANNEL_STOLEN_COLOR: Color = (255, 255, 255)
+AUDIO_PANEL_TOP = HUD_MARGIN + HUD_LINE_HEIGHT
+# Under All panels only the header is drawn, below the camera panel's three possible lines
+ALL_PANEL_AUDIO_HEADER_TOP = HUD_MARGIN + 4 * HUD_LINE_HEIGHT + HUD_MARGIN
+AUDIO_HEADER_SCALE = 2  # the cache mode is drawn in type this many times larger
+AUDIO_SECTION_GAP = 4
+AUDIO_LABEL_WIDTH = 52
+AUDIO_CELL_SIZE = 8
+AUDIO_CELL_GAP = 1
+AUDIO_ROW_HEIGHT = 12
+AUDIO_BUS_BAR_WIDTH = 100  # a bus at gain 1.0
+AUDIO_LEGEND_SWATCH_GAP = 3
+AUDIO_LEGEND_ENTRY_WIDTH = 50
+
 
 @dataclasses.dataclass(frozen=True)
 class DebugFrameInfo:
@@ -89,7 +137,8 @@ class DebugFrameInfo:
 
     Attributes:
         target_fps (float): The engine's target FPS; 0 means uncapped.
-        live_voice_count (int | None): Playing live voices, or None when unavailable.
+        audio (AudioDiagnosticsSnapshot | None): The audio engine's readings, or None when the
+            engine has not started (the overlay never starts it).
         rumble_levels (tuple[float, float]): Last (low, high) rumble levels sent.
         screen_shake_offset (tuple[float, float]): Current SCREEN shake offset.
         mouse_position (tuple[int, int] | None): Mouse position, or None.
@@ -99,7 +148,7 @@ class DebugFrameInfo:
     """
 
     target_fps: float
-    live_voice_count: int | None
+    audio: AudioDiagnosticsSnapshot | None
     rumble_levels: tuple[float, float]
     screen_shake_offset: tuple[float, float]
     mouse_position: tuple[int, int] | None
@@ -520,13 +569,37 @@ def _blit_backing(*, surface: pygame.Surface, rect: pygame.Rect) -> None:
     surface.blit(_backing_surface(rect.size), rect.topleft)
 
 
-def _slowest_frame_per_column(*, overlay: DebugOverlay) -> list[float | None]:
-    """Map the last GRAPH_WINDOW_SECONDS of frames onto GRAPH_WIDTH columns of time.
+def _frame_column_spans(*, frame_times: list[float]) -> Iterator[tuple[int, int, int]]:
+    """Map frames onto the GRAPH_WIDTH columns of the graphs' shared time axis.
 
     The x-axis is time, newest at the right edge: each frame covers a width proportional to its
     duration, so a 50 ms hitch is three times as wide as a 16.7 ms frame and two seconds of
-    frames always span the whole graph. A column shows the slowest frame overlapping it, so a
-    hitch is never hidden by a faster neighbour sharing its column.
+    frames always span the whole graph. The frame-time and audio-time graphs both use it.
+
+    Args:
+        frame_times: The frame durations inside the window, oldest first.
+
+    Yields:
+        (index into frame_times, first column, last column) for each frame, newest first.
+
+    """
+    pixels_per_second = GRAPH_WIDTH / GRAPH_WINDOW_SECONDS
+    seconds_before_newest = 0.0
+    for index in range(len(frame_times) - 1, -1, -1):
+        frame_seconds = frame_times[index]
+        right_edge = GRAPH_WIDTH - seconds_before_newest * pixels_per_second
+        left_edge = right_edge - frame_seconds * pixels_per_second
+        first_column = max(0, math.floor(left_edge))
+        last_column = min(GRAPH_WIDTH - 1, math.ceil(right_edge) - 1)
+        yield index, first_column, last_column
+        seconds_before_newest += frame_seconds
+
+
+def _slowest_frame_per_column(*, overlay: DebugOverlay) -> list[float | None]:
+    """Map the last GRAPH_WINDOW_SECONDS of frames onto GRAPH_WIDTH columns of time.
+
+    A column shows the slowest frame overlapping it, so a hitch is never hidden by a faster
+    neighbour sharing its column.
 
     Returns:
         list[float | None]: Per column (left to right), the slowest frame time in seconds, or
@@ -534,19 +607,46 @@ def _slowest_frame_per_column(*, overlay: DebugOverlay) -> list[float | None]:
 
     """
     columns: list[float | None] = [None] * GRAPH_WIDTH
-    pixels_per_second = GRAPH_WIDTH / GRAPH_WINDOW_SECONDS
-    seconds_before_newest = 0.0
-    for frame_seconds in reversed(overlay.graph_frame_times(window_seconds=GRAPH_WINDOW_SECONDS)):
-        right_edge = GRAPH_WIDTH - seconds_before_newest * pixels_per_second
-        left_edge = right_edge - frame_seconds * pixels_per_second
-        first_column = max(0, math.floor(left_edge))
-        last_column = min(GRAPH_WIDTH - 1, math.ceil(right_edge) - 1)
+    frame_times = overlay.graph_frame_times(window_seconds=GRAPH_WINDOW_SECONDS)
+    for index, first_column, last_column in _frame_column_spans(frame_times=frame_times):
+        frame_seconds = frame_times[index]
         for column in range(first_column, last_column + 1):
             slowest = columns[column]
             if slowest is None or frame_seconds > slowest:
                 columns[column] = frame_seconds
-        seconds_before_newest += frame_seconds
     return columns
+
+
+def _graph_rect(*, surface: pygame.Surface) -> pygame.Rect:
+    """Locate the graph in the bottom-right corner (the Performance and Audio panels' graph).
+
+    Returns:
+        pygame.Rect: The graph's rect.
+
+    """
+    return pygame.Rect(
+        surface.get_width() - HUD_MARGIN - GRAPH_WIDTH,
+        surface.get_height() - HUD_MARGIN - GRAPH_HEIGHT - HUD_LINE_HEIGHT,
+        GRAPH_WIDTH,
+        GRAPH_HEIGHT,
+    )
+
+
+def _graph_scale(*, target_fps: float) -> tuple[float | None, float]:
+    """Choose the graphs' vertical scale, so both draw the target frame time at the same height.
+
+    Low targets (under 20 FPS) would put the line above the default ceiling, so the ceiling grows.
+
+    Returns:
+        tuple[float | None, float]: The target frame time in milliseconds (None when uncapped),
+            and the pixels per millisecond.
+
+    """
+    target_milliseconds = MILLISECONDS_PER_SECOND / target_fps if target_fps > 0 else None
+    ceiling_milliseconds = GRAPH_CEILING_MILLISECONDS
+    if target_milliseconds is not None:
+        ceiling_milliseconds = max(ceiling_milliseconds, 2 * target_milliseconds)
+    return target_milliseconds, GRAPH_HEIGHT / ceiling_milliseconds
 
 
 def _draw_frame_time_graph(
@@ -558,18 +658,8 @@ def _draw_frame_time_graph(
         pygame.Rect: The graph's rect.
 
     """
-    graph_rect = pygame.Rect(
-        surface.get_width() - HUD_MARGIN - GRAPH_WIDTH,
-        surface.get_height() - HUD_MARGIN - GRAPH_HEIGHT - HUD_LINE_HEIGHT,
-        GRAPH_WIDTH,
-        GRAPH_HEIGHT,
-    )
-    target_milliseconds = MILLISECONDS_PER_SECOND / target_fps if target_fps > 0 else None
-    # Low targets (under 20 FPS) would put the line above the default ceiling, so grow it.
-    ceiling_milliseconds = GRAPH_CEILING_MILLISECONDS
-    if target_milliseconds is not None:
-        ceiling_milliseconds = max(ceiling_milliseconds, 2 * target_milliseconds)
-    pixels_per_millisecond = GRAPH_HEIGHT / ceiling_milliseconds
+    graph_rect = _graph_rect(surface=surface)
+    target_milliseconds, pixels_per_millisecond = _graph_scale(target_fps=target_fps)
 
     _blit_backing(surface=surface, rect=graph_rect)
     for column, frame_seconds in enumerate(_slowest_frame_per_column(overlay=overlay)):
@@ -615,11 +705,11 @@ def draw_performance_panel(
         surface (pygame.Surface): The presented frame to draw onto.
         overlay (DebugOverlay): The overlay holding the frame history.
         font (pygame.font.Font): Font used for the text.
-        frame_info (DebugFrameInfo): Supplies the target FPS, voice count and rumble levels.
+        frame_info (DebugFrameInfo): Supplies the target FPS, audio readings and rumble levels.
 
     """
     target_fps = frame_info.target_fps
-    live_voice_count = frame_info.live_voice_count
+    audio = frame_info.audio
     rumble_levels = frame_info.rumble_levels
     current_fps = overlay.current_fps()
     one_percent_low = overlay.one_percent_low_fps()
@@ -631,8 +721,8 @@ def draw_performance_panel(
     if current_fps is not None:
         # current_fps is 1 / the last frame time, so this avoids copying the whole history.
         lines.insert(1, f'frame: {MILLISECONDS_PER_SECOND / current_fps:.1f} ms')
-    if live_voice_count is not None:
-        lines.append(f'voices: {live_voice_count}')
+    if audio is not None:
+        lines.append(f'voices: {audio.voices_live}')
     if rumble_levels[0] > 0 or rumble_levels[1] > 0:
         lines.append(f'rumble: {rumble_levels[0]:.2f} / {rumble_levels[1]:.2f}')
     _draw_text_lines(
@@ -651,6 +741,338 @@ def draw_performance_panel(
         surface=surface,
         text_surface=footnote,
         position=(graph_rect.right - footnote.get_width(), graph_rect.bottom + 2),
+    )
+
+
+def draw_audio_header(
+    *, surface: pygame.Surface, font: pygame.font.Font, frame_info: DebugFrameInfo, top: int
+) -> int:
+    """Draw the Audio panel's header: the cache mode in large type, then the engine's readings.
+
+    The cache mode is `CACHE: NONE` in compile red (every play compiles), `RAM` or `DISK` in the
+    text colour. The lines under it are the mixer format and driver, the voices playing (live,
+    library, legacy), the compiles in the last second and the cache hit rate. Without an audio
+    engine (it has not started, and the overlay never starts it) the header is one line.
+
+    Args:
+        surface (pygame.Surface): The presented frame to draw onto.
+        font (pygame.font.Font): Font used for the text.
+        frame_info (DebugFrameInfo): Supplies the audio snapshot.
+        top (int): The y coordinate of the header's first line.
+
+    Returns:
+        int: The y coordinate just below the header (the next line's top).
+
+    """
+    audio = frame_info.audio
+    if audio is None:
+        return _draw_text_lines(surface=surface, font=font, lines=['audio: not started'], top=top)
+
+    cache_mode_color = AUDIO_COMPILE_COLOR if audio.cache_mode.value == 'none' else HUD_TEXT_COLOR
+    cache_mode_text = font.render(
+        f'CACHE: {audio.cache_mode.value.upper()}',
+        antialias=FontManager.antialias(),
+        color=cache_mode_color,
+    )
+    large_text = pygame.transform.scale_by(cache_mode_text, AUDIO_HEADER_SCALE)
+    blit_text(surface=surface, text_surface=large_text, position=(HUD_MARGIN, top))
+    hit_rate = 'n/a' if audio.cache_hit_rate is None else f'{audio.cache_hit_rate * 100:.1f}%'
+    return _draw_text_lines(
+        surface=surface,
+        font=font,
+        lines=[
+            audio.device,
+            (
+                f'voices: live {audio.voices_live} / library {audio.voices_library}'
+                f' / legacy {audio.voices_legacy}'
+            ),
+            f'compiles last second: {audio.compiles_last_second}',
+            f'cache hit rate: {hit_rate}',
+        ],
+        top=top + large_text.get_height() + TEXT_BACKING_PADDING,
+    )
+
+
+def _draw_channel_strip(
+    *,
+    surface: pygame.Surface,
+    font: pygame.font.Font,
+    channels: tuple[ChannelState, ...],
+    recently_stolen: frozenset[int],
+    top: int,
+) -> int:
+    """Draw one cell per mixer channel, one labelled row per group, coloured by state.
+
+    A channel whose voice was stolen in the last few frames is drawn in
+    AUDIO_CHANNEL_STOLEN_COLOR instead, so a steal shows as a flash.
+
+    Returns:
+        int: The y coordinate just below the strip.
+
+    """
+    row_top = top
+    for group in ('live', 'library', 'legacy'):
+        blit_text(
+            surface=surface,
+            text_surface=font.render(
+                group, antialias=FontManager.antialias(), color=HUD_TEXT_COLOR
+            ),
+            position=(HUD_MARGIN, row_top),
+        )
+        cell_left = HUD_MARGIN + AUDIO_LABEL_WIDTH
+        for channel in channels:
+            if channel.group != group:
+                continue
+            cell_color = (
+                AUDIO_CHANNEL_STOLEN_COLOR
+                if channel.index in recently_stolen
+                else AUDIO_CHANNEL_COLORS[channel.state]
+            )
+            pygame.draw.rect(
+                surface,
+                cell_color,
+                pygame.Rect(cell_left, row_top, AUDIO_CELL_SIZE, AUDIO_CELL_SIZE),
+            )
+            cell_left += AUDIO_CELL_SIZE + AUDIO_CELL_GAP
+        row_top += AUDIO_ROW_HEIGHT
+    return row_top
+
+
+def _draw_bus_meters(
+    *,
+    surface: pygame.Surface,
+    font: pygame.font.Font,
+    audio: AudioDiagnosticsSnapshot,
+    top: int,
+) -> int:
+    """Draw one bar per bus: its estimated level (a gain of 1.0 fills the track), muted in red.
+
+    Returns:
+        int: The y coordinate just below the meters.
+
+    """
+    row_top = top
+    for name, level in audio.bus_levels.items():
+        is_muted = name in audio.muted_buses
+        blit_text(
+            surface=surface,
+            text_surface=font.render(name, antialias=FontManager.antialias(), color=HUD_TEXT_COLOR),
+            position=(HUD_MARGIN, row_top),
+        )
+        track_left = HUD_MARGIN + AUDIO_LABEL_WIDTH
+        _blit_backing(
+            surface=surface,
+            rect=pygame.Rect(track_left, row_top, AUDIO_BUS_BAR_WIDTH, AUDIO_CELL_SIZE),
+        )
+        bar_width = round(min(max(level, 0.0), 1.0) * AUDIO_BUS_BAR_WIDTH)
+        pygame.draw.rect(
+            surface,
+            AUDIO_BUS_MUTED_COLOR if is_muted else AUDIO_BUS_COLOR,
+            pygame.Rect(track_left, row_top, bar_width, AUDIO_CELL_SIZE),
+        )
+        mark_left = track_left + AUDIO_BUS_BAR_WIDTH + HUD_MARGIN
+        if is_muted:
+            mark_left += _draw_bus_mark(
+                surface=surface, font=font, label='muted', position=(mark_left, row_top), color=None
+            )
+        if name in audio.soloed_buses:
+            _draw_bus_mark(
+                surface=surface,
+                font=font,
+                label='solo',
+                position=(mark_left, row_top),
+                color=AUDIO_BUS_SOLO_COLOR,
+            )
+        row_top += AUDIO_ROW_HEIGHT
+    return row_top
+
+
+def _draw_bus_mark(
+    *,
+    surface: pygame.Surface,
+    font: pygame.font.Font,
+    label: str,
+    position: tuple[int, int],
+    color: Color | None,
+) -> int:
+    """Draw a bus's mute or solo mark: an optional colour swatch, then its label.
+
+    Returns:
+        int: The width used, including the gap after the mark.
+
+    """
+    left, top = position
+    text_left = left
+    if color is not None:
+        pygame.draw.rect(surface, color, pygame.Rect(left, top, AUDIO_CELL_SIZE, AUDIO_CELL_SIZE))
+        text_left += AUDIO_CELL_SIZE + AUDIO_LEGEND_SWATCH_GAP
+    text_surface = font.render(label, antialias=FontManager.antialias(), color=HUD_TEXT_COLOR)
+    blit_text(surface=surface, text_surface=text_surface, position=(text_left, top))
+    return text_left - left + text_surface.get_width() + HUD_MARGIN
+
+
+def _draw_compile_log(
+    *, surface: pygame.Surface, font: pygame.font.Font, audio: AudioDiagnosticsSnapshot, top: int
+) -> None:
+    """Draw the last compiles: frame, sound, milliseconds, and setup or gameplay (gameplay red)."""
+    line_top = top
+    for record in audio.compile_log:
+        frame = '-' if record.frame_number is None else str(record.frame_number)
+        phase = 'setup' if record.during_setup else 'gameplay'
+        text_surface = font.render(
+            f'{frame:>6}  {record.name}  {record.milliseconds:.1f} ms  {phase}',
+            antialias=FontManager.antialias(),
+            color=HUD_TEXT_COLOR if record.during_setup else AUDIO_COMPILE_COLOR,
+        )
+        blit_text(surface=surface, text_surface=text_surface, position=(HUD_MARGIN, line_top))
+        line_top += HUD_LINE_HEIGHT
+
+
+def _audio_frame_per_column(
+    *, overlay: DebugOverlay
+) -> list[tuple[float, Mapping[str, float]] | None]:
+    """Map the graph window's frames onto the shared time axis, keeping each column's audio peak.
+
+    A column shows the frame overlapping it with the most audio work (the slowest, among equals),
+    so a compile spike is never hidden by a quiet neighbour sharing its column.
+
+    Returns:
+        Per column (left to right), the frame's duration and audio work, or None where no
+            recorded frame reaches.
+
+    """
+    columns: list[tuple[float, Mapping[str, float]] | None] = [None] * GRAPH_WIDTH
+    frame_times = overlay.graph_frame_times(window_seconds=GRAPH_WINDOW_SECONDS)
+    audio_work = overlay.graph_audio_work(window_seconds=GRAPH_WINDOW_SECONDS)
+    for index, first_column, last_column in _frame_column_spans(frame_times=frame_times):
+        candidate = (frame_times[index], audio_work[index])
+        candidate_rank = (sum(candidate[1].values()), candidate[0])
+        for column in range(first_column, last_column + 1):
+            current = columns[column]
+            if current is None or candidate_rank > (sum(current[1].values()), current[0]):
+                columns[column] = candidate
+    return columns
+
+
+def _kind_order(kind: str) -> int:
+    """Rank a kind of audio work for stacking: known kinds in AUDIO_KIND_COLORS order, then others.
+
+    Returns:
+        int: The rank (lowest is drawn at the bottom of the bar).
+
+    """
+    known_kinds = list(AUDIO_KIND_COLORS)
+    return known_kinds.index(kind) if kind in known_kinds else len(known_kinds)
+
+
+def _draw_audio_time_graph(
+    *, surface: pygame.Surface, overlay: DebugOverlay, font: pygame.font.Font, target_fps: float
+) -> None:
+    """Draw one bar per frame of audio work, stacked by kind, in the frame-time graph's place.
+
+    Each frame's whole duration is a faint column behind its bar and the frame budget is a line,
+    so the audio share of every frame is visible at a glance. A kind with any work is at least
+    one pixel tall.
+    """
+    graph_rect = _graph_rect(surface=surface)
+    target_milliseconds, pixels_per_millisecond = _graph_scale(target_fps=target_fps)
+    _blit_backing(surface=surface, rect=graph_rect)
+    for column, entry in enumerate(_audio_frame_per_column(overlay=overlay)):
+        if entry is None:
+            continue
+        frame_seconds, work_by_kind = entry
+        bar_x = graph_rect.left + column
+        outline_height = min(
+            GRAPH_HEIGHT,
+            max(1, round(frame_seconds * MILLISECONDS_PER_SECOND * pixels_per_millisecond)),
+        )
+        pygame.draw.line(
+            surface,
+            AUDIO_FRAME_OUTLINE_COLOR,
+            (bar_x, graph_rect.bottom - 1),
+            (bar_x, graph_rect.bottom - outline_height),
+        )
+        segment_bottom = graph_rect.bottom - 1
+        for kind in sorted(work_by_kind, key=_kind_order):
+            if work_by_kind[kind] <= 0.0 or segment_bottom < graph_rect.top:
+                continue
+            segment_height = max(
+                1, round(work_by_kind[kind] * MILLISECONDS_PER_SECOND * pixels_per_millisecond)
+            )
+            segment_top = max(graph_rect.top, segment_bottom - segment_height + 1)
+            pygame.draw.line(
+                surface,
+                AUDIO_KIND_COLORS.get(kind, AUDIO_CACHE_COLOR),
+                (bar_x, segment_bottom),
+                (bar_x, segment_top),
+            )
+            segment_bottom = segment_top - 1
+    if target_milliseconds is not None:
+        line_y = graph_rect.bottom - 1 - round(target_milliseconds * pixels_per_millisecond)
+        pygame.draw.line(
+            surface, TARGET_LINE_COLOR, (graph_rect.left, line_y), (graph_rect.right - 1, line_y)
+        )
+    _draw_audio_graph_legend(surface=surface, font=font, graph_rect=graph_rect)
+
+
+def _draw_audio_graph_legend(
+    *, surface: pygame.Surface, font: pygame.font.Font, graph_rect: pygame.Rect
+) -> None:
+    """Name the four kinds of audio work above the graph, each beside its colour swatch."""
+    entry_left = graph_rect.left
+    # Above the graph, clear of the text backing's padding, which would dim the graph's top row
+    entry_top = graph_rect.top - HUD_LINE_HEIGHT - TEXT_BACKING_PADDING
+    for label, color in AUDIO_KIND_LEGEND:
+        pygame.draw.rect(
+            surface, color, pygame.Rect(entry_left, entry_top + 2, AUDIO_CELL_SIZE, AUDIO_CELL_SIZE)
+        )
+        blit_text(
+            surface=surface,
+            text_surface=font.render(label, antialias=FontManager.antialias(), color=color),
+            position=(entry_left + AUDIO_CELL_SIZE + AUDIO_LEGEND_SWATCH_GAP, entry_top),
+        )
+        entry_left += AUDIO_LEGEND_ENTRY_WIDTH
+
+
+def draw_audio_panel(
+    *,
+    surface: pygame.Surface,
+    overlay: DebugOverlay,
+    font: pygame.font.Font,
+    frame_info: DebugFrameInfo,
+) -> None:
+    """Draw the Audio panel: header, channel strip, bus meters, compile log and audio-time graph.
+
+    The header, strip, meters and log stack down the left side; the graph sits where the
+    Performance panel's frame-time graph does, over the same time window. Without an audio engine
+    only the header's one line is drawn.
+
+    Args:
+        surface (pygame.Surface): The presented frame to draw onto.
+        overlay (DebugOverlay): The overlay holding the frame and audio-work history.
+        font (pygame.font.Font): Font used for the text.
+        frame_info (DebugFrameInfo): Supplies the audio snapshot and the target FPS.
+
+    """
+    next_top = draw_audio_header(
+        surface=surface, font=font, frame_info=frame_info, top=AUDIO_PANEL_TOP
+    )
+    audio = frame_info.audio
+    if audio is None:
+        return
+    next_top = _draw_channel_strip(
+        surface=surface,
+        font=font,
+        channels=audio.channels,
+        recently_stolen=audio.recently_stolen_channels,
+        top=next_top + AUDIO_SECTION_GAP,
+    )
+    next_top = _draw_bus_meters(
+        surface=surface, font=font, audio=audio, top=next_top + AUDIO_SECTION_GAP
+    )
+    _draw_compile_log(surface=surface, font=font, audio=audio, top=next_top + AUDIO_SECTION_GAP)
+    _draw_audio_time_graph(
+        surface=surface, overlay=overlay, font=font, target_fps=frame_info.target_fps
     )
 
 

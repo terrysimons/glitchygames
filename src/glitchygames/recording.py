@@ -90,6 +90,11 @@ built by the same functions (``event_batch_records``, ``recorded_frame``).
   them to the game. A rebaseline stacks its own in front of the replayed frame's; each list
   keeps ``CONTENT_HASH_HISTORY_DEPTH`` / ``PROCESSING_SECONDS_HISTORY_DEPTH`` entries (10).
   A recording's own hash for any run is derived from them (``recording_content_hash``).
+- A frame in which the audio engine did work (compiles, decodes, cache reads, live chunks;
+  glitchygames/audio/accounting.py) also holds ``audio_seconds`` (its total, to the
+  microsecond) and ``audio_work`` (``[kind, name, microseconds]`` per piece, at most 32), this
+  run's alone: measurements no hash covers, never compared or served (sound engine impl spec
+  11.0). Only the recording doors write them (``end_frame(audio_frame=...)``).
 - A frame whose active scene is a different scene object from the previous frame's is a
   keyframe, even when both scenes have the same class (two floors of one game).
 
@@ -252,7 +257,10 @@ import pygame
 from glitchygames.events.base import LEGACY_CUSTOM_EVENT_TYPES, NAMED_CUSTOM_EVENT_TYPES
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
 from glitchygames.recording_history import (
+    AUDIO_SECONDS_FIELD,
+    AUDIO_WORK_FIELD,
     CONTENT_HASH_FIELD,
+    PROCESSING_SECONDS_DIGITS,
     PROCESSING_SECONDS_FIELD,
     add_frame_histories,
 )
@@ -269,6 +277,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from types import TracebackType
 
+    from glitchygames.audio.accounting import AudioFrameAccount
     from glitchygames.input.devices import DeviceRegistry
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scene_start import SceneStart
@@ -1289,6 +1298,7 @@ class GameplayRecorder:
         scene: Scene | None,
         processing_seconds: float | None = None,
         previous_histories: Mapping[str, Any] | None = None,
+        audio_frame: AudioFrameAccount | None = None,
         **frame_fields: Unpack[RecordedFrameFields],
     ) -> None:
         """Write the frame just finished: its dt, its event batches and the scene's sprites.
@@ -1296,7 +1306,9 @@ class GameplayRecorder:
         The format-3 fields (``RecordedFrameFields``, see the module docstring) are written
         only when given and not empty, so idle frames stay small. Every frame also gets its
         histories (glitchygames/recording_history.py): its content hash and processing time,
-        in front of ``previous_histories`` (a rebaseline's: the replayed frame's).
+        in front of ``previous_histories`` (a rebaseline's: the replayed frame's). A frame
+        that did audio work gets its ``audio_seconds`` (to the microsecond) and ``audio_work``
+        measurements, which no hash covers (sound engine impl spec 11.0).
 
         Args:
             dt: The frame's raw delta time (scene logic received it capped at the scene's
@@ -1305,6 +1317,7 @@ class GameplayRecorder:
             processing_seconds: The frame's processing time, or None when not measured.
             previous_histories: The frame's earlier ``content_hash`` and ``processing_seconds``
                 histories, or None for a fresh recording.
+            audio_frame: The frame's audio work, or None when the game has no audio engine.
             **frame_fields: The frame's format-3 fields, by keyword.
 
         """
@@ -1324,6 +1337,11 @@ class GameplayRecorder:
             processing_seconds=processing_seconds,
             previous_histories=previous_histories,
         )
+        if audio_frame is not None and audio_frame.audio_work:
+            frame_record[AUDIO_SECONDS_FIELD] = round(
+                audio_frame.audio_seconds, PROCESSING_SECONDS_DIGITS
+            )
+            frame_record[AUDIO_WORK_FIELD] = [list(piece) for piece in audio_frame.audio_work]
         is_new_scene_object = self._writer.frame_count > 0 and scene is not self._previous_scene
         failure: OSError | None = None
         try:
@@ -1619,7 +1637,7 @@ class RecordingSources:
         """
         return self.inner.control_events_for_frame(frame_number=frame_number)
 
-    def end_frame(
+    def end_frame(  # ruff: ignore[too-many-arguments] - the EngineSources door's signature
         self,
         *,
         frame_number: int,
@@ -1627,6 +1645,7 @@ class RecordingSources:
         scene: Scene | None,
         control_events: list[ControlEvent],
         processing_seconds: float | None = None,
+        audio_frame: AudioFrameAccount | None = None,
     ) -> None:
         """Write the frame with everything that passed through the doors, then end it inside.
 
@@ -1671,6 +1690,7 @@ class RecordingSources:
                 # This run's own measurement, over a replay too (a rebaseline's NEW holds the
                 # current code's times in front of OLD's)
                 processing_seconds=processing_seconds,
+                audio_frame=audio_frame,
                 previous_histories=(
                     None
                     if self._replayed is None
@@ -1688,6 +1708,7 @@ class RecordingSources:
             scene=scene,
             control_events=control_events,
             processing_seconds=processing_seconds,
+            audio_frame=audio_frame,
         )
 
     def _unrecorded_scene_start(self, *, scene: Scene | None) -> SceneStart | None:

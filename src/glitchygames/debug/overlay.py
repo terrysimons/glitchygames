@@ -14,6 +14,8 @@ import pygame
 from glitchygames.debug import panels
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from glitchygames.camera import Camera2D
     from glitchygames.debug.panels import DebugFrameInfo
     from glitchygames.debug.protocols import DebugDrawable, InspectedScene
@@ -60,6 +62,7 @@ class DebugPanel(enum.Enum):
         PHYSICS (str): Velocity arrows and physics state.
         CAMERA (str): Camera position and bounds.
         PERFORMANCE (str): FPS readout, 1% low and frame-time graph.
+        AUDIO (str): Audio engine header, audio-time graph, channels, buses and compile log.
 
     """
 
@@ -68,6 +71,7 @@ class DebugPanel(enum.Enum):
     PHYSICS = 'physics'
     CAMERA = 'camera'
     PERFORMANCE = 'performance'
+    AUDIO = 'audio'
 
 
 class DebugOverlay:
@@ -87,6 +91,12 @@ class DebugOverlay:
         self.is_visible = visible
         self.panel = DebugPanel.ALL
         self._frame_times: collections.deque[float] = collections.deque(
+            maxlen=FRAME_HISTORY_LENGTH,
+        )
+        # Each frame's audio work in seconds by kind, one entry per entry of _frame_times (an
+        # empty mapping when none was given), so the audio-time graph shares the frame-time
+        # graph's x-axis (sound engine impl spec 10.5)
+        self._audio_work: collections.deque[Mapping[str, float]] = collections.deque(
             maxlen=FRAME_HISTORY_LENGTH,
         )
         self._font: pygame.font.Font | None = None
@@ -127,17 +137,23 @@ class DebugOverlay:
         """
         return self.panel in {DebugPanel.ALL, panel}
 
-    def record_frame(self, *, frame_seconds: float) -> None:
-        """Append one frame's duration to the history.
+    def record_frame(
+        self, *, frame_seconds: float, audio_work_by_kind: Mapping[str, float] | None = None
+    ) -> None:
+        """Append one frame's duration, and its audio work, to the history.
 
-        Non-positive durations are ignored, since they cannot produce a meaningful FPS.
+        Non-positive durations are ignored, since they cannot produce a meaningful FPS; their
+        audio work is ignored with them, so the two histories stay aligned.
 
         Args:
             frame_seconds (float): How long the frame took, in seconds.
+            audio_work_by_kind (Mapping[str, float] | None): The frame's audio work in seconds
+                by kind (compile, decode, live_chunk, cache_read), or None for no work.
 
         """
         if frame_seconds > 0.0:
             self._frame_times.append(frame_seconds)
+            self._audio_work.append({} if audio_work_by_kind is None else audio_work_by_kind)
 
     def frame_times(self) -> list[float]:
         """Return the recorded frame durations.
@@ -219,6 +235,25 @@ class DebugOverlay:
         """
         return self._window(window_seconds)
 
+    def graph_audio_work(
+        self, *, window_seconds: float = GRAPH_WINDOW_SECONDS
+    ) -> list[Mapping[str, float]]:
+        """Return the audio work of the frames the frame-time graph plots.
+
+        Args:
+            window_seconds (float): The window length in seconds. Defaults to
+                GRAPH_WINDOW_SECONDS.
+
+        Returns:
+            list[Mapping[str, float]]: Per frame inside the window, oldest first, the audio work
+                in seconds by kind (aligned with `graph_frame_times`).
+
+        """
+        frame_count = len(self._window(window_seconds))
+        if frame_count == 0:
+            return []
+        return list(self._audio_work)[-frame_count:]
+
     def draw(
         self,
         surface: pygame.Surface,
@@ -275,6 +310,22 @@ class DebugOverlay:
                 font=font,
                 frame_info=frame_info,
             )
+        if self.panel is DebugPanel.AUDIO:
+            panels.draw_audio_panel(
+                surface=surface,
+                overlay=self,
+                font=font,
+                frame_info=frame_info,
+            )
+        elif self.panel is DebugPanel.ALL:
+            # All panels: the Audio panel contributes only its header, below the camera panel's
+            # lines (sound engine feature spec 11.1.1)
+            panels.draw_audio_header(
+                surface=surface,
+                font=font,
+                frame_info=frame_info,
+                top=panels.ALL_PANEL_AUDIO_HEADER_TOP,
+            )
         panels.draw_mode_line(
             surface=surface,
             font=font,
@@ -282,7 +333,9 @@ class DebugOverlay:
             inspected_scene_label=frame_info.inspected_scene_label,
         )
 
-        if self.panel is not DebugPanel.PERFORMANCE:
+        # The Performance and Audio panels are text and graphs over the whole screen: game
+        # annotations would sit on top of them
+        if self.panel not in {DebugPanel.PERFORMANCE, DebugPanel.AUDIO}:
             self._call_hooks(surface=surface, scene=scene, camera=camera)
 
     def _call_hooks(

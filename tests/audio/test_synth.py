@@ -1,5 +1,7 @@
 """Tests for the synth toolkit (numpy only unless marked)."""
 
+import warnings
+
 import numpy as np
 import pygame
 import pytest
@@ -262,6 +264,26 @@ class TestEffectsAndMixing:
 
     def test_normalize_peak(self):
         assert np.max(np.abs(synth.normalize(np.array([0.1, -0.5]), peak=0.9))) == 0.9
+
+    def test_normalize_denormal_signal_is_silence(self):
+        """A signal whose loudest sample is denormal comes back unchanged, with no warning."""
+        denormal = np.array([2.2e-313, -1.0e-313])
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            normalized = synth.normalize(denormal)
+        np.testing.assert_array_equal(normalized, denormal)
+        assert normalized is not denormal
+
+    def test_normalize_smallest_normal_signal_is_scaled(self):
+        """The smallest normal-sized signal is still scaled: its gain is large but finite."""
+        tiny = np.array([np.finfo(np.float64).tiny])
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            normalized = synth.normalize(tiny, peak=1.0)
+        np.testing.assert_allclose(normalized, [1.0])
+
+    def test_normalize_half_scale_reaches_peak(self):
+        np.testing.assert_allclose(synth.normalize(np.array([0.25, -0.5]), peak=0.9), [0.45, -0.9])
 
     def test_silence_zero_is_empty(self):
         assert len(synth.silence(0.0, sample_rate=RATE)) == 0

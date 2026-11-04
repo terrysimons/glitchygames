@@ -132,7 +132,7 @@ games = [
   "paddleslap",
   "drawing-fire",
 ]
-demos = ["dt-demo", "joystick-demo", "text-input-demo"]
+demos = ["dt-demo", "joystick-demo", "sound-board-demo", "text-input-demo"]
 apps = ["bitmappy"]
 
 [tool.uv.workspace]
@@ -146,6 +146,7 @@ members = [
   "src/games/drawing-fire",
   "src/demos/dt-demo",
   "src/demos/joystick-demo",
+  "src/demos/sound-board-demo",
   "src/demos/text-input-demo",
   "src/apps/bitmappy",
 ]
@@ -159,6 +160,7 @@ paddleslap = { workspace = true }
 drawing-fire = { workspace = true }
 dt-demo = { workspace = true }
 joystick-demo = { workspace = true }
+sound-board-demo = { workspace = true }
 text-input-demo = { workspace = true }
 bitmappy = { workspace = true }
 
@@ -175,6 +177,7 @@ dev = [
   "drawing-fire",
   "dt-demo",
   "joystick-demo",
+  "sound-board-demo",
   "text-input-demo",
   "bitmappy",
 ]
@@ -202,6 +205,7 @@ games = [
   "joystick-demo",
   "mr-muncher",
   "paddleslap",
+  "sound-board-demo",
   "text-input-demo",
 ]
 # Each member's golden replays, directly in its tests/fixtures/replays/ (src/<layer>/<member>/)
@@ -256,6 +260,7 @@ testpaths = [
   "src/games/drawing-fire/tests",
   "src/demos/dt-demo/tests",
   "src/demos/joystick-demo/tests",
+  "src/demos/sound-board-demo/tests",
   "src/demos/text-input-demo/tests",
   "src/apps/bitmappy/tests",
 ]
@@ -284,7 +289,7 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "--import-mode=importlib -p no:randomly -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=dt_demo --cov=joystick_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+addopts = "--import-mode=importlib -p no:randomly -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=dt_demo --cov=joystick_demo --cov=sound_board_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
@@ -309,6 +314,7 @@ source = [
   "drawing_fire",
   "dt_demo",
   "joystick_demo",
+  "sound_board_demo",
   "text_input_demo",
   "bitmappy",
 ]
@@ -363,6 +369,10 @@ joystick_demo = [
   "src/demos/joystick-demo/src/joystick_demo",
   "*/site-packages/joystick_demo",
 ]
+sound_board_demo = [
+  "src/demos/sound-board-demo/src/sound_board_demo",
+  "*/site-packages/sound_board_demo",
+]
 text_input_demo = [
   "src/demos/text-input-demo/src/text_input_demo",
   "*/site-packages/text_input_demo",
@@ -407,6 +417,7 @@ src = [
   "src/games/drawing-fire/src",
   "src/demos/dt-demo/src",
   "src/demos/joystick-demo/src",
+  "src/demos/sound-board-demo/src",
   "src/demos/text-input-demo/src",
   "src/apps/bitmappy/src",
   "src/apps/bitmappy/tests",
@@ -420,6 +431,7 @@ include = [
   "src/games/drawing-fire/**/*.py",
   "src/demos/dt-demo/**/*.py",
   "src/demos/joystick-demo/**/*.py",
+  "src/demos/sound-board-demo/**/*.py",
   "src/demos/text-input-demo/**/*.py",
   "src/apps/bitmappy/**/*.py",
   "tests/**/*.py",
@@ -437,6 +449,7 @@ namespace-packages = [
   "src/games/drawing-fire/tests",
   "src/demos/dt-demo/tests",
   "src/demos/joystick-demo/tests",
+  "src/demos/sound-board-demo/tests",
   "src/demos/text-input-demo/tests",
   "src/apps/bitmappy/tests",
 ]
@@ -623,6 +636,11 @@ fixable = ["ALL"]
   # in the package itself (docs/architecture/game_packages.md, "A game that is one module")
   "RUF067",
 ]
+"src/demos/sound-board-demo/src/sound_board_demo/__init__.py" = [
+  # The demo is one module: its logical name is demos.sound_board_demo:Game, so Game stays defined
+  # in the package itself (docs/architecture/game_packages.md, "A game that is one module")
+  "RUF067",
+]
 "src/demos/text-input-demo/src/text_input_demo/__init__.py" = [
   # The demo is one module: its logical name is demos.text_input_demo:Game, so Game stays defined
   # in the package itself (docs/architecture/game_packages.md, "A game that is one module")
@@ -662,6 +680,7 @@ known-first-party = [
   "drawing_fire",
   "dt_demo",
   "joystick_demo",
+  "sound_board_demo",
   "text_input_demo",
   "bitmappy",
 ]
@@ -682,6 +701,7 @@ root = [
   "src/games/drawing-fire/src",
   "src/demos/dt-demo/src",
   "src/demos/joystick-demo/src",
+  "src/demos/sound-board-demo/src",
   "src/demos/text-input-demo/src",
   "src/apps/bitmappy/src",
 ]
@@ -697,6 +717,7 @@ include = [
   "src/games/drawing-fire",
   "src/demos/dt-demo",
   "src/demos/joystick-demo",
+  "src/demos/sound-board-demo",
   "src/demos/text-input-demo",
   "src/apps/bitmappy",
   "scripts",
@@ -768,6 +789,7 @@ known_first_party = ["glitchygames"]
 "drawing-fire" = ["drawing_fire"]
 "dt-demo" = ["dt_demo"]
 "joystick-demo" = ["joystick_demo"]
+"sound-board-demo" = ["sound_board_demo"]
 "text-input-demo" = ["text_input_demo"]
 "bitmappy" = ["bitmappy"]
 
@@ -777,9 +799,14 @@ known_first_party = ["glitchygames"]
 # bokeh is kept deliberately for future plotting tools (the user, 2026-10-22); nothing imports it yet
 # The demos layer's members are in the root's `demos` extra, but nothing deptry scans imports them
 # (scripts/ imports the games, not the demos; a demo's tests are its member's, under src/demos)
+# pydantic_core is pydantic's own core, installed at the exact version pydantic pins: the sound
+# file schema (src/glitchygames/audio/assets.py) raises its PydanticCustomError, which pydantic
+# does not re-export
+DEP003 = ["pydantic_core"]
 DEP002 = [
   "dt-demo",
   "joystick-demo",
+  "sound-board-demo",
   "text-input-demo",
   "numpy",
   "bokeh",
