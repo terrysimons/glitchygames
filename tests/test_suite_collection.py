@@ -1167,6 +1167,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     'tests/test_compare_driver_frames.py': ('scripts/compare_driver_frames.py',),
     'tests/test_create.py': ('scripts/create.py',),
     'tests/test_complexity_report.py': ('scripts/complexity_report.py',),
+    'tests/test_docs_claims.py': ('scripts/docs_claims.py', 'scripts/git_checkout.py'),
     'tests/test_driver_configurations.py': ('scripts/driver_configurations.py',),
     'tests/test_driver_frame_matrix.py': ('scripts/driver_frame_matrix.py',),
     'tests/test_gen_ref_pages.py': ('scripts/gen_ref_pages.py',),
