@@ -105,9 +105,20 @@ from the same worklist.
   context slots and random streams are strings (now written quoted), a gh-pages `REF:PATH` is
   another ref's path (the checker skips a path after a colon), and the rest name deleted or
   moved things as deleted or moved (recorded exceptions, each with its reason).
-- `docs/architecture/game_packages.md`: plan its update (below).
+- `docs/architecture/game_packages.md`: planned (below) and done. The move recipe became
+  "Adding a member", from the Sound Board demo's diff (e8e88b44) and what
+  `tests/test_workspace_config.py` checks; it names the entries no test checks
+  (`[tool.glitchygames] games` for a member with no recording, a demo's deptry `DEP002`, the
+  mkdocstrings `paths`, which only the docs build catches) and the hand-written tables a fresh
+  member also needs (`tests/test_logical_names.py`, `EXPECTED_ALL_CONSOLE_SCRIPTS`,
+  `OUR_GAMES`). Its sample `pyproject.toml` was stale (no engine floor, no declared imports).
+  The special case keeps its name, "A game that is one module", which five `pyproject.toml`
+  comments cite. The history section names the emptied places (recorded exceptions).
+- Found with it, stale counts since the Sound Board demo: "the three demos" (`pyproject.toml`,
+  `tests/workspace_expectations.py`) and "the nine members" (`tests/workspace_expectations.py`,
+  `docs/architecture/gameplay_replay.md`); now four and ten.
 
-After those: 12 claims, all in `game_packages.md`.
+After those: 0 claims. The reading pass (steps 3-7) is next.
 
 ## `docs/architecture/game_packages.md`
 

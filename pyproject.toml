@@ -195,7 +195,7 @@ packages = ["src/glitchygames"]
 # The engine's recording, replay and measurement tools read this project's layout from here
 # (glitchygames/replay/tools/settings.py; a project without this table gets the defaults there)
 [tool.glitchygames]
-# Every workspace member's console script: the five games, the three demos and Bitmappy
+# Every workspace member's console script: the five games, the four demos and Bitmappy
 games = [
   "bitmappy",
   "brave-adventurer",

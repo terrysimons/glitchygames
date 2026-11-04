@@ -145,6 +145,15 @@ RECORDED_EXCEPTIONS: dict[tuple[str, str], str] = {
     ('docs/games/clockwork_keep.md', 'glitchygames.examples.clockwork_keep'): (
         'named as the module the move left nothing of'
     ),
+    ('docs/architecture/game_packages.md', 'src/glitchygames/examples'): (
+        "named as a place the moves emptied, where an old checkout's leftovers are"
+    ),
+    ('docs/architecture/game_packages.md', 'src/glitchygames/bitmappy'): (
+        "named as a place the moves emptied, where an old checkout's leftovers are"
+    ),
+    ('docs/architecture/game_packages.md', 'tests/examples'): (
+        "named as a place the moves emptied, where an old checkout's leftovers are"
+    ),
 }
 
 
