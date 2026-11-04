@@ -1,6 +1,5 @@
 """Tests for the short-name index: names, recorded-file stems, duplicates and unknown names."""
 
-import re
 from pathlib import Path
 
 import pytest
@@ -104,8 +103,12 @@ def test_an_unknown_name_with_no_close_match_has_no_suggestion():
 
 def test_a_missing_sound_directory_is_a_key_error_naming_it(tmp_path):
     """A missing sound directory is a key error naming it."""
-    with pytest.raises(KeyError, match=re.escape(str(tmp_path / 'sounds'))):
+    with pytest.raises(KeyError) as raised:
         ShortNameIndex(tmp_path / 'sounds').resolve('coin')
+
+    # A KeyError's str() is the message's repr, which doubles a Windows path's backslashes
+    message = raised.value.args[0]
+    assert f'the sound directory {tmp_path / "sounds"} does not exist' in message
 
 
 def test_a_file_that_is_not_toml_is_reported_by_name(tmp_path):
