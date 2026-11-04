@@ -194,15 +194,19 @@ def action_chunk(levels: np.ndarray, chunks: range) -> int:
     """The trial's first chunk below full level after its tone reached full level.
 
     A trial's tone plays at full level until the case acts; this chunk is the first the action
-    changed.
+    changed. A late mixer thread can miss a short fade's plateaus: the channel halts, the halt's
+    silence separates the trials, and no chunk of the trial is below full level.
 
     Returns:
-        The chunk's index in the recording.
+        The chunk's index in the recording, or ``chunks.stop`` if no chunk is below full level.
     """
     trial = levels[chunks.start : chunks.stop]
     at_full = trial >= 1.0 - LEVEL_TOLERANCE
     first_full = int(np.argmax(at_full))
-    return chunks.start + first_full + int(np.argmax(~at_full[first_full:]))
+    below_full = ~at_full[first_full:]
+    if not below_full.any():
+        return chunks.stop
+    return chunks.start + first_full + int(np.argmax(below_full))
 
 
 def levels_after_the_action(levels: np.ndarray, chunks: range) -> np.ndarray:

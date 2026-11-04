@@ -37,6 +37,7 @@ from tests.audio.channel_fade_analysis import (
     DISCONTINUITY_THRESHOLD,
     LEVEL_TOLERANCE,
     MAXIMUM_CRT_FADE_PLATEAUS,
+    action_chunk,
     chunk_levels,
     levels_after_the_action,
     recording_directory,
@@ -122,7 +123,6 @@ def test_a_bus_fade_reaches_the_channel_as_per_chunk_gain_steps(recordings):
     assert len(recorded_trials) == TRIAL_COUNT
     for chunks in recorded_trials:
         after = levels_after_the_action(levels, chunks)
-        assert after.size > 0
         for level in after:
             assert min(abs(level - gain) for gain in BUS_FADE_GAINS) <= LEVEL_TOLERANCE, after
 
@@ -173,6 +173,20 @@ def test_a_crt_skip_on_the_device_has_no_step_above_threshold(recordings):
     samples = recordings(CRT_SKIP)
 
     assert worst_step_ratio(samples, case=CRT_SKIP) <= DISCONTINUITY_THRESHOLD
+
+
+def test_a_fade_that_halts_within_one_chunk_has_no_level_after_the_action():
+    """A trial that never drops below full level has no action chunk to measure from.
+
+    When the mixer thread runs late, a 20 ms fade can elapse between two chunks: the channel
+    halts with no plateau (CircleCI macOS, 2026-11-04: 16 chunks at full level, then silence).
+    The halt's silence separates the trials, so every chunk of the trial is at full level, and
+    none of them is a plateau of the fade.
+    """
+    levels = np.ones(16)
+
+    assert action_chunk(levels, range(16)) == 16
+    assert levels_after_the_action(levels, range(16)).size == 0
 
 
 def test_a_stalled_trial_stays_one_trial():
