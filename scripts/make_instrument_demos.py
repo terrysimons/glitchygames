@@ -15,6 +15,7 @@ import wave
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 
 from glitchygames.audio import instruments
 from glitchygames.audio.instrument import build_spec
@@ -22,6 +23,7 @@ from glitchygames.audio.pitch import Note, Tuning
 from glitchygames.audio.render import render_sound
 from glitchygames.audio.spec import PlaybackDefaults
 
+DESCRIPTION = 'Render every catalog instrument across its range to WAV files, for listening.'
 SAMPLE_RATE = 44100
 STEP_SECONDS = 0.3
 TOP_NOTE_SECONDS = 0.9
@@ -50,10 +52,10 @@ def demo_notes(entry: instruments.CatalogEntry) -> list[tuple[Note, float]]:
     return notes
 
 
-def write_wav(path: Path, samples: np.ndarray) -> None:
+def write_wav(path: Path, samples: npt.NDArray[np.float64]) -> None:
     """Write mono float samples as 16-bit PCM."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    pcm = np.clip(np.round(samples * 32767), -32768, 32767).astype('<i2')
+    pcm: npt.NDArray[np.int16] = np.clip(np.round(samples * 32767), -32768, 32767).astype('<i2')
     with wave.open(str(path), 'wb') as file:
         file.setnchannels(1)
         file.setsampwidth(2)
@@ -63,11 +65,11 @@ def write_wav(path: Path, samples: np.ndarray) -> None:
 
 def main() -> None:
     """Render the demos."""
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
     parser.add_argument('output', nargs='?', type=Path, default=Path('build') / 'instruments')
     parser.add_argument('--only', default='', help='only instruments whose name contains TEXT')
     arguments = parser.parse_args()
-    lines = []
+    lines: list[str] = []
     for entry in instruments.entries():
         if arguments.only not in entry.name:
             continue
