@@ -503,11 +503,6 @@ class TestFilmStripWidgetInit:
         # Default starts at gray (index 2)
         assert widget.background_color_index == 2
 
-    def test_init_copy_paste_buffer(self):
-        """Test initialization has empty copy/paste buffer."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        assert widget.copied_frame is None
-
     def test_init_film_tabs_empty(self):
         """Test initialization starts with empty film tabs."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
@@ -821,111 +816,6 @@ class TestFilmStripGetCurrentPreviewFrame:
         widget.preview_animation_times['run'] = 0.6
         widget.preview_frame_durations['run'] = [0.3, 0.3, 0.3]
         assert widget.get_current_preview_frame('run') == 1
-
-
-class TestFilmStripCopyPaste:
-    """Test copy_current_frame and paste_to_current_frame methods."""
-
-    @pytest.fixture
-    def widget_with_frames(self):
-        """Create a widget with loaded frames for copy/paste testing.
-
-        Returns:
-            A FilmStripWidget with frames loaded for copy/paste.
-        """
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        sprite = AnimatedSprite()
-        surface = pygame.Surface((SURFACE_SIZE, SURFACE_SIZE))
-        frame1 = SpriteFrame(surface, duration=FRAME_DURATION)
-        frame2 = SpriteFrame(surface, duration=FRAME_DURATION_FAST)
-        sprite.add_animation('idle', [frame1, frame2])
-        widget.set_animated_sprite(sprite)
-        widget.current_animation = 'idle'
-        widget.current_frame = 0
-        return widget
-
-    def test_copy_no_sprite(self):
-        """Test copy fails with no animated sprite."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        assert widget.copy_current_frame() is False
-
-    def test_copy_no_animation(self):
-        """Test copy fails with no current animation."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget.animated_sprite = AnimatedSprite()
-        widget.current_animation = ''
-        assert widget.copy_current_frame() is False
-
-    def test_copy_invalid_animation(self):
-        """Test copy fails with invalid animation name."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget.animated_sprite = AnimatedSprite()
-        widget.current_animation = 'nonexistent'
-        assert widget.copy_current_frame() is False
-
-    def test_copy_out_of_range_frame(self, widget_with_frames):
-        """Test copy fails with out-of-range frame index."""
-        widget_with_frames.current_frame = 999
-        assert widget_with_frames.copy_current_frame() is False
-
-    def test_copy_success(self, widget_with_frames):
-        """Test successful copy stores frame."""
-        assert widget_with_frames.copy_current_frame() is True
-        assert widget_with_frames.copied_frame is not None
-
-    def test_paste_no_copied_frame(self, widget_with_frames):
-        """Test paste fails with no copied frame."""
-        assert widget_with_frames.paste_to_current_frame() is False
-
-    def test_paste_no_sprite(self):
-        """Test paste fails with no animated sprite."""
-        widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
-        widget.copied_frame = 'something'
-        assert widget.paste_to_current_frame() is False
-
-    def test_paste_invalid_animation(self, widget_with_frames):
-        """Test paste fails with invalid animation name."""
-        widget_with_frames.copy_current_frame()
-        widget_with_frames.current_animation = 'nonexistent'
-        assert widget_with_frames.paste_to_current_frame() is False
-
-    def test_paste_out_of_range_frame(self, widget_with_frames):
-        """Test paste fails with out-of-range frame index."""
-        widget_with_frames.copy_current_frame()
-        widget_with_frames.current_frame = 999
-        assert widget_with_frames.paste_to_current_frame() is False
-
-    def test_paste_success(self, widget_with_frames):
-        """Test successful paste replaces frame."""
-        widget_with_frames.copy_current_frame()
-        widget_with_frames.current_frame = 1
-        assert widget_with_frames.paste_to_current_frame() is True
-
-    def test_paste_notifies_parent_scene(self, widget_with_frames, mocker):
-        """Test paste notifies parent scene when available."""
-        widget_with_frames.copy_current_frame()
-        parent_scene = mocker.Mock()
-        parent_scene._on_frame_pasted = mocker.Mock()
-        widget_with_frames.parent_scene = parent_scene
-        widget_with_frames.current_frame = 1
-        widget_with_frames.paste_to_current_frame()
-        parent_scene._on_frame_pasted.assert_called_once_with('idle', 1)
-
-    def test_paste_without_parent_scene(self, widget_with_frames):
-        """Test paste succeeds without parent scene."""
-        widget_with_frames.copy_current_frame()
-        # Ensure no parent_scene is set
-        if hasattr(widget_with_frames, 'parent_scene'):
-            del widget_with_frames.parent_scene
-        widget_with_frames.current_frame = 1
-        assert widget_with_frames.paste_to_current_frame() is True
-
-    def test_copy_creates_deep_copy(self, widget_with_frames):
-        """Test copy creates an independent deep copy of the frame."""
-        widget_with_frames.copy_current_frame()
-        # Modifying the original should not affect the copy
-        original_frame = widget_with_frames.animated_sprite._animations['idle'][0]
-        assert widget_with_frames.copied_frame is not original_frame
 
 
 class TestFilmStripFrameSelection:

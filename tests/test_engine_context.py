@@ -128,6 +128,7 @@ PROCESS_STATE_AUTOUSE_FIXTURES = {
     'restore_signal_handlers': 'signal handlers are one per process, never per context',
     'restore_gil_switch_interval': 'the GIL switch interval is one per process',
     'ensure_pygame_graceful_quit': 'pygame, the display and the mixer are one per process',
+    'inner_runs_keep_their_order': 'PYTEST_ADDOPTS is the process environment, read by inner runs',
 }
 
 

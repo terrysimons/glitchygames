@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from typing import Any, TypedDict
 
 from glitchygames import clock
-from glitchygames.ui.sliders import ColorChannel
 
 LOG = logging.getLogger('game.tools.controller_selection')
 
@@ -39,7 +38,6 @@ class ControllerSelectionState:
     instance_id: int
     selected_animation: str = ''
     selected_frame: int = 0
-    selected_slider: ColorChannel = ColorChannel.RED  # RED, GREEN or BLUE
     controller_fill_direction: str = 'HORIZONTAL'  # HORIZONTAL or VERTICAL
     is_active: bool = False
     # elapsed_seconds() of the last activity; -inf before any, so the activity age is inf
@@ -166,31 +164,6 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
 
         """
         return self.state.selected_frame
-
-    def set_slider(self, slider_name: ColorChannel) -> None:
-        """Set the selected slider for this controller.
-
-        Args:
-            slider_name: Name of the slider (R, G, or B)
-
-        """
-        if (
-            slider_name in {ColorChannel.RED, ColorChannel.GREEN, ColorChannel.BLUE}
-            and self.state.selected_slider != slider_name
-        ):
-            self.state.selected_slider = slider_name
-            self.state.last_update_time = clock.elapsed_seconds()
-
-            LOG.debug("Controller %s selected slider '%s'", self.controller_id, slider_name)
-
-    def get_slider(self) -> ColorChannel:
-        """Get the current slider selection.
-
-        Returns:
-            Name of the selected slider (R, G, or B)
-
-        """
-        return self.state.selected_slider
 
     def set_fill_direction(self, direction: str) -> None:
         """Set the fill direction for this controller.

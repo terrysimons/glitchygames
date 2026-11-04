@@ -46,8 +46,10 @@ from .pixel_utils import (
     needs_alpha_channel,
     normalize_pixel_for_color_map,
     normalize_pixel_rows,
+    opaque_surface,
     palette_key_problems,
 )
+from .tags import TAGS_KEY, normalize_sprite_tags
 
 # Characters TOML basic strings must escape with a short escape sequence
 # (https://toml.io/en/v1.0.0#string)
@@ -108,6 +110,21 @@ def toml_pixel_block(pixel_text: str) -> str:
     # toml_basic_string quotes a row; the quotes are dropped, the escapes kept
     escaped_rows = [toml_basic_string(row)[1:-1] for row in rows]
     return '"""\n' + '\n'.join(escaped_rows) + '\n"""'
+
+
+def toml_tags_line(tags: list[str]) -> str:
+    """Return the ``tags = [...]`` line a writer puts in ``[sprite]``, or '' for no tags.
+
+    Args:
+        tags: The tags (``glitchygames.sprites.tags``: already in their one spelling).
+
+    Returns:
+        The line, with its newline, or ''.
+
+    """
+    if not tags:
+        return ''
+    return f'{TAGS_KEY} = [{", ".join(toml_basic_string(tag) for tag in tags)}]\n'
 
 
 def toml_multiline_basic_string(value: str) -> str:
@@ -651,6 +668,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # Animation state
         self.name = 'animated_sprite'  # Default name
         self.description = ''  # Description field for metadata
+        # What kind of thing the sprite is ([sprite] tags; sprites/tags.py), in order
+        self.tags: list[str] = []
         self._animations: dict[str, list[SpriteFrame]] = {}
         # Each animation's [[animation]] frame_interval and loop as loaded, so a save writes
         # them back (frames without a per-frame override use the animation's frame_interval).
@@ -1204,9 +1223,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     def copy_sprite_metadata_from(self: Self, source: AnimatedSprite) -> None:
         """Copy every sprite-level field the TOML writers save from another sprite.
 
-        name, description, frame_anchor, the sprite-level default hitbox, the transitions,
-        and the loaded color glyphs and their order (so a save reuses the source file's
-        characters). Bitmappy uses it when it builds a new sprite to save from a loaded one.
+        name, description, tags, frame_anchor, the sprite-level default hitbox, the
+        transitions, and the loaded color glyphs and their order (so a save reuses the source
+        file's characters). Bitmappy uses it when it builds a new sprite to save from a loaded
+        one.
 
         Args:
             source (AnimatedSprite): The sprite whose metadata to copy.
@@ -1214,6 +1234,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         """
         self.name = source.name
         self.description = source.description
+        self.tags = list(source.tags)
         self.frame_anchor = source.frame_anchor
         self.default_hitbox = (
             None if source.default_hitbox is None else source.default_hitbox.copy()
@@ -1414,6 +1435,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         self.name = data.get('sprite', {}).get('name', 'animated_sprite')
         self.description = data.get('sprite', {}).get('description', '')
+        # Optional [sprite] tags = ["item", ...], each in its one spelling (sprites/tags.py)
+        self.tags = normalize_sprite_tags(data.get('sprite', {}).get(TAGS_KEY))
 
         # Parse sprite-level default hitbox from [sprite.hitbox]
         self._default_hitbox = AnimatedSprite._parse_hitbox_data(
@@ -1527,9 +1550,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         pixel_rows = normalized.rows
         width, height = normalized.width, normalized.height
 
-        # Create a surface from the pixel data
-        surface = pygame.Surface((width, height))
-        surface.convert()
+        # The frame's own surface, in the opaque frame format on every display (BUGS.md #253: a
+        # bare pygame.Surface took the display's, and its convert() result was discarded)
+        surface = opaque_surface(width, height)
 
         # Convert character pixels to actual colors
         for y, row in enumerate(pixel_rows):
@@ -1614,8 +1637,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
                     color_map[char] = (r, g, b, a)
                     original_alpha_values[char] = a
                 else:
-                    # Had alpha=255 explicitly - treat as indexed (RGBA with alpha=255)
-                    color_map[char] = (r, g, b, 255)
+                    # alpha = 255 (or out of range) is opaque, as no alpha is: a plain RGB color,
+                    # so an opaque color has one shape however its file wrote it, and alone it
+                    # never turns a frame into RGBA (BUGS.md #200 item 4)
+                    color_map[char] = (r, g, b)
             else:
                 # No alpha field in original - use RGB (indexed color)
                 color_map[char] = (r, g, b)
@@ -1951,6 +1976,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             # The same [sprite] keys, in the same format, as _write_toml_sprite_section
             if self.description:
                 f.write(f'description = {toml_multiline_basic_string(self.description)}\n')
+            f.write(toml_tags_line(self.tags))
             if self.frame_anchor is not FrameAnchor.NONE:
                 f.write(f'frame_anchor = "{self.frame_anchor.value}"\n')
             f.write(f'pixels = {toml_pixel_block("\n".join(pixel_rows))}\n\n')
@@ -2082,16 +2108,13 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             # Normalize color to match how we'll look it up.
             # Map magenta to both RGB and RGBA keys so either mode can find it.
             if len(color) == RGBA_COMPONENT_COUNT:
-                r, g, b, a = color
-                if (r, g, b) == MAGENTA_TRANSPARENCY_KEY:
+                # A loaded RGBA color is translucent (build_color_map makes alpha = 255 a plain
+                # RGB color, BUGS.md #200 item 4): only its own key, but for magenta, which is
+                # the transparency key whatever its alpha
+                if color[:3] == MAGENTA_TRANSPARENCY_KEY:
                     original_color_to_char[255, 0, 255, 255] = char
                     original_color_to_char[255, 0, 255] = char
-                elif a == MAX_COLOR_CHANNEL_VALUE:
-                    # Opaque RGBA - can match as RGB or RGBA
-                    original_color_to_char[color] = char
-                    original_color_to_char[r, g, b] = char
                 else:
-                    # Has transparency - only RGBA key
                     original_color_to_char[color] = char
             elif color == MAGENTA_TRANSPARENCY_KEY:
                 original_color_to_char[255, 0, 255] = char
@@ -2192,6 +2215,8 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             'name': self.name or 'animated_sprite',
             'description': self.description or '',
         }
+        if self.tags:
+            sprite_section[TAGS_KEY] = list(self.tags)
         if self.frame_anchor is not FrameAnchor.NONE:
             sprite_section['frame_anchor'] = self.frame_anchor.value
 
@@ -2356,6 +2381,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         if data['sprite'].get('description'):
             description = data['sprite']['description']
             f.write(f'description = {toml_multiline_basic_string(description)}\n')
+        f.write(toml_tags_line(data['sprite'].get(TAGS_KEY, [])))
         if 'frame_anchor' in data['sprite']:
             f.write(f'frame_anchor = "{data["sprite"]["frame_anchor"]}"\n')
         f.write('\n')
@@ -2399,16 +2425,23 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     ) -> dict[str, dict[str, int]]:
         """Convert a color_map (tuple→char) to TOML color definitions (char→{r,g,b[,a]}).
 
+        ``alpha`` is written only for a translucent color (0-254), as the animated writer
+        (``_toml_colors``) does: an opaque color is red, green and blue alone, so a sprite saves
+        the same with one frame or many (BUGS.md #200 item 4).
+
         Returns:
             Dict mapping character to color definition dict.
         """
         color_defs: dict[str, dict[str, int]] = {}
         for color_tuple, char in color_map.items():
-            if len(color_tuple) == RGBA_COMPONENT_COUNT:
+            if (
+                len(color_tuple) == RGBA_COMPONENT_COUNT
+                and color_tuple[3] != MAX_COLOR_CHANNEL_VALUE
+            ):
                 r, g, b, a = color_tuple
                 color_defs[char] = {'red': r, 'green': g, 'blue': b, 'alpha': a}
             else:
-                r, g, b = color_tuple
+                r, g, b = color_tuple[:3]
                 color_defs[char] = {'red': r, 'green': g, 'blue': b}
         return color_defs
 
@@ -2676,7 +2709,9 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
 
         A frame with translucent pixels (alpha 1-254) gives a per-pixel alpha surface that
         keeps each pixel's alpha, its transparent pixels at alpha 0. Any other frame gives a
-        plain surface with magenta as its colorkey: it blits faster than per-pixel alpha, and
+        plain surface with magenta as its colorkey, in one 32-bit RGB format whatever the
+        display's (``OPAQUE_FRAME_MASKS``: a faded blit then draws the same pixels on every
+        driver, BUGS.md #254): it blits faster than per-pixel alpha, and
         its keyed pixels are never written, whatever the destination's alpha (a per-pixel
         alpha source over a destination pixel of alpha 0 copies its color instead of
         blending, as on a display with an alpha channel). Pixels past width * height are
@@ -2695,7 +2730,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
             surface = pygame.Surface((width, height), pygame.SRCALPHA)
             transparent_color = TRANSPARENT_MAGENTA
         else:
-            surface = pygame.Surface((width, height))
+            surface = opaque_surface(width, height)
             surface.set_colorkey(MAGENTA_TRANSPARENCY_KEY)
             transparent_color = MAGENTA_TRANSPARENCY_KEY
 

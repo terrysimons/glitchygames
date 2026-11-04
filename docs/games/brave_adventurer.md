@@ -499,8 +499,9 @@ enumerates audio devices and a recorded mic press neither listens nor calls the 
 (`_discover_voice_assistant`). Pressing the mic button starts listening; releasing it sends the recording through
 speech-to-text, an AI model and text-to-speech back to the controller's speaker, and
 `dt_tick` collects finished responses (`voice_assistant.update()`). The DualSense reports its
-mic button as 15 on the controller API and 16 on the raw joystick API, so both are bound
-(`MIC_BUTTON_CONTROLLER`, `MIC_BUTTON_JOYSTICK`). The Papyrus Edition has no voice assistant.
+mic button as 15 on the controller API and 16 on the raw joystick API, so each layer binds its
+own: `controller_layer_button=MIC_BUTTON_CONTROLLER` (the controller layer only, so raw button
+15 is not the mic) and `joystick_button=MIC_BUTTON_JOYSTICK`. The Papyrus Edition has no voice assistant.
 
 ## Sound
 

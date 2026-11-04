@@ -91,10 +91,9 @@ class InputBox(Sprite):
 
         super().__init__(x=x, y=y, width=width, height=height, name=name, groups=groups)
         pygame.font.init()
-        self.offset_x: int = self.parent.x if self.parent else 0
-        self.offset_y: int = self.parent.y if self.parent else 0
-        self.rect.x = x + self.offset_x
-        self.rect.y = y + self.offset_y
+        # The box sits at (x, y) on its own; a parent only receives its submit, confirm and
+        # cancel (an offset from the parent, computed here before the parent was even set and
+        # then overwritten, is gone: BUGS.md #165)
         self.rect = pygame.Rect(x, y, width, height)
         self.color = color
         # The bundled default font, loaded from its file through FontManager (cached): never a

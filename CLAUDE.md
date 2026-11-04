@@ -124,6 +124,7 @@ nox -s static-analysis-ty           # Run ty only
 
 # --- Testing ---
 nox -s test                # Run tests with coverage
+nox -s test-random         # The suite in a shuffled order (pytest-randomly, a new seed each run; `-- SEED` repeats one): the pre-push hook. Dummy drivers, no coverage; a failure prints the seed and the one-process command that replays it. Every other run keeps the files' order (addopts: -p no:randomly)
 nox -s performance-test    # Run performance benchmarks (every testpath: the engine's and each member's)
 # tests/benchmarks/test_logging_cost.py (only under --benchmark-only): every golden and bundled demo at
 # --log-level warning, info and debug; the chattiest loggers and the cost per frame (docs/quality/performance.md)
@@ -131,7 +132,7 @@ nox -s timer-report        # Report this machine's timer accuracy: VM?, CPU shar
 nox -s replay-metrics      # (the project's editable install) Rebaseline every golden replay + bundled demo headless; append run-ledger rows to test-results/replay-metrics/pending.jsonl (skips this commit+machine; `-- --force`, `-- --allow-dirty`, `-- --only TEXT`)
 nox -s test-linux-x11      # Tests on Linux in Docker: X11 windows on XQuartz, sound on the Mac's PulseAudio (starts it; `pulseaudio --kill` stops it; macOS)
 nox -s test-linux-ci       # Tests as CircleCI's Linux job runs them, in Docker: its amd64 image, 2 GB without swap, 1 CPU, serial, CI=true, the RSS guard (read from .circleci/config.yml); results in test-results/linux-ci/
-nox -s compare-drivers     # On demand N-way matrix: dummy x2, native, x11-macos, x11-linux (whatever runs here); `-- --drivers a,b`, `-- tests/x`; report test-results/driver-comparison/nox/matrix.md
+nox -s compare-drivers     # N-way matrix: dummy x2, native, x11-macos, x11-linux (whatever runs here), each its own run; `-- --drivers a,b` (`native`: every native driver here), `-- tests/x`; report test-results/driver-comparison/nox/matrix.md. A pre-push hook runs `-- --drivers native --fail-on-difference`: a driver difference stops the push (BUGS.md #254)
 nox -s build-sdl-x11       # Build SDL with x11 for macOS (cached in ~/Library/Caches/glitchygames/sdl-x11; SDL_DYNAMIC_API loads it) and check it on XQuartz
 
 # --- Code quality ---
@@ -158,9 +159,11 @@ nox -s bandit-scan         # Run bandit only
 nox -s build               # Build binary (PyInstaller) + wheel
 nox -s build-binary        # Build standalone Bitmappy binary only
 nox -s build-wheel         # Build the wheel (.whl) of every workspace package (uv build --all-packages), only
-# build, build-wheel, build-binary and test stamp the engine's commit into the package first
-# (src/glitchygames/_build_info.json, removed after; src/glitchygames/build_info.py): test's installed
-# copy is not editable, so the stamp is how it names its commit
+# build, build-wheel and build-binary stamp the engine's commit into the package first
+# (src/glitchygames/_build_info.json, removed after; refused while another build's is there;
+# src/glitchygames/build_info.py). test stamps its installed copy instead (write_build_stamp.py
+# --into, with the session's python): that copy is not editable, so the stamp is how it names
+# its commit, and the checkout never holds a test run's stamp (BUGS.md #224.47)
 
 # --- Docs ---
 nox -s docs-deploy         # Fetch gh-pages, replay-metrics (--skip-dirty), build, publish to https://terrysimons.github.io/glitchygames/ (pushes gh-pages, then clears published pending rows; `-- --build-only`: no push)
@@ -1523,6 +1526,8 @@ Features:
   it reports every pair in `test-results/driver-comparison/nox/matrix.md` without failing on a
   difference; it fails, keeping the last complete report, when a run recorded no test
   (`docs/quality/driver_comparison.md`)
+  On a real driver the test windows are hidden, so the machine's pointer and keys never reach a
+  test (`tests/hidden_test_windows.py`, BUGS.md #225; `GLITCHYGAMES_SHOW_TEST_WINDOWS=1` shows them)
   After each test the variables, display and mixer a test moved off the run's drivers (a
   constructed `--headless` engine moves them to `dummy`) are put back, the display showing the
   canvas (`tests/sdl_driver_isolation.py`; a few microseconds when nothing changed)

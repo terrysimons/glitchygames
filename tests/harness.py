@@ -6,6 +6,7 @@ Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 
 import contextlib
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -48,6 +49,8 @@ from tests.display_canvas import (
 )
 from tests.engine_source import ENGINE_DIRECTORY
 from tests.garbage_collection import process_peak_memory_collector, release_test_instance
+from tests.git_environment import clear_git_repository_variables
+from tests.hidden_test_windows import hide_test_windows
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import (
     SdlDriverState,
@@ -60,6 +63,14 @@ from tests.signal_handlers import preserved_signal_handlers
 # checkout", whichever copy of the engine is imported
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CHECKOUT_ENGINE_DIRECTORY = PROJECT_ROOT / ENGINE_DIRECTORY
+
+
+# Before any window opens: a real driver's test windows are hidden, so the machine's pointer and
+# keyboard never reach a test (tests/hidden_test_windows.py, BUGS.md #225)
+TEST_WINDOWS_HIDDEN = hide_test_windows()
+# Before any test, worker or native run: git finds repositories where tests point it, not the one a
+# git hook (pre-push) was started for (tests/git_environment.py)
+GIT_VARIABLES_CLEARED_AT_STARTUP = clear_git_repository_variables()
 
 
 def imported_engine_directory() -> Path:
@@ -299,6 +310,29 @@ def _reset_all_singleton_instances():
         for subclass in singleton_base.__subclasses__():
             if hasattr(subclass, '__instance__'):
                 subclass.__instance__ = None
+
+
+# What an inner pytest run (pytester) gets, whatever the outer run's options: pytest-randomly
+# blocked, as the project's addopts block it (an inner run reads none of them). Shuffled, an
+# inner run's tests ran in a new order every time, so the frames and state they left behind
+# changed from run to run: driver comparisons flagged them (tests/test_frame_fingerprints.py's
+# TestRecordingARun, BUGS.md #255) and tests checking inner order failed (#252)
+INNER_RUN_ADDOPTS = '-p no:randomly'
+
+
+@pytest.fixture(autouse=True)
+def inner_runs_keep_their_order(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
+    """Block pytest-randomly in every inner pytest run of a test that uses ``pytester``.
+
+    Through ``PYTEST_ADDOPTS``, which every inner run reads (in process or as a subprocess);
+    the outer run has already read it, so its own order (shuffled by ``nox -s test-random``)
+    is untouched. Set after ``pytester`` is made: making it deletes ``PYTEST_ADDOPTS``, to
+    keep the outer run's options out of inner runs.
+    """
+    if 'pytester' in request.fixturenames:
+        request.getfixturevalue('pytester')
+        outer = os.environ.get('PYTEST_ADDOPTS', '')
+        monkeypatch.setenv('PYTEST_ADDOPTS', f'{outer} {INNER_RUN_ADDOPTS}'.strip())
 
 
 @pytest.fixture(autouse=True)

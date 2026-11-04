@@ -2643,13 +2643,16 @@ class TestVideoDriverApplied:
 
     def test_the_driver_is_set_before_the_display_starts(self, mocker):
         mocker.patch.dict(os.environ, {'SDL_VIDEODRIVER': 'before-the-run'})
-        # The test display already runs on the dummy driver, so nothing is restarted
+        # The driver the test display already runs on (dummy, or the native one in the driver
+        # comparison's second run), so nothing is restarted: asking for another one restarts
+        # the display, which the native run used to do here (it asked for dummy)
+        running_driver = pygame.display.get_driver()
         display_quit = mocker.spy(pygame.display, 'quit')
 
-        engine = _make_engine(mocker, '--video-driver', 'dummy')
+        engine = _make_engine(mocker, '--video-driver', running_driver)
 
-        assert os.environ['SDL_VIDEODRIVER'] == 'dummy'
-        assert pygame.display.get_driver() == 'dummy'
+        assert os.environ['SDL_VIDEODRIVER'] == running_driver
+        assert pygame.display.get_driver() == running_driver
         display_quit.assert_not_called()
         engine._restore_sdl_driver_variables()
         assert os.environ['SDL_VIDEODRIVER'] == 'before-the-run'

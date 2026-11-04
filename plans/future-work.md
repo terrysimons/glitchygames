@@ -122,9 +122,12 @@ local branches are deleted. The decisions made on the way, for the record:
 
 - ~~Engine world space (#6) with the `_finish_frame()` consolidation (#15)~~ **Done** on
   `feature/engine-world-space` (see `plans/engine-audit.md`).
-- **Next: solid collision (#1) with the rest of balls on `CollisionManager` (#7).** Brave Adventurer
-  and Papyrus now duplicate `_player_support_span` / `_entered_wall_from_left`; the solid-collision
-  design should absorb them.
+- **Solid collision (#1) with balls on `CollisionManager` (#7): phase 1 done** 2026-11-02
+  (`feat/solid-collision`): the side rule, flush placement and swept landing are engine
+  primitives (`src/glitchygames/collision/solids.py`) used by Brave Adventurer, Clockwork Keep and the
+  ball, with no behavior change (the editions' duplicated helpers had already been merged on
+  2026-10-26). **Next:** phase 2, solids as data on the tilemap format's property layers
+  (`plans/2026-11-02-solid-collision.md`).
 - **Level tools / Glitchy Studio (#11):** `plans/2026-10-18-level-tools.md` and sub-plans A–E
   (tilemap format with object layers, Mapsmith, Tilesmith, Bitmappy updates, Galimore import). Each
   needs a brainstormed spec before implementation.
@@ -703,6 +706,33 @@ only replays; Part 2 Task 1).
   clock reads (tenacity stamps each retry's start with `time.monotonic()`; only its sleep is
   ours, through `sleep=`).
 
+## Sprite tags (user request, 2026-11-02)
+
+- **Done** 2026-11-02 (`feat/sprite-tags`, design and plan `plans/2026-11-02-sprite-tags.md`):
+  `[sprite] tags`, normalized as below (casefold, single spaces, repeats dropped), through every
+  reader and writer, the sprite-file checks, Bitmappy's AI (asked for tags, examples carry and
+  show them, +8 per tag word in example choice) and `glitchygames.sprites.catalog` (fuzzy search
+  with difflib, JSON lines export). **Still open:** editing tags in Bitmappy's UI (its only text
+  box is the AI prompt) and merging plurals.
+- **A `tags` list in the sprite file, saying what kind of thing the sprite is**, for fuzzy string
+  matching and for wiring sprites into an LLM or a vector database. Today a sprite carries only
+  its `name` and a free-text `description` (`[sprite]`; Bitmappy's AI writes the prompt there),
+  and Bitmappy's AI picks its example sprites by guessing from names
+  (`ai_worker._score_training_example`: +5 per word of the request found in an example's name).
+  Sketch: an optional `[sprite] tags = ["item", "weapon", "sword"]` (a TOML array of strings),
+  kept in order and written back as loaded, so files without it are unchanged. Decided
+  (2026-11-02): plain free-form tags for now, one list per sprite; no controlled vocabulary or
+  separate kind field, and no per-animation tags yet (either can come later on top of the list).
+  Still to decide in the design: normalization (lowercase, one spelling, singular). Touches every
+  reader and writer:
+  `AnimatedSprite` load/save (single-frame and animated), `BitmappySprite`'s static loader, the
+  sprite-file checks (`glitchygames.testing` sprite files), QuickLook's Swift reader
+  (`src/quicklook`), Bitmappy (show and edit tags; the AI writes tags for what it generates), and
+  the AI's example scoring (tags before name words). Then the search side: fuzzy matching on
+  tags, name and description (a library such as rapidfuzz, or the standard library's difflib),
+  and an export of each sprite's text (name, description, tags) for embedding into a vector
+  store, with the sprite's path as its key. Design first, then a plan.
+
 ## Assets and art
 
 - Ghosty sprite: frames 1–7 have inferred outer outlines; canvas screenshots of each frame would
@@ -776,6 +806,23 @@ drafted issue text. Not posted yet:
 - griffe's `_dataclass_parameters` and mkdocstrings-python's `_test_existing_template` caches
   keep every `mkdocs serve` rebuild alive (BUGS.md #213; worked around in
   `scripts/mkdocs_hooks.py`'s `on_post_build`).
+
+## Documentation scrub (user request, 2026-11-02)
+
+- **Scrub every document against the code, across the whole stack.** Much has changed since the
+  `src/` layout scrub: workspace packages, the bug sweeps (#127-#135: input devices and
+  `--axis-deadzone`, named custom event types, the measured rows' landing rules, the build
+  stamp), and the BUGS.md audit (2026-11-02) found code comments and docs ahead of or behind
+  the tracker. Scope: the root's Markdown (`README.md`, `CLAUDE.md`, `ANIMATION_README.md`,
+  `API_README.md`, `BITMAPPY_ARCHITECTURE.md`, `CONTROLLER_CONTROLS_README.md`,
+  `LOADER_README.md`, `TEST_UPDATE_PLAN.md`: is each still current, or merged into `docs/`?),
+  the 51 pages under `docs/` (architecture, playback, games, quality), every member's README
+  (`src/games/*`, `src/demos/*`, `src/apps/bitmappy`, `src/quicklook`), and module docstrings
+  that describe behaviour (the engine's especially). For each claim: check it against the code
+  (paths, option names and defaults against `--help`, BUGS.md numbers against their entries'
+  status, named functions and classes still existing), fix or remove it, and keep American
+  spellings. Finish with `mkdocs build --strict` and the docs guard tests. Plan it as its own
+  branch (design, then plan), split by area so each piece is reviewable.
 
 ## Code quality
 

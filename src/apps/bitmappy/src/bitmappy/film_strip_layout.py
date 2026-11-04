@@ -132,9 +132,6 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
 
     def initialize_external_references(self) -> None:
         """Initialize external references set by parent components."""
-        # Copy/paste buffer for frames
-        self.widget.copied_frame = None  # Temporary storage for copied frame
-
         # Parent canvas reference (set externally via set_parent_canvas)
         self.widget.parent_canvas = None
 

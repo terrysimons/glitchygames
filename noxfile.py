@@ -5,6 +5,7 @@ import dataclasses
 import json
 import os
 import re
+import secrets
 import shlex
 import shutil
 import socket
@@ -14,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import nox
+from nox.command import CommandFailed
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -523,6 +525,66 @@ def test(session: nox.Session) -> None:
     # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
     # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion.
     session.run('pytest', *args)
+
+
+# pytest-randomly, turned on for a shuffled run (pyproject.toml's addopts block it everywhere
+# else, so CI and every other run keep the files' order): reorder only, with random.seed() left
+# as each test sets it, so a shuffled run differs from the others in its order alone
+RANDOM_ORDER_PYTEST_ARGUMENTS = ('-p', 'randomly', '--randomly-dont-reset-seed')
+# The seeds pytest-randomly takes (it seeds numpy's generator, whose seeds are 32-bit)
+RANDOM_ORDER_SEED_LIMIT = 2**32
+
+
+@nox.session(venv_backend='none', name='test-random', default=False)
+def test_random(session: nox.Session) -> None:
+    """Run the suite in a shuffled order (pytest-randomly): the pre-push hook's order check.
+
+    Each run shuffles the tests with a new seed (``-- SEED`` reuses one), so a test that passes
+    only after, or only before, another fails in some run long before CI's fixed order meets it
+    (BUGS.md: a named custom event type took FPSEVENT's id only after a pygame.quit()). It runs
+    in the project's environment (``uv run``, as a developer's ``uv run pytest``) on every core,
+    under the dummy drivers only and without coverage (CI enforces coverage), so it costs a push
+    a few minutes, not a full CI run. A failure names its seed and the command that replays
+    that order in one process (``-n 0``: across workers the seed fixes the order but not which
+    worker runs which test).
+    """
+    if session.posargs:
+        seed = int(session.posargs[0])
+    else:
+        seed = secrets.randbelow(RANDOM_ORDER_SEED_LIMIT)
+    try:
+        session.run(
+            'uv',
+            'run',
+            '--frozen',
+            'pytest',
+            *RANDOM_ORDER_PYTEST_ARGUMENTS,
+            f'--randomly-seed={seed}',
+            '-n',
+            'auto',
+            '--no-cov',
+            '--log-cli-level=WARNING',
+            '--junitxml=test-results/junit-random.xml',
+            env={'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'},
+            external=True,
+        )
+    except CommandFailed:
+        replay = shlex.join([
+            'uv',
+            'run',
+            'pytest',
+            *RANDOM_ORDER_PYTEST_ARGUMENTS,
+            f'--randomly-seed={seed}',
+            '-n',
+            '0',
+            '--no-cov',
+        ])
+        session.error(
+            f'A shuffled run failed (seed {seed}): an order-dependent test, or a plain failure. '
+            f'Replay this order in one process: SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy '
+            f'{replay}  (or the same run: nox -s test-random -- {seed}). '
+            f'SKIP=test-random git push skips the check; file what it found in BUGS.md'
+        )
 
 
 # The Linux X11 test image and the X server it draws on (XQuartz's display :0, over TCP)
@@ -1172,6 +1234,11 @@ _COMPARE_DRIVERS_OUTPUT = Path('test-results/driver-comparison/nox')
 # failed comparison's runs are then kept in the failed folder for a look (BUGS.md #192)
 _COMPARE_DRIVERS_PREVIOUS = Path('test-results/driver-comparison/nox-previous')
 _COMPARE_DRIVERS_FAILED = Path('test-results/driver-comparison/nox-failed')
+# Held by the one compare-drivers running (a filelock lock, released when its process ends,
+# however it ends): every comparison sets the last one aside and writes the same folders, so a
+# second one at the same time (one by hand during a push's hook) deleted the first's runs under
+# it (a FileNotFoundError in its fingerprints) and was itself wrecked
+_COMPARE_DRIVERS_LOCK = Path('test-results/driver-comparison/compare-drivers.lock')
 _COMPARE_DRIVERS_WORKERS = 4
 _COMPARE_DRIVERS_SEED = 20261023
 _FRAME_FINGERPRINTS_PLUGIN = 'glitchygames.testing.frame_fingerprints'
@@ -1179,18 +1246,24 @@ _FRAME_FINGERPRINTS_PLUGIN = 'glitchygames.testing.frame_fingerprints'
 # failure on one configuration is a finding, reported with the frames)
 _PYTEST_FINISHED_CODES = [0, 1]
 _DRIVERS_OPTION = '--drivers'
+# compare-drivers fails, after its report is written, when a test presents different frames on
+# two configurations (the pre-push hook passes it; by hand it only reports)
+_FAIL_ON_DIFFERENCE_OPTION = '--fail-on-difference'
 _SOUND_OPTION = '--sound'
 
 
-def _compare_drivers_arguments(session: nox.Session) -> tuple[str | None, bool, list[str]]:
-    """Read compare-drivers' arguments: ``--drivers A,B``, ``--sound`` and the test selection.
+def _compare_drivers_arguments(
+    session: nox.Session,
+) -> tuple[str | None, bool, bool, list[str]]:
+    """Read compare-drivers' arguments: ``--drivers A,B``, ``--sound``, ``--fail-on-difference``.
 
     Args:
         session: The nox session (its posargs).
 
     Returns:
         The configurations asked for (None: every available one), whether the container plays
-        sound through PulseAudio, and the remaining arguments (test paths; none: the suite).
+        sound through PulseAudio, whether a driver difference fails the session, and the
+        remaining arguments (test paths; none: the suite).
 
     """
     arguments = list(session.posargs)
@@ -1209,7 +1282,10 @@ def _compare_drivers_arguments(session: nox.Session) -> tuple[str | None, bool, 
     sound = _SOUND_OPTION in arguments
     if sound:
         arguments.remove(_SOUND_OPTION)
-    return drivers, sound, arguments
+    fail_on_difference = _FAIL_ON_DIFFERENCE_OPTION in arguments
+    if fail_on_difference:
+        arguments.remove(_FAIL_ON_DIFFERENCE_OPTION)
+    return drivers, sound, fail_on_difference, arguments
 
 
 def _run_fingerprinted_tests(
@@ -1447,7 +1523,9 @@ def compare_drivers(session: nox.Session) -> None:
     test-results/driver-comparison/nox/matrix.md, has each run's time, a summary per pair, the
     patterns of agreement and a table per test (first differing frame, differing pixels,
     linked images); the summary is printed at the end. It reports; it does not fail on a
-    difference.
+    difference, unless given `--fail-on-difference` (the pre-push hook, with `--drivers native`:
+    dummy and every native driver available here): then a test presenting different frames on
+    two configurations fails the session, after the report is written.
 
     It fails when a run recorded no test (pytest ran none: `-- --help` or `--collect-only`
     reach every run and exit 0), naming the run, rather than report that every configuration
@@ -1463,29 +1541,73 @@ def compare_drivers(session: nox.Session) -> None:
     run`), as a developer's `uv run pytest` does; each names its driver, so none starts a
     comparison of its own.
     """
-    drivers, sound, selection = _compare_drivers_arguments(session)
+    drivers, sound, fail_on_difference, selection = _compare_drivers_arguments(session)
     output = _COMPARE_DRIVERS_OUTPUT
-    _set_aside_previous_comparison(output=output, previous=_COMPARE_DRIVERS_PREVIOUS)
+    with _only_comparison(session, lock_path=_COMPARE_DRIVERS_LOCK):
+        _set_aside_previous_comparison(output=output, previous=_COMPARE_DRIVERS_PREVIOUS)
+        try:
+            differing_tests = _compare_driver_configurations(
+                session, output=output, drivers=drivers, sound=sound, selection=selection
+            )
+        except BaseException:
+            # Whatever ended it (a failed command, a refusal, Ctrl-C), the last complete
+            # comparison stays the report
+            _restore_previous_comparison(
+                session,
+                output=output,
+                previous=_COMPARE_DRIVERS_PREVIOUS,
+                failed=_COMPARE_DRIVERS_FAILED,
+            )
+            raise
+        shutil.rmtree(_COMPARE_DRIVERS_PREVIOUS, ignore_errors=True)
+    # A completed comparison: its report stays the last one, whatever this decides
+    if fail_on_difference and differing_tests:
+        session.error(
+            f'{len(differing_tests)} test(s) presented different frames on two driver '
+            f'configurations: {", ".join(differing_tests)}. Report and difference images: '
+            f'{output / "matrix.md"}. A driver dependence is a bug (BUGS.md); a test whose frames '
+            'vary by design takes @pytest.mark.frames_vary(reason=...). '
+            'SKIP=compare-drivers git push skips the check'
+        )
+
+
+@contextlib.contextmanager
+def _only_comparison(session: nox.Session, *, lock_path: Path) -> Generator[None]:
+    """Hold compare-drivers' lock for the comparison inside; refuse when another holds it.
+
+    Refused at once, not waited for: a comparison takes minutes, and the one running (a push's
+    hook, or one by hand) is the one to let finish.
+
+    Args:
+        session: The nox session (for the refusal).
+        lock_path: The lock file (its folder is made if missing).
+
+    Yields:
+        Nothing; the comparison runs inside, holding the lock.
+
+    """
+    # Imported here: the dev extra has filelock (compare-drivers runs in the project's
+    # environment, `uv run --extra dev nox`); CI's nox, a uv tool, never imports it
+    from filelock import FileLock, Timeout
+
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock = FileLock(lock_path)
     try:
-        _compare_driver_configurations(
-            session, output=output, drivers=drivers, sound=sound, selection=selection
+        lock.acquire(timeout=0)
+    except Timeout:
+        session.error(
+            f'Another compare-drivers is running (it holds {lock_path}): both would write '
+            f'{_COMPARE_DRIVERS_OUTPUT} and wreck each other. Let it finish, then run this again'
         )
-    except BaseException:
-        # Whatever ended it (a failed command, a refusal, Ctrl-C), the last complete comparison
-        # stays the report
-        _restore_previous_comparison(
-            session,
-            output=output,
-            previous=_COMPARE_DRIVERS_PREVIOUS,
-            failed=_COMPARE_DRIVERS_FAILED,
-        )
-        raise
-    shutil.rmtree(_COMPARE_DRIVERS_PREVIOUS, ignore_errors=True)
+    try:
+        yield
+    finally:
+        lock.release()
 
 
 def _compare_driver_configurations(
     session: nox.Session, *, output: Path, drivers: str | None, sound: bool, selection: list[str]
-) -> None:
+) -> list[str]:
     """Run compare-drivers' comparison into its (empty) folder: see ``compare_drivers``.
 
     Args:
@@ -1494,6 +1616,10 @@ def _compare_driver_configurations(
         drivers: The configurations asked for (None: every available one).
         sound: The container plays its sound through the Mac's PulseAudio.
         selection: More pytest arguments (the test selection).
+
+    Returns:
+        The tests whose frames differ between configurations (nondeterministic and
+        ``frames_vary`` tests left out), by node id; none when every configuration agrees.
 
     """
     configurations = _plan_driver_configurations(session, drivers=drivers, output=output)
@@ -1531,7 +1657,7 @@ def _compare_driver_configurations(
     differing_tests = list(json.loads(request.read_text(encoding='utf-8'))['positions_by_test'])
     if not differing_tests:
         session.log(f'No driver differences: nothing to re-run\n{summary}')
-        return
+        return []
     # One node id per line, passed as @FILE: node ids may hold spaces
     tests_file = output / 'differing-tests.txt'
     tests_file.write_text('\n'.join(differing_tests) + '\n', encoding='utf-8')
@@ -1554,6 +1680,7 @@ def _compare_driver_configurations(
         ),
         external=True,
     )
+    return differing_tests
 
 
 @nox.session(venv_backend='none', name='browser', default=False)

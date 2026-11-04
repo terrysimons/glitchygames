@@ -132,7 +132,6 @@ def _setup_editor_state(editor, mocker):
     editor.undo_redo_manager.undo_stack = []
     editor.canvas_operation_tracker = mocker.Mock()
     editor.film_strip_operation_tracker = mocker.Mock()
-    editor.cross_area_operation_tracker = mocker.Mock()
     editor.controller_position_operation_tracker = mocker.Mock()
     editor.current_pixel_changes = []
     editor.current_pixel_changes_dict = {}
@@ -652,66 +651,6 @@ class TestSelectVisibleFilmStrips:
         mock_editor.film_strip_coordinator._select_last_visible_film_strip()
         assert mock_editor.selected_animation == 'b'
         assert mock_editor.selected_frame == 0
-
-
-# ===========================================================================
-# 10. Copy/Paste Current Frame
-# ===========================================================================
-
-
-class TestCopyPasteFrame:
-    """Tests for _copy_current_frame and _paste_to_current_frame."""
-
-    def test_copy_no_film_strips(self, mock_editor):
-        """Returns False when no film strips exist."""
-        mock_editor.film_strips = {}
-        result = mock_editor.film_strip_coordinator._copy_current_frame()
-        assert result is False
-
-    def test_copy_no_active_strip(self, mock_editor, mocker):
-        """Returns False when no active film strip matches selected animation."""
-        mock_strip = mocker.Mock()
-        mock_strip.current_animation = 'other'
-        mock_editor.film_strips = {'other': mock_strip}
-        mock_editor.selected_animation = 'default'
-        result = mock_editor.film_strip_coordinator._copy_current_frame()
-        assert result is False
-
-    def test_copy_success(self, mock_editor, mocker):
-        """Copies frame when active strip is found."""
-        mock_strip = mocker.Mock()
-        mock_strip.current_animation = 'default'
-        mock_strip.copy_current_frame.return_value = True
-        mock_editor.film_strips = {'default': mock_strip}
-        mock_editor.selected_animation = 'default'
-        result = mock_editor.film_strip_coordinator._copy_current_frame()
-        assert result is True
-        mock_strip.copy_current_frame.assert_called_once()
-
-    def test_paste_no_film_strips(self, mock_editor):
-        """Returns False when no film strips exist."""
-        mock_editor.film_strips = {}
-        result = mock_editor.film_strip_coordinator._paste_to_current_frame()
-        assert result is False
-
-    def test_paste_no_active_strip(self, mock_editor, mocker):
-        """Returns False when no active film strip matches."""
-        mock_strip = mocker.Mock()
-        mock_strip.current_animation = 'other'
-        mock_editor.film_strips = {'other': mock_strip}
-        mock_editor.selected_animation = 'default'
-        result = mock_editor.film_strip_coordinator._paste_to_current_frame()
-        assert result is False
-
-    def test_paste_success(self, mock_editor, mocker):
-        """Pastes frame when active strip is found."""
-        mock_strip = mocker.Mock()
-        mock_strip.current_animation = 'default'
-        mock_strip.paste_to_current_frame.return_value = True
-        mock_editor.film_strips = {'default': mock_strip}
-        mock_editor.selected_animation = 'default'
-        result = mock_editor.film_strip_coordinator._paste_to_current_frame()
-        assert result is True
 
 
 # ===========================================================================

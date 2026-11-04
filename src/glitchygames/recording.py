@@ -982,8 +982,8 @@ def custom_event_type_remap(*, header: Mapping[str, Any]) -> dict[int, int]:
         for name, event_type in cast('Mapping[object, object]', recorded).items()
     ):
         message = (
-            f'The recording is malformed: {CUSTOM_EVENT_TYPES_HEADER_FIELD} must map event '
-            f'names to integer ids, not {recorded!r}'
+            f'The recording header {CUSTOM_EVENT_TYPES_HEADER_FIELD} must map event names to '
+            f'integer ids, not {recorded!r}'
         )
         raise TraceFormatError(message)
     recorded_types = cast('Mapping[str, int]', recorded)
