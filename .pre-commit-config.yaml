@@ -5,6 +5,19 @@ default_install_hook_types: [pre-commit, pre-push]
 repos:
 - repo: local
   hooks:
+    # Also measures what is being pushed on the Raspberry Pi and copies the rows here, staged
+    # (scripts/measure_on_raspberry_pi.py, by hand: nox -s measure-on-raspberry-pi). First, and
+    # fail_fast: a push that stops for rows to commit runs the checks below once, not twice.
+    # SKIP=raspberry-pi-replay-metrics git push ... skips it
+    - id: raspberry-pi-replay-metrics
+      name: raspberry-pi-replay-metrics (measure on the Pi, copy the rows here)
+      language: system
+      entry: uv run --locked --extra dev nox -s measure-on-raspberry-pi
+      pass_filenames: false
+      always_run: true
+      fail_fast: true
+      stages: [pre-push]
+
     - id: format
       name: format (code, toml, markdown)
       language: system

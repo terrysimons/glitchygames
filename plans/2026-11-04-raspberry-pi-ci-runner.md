@@ -2,8 +2,12 @@
 
 Status: in progress (branch `feat/hardware-runner`). The runner is installed and registered by
 `ansible/raspberry_pi_runner.yml`, and online. `build-and-test-raspberry-pi` is defined but commented
-out of the workflow: the owner, 2026-11-05, wants the Pi to run only its performance measurement at
-push time, with the rows copied back before they are committed. A throwaway job (build 2857, removed) showed that jobs
+out of the workflow. The owner, 2026-11-05: when they push, the replay measurement also runs on the
+Pi, and its files are copied to their machine, in the right place. That is the pre-push hook
+`raspberry-pi-replay-metrics` (`scripts/measure_on_raspberry_pi.py`). It stops a push that brings rows,
+so they are committed first. All 7 recordings took 205 s in its first real run, with no throttling.
+It measures on `dummy`, like every row today: real-driver measuring is
+the driver timing work. A throwaway job (build 2857, removed) showed that jobs
 inherit the display: SDL's `wayland` driver on the 2560x1440 screen, the `circleci` user's groups,
 `vcgencmd`, and the service's 2 GiB memory limit. Its flip took 30.1 ms per frame on `wayland` and
 2.4 ms on `dummy`. Why `wayland` is that slow is unmeasured: driver timing starts there.

@@ -317,6 +317,22 @@ def replay_metrics(session: nox.Session) -> None:
     _glitchygames(session, 'measure', *session.posargs)
 
 
+@nox.session(venv_backend='none', name='measure-on-raspberry-pi', default=False)
+def measure_on_raspberry_pi(session: nox.Session) -> None:
+    """Measure HEAD's replays on the Raspberry Pi too, and stage the rows it sends back here.
+
+    The pre-push hook ``raspberry-pi-replay-metrics`` runs this, on what is being pushed. The rows
+    land in quality/replay-ledger/ (scripts/measure_on_raspberry_pi.py has the rules).
+
+    Usage:
+        nox -s measure-on-raspberry-pi   # Measure there, unless the Pi already has
+        git commit                       # The rows it staged
+    """
+    session.run(
+        'uv', 'run', '--locked', 'python', '-m', 'scripts.measure_on_raspberry_pi', external=True
+    )
+
+
 @nox.session(venv_backend='none', name='measure-staged', default=False)
 def measure_staged(session: nox.Session) -> None:
     """Measure the replays on the staged code, and stage the rows for the commit to carry.

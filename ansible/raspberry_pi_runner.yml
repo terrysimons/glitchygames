@@ -32,6 +32,9 @@
     # Keep this at .circleci/config.yml's UV_VERSION (tests/test_ci_config.py checks it)
     raspberry_pi_uv_version: "0.13.6"
     raspberry_pi_uv_path: "/home/{{ ansible_user }}/.local/bin/uv"
+    # What the owner's pre-push hook measures in (scripts/measure_on_raspberry_pi.py names it),
+    # apart from any checkout in use here
+    raspberry_pi_measure_clone: "/home/{{ ansible_user }}/glitchygames-measure"
     # Without these, commits made here use an address built from the hostname
     raspberry_pi_git_name: "Terry Simons"
     raspberry_pi_git_email: "262790+terrysimons@users.noreply.github.com"
@@ -134,6 +137,15 @@
           [user]
               name = {{ raspberry_pi_git_name }}
               email = {{ raspberry_pi_git_email }}
+      become: true
+      become_user: "{{ ansible_user }}"
+
+    # update: false: the hook pushes each commit here and checks it out itself
+    - name: Clone the repository the pre-push hook measures in
+      ansible.builtin.git:
+        repo: "https://github.com/{{ raspberry_pi_github_project }}.git"
+        dest: "{{ raspberry_pi_measure_clone }}"
+        update: false
       become: true
       become_user: "{{ ansible_user }}"
 
