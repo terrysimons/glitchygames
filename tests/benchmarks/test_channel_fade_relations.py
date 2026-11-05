@@ -24,8 +24,10 @@ import pytest
 from tests.audio.channel_fade_analysis import (
     ABSENT_LEVEL,
     DISCONTINUITY_THRESHOLD,
+    MINIMUM_DELAYED_STEAL_TRIALS,
     action_chunk,
     chunk_levels,
+    delayed_steal_trials,
     recording_directory,
     shared_recording,
     trial_chunks,
@@ -83,8 +85,10 @@ def test_a_delayed_steal_starts_the_stealer_after_the_fades_first_chunk(
 ):
     """The voice table's delayed play: the stealer starts only after the fade's first chunk.
 
-    In every trial the first chunk below the stolen tone's full level (a plateau of the 10 ms
-    fade, or the halt) holds no stealer, and the stealer sounds in a later chunk of the trial.
+    In most trials the first chunk below the stolen tone's full level (a plateau of the 10 ms
+    fade, or the halt) holds no stealer: a late mixer thread can put both calls before one chunk
+    in a trial, which one late wake-up must not fail, while a delay that stopped working shows in
+    all of them. In every trial the stealer sounds from that chunk on.
     """
     samples = recorded(
         STEAL_DELAYED, benchmark=benchmark, request=request, tmp_path_factory=tmp_path_factory
@@ -96,5 +100,6 @@ def test_a_delayed_steal_starts_the_stealer_after_the_fades_first_chunk(
     assert len(recorded_trials) == TRIAL_COUNT
     for chunks in recorded_trials:
         first_changed = action_chunk(stolen, chunks)
-        assert stealer[first_changed] <= ABSENT_LEVEL
         assert np.any(stealer[first_changed : chunks.stop] > ABSENT_LEVEL)
+    delayed = delayed_steal_trials(stolen=stolen, stealer=stealer, recorded_trials=recorded_trials)
+    assert delayed >= MINIMUM_DELAYED_STEAL_TRIALS

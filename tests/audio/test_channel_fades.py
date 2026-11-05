@@ -37,8 +37,10 @@ from tests.audio.channel_fade_analysis import (
     DISCONTINUITY_THRESHOLD,
     LEVEL_TOLERANCE,
     MAXIMUM_CRT_FADE_PLATEAUS,
+    MINIMUM_DELAYED_STEAL_TRIALS,
     action_chunk,
     chunk_levels,
+    delayed_steal_trials,
     levels_after_the_action,
     recording_directory,
     shared_recording,
@@ -187,6 +189,28 @@ def test_a_fade_that_halts_within_one_chunk_has_no_level_after_the_action():
 
     assert action_chunk(levels, range(16)) == 16
     assert levels_after_the_action(levels, range(16)).size == 0
+
+
+@pytest.mark.parametrize(
+    ('late_trials', 'delay_is_working'),
+    [(0, True), (1, True), (2, True), (3, False), (TRIAL_COUNT, False)],
+)
+def test_one_late_mixer_thread_does_not_read_as_a_lost_delay(late_trials, delay_is_working):
+    """A trial or two may run late; a delay that stopped working shows in most trials.
+
+    Each trial is four chunks: the stolen tone at full level, then gone. Its stealer starts in the
+    chunk after the fade's first, or, when the mixer thread ran late, in that first chunk itself.
+    """
+    stolen = np.tile([1.0, 1.0, 0.0, 0.0], TRIAL_COUNT)
+    stealer = np.tile([0.0, 0.0, 0.0, 1.0], TRIAL_COUNT)
+    recorded_trials = [range(trial * 4, (trial + 1) * 4) for trial in range(TRIAL_COUNT)]
+    for chunks in recorded_trials[:late_trials]:
+        stealer[chunks.start + 2] = 0.21
+
+    delayed = delayed_steal_trials(stolen=stolen, stealer=stealer, recorded_trials=recorded_trials)
+
+    assert delayed == TRIAL_COUNT - late_trials
+    assert (delayed >= MINIMUM_DELAYED_STEAL_TRIALS) is delay_is_working
 
 
 def test_a_stalled_trial_stays_one_trial():
