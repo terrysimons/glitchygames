@@ -413,6 +413,43 @@ jobs:
           destination: dist
       - save-uv-cache-windows
 
+  # The test suite on real ARM hardware: a Raspberry Pi 4 (4 GB, no added cooling) running machine
+  # runner 3 (plans/2026-11-04-raspberry-pi-ci-runner.md). Not in the workflow yet: add it once the
+  # runner is installed and its resource class exists. Never nox-performance-test here: it runs
+  # tests/benchmarks/test_logging_cost.py, whose heavy logs wear the Pi's SD card. The uv cache
+  # stays on the host, so no CircleCI cache (storage and network use credits), and the job has no
+  # sudo, so the host is provisioned with what it needs (fontconfig)
+  build-and-test-raspberry-pi:
+    machine: true
+    resource_class: terrysimons/raspberry-pi-4
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+      # Serially, as on Linux: parallel workers could reach the swap file on the SD card
+      PYTEST_WORKERS: "0"
+      # As on Linux: stop past 1600 MiB, naming the test (tests/memory_guard.py), not a kernel kill
+      # with no test named. The owner, 2026-11-04: limits stay on the real hardware
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
+
+    steps:
+      - checkout
+      - install-deps-posix
+      - nox-timer-report
+      - nox-test
+      # After the tests: whether this run was slowed by heat or undervoltage. /dev/vcio is
+      # readable by the video group (a udev rule on the host), which the runner's user is in
+      - run:
+          name: "Throttling and temperature (vcgencmd)"
+          when: always
+          command: |
+            vcgencmd get_throttled
+            vcgencmd measure_temp
+      - run:
+          name: "Prune the uv cache"
+          when: always
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv cache prune
 
   # Publishes the docs (https://terrysimons.github.io/glitchygames/, the gh-pages branch) after
   # a merge to main: nox -s docs-deploy, browser games (play/) included, without measuring the

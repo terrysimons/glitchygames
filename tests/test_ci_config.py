@@ -70,6 +70,15 @@ def test_circleci_pins_the_locked_version(parameter, package):
     assert pipeline_parameter_default(name=parameter) == locked_version(package=package)
 
 
+def test_the_raspberry_pi_playbook_pins_circlecis_uv():
+    """The uv the owner measures with on the Pi is the one its CI job installs."""
+    playbook = (PROJECT_ROOT / 'ansible' / 'raspberry_pi_runner.yml').read_text(encoding='utf-8')
+
+    uv_version = pipeline_parameter_default(name='UV_VERSION')
+
+    assert f'    raspberry_pi_uv_version: "{uv_version}"\n' in playbook
+
+
 def test_circleci_runs_an_installed_nox_never_through_uvx():
     """Each job installs nox once, as a uv tool, and runs it directly: no uvx parent waits on it.
 
@@ -82,7 +91,9 @@ def test_circleci_runs_an_installed_nox_never_through_uvx():
     install = 'uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"'
     jobs = configuration[configuration.index('\njobs:\n') : configuration.index('\nworkflows:\n')]
     windows_job = jobs[
-        jobs.index('\n  build-and-test-windows:\n') : jobs.index('\n  deploy-docs:\n')
+        jobs.index('\n  build-and-test-windows:\n') : jobs.index(
+            '\n  build-and-test-raspberry-pi:\n'
+        )
     ]
     install_deps_posix = configuration[
         configuration.index('\n  install-deps-posix:\n') : configuration.index('\n  nox-format:\n')
@@ -579,11 +590,88 @@ def test_the_wheel_build_builds_every_workspace_package(mocker):
     )
 
 
-def test_only_the_linux_job_sets_the_memory_limit():
+def raspberry_pi_job() -> str:
+    """Return the Raspberry Pi job's text in the CircleCI configuration.
+
+    Returns:
+        From its name to the docs deploy job's.
+
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    job = configuration[configuration.index('\n  build-and-test-raspberry-pi:\n') :]
+    return job[: job.index('\n  # Publishes the docs')]
+
+
+def test_the_raspberry_pi_job_runs_the_tests_serially_on_its_runner():
+    """The job runs on the self-hosted machine runner, with no xdist workers to reach its swap."""
+    job = raspberry_pi_job()
+
+    assert '    machine: true\n    resource_class: terrysimons/raspberry-pi-4\n' in job
+    assert '      PYTEST_WORKERS: "0"\n' in job
+    assert job.index('      - install-deps-posix\n') < job.index('      - nox-test\n')
+
+
+def test_the_raspberry_pi_job_never_runs_the_benchmarks():
+    """performance-test runs test_logging_cost.py, whose heavy logs wear the Pi's SD card."""
+    steps = raspberry_pi_job().split('    steps:\n')[1]
+
+    assert 'performance' not in steps
+    assert 'benchmark' not in steps
+
+
+def test_the_raspberry_pi_job_needs_no_sudo_and_no_circleci_cache():
+    """The runner's user has no sudo, and the uv cache stays on the host, pruned every run."""
+    job = raspberry_pi_job()
+
+    assert 'sudo apt-get' not in job
+    assert '_cache' not in job
+    assert 'uv-cache' not in job
+    prune = job[job.index('name: "Prune the uv cache"') :]
+    assert 'when: always\n' in prune
+    assert 'uv cache prune\n' in prune
+    assert '--ci' not in prune
+
+
+def test_the_raspberry_pi_job_reports_throttling_even_when_the_tests_fail():
+    """A failed or slow run on a Pi with no added cooling says whether heat was the reason."""
+    job = raspberry_pi_job()
+    throttling = job[job.index('name: "Throttling and temperature') :]
+
+    assert job.index('      - nox-test\n') < job.index('name: "Throttling and temperature')
+    assert 'when: always\n' in throttling
+    assert 'vcgencmd get_throttled\n' in throttling
+
+
+@pytest.mark.parametrize(
+    ('system', 'machine', 'has_no_wheel'),
+    [
+        ('linux', 'aarch64', True),
+        ('linux', 'x86_64', False),
+        ('darwin', 'arm64', False),
+        ('win32', 'AMD64', False),
+    ],
+)
+def test_the_taplo_sessions_skip_only_linux_arm(mocker, system, machine, has_no_wheel):
+    """pyproject.toml's marker leaves taplo out on Linux ARM alone, so only there do they skip."""
+    import noxfile
+
+    mocker.patch.object(noxfile.sys, 'platform', system)
+    mocker.patch.object(noxfile.platform, 'machine', return_value=machine)
+    session = mocker.Mock()
+
+    noxfile._format_toml(session)
+    noxfile._lint_toml(session)
+
+    assert session.run.call_count == (0 if has_no_wheel else 2)
+    assert session.log.call_count == (2 if has_no_wheel else 0)
+
+
+def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
     """The Linux job (2 GB, serial) stops a run past 1600 MiB, naming the test (memory_guard.py).
 
-    Only there: the macOS and Windows jobs have the memory, and the plugin needs Linux's
-    ``/proc/self/statm`` anyway. The resource class and the worker count stay as they were.
+    So does the Raspberry Pi's (real hardware, 3.7 GB with its desktop). The macOS and Windows
+    jobs have the memory, and the plugin needs Linux's ``/proc/self/statm`` anyway. The Linux
+    job's resource class and worker count stay as they were.
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     linux_job = configuration[
@@ -592,7 +680,8 @@ def test_only_the_linux_job_sets_the_memory_limit():
         )
     ]
 
-    assert configuration.count('GLITCHYGAMES_TEST_RSS_LIMIT_MB') == 1
+    assert configuration.count('GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"') == 2
+    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in raspberry_pi_job()
     assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in linux_job
     assert '    resource_class: small\n' in linux_job
     assert '      PYTEST_WORKERS: "0"\n' in linux_job
