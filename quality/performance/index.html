@@ -287,8 +287,8 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    has not measured that code yet, it measures every golden replay and bundled demo on it and
    adds one small file per recording to the commit, under <code>quality/replay-ledger/</code>. A docs commit
    after a measured one is instant; code that arrived by a merge from <code>main</code> or a rebase is
-   measured by the next commit (or by hand: <code>uv run python -m scripts.measure_staged_replays</code>,
-   then commit). <code>SKIP=replay-metrics git commit ...</code> skips it.</li>
+   measured by the next commit (or by hand: <code>nox -s measure-staged</code>, then commit, which also
+   adds a machine without the hook). <code>SKIP=replay-metrics git commit ...</code> skips it.</li>
 <li><strong>The site shows what landed on <code>main</code>.</strong> Every docs build reads the repository's row files
    and keeps each row whose code tree is the code tree of the commit that added its file: on
    <code>main</code>, the squash merge, so each is shown under the commit its code landed in (code that
@@ -357,7 +357,7 @@ CRITICAL record a run): a logger that does has a level set behind the command li
 (BUGS.md #236), which <code>tests/replay/test_replays_log_quietly.py</code>
 and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary test run.</p>
 <p>Until a build generates them, this page has only this text.</p>
-<p>Generated from 220 ledger rows (1575 in the repository, 220 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
+<p>Generated from 227 ledger rows (1582 in the repository, 220 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
 <h2 id="latest-measurements">Latest measurements<a class="headerlink" href="#latest-measurements" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -384,6 +384,16 @@ and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary t
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
+<td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz</code></td>
+<td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
+<td><code>748e4ac</code></td>
+<td style="text-align: right;">472</td>
+<td style="text-align: right;">20.541</td>
+<td style="text-align: right;">21.067</td>
+<td style="text-align: right;">50.182</td>
+<td style="text-align: right;">327</td>
+</tr>
+<tr>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
 <td><code>e8e88b4</code></td>
@@ -392,6 +402,16 @@ and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary t
 <td style="text-align: right;">2.137</td>
 <td style="text-align: right;">4.068</td>
 <td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz</code></td>
+<td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
+<td><code>748e4ac</code></td>
+<td style="text-align: right;">472</td>
+<td style="text-align: right;">21.584</td>
+<td style="text-align: right;">24.610</td>
+<td style="text-align: right;">55.160</td>
+<td style="text-align: right;">420</td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code></td>
@@ -404,6 +424,16 @@ and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary t
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
+<td><code>src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz</code></td>
+<td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
+<td><code>748e4ac</code></td>
+<td style="text-align: right;">532</td>
+<td style="text-align: right;">5.613</td>
+<td style="text-align: right;">7.993</td>
+<td style="text-align: right;">40.701</td>
+<td style="text-align: right;">1</td>
+</tr>
+<tr>
 <td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
 <td><code>e8e88b4</code></td>
@@ -412,6 +442,16 @@ and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary t
 <td style="text-align: right;">0.596</td>
 <td style="text-align: right;">4.848</td>
 <td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
+<td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
+<td><code>748e4ac</code></td>
+<td style="text-align: right;">1614</td>
+<td style="text-align: right;">5.250</td>
+<td style="text-align: right;">6.812</td>
+<td style="text-align: right;">48.443</td>
+<td style="text-align: right;">1</td>
 </tr>
 <tr>
 <td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
@@ -424,6 +464,16 @@ and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary t
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
+<td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
+<td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
+<td><code>748e4ac</code></td>
+<td style="text-align: right;">2072</td>
+<td style="text-align: right;">8.856</td>
+<td style="text-align: right;">13.424</td>
+<td style="text-align: right;">40.005</td>
+<td style="text-align: right;">2</td>
+</tr>
+<tr>
 <td><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code></td>
 <td>Apple M4 Max, unpaced replay</td>
 <td><code>e8e88b4</code></td>
@@ -431,6 +481,16 @@ and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary t
 <td style="text-align: right;">0.090</td>
 <td style="text-align: right;">0.184</td>
 <td style="text-align: right;">0.325</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>src/games/paddleslap/src/paddleslap/demos/rally.jsonl.gz</code></td>
+<td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
+<td><code>748e4ac</code></td>
+<td style="text-align: right;">450</td>
+<td style="text-align: right;">1.098</td>
+<td style="text-align: right;">1.532</td>
+<td style="text-align: right;">2.348</td>
 <td style="text-align: right;">0</td>
 </tr>
 <tr>
@@ -442,6 +502,16 @@ and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary t
 <td style="text-align: right;">0.237</td>
 <td style="text-align: right;">3.240</td>
 <td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td><code>src/games/paddleslap/tests/fixtures/replays/golden.jsonl.gz</code></td>
+<td>Raspberry Pi 4 Model B Rev 1.4, unpaced replay</td>
+<td><code>748e4ac</code></td>
+<td style="text-align: right;">622</td>
+<td style="text-align: right;">1.196</td>
+<td style="text-align: right;">1.988</td>
+<td style="text-align: right;">38.775</td>
+<td style="text-align: right;">1</td>
 </tr>
 </tbody>
 </table>
