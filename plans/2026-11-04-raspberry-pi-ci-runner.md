@@ -160,6 +160,9 @@ speed tests." They need different runs:
 
 0. **Plotted speed numbers include the real driver: decided, 2026-11-04.** Today's rows are real
    machines on `dummy`, so they leave out the time spent presenting. Build driver timing.
+0. **Driver time is measured, not judged: decided, 2026-11-04.** A slow present on real hardware
+   is a number to record, not a failure, so driver timing sets no pass or fail limit on speed. The
+   owner, on the Pi's 30.1 ms flip: "That's ok on the Pi. I want to measure it, not fail it."
 0. **Registration is part of the deploy: decided, 2026-11-04.** `ansible/raspberry_pi_runner.yml`
    checks the fork setting with a personal API token (`CIRCLECI_API_TOKEN`), creates the resource
    class and token through the controller's `circleci auth login`, installs the runner, and sets up

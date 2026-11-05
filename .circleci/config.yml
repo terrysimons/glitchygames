@@ -91,9 +91,14 @@ commands:
             - ~/.local/share/uv/python
 
   install-deps-posix:
+    parameters:
+      no_output_timeout:
+        type: string
+        default: 10m
     steps:
       - run:
           name: "Install uv and Python"
+          no_output_timeout: << parameters.no_output_timeout >>
           command: |
             set -euo pipefail
 
@@ -146,12 +151,17 @@ commands:
             nox -s lint-docs
 
   nox-timer-report:
+    parameters:
+      no_output_timeout:
+        type: string
+        default: 10m
     steps:
       # Diagnostic only (always succeeds): whether this machine is a VM, its CPU share, and how
       # late it wakes sleeping code; the timing tests judge, this explains their numbers. The
       # nox session detects the OS itself
       - run:
           name: "Timer report (diagnostic)"
+          no_output_timeout: << parameters.no_output_timeout >>
           when: always
           command: |
             export PATH="$HOME/.local/bin:$PATH"
@@ -433,19 +443,25 @@ jobs:
 
     steps:
       - checkout
-      - install-deps-posix
-      - nox-timer-report
+      # 30m, not the default 10m: the first install on a cold uv cache compiles without printing
+      # (build 2862 timed out in the timer report, the first step to install). nox-test keeps 120m
+      - install-deps-posix:
+          no_output_timeout: 30m
+      - nox-timer-report:
+          no_output_timeout: 30m
       - nox-test
       # After the tests: whether this run was slowed by heat or undervoltage. /dev/vcio is
       # readable by the video group (a udev rule on the host), which the runner's user is in
       - run:
           name: "Throttling and temperature (vcgencmd)"
+          no_output_timeout: 30m
           when: always
           command: |
             vcgencmd get_throttled
             vcgencmd measure_temp
       - run:
           name: "Prune the uv cache"
+          no_output_timeout: 30m
           when: always
           command: |
             export PATH="$HOME/.local/bin:$PATH"

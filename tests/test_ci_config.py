@@ -118,7 +118,7 @@ def test_circleci_runs_an_installed_nox_never_through_uvx():
         job = jobs[start:end]
         first_nox = re.search(r'^\s+(- nox-|nox -s )', job, flags=re.MULTILINE)
         if first_nox is not None and not job.startswith('  build-and-test-windows:'):
-            assert '      - install-deps-posix\n' in job[: first_nox.start()], job.split(':')[0]
+            assert '      - install-deps-posix' in job[: first_nox.start()], job.split(':')[0]
     # The tool is never restored from a cache: the uv caches name uv's Python, not all its data
     assert '- ~/.local/share/uv\n' not in configuration
 
@@ -627,7 +627,16 @@ def test_the_raspberry_pi_job_runs_the_tests_serially_on_its_runner():
 
     assert '    machine: true\n    resource_class: terrysimons/raspberry-pi-4\n' in job
     assert '      PYTEST_WORKERS: "0"\n' in job
-    assert job.index('      - install-deps-posix\n') < job.index('      - nox-test\n')
+    assert job.index('      - install-deps-posix') < job.index('      - nox-test\n')
+
+
+def test_the_raspberry_pi_job_allows_30_minutes_of_silence_per_step():
+    """A cold install compiles without printing, past CircleCI's default 10 minutes."""
+    job = raspberry_pi_job()
+
+    assert '- install-deps-posix:\n          no_output_timeout: 30m\n' in job
+    assert '- nox-timer-report:\n          no_output_timeout: 30m\n' in job
+    assert job.count('          no_output_timeout: 30m\n') == 4
 
 
 def test_the_raspberry_pi_job_never_runs_the_benchmarks():
