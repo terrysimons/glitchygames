@@ -557,8 +557,9 @@ workflows:
       - build-and-test-linux
       - build-and-test-macos
       - build-and-test-windows
-      # Advisory: deploy-docs does not wait for it, so an offline Pi cannot hold up the docs
-      - build-and-test-raspberry-pi
+      # Off: the Pi measures replays when the owner pushes, and takes no CI jobs
+      # (plans/2026-11-04-raspberry-pi-ci-runner.md). deploy-docs must not wait for this if it returns
+      # - build-and-test-raspberry-pi
       # After a merge to main: as soon as the macOS job passes (the same tree passed all three in
       # its pull request), one deploy at a time so two quick merges cannot race gh-pages
       - deploy-docs:

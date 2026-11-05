@@ -612,12 +612,13 @@ def raspberry_pi_job() -> str:
     return job[: job.index('\n  # Publishes the docs')]
 
 
-def test_every_push_runs_the_raspberry_pi_job_and_the_docs_do_not_wait_for_it():
-    """The Pi tests every push, and being offline cannot hold up the docs."""
+def test_no_workflow_runs_the_raspberry_pi_job():
+    """The Pi measures replays when the owner pushes, and takes no CI jobs."""
     configuration = (PROJECT_ROOT / '.circleci' / 'config.yml').read_text(encoding='utf-8')
     workflow = configuration[configuration.index('\nworkflows:\n') :]
 
-    assert '\n      - build-and-test-raspberry-pi\n' in workflow
+    assert '\n      # - build-and-test-raspberry-pi\n' in workflow
+    assert '\n      - build-and-test-raspberry-pi\n' not in workflow
     assert '            - build-and-test-raspberry-pi\n' not in workflow
 
 

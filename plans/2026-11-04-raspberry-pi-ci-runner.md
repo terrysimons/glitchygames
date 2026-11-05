@@ -1,8 +1,9 @@
 # Raspberry Pi 4 as a CircleCI hardware runner
 
 Status: in progress (branch `feat/hardware-runner`). The runner is installed and registered by
-`ansible/raspberry_pi_runner.yml`, and online. `build-and-test-raspberry-pi` is in the workflow,
-advisory: `deploy-docs` does not wait for it. A throwaway job (build 2857, removed) showed that jobs
+`ansible/raspberry_pi_runner.yml`, and online. `build-and-test-raspberry-pi` is defined but commented
+out of the workflow: the owner, 2026-11-05, wants the Pi to run only its performance measurement at
+push time, with the rows copied back before they are committed. A throwaway job (build 2857, removed) showed that jobs
 inherit the display: SDL's `wayland` driver on the 2560x1440 screen, the `circleci` user's groups,
 `vcgencmd`, and the service's 2 GiB memory limit. Its flip took 30.1 ms per frame on `wayland` and
 2.4 ms on `dummy`. Why `wayland` is that slow is unmeasured: driver timing starts there.
