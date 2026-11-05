@@ -70,6 +70,15 @@ def test_circleci_pins_the_locked_version(parameter, package):
     assert pipeline_parameter_default(name=parameter) == locked_version(package=package)
 
 
+def test_the_raspberry_pi_playbook_pins_circlecis_uv():
+    """The uv the owner measures with on the Pi is the one its CI job installs."""
+    playbook = (PROJECT_ROOT / 'ansible' / 'raspberry_pi_runner.yml').read_text(encoding='utf-8')
+
+    uv_version = pipeline_parameter_default(name='UV_VERSION')
+
+    assert f'    raspberry_pi_uv_version: "{uv_version}"\n' in playbook
+
+
 def test_circleci_runs_an_installed_nox_never_through_uvx():
     """Each job installs nox once, as a uv tool, and runs it directly: no uvx parent waits on it.
 
@@ -657,11 +666,12 @@ def test_the_taplo_sessions_skip_only_linux_arm(mocker, system, machine, has_no_
     assert session.log.call_count == (2 if has_no_wheel else 0)
 
 
-def test_only_the_linux_job_sets_the_memory_limit():
+def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
     """The Linux job (2 GB, serial) stops a run past 1600 MiB, naming the test (memory_guard.py).
 
-    Only there: the macOS and Windows jobs have the memory, and the plugin needs Linux's
-    ``/proc/self/statm`` anyway. The resource class and the worker count stay as they were.
+    So does the Raspberry Pi's (real hardware, 3.7 GB with its desktop). The macOS and Windows
+    jobs have the memory, and the plugin needs Linux's ``/proc/self/statm`` anyway. The Linux
+    job's resource class and worker count stay as they were.
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     linux_job = configuration[
@@ -670,7 +680,8 @@ def test_only_the_linux_job_sets_the_memory_limit():
         )
     ]
 
-    assert configuration.count('GLITCHYGAMES_TEST_RSS_LIMIT_MB') == 1
+    assert configuration.count('GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"') == 2
+    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in raspberry_pi_job()
     assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"\n' in linux_job
     assert '    resource_class: small\n' in linux_job
     assert '      PYTEST_WORKERS: "0"\n' in linux_job

@@ -824,6 +824,45 @@ drafted issue text. Not posted yet:
   spellings. Finish with `mkdocs build --strict` and the docs guard tests. Plan it as its own
   branch (design, then plan), split by area so each piece is reviewable.
 
+## Raspberry Pi speedups (user request, 2026-11-04)
+
+Try each on the Pi 4 with and without, a few runs apiece, one change at a time:
+`nox -s replay-metrics -- --allow-dirty --force` writes to the pending file, so trials are never
+published. Adopt what helps through `ansible/raspberry_pi_runner.yml`, and note when: an adopted
+change moves the Pi's line on the Performance page. As found 2026-11-04 unless marked.
+
+Engine time (today's rows):
+
+- **OpenBLAS.** `numpy` has no BLAS here (`show_config`). Needs `libopenblas-dev` and `pkg-config`,
+  and a rebuild past uv's cached `numpy`. Expected to do little: no linear algebra found in shipped
+  code.
+- **CPython's JIT: `PYTHON_JIT=1`.** Ubuntu's 3.14 has it built in but off
+  (`--enable-experimental-jit=yes-off`). The cheapest trial here.
+- **uv's managed Python** against Ubuntu's: the venv uses `/usr/bin/python3.14`, while CI's
+  `install-deps-posix` installs uv's.
+- **CPU governor and power profile.** Now `ondemand` and `balanced`; try `performance`. May help the
+  slowest frames more than the medians, as the clock ramps less.
+- **Newer `numpy`.** `uv.lock` holds 1.26.4, with no wheels, so it compiles here. Find out what holds it
+  there; a newer one could bring wheels and faster elementwise loops, on every platform.
+- **`pygame-ce` and SDL built for the Cortex-A72** (`-mcpu=cortex-a72`), not the generic ARM wheel. Most
+  work to keep up; only if the profile points there.
+- **Garbage collection pauses.** Single slow frames (Drawing Fire: p99 6.8 ms, max 48 ms). Unconfirmed:
+  check the frame heatmap first, then try `gc.freeze()` after loading.
+- **Cooling and clocks.** A heatsink or fan if `vcgencmd get_throttled` reports throttling under a
+  run. Overclocking last: it needs cooling, and the machine stops being a stock Pi 4.
+
+Driver time (needs present timing, `plans/2026-11-04-raspberry-pi-ci-runner.md`):
+
+- **SDL's render driver:** `SDL_RENDER_DRIVER` of `opengles2`, `opengl` and `software`, as the engine
+  asks for `SCALED`, which uses a renderer.
+- **Video path:** the desktop's `wayland`, against `x11`, fullscreen, and `kmsdrm` with no compositor
+  (a one-off from a console: the desktop stays).
+
+Loading and memory:
+
+- **USB 3 SSD** against the SD card, for start-up and asset loading (the runner plan's storage decision).
+- **Background services and `vm.swappiness`** (60 now): fewer services, less swapping onto the card.
+
 ## Code quality
 
 - **Lint caps shape the replay classes.** `GameEngine.__init__` and `ReplaySources.__init__`

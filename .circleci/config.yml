@@ -427,6 +427,9 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Serially, as on Linux: parallel workers could reach the swap file on the SD card
       PYTEST_WORKERS: "0"
+      # As on Linux: stop past 1600 MiB, naming the test (tests/memory_guard.py), not a kernel kill
+      # with no test named. The owner, 2026-11-04: limits stay on the real hardware
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
 
     steps:
       - checkout
