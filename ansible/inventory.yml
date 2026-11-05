@@ -1,0 +1,7 @@
+---
+all:
+  hosts:
+    raspberry-pi-runner:
+      ansible_host: 172.23.23.155
+      ansible_user: terry
+      ansible_python_interpreter: /usr/bin/python3

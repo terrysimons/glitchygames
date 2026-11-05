@@ -1,0 +1,47 @@
+---
+# The Raspberry Pi 4 that runs CircleCI's build-and-test-raspberry-pi job
+# (plans/2026-11-04-raspberry-pi-ci-runner.md). From the repository root, on another machine:
+#   uvx --from ansible-core ansible-playbook -i ansible/inventory.yml \
+#     ansible/raspberry_pi_runner.yml --ask-become-pass
+- name: Set up the Raspberry Pi runner
+  hosts: raspberry-pi-runner
+  become: true
+  vars:
+    # Add the runner's circleci user here once machine runner 3 is installed
+    raspberry_pi_video_users:
+      - "{{ ansible_user }}"
+
+  tasks:
+    # /dev/vcio is root:root 0600 out of the box, so no group can read it and vcgencmd fails
+    - name: Give /dev/vcio to the video group
+      ansible.builtin.copy:
+        content: 'KERNEL=="vcio", GROUP="video", MODE="0660"'
+        dest: /etc/udev/rules.d/99-vcio.rules
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Apply the udev rule
+
+    - name: Add the users who read the throttling state to the video group
+      ansible.builtin.user:
+        name: "{{ item }}"
+        groups: video
+        append: true
+      loop: "{{ raspberry_pi_video_users }}"
+
+    - name: Apply the udev rule before checking it
+      ansible.builtin.meta: flush_handlers
+
+    # sg: a group added by the task above reaches only new logins
+    - name: Check each user can read the throttling state
+      ansible.builtin.command:
+        cmd: sg video -c "vcgencmd get_throttled"
+      become_user: "{{ item }}"
+      changed_when: false
+      loop: "{{ raspberry_pi_video_users }}"
+
+  handlers:
+    - name: Apply the udev rule
+      ansible.builtin.shell:
+        cmd: udevadm control --reload && udevadm trigger --settle --name-match=vcio
+      changed_when: true

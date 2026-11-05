@@ -367,7 +367,7 @@ def test_the_hook_is_configured_to_run_before_each_commit():
     )
 
     assert 'id: replay-metrics' in configuration
-    assert 'entry: uv run --locked python -m scripts.measure_staged_replays' in configuration
+    assert 'entry: uv run --locked --extra dev nox -s measure-staged\n' in configuration
     assert 'stages: [pre-commit]' in configuration
 
 
@@ -444,3 +444,19 @@ def test_the_hooks_command_lines_are_the_engines_own(tmp_path):
     assert measuring.rows_directory == str(rows_directory)
     assert measuring.project_root == tmp_path
     assert measuring.game is None
+
+
+def test_the_nox_session_runs_this_script_with_the_lock_checked(mocker):
+    """``nox -s measure-staged``, the hook's and a person's way in, runs the script.
+
+    ``--locked``: a stale uv.lock fails it, where a plain uv run would rewrite the lock.
+    """
+    import noxfile
+
+    session = mocker.Mock()
+
+    noxfile.measure_staged(session)
+
+    session.run.assert_called_once_with(
+        'uv', 'run', '--locked', 'python', '-m', 'scripts.measure_staged_replays', external=True
+    )
