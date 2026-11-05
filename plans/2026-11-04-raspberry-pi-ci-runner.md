@@ -1,7 +1,8 @@
 # Raspberry Pi 4 as a CircleCI hardware runner
 
 Status: in progress (branch `feat/rpi4-ci-runner`). The `taplo` fix and the job with its config
-tests are written, uncommitted; the job is not in the workflow, and the runner is not installed.
+tests are committed; the job is not in the workflow, and the runner is not installed. The
+`/dev/vcio` playbook is written but has not been run (it needs the owner's sudo password).
 Goal: run the test suite on real ARM
 hardware, on every push, on `rpi4-ubuntu-2604` (terry@172.23.23.155).
 
@@ -22,14 +23,14 @@ hardware, on every push, on `rpi4-ubuntu-2604` (terry@172.23.23.155).
 2. **The owner's GitHub key is on the Pi.** Jobs run directly on the host with the runner user's
    privileges. The private key must not be readable by that user; ideally replace it with a narrowly
    scoped key.
-3. **`taplo` breaks the install (fixed, uncommitted).** `nox -s test` installs all extras from
+3. **`taplo` breaks the install (fixed).** `nox -s test` installs all extras from
    `uv.lock`, and `taplo` 0.9.3 has no Linux ARM wheel (its sdist fails to build). A platform marker
    in `pyproject.toml` leaves it out there, and `noxfile.py` skips the TOML format and lint on Linux
    ARM, saying so.
 
 ## Steps
 
-1. **Fix `taplo`.** Written, uncommitted (see blocker 3). Only `taplo`'s marker changed in
+1. **Fix `taplo`.** Done (see blocker 3). Only `taplo`'s marker changed in
    `uv.lock`; CI on the other platforms still has to confirm it.
 2. **Install the runner.**
    - Create the resource class `terrysimons/raspberry-pi-4`. The owner handles the token and
@@ -41,7 +42,7 @@ hardware, on every push, on `rpi4-ubuntu-2604` (terry@172.23.23.155).
 3. **Measure one run by hand as the `circleci` user.** Record duration, peak memory, swap use, disk
    writes, temperature and throttling. This also shows whether the suite and its 100% coverage gate
    pass on ARM.
-4. **Add a `build-and-test-raspberry-pi` job.** Written, uncommitted, and validated with
+4. **Add a `build-and-test-raspberry-pi` job.** Written, and validated with
    `circleci config validate`. Add it to the workflow only once the runner and its resource class
    exist.
    - Executor: `machine: true` with the new resource class.
@@ -84,3 +85,11 @@ hardware, on every push, on `rpi4-ubuntu-2604` (terry@172.23.23.155).
 - <https://circleci.com/docs/runner/runner-overview/>
 - <https://circleci.com/docs/runner/install-machine-runner-3-on-linux/>
 - <https://circleci.com/docs/runner/machine-runner-3-manual-installation/>
+
+## The Pi on the Performance page
+
+The page reads `quality/replay-ledger/`, not `.benchmarks/`, and CI never measures, so the Pi appears
+only through rows committed from it. On the Pi: `git add ...`, `nox -s measure-staged`, `git commit`,
+then squash-merge. The hook is not installed there, so this is by hand. The first seven rows are in
+this branch; if `main`'s code changes and the branch is updated, measure again. Check with
+`glitchygames unmeasured --code-tree TREE`: without `--code-tree` it judges by commit.
