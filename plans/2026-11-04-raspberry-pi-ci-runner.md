@@ -1,10 +1,11 @@
 # Raspberry Pi 4 as a CircleCI hardware runner
 
-Status: in progress (branch `feat/rpi4-ci-runner`). The `taplo` fix and the job with its config
-tests are committed; the job is not in the workflow, and the runner is not installed. The
-`/dev/vcio` playbook is written but has not been run (it needs the owner's sudo password).
+Status: in progress (branch `feat/hardware-runner`). The runner is installed and registered by
+`ansible/raspberry_pi_runner.yml`, and online. The job is on `main` but not in the workflow: a
+throwaway job, `check-raspberry-pi-display`, first shows what a job on the Pi can reach, then the
+full job replaces it in the workflow.
 Goal: run the test suite on real ARM
-hardware, on every push, on `rpi4-ubuntu-2604` (terry@172.23.23.155).
+hardware, on every push, on `rpi4-ubuntu-2610` (terry@172.23.23.155).
 
 ## The host (read 2026-11-04)
 
@@ -157,6 +158,11 @@ speed tests." They need different runs:
 
 0. **Plotted speed numbers include the real driver: decided, 2026-11-04.** Today's rows are real
    machines on `dummy`, so they leave out the time spent presenting. Build driver timing.
+0. **Registration is part of the deploy: decided, 2026-11-04.** `ansible/raspberry_pi_runner.yml`
+   checks the fork setting with a personal API token (`CIRCLECI_API_TOKEN`), creates the resource
+   class and token through the controller's `circleci auth login`, installs the runner, and sets up
+   the auto-login session with a display that stays on. The runner starts after chrony's first sync
+   (`chrony-wait`), because the Pi has no battery-backed clock and boots with a stale date.
 1. **Do runners measure, or only test?** Recommended: measure once per merge to `main`, not on every
    push: rows only count once their code lands.
 2. **How do rows land?** Recommended: push them to `gh-pages`' published ledger, which `docs-deploy`

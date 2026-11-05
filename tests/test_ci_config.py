@@ -79,6 +79,16 @@ def test_the_raspberry_pi_playbook_pins_circlecis_uv():
     assert f'    raspberry_pi_uv_version: "{uv_version}"\n' in playbook
 
 
+def test_the_raspberry_pi_job_uses_the_resource_class_ansible_registers():
+    """The job's resource class is the one the playbook creates and registers the runner with."""
+    inventory = (PROJECT_ROOT / 'ansible' / 'inventory.yml').read_text(encoding='utf-8')
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    match = re.search(r'raspberry_pi_resource_class: (?P<name>\S+)', inventory)
+
+    assert match is not None
+    assert f'    resource_class: {match["name"]}\n' in configuration
+
+
 def test_circleci_runs_an_installed_nox_never_through_uvx():
     """Each job installs nox once, as a uv tool, and runs it directly: no uvx parent waits on it.
 
