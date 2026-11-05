@@ -1180,6 +1180,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/mkdocs_hooks.py',
     ),
     'tests/test_import_published_ledger.py': ('scripts/import_published_ledger.py',),
+    'tests/test_measure_on_raspberry_pi.py': ('scripts/measure_on_raspberry_pi.py',),
     'tests/test_measure_staged_replays.py': ('scripts/measure_staged_replays.py',),
     'tests/test_microphone_capture_check.py': ('scripts/microphone_capture_check.py',),
     'tests/test_mkdocs_hooks_browser_games.py': ('scripts/mkdocs_hooks.py',),
