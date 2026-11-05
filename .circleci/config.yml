@@ -414,8 +414,8 @@ jobs:
       - save-uv-cache-windows
 
   # The test suite on real ARM hardware: a Raspberry Pi 4 (4 GB, no added cooling) running machine
-  # runner 3 (plans/2026-11-04-raspberry-pi-ci-runner.md). Not in the workflow yet: add it once the
-  # runner is installed and its resource class exists. Never nox-performance-test here: it runs
+  # runner 3 (plans/2026-11-04-raspberry-pi-ci-runner.md), set up by
+  # ansible/raspberry_pi_runner.yml. Never nox-performance-test here: it runs
   # tests/benchmarks/test_logging_cost.py, whose heavy logs wear the Pi's SD card. The uv cache
   # stays on the host, so no CircleCI cache (storage and network use credits), and the job has no
   # sudo, so the host is provisioned with what it needs (fontconfig)
@@ -450,74 +450,6 @@ jobs:
           command: |
             export PATH="$HOME/.local/bin:$PATH"
             uv cache prune
-
-  # THROWAWAY, removed before this branch merges: what a job on the Pi can reach, which the playbook
-  # alone cannot show (plans/2026-11-04-raspberry-pi-ci-runner.md). Fails if the native driver falls
-  # back to dummy. pygame-ce alone, at its locked version, so this needs no numpy or miniaudio build
-  check-raspberry-pi-display:
-    machine: true
-    resource_class: terrysimons/raspberry-pi-4
-
-    steps:
-      - checkout
-      - install-deps-posix
-      - run:
-          name: "What the job inherits"
-          when: always
-          command: |
-            id
-            date --utc
-            timedatectl show --property=NTPSynchronized
-            echo "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-unset}"
-            echo "WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset}"
-            echo "DISPLAY=${DISPLAY:-unset}"
-            echo "CI=${CI:-unset}"
-            loginctl list-sessions --no-legend
-            ls -l "/run/user/$(id --user)/wayland-0"
-            cat /proc/self/cgroup
-            cat "/sys/fs/cgroup$(cut --delimiter=: --fields=3 /proc/self/cgroup)/memory.max"
-            free --mebi
-      - run:
-          name: "Throttling and temperature (vcgencmd)"
-          when: always
-          command: |
-            vcgencmd get_throttled
-            vcgencmd measure_temp
-      - run:
-          name: "SDL on the native and dummy drivers"
-          when: always
-          command: |
-            set -euo pipefail
-            export PATH="$HOME/.local/bin:$PATH"
-            pygame_requirement="$(uv export --locked --all-packages --no-hashes | grep '^pygame-ce==' | cut --delimiter=' ' --fields=1)"
-            echo "${pygame_requirement}"
-            probe='
-            import sys
-            import time
-
-            import pygame
-
-            expect_dummy = sys.argv[1] == "dummy"
-            pygame.init()
-            screen = pygame.display.set_mode((640, 480), pygame.DOUBLEBUF | pygame.SCALED)
-            driver = pygame.display.get_driver()
-            print("SDL", pygame.get_sdl_version(), "driver", driver)
-            print("desktop sizes", pygame.display.get_desktop_sizes())
-            frames = 240
-            started = time.perf_counter()
-            for frame in range(frames):
-                screen.fill((frame % 256, 0, 0))
-                pygame.display.flip()
-            elapsed = time.perf_counter() - started
-            print(f"flip: {elapsed / frames * 1000:.3f} ms per frame over {frames} frames")
-            if (driver == "dummy") != expect_dummy:
-                sys.exit(f"expected {sys.argv[1]}, got {driver}")
-            '
-            uv run --no-project --python "<< pipeline.parameters.PYTHON_LATEST_VERSION >>" \
-              --with "${pygame_requirement}" python -c "${probe}" native
-            SDL_VIDEODRIVER=dummy uv run --no-project \
-              --python "<< pipeline.parameters.PYTHON_LATEST_VERSION >>" \
-              --with "${pygame_requirement}" python -c "${probe}" dummy
 
   # Publishes the docs (https://terrysimons.github.io/glitchygames/, the gh-pages branch) after
   # a merge to main: nox -s docs-deploy, browser games (play/) included, without measuring the
@@ -609,7 +541,8 @@ workflows:
       - build-and-test-linux
       - build-and-test-macos
       - build-and-test-windows
-      - check-raspberry-pi-display
+      # Advisory: deploy-docs does not wait for it, so an offline Pi cannot hold up the docs
+      - build-and-test-raspberry-pi
       # After a merge to main: as soon as the macOS job passes (the same tree passed all three in
       # its pull request), one deploy at a time so two quick merges cannot race gh-pages
       - deploy-docs:

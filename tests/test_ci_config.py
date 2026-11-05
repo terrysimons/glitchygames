@@ -612,6 +612,15 @@ def raspberry_pi_job() -> str:
     return job[: job.index('\n  # Publishes the docs')]
 
 
+def test_every_push_runs_the_raspberry_pi_job_and_the_docs_do_not_wait_for_it():
+    """The Pi tests every push, and being offline cannot hold up the docs."""
+    configuration = (PROJECT_ROOT / '.circleci' / 'config.yml').read_text(encoding='utf-8')
+    workflow = configuration[configuration.index('\nworkflows:\n') :]
+
+    assert '\n      - build-and-test-raspberry-pi\n' in workflow
+    assert '            - build-and-test-raspberry-pi\n' not in workflow
+
+
 def test_the_raspberry_pi_job_runs_the_tests_serially_on_its_runner():
     """The job runs on the self-hosted machine runner, with no xdist workers to reach its swap."""
     job = raspberry_pi_job()
