@@ -79,6 +79,7 @@
     validate: sh -n %s
   loop:
     - {source: "{{ playbook_dir }}/roles/ai_service/templates/run-llama-server.sh.j2", name: run-llama-server.sh}
+    - {source: "{{ playbook_dir }}/roles/ai_service/templates/ai-service.sh.j2", name: ai-service.sh}
     - {source: "{{ playbook_dir }}/roles/ai_service/templates/uninstall.sh.j2", name: uninstall.sh}
     - {source: setup.sh.j2, name: setup.sh}
   loop_control:

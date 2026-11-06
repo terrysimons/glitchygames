@@ -1,21 +1,12 @@
 ---
-- name: Pick the Bonsai size for this machine's memory
-  ansible.builtin.set_fact:
-    ai_service_selected_bonsai_size: >-
-      {{ ai_service_bonsai_size
-         if ai_service_bonsai_size | length > 0
-         else (ai_service_bonsai_tiers
-               | selectattr('minimum_memory_mb', 'le', ansible_facts['memtotal_mb'] | int)
-               | map(attribute='size') | list | last) }}
-
 - name: Refuse a size this host doesn't download
   ansible.builtin.assert:
     that:
-      - ai_service_selected_bonsai_size in ai_models_bonsai_sizes
+      - ai_service_bonsai_size | length == 0 or ai_service_bonsai_size in ai_models_bonsai_sizes
       - ai_service_qwen_size in ai_models_qwen_sizes
     fail_msg: >-
-      Selected Bonsai {{ ai_service_selected_bonsai_size }} and Qwen {{ ai_service_qwen_size }},
-      but this host downloads Bonsai {{ ai_models_bonsai_sizes }} and Qwen {{ ai_models_qwen_sizes }}
+      Asked for Bonsai {{ ai_service_bonsai_size }} and Qwen {{ ai_service_qwen_size }}, but this
+      host downloads Bonsai {{ ai_models_bonsai_sizes }} and Qwen {{ ai_models_qwen_sizes }}
 
 - name: List an agent for each installed Bonsai size
   ansible.builtin.set_fact:
@@ -26,8 +17,7 @@
            'alias': 'bonsai-2-' ~ item,
            'port': ai_service_bonsai_ports[item],
            'model_file': ai_models_bonsai[item].model.file,
-           'vision_file': ai_models_bonsai[item].vision.file,
-           'selected': item == ai_service_selected_bonsai_size}] }}
+           'vision_file': ai_models_bonsai[item].vision.file}] }}
   loop: "{{ ai_models_bonsai_sizes }}"
 
 - name: List an agent for each installed Qwen size
@@ -39,8 +29,7 @@
            'alias': 'qwen3-embedding-' ~ item,
            'port': ai_service_qwen_ports[item],
            'model_file': ai_models_qwen[item].model.file,
-           'dimensions': ai_models_qwen[item].dimensions,
-           'selected': item == ai_service_qwen_size}] }}
+           'dimensions': ai_models_qwen[item].dimensions}] }}
   loop: "{{ ai_models_qwen_sizes }}"
 
 - name: Make the service's directories
@@ -52,8 +41,21 @@
     - "{{ ai_cache_root }}"
     - "{{ ai_service_bin_directory }}"
     - "{{ ai_service_config_directory }}"
+    - "{{ ai_service_agents_directory }}"
     - "{{ ai_log_root }}"
-    - "{{ ai_service_launch_agents_directory }}"
+
+- name: Record a size chosen by hand
+  ansible.builtin.copy:
+    content: "bonsai_override={{ ai_service_bonsai_size | quote }}\n"
+    dest: "{{ ai_service_config_directory }}/selection.env"
+    mode: "0644"
+  when: ai_service_bonsai_size | length > 0
+
+- name: Otherwise let each run choose
+  ansible.builtin.file:
+    path: "{{ ai_service_config_directory }}/selection.env"
+    state: absent
+  when: ai_service_bonsai_size | length == 0
 
 - name: Generate the workers' API key
   ansible.builtin.shell:
@@ -66,7 +68,13 @@
     dest: "{{ ai_service_runner }}"
     mode: "0755"
     validate: sh -n %s
-  register: ai_service_runner_result
+
+- name: Install the script that starts and stops the models
+  ansible.builtin.template:
+    src: ai-service.sh.j2
+    dest: "{{ ai_service_control }}"
+    mode: "0755"
+    validate: sh -n %s
 
 - name: Install the uninstaller
   ansible.builtin.template:
@@ -75,12 +83,12 @@
     mode: "0755"
     validate: sh -n %s
 
-- name: Install and set the state of each agent
+- name: Install each agent, ready to start on demand
   ansible.builtin.include_tasks: agent.yml
   loop: "{{ ai_service_agents }}"
   loop_control:
     loop_var: agent
     label: "{{ agent.label }}"
 
-- name: Check that the running agents answer correctly
+- name: Check that the models answer correctly
   ansible.builtin.include_tasks: smoke_test.yml

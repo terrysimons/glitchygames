@@ -99,6 +99,24 @@ def test_the_agents_listen_on_loopback_only():
     assert '--api-key-file' in runner
 
 
+def test_no_model_starts_at_login():
+    """A plist in LaunchAgents loads at every login, holding gigabytes with no game running."""
+    defaults = role_defaults(role='ai_service')
+    setup = (ROLES / 'ai_package' / 'templates' / 'setup.sh.j2').read_text(encoding='utf-8')
+
+    assert 'LaunchAgents' not in defaults['ai_service_agents_directory']
+    assert 'launchctl bootstrap' not in setup
+
+
+def test_every_size_has_a_reserved_memory_figure():
+    """The script that picks a size has to know what each one costs."""
+    models = role_defaults(role='ai_models')
+    service = role_defaults(role='ai_service')
+
+    assert set(models['ai_models_bonsai']) == set(service['ai_service_bonsai_reserved_mib'])
+    assert set(models['ai_models_qwen']) == set(service['ai_service_qwen_reserved_mib'])
+
+
 def test_a_plist_holds_no_shell_script():
     """A raw & inside a plist's XML makes the whole plist invalid, so the script stays a file."""
     plist = (ROLES / 'ai_service' / 'templates' / 'agent.plist.j2').read_text(encoding='utf-8')

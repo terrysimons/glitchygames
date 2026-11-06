@@ -1,14 +1,28 @@
 ---
-# Which Bonsai 2 size runs, by physical memory, unless ai_service_bonsai_size names one. These cutoffs
-# are starting guesses, since Prism publishes no memory figures: plans/lucid-circuit.md, section 5.
-# Highest match wins, and the 2b row catches everything below the rest
+# The largest Bonsai 2 size a machine may run, by physical memory, smallest first. bin/ai-service.sh
+# decides when a game loads, also by what's free right now, so this is only the ceiling. These cutoffs
+# are starting guesses, since Prism publishes no memory figures: plans/lucid-circuit.md, section 5
 ai_service_bonsai_tiers:
   - {minimum_memory_mb: 0, size: "2b"}
   - {minimum_memory_mb: 16384, size: "4b"}
   - {minimum_memory_mb: 24576, size: "9b"}
   - {minimum_memory_mb: 32768, size: "27b"}
+# Set to always use one size: written to config/selection.env, where ai-service.sh reads it
 ai_service_bonsai_size: ""
 ai_service_qwen_size: "0.6b"
+
+# What each size reserves, from llama.cpp's reported buffers on an M4 Max at b12167 (2026-11-06): the
+# ai_validate role's log, with mapped weights. Qwen's 4B and 8B aren't downloaded by default and
+# weren't measured, so theirs are the file's size plus the 0.6B's non-weight buffers
+ai_service_bonsai_reserved_mib: {"2b": 1744, "4b": 3888, "9b": 5016, "27b": 12046}
+ai_service_qwen_reserved_mib: {"0.6b": 1884, "4b": 5200, "8b": 8800}
+# Memory left free for the game and the system
+ai_service_game_reserve_mib: 2048
+
+# A model unloads after this long without a request, and reloads on the next one: 27B fell to 158 MiB,
+# and answered an image question 4.5 s later (measured 2026-11-06). The owner's default is 30 minutes.
+# One model can differ, with AI_SLEEP_IDLE_SECONDS in its config/LABEL.env.runtime
+ai_service_sleep_idle_seconds: 1800
 
 # Private ports, behind the API to come. Clear of Ollama's 11434 and exoneris's 11435-11440
 ai_service_bonsai_ports: {"2b": 11450, "4b": 11451, "9b": 11452, "27b": 11453}
@@ -41,5 +55,8 @@ ai_service_ready_delay_seconds: 5
 ai_service_config_directory: "{{ ai_install_root }}/config"
 ai_service_bin_directory: "{{ ai_install_root }}/bin"
 ai_service_launch_agents_directory: "{{ ai_home }}/Library/LaunchAgents"
+# Not LaunchAgents: launchd loads everything there at login, and these only run when a game asks
+ai_service_agents_directory: "{{ ai_install_root }}/agents"
 ai_service_api_key_file: "{{ ai_service_config_directory }}/worker-api-key"
 ai_service_runner: "{{ ai_service_bin_directory }}/run-llama-server.sh"
+ai_service_control: "{{ ai_service_bin_directory }}/ai-service.sh"

@@ -43,6 +43,8 @@ choosing it; or a game has to change to keep running without AI.
 | Adopt the exoneris LaunchAgent pattern (section 6), with its defects fixed | Session |
 | Wire the existing layers into this architecture | Session |
 | **`--ai` is on by default; `--no-ai` turns it off** | Session |
+| **No model uses memory until a game loads; sizes are picked then, from the machine's real state** | Session |
+| **A model unloads after 30 idle minutes by default, and that's tunable** | Session |
 | **The existing wrapper is frozen: it's on every game, it's optimized, and it must not change** (section 4) | Session |
 | Two model roles: Qwen3-Embedding and Bonsai 2 | Brief |
 | Agents never run in the game's process or on its main thread | Brief |
@@ -106,7 +108,10 @@ that path adds no code to any frame. A replay has no host, so it never runs.
 
 | Situation | Behaviour |
 |---|---|
-| A live game, service installed | Worker starts in the background. It sends no model requests and proposes nothing until something asks: the console, or a game that enables an agent |
+| A live game, service installed | As the game loads, `bin/ai-service.sh start` picks sizes from physical and free memory and starts them, without the frame loop waiting. The worker proposes nothing until something asks: the console, or a game that enables an agent |
+| Not enough memory free | `ai-service.sh` reports it and starts nothing; the game plays on with AI unavailable |
+| AI idle during play | The model unloads after 30 minutes (down to about 150 MiB) and reloads on the next request, in seconds |
+| The last game exits | The models stop. **Not built:** nothing calls `stop` yet, and several games at once need counting. Until then the idle unload is the backstop |
 | A live game, service not installed | Runs normally. A single check at startup, one log line, no worker, no retries during play |
 | Service dies during play | The game carries on; AI reports unavailable |
 | Replay, audit, rebaseline | No host, so no AI. The option is replay-local, so a recording's stored value is ignored |
@@ -232,7 +237,13 @@ and full revisions, read from the Hub API at implementation time.
 Recommended: all four Bonsai and Compact Qwen on the owner's Mac. Whether players get all four is
 open (section 10).
 
-**Default model (provisional).** Reserved memory and speed were measured on the owner's M4 Max
+**Picking a model (`bin/ai-service.sh`).** Nothing is picked at install. When a game loads, the script
+takes the largest size that the physical-memory table below allows, that's downloaded, and whose
+reserved memory plus Qwen's fits in free memory (`kern.memorystatus_level`) less 2 GB for the game. If
+none fits, AI is unavailable for that run. Tested with faked figures: 128 GB with 12% free picks 9B, and
+with 3% free picks nothing. A hand-picked size goes in `config/selection.env`.
+
+**Physical-memory ceilings (provisional).** Reserved memory and speed were measured on the owner's M4 Max
 (128 GB) at `b12167` on 2026-11-06, with every layer on Metal and `graph splits = 1`. Reserved memory
 is llama.cpp's reported buffers, mapped weights included, with Qwen's context at 8192; it leaves out
 the vision file until an image loads it. Speed is one short answer, so it's only a rough guide, and
@@ -266,13 +277,14 @@ code the urgent decisions, as the brief says.
 | Item | Value |
 |---|---|
 | Labels | `ai.glitchygames.api`, `ai.glitchygames.bonsai-2-<size>.llama-cpp`, `ai.glitchygames.qwen3-embedding-<size>.llama-cpp`. `glitchygames.ai` is a domain the project holds; this replaces the session's `com.glitchygames.*` |
-| Plists | `~/Library/LaunchAgents/` |
+| Plists | `~/Library/Application Support/GlitchyGames/AI/agents/`, **not** `~/Library/LaunchAgents/`, where launchd would load them at every login. `launchctl bootstrap` by path starts one, and `bootout` stops it |
 | Binaries, models, manifests, notices | `~/Library/Application Support/GlitchyGames/AI/` (versioned, so rollback works) |
 | Settings | Same directory, `.env` then `.env.runtime` |
 | Logs | `~/Library/Logs/GlitchyGames/AI/`. Rotation isn't built yet |
 | API port | `127.0.0.1:11449`, public to local clients |
 | Worker ports | Bonsai `11450`-`11453`, Qwen `11454`-`11456`: private. Avoids Ollama's `11434` and exoneris's `11435`, `11437`, `11439` and `11440`. Checked at install; a conflict is reported, and no other process is ever killed |
-| Running | One Bonsai and one Qwen. The rest are installed and `launchctl disable`d, because launchd otherwise loads every plist in `LaunchAgents` at login (the session's open question; the brief also keeps one Qwen resident). The API will pick; the game never sees a port |
+| Running | Nothing until a game loads, then one Bonsai and one Qwen, which settles the session's open question and matches the brief's one resident Qwen. The game never sees a port |
+| Unloading | `llama-server --sleep-idle-seconds`, 1800 by default: `ai_service_sleep_idle_seconds`, or `AI_SLEEP_IDLE_SECONDS` in a model's `.env.runtime` |
 | Auth | A locally generated token in a `0600` file. Loopback alone isn't authentication. CORS restricted |
 
 **Kept from exoneris's agents:** one agent per model with a backend-named label, `RunAtLoad`, restart on
@@ -294,7 +306,7 @@ never need it.
 |---|---|
 | `llama_cpp` | Checks arm64 and the SDK, clones the tag, refuses a moved commit, builds `llama-server` with no web UI or OpenSSL, and checks for Metal and no Homebrew libraries |
 | `ai_models` | Checks disk space, then downloads with `curl` to `FILE.part`, resuming, and only names a file once its SHA-256 matches. `curl`, because Python's downloader hangs for minutes on a network whose IPv6 doesn't reach the CDN |
-| `ai_service` | Picks a size from memory, generates the key, installs validated plists and settings, disables other sizes, starts the selected ones, and asks questions with known answers |
+| `ai_service` | Generates the key, installs validated plists, settings and `ai-service.sh`, starts what this machine would pick, asks questions with known answers, and stops it all again, so an install leaves nothing running |
 | `ai_package` | Renders the package's scripts from the same variables, builds the `.pkg`, and fails if a model got into it |
 | `ai_validate` | Only when asked: checks every model in its own temporary server, with speed, memory and GPU evidence |
 | `ai_uninstall` | Only when asked: removes the service, keeping models unless told otherwise |
@@ -303,7 +315,8 @@ never need it.
 CurrentUserHomeDirectory` installed it as uid 501 with no root, and `postinstall` could run
 `launchctl`. Payload: `llama-server`, plists, settings templates, notices, `setup.sh`, the uninstaller.
 No weights, so the installer can't hang on a download: a one-shot launchd job downloads the default
-models with resume and hash checks and starts the service, then removes itself. There's no download
+models with resume and hash checks, readies the agents without starting them, then removes itself.
+A player's Mac has only those models, and `ai-service.sh` can pick only what's there. There's no download
 progress or consent yet (Stage 12), and the service's Python and Scalar assets join once the API
 exists. Signing needs Developer ID Application and Installer certificates (this Mac has none) and
 `notarytool`.
@@ -322,7 +335,7 @@ small end-to-end result first, and proves frame safety before AI is on by defaul
 |---|---|---|
 | 0 | **Measure first** (done, through `ai_validate`, except the reference check) | On this Mac at `b12167`: all four Bonsai sizes answered text and image questions correctly on Metal, with all layers on the GPU and `graph splits = 1`, so the `MUL_MAT_HADAMARD` concern didn't bite. Memory figures are in section 5. **Not done:** comparing Qwen's vectors with the reference implementation (only shape, norms and a similarity check so far) |
 | 1 | **Local service** | Role installs and reruns cleanly (**done**, from nothing, `changed=0` on a rerun). **Not done:** agents surviving a crash and a reboot; `/v1/embeddings`, `/v1/chat/completions`, `/v1/models`, `/v1/status`, `/health/*`; Scalar with the network off |
-| 2 | **Installer (owner)** | Unsigned `.pkg` installs and uninstalls with no root as the owner, and its setup job downloads and starts the service (**done**). **Not done:** a second user account with no developer tools; the default picker tested against faked specs |
+| 2 | **Installer (owner)** | Unsigned `.pkg` installs and uninstalls with no root as the owner, its setup job downloads what's missing and starts nothing, and the picker was tried against faked memory figures by hand (**done**). **Not done:** a second user account with no developer tools; an automated test of the picker |
 | 3 | **Engine connection** | No diff in `host.py`. A default run uses `AiHostSources` and starts one worker; a run with no service installed plays normally; idle cost against `--no-ai` measured and within budget; a round trip completes while the game runs; kill the worker or service and the game carries on; golden hashes and frame timings unchanged with AI off; a run with AI on replays exactly with no service |
 | 4 | **First playable: read-only** | In one real game (proposed: PaddleSlap), `/ask` and `/inspect` in a console, with an AI debug panel and history. Bitmappy can use local Bonsai through a setting |
 | 5 | **Load harness and throttle** | Scripted sessions at fixed AI loads; p50/p95/p99 frame times against AI off, on the owner's Mac and at least one smaller Mac. Real numbers replace section 5's tiers. Throttle backs off fast and recovers without oscillating. Must pass before any game runs an agent without being asked |
@@ -348,7 +361,9 @@ small end-to-end result first, and proves frame safety before AI is on by defaul
 
 ## 9. Not verified yet
 
-- Behaviour after a reboot or login, including that disabled sizes stay stopped.
+- Behaviour after a reboot or login, including that nothing starts.
+- How far free memory (`kern.memorystatus_level`) predicts what a model can really use under pressure.
+- What loading a model at game start costs the game's frames (Stage 3).
 - Installing on another Mac or account; downloaded-package Gatekeeper behaviour; any Mac but this one.
 - Long reasoning: every measured answer so far is a one-line question.
 - Notarization's size limits (I couldn't find a source; a 6.3 MB package makes this unlikely to matter).

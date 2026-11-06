@@ -12,8 +12,9 @@ install_root="$HOME/Library/Application Support/GlitchyGames/AI"
 launch_agents="$HOME/Library/LaunchAgents"
 domain="gui/$(id -u)"
 
-# Every label this service may have installed, running or not
-for plist in "$launch_agents"/{{ ai_service_label_prefix }}.*.plist; do
+# Every label this service may have installed, running or not: the models' agents, and the package's
+# setup job, or anything an older install left in LaunchAgents
+for plist in "$install_root"/agents/*.plist "$launch_agents"/{{ ai_service_label_prefix }}.*.plist; do
     [ -e "$plist" ] || continue
     label=$(basename "$plist" .plist)
     launchctl bootout "$domain/$label" 2>/dev/null
@@ -21,7 +22,7 @@ for plist in "$launch_agents"/{{ ai_service_label_prefix }}.*.plist; do
     rm -f "$plist"
 done
 
-rm -rf "$install_root/runtime" "$install_root/config" "$install_root/share"
+rm -rf "$install_root/agents" "$install_root/runtime" "$install_root/config" "$install_root/share"
 rm -rf "$HOME/Library/Logs/GlitchyGames/AI"
 rm -rf "$HOME/Library/Caches/GlitchyGames/AI"
 pkgutil --volume "$HOME" --forget {{ ai_package_identifier }} >/dev/null 2>&1

@@ -5,65 +5,38 @@
     dest: "{{ ai_service_config_directory }}/{{ agent.label }}.env"
     mode: "0644"
     validate: sh -n %s
-  register: ai_service_env_result
 
 - name: "Write the plist, valid or not at all: {{ agent.label }}"
   ansible.builtin.template:
     src: agent.plist.j2
-    dest: "{{ ai_service_launch_agents_directory }}/{{ agent.label }}.plist"
+    dest: "{{ ai_service_agents_directory }}/{{ agent.label }}.plist"
     mode: "0644"
     validate: plutil -lint %s
-  register: ai_service_plist_result
 
-- name: "Ask launchd about it: {{ agent.label }}"
-  ansible.builtin.command:
-    argv: [launchctl, print, "gui/{{ ansible_facts['user_uid'] }}/{{ agent.label }}"]
-  register: ai_service_agent_state
-  changed_when: false
-  failed_when: false
+# From before the models started on demand: there it would load at every login, and a size disabled
+# then couldn't be started now
+- name: "Look for a plist in LaunchAgents: {{ agent.label }}"
+  ansible.builtin.stat:
+    path: "{{ ai_service_launch_agents_directory }}/{{ agent.label }}.plist"
+    get_checksum: false
+  register: ai_service_old_plist
 
-- name: "Work out what to do: {{ agent.label }}"
-  ansible.builtin.set_fact:
-    ai_service_agent_loaded: "{{ ai_service_agent_state.rc == 0 }}"
-    ai_service_agent_changed: >-
-      {{ ai_service_env_result is changed
-         or ai_service_plist_result is changed
-         or ai_service_runner_result is changed }}
-
-# launchd loads every plist in LaunchAgents at the next login, whether or not it's been started,
-# and would start all four sizes at once. Disabling is what keeps an installed size from running
-- name: "Stay disabled when not selected: {{ agent.label }}"
-  ansible.builtin.command:
-    argv: [launchctl, disable, "gui/{{ ansible_facts['user_uid'] }}/{{ agent.label }}"]
-  when: not agent.selected
-  changed_when: false
-
-- name: "Stop it if it shouldn't be running, or its settings changed: {{ agent.label }}"
-  ansible.builtin.command:
-    argv: [launchctl, bootout, "gui/{{ ansible_facts['user_uid'] }}/{{ agent.label }}"]
-  when: ai_service_agent_loaded and (not agent.selected or ai_service_agent_changed)
-  changed_when: true
-
-- name: "Start the selected agent"
-  when: agent.selected and (not ai_service_agent_loaded or ai_service_agent_changed)
+- name: "Clear it out"
+  when: ai_service_old_plist.stat.exists
   block:
-    - name: "Refuse a port something else holds: {{ agent.port }}"
+    - name: "Stop the old agent: {{ agent.label }}"
       ansible.builtin.command:
-        argv: [lsof, -nP, "-iTCP:{{ agent.port }}", -sTCP:LISTEN]
-      register: ai_service_port_holder
-      changed_when: false
-      failed_when: ai_service_port_holder.rc == 0
+        argv: [launchctl, bootout, "gui/{{ ansible_facts['user_uid'] }}/{{ agent.label }}"]
+      register: ai_service_old_bootout
+      failed_when: false
+      changed_when: ai_service_old_bootout.rc == 0
 
-    - name: "Enable: {{ agent.label }}"
+    - name: "Remove the old plist: {{ agent.label }}"
+      ansible.builtin.file:
+        path: "{{ ai_service_launch_agents_directory }}/{{ agent.label }}.plist"
+        state: absent
+
+    - name: "Clear any disabled state: {{ agent.label }}"
       ansible.builtin.command:
         argv: [launchctl, enable, "gui/{{ ansible_facts['user_uid'] }}/{{ agent.label }}"]
-      changed_when: false
-
-    - name: "Bootstrap: {{ agent.label }}"
-      ansible.builtin.command:
-        argv:
-          - launchctl
-          - bootstrap
-          - "gui/{{ ansible_facts['user_uid'] }}"
-          - "{{ ai_service_launch_agents_directory }}/{{ agent.label }}.plist"
       changed_when: true
