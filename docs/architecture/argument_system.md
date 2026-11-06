@@ -213,7 +213,7 @@ Added by `GameEngine.args()` in `src/glitchygames/engine/game_engine.py`.
 - `--crt-power-on-sound {on,off}` (`choice`, default `on`): play the CRT power-on sequence with its sound
 - `--crt-power-on {auto,on,off}` (`choice`, default `auto`): show the game's canvas switching on like a CRT before the game starts: auto (default: when someone can see it, so not on SDL's dummy driver or before a replay, audit, rebaseline or recording), on (always; refused with a replay or a recording) or off
 - `--default-background {test-pattern,channel-3}` (`choice`): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)
-- `--video-driver {cocoa,offscreen,dummy}` (`choice`, default `None`): SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: SDL_VIDEODRIVER's own value, or SDL's choice; --headless overrides it)
+- `--video-driver {cocoa,offscreen,dummy}` (`choice`, default `None`): SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: SDL_VIDEODRIVER's own value, then Wayland on a Linux Wayland session, then SDL's choice; --headless overrides it)
 
 **`--video-driver` choices by platform** (SDL 2's video driver names, by `platform.system()`;
 `--help` above is macOS's):

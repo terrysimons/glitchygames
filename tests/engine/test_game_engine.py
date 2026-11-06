@@ -39,6 +39,7 @@ import contextlib
 import dataclasses
 import logging
 import os
+import platform
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -2687,6 +2688,84 @@ class TestVideoDriverApplied:
 
         enter_headless_mode.assert_called_once_with()
         enter_video_driver.assert_not_called()
+
+
+class TestWaylandByDefault:
+    """A Linux Wayland session runs on Wayland unless something else chose a driver."""
+
+    @staticmethod
+    def _session(mocker, monkeypatch, *, system='Linux', wayland_display='wayland-0', driver=None):
+        """Set up the session the engine reads, with _enter_video_driver stood in for.
+
+        Returns:
+            The stand-in.
+
+        """
+        mocker.patch.object(platform, 'system', return_value=system)
+        monkeypatch.setenv('WAYLAND_DISPLAY', wayland_display)
+        if driver is None:
+            monkeypatch.delenv('SDL_VIDEODRIVER', raising=False)
+        else:
+            monkeypatch.setenv('SDL_VIDEODRIVER', driver)
+        return mocker.patch.object(GameEngine, '_enter_video_driver')
+
+    def test_a_wayland_session_tries_wayland_then_x11(self, mocker, monkeypatch):
+        enter_video_driver = self._session(mocker, monkeypatch)
+
+        _make_engine(mocker)
+
+        enter_video_driver.assert_called_once_with(video_driver='wayland,x11')
+
+    @pytest.mark.parametrize(
+        'session',
+        [
+            {'system': 'Darwin'},
+            {'wayland_display': ''},
+            {'driver': 'x11'},
+        ],
+        ids=['not-linux', 'no-wayland-session', 'the-variable-already-chose'],
+    )
+    def test_nothing_is_chosen_otherwise(self, mocker, monkeypatch, session):
+        enter_video_driver = self._session(mocker, monkeypatch, **session)
+
+        _make_engine(mocker)
+
+        enter_video_driver.assert_not_called()
+
+    def test_the_option_wins_over_the_default(self, mocker, monkeypatch):
+        enter_video_driver = self._session(mocker, monkeypatch)
+
+        _make_engine(mocker, '--video-driver', 'x11')
+
+        enter_video_driver.assert_called_once_with(video_driver='x11')
+
+    def test_headless_wins_over_the_default(self, mocker, monkeypatch):
+        enter_video_driver = self._session(mocker, monkeypatch)
+        enter_headless_mode = mocker.patch.object(GameEngine, '_enter_headless_mode')
+
+        _make_engine(mocker, '--headless')
+
+        enter_headless_mode.assert_called_once_with()
+        enter_video_driver.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ('running_driver', 'restarted'),
+        [('wayland', False), ('x11', True)],
+        ids=['already-on-the-first-choice', 'on-another'],
+    )
+    def test_a_started_display_restarts_only_when_not_on_the_first_choice(
+        self, mocker, running_driver, restarted
+    ):
+        mocker.patch.dict(os.environ)
+        engine = _make_engine(mocker)
+        mocker.patch.object(pygame.display, 'get_init', return_value=True)
+        mocker.patch.object(pygame.display, 'get_driver', return_value=running_driver)
+        quit_display = mocker.patch.object(pygame.display, 'quit')
+
+        engine._enter_video_driver(video_driver='wayland,x11')
+
+        assert quit_display.called is restarted
+        assert os.environ['SDL_VIDEODRIVER'] == 'wayland,x11'
 
 
 class TestGameEngineFastEvents:
