@@ -40,6 +40,9 @@ print the same FPS beside the milliseconds.
 
 Hover a point for the commit's date and when it was measured.
 
+The graphs are shown one game at a time: choose it from the list above them. Only that game's
+graphs load, and the choice goes in the page's address (`?game=mr-muncher`), so it can be linked.
+
 Measurements made on a checkout with uncommitted changes (a trial: `nox -s replay-metrics --
 --allow-dirty`) are never published: the published site leaves them out, while a local build
 (`mkdocs build`, `mkdocs serve`, `nox -s docs-serve`) shows them, labelled "uncommitted
