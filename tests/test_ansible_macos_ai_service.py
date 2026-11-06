@@ -150,6 +150,13 @@ def test_the_engine_never_imports_the_service():
     assert importers == []
 
 
+def test_the_smoke_test_reports_each_model():
+    """Each model's result is written out: an automatic lint fix once deleted the report."""
+    script = (ROLES / 'ai_service' / 'files' / 'smoke_test.py').read_text(encoding='utf-8')
+
+    assert "sys.stdout.write(json.dumps({'model': model['alias'], **result})" in script
+
+
 def test_a_plist_holds_no_shell_script():
     """A raw & inside a plist's XML makes the whole plist invalid, so the script stays a file."""
     plist = (ROLES / 'ai_service' / 'templates' / 'agent.plist.j2').read_text(encoding='utf-8')

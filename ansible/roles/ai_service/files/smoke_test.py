@@ -15,6 +15,7 @@ import math
 import re
 import struct
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
@@ -271,6 +272,8 @@ def main() -> int:
         except (OSError, RuntimeError, KeyError, ValueError) as error:
             result = {'passed': False, 'error': f'{type(error).__name__}: {error}'}
         all_passed = all_passed and result['passed']
+        sys.stdout.write(json.dumps({'model': model['alias'], **result}) + '\n')
+        sys.stdout.flush()
     return 0 if all_passed else 1
 
 

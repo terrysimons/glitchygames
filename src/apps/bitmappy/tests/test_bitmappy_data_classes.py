@@ -87,9 +87,9 @@ class TestConstants:
         """Test AI-related constants have expected values."""
         assert AI_TIMEOUT == 600
         assert AI_QUEUE_SIZE == 10
-        assert AI_MAX_CONTEXT_SIZE == 65536
+        assert AI_MAX_CONTEXT_SIZE == 262144
         assert AI_MAX_INPUT_TOKENS == 8192
-        assert AI_MAX_OUTPUT_TOKENS == 64000
+        assert AI_MAX_OUTPUT_TOKENS == 262144
         assert AI_MAX_RETRIES == 5
         assert pytest.approx(1.0) == AI_BASE_DELAY
         assert pytest.approx(60.0) == AI_MAX_DELAY

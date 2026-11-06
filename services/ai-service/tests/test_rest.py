@@ -161,6 +161,16 @@ def test_image_parts_pass_through(client, worker):
     assert worker.requests[-1]['messages'][0]['content'] == parts
 
 
+def test_no_output_limit_is_sent_unless_asked_for(client, worker):
+    chat(client)
+
+    assert 'max_tokens' not in worker.requests[-1]
+
+    chat(client, max_tokens=64)
+
+    assert worker.requests[-1]['max_tokens'] == 64
+
+
 def test_reasoning_effort_reaches_the_template(client, worker):
     chat(client, reasoning_effort='medium')
 

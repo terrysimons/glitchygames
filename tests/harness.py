@@ -13,6 +13,10 @@ from pathlib import Path
 import pytest
 from hypothesis import settings
 
+# No test reaches the real AI service, which would load gigabytes of models on a machine that
+# has it, and only there: every client gets "not installed" unless a test names an install
+os.environ.setdefault('GLITCHYGAMES_AI_INSTALL_ROOT', '/nonexistent/glitchygames-ai-service')
+
 # Importing tests.sdl_defaults defaults the SDL drivers to dummy (keeping any value the invoker
 # set); it must come before pygame is imported/initialized in any test worker
 from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip

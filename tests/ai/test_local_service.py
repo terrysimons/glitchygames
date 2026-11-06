@@ -1,6 +1,7 @@
 """The client for the local AI service, against a real local HTTP server and a real script."""
 
 import json
+import os
 import stat
 import threading
 from http import HTTPStatus
@@ -12,6 +13,7 @@ import pytest
 from glitchygames.ai import local_service
 from glitchygames.ai.local_service import (
     EXIT_NOT_ENOUGH_MEMORY,
+    INSTALL_ROOT_ENVIRONMENT_VARIABLE,
     LocalAIClient,
     LocalAIServiceError,
     LocalAIServiceNotInstalledError,
@@ -259,16 +261,30 @@ def test_a_missing_key_is_reported_as_not_installed(service, tmp_path):
 def test_the_factory_makes_a_local_client_with_the_timeout(tmp_path, monkeypatch):
     """Only the local service answers for now, with the timeout asked for."""
     install(root=tmp_path)
-    monkeypatch.setattr(
-        LocalAIClient.__init__,
-        '__kwdefaults__',
-        {
-            **LocalAIClient.__init__.__kwdefaults__,
-            'install_root': tmp_path,
-        },
-    )
+    monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
 
     client = create_chat_client(timeout_seconds=12.0)
 
     assert isinstance(client, LocalAIClient)
+    assert client.install_root == tmp_path
     assert client.timeout_seconds == 12.0
+
+
+def test_no_test_can_reach_the_real_service():
+    """The harness points the install nowhere, so a client that isn't given one is refused.
+
+    Without this, a test forgetting a fake client would start real models, on a machine with
+    the service installed and only there.
+    """
+    assert INSTALL_ROOT_ENVIRONMENT_VARIABLE in os.environ
+    with pytest.raises(LocalAIServiceNotInstalledError):
+        create_chat_client()
+
+
+def test_without_the_variable_the_usual_install_is_used(monkeypatch, tmp_path):
+    """Out of tests, the client looks where the Ansible role and the package install."""
+    install(root=tmp_path)
+    monkeypatch.delenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE)
+    monkeypatch.setattr(local_service, 'DEFAULT_INSTALL_ROOT', tmp_path)
+
+    assert LocalAIClient().install_root == tmp_path

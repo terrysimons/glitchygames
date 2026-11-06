@@ -251,7 +251,6 @@ class SpriteGenerationService:
             response = client.chat.completions.create(
                 model=model_string,
                 messages=messages,
-                max_tokens=8192,
             )
 
             raw_content: str | None = response.choices[0].message.content
@@ -303,7 +302,6 @@ class SpriteGenerationService:
             response = client.chat.completions.create(
                 model=self.config.ai_model,
                 messages=messages,
-                max_tokens=8192,
             )
 
             raw_content: str | None = response.choices[0].message.content

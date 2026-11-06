@@ -326,7 +326,7 @@ class TestGenerateSprite:
         assert result.raw_response == VALID_STATIC_TOML
         (request,) = client.requests
         assert request['model'] == 'model-x'
-        assert request['max_tokens'] == 8192
+        assert 'max_tokens' not in request
         assert 'a heart (8x8 pixels)' in request['messages'][-1]['content']
 
     def test_model_override_and_training_examples(self):
@@ -422,7 +422,7 @@ class TestRefineSprite:
         assert result.sprite_name == 'heart'
         request = client.requests[0]
         assert request['model'] == 'model-x'
-        assert request['max_tokens'] == 8192
+        assert 'max_tokens' not in request
         assert request['messages'][3:5] == history
         assert 'name = "old"' in request['messages'][-1]['content']
         assert 'make it red' in request['messages'][-1]['content']

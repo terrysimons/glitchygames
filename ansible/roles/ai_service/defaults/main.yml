@@ -11,10 +11,11 @@ ai_service_bonsai_tiers:
 ai_service_bonsai_size: ""
 ai_service_qwen_size: "0.6b"
 
-# What each size reserves, from llama.cpp's reported buffers on an M4 Max at b12167 (2026-11-06): the
+# What each size reserves at the full context, from llama.cpp's reported buffers on an M4 Max at
+# b12167 (2026-11-06): the
 # ai_validate role's log, with mapped weights. Qwen's 4B and 8B aren't downloaded by default and
 # weren't measured, so theirs are the file's size plus the 0.6B's non-weight buffers
-ai_service_bonsai_reserved_mib: {"2b": 1744, "4b": 3888, "9b": 5016, "27b": 12046}
+ai_service_bonsai_reserved_mib: {"2b": 4816, "4b": 11185, "9b": 12312, "27b": 25486}
 ai_service_qwen_reserved_mib: {"0.6b": 1884, "4b": 5200, "8b": 8800}
 # Memory left free for the game and the system
 ai_service_game_reserve_mib: 2048
@@ -36,13 +37,14 @@ ai_service_qwen_ports: {"0.6b": 11454, "4b": 11455, "8b": 11456}
 ai_service_label_prefix: ai.glitchygames
 ai_package_identifier: ai.glitchygames.service
 
-# Prism's suggested settings for its 27B, applied to every size until they're measured:
+# The whole context the model supports (262K, its card), and no separate output limit (-1), by
+# the owner's choice: a small limit ends the model's reasoning before it answers, which returns
+# nothing. A request then ends when the model finishes, the context fills or it times out.
 # https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf/blob/main/KNOWN_ISSUES.md
-# A small output limit ends the model's reasoning before it answers, which returns nothing.
 # Prism suggests a 24 GiB prompt cache for single-user use; this is lower because a game shares the
 # same memory
-ai_service_bonsai_context_size: 65536
-ai_service_bonsai_output_limit: 16384
+ai_service_bonsai_context_size: 262144
+ai_service_bonsai_output_limit: -1
 ai_service_bonsai_cache_ram_mib: 4096
 ai_service_bonsai_reasoning_effort: medium
 

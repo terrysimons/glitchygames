@@ -46,6 +46,8 @@ choosing it; or a game has to change to keep running without AI.
 | **No model uses memory until a game loads; sizes are picked then, from the machine's real state** | Session |
 | **A model unloads after 30 idle minutes by default, and that's tunable** | Session |
 | **Models load when the game loads** (not on first use) | Session |
+| **Bonsai runs at its full 262K context with no separate output cap. A Mac it doesn't fit gets no AI for now**, not a smaller context. Measured with the game's 2 GB left free, that rules out 8 GB Macs, and 16 GB ones under memory pressure | Session |
+| **Timeouts stay as they are for now** (900 s in the service, 600 s in the client), which caps a request at about 20,000 tokens on 27B. Revisit with Stage 5's throttle | Session |
 | **`httpx2` everywhere** in place of `httpx` (done for the engine and the service) | Session |
 | **`aisuite` is removed. AI requests go to the local service only for now**, through one client protocol (`glitchygames.ai.local_service`), so cloud can join later as a second implementation. Cloud isn't a focus yet | Session |
 | **The old AI code (Bitmappy's worker, the voice assistant, the sprite service and `glitchygames.api`) gets refactored after the general architecture is in place.** Its tests were adapted to the new client, and none needed an xfail. Coverage **must be at 100% before anything is pushed** | Session |
@@ -255,16 +257,17 @@ with 3% free picks nothing. A hand-picked size goes in `config/selection.env`.
 
 **Physical-memory ceilings (provisional).** Reserved memory and speed were measured on the owner's M4 Max
 (128 GB) at `b12167` on 2026-11-06, with every layer on Metal and `graph splits = 1`. Reserved memory
-is llama.cpp's reported buffers, mapped weights included, with Qwen's context at 8192; it leaves out
+is llama.cpp's reported buffers, mapped weights included, with Bonsai at its full 262K context (the
+owner's choice, with no separate output cap) and Qwen's at 8192; it leaves out
 the vision file until an image loads it. Speed is one short answer, so it's only a rough guide, and
 other Macs will differ. The tiers are still guesses until they're run with a game on smaller Macs.
 
 | Memory | Bonsai 2 | Qwen3-Embedding | Reserved, both | Bonsai decode |
 |---|---|---|---|---|
-| Under 16 GB | 2B | 0.6B | 3.6 GB | 238 tok/s |
-| 16-23 GB | 4B | 0.6B | 5.8 GB | 140 tok/s |
-| 24-31 GB | 9B | 0.6B | 6.9 GB | 97 tok/s |
-| 32 GB or more | 27B | 0.6B | 13.9 GB | 39 tok/s |
+| Under 16 GB | 2B | 0.6B | 6.5 GB | 239 tok/s |
+| 16-23 GB | 4B | 0.6B | 12.8 GB | 141 tok/s |
+| 24-31 GB | 9B | 0.6B | 13.9 GB | 98 tok/s |
+| 32 GB or more | 27B | 0.6B | 26.7 GB | 39 tok/s |
 
 Intel Macs are refused. The owner can always override. A larger Qwen needs its own index (brief:
 identical dimensions don't make indexes compatible), so it's never picked automatically after the
@@ -370,6 +373,13 @@ small end-to-end result first, and proves frame safety before AI is on by defaul
 | A brief this large never finishes | Effort spreads across research with nothing usable | Stages stop independently; each one delivers something. Stage 4 is the first decision point |
 
 ## 9. Not verified yet
+
+**Measured 2026-11-06, for the old-AI refactor:** three real sprite requests through the sprite service
+with 27B on the owner's M4 Max all failed validation, at 148-292 s each. Two returned nothing, each using
+exactly the service's 8192-token limit on reasoning. The third took 4832 tokens and was nearly right, with
+one row of a 16-wide sprite 17 wide. A larger limit, a lower `reasoning_effort` and repairing near-miss rows
+are the first things to try. Three samples prove little about quality. Bitmappy asks for 64000 tokens, so it
+shouldn't hit this limit, but could take much longer; it wasn't run.
 
 - Behaviour after a reboot or login, including that nothing starts.
 - How far free memory (`kern.memorystatus_level`) predicts what a model can really use under pressure.

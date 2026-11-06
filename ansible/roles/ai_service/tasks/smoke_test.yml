@@ -54,6 +54,12 @@
       ansible.builtin.debug:
         var: ai_service_smoke_test.stdout_lines
 
+    # An empty report isn't a pass: every model has to have answered for itself
+    - name: Check that every running model reported
+      ansible.builtin.assert:
+        that: ai_service_smoke_test.stdout_lines | length == ai_service_running_labels | length
+        fail_msg: "{{ ai_service_smoke_test.stdout }}"
+
     # Run by the sidecar's own Python, as a check that it holds what a client needs too
     - name: Use the API as a game would
       ansible.builtin.command:

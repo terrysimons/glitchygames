@@ -175,10 +175,9 @@ def worker_chat_body(*, request: ChatRequest, alias: str) -> dict[str, Any]:
     body: dict[str, Any] = {
         'model': alias,
         'messages': merged_messages(request=request),
-        'max_tokens': request.max_tokens,
         'stream': request.stream,
     }
-    for name in ('temperature', 'top_p', 'response_format'):
+    for name in ('max_tokens', 'temperature', 'top_p', 'response_format'):
         value = getattr(request, name)
         if value is not None:
             body[name] = value

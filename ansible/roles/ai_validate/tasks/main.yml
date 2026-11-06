@@ -83,5 +83,8 @@
 
 - name: Fail if any model failed
   ansible.builtin.assert:
-    that: ai_validate_result.rc == 0
-    fail_msg: "{{ ai_validate_result.stderr }}"
+    that:
+      - ai_validate_result.rc == 0
+      # An empty report isn't a pass: every model has to have answered for itself
+      - ai_validate_result.stdout_lines | length == ai_validate_models | length
+    fail_msg: "{{ ai_validate_result.stderr }} {{ ai_validate_result.stdout }}"

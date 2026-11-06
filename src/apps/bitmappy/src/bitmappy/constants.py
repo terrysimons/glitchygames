@@ -79,9 +79,9 @@ SPRITE_FILE_EXTENSIONS: tuple[str, ...] = ('.toml',)
 AI_MODEL: str = 'reasoning'
 AI_TIMEOUT = 600  # Seconds to wait for AI response
 AI_QUEUE_SIZE = 10
-AI_MAX_CONTEXT_SIZE = 65536  # Total context window size
+AI_MAX_CONTEXT_SIZE = 262144  # Total context window size: the model's whole 262K
 AI_MAX_INPUT_TOKENS = 8192  # Maximum tokens for INPUT (prompts, examples)
-AI_MAX_OUTPUT_TOKENS = 64000  # Maximum tokens for OUTPUT (AI response, large sprites)
+AI_MAX_OUTPUT_TOKENS = 262144  # No cap of its own: the context ends a response
 AI_MAX_TRAINING_EXAMPLES = 1000  # Allow many more training examples for full context
 
 # Retry configuration for AI requests
