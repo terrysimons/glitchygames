@@ -13,7 +13,6 @@ build, which has no AI: it can't start the service) never loads it.
 from __future__ import annotations
 
 import logging
-import os
 from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
@@ -22,17 +21,13 @@ import httpx2
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, process
+from glitchygames.ai_link import install_root as default_install_root
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
 LOG = logging.getLogger('glitchygames.ai.local_service')
 
-# Where the Ansible role and the .pkg install it, for the user running the game
-DEFAULT_INSTALL_ROOT = Path.home() / 'Library' / 'Application Support' / 'GlitchyGames' / 'AI'
-# Overrides DEFAULT_INSTALL_ROOT. The test harness points it nowhere, so no test can reach the
-# real service on a machine that has it
-INSTALL_ROOT_ENVIRONMENT_VARIABLE = 'GLITCHYGAMES_AI_INSTALL_ROOT'
 DEFAULT_BASE_URL = 'http://127.0.0.1:11449'
 # The role, not a size: the service answers with whichever size this machine could run
 REASONING_MODEL = 'reasoning'
@@ -148,8 +143,8 @@ class LocalAIClient:
         """Prepare the client. Nothing is contacted or started until a request.
 
         Args:
-            install_root: Where the service is installed. None is the environment
-                variable's choice, else ``DEFAULT_INSTALL_ROOT``.
+            install_root: Where the service is installed. None is this machine's
+                (``glitchygames.ai_link.install_root``).
             base_url: Where it listens.
             timeout_seconds: The longest one chat request may take.
             sleep: The wait between readiness checks. None is ``clock.raw_sleep``, looked up at
@@ -159,11 +154,7 @@ class LocalAIClient:
             LocalAIServiceNotInstalledError: If the service isn't installed.
 
         """
-        self.install_root = (
-            Path(os.environ.get(INSTALL_ROOT_ENVIRONMENT_VARIABLE, DEFAULT_INSTALL_ROOT))
-            if install_root is None
-            else install_root
-        )
+        self.install_root = default_install_root() if install_root is None else install_root
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
         self.sleep = sleep

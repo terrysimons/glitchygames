@@ -31,6 +31,8 @@ dependencies = [
   "uvicorn",
   "pydantic",
   "httpx2",
+  # The live link to the local AI service, loaded only by a run that has one (ai_link.py)
+  "websockets",
   "apng",
   "pillow",
   "hidapi>=0.15.0",

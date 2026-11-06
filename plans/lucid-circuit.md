@@ -2,8 +2,9 @@
 
 - **Date:** 2026-11-06
 - **Status:** In progress on branch `worktree-ai-service-ansible` (uncommitted). Built: the Ansible
-  setup for the model service and its `.pkg` (`ansible/macos_ai_service.yml`; section 7, Stages 0-2).
-  The API, the engine connection and everything after are not built.
+  setup for the model service and its `.pkg` (`ansible/macos_ai_service.yml`), the service itself, and
+  the engine's connection to it (section 7, Stages 0-3).
+  Agents and everything after are not built.
 - **Source:** the owner's brief, `/Users/terry/Documents/glitchygames-embedding-service-instructions.md`
   ("GlitchyGames AI platform"), plus the owner's decisions in the 2026-11-06 planning session. The
   brief stays the statement of intent; this plan says what to build first, how it connects to the
@@ -12,7 +13,8 @@
   inspects and changes game internals (Stage 7), not the whole platform. This file covers the
   whole platform, so the name is the project's, not a change to that decision.
 - **Sub-plans:** this is the master plan. Each stage gets its own `plans/lucid-circuit-<stage>.md`
-  when it starts, linked from here and linking back: [Stage 1](lucid-circuit-1-local-service.md).
+  when it starts, linked from here and linking back: [Stage 1](lucid-circuit-1-local-service.md),
+  [Stage 3](lucid-circuit-3-engine-connection.md).
 
 ## 1. Goal
 
@@ -349,7 +351,7 @@ small end-to-end result first, and proves frame safety before AI is on by defaul
 | 0 | **Measure first** (done, through `ai_validate`, except the reference check) | On this Mac at `b12167`: all four Bonsai sizes answered text and image questions correctly on Metal, with all layers on the GPU and `graph splits = 1`, so the `MUL_MAT_HADAMARD` concern didn't bite. Memory figures are in section 5. **Not done:** comparing Qwen's vectors with the reference implementation (only shape, norms and a similarity check so far) |
 | 1 | **Local service** ([sub-plan](lucid-circuit-1-local-service.md)) | **Done:** roles install and rerun cleanly; all the REST routes and the WebSocket, with real models; Scalar with the network blocked; everything stops when the last game leaves. **Not done:** agents surviving a crash and a reboot; the service in CI, the SBOM and the license check |
 | 2 | **Installer (owner)** | Unsigned `.pkg` installs and uninstalls with no root as the owner, its setup job downloads what's missing and starts nothing, and the picker was tried against faked memory figures by hand (**done**). **Not done:** a second user account with no developer tools; an automated test of the picker |
-| 3 | **Engine connection** | No diff in `host.py`. A default run uses `AiHostSources` and starts one worker; a run with no service installed plays normally; idle cost against `--no-ai` measured and within budget; a round trip completes while the game runs; kill the worker or service and the game carries on; golden hashes and frame timings unchanged with AI off; a run with AI on replays exactly with no service |
+| 3 | **Engine connection** ([sub-plan](lucid-circuit-3-engine-connection.md)) | **Done:** no diff in `host.py`; a default run connects, and a run with no service plays normally; a proposal reaches the scene, is recorded, and replays with no service; crashes of the API, a model or the game all recover. Idle cost about 0.03-0.06 ms a frame on the dummy driver. **Not done:** a real display; a budget for that figure, which the owner decides |
 | 4 | **First playable: read-only** | In one real game (proposed: PaddleSlap), `/ask` and `/inspect` in a console, with an AI debug panel and history. Bitmappy can use local Bonsai through a setting |
 | 5 | **Load harness and throttle** | Scripted sessions at fixed AI loads; p50/p95/p99 frame times against AI off, on the owner's Mac and at least one smaller Mac. Real numbers replace section 5's tiers. Throttle backs off fast and recovers without oscillating. Must pass before any game runs an agent without being asked |
 | 6 | **Retrieval and agent loop** | Asset and capability index with versioned model identity; dense + BM25 + filters; a bounded agent loop that retrieves, plans in JSON, validates and stops on budget |

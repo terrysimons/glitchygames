@@ -17089,6 +17089,84 @@
       "version": "7.0.0"
     },
     {
+      "cpe": "cpe:2.3:a:python-websockets:python-websockets:17.4:*:*:*:*:*:*:*",
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ],
+      "name": "websockets",
+      "properties": [
+        {
+          "name": "syft:package:foundBy",
+          "value": "python-package-cataloger"
+        },
+        {
+          "name": "syft:package:language",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:type",
+          "value": "python"
+        },
+        {
+          "name": "syft:package:metadataType",
+          "value": "python-uv-lock-entry"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-websockets:python_websockets:17.4:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_websockets:python-websockets:17.4:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_websockets:python_websockets:17.4:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python-websockets:websockets:17.4:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python_websockets:websockets:17.4:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:websockets:python-websockets:17.4:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:websockets:python_websockets:17.4:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:python-websockets:17.4:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:python_websockets:17.4:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:websockets:websockets:17.4:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:cpe23",
+          "value": "cpe:2.3:a:python:websockets:17.4:*:*:*:*:*:*:*"
+        },
+        {
+          "name": "syft:location:0:path",
+          "value": "/uv.lock"
+        }
+      ],
+      "purl": "pkg:pypi/websockets@17.4",
+      "type": "library",
+      "version": "17.4"
+    },
+    {
       "cpe": "cpe:2.3:a:python-wily:python-wily:1.25.0:*:*:*:*:*:*:*",
       "licenses": [
         {
@@ -17431,6 +17509,7 @@
         "pkg:pypi/ty@0.0.95",
         "pkg:pypi/uvicorn@0.54.0",
         "pkg:pypi/vulture@2.16",
+        "pkg:pypi/websockets@17.4",
         "pkg:pypi/wily@1.25.0",
         "pkg:pypi/yamllint@1.38.0"
       ]

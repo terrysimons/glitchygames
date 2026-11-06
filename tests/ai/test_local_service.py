@@ -10,15 +10,16 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from glitchygames import ai_link
 from glitchygames.ai import local_service
 from glitchygames.ai.local_service import (
     EXIT_NOT_ENOUGH_MEMORY,
-    INSTALL_ROOT_ENVIRONMENT_VARIABLE,
     LocalAIClient,
     LocalAIServiceError,
     LocalAIServiceNotInstalledError,
     create_chat_client,
 )
+from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -285,6 +286,6 @@ def test_without_the_variable_the_usual_install_is_used(monkeypatch, tmp_path):
     """Out of tests, the client looks where the Ansible role and the package install."""
     install(root=tmp_path)
     monkeypatch.delenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE)
-    monkeypatch.setattr(local_service, 'DEFAULT_INSTALL_ROOT', tmp_path)
+    monkeypatch.setattr(ai_link, 'DEFAULT_INSTALL_ROOT', tmp_path)
 
     assert LocalAIClient().install_root == tmp_path

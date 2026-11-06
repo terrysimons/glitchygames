@@ -191,6 +191,11 @@ uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_
 # The service is its own project, outside the workspace, sharing no code with the engine. A game
 # reaches it only over a socket (127.0.0.1:11449: WebSocket /v1/session, REST /v1/*, docs at /docs)
 (cd services/ai-service && uv run pytest)   # its own tests, lock file and 100% coverage
+# Games connect to it by default: --ai (on), --no-ai. Never with --headless, in a replay or browser,
+# or without the service installed: those runs build plain HostSources and never import
+# websockets. src/glitchygames/ai_link.py (the link, on its own thread) and ai_host.py (a
+# HostSources subclass; host.py doesn't change). The harness sets GLITCHYGAMES_AI_INSTALL_ROOT
+# to nowhere, so no test can reach the real service
 # Check every model on Metal (speed, memory, layers on the GPU), or remove the service
 uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_validate
 uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_uninstall
