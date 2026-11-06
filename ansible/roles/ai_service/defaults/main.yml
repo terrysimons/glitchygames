@@ -1,0 +1,45 @@
+---
+# Which Bonsai 2 size runs, by physical memory, unless ai_service_bonsai_size names one. These cutoffs
+# are starting guesses, since Prism publishes no memory figures: plans/lucid-circuit.md, section 5.
+# Highest match wins, and the 2b row catches everything below the rest
+ai_service_bonsai_tiers:
+  - {minimum_memory_mb: 0, size: "2b"}
+  - {minimum_memory_mb: 16384, size: "4b"}
+  - {minimum_memory_mb: 24576, size: "9b"}
+  - {minimum_memory_mb: 32768, size: "27b"}
+ai_service_bonsai_size: ""
+ai_service_qwen_size: "0.6b"
+
+# Private ports, behind the API to come. Clear of Ollama's 11434 and exoneris's 11435-11440
+ai_service_bonsai_ports: {"2b": 11450, "4b": 11451, "9b": 11452, "27b": 11453}
+ai_service_qwen_ports: {"0.6b": 11454, "4b": 11455, "8b": 11456}
+
+ai_service_label_prefix: ai.glitchygames
+ai_package_identifier: ai.glitchygames.service
+
+# Prism's suggested settings for its 27B, applied to every size until they're measured:
+# https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf/blob/main/KNOWN_ISSUES.md
+# A small output limit ends the model's reasoning before it answers, which returns nothing.
+# Prism suggests a 24 GiB prompt cache for single-user use; this is lower because a game shares the
+# same memory
+ai_service_bonsai_context_size: 65536
+ai_service_bonsai_output_limit: 16384
+ai_service_bonsai_cache_ram_mib: 4096
+ai_service_bonsai_reasoning_effort: medium
+
+# https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF
+ai_service_qwen_micro_batch: 8192
+# Left to default, the context is the model's whole 32K, which reserved 3584 MiB on Metal for the
+# 0.6B (measured 2026-11-06, llama_kv_cache). Records are split up before embedding, so one batch
+# is all this needs
+ai_service_qwen_context_size: 8192
+
+# How long a model may take to load before the agent is called failed
+ai_service_ready_retries: 60
+ai_service_ready_delay_seconds: 5
+
+ai_service_config_directory: "{{ ai_install_root }}/config"
+ai_service_bin_directory: "{{ ai_install_root }}/bin"
+ai_service_launch_agents_directory: "{{ ai_home }}/Library/LaunchAgents"
+ai_service_api_key_file: "{{ ai_service_config_directory }}/worker-api-key"
+ai_service_runner: "{{ ai_service_bin_directory }}/run-llama-server.sh"

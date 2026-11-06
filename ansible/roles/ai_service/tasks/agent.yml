@@ -1,0 +1,69 @@
+---
+- name: "Write settings: {{ agent.label }}"
+  ansible.builtin.template:
+    src: agent.env.j2
+    dest: "{{ ai_service_config_directory }}/{{ agent.label }}.env"
+    mode: "0644"
+    validate: sh -n %s
+  register: ai_service_env_result
+
+- name: "Write the plist, valid or not at all: {{ agent.label }}"
+  ansible.builtin.template:
+    src: agent.plist.j2
+    dest: "{{ ai_service_launch_agents_directory }}/{{ agent.label }}.plist"
+    mode: "0644"
+    validate: plutil -lint %s
+  register: ai_service_plist_result
+
+- name: "Ask launchd about it: {{ agent.label }}"
+  ansible.builtin.command:
+    argv: [launchctl, print, "gui/{{ ansible_facts['user_uid'] }}/{{ agent.label }}"]
+  register: ai_service_agent_state
+  changed_when: false
+  failed_when: false
+
+- name: "Work out what to do: {{ agent.label }}"
+  ansible.builtin.set_fact:
+    ai_service_agent_loaded: "{{ ai_service_agent_state.rc == 0 }}"
+    ai_service_agent_changed: >-
+      {{ ai_service_env_result is changed
+         or ai_service_plist_result is changed
+         or ai_service_runner_result is changed }}
+
+# launchd loads every plist in LaunchAgents at the next login, whether or not it's been started,
+# and would start all four sizes at once. Disabling is what keeps an installed size from running
+- name: "Stay disabled when not selected: {{ agent.label }}"
+  ansible.builtin.command:
+    argv: [launchctl, disable, "gui/{{ ansible_facts['user_uid'] }}/{{ agent.label }}"]
+  when: not agent.selected
+  changed_when: false
+
+- name: "Stop it if it shouldn't be running, or its settings changed: {{ agent.label }}"
+  ansible.builtin.command:
+    argv: [launchctl, bootout, "gui/{{ ansible_facts['user_uid'] }}/{{ agent.label }}"]
+  when: ai_service_agent_loaded and (not agent.selected or ai_service_agent_changed)
+  changed_when: true
+
+- name: "Start the selected agent"
+  when: agent.selected and (not ai_service_agent_loaded or ai_service_agent_changed)
+  block:
+    - name: "Refuse a port something else holds: {{ agent.port }}"
+      ansible.builtin.command:
+        argv: [lsof, -nP, "-iTCP:{{ agent.port }}", -sTCP:LISTEN]
+      register: ai_service_port_holder
+      changed_when: false
+      failed_when: ai_service_port_holder.rc == 0
+
+    - name: "Enable: {{ agent.label }}"
+      ansible.builtin.command:
+        argv: [launchctl, enable, "gui/{{ ansible_facts['user_uid'] }}/{{ agent.label }}"]
+      changed_when: false
+
+    - name: "Bootstrap: {{ agent.label }}"
+      ansible.builtin.command:
+        argv:
+          - launchctl
+          - bootstrap
+          - "gui/{{ ansible_facts['user_uid'] }}"
+          - "{{ ai_service_launch_agents_directory }}/{{ agent.label }}.plist"
+      changed_when: true

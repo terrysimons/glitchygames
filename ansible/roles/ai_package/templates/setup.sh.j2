@@ -1,0 +1,138 @@
+#!/bin/sh
+# Finishes an install on a player's Mac, run once by launchd after the package installs. Rendered by
+# ansible/roles/ai_package from the same variables the Ansible install uses, so the model list, the
+# memory tiers and the agents can't drift apart. It's safe to run again: nothing is redone if it's
+# already right.
+set -u
+
+install_root="$HOME/Library/Application Support/GlitchyGames/AI"
+models="$install_root/models"
+config="$install_root/config"
+share="$install_root/share"
+launch_agents="$HOME/Library/LaunchAgents"
+domain="gui/$(id -u)"
+
+mkdir -p "$models" "$config" "$launch_agents" "$HOME/Library/Logs/GlitchyGames/AI"
+
+say() {
+    echo "setup: $1"
+}
+
+# A Mac with no Metal-capable GPU can't run this; the package already refuses Intel, so this is for
+# a copy moved by hand
+if [ "$(uname -m)" != "arm64" ]; then
+    say "this needs Apple Silicon; stopping"
+    exit 0
+fi
+
+memory_mb=$(( $(sysctl -n hw.memsize) / 1048576 ))
+bonsai_size=""
+{% for tier in ai_service_bonsai_tiers %}
+if [ "$memory_mb" -ge {{ tier.minimum_memory_mb }} ]; then bonsai_size={{ tier.size }}; fi
+{% endfor %}
+qwen_size={{ ai_service_qwen_size }}
+
+# A choice the user made stays
+if [ -f "$config/selection.env" ]; then
+    . "$config/selection.env"
+fi
+say "memory ${memory_mb} MB: Bonsai $bonsai_size, Qwen $qwen_size"
+
+# fetch FILE REPOSITORY REVISION BYTES SHA256
+fetch() {
+    file=$1
+    url="{{ ai_models_base_url }}/$2/resolve/$3/$1"
+    bytes=$4
+    sha256=$5
+    if [ -f "$models/$file" ] && [ "$(shasum -a 256 "$models/$file" | cut -d' ' -f1)" = "$sha256" ]; then
+        return 0
+    fi
+    available_kb=$(df -k "$models" | tail -1 | awk '{print $4}')
+    if [ $(( available_kb * 1024 )) -lt "$(( bytes + {{ ai_models_free_margin_bytes }} ))" ]; then
+        say "not enough disk space for $file"
+        return 1
+    fi
+    say "downloading $file"
+    if ! curl --fail --location --silent --show-error --continue-at - \
+        --connect-timeout 30 --speed-time 60 --speed-limit 1024 \
+        --retry 5 --retry-delay 5 --retry-all-errors \
+        --output "$models/$file.part" "$url"; then
+        say "could not download $file; it resumes on the next run"
+        return 1
+    fi
+    if [ "$(shasum -a 256 "$models/$file.part" | cut -d' ' -f1)" != "$sha256" ]; then
+        rm -f "$models/$file.part"
+        say "$file had the wrong SHA-256 and was discarded"
+        return 1
+    fi
+    mv "$models/$file.part" "$models/$file"
+}
+
+failed=false
+case "$bonsai_size" in
+{% for size, model in ai_models_bonsai.items() if size in ai_models_bonsai_sizes %}
+    {{ size }})
+        fetch {{ model.model.file }} {{ model.repository }} {{ model.revision }} {{ model.model.bytes }} {{ model.model.sha256 }} || failed=true
+        fetch {{ model.vision.file }} {{ model.repository }} {{ model.revision }} {{ model.vision.bytes }} {{ model.vision.sha256 }} || failed=true
+        ;;
+{% endfor %}
+    *)
+        say "unknown Bonsai size $bonsai_size"
+        failed=true
+        ;;
+esac
+case "$qwen_size" in
+{% for size, model in ai_models_qwen.items() if size in ai_models_qwen_sizes %}
+    {{ size }})
+        fetch {{ model.model.file }} {{ model.repository }} {{ model.revision }} {{ model.model.bytes }} {{ model.model.sha256 }} || failed=true
+        ;;
+{% endfor %}
+    *)
+        say "unknown Qwen size $qwen_size"
+        failed=true
+        ;;
+esac
+if [ "$failed" = true ]; then
+    say "stopping; the service starts once its models are here"
+    exit 1
+fi
+
+if [ ! -f "$config/worker-api-key" ]; then
+    (umask 077 && openssl rand -hex 32 > "$config/worker-api-key")
+fi
+
+# The placeholder has no characters sed treats specially, and | can't appear in a macOS home path
+# that launchd would accept here without being escaped first
+escaped_home=$(printf '%s' "$HOME" | sed -e 's/[&|\\]/\\&/g')
+for template in "$share"/agents/*.plist.template; do
+    label=$(basename "$template" .plist.template)
+    sed -e "s|{{ ai_package_home_placeholder }}|$escaped_home|g" \
+        "$share/agents/$label.env.template" > "$config/$label.env"
+    # The plist is XML, so its home needs & escaped for XML as well
+    xml_home=$(printf '%s' "$escaped_home" | sed -e 's/\\&/\\\&amp;/g')
+    sed -e "s|{{ ai_package_home_placeholder }}|$xml_home|g" "$template" > "$launch_agents/$label.plist.new"
+    if ! plutil -lint "$launch_agents/$label.plist.new" >/dev/null; then
+        rm -f "$launch_agents/$label.plist.new"
+        say "the plist for $label came out invalid; stopping"
+        exit 1
+    fi
+    launchctl bootout "$domain/$label" 2>/dev/null
+    mv "$launch_agents/$label.plist.new" "$launch_agents/$label.plist"
+    case "$label" in
+        {{ ai_service_label_prefix }}.bonsai-2-$bonsai_size.llama-cpp|{{ ai_service_label_prefix }}.qwen3-embedding-$qwen_size.llama-cpp)
+            launchctl enable "$domain/$label"
+            launchctl bootstrap "$domain" "$launch_agents/$label.plist" \
+                || say "could not start $label"
+            ;;
+        *)
+            # launchd loads every plist here at login; this keeps the other sizes from starting
+            launchctl disable "$domain/$label"
+            ;;
+    esac
+done
+
+say "done"
+# This job has finished its one run. Removing its own plist keeps it from running at every login
+rm -f "$launch_agents/{{ ai_package_setup_label }}.plist"
+launchctl bootout "$domain/{{ ai_package_setup_label }}" 2>/dev/null
+exit 0

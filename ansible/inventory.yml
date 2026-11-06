@@ -8,3 +8,20 @@ all:
       raspberry_pi_hostname: rpi4-ubuntu-2610
       # .circleci/config.yml's build-and-test-raspberry-pi names this (tests/test_ci_config.py)
       raspberry_pi_resource_class: terrysimons/raspberry-pi-4
+  children:
+    macos:
+      vars:
+        # llama.cpp's Metal options:
+        # https://github.com/ggml-org/llama.cpp/blob/b12167/ggml/CMakeLists.txt
+        # https://github.com/ggml-org/llama.cpp/blob/b12167/docs/build.md
+        llama_cpp_cmake_options:
+          GGML_METAL: "ON"
+          # Builds the shaders into the binary, so no separate shader file is installed
+          GGML_METAL_EMBED_LIBRARY: "ON"
+        # Passed as --n-gpu-layers: every layer runs on the GPU
+        llama_cpp_gpu_layers: 99
+      hosts:
+        localhost:
+          # Runs on this Mac directly, with no SSH, under the Python running Ansible
+          ansible_connection: local
+          ansible_python_interpreter: "{{ ansible_playbook_python }}"

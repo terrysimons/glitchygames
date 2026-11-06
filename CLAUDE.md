@@ -178,6 +178,18 @@ nox -s docs-serve          # Serve the docs locally (same strict build, graphs i
 # `mkdocs serve` rebuild alive (about 330 MB each; BUGS.md #213)
 ```
 
+### Local AI Service (Ansible; plans/lucid-circuit.md)
+```bash
+# llama.cpp from source with Metal, the Bonsai 2 and Qwen models, per-user launchd agents and the
+# unsigned .pkg, everything created by the playbook. No root. macOS on Apple Silicon, with Xcode and
+# CMake already installed. First run downloads 14.57 GB; running it again changes nothing
+uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml
+# ...one piece: --tags llama_cpp, ai_models, ai_service or ai_package
+# Check every model on Metal (speed, memory, layers on the GPU), or remove the service
+uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_validate
+uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_uninstall
+```
+
 ### Running Bitmappy (Pixel Art Editor)
 ```bash
 # Run with default settings

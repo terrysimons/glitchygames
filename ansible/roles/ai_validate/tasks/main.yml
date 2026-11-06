@@ -1,0 +1,87 @@
+---
+# Checks every downloaded model, not only the selected ones, each in its own temporary llama-server
+# on a port clear of the agents', and reports speed, memory and where the model's layers ran. It's
+# slow and changes nothing, so it only runs when asked: --tags ai_validate
+- name: Describe each Bonsai size's check
+  ansible.builtin.set_fact:
+    ai_validate_models: >-
+      {{ (ai_validate_models | default([])) + [{
+           'alias': 'bonsai-2-' ~ item,
+           'role': 'reasoning',
+           'port': ai_service_bonsai_ports[item] + ai_validate_port_offset,
+           'arguments': [
+             '--host', '127.0.0.1',
+             '--port', (ai_service_bonsai_ports[item] + ai_validate_port_offset) | string,
+             '--model', ai_models_directory ~ '/' ~ ai_models_bonsai[item].model.file,
+             '--mmproj', ai_models_directory ~ '/' ~ ai_models_bonsai[item].vision.file,
+             '--alias', 'bonsai-2-' ~ item,
+             '--gpu-layers', llama_cpp_gpu_layers | string,
+             '--api-key-file', ai_service_api_key_file,
+             '--parallel', '1',
+             '--no-webui',
+             '--verbose',
+             '--flash-attn', 'on',
+             '--ctx-size', ai_service_bonsai_context_size | string,
+             '--n-predict', ai_service_bonsai_output_limit | string,
+             '--cache-ram', ai_service_bonsai_cache_ram_mib | string]}] }}
+  loop: "{{ ai_models_bonsai_sizes }}"
+
+- name: Describe each Qwen size's check
+  ansible.builtin.set_fact:
+    ai_validate_models: >-
+      {{ ai_validate_models + [{
+           'alias': 'qwen3-embedding-' ~ item,
+           'role': 'embedding',
+           'dimensions': ai_models_qwen[item].dimensions,
+           'port': ai_service_qwen_ports[item] + ai_validate_port_offset,
+           'arguments': [
+             '--host', '127.0.0.1',
+             '--port', (ai_service_qwen_ports[item] + ai_validate_port_offset) | string,
+             '--model', ai_models_directory ~ '/' ~ ai_models_qwen[item].model.file,
+             '--alias', 'qwen3-embedding-' ~ item,
+             '--gpu-layers', llama_cpp_gpu_layers | string,
+             '--api-key-file', ai_service_api_key_file,
+             '--parallel', '1',
+             '--no-webui',
+             '--verbose',
+             '--embedding',
+             '--pooling', 'last',
+             '--ctx-size', ai_service_qwen_context_size | string,
+             '--ubatch-size', ai_service_qwen_micro_batch | string]}] }}
+  loop: "{{ ai_models_qwen_sizes }}"
+
+- name: Make the cache directory
+  ansible.builtin.file:
+    path: "{{ ai_cache_root }}"
+    state: directory
+    mode: "0755"
+
+- name: Write the checks' description
+  ansible.builtin.copy:
+    content: >-
+      {{ {'server': [llama_cpp_install_directory ~ '/bin/llama-server'],
+          'models': ai_validate_models,
+          'api_key_file': ai_service_api_key_file} | to_nice_json }}
+    dest: "{{ ai_cache_root }}/validate.json"
+    mode: "0600"
+  changed_when: false
+
+- name: Check every model
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ playbook_dir }}/roles/ai_service/files/smoke_test.py"
+      - --config
+      - "{{ ai_cache_root }}/validate.json"
+  register: ai_validate_result
+  changed_when: false
+  failed_when: false
+
+- name: Report every model
+  ansible.builtin.debug:
+    var: ai_validate_result.stdout_lines
+
+- name: Fail if any model failed
+  ansible.builtin.assert:
+    that: ai_validate_result.rc == 0
+    fail_msg: "{{ ai_validate_result.stderr }}"

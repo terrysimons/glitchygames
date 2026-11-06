@@ -1,0 +1,38 @@
+---
+- name: Wait for the selected agents to load their models
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ item.port }}/health"
+    status_code: 200
+  register: ai_service_health
+  until: ai_service_health.status == 200
+  retries: "{{ ai_service_ready_retries }}"
+  delay: "{{ ai_service_ready_delay_seconds }}"
+  loop: "{{ ai_service_agents | selectattr('selected') | list }}"
+  loop_control:
+    label: "{{ item.label }}"
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+
+- name: Describe the smoke test
+  ansible.builtin.copy:
+    content: >-
+      {{ {'models': ai_service_agents | selectattr('selected') | list,
+          'api_key_file': ai_service_api_key_file} | to_nice_json }}
+    dest: "{{ ai_cache_root }}/smoke-test.json"
+    mode: "0600"
+  changed_when: false
+
+# Loading isn't enough: an older build loads these files without warning and writes gibberish
+- name: Ask the running agents questions with known answers
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ role_path }}/files/smoke_test.py"
+      - --config
+      - "{{ ai_cache_root }}/smoke-test.json"
+  register: ai_service_smoke_test
+  changed_when: false
+
+- name: Report the smoke test
+  ansible.builtin.debug:
+    var: ai_service_smoke_test.stdout_lines
