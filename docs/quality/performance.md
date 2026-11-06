@@ -7,6 +7,10 @@ each frame's work without the pacing sleep), so a line moves only when the code 
 slower, or the machine changed. Times compare only on one machine: each machine (its CPU model)
 and kind of run is its own line.
 
+Until a build generates them, this page has only this text.
+
+--8<-- "docs/quality/metrics/performance_graphs.md"
+
 ## What the graphs show
 
 - **Processing time per frame**: the median (p50), the 99th percentile (p99) and the slowest
@@ -95,7 +99,7 @@ uv run glitchygames performance-pages <directory>   # the ledger and one graph p
 
 (`<game> --measure`, `--unmeasured` and `--performance-pages <directory>` are the same tools as
 the game's own flags.) Our docs build makes these pages through `scripts/mkdocs_hooks.py` and
-`scripts/generate_performance_graphs.py`, which only add our docs paths and the snippet below.
+`scripts/generate_performance_graphs.py`, which only add our docs paths and the snippet above.
 
 A recording holds its own last ten runs too; `uv run glitchygames report PATH` (or
 `<game> --report PATH`) prints them, which frames got slower or faster between runs (only frames that did the same
@@ -140,7 +144,3 @@ At `warning` no recording should emit an INFO or DEBUG record (the startup optio
 CRITICAL record a run): a logger that does has a level set behind the command line's back
 (BUGS.md #236), which `tests/replay/test_replays_log_quietly.py`
 and `tests/test_logger_levels_at_import.py` fail on in the ordinary test run.
-
-Until a build generates them, this page has only this text.
-
---8<-- "docs/quality/metrics/performance_graphs.md"

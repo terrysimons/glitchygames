@@ -5,7 +5,8 @@ its audit says the benchmarks add enough.
 
 Built since this was written: a list above the graphs picks one game, and only that game's graphs
 load. It replaces the one-section-per-recording layout described under Today, and does the lazy
-loading of stage 2 per game rather than per collapsed section.
+loading of stage 2 per game rather than per collapsed section. The table and graphs now come before
+the explanation text, the move stage 2 asked for.
 
 ## Goal
 
