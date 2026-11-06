@@ -32,6 +32,15 @@
            'dimensions': ai_models_qwen[item].dimensions}] }}
   loop: "{{ ai_models_qwen_sizes }}"
 
+- name: List the API's agent
+  ansible.builtin.set_fact:
+    ai_service_agents: >-
+      {{ ai_service_agents + [{
+           'label': ai_service_api_label,
+           'role': 'api',
+           'alias': 'api',
+           'port': ai_service_api_port}] }}
+
 - name: Make the service's directories
   ansible.builtin.file:
     path: "{{ item }}"
@@ -57,10 +66,20 @@
     state: absent
   when: ai_service_bonsai_size | length == 0
 
-- name: Generate the workers' API key
+- name: Generate the API keys
   ansible.builtin.shell:
-    cmd: umask 077 && openssl rand -hex 32 > {{ ai_service_api_key_file | quote }}
-    creates: "{{ ai_service_api_key_file }}"
+    cmd: umask 077 && openssl rand -hex 32 > {{ item | quote }}
+    creates: "{{ item }}"
+  loop:
+    - "{{ ai_service_api_key_file }}"
+    - "{{ ai_service_service_key_file }}"
+  no_log: true
+
+- name: Write the service's settings
+  ansible.builtin.template:
+    src: service.json.j2
+    dest: "{{ ai_service_config_directory }}/service.json"
+    mode: "0644"
 
 - name: Install the script each agent runs
   ansible.builtin.template:

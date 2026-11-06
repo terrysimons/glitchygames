@@ -187,7 +187,10 @@ uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_
 # Nothing runs until asked: ai-service.sh start picks sizes from physical and free memory. A model
 # unloads after 30 idle minutes (ai_service_sleep_idle_seconds)
 "$HOME/Library/Application Support/GlitchyGames/AI/bin/ai-service.sh" select   # or start, stop, status
-# ...one piece: --tags llama_cpp, ai_models, ai_service or ai_package
+# ...one piece: --tags llama_cpp, ai_models, ai_sidecar, ai_service or ai_package
+# The service is its own project, outside the workspace, sharing no code with the engine. A game
+# reaches it only over a socket (127.0.0.1:11449: WebSocket /v1/session, REST /v1/*, docs at /docs)
+(cd services/ai-service && uv run pytest)   # its own tests, lock file and 100% coverage
 # Check every model on Metal (speed, memory, layers on the GPU), or remove the service
 uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_validate
 uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_uninstall
@@ -1383,7 +1386,7 @@ scene's logical name, which recordings hold, is `apps.bitmappy.editor:BitmapEdit
 engine never imports it. Its sprite library (71 sprites, also the AI's training data) is package
 data in `src/apps/bitmappy/src/bitmappy/resources/sprites/` (`bitmappy.SPRITE_CONFIG_DIR`), beside
 its window icon and `bitmappy.cfg`. Its tests are in `src/apps/bitmappy/tests/`, and its
-`pyproject.toml` declares what it imports (the engine, aisuite, numpy, pydantic, pygame-ce,
+`pyproject.toml` declares what it imports (the engine, numpy, pydantic, pygame-ce,
 tenacity). The Load and Save dialogs open the file name as typed (whitespace trimmed): there is
 no `example:` prefix, so a sprite in the library is opened by its path.
 
@@ -1393,7 +1396,7 @@ Features:
 - Multi-controller support (`MultiControllerManager`)
 - Collision visualization (`VisualCollisionManager`)
 - TOML file format for sprites
-- AI integration via aisuite, behind the feature flag `AI_FEATURES_ENABLED`
+- AI integration via the local AI service, behind the feature flag `AI_FEATURES_ENABLED`
   (`src/apps/bitmappy/src/bitmappy/constants.py`; off in WebAssembly builds for now: the AI worker is a separate
   process, which a browser cannot start). `tenacity` is imported only when an AI request is made
   (`src/apps/bitmappy/src/bitmappy/ai_worker.py` `_create_ai_retry_decorator`), so Bitmappy imports without it
@@ -1624,7 +1627,7 @@ alpha = 127  # 0-254 for transparency, omit for opaque
 - Onion skinning ('O' key, right-click frames)
 - TOML/PNG drag-and-drop support
 - Undo/redo system for canvas and film strip operations
-- AI sprite generation via aisuite
+- AI sprite generation via the local AI service
 - Voice recognition support
 - ASCII renderer with transparency support
 

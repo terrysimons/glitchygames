@@ -24,7 +24,12 @@ ai_service_game_reserve_mib: 2048
 # One model can differ, with AI_SLEEP_IDLE_SECONDS in its config/LABEL.env.runtime
 ai_service_sleep_idle_seconds: 1800
 
-# Private ports, behind the API to come. Clear of Ollama's 11434 and exoneris's 11435-11440
+# What games and tools use. The ports below it are private to the service
+ai_service_api_port: 11449
+# How long after the last game disconnects everything stops: long enough for a quick relaunch
+ai_service_shutdown_grace_seconds: 30
+
+# Private ports, behind the API. Clear of Ollama's 11434 and exoneris's 11435-11440
 ai_service_bonsai_ports: {"2b": 11450, "4b": 11451, "9b": 11452, "27b": 11453}
 ai_service_qwen_ports: {"0.6b": 11454, "4b": 11455, "8b": 11456}
 
@@ -57,6 +62,9 @@ ai_service_bin_directory: "{{ ai_install_root }}/bin"
 ai_service_launch_agents_directory: "{{ ai_home }}/Library/LaunchAgents"
 # Not LaunchAgents: launchd loads everything there at login, and these only run when a game asks
 ai_service_agents_directory: "{{ ai_install_root }}/agents"
+# Only the service holds the workers' key. Games and tools use the service's
 ai_service_api_key_file: "{{ ai_service_config_directory }}/worker-api-key"
+ai_service_service_key_file: "{{ ai_service_config_directory }}/service-api-key"
+ai_service_api_label: "{{ ai_service_label_prefix }}.api"
 ai_service_runner: "{{ ai_service_bin_directory }}/run-llama-server.sh"
 ai_service_control: "{{ ai_service_bin_directory }}/ai-service.sh"

@@ -117,6 +117,39 @@ def test_every_size_has_a_reserved_memory_figure():
     assert set(models['ai_models_qwen']) == set(service['ai_service_qwen_reserved_mib'])
 
 
+def test_the_api_port_is_its_own_and_clear_of_other_services():
+    """Games reach the service here, so it can't share a port with a model or another service."""
+    defaults = role_defaults(role='ai_service')
+    model_ports = {
+        *defaults['ai_service_bonsai_ports'].values(),
+        *defaults['ai_service_qwen_ports'].values(),
+    }
+
+    assert defaults['ai_service_api_port'] not in model_ports | PORTS_OF_OTHER_SERVICES
+
+
+def test_the_sidecar_pins_its_python_and_its_docs_script():
+    """The sidecar holds a whole Python, so its version and Scalar's bytes are both exact."""
+    defaults = role_defaults(role='ai_sidecar')
+
+    assert re.fullmatch(r'\d+\.\d+\.\d+', defaults['ai_sidecar_python_version'])
+    assert FULL_SHA256.fullmatch(defaults['ai_sidecar_scalar_sha256'])
+    assert re.fullmatch(r'\d+\.\d+\.\d+', defaults['ai_sidecar_scalar_version'])
+    assert '@{{ ai_sidecar_scalar_version }}' in defaults['ai_sidecar_scalar_url']
+
+
+def test_the_engine_never_imports_the_service():
+    """The engine reaches the service only over a socket, so a game runs with it absent."""
+    engine = PROJECT_ROOT / 'src' / 'glitchygames'
+    importers = [
+        path
+        for path in engine.rglob('*.py')
+        if 'glitchygames_ai_service' in path.read_text(encoding='utf-8')
+    ]
+
+    assert importers == []
+
+
 def test_a_plist_holds_no_shell_script():
     """A raw & inside a plist's XML makes the whole plist invalid, so the script stays a file."""
     plist = (ROLES / 'ai_service' / 'templates' / 'agent.plist.j2').read_text(encoding='utf-8')

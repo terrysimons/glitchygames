@@ -23,11 +23,6 @@ dependencies = [
   "tomli-w",
   "pygame-ce",
   "pyperclip",
-  # Every aisuite provider but `google` (its Vertex AI shim, vertexai 1.71.1, is no longer
-  # published and pins google-cloud-aiplatform to 1.71.1[all], an extra that release lacks).
-  # Google's models stay reachable through the `gemini` provider. The model is a run-time
-  # setting ('provider:model'), so every other provider stays installable as with [all]
-  "aisuite[anthropic,aws,cerebras,cohere,deepseek,gemini,groq,lmstudio,mcp,mistral,ollama,openai,watsonx]>=0.1.14",
   "numpy",
   "miniaudio",
   "speechrecognition",
@@ -35,7 +30,7 @@ dependencies = [
   "fastapi",
   "uvicorn",
   "pydantic",
-  "httpx",
+  "httpx2",
   "apng",
   "pillow",
   "hidapi>=0.15.0",
@@ -295,8 +290,6 @@ filterwarnings = [
   "error",
   # Third-party: speechrecognition depends on aifc, removed from stdlib in 3.13
   "ignore:aifc was removed:DeprecationWarning",
-  # Third-party: docstring_parser uses deprecated ast nodes (via aisuite)
-  "ignore:ast\\..* is deprecated:DeprecationWarning",
   # pytest-benchmark warns when xdist is active (benchmarks auto-disabled)
   "ignore:Benchmarks are automatically disabled:pytest_benchmark.logger.PytestBenchmarkWarning",
 ]
@@ -756,9 +749,13 @@ confidence = "medium"
 # in Pyodide on its runtime modules (js, pyodide) and its own files, and the workspace members
 # under src/games, src/demos and src/apps (projects of their own, each declaring its dependencies:
 # tests/test_workspace_config.py, test_every_member_declares_what_it_imports), and
-# .claude/worktrees, where Claude Code checks out other branches of this repository
+# .claude/worktrees, where Claude Code checks out other branches of this repository. Also the
+# AI service (services/), a project of its own with its own lock file, and ansible/, whose
+# scripts run under the sidecar's Python or Ansible's, never this project's
 extend_exclude = [
   ".claude/worktrees",
+  "ansible",
+  "services",
   "third_party",
   "browser",
   "src/games",
@@ -839,11 +836,6 @@ DEP002 = [
   "wily",
   "radon",
 ]
-
-[tool.uv]
-# aisuite pins docstring-parser<0.16, but 0.16+ is needed for Python 3.14
-# (ast.NameConstant removed). Override until aisuite loosens the pin.
-override-dependencies = ["docstring-parser>=0.16"]
 
 [build-system]
 requires = ["hatchling"]

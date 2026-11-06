@@ -301,11 +301,10 @@ class AIQueryInspectorScene(Scene):
         }
 
         try:
-            import aisuite as ai
+            from glitchygames.ai.local_service import create_chat_client
 
             # Send request
-            client: Any = ai.Client()
-            response: Any = client.chat.completions.create(**api_kwargs)
+            response: Any = create_chat_client().chat.completions.create(**api_kwargs)
         except (ImportError, OSError, ValueError, RuntimeError) as exception:
             if self.query_display is not None:
                 self.query_display.text = f'Error sending request: {exception}'

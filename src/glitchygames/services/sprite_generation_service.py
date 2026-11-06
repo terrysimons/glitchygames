@@ -1,4 +1,4 @@
-"""Sprite generation service using AI providers via aisuite.
+"""Sprite generation service, answered by the local AI service.
 
 This service wraps the AI sprite generation functionality, providing a clean
 interface for generating and refining sprites from text prompts.
@@ -6,7 +6,7 @@ interface for generating and refining sprites from text prompts.
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from glitchygames.ai.sprite_generator import (
     build_refinement_messages,
@@ -19,67 +19,12 @@ from glitchygames.services.config import ServiceConfig
 from glitchygames.services.exceptions import AIProviderError
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from glitchygames.ai.local_service import ChatClient
 
 LOG = logging.getLogger('glitchygames.services.sprite_generation')
 
-
-# The parts of aisuite's client this service uses. aisuite ships no type information, so these
-# Protocols name exactly what is called and read: client.chat.completions.create(...) and the
-# response's choices[0].message.content (the OpenAI-style response shape aisuite returns).
-class ChatCompletionMessage(Protocol):
-    """A chat completion's message."""
-
-    @property
-    def content(self) -> str | None:
-        """The message text (None when the model returned none)."""
-        ...
-
-
-class ChatCompletionChoice(Protocol):
-    """One choice of a chat completion."""
-
-    @property
-    def message(self) -> ChatCompletionMessage:
-        """The choice's message."""
-        ...
-
-
-class ChatCompletion(Protocol):
-    """A chat completion response."""
-
-    @property
-    def choices(self) -> Sequence[ChatCompletionChoice]:
-        """The response's choices."""
-        ...
-
-
-class ChatCompletions(Protocol):
-    """The chat completions endpoint."""
-
-    def create(
-        self, *, model: str, messages: list[dict[str, str]], max_tokens: int
-    ) -> ChatCompletion:
-        """Request a chat completion."""
-        ...
-
-
-class ChatEndpoints(Protocol):
-    """The client's chat namespace."""
-
-    @property
-    def completions(self) -> ChatCompletions:
-        """The chat completions endpoint."""
-        ...
-
-
-class ChatClient(Protocol):
-    """An AI client with an OpenAI-style chat completions API (aisuite.Client)."""
-
-    @property
-    def chat(self) -> ChatEndpoints:
-        """The client's chat namespace."""
-        ...
+# What errors name as the source, as only the local service answers for now
+LOCAL_PROVIDER = 'local-service'
 
 
 @dataclass
@@ -107,9 +52,9 @@ class GenerationResult:
 
 
 class SpriteGenerationService:
-    """Service for generating sprites using AI providers.
+    """Service for generating sprites.
 
-    This service handles communication with AI providers via aisuite,
+    This service handles communication with the local AI service,
     building prompts, validating responses, and extracting sprite metadata.
     """
 
@@ -122,48 +67,30 @@ class SpriteGenerationService:
         """
         self.config = config or ServiceConfig.from_env()
         self._client: ChatClient | None = None
-        self._ai_module = None
 
     def _ensure_client(self) -> ChatClient:
         """Lazily initialize the AI client.
 
         Returns:
-            The aisuite Client instance (used through the ChatClient Protocol)
+            The client.
 
         Raises:
-            AIProviderError: If aisuite is not available
+            AIProviderError: If the local AI service isn't available
 
         """
         if self._client is not None:
             return self._client
 
-        # Import aisuite lazily
-        try:
-            import aisuite as ai
-
-            self._ai_module = ai
-        except ImportError as e:
-            message = 'aisuite is not installed. Install with: pip install aisuite'
-            raise AIProviderError(
-                message,
-                provider=None,
-                original_error=e,
-            ) from e
-
-        LOG.info('Initializing AI client for provider: %s', self.config.ai_provider)
+        # Imported here: a game that makes no AI request never loads the client
+        from glitchygames.ai.local_service import LocalAIServiceError, create_chat_client
 
         try:
-            self._client = ai.Client()
-            LOG.info('AI client initialized successfully')
-        except Exception as e:
+            self._client = create_chat_client(timeout_seconds=self.config.ai_timeout)
+        except LocalAIServiceError as e:
             message = f'Failed to initialize AI client: {e}'
-            raise AIProviderError(
-                message,
-                provider=self.config.ai_provider,
-                original_error=e,
-            ) from e
-        else:
-            return self._client
+            raise AIProviderError(message, provider=LOCAL_PROVIDER, original_error=e) from e
+        LOG.info('AI client initialized successfully')
+        return self._client
 
     def _build_enhanced_prompt(
         self,
@@ -286,7 +213,7 @@ class SpriteGenerationService:
             film_strip_count: Number of film strips/animations to create
             animation_duration: Duration of animation in seconds
             training_examples: Optional training examples for context
-            model: Optional model override in aisuite format (e.g., 'anthropic:claude-sonnet-4-5')
+            model: Optional model override: a role, or an exact size's alias (e.g., 'bonsai-2-9b')
 
         Returns:
             GenerationResult with sprite data or error
@@ -298,7 +225,7 @@ class SpriteGenerationService:
         client = self._ensure_client()
 
         # Determine which model to use
-        model_string = model or self.config.get_ai_model_string()
+        model_string = model or self.config.ai_model
 
         # Build enhanced prompt with all hints
         enhanced_prompt = self._build_enhanced_prompt(
@@ -335,7 +262,7 @@ class SpriteGenerationService:
             message = f'AI generation failed: {e}'
             raise AIProviderError(
                 message,
-                provider=self.config.ai_provider,
+                provider=LOCAL_PROVIDER,
                 original_error=e,
             ) from e
 
@@ -372,9 +299,9 @@ class SpriteGenerationService:
 
         # Make the API call
         try:
-            LOG.info('Refining sprite with model: %s', self.config.get_ai_model_string())
+            LOG.info('Refining sprite with model: %s', self.config.ai_model)
             response = client.chat.completions.create(
-                model=self.config.get_ai_model_string(),
+                model=self.config.ai_model,
                 messages=messages,
                 max_tokens=8192,
             )
@@ -387,7 +314,7 @@ class SpriteGenerationService:
             message = f'AI refinement failed: {e}'
             raise AIProviderError(
                 message,
-                provider=self.config.ai_provider,
+                provider=LOCAL_PROVIDER,
                 original_error=e,
             ) from e
 

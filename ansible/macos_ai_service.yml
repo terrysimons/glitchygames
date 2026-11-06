@@ -2,7 +2,7 @@
 # The GlitchyGames local AI service on a Mac (plans/lucid-circuit.md): llama.cpp built from source
 # with Metal, the models, the per-user launchd agents and the .pkg. From the repository root:
 #   uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml
-# One piece at a time with --tags llama_cpp (or ai_models, ai_service, ai_package). No root: this
+# One piece at a time with --tags llama_cpp (or ai_models, ai_sidecar, ai_service, ai_package). No root: this
 # installs for the user running it. Running it again changes nothing unless something did.
 # --tags ai_validate checks every model, and --tags ai_uninstall removes the service.
 - name: Build and install the local AI service
@@ -14,6 +14,9 @@
       tags: [llama_cpp, ai_service, ai_package, ai_validate]
     - role: ai_models
       tags: [ai_models]
+    # Also under the later tags: they need the sidecar in place
+    - role: ai_sidecar
+      tags: [ai_sidecar, ai_service, ai_package]
     # Also under ai_package: that role packages the agents this one lists
     - role: ai_service
       tags: [ai_service, ai_package]

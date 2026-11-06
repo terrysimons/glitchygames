@@ -33,6 +33,21 @@
     mode: "0644"
   notify: Build the package
 
+# The service's own Python and packages, using nothing outside themselves
+- name: Stage the sidecar
+  ansible.builtin.command:
+    argv:
+      - rsync
+      - -a
+      - --delete
+      - --itemize-changes
+      - --exclude=__pycache__/
+      - "{{ ai_sidecar_directory }}/"
+      - "{{ ai_package_stage_root }}/sidecar/"
+  register: ai_package_sidecar_stage
+  changed_when: ai_package_sidecar_stage.stdout | length > 0
+  notify: Build the package
+
 # Apache-2.0: the license and notice travel with the software that downloads the weights
 - name: Stage each Bonsai size's license and notice
   ansible.builtin.copy:
@@ -48,6 +63,13 @@
     ai_home: "{{ ai_package_home_placeholder }}"
     llama_cpp_install_directory: "{{ ai_install_root }}/runtime/{{ ai_package_runtime_name }}"
   block:
+    - name: Stage the service's settings
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/roles/ai_service/templates/service.json.j2"
+        dest: "{{ ai_package_agents_stage }}/service.json.template"
+        mode: "0644"
+      notify: Build the package
+
     - name: Stage each agent's settings
       ansible.builtin.template:
         src: "{{ playbook_dir }}/roles/ai_service/templates/agent.env.j2"
@@ -131,6 +153,9 @@
       - ai_package_payload.stdout is search('llama.cpp-LICENSE')
       - ai_package_payload.stdout is search('NOTICE.txt')
       - ai_package_payload.stdout is search('bin/setup.sh')
+      - ai_package_payload.stdout is search('sidecar/python/bin/python3.14')
+      - ai_package_payload.stdout is search('sidecar/site/glitchygames_ai_service/app.py')
+      - ai_package_payload.stdout is search('sidecar/scalar.js')
       - ai_package_payload.stdout is not search('\.gguf')
     fail_msg: "{{ ai_package_payload.stdout }}"
 

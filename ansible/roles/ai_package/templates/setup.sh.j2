@@ -101,13 +101,17 @@ if [ "$failed" = true ]; then
     exit 1
 fi
 
-if [ ! -f "$config/worker-api-key" ]; then
-    (umask 077 && openssl rand -hex 32 > "$config/worker-api-key")
-fi
+for key in worker-api-key service-api-key; do
+    if [ ! -f "$config/$key" ]; then
+        (umask 077 && openssl rand -hex 32 > "$config/$key")
+    fi
+done
 
 # The placeholder has no characters sed treats specially, and | can't appear in a macOS home path
 # that launchd would accept here without being escaped first
 escaped_home=$(printf '%s' "$HOME" | sed -e 's/[&|\\]/\\&/g')
+sed -e "s|{{ ai_package_home_placeholder }}|$escaped_home|g" \
+    "$share/agents/service.json.template" > "$config/service.json"
 for template in "$share"/agents/*.plist.template; do
     label=$(basename "$template" .plist.template)
     sed -e "s|{{ ai_package_home_placeholder }}|$escaped_home|g" \

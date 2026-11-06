@@ -20,6 +20,15 @@ refuse() {
     exit 0
 }
 
+# The API, in its sidecar Python, using nothing outside it
+if [ "$AI_ROLE" = api ]; then
+    [ -x "$AI_SIDECAR/python/bin/python3.14" ] || refuse "no sidecar at $AI_SIDECAR"
+    [ -f "$GLITCHYGAMES_AI_SERVICE_CONFIG" ] || refuse "no settings at $GLITCHYGAMES_AI_SERVICE_CONFIG"
+    export GLITCHYGAMES_AI_SERVICE_CONFIG
+    export PYTHONPATH="$AI_SIDECAR/site"
+    exec "$AI_SIDECAR/python/bin/python3.14" -m glitchygames_ai_service
+fi
+
 [ -x "$AI_LLAMA_SERVER" ] || refuse "no llama-server at $AI_LLAMA_SERVER"
 [ -f "$AI_MODEL_FILE" ] || refuse "no model at $AI_MODEL_FILE"
 [ -f "$AI_API_KEY_FILE" ] || refuse "no API key at $AI_API_KEY_FILE"

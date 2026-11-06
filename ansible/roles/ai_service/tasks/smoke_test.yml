@@ -29,8 +29,6 @@
       loop: "{{ ai_service_agents | selectattr('label', 'in', ai_service_running_labels) | list }}"
       loop_control:
         label: "{{ item.label }}"
-      vars:
-        ansible_python_interpreter: "{{ ansible_playbook_python }}"
 
     - name: Describe the smoke test
       ansible.builtin.copy:
@@ -55,6 +53,25 @@
     - name: Report the smoke test
       ansible.builtin.debug:
         var: ai_service_smoke_test.stdout_lines
+
+    # Run by the sidecar's own Python, as a check that it holds what a client needs too
+    - name: Use the API as a game would
+      ansible.builtin.command:
+        argv:
+          - "{{ ai_sidecar_directory }}/python/bin/python3.14"
+          - "{{ role_path }}/files/api_smoke_test.py"
+          - --port
+          - "{{ ai_service_api_port }}"
+          - --key-file
+          - "{{ ai_service_service_key_file }}"
+      environment:
+        PYTHONPATH: "{{ ai_sidecar_directory }}/site"
+      register: ai_service_api_smoke_test
+      changed_when: false
+
+    - name: Report the API's smoke test
+      ansible.builtin.debug:
+        var: ai_service_api_smoke_test.stdout_lines
   always:
     - name: Stop the models until a game asks for them
       ansible.builtin.command:

@@ -17,6 +17,8 @@ models="$install_root/models"
 agents="$install_root/agents"
 config="$install_root/config"
 domain="gui/$(id -u)"
+api_label={{ ai_service_api_label }}
+api_port={{ ai_service_api_port }}
 
 # Left for the game, the system and whatever else is open. Provisional (plans/lucid-circuit.md, 5)
 game_reserve_mb={{ ai_service_game_reserve_mib }}
@@ -131,14 +133,32 @@ start_agent() {
     return 0
 }
 
+# The API last: it may be what's running this script, once the last game has gone
 stop_all() {
     for plist in "$agents"/*.plist; do
         [ -e "$plist" ] || continue
         label=$(basename "$plist" .plist)
-        if is_loaded "$label"; then
+        if [ "$label" != "$api_label" ] && is_loaded "$label"; then
             launchctl bootout "$domain/$label" 2>/dev/null
         fi
     done
+    if is_loaded "$api_label"; then
+        launchctl bootout "$domain/$api_label" 2>/dev/null
+    fi
+}
+
+# Which reasoning and embedding agents run now, if any
+running_size() {
+    for plist in "$agents"/$1-*.plist; do
+        [ -e "$plist" ] || continue
+        label=$(basename "$plist" .plist)
+        if is_loaded "$label"; then
+            size=${label#*"$1"-}
+            echo "${size%.llama-cpp}"
+            return 0
+        fi
+    done
+    return 1
 }
 
 case "${1:-}" in
@@ -146,24 +166,27 @@ case "${1:-}" in
         select_sizes
         ;;
     start)
+        # Another game may already have started them. Measuring again would see less free memory, as
+        # those models are holding it, and could stop a size that game is using
+        bonsai_running=$(running_size {{ ai_service_label_prefix }}.bonsai-2)
+        qwen_running=$(running_size {{ ai_service_label_prefix }}.qwen3-embedding)
+        if [ -n "$bonsai_running" ] && [ -n "$qwen_running" ]; then
+            echo "bonsai=$bonsai_running"
+            echo "qwen=$qwen_running"
+            start_agent "$api_label" "$api_port" || exit $?
+            exit 0
+        fi
         selection=$(select_sizes)
         result=$?
         echo "$selection"
         [ "$result" -eq 0 ] || exit "$result"
         bonsai_size=$(echo "$selection" | sed -n 's/^bonsai=//p')
         qwen_size=$(echo "$selection" | sed -n 's/^qwen=//p')
-        # Another size left running by an earlier run would hold its memory for nothing
-        for plist in "$agents"/*.plist; do
-            label=$(basename "$plist" .plist)
-            if [ "$label" != "$(bonsai_label "$bonsai_size")" ] \
-                && [ "$label" != "$(qwen_label "$qwen_size")" ] && is_loaded "$label"; then
-                launchctl bootout "$domain/$label" 2>/dev/null
-            fi
-        done
         bonsai_facts "$bonsai_size"
         start_agent "$(bonsai_label "$bonsai_size")" "$port" || exit $?
         qwen_facts "$qwen_size"
         start_agent "$(qwen_label "$qwen_size")" "$port" || exit $?
+        start_agent "$api_label" "$api_port" || exit $?
         ;;
     stop)
         stop_all

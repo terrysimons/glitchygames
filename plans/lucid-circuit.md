@@ -12,7 +12,7 @@
   inspects and changes game internals (Stage 7), not the whole platform. This file covers the
   whole platform, so the name is the project's, not a change to that decision.
 - **Sub-plans:** this is the master plan. Each stage gets its own `plans/lucid-circuit-<stage>.md`
-  when it starts, linked from section 7 and linking back here. None exists yet.
+  when it starts, linked from here and linking back: [Stage 1](lucid-circuit-1-local-service.md).
 
 ## 1. Goal
 
@@ -46,7 +46,10 @@ choosing it; or a game has to change to keep running without AI.
 | **No model uses memory until a game loads; sizes are picked then, from the machine's real state** | Session |
 | **A model unloads after 30 idle minutes by default, and that's tunable** | Session |
 | **Models load when the game loads** (not on first use) | Session |
-| **The AI service ships its own sidecar Python environment in its package directory. The engine is fully decoupled from it and talks over a socket** (WebSocket or REST: section 10, question 7) | Session |
+| **`httpx2` everywhere** in place of `httpx` (done for the engine and the service) | Session |
+| **`aisuite` is removed. AI requests go to the local service only for now**, through one client protocol (`glitchygames.ai.local_service`), so cloud can join later as a second implementation. Cloud isn't a focus yet | Session |
+| **The old AI code (Bitmappy's worker, the voice assistant, the sprite service and `glitchygames.api`) gets refactored after the general architecture is in place.** Its tests were adapted to the new client, and none needed an xfail. Coverage **must be at 100% before anything is pushed** | Session |
+| **The AI service ships its own sidecar Python in its package directory, as a plain folder. The engine is fully decoupled from it: a WebSocket for the live link, REST for everything else** | Session |
 | **The existing wrapper is frozen: it's on every game, it's optimized, and it must not change** (section 4) | Session |
 | Two model roles: Qwen3-Embedding and Bonsai 2 | Brief |
 | Agents never run in the game's process or on its main thread | Brief |
@@ -113,7 +116,7 @@ that path adds no code to any frame. A replay has no host, so it never runs.
 | A live game, service installed | As the game loads, `bin/ai-service.sh start` picks sizes from physical and free memory and starts them, without the frame loop waiting. The worker proposes nothing until something asks: the console, or a game that enables an agent |
 | Not enough memory free | `ai-service.sh` reports it and starts nothing; the game plays on with AI unavailable |
 | AI idle during play | The model unloads after 30 minutes (down to about 150 MiB) and reloads on the next request, in seconds |
-| The last game exits | The models stop. **Not built:** nothing calls `stop` yet, and several games at once need counting. Until then the idle unload is the backstop |
+| The last game exits | Its WebSocket closes, and 30 s later the service stops the models and itself. It counts sessions, so one game leaving doesn't take the models from another, and a crashed game's socket closes the same way |
 | A live game, service not installed | Runs normally. A single check at startup, one log line, no worker, no retries during play |
 | Service dies during play | The game carries on; AI reports unavailable |
 | Replay, audit, rebaseline | No host, so no AI. The option is replay-local, so a recording's stored value is ignored |
@@ -194,8 +197,8 @@ the game already handles, and ask for this only if they prove too limiting.
   standalone CPython and the service's packages, in the service's package directory. Tested 2026-11-06
   by moving one to another folder: a venv failed to run, because it points at its Python by absolute
   path, and every player's home differs. A bundled Python with packages in a plain folder used nothing
-  outside itself and served a request in 0.53 s (about 88 MB on disk, 62 MiB running). If it has to be a
-  real venv, `setup.sh` can create one on the player's Mac from the bundled Python, offline.
+  outside itself and served a request in 0.53 s (about 88 MB on disk, 62 MiB running). **Plain folder,
+  the owner's choice.**
 - **`ansible/roles/llama_cpp/`** and **`packaging/macos/`**: build, install, `.pkg`.
 - **Models live outside the repository**, never under this Dropbox checkout. So does the llama.cpp
   build tree.
@@ -341,7 +344,7 @@ small end-to-end result first, and proves frame safety before AI is on by defaul
 | # | Stage | Exit evidence |
 |---|---|---|
 | 0 | **Measure first** (done, through `ai_validate`, except the reference check) | On this Mac at `b12167`: all four Bonsai sizes answered text and image questions correctly on Metal, with all layers on the GPU and `graph splits = 1`, so the `MUL_MAT_HADAMARD` concern didn't bite. Memory figures are in section 5. **Not done:** comparing Qwen's vectors with the reference implementation (only shape, norms and a similarity check so far) |
-| 1 | **Local service** | Role installs and reruns cleanly (**done**, from nothing, `changed=0` on a rerun). **Not done:** agents surviving a crash and a reboot; `/v1/embeddings`, `/v1/chat/completions`, `/v1/models`, `/v1/status`, `/health/*`; Scalar with the network off |
+| 1 | **Local service** ([sub-plan](lucid-circuit-1-local-service.md)) | **Done:** roles install and rerun cleanly; all the REST routes and the WebSocket, with real models; Scalar with the network blocked; everything stops when the last game leaves. **Not done:** agents surviving a crash and a reboot; the service in CI, the SBOM and the license check |
 | 2 | **Installer (owner)** | Unsigned `.pkg` installs and uninstalls with no root as the owner, its setup job downloads what's missing and starts nothing, and the picker was tried against faked memory figures by hand (**done**). **Not done:** a second user account with no developer tools; an automated test of the picker |
 | 3 | **Engine connection** | No diff in `host.py`. A default run uses `AiHostSources` and starts one worker; a run with no service installed plays normally; idle cost against `--no-ai` measured and within budget; a round trip completes while the game runs; kill the worker or service and the game carries on; golden hashes and frame timings unchanged with AI off; a run with AI on replays exactly with no service |
 | 4 | **First playable: read-only** | In one real game (proposed: PaddleSlap), `/ask` and `/inspect` in a console, with an AI debug panel and history. Bitmappy can use local Bonsai through a setting |
@@ -395,10 +398,10 @@ Most important first. Each has a default this plan uses until told otherwise.
    Default: yes.
 6. **Which models players get.** All four Bonsai sizes (13.93 GB) or just their default, with others
    on request? Doesn't block the owner's install. Default: just the default, for players.
-7. **The socket.** WebSocket or REST between the game and the service? Default: both, on one port. A
-   WebSocket for the live game link, as agents have to push proposals and cancellations to the game
-   without it polling, and REST for models, status and docs, as OpenAPI and Scalar document only REST.
-   `glitchygames.api` stays where it is for now.
+7. **The socket.** Resolved 2026-11-06: both, on one port. A WebSocket for the live game link, as agents
+   have to push proposals and cancellations without the game polling, and REST for models, status and
+   docs, as OpenAPI and Scalar document only REST. The WebSocket checks the token and `Origin`, and
+   exchanges a protocol version on connect. `glitchygames.api` stays where it is for now.
 8. **Label prefix.** `ai.glitchygames.*`, or `games.glitchy.*`? Default: `ai.glitchygames.*`.
 
 ## 11. References
