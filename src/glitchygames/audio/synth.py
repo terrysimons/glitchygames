@@ -515,6 +515,6 @@ def to_sound(samples: FloatArray, *, volume: float = 0.5) -> pygame.mixer.Sound:
     frames = pcm if channel_count == 1 else np.repeat(pcm[:, np.newaxis], channel_count, axis=1)
     frames = np.ascontiguousarray(frames)
     # pygame.sndarray.make_sound has incomplete type stubs for its ndarray parameter
-    sound: pygame.mixer.Sound = pygame.sndarray.make_sound(frames)  # pyright: ignore[reportUnknownMemberType]
+    sound: pygame.mixer.Sound = pygame.sndarray.make_sound(frames)
     sound.set_volume(volume)
     return sound
