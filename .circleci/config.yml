@@ -91,9 +91,14 @@ commands:
             - ~/.local/share/uv/python
 
   install-deps-posix:
+    parameters:
+      no_output_timeout:
+        type: string
+        default: 10m
     steps:
       - run:
           name: "Install uv and Python"
+          no_output_timeout: << parameters.no_output_timeout >>
           command: |
             set -euo pipefail
 
@@ -146,12 +151,17 @@ commands:
             nox -s lint-docs
 
   nox-timer-report:
+    parameters:
+      no_output_timeout:
+        type: string
+        default: 10m
     steps:
       # Diagnostic only (always succeeds): whether this machine is a VM, its CPU share, and how
       # late it wakes sleeping code; the timing tests judge, this explains their numbers. The
       # nox session detects the OS itself
       - run:
           name: "Timer report (diagnostic)"
+          no_output_timeout: << parameters.no_output_timeout >>
           when: always
           command: |
             export PATH="$HOME/.local/bin:$PATH"
@@ -414,8 +424,8 @@ jobs:
       - save-uv-cache-windows
 
   # The test suite on real ARM hardware: a Raspberry Pi 4 (4 GB, no added cooling) running machine
-  # runner 3 (plans/2026-11-04-raspberry-pi-ci-runner.md). Not in the workflow yet: add it once the
-  # runner is installed and its resource class exists. Never nox-performance-test here: it runs
+  # runner 3 (plans/2026-11-04-raspberry-pi-ci-runner.md), set up by
+  # ansible/raspberry_pi_runner.yml. Never nox-performance-test here: it runs
   # tests/benchmarks/test_logging_cost.py, whose heavy logs wear the Pi's SD card. The uv cache
   # stays on the host, so no CircleCI cache (storage and network use credits), and the job has no
   # sudo, so the host is provisioned with what it needs (fontconfig)
@@ -433,19 +443,25 @@ jobs:
 
     steps:
       - checkout
-      - install-deps-posix
-      - nox-timer-report
+      # 30m, not the default 10m: the first install on a cold uv cache compiles without printing
+      # (build 2862 timed out in the timer report, the first step to install). nox-test keeps 120m
+      - install-deps-posix:
+          no_output_timeout: 30m
+      - nox-timer-report:
+          no_output_timeout: 30m
       - nox-test
       # After the tests: whether this run was slowed by heat or undervoltage. /dev/vcio is
       # readable by the video group (a udev rule on the host), which the runner's user is in
       - run:
           name: "Throttling and temperature (vcgencmd)"
+          no_output_timeout: 30m
           when: always
           command: |
             vcgencmd get_throttled
             vcgencmd measure_temp
       - run:
           name: "Prune the uv cache"
+          no_output_timeout: 30m
           when: always
           command: |
             export PATH="$HOME/.local/bin:$PATH"
@@ -541,6 +557,9 @@ workflows:
       - build-and-test-linux
       - build-and-test-macos
       - build-and-test-windows
+      # Off: the Pi measures replays when the owner pushes, and takes no CI jobs
+      # (plans/2026-11-04-raspberry-pi-ci-runner.md). deploy-docs must not wait for this if it returns
+      # - build-and-test-raspberry-pi
       # After a merge to main: as soon as the macOS job passes (the same tree passed all three in
       # its pull request), one deploy at a time so two quick merges cannot race gh-pages
       - deploy-docs:

@@ -6,3 +6,5 @@ all:
       ansible_user: terry
       ansible_python_interpreter: /usr/bin/python3
       raspberry_pi_hostname: rpi4-ubuntu-2610
+      # .circleci/config.yml's build-and-test-raspberry-pi names this (tests/test_ci_config.py)
+      raspberry_pi_resource_class: terrysimons/raspberry-pi-4

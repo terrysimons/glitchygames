@@ -56,6 +56,10 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    after a measured one is instant; code that arrived by a merge from `main` or a rebase is
    measured by the next commit (or by hand: `nox -s measure-staged`, then commit, which also
    adds a machine without the hook). `SKIP=replay-metrics git commit ...` skips it.
+   A pre-push hook (`scripts/measure_on_raspberry_pi.py`) measures the same way on a Raspberry Pi
+   and copies its row files here, staged. A push that brings rows stops so they can be committed,
+   and the next one goes through (by hand: `nox -s measure-on-raspberry-pi`;
+   `SKIP=raspberry-pi-replay-metrics git push ...` skips it).
 2. **The site shows what landed on `main`.** Every docs build reads the repository's row files
    and keeps each row whose code tree is the code tree of the commit that added its file: on
    `main`, the squash merge, so each is shown under the commit its code landed in (code that

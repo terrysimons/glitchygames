@@ -1,10 +1,18 @@
 # Raspberry Pi 4 as a CircleCI hardware runner
 
-Status: in progress (branch `feat/rpi4-ci-runner`). The `taplo` fix and the job with its config
-tests are committed; the job is not in the workflow, and the runner is not installed. The
-`/dev/vcio` playbook is written but has not been run (it needs the owner's sudo password).
+Status: in progress (branch `feat/hardware-runner`). The runner is installed and registered by
+`ansible/raspberry_pi_runner.yml`, and online. `build-and-test-raspberry-pi` is defined but commented
+out of the workflow. The owner, 2026-11-05: when they push, the replay measurement also runs on the
+Pi, and its files are copied to their machine, in the right place. That is the pre-push hook
+`raspberry-pi-replay-metrics` (`scripts/measure_on_raspberry_pi.py`). It stops a push that brings rows,
+so they are committed first. All 7 recordings took 205 s in its first real run, with no throttling.
+It measures on `dummy`, like every row today: real-driver measuring is
+the driver timing work. A throwaway job (build 2857, removed) showed that jobs
+inherit the display: SDL's `wayland` driver on the 2560x1440 screen, the `circleci` user's groups,
+`vcgencmd`, and the service's 2 GiB memory limit. Its flip took 30.1 ms per frame on `wayland` and
+2.4 ms on `dummy`. Why `wayland` is that slow is unmeasured: driver timing starts there.
 Goal: run the test suite on real ARM
-hardware, on every push, on `rpi4-ubuntu-2604` (terry@172.23.23.155).
+hardware, on every push, on `rpi4-ubuntu-2610` (terry@172.23.23.155).
 
 ## The host (read 2026-11-04)
 
@@ -157,6 +165,14 @@ speed tests." They need different runs:
 
 0. **Plotted speed numbers include the real driver: decided, 2026-11-04.** Today's rows are real
    machines on `dummy`, so they leave out the time spent presenting. Build driver timing.
+0. **Driver time is measured, not judged: decided, 2026-11-04.** A slow present on real hardware
+   is a number to record, not a failure, so driver timing sets no pass or fail limit on speed. The
+   owner, on the Pi's 30.1 ms flip: "That's ok on the Pi. I want to measure it, not fail it."
+0. **Registration is part of the deploy: decided, 2026-11-04.** `ansible/raspberry_pi_runner.yml`
+   checks the fork setting with a personal API token (`CIRCLECI_API_TOKEN`), creates the resource
+   class and token through the controller's `circleci auth login`, installs the runner, and sets up
+   the auto-login session with a display that stays on. The runner starts after chrony's first sync
+   (`chrony-wait`), because the Pi has no battery-backed clock and boots with a stale date.
 1. **Do runners measure, or only test?** Recommended: measure once per merge to `main`, not on every
    push: rows only count once their code lands.
 2. **How do rows land?** Recommended: push them to `gh-pages`' published ledger, which `docs-deploy`

@@ -79,6 +79,16 @@ def test_the_raspberry_pi_playbook_pins_circlecis_uv():
     assert f'    raspberry_pi_uv_version: "{uv_version}"\n' in playbook
 
 
+def test_the_raspberry_pi_job_uses_the_resource_class_ansible_registers():
+    """The job's resource class is the one the playbook creates and registers the runner with."""
+    inventory = (PROJECT_ROOT / 'ansible' / 'inventory.yml').read_text(encoding='utf-8')
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    match = re.search(r'raspberry_pi_resource_class: (?P<name>\S+)', inventory)
+
+    assert match is not None
+    assert f'    resource_class: {match["name"]}\n' in configuration
+
+
 def test_circleci_runs_an_installed_nox_never_through_uvx():
     """Each job installs nox once, as a uv tool, and runs it directly: no uvx parent waits on it.
 
@@ -108,7 +118,7 @@ def test_circleci_runs_an_installed_nox_never_through_uvx():
         job = jobs[start:end]
         first_nox = re.search(r'^\s+(- nox-|nox -s )', job, flags=re.MULTILINE)
         if first_nox is not None and not job.startswith('  build-and-test-windows:'):
-            assert '      - install-deps-posix\n' in job[: first_nox.start()], job.split(':')[0]
+            assert '      - install-deps-posix' in job[: first_nox.start()], job.split(':')[0]
     # The tool is never restored from a cache: the uv caches name uv's Python, not all its data
     assert '- ~/.local/share/uv\n' not in configuration
 
@@ -602,13 +612,32 @@ def raspberry_pi_job() -> str:
     return job[: job.index('\n  # Publishes the docs')]
 
 
+def test_no_workflow_runs_the_raspberry_pi_job():
+    """The Pi measures replays when the owner pushes, and takes no CI jobs."""
+    configuration = (PROJECT_ROOT / '.circleci' / 'config.yml').read_text(encoding='utf-8')
+    workflow = configuration[configuration.index('\nworkflows:\n') :]
+
+    assert '\n      # - build-and-test-raspberry-pi\n' in workflow
+    assert '\n      - build-and-test-raspberry-pi\n' not in workflow
+    assert '            - build-and-test-raspberry-pi\n' not in workflow
+
+
 def test_the_raspberry_pi_job_runs_the_tests_serially_on_its_runner():
     """The job runs on the self-hosted machine runner, with no xdist workers to reach its swap."""
     job = raspberry_pi_job()
 
     assert '    machine: true\n    resource_class: terrysimons/raspberry-pi-4\n' in job
     assert '      PYTEST_WORKERS: "0"\n' in job
-    assert job.index('      - install-deps-posix\n') < job.index('      - nox-test\n')
+    assert job.index('      - install-deps-posix') < job.index('      - nox-test\n')
+
+
+def test_the_raspberry_pi_job_allows_30_minutes_of_silence_per_step():
+    """A cold install compiles without printing, past CircleCI's default 10 minutes."""
+    job = raspberry_pi_job()
+
+    assert '- install-deps-posix:\n          no_output_timeout: 30m\n' in job
+    assert '- nox-timer-report:\n          no_output_timeout: 30m\n' in job
+    assert job.count('          no_output_timeout: 30m\n') == 4
 
 
 def test_the_raspberry_pi_job_never_runs_the_benchmarks():

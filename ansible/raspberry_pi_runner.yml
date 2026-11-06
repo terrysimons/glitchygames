@@ -1,8 +1,16 @@
 ---
 # The Raspberry Pi 4 that runs CircleCI's build-and-test-raspberry-pi job
-# (plans/2026-11-04-raspberry-pi-ci-runner.md). From the repository root, on another machine:
+# (plans/2026-11-04-raspberry-pi-ci-runner.md). From the repository root, on another machine with
+# the circleci CLI logged in, and a personal API token (https://app.circleci.com/settings/user/tokens)
+# typed where the shell's history will not keep it. The CLI rejects that token for its runner
+# commands, so it reads its own login; a CIRCLE_TOKEN in the environment would override that:
+#   circleci auth login
+#   unset CIRCLE_TOKEN
+#   read -rs CIRCLECI_API_TOKEN && export CIRCLECI_API_TOKEN
 #   uvx --from ansible-core ansible-playbook -i ansible/inventory.yml \
 #     ansible/raspberry_pi_runner.yml --ask-become-pass
+# Registers the Pi with CircleCI on the first run. The auto-login takes effect at the next reboot,
+# which this never does: rebooting ends the desktop session in use.
 - name: Set up the Raspberry Pi runner
   hosts: raspberry-pi-runner
   become: true
@@ -10,13 +18,62 @@
     # Add the runner's circleci user here once machine runner 3 is installed
     raspberry_pi_video_users:
       - "{{ ansible_user }}"
+      - circleci
+    raspberry_pi_circle_token: "{{ lookup('ansible.builtin.env', 'CIRCLECI_API_TOKEN') }}"
+    raspberry_pi_github_project: terrysimons/glitchygames
+    # The organization's id (public: /api/v2/project/gh/<project>'s organization_id). Without it
+    # the CLI uses the git remote of where it runs, and an API token cannot look up a slug (401)
+    raspberry_pi_circleci_org: c50c5385-12e3-4835-946b-67938ab70fdf
+    raspberry_pi_runner_config: /etc/circleci-runner/circleci-runner-config.yaml
+    raspberry_pi_runner_home: /var/lib/circleci
+    # Limits stay on the real hardware: no swap on the SD card, and the desktop keeps its memory
+    raspberry_pi_runner_memory_max: 2G
     # What the owner measures by hand with (nox -s measure-staged). The CI job installs its own.
     # Keep this at .circleci/config.yml's UV_VERSION (tests/test_ci_config.py checks it)
     raspberry_pi_uv_version: "0.13.6"
     raspberry_pi_uv_path: "/home/{{ ansible_user }}/.local/bin/uv"
+    # What the owner's pre-push hook measures in (scripts/measure_on_raspberry_pi.py names it),
+    # apart from any checkout in use here
+    raspberry_pi_measure_clone: "/home/{{ ansible_user }}/glitchygames-measure"
     # Without these, commits made here use an address built from the hostname
     raspberry_pi_git_name: "Terry Simons"
     raspberry_pi_git_email: "262790+terrysimons@users.noreply.github.com"
+
+  pre_tasks:
+    - name: Refuse to run without a CircleCI token
+      ansible.builtin.assert:
+        that: raspberry_pi_circle_token | length > 0
+        fail_msg: Export CIRCLECI_API_TOKEN first (see the top of this playbook)
+      become: false
+      run_once: true
+      delegate_to: localhost
+      no_log: true
+
+    # A fork's pull request could otherwise run its own code on this machine, and CircleCI
+    # refuses self-hosted runners on a public project with this on. The v1.1 API is the one that
+    # shows it (https://discuss.circleci.com/t/product-launch-override-only-build-prs-setting/47807)
+    - name: Read the project's CircleCI settings
+      ansible.builtin.uri:
+        url: "https://circleci.com/api/v1.1/project/github/{{ raspberry_pi_github_project }}/settings"
+        # Without this, the v1.1 API can answer in another format, and uri then sets no ``json``
+        headers:
+          Accept: application/json
+          Circle-Token: "{{ raspberry_pi_circle_token }}"
+      become: false
+      run_once: true
+      delegate_to: localhost
+      vars:
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      register: raspberry_pi_project_settings
+      no_log: true
+
+    - name: Refuse to run while forked pull requests are built
+      ansible.builtin.assert:
+        that: raspberry_pi_project_settings.json.feature_flags['build-fork-prs'] is false
+        fail_msg: Turn off "Build forked pull requests" in the CircleCI project's settings
+      become: false
+      run_once: true
+      delegate_to: localhost
 
   tasks:
     - name: Name the host after the Ubuntu it runs
@@ -30,6 +87,7 @@
       ansible.builtin.apt:
         name:
           - build-essential
+          - chrony
           - curl
           - fontconfig
           - git
@@ -38,6 +96,15 @@
         state: present
         update_cache: true
         cache_valid_time: 3600
+
+    # Rust built only taplo, which pyproject.toml's marker now leaves out on Linux ARM: without
+    # it, the job's first install proves nothing else needs it
+    - name: Remove the Rust toolchain
+      ansible.builtin.apt:
+        name:
+          - cargo
+          - rustc
+        state: absent
 
     - name: Read the installed uv version
       ansible.builtin.command:
@@ -73,6 +140,206 @@
       become: true
       become_user: "{{ ansible_user }}"
 
+    # update: false: the hook pushes each commit here and checks it out itself
+    - name: Clone the repository the pre-push hook measures in
+      ansible.builtin.git:
+        repo: "https://github.com/{{ raspberry_pi_github_project }}.git"
+        dest: "{{ raspberry_pi_measure_clone }}"
+        update: false
+      become: true
+      become_user: "{{ ansible_user }}"
+
+    # ?any=true: the script knows no Ubuntu this new otherwise
+    # (https://circleci.com/docs/runner/install-machine-runner-3-on-linux/)
+    - name: Add CircleCI's package repository
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          curl -fsS 'https://packagecloud.io/install/repositories/circleci/runner/script.deb.sh?any=true' |
+          bash
+        executable: /bin/bash
+        creates: /etc/apt/sources.list.d/circleci_runner.list
+
+    - name: Install machine runner 3
+      ansible.builtin.apt:
+        name: circleci-runner
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    # A shell and a home: gdm's auto-login and a desktop session need both. No sudo, and not in
+    # the owner's group, whose home holds a GitHub key
+    - name: Give the runner's user a desktop-capable account
+      ansible.builtin.user:
+        name: circleci
+        shell: /bin/bash
+        home: "{{ raspberry_pi_runner_home }}"
+        create_home: true
+      register: raspberry_pi_runner_user
+
+    - name: Read whether the runner has its token
+      ansible.builtin.command:
+        cmd: grep -cF '<< AUTH_TOKEN >>' {{ raspberry_pi_runner_config }}
+      register: raspberry_pi_runner_token_missing
+      changed_when: false
+      failed_when: raspberry_pi_runner_token_missing.rc > 1
+
+    - name: Register with CircleCI
+      when: raspberry_pi_runner_token_missing.rc == 0
+      block:
+        - name: List the namespace's resource classes
+          ansible.builtin.command:
+            cmd: circleci runner resource-class list --org {{ raspberry_pi_circleci_org }} --json
+          become: false
+          delegate_to: localhost
+          vars:
+            ansible_python_interpreter: "{{ ansible_playbook_python }}"
+          register: raspberry_pi_resource_classes
+          changed_when: false
+
+        - name: Create the resource class
+          ansible.builtin.command:
+            cmd: >-
+              circleci runner resource-class create {{ raspberry_pi_resource_class }}
+              --org {{ raspberry_pi_circleci_org }}
+              --description "Raspberry Pi 4 with a real display"
+          become: false
+          delegate_to: localhost
+          vars:
+            ansible_python_interpreter: "{{ ansible_playbook_python }}"
+          changed_when: true
+          when: raspberry_pi_resource_class not in raspberry_pi_resource_classes.stdout
+
+        # Shown once, and kept only in the runner's config
+        - name: Create the runner's token
+          ansible.builtin.command:
+            cmd: >-
+              circleci runner token create {{ raspberry_pi_resource_class }}
+              --nickname {{ raspberry_pi_hostname }} --json
+          become: false
+          delegate_to: localhost
+          vars:
+            ansible_python_interpreter: "{{ ansible_playbook_python }}"
+          register: raspberry_pi_runner_token
+          changed_when: true
+          no_log: true
+
+        - name: Refuse to write anything but a token
+          ansible.builtin.assert:
+            that: raspberry_pi_runner_token.stdout | regex_search('[A-Za-z0-9]{40,}') | length > 0
+            fail_msg: The CLI printed no token where one was expected; nothing was written
+          no_log: true
+
+        - name: Give the runner its token
+          ansible.builtin.replace:
+            path: "{{ raspberry_pi_runner_config }}"
+            regexp: '<< AUTH_TOKEN >>'
+            replace: "{{ raspberry_pi_runner_token.stdout | regex_search('[A-Za-z0-9]{40,}') }}"
+          no_log: true
+          notify: Restart the runner
+
+    - name: Keep the runner's config from other users
+      ansible.builtin.file:
+        path: "{{ raspberry_pi_runner_config }}"
+        owner: circleci
+        group: circleci
+        mode: "0600"
+
+    # The name, cleanup and limits, and the display of the session the auto-login starts
+    # (https://circleci.com/docs/runner/machine-runner-3-configuration-reference/)
+    - name: Create the runner unit's drop-in directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/circleci-runner.service.d
+        state: directory
+        mode: "0755"
+
+    # No battery-backed clock: the Pi boots with the date of its last shutdown until chrony syncs,
+    # and a job started before that has wrong timestamps and can fail TLS checks. Times out after
+    # chrony-wait's own 3 minutes, and the runner then starts anyway: After= does not need success
+    - name: Make time-sync.target wait for chrony's first sync
+      ansible.builtin.systemd_service:
+        name: chrony-wait
+        enabled: true
+
+    - name: Configure the runner's service
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Wants=time-sync.target
+          After=time-sync.target
+
+          [Service]
+          Environment=CIRCLECI_RUNNER_NAME={{ raspberry_pi_hostname }}
+          Environment=CIRCLECI_RUNNER_WORK_DIR={{ raspberry_pi_runner_home }}/workspace
+          Environment=CIRCLECI_RUNNER_CLEANUP_WORK_DIR=true
+          Environment=XDG_RUNTIME_DIR=/run/user/{{ raspberry_pi_runner_user.uid }}
+          Environment=WAYLAND_DISPLAY=wayland-0
+          MemoryMax={{ raspberry_pi_runner_memory_max }}
+          MemorySwapMax=0
+        dest: /etc/systemd/system/circleci-runner.service.d/hardware-runner.conf
+        mode: "0644"
+      notify: Restart the runner
+
+    - name: Start the runner at boot
+      ansible.builtin.systemd_service:
+        name: circleci-runner
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # The display is the job's: its session starts at boot, and the owner switches users to play
+    - name: Log the runner's user in at boot
+      ansible.builtin.blockinfile:
+        path: /etc/gdm3/custom.conf
+        insertafter: '^\[daemon\]'
+        block: |
+          AutomaticLoginEnable=true
+          AutomaticLogin=circleci
+
+    - name: Create the system's desktop defaults directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /etc/dconf/db/local.d
+        - /etc/dconf/profile
+
+    # A sleeping output stops presenting frames, and a locked session measures nothing
+    - name: Keep the desktop session's display on
+      ansible.builtin.copy:
+        content: |
+          [org/gnome/desktop/session]
+          idle-delay=uint32 0
+
+          [org/gnome/desktop/screensaver]
+          lock-enabled=false
+
+          [org/gnome/settings-daemon/plugins/power]
+          sleep-inactive-ac-type='nothing'
+        dest: /etc/dconf/db/local.d/00-hardware-runner
+        mode: "0644"
+      notify: Update the desktop defaults
+
+    - name: Make sure the desktop reads the system's defaults
+      ansible.builtin.copy:
+        content: |
+          user-db:user
+          system-db:local
+        dest: /etc/dconf/profile/user
+        force: false
+        mode: "0644"
+      notify: Update the desktop defaults
+
+    - name: Refuse a runner that could reach the owner's GitHub key
+      ansible.builtin.command:
+        cmd: test -r /home/{{ ansible_user }}/.ssh/github
+      become: true
+      become_user: circleci
+      register: raspberry_pi_key_check
+      changed_when: false
+      failed_when: raspberry_pi_key_check.rc == 0
+
     # /dev/vcio is root:root 0600 out of the box, so no group can read it and vcgencmd fails
     - name: Give /dev/vcio to the video group
       ansible.builtin.copy:
@@ -106,4 +373,15 @@
     - name: Apply the udev rule
       ansible.builtin.shell:
         cmd: udevadm control --reload && udevadm trigger --settle --name-match=vcio
+      changed_when: true
+
+    - name: Restart the runner
+      ansible.builtin.systemd_service:
+        name: circleci-runner
+        state: restarted
+        daemon_reload: true
+
+    - name: Update the desktop defaults
+      ansible.builtin.command:
+        cmd: dconf update
       changed_when: true
