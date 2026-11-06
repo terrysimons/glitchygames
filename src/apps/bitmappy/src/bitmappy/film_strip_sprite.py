@@ -685,8 +685,8 @@ class FilmStripSprite(BitmappySprite):
         # The image has an alpha channel by now. pygame-ce has no surfarray.array4d
         # (BUGS.md #87), so read the colour and alpha planes separately; both are
         # indexed [x, y], and the pixel list is row-major (y outer, x inner).
-        color_planes: Any = pygame.surfarray.array3d(image)  # type: ignore[reportUnknownMemberType]
-        alpha_plane: Any = pygame.surfarray.array_alpha(image)  # type: ignore[reportUnknownMemberType]
+        color_planes: Any = pygame.surfarray.array3d(image)
+        alpha_plane: Any = pygame.surfarray.array_alpha(image)
         pixels: list[tuple[int, ...]] = []
         for y in range(canvas_height):
             for x in range(canvas_width):
