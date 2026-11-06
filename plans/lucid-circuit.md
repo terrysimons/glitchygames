@@ -45,6 +45,8 @@ choosing it; or a game has to change to keep running without AI.
 | **`--ai` is on by default; `--no-ai` turns it off** | Session |
 | **No model uses memory until a game loads; sizes are picked then, from the machine's real state** | Session |
 | **A model unloads after 30 idle minutes by default, and that's tunable** | Session |
+| **Models load when the game loads** (not on first use) | Session |
+| **The AI service ships its own sidecar Python environment in its package directory. The engine is fully decoupled from it and talks over a socket** (WebSocket or REST: section 10, question 7) | Session |
 | **The existing wrapper is frozen: it's on every game, it's optimized, and it must not change** (section 4) | Session |
 | Two model roles: Qwen3-Embedding and Bonsai 2 | Brief |
 | Agents never run in the game's process or on its main thread | Brief |
@@ -66,7 +68,7 @@ Each row in section 3 that departs from the brief is a recommendation until the 
 | 7 | Audit an 11-way frame-capture matrix, including GPU readback | The engine draws to a CPU surface (`LayeredDirty`), and `SCALED` only adds a renderer for presenting. GPU readback, front/back buffers and shared textures don't apply to the frame the game draws. `FrameStream` (`replay/tools/compare.py`) already sends frames to another process | Shorten the audit to CPU options: a pooled shared-memory ring, downscaled copies and existing `tobytes`. Measure against `FrameStream` as the baseline. Note the rest as not applicable, with this reason. The game draws in place on the display surface, so a thread reading it would tear. `end_frame` should read frame N just after it's presented, with shake and overlays restored off the surface. Measured at 1080p (microbenchmark, GIL and contention not covered): a pooled blit takes about 0.17 ms and a shared-memory copy about 0.10 ms, against 1.3 ms for `tobytes`, so `FrameStream`'s method isn't the one to reuse |
 | 8 | Replay can step to any frame; a headless mirror follows live play | No state snapshots exist (`plans/future-work.md` lists them as a follow-up). Going back means rebuilding from the start in a new process (`--replay-pause-at-frame`). Recordings do flush line by line, but the reader always starts at byte 0 and nothing waits at the end of a growing file. Replays compare sprites and recorded events, **not pixels or other game state**, so "exact" can't mean identical pixels today. No shipped game enables instant replay | Start with a recent-frames ring. Treat checkpoints as their own project, shared with rollback and step-back. Mirror and branching wait for them. Headless replay is fast (PaddleSlap's golden ran at least 26x real time; one light game, one run), so rebuilding may be practical for short games |
 | 9 | A future TTS path and speech via whisper.cpp | `audio/tts.py` and `audio/voice_assistant.py` (used by Brave Adventurer Classic) already exist, but the assistant and `events/voice.py` (used by Bitmappy) send microphone audio to Google (`recognize_google`), and the assistant's default AI provider is remote | Reuse the pipeline and speaker path; replace its speech and AI calls with the local API in Stage 11. **Offline and privacy rules don't hold until then** |
-| 10 | A new FastAPI service | `glitchygames.api` already exists for sprite generation (`glitchygames-server`), but nothing except its own tests uses it. It has `allow_origins=['*']` and no authentication on any route. `fastapi`, `uvicorn`, `httpx` and `aisuite` (with 14 provider extras) are core engine dependencies, so anything depending on the engine inherits them all | Keep one API, in a member that doesn't import the engine, so the installer stays small. Bring over `glitchygames.api`'s sprite routes only if they're still wanted. Fix the CORS setting before local models sit behind it |
+| 10 | A new FastAPI service | `glitchygames.api` already exists for sprite generation (`glitchygames-server`), but nothing except its own tests uses it. It has `allow_origins=['*']` and no authentication on any route. `fastapi`, `uvicorn`, `httpx` and `aisuite` (with 14 provider extras) are core engine dependencies, so anything depending on the engine inherits them all (347 MB against 18 MB, measured) | **The service is its own project with its own sidecar environment, sharing no code with the engine** (owner, section 4). Bring over `glitchygames.api`'s sprite routes only if they're still wanted, and fix its CORS setting first |
 | 11 | Native tool calling, verified per model | Prism lists malformed and looping tool calls as open, and its tool-calling score is 74.92. Its template also needs exactly one leading system message and rejects `reasoning_effort: "high"` | Default to JSON-schema-constrained plans, with an adapter handling those template rules. Try native tool calls later as a measured option |
 | 12 | Numeric RAM thresholds only after measuring | Prism publishes no memory figures | The session's tiers (section 5) are provisional defaults, replaced in Stage 0 and Stage 5 by measurements |
 | 13 | Apache 2.0 for Qwen, to verify | Card metadata says `apache-2.0`, but neither the GGUF repositories nor `Qwen3-Embedding-0.6B` has a LICENSE file (404), and the card's text calls the model "proprietary" | Treat as a release blocker for players, not for the owner's own use. Record the evidence and ask a lawyer before shipping to players |
@@ -79,11 +81,11 @@ follows the content.
 ```text
  Game process (never waits)                 Agent process (one small pool)
  +--------------------------------+         +---------------------------+
- | GameHost: the wrapper (FROZEN) |         | python -m glitchygames.ai |
- | AiHostSources(HostSources):    |<------->|   .worker                 |
- |   pump_events: AI input        |  socket |   retrieval, planning     |
- |   end_frame: drain, observe    | bounded |   typed API client        |
- | beneath the recorder           | messages+-------------+-------------+
+ | GameHost: the wrapper (FROZEN) |         | The sidecar's own Python  |
+ | AiHostSources(HostSources):    |<------->|   agents                  |
+ |   pump_events: AI input        | a socket|   retrieval, planning     |
+ |   end_frame: drain, observe    | only    |   typed API client        |
+ | beneath the recorder           |         +-------------+-------------+
  +--------------------------------+                       | HTTP (async), token
                                                           v
  launchd (per user)         +------------------------------------------+
@@ -161,7 +163,7 @@ the game already handles, and ask for this only if they prove too limiting.
 | `GameEngine.__init__` (`game_engine.py:1397`) | Builds the host's doors | Builds `AiHostSources` by default, `HostSources` with `--no-ai` |
 | `Supervisor`, `post_input_event`, control events | Not the main path. Available for actions that need the supervisor slot | None |
 | `SceneManager.in_playback_scope`, `Scene.debug_subject` | Demos, instant replay and pause | The session holds proposals during a scope, and reads the paused game through `debug_subject` |
-| `process.py` (`start_command`, `stop_command`) | The engine's one subprocess launcher, with reaping | Starts workers as `python -m glitchygames.ai.worker`, which imports neither pygame nor the game. Bitmappy's global `set_start_method('spawn', force=True)` isn't copied |
+| `process.py` (`start_command`, `stop_command`) | The engine's one subprocess launcher, with reaping | Runs `ai-service.sh start` as the game loads, if the service is installed. Agents run in the sidecar, so the engine starts no Python worker of its own |
 | Crash boundary and teardown (`game_engine.py`) | Stops and reaps on every exit path | A worker exits on its own when its socket to the game closes, so a crash or a kill can't strand one and teardown needs no change. AI failure never changes the game's exit code |
 | `ContextSlot` (`engine_context.py`) | One state per running game; the Arcade runs several | The session is a slot, with an isolation check in `ISOLATION_CHECKS` |
 | `glitchygames.clock`, `random_stream` | Replay-safe time and randomness | Deadlines use `clock.elapsed_seconds`, not `time`. Anything measured stays diagnostic |
@@ -182,13 +184,18 @@ the game already handles, and ask for this only if they prove too limiting.
 
 ### Where the code goes
 
-- **`src/glitchygames/ai/`** (engine): the session, messages, worker entry point, typed client. Uses
-  only what the engine already depends on. The engine never imports a member, so this talks to the
-  service over HTTP only.
-- **A new workspace member for the service** (proposed: `src/apps/ai-service/`): the API app, llama.cpp
-  adapters and Scalar assets, importing no engine code. Its wheel is the installer's Python payload.
-  The apps layer avoids a new layer, which would mean editing `logical_names.LAYERS` and the workspace
-  guards. Slimming the engine's core dependencies is a separate sub-plan.
+- **`src/glitchygames/ai/`** (engine): `AiHostSources` and the socket client, nothing else. It imports no
+  service code and knows only the wire protocol, so a game runs unchanged with the service absent.
+- **The AI service, its own project with its own `pyproject.toml` and lock file, outside the uv
+  workspace** (proposed: `services/ai-service/`): the API, the agents, llama.cpp adapters and Scalar
+  assets. Outside the workspace, the rule that every member depends on the engine doesn't apply, and no
+  guard needs an exception. It needs its own test, lint, license and SBOM runs.
+- **The sidecar environment** (proposed: `~/Library/Application Support/GlitchyGames/AI/sidecar/`): a
+  standalone CPython and the service's packages, in the service's package directory. Tested 2026-11-06
+  by moving one to another folder: a venv failed to run, because it points at its Python by absolute
+  path, and every player's home differs. A bundled Python with packages in a plain folder used nothing
+  outside itself and served a request in 0.53 s (about 88 MB on disk, 62 MiB running). If it has to be a
+  real venv, `setup.sh` can create one on the player's Mac from the bundled Python, offline.
 - **`ansible/roles/llama_cpp/`** and **`packaging/macos/`**: build, install, `.pkg`.
 - **Models live outside the repository**, never under this Dropbox checkout. So does the llama.cpp
   build tree.
@@ -388,8 +395,10 @@ Most important first. Each has a default this plan uses until told otherwise.
    Default: yes.
 6. **Which models players get.** All four Bonsai sizes (13.93 GB) or just their default, with others
    on request? Doesn't block the owner's install. Default: just the default, for players.
-7. **Service package.** Should the service be a new member under `src/apps/`, with the unused
-   `glitchygames.api` kept, moved or removed? Default: new member; leave `glitchygames.api` alone for now.
+7. **The socket.** WebSocket or REST between the game and the service? Default: both, on one port. A
+   WebSocket for the live game link, as agents have to push proposals and cancellations to the game
+   without it polling, and REST for models, status and docs, as OpenAPI and Scalar document only REST.
+   `glitchygames.api` stays where it is for now.
 8. **Label prefix.** `ai.glitchygames.*`, or `games.glitchy.*`? Default: `ai.glitchygames.*`.
 
 ## 11. References
