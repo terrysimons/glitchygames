@@ -3290,166 +3290,6 @@
       "version": "50.0.2"
     },
     {
-      "cpe": "cpe:2.3:a:python-deepgram-sdk:python-deepgram-sdk:5.3.4:*:*:*:*:*:*:*",
-      "licenses": [
-        {
-          "license": {
-            "name": "MIT"
-          }
-        }
-      ],
-      "name": "deepgram-sdk",
-      "properties": [
-        {
-          "name": "syft:package:foundBy",
-          "value": "python-package-cataloger"
-        },
-        {
-          "name": "syft:package:language",
-          "value": "python"
-        },
-        {
-          "name": "syft:package:type",
-          "value": "python"
-        },
-        {
-          "name": "syft:package:metadataType",
-          "value": "python-uv-lock-entry"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-deepgram-sdk:python_deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_deepgram_sdk:python-deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_deepgram_sdk:python_deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-deepgram:python-deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-deepgram:python_deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_deepgram:python-deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_deepgram:python_deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:deepgram-sdk:python-deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:deepgram-sdk:python_deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:deepgram_sdk:python-deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:deepgram_sdk:python_deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-deepgram-sdk:deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-deepgram-sdk:deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_deepgram_sdk:deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_deepgram_sdk:deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:deepgram:python-deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:deepgram:python_deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-deepgram:deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-deepgram:deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_deepgram:deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_deepgram:deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:deepgram-sdk:deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:deepgram-sdk:deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:deepgram_sdk:deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:deepgram_sdk:deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:deepgram:deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:deepgram:deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:deepgram-sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:deepgram_sdk:5.3.4:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:location:0:path",
-          "value": "/uv.lock"
-        }
-      ],
-      "purl": "pkg:pypi/deepgram-sdk@5.3.4",
-      "type": "library",
-      "version": "5.3.4"
-    },
-    {
       "cpe": "cpe:2.3:a:python-dependency-groups:python-dependency-groups:1.3.2:*:*:*:*:*:*:*",
       "licenses": [
         {
@@ -13896,12 +13736,10 @@
       "version": "2026.7.11"
     },
     {
-      "cpe": "cpe:2.3:a:python-numpy:python-numpy:1.26.4:*:*:*:*:*:*:*",
+      "cpe": "cpe:2.3:a:python-numpy:python-numpy:2.5.4:*:*:*:*:*:*:*",
       "licenses": [
         {
-          "license": {
-            "name": "BSD License"
-          }
+          "expression": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0"
         }
       ],
       "name": "numpy",
@@ -13924,56 +13762,56 @@
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-numpy:python_numpy:1.26.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-numpy:python_numpy:2.5.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_numpy:python-numpy:1.26.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_numpy:python-numpy:2.5.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_numpy:python_numpy:1.26.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_numpy:python_numpy:2.5.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-numpy:1.26.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python-numpy:2.5.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_numpy:1.26.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:python_numpy:2.5.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:numpy:python-numpy:1.26.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:numpy:python-numpy:2.5.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:numpy:python_numpy:1.26.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:numpy:python_numpy:2.5.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-numpy:numpy:1.26.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python-numpy:numpy:2.5.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_numpy:numpy:1.26.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python_numpy:numpy:2.5.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:numpy:1.26.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:python:numpy:2.5.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:cpe23",
-          "value": "cpe:2.3:a:numpy:numpy:1.26.4:*:*:*:*:*:*:*"
+          "value": "cpe:2.3:a:numpy:numpy:2.5.4:*:*:*:*:*:*:*"
         },
         {
           "name": "syft:location:0:path",
           "value": "/uv.lock"
         }
       ],
-      "purl": "pkg:pypi/numpy@1.26.4",
+      "purl": "pkg:pypi/numpy@2.5.4",
       "type": "library",
-      "version": "1.26.4"
+      "version": "2.5.4"
     },
     {
       "cpe": "cpe:2.3:a:python-openai:python-openai:1.109.1:*:*:*:*:*:*:*",
@@ -21017,86 +20855,6 @@
       "version": "0.19.3"
     },
     {
-      "cpe": "cpe:2.3:a:python-scipy:python-scipy:1.17.1:*:*:*:*:*:*:*",
-      "licenses": [
-        {
-          "license": {
-            "name": "BSD License"
-          }
-        }
-      ],
-      "name": "scipy",
-      "properties": [
-        {
-          "name": "syft:package:foundBy",
-          "value": "python-package-cataloger"
-        },
-        {
-          "name": "syft:package:language",
-          "value": "python"
-        },
-        {
-          "name": "syft:package:type",
-          "value": "python"
-        },
-        {
-          "name": "syft:package:metadataType",
-          "value": "python-uv-lock-entry"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-scipy:python_scipy:1.17.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_scipy:python-scipy:1.17.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_scipy:python_scipy:1.17.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-scipy:1.17.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_scipy:1.17.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-scipy:scipy:1.17.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_scipy:scipy:1.17.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:scipy:python-scipy:1.17.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:scipy:python_scipy:1.17.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:scipy:1.17.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:scipy:scipy:1.17.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:location:0:path",
-          "value": "/uv.lock"
-        }
-      ],
-      "purl": "pkg:pypi/scipy@1.17.1",
-      "type": "library",
-      "version": "1.17.1"
-    },
-    {
       "cpe": "cpe:2.3:a:python:setuptools:84.2.1:*:*:*:*:*:*:*",
       "licenses": [
         {
@@ -21666,86 +21424,6 @@
       "purl": "pkg:pypi/sound-board-demo@1.0.0",
       "type": "library",
       "version": "1.0.0"
-    },
-    {
-      "cpe": "cpe:2.3:a:python-soundfile:python-soundfile:0.12.1:*:*:*:*:*:*:*",
-      "licenses": [
-        {
-          "license": {
-            "name": "BSD 3-Clause License"
-          }
-        }
-      ],
-      "name": "soundfile",
-      "properties": [
-        {
-          "name": "syft:package:foundBy",
-          "value": "python-package-cataloger"
-        },
-        {
-          "name": "syft:package:language",
-          "value": "python"
-        },
-        {
-          "name": "syft:package:type",
-          "value": "python"
-        },
-        {
-          "name": "syft:package:metadataType",
-          "value": "python-uv-lock-entry"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-soundfile:python_soundfile:0.12.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_soundfile:python-soundfile:0.12.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_soundfile:python_soundfile:0.12.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python-soundfile:soundfile:0.12.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python_soundfile:soundfile:0.12.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:soundfile:python-soundfile:0.12.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:soundfile:python_soundfile:0.12.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python-soundfile:0.12.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:python_soundfile:0.12.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:soundfile:soundfile:0.12.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:cpe23",
-          "value": "cpe:2.3:a:python:soundfile:0.12.1:*:*:*:*:*:*:*"
-        },
-        {
-          "name": "syft:location:0:path",
-          "value": "/uv.lock"
-        }
-      ],
-      "purl": "pkg:pypi/soundfile@0.12.1",
-      "type": "library",
-      "version": "0.12.1"
     },
     {
       "cpe": "cpe:2.3:a:python-speechrecognition:python-speechrecognition:3.17.0:*:*:*:*:*:*:*",
@@ -25310,7 +24988,7 @@
         "pkg:pypi/mkdocstrings@1.0.8",
         "pkg:pypi/mr-muncher@1.0.0",
         "pkg:pypi/nox@2026.7.11",
-        "pkg:pypi/numpy@1.26.4",
+        "pkg:pypi/numpy@2.5.4",
         "pkg:pypi/packaging@26.3",
         "pkg:pypi/paddleslap@1.0.0",
         "pkg:pypi/pillow@13.0.0",
@@ -25344,7 +25022,7 @@
       "dependsOn": [
         "pkg:pypi/aisuite@0.2.0",
         "pkg:pypi/glitchygames@1.0.0",
-        "pkg:pypi/numpy@1.26.4",
+        "pkg:pypi/numpy@2.5.4",
         "pkg:pypi/pydantic@2.14.2",
         "pkg:pypi/pygame-ce@2.5.8",
         "pkg:pypi/tenacity@9.1.4"
@@ -25390,7 +25068,6 @@
         "pkg:pypi/boto3@1.43.123",
         "pkg:pypi/cerebras-cloud-sdk@1.91.0",
         "pkg:pypi/cohere@5.21.1",
-        "pkg:pypi/deepgram-sdk@5.3.4",
         "pkg:pypi/docstring-parser@0.18.0",
         "pkg:pypi/google-genai@2.34.0",
         "pkg:pypi/groq@0.37.1",
@@ -25399,11 +25076,8 @@
         "pkg:pypi/mcp@1.30.0",
         "pkg:pypi/mistralai@1.12.4",
         "pkg:pypi/nest-asyncio@1.6.0",
-        "pkg:pypi/numpy@1.26.4",
         "pkg:pypi/openai@1.109.1",
-        "pkg:pypi/pydantic@2.14.2",
-        "pkg:pypi/scipy@1.17.1",
-        "pkg:pypi/soundfile@0.12.1"
+        "pkg:pypi/pydantic@2.14.2"
       ]
     },
     {
@@ -25867,15 +25541,6 @@
     },
     {
       "dependsOn": [
-        "pkg:pypi/httpx@0.28.1",
-        "pkg:pypi/pydantic-core@2.50.2",
-        "pkg:pypi/pydantic@2.14.2",
-        "pkg:pypi/typing-extensions@4.16.0",
-        "pkg:pypi/websockets@17.4"
-      ]
-    },
-    {
-      "dependsOn": [
         "pkg:pypi/huggingface-hub@2.4.0"
       ]
     },
@@ -25922,7 +25587,7 @@
       "dependsOn": [
         "pkg:pypi/jinja2@3.1.6",
         "pkg:pypi/narwhals@2.28.0",
-        "pkg:pypi/numpy@1.26.4",
+        "pkg:pypi/numpy@2.5.4",
         "pkg:pypi/packaging@26.3",
         "pkg:pypi/pillow@13.0.0",
         "pkg:pypi/pyyaml@6.0.3",
@@ -25999,12 +25664,7 @@
     },
     {
       "dependsOn": [
-        "pkg:pypi/numpy@1.26.4"
-      ]
-    },
-    {
-      "dependsOn": [
-        "pkg:pypi/numpy@1.26.4",
+        "pkg:pypi/numpy@2.5.4",
         "pkg:pypi/python-dateutil@2.9.0.post0",
         "pkg:pypi/pytz@2026.6",
         "pkg:pypi/tzdata@2026.6"

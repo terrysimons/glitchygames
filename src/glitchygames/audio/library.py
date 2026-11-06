@@ -556,7 +556,7 @@ class Sound:
             else np.repeat(samples[:, np.newaxis], channel_count, axis=1)
         )
         # pygame.sndarray.make_sound has incomplete type stubs for its ndarray parameter
-        self._mixer_sound = pygame.sndarray.make_sound(np.ascontiguousarray(frames))  # pyright: ignore[reportUnknownMemberType]
+        self._mixer_sound = pygame.sndarray.make_sound(np.ascontiguousarray(frames))
         self._mixer_settings = settings
         self._mixer_bytes = int(frames.nbytes)
         return self._mixer_sound
@@ -1274,7 +1274,7 @@ def _decode_recorded_file(sound: Sound) -> None:
             message = f'{path}: cannot be loaded: {error}'
             raise SoundAssetError(message) from error
         # pygame.sndarray.array has incomplete type stubs
-        frames: Int16Array = pygame.sndarray.array(mixer_sound)  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        frames: Int16Array = pygame.sndarray.array(mixer_sound)
         samples = _as_mono(frames)
         sound.install(
             samples_float=samples / PCM16_SCALE,

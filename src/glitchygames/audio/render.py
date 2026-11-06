@@ -388,7 +388,7 @@ def _noise_samples(
     # Summed in hertz then divided, so a clock that divides the rate steps on exact frames
     steps = np.floor((np.cumsum(clock) - clock) / sample_rate).astype(np.int64)
     # numpy's stubs for Generator.integers name generic types basedpyright cannot resolve
-    start = int(generator.integers(len(sequence)))  # pyright: ignore[reportUnknownMemberType]
+    start = int(generator.integers(len(sequence)))
     return sequence[(start + steps) % len(sequence)]
 
 

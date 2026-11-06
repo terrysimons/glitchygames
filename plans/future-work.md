@@ -624,10 +624,8 @@ only replays; Part 2 Task 1).
   - **The gates** come from the worst-case tier, from the slower of its two OSes.
 
   Things to settle first:
-  - **Wheels:** `uv.lock` resolves numpy to 1.26.4, which has no prebuilt wheel for Python 3.14
-    on any platform, so every install builds numpy from source (slow on a Pi, and it needs a
-    compiler). miniaudio 1.71 has no Linux ARM64 wheel. pygame-ce 2.5.8 has one
-    (`manylinux2014_aarch64`). Find what keeps numpy below 2.x.
+  - **Wheels:** numpy has a Linux ARM64 wheel since 2.x. miniaudio 1.71 has no Linux ARM64 wheel,
+    so it still compiles. pygame-ce 2.5.8 has one (`manylinux2014_aarch64`).
   - **Audio output:** the Pi 5 has no 3.5 mm jack (HDMI, USB or I2S audio only); the Pi 4 has one.
   - **The SD card** is the worst-case tier's boot storage on purpose, so the disk cache is
     measured there as is. Record the card's model, since cards differ a lot.
@@ -842,8 +840,6 @@ Engine time (today's rows):
   `install-deps-posix` installs uv's.
 - **CPU governor and power profile.** Now `ondemand` and `balanced`; try `performance`. May help the
   slowest frames more than the medians, as the clock ramps less.
-- **Newer `numpy`.** `uv.lock` holds 1.26.4, with no wheels, so it compiles here. Find out what holds it
-  there; a newer one could bring wheels and faster elementwise loops, on every platform.
 - **`pygame-ce` and SDL built for the Cortex-A72** (`-mcpu=cortex-a72`), not the generic ARM wheel. Most
   work to keep up; only if the profile points there.
 - **Garbage collection pauses.** Single slow frames (Drawing Fire: p99 6.8 ms, max 48 ms). Unconfirmed:
