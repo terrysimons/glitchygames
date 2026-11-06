@@ -288,7 +288,11 @@ changes". They stay in the pending file after a deploy, so they remain visible l
    adds one small file per recording to the commit, under <code>quality/replay-ledger/</code>. A docs commit
    after a measured one is instant; code that arrived by a merge from <code>main</code> or a rebase is
    measured by the next commit (or by hand: <code>nox -s measure-staged</code>, then commit, which also
-   adds a machine without the hook). <code>SKIP=replay-metrics git commit ...</code> skips it.</li>
+   adds a machine without the hook). <code>SKIP=replay-metrics git commit ...</code> skips it.
+   A pre-push hook (<code>scripts/measure_on_raspberry_pi.py</code>) measures the same way on a Raspberry Pi
+   and copies its row files here, staged. A push that brings rows stops so they can be committed,
+   and the next one goes through (by hand: <code>nox -s measure-on-raspberry-pi</code>;
+   <code>SKIP=raspberry-pi-replay-metrics git push ...</code> skips it).</li>
 <li><strong>The site shows what landed on <code>main</code>.</strong> Every docs build reads the repository's row files
    and keeps each row whose code tree is the code tree of the commit that added its file: on
    <code>main</code>, the squash merge, so each is shown under the commit its code landed in (code that
@@ -357,7 +361,7 @@ CRITICAL record a run): a logger that does has a level set behind the command li
 (BUGS.md #236), which <code>tests/replay/test_replays_log_quietly.py</code>
 and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary test run.</p>
 <p>Until a build generates them, this page has only this text.</p>
-<p>Generated from 227 ledger rows (1582 in the repository, 220 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
+<p>Generated from 227 ledger rows (1582 in the repository, 227 published, 0 pending). The ledger: <a href="../metrics/replay-ledger.jsonl">replay-ledger.jsonl</a>.</p>
 <h2 id="latest-measurements">Latest measurements<a class="headerlink" href="#latest-measurements" title="Permanent link">#</a></h2>
 <table>
 <thead>
