@@ -4,6 +4,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 261. The Partial-Commit Refusal Test Returned SUCCESS Once in a Full Run (Suspected Order Dependence)
+- **Description**: In one full `uv run pytest` on branch `worktree-ai-service-ansible` (2026-11-07), `tests/test_measure_staged_replays.py::test_a_partial_commit_that_needs_measuring_is_refused` failed: the hook returned `SUCCESS`, not `OPTIONS_REFUSED`. `glitchygames unmeasured` reported nothing to measure, so the hook said "already measured" before it reached the partial-commit check. The test passed alone, in three parallel reruns, and in the next full run
+- **Status**: Open (not reproduced). Suspected: state left by another test on the same xdist worker (a ledger, rows directory or settings the `unmeasured` child reads) made every recording look measured
+- **Priority**: Low (intermittent; would fail a run at random)
+- **Reporter**: Claude, during the AI behaviour suite's full checks, 2026-11-07
+- **Date Reported**: 2026-11-07
+- **Details**: Next step: replay the failing worker's test order (`-p randomly` with the run's seed, or `nox -s test-random` until it recurs), then bisect the tests that ran before it on that worker
+- **Files**: `tests/test_measure_staged_replays.py`, `scripts/measure_staged_replays.py`
+
 ### 255. Inner Pytest Runs Were Shuffled, So Tests Running Them Presented Different Frames Each Run
 - **Description**: The first full `compare-drivers` pre-push run (2026-11-02) failed on `tests/test_frame_fingerprints.py::TestRecordingARun::test_without_the_option_nothing_is_recorded` (frame 0, all 480,000 pixels), with two tests of the same class listed nondeterministic; a full local run had flagged two of them the same way. Not a driver dependence: on dummy alone, with only the inner run's seed changing, the test presented `e0f4..` first in some runs and `657a..` in others. Its inner pytest run (pytester) printed a new `--randomly-seed` every time: pytest-randomly, added the same day, is blocked by the project's addopts, which an inner run does not read, so every inner run shuffled its tests, and what they presented and left behind depended on that order
 - **Status**: Fixed (2026-11-02, bug sweep: `tests/harness.py`'s autouse `inner_runs_keep_their_order` adds `-p no:randomly` to `PYTEST_ADDOPTS` for every test that uses `pytester`, after pytester is made (making it deletes `PYTEST_ADDOPTS`); in process and subprocess inner runs read it, and the outer run, which read it already, stays shuffled. Four runs then presented the same frames in the written order. Tests: `tests/test_inner_runs.py`)

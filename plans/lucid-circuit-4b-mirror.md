@@ -69,10 +69,12 @@ the sprites, read one, then answered), but combined a speed's two parts by addin
 | `get_sprite(id)` | Every plain attribute, read without running properties, with speed and direction worked out |
 | `get_game_facts()` | What the game reports of itself (`describe_for_ai()`) |
 | `calculate(expression)` | Arithmetic, so the model doesn't guess |
+| `read_source(name)` | The code of a class or method, one method at a time or a short list of where to look, within a size limit. For any question about how a mechanic works, the model reads the source and quotes the lines that decide it, never inventing physics (the owner, 2026-11-07, after 2B explained Clockwork Keep's one-way platforms with physics that isn't there). The startup task reads the code with it too |
 | Later: `history(from_frame, to_frame)` | Events and changes over a window, for the "why" questions |
 | Later: `draw_*` | Overlay drawings: highlight, curve, marker |
 | Later: `screenshot(frame)` | A picture of that frame, rendered in the clone or a copy (replaying to a past frame), scaled down and sent to the model's vision part. Never part of ordinary reads (`ai_introspection.NEVER_READ`), as rendering on every read would cost too much. A picture costs hundreds to thousands of tokens, so the tests measure it; it's drawn on the dummy driver, which can differ from the screen, and the answer says so (the owner, 2026-11-07; Stage 8's simplest form) |
 | Later: `try_in_copy(events)` | Inputs run through a disposable copy, and what happened |
+| Later: `set_in_copy`, `call_in_copy`, `run_in_copy(python)` | Anything in a disposable copy: set attributes, call methods, run the AI's own Python, including changing code at runtime: replacing methods, wrapping them in decorators, patching classes, swapping an object's class. The AI may manipulate a copy any way it wishes (the owner, 2026-11-07); the live game stays reachable only through validated events, and the sandbox keeps the copy off the network and out of the owner's files |
 
 Each call is another turn of generation, so a Live question should need few. The description pushed today stays as a
 fallback until the tools exist.
@@ -179,8 +181,8 @@ a reference the tests check the model's mechanics against, catching invented rul
   1. **Input search in copies:** game-agnostic, no generated code. It gives a best route, drawn as a curve on the
      overlay, and which platforms can't be reached, coloured red.
   2. **Saved findings:** jump reach and the like, kept as facts for later questions.
-  3. **Model-written code (a planner, say), in sandboxed copies only:** no network, no writes outside a scratch folder,
-     under the approval rule in section 8 of the master plan.
+  3. **Model-written code (a planner, say), run freely in sandboxed copies:** no network, no writes outside a scratch
+     folder. Only installing code on the live game needs the owner's approval (section 8 of the master plan).
 
   The hard parts: a copy at frame N replays from frame 0 until checkpoints exist, and forking the clone's process on
   macOS needs testing; copies use CPU and memory within a budget behind the live game and the clone; copies drift as the

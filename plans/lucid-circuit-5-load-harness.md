@@ -63,7 +63,7 @@ seconds after the frame it describes:
 | Testing | Checking the model: false premises, refusals |
 | Performance | Debugging timing and frame cost |
 | Visual | The answer is drawn on the overlay (an unreachable platform in red, the best route as a curve) |
-| Code | The answer is Python, shown in the console and never run |
+| Code | The answer is Python: run freely in a copy of the game, and shown in the console for anything meant for the live game |
 
 **Clockwork Keep, as the owner reviewed it:** floor, lives and score (live, base context); can Tinker reach that
 platform, and colour it red if not (analysis, visual); the nearest cog and its worth (live, analysis); when the
@@ -71,6 +71,28 @@ elevator arrives (testing: it doesn't move); why Tinker fell through a platform,
 (analysis); the best route up, drawn as a curve (analysis, visual); scoring (base context); whether the frame-time cap
 slows a jump (testing, performance); an extra life, explained as impossible, with a Python draft (code, testing); how
 Gear Works differs from the Boiler Room (analysis, base context).
+
+**Built (2026-11-07):** `scripts/ai_behaviour/` (capture snapshots from real recordings, stand-in tools over them,
+the 50 questions with checks that work out the expected answers by code, a runner with a tool loop, and
+`report.py` for the statistics), tested by `tests/test_ai_behaviour.py`. Snapshots aren't committed: `uv run python
+-m scripts.ai_behaviour.capture GAME` writes them. Findings, all on 2B, five passes per question (250 answers a run):
+
+| Run | Passed | Overflows | What changed |
+|---|---|---|---|
+| 8K, 16 rounds | 118 (47%) | 6 | Up to 16 tool rounds, a nudge 2 before the end, repeated calls answered with a note (8 rounds had left 16 of 150 still exploring) |
+| 16K, same code | 109 (44%) | 0 | Only the context; the largest answer used 8,912 tokens |
+| 8K, helpful errors | 104 (42%) | 5 | A wrong name gets what does exist |
+| 8K, each game's own examples | 123 (49%) | 5 | `read_source`'s examples had been Clockwork Keep's for every game, and 2B copied them |
+| 8K, forgiving names | 107 (43%) | 7 | A leading `scene.`, quoted ids, a class with one sprite |
+
+- **The noise is about ±8 points a run,** with near-identical code (104 to 123), so one run can't show a change in
+  passes smaller than that; tool error rates are steadier (`read_source` 64% → 34%, `get_sprite` 10% → 3%). Next:
+  paired runs, old and new code interleaved on one server.
+- **8K overflows in about 2.4% of answers,** 16K in none, at no measurable cost in answers and about 0.3 GB more
+  memory: 8K only where memory forces it.
+- **The opening is about 1,800 tokens** (prompt, tools, mechanics): 22% of 8K before the question.
+- **Still weak:** visual (20-33%) and code (4-28%); `get_object` still fails about 60% of the time, mostly asking
+  for sprites (`ground`, `walls`) as objects.
 
 ## Part 3: frames beside a real game
 

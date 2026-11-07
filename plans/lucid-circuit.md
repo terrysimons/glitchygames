@@ -14,7 +14,9 @@
   whole platform, so the name is the project's, not a change to that decision.
 - **Sub-plans:** this is the master plan. Each stage gets its own `plans/lucid-circuit-<stage>.md`
   when it starts, linked from here and linking back: [Stage 1](lucid-circuit-1-local-service.md),
-  [Stage 3](lucid-circuit-3-engine-connection.md), [Stage 4](lucid-circuit-4-console.md).
+  [Stage 3](lucid-circuit-3-engine-connection.md), [Stage 4](lucid-circuit-4-console.md),
+  [Stage 4b](lucid-circuit-4b-mirror.md), [Stage 5](lucid-circuit-5-load-harness.md),
+  [Stage 10b](lucid-circuit-10b-self-improvement.md).
 
 ## 1. Goal
 
@@ -361,6 +363,7 @@ small end-to-end result first, and proves frame safety before AI is on by defaul
 | 8 | **Frame context and vision** | CPU capture audit with numbers; sampled frames to Bonsai with bounded frame age and no hitches beyond budget; capture off is the fallback |
 | 9 | **Recent history** | Interesting-event markers, before/after windows, the contact-sheet comparison against single and multiple images, using the journal and ring |
 | 10 | **Checkpoints and headless lab** | State snapshots (own design, shared with step-back and rollback); then reset/step/observe episodes and branch experiments, each branch a disposable copy of the clone (Stage 4b) |
+| 10b | **The AI teaches itself each game** ([sub-plan](lucid-circuit-10b-self-improvement.md)) | From a cold start the AI asks itself questions, tests hypotheses in copies, turns accepted rules into tools (each announced in the console), and plays the game-over screen's AI demo, which starts over as each mechanic is plumbed in and gets visibly better; knowledge survives a restart; a planted wrong rule is overturned by the game; an AI demo that installed code leaves the live game as it was |
 | 11 | **Local speech** | whisper.cpp behind the API; `voice_assistant.py` moved onto it; nothing leaves the machine; push-to-talk first; voice debugger |
 | 12 | **Players' release** | Signed and notarized; license review done; tiers measured on real low-end Macs; download consent; clean-machine, upgrade, rollback and uninstall tests |
 | Later | Creative lab experiments run from Stage 6 on as content allows. Twitch, LiteLLM/HAProxy/nginx, `glitchygames.ai` and subscriptions stay as the brief's studies, each gated by evidence from earlier stages | |
@@ -371,8 +374,8 @@ small end-to-end result first, and proves frame safety before AI is on by defaul
 |---|---|---|
 | Bonsai isn't fast or reliable enough for interesting behaviour on ordinary Macs | The feature's appeal shrinks to slow, high-end use | Stage 0 and Stage 4 answer this early and cheaply. Stage 5 compares the sizes on the owner's Mac, so a smaller size's answers and memory are known early, but Stage 12's smaller Macs are the real test of speed |
 | GPU contention hurts the game even with perfect process isolation | Frame hitches on Macs where both share a GPU | Stage 5 throttle. Long kernels can't be pre-empted, so cap work unit size |
-| Runtime patching and reversal is unreliable in Python | Hard-to-undo changes, broken saves | Prefer declared capabilities. Patches are a labelled experiment, off by default |
-| AI-written proposals act on prompt-injected content (Twitch, assets, retrieved text) | Unwanted game changes | Proposals are data, validated on the main thread against an allowlist. AI-written Python is shown in the console only, never run (the owner, 2026-11-07). Later, installing code on a live object needs the owner's approval in the console each time, and code tried in copies of the game runs in a sandbox with no network and no writes outside a scratch folder ([Stage 4b](lucid-circuit-4b-mirror.md)) |
+| Runtime patching and reversal is unreliable in Python | Hard-to-undo changes, broken saves | In the AI's copies, patching is allowed freely, including replacing methods, decorators and changing classes (the owner, 2026-11-07): a copy is thrown away, so nothing needs undoing, and its saves are in memory. The live game is never patched by the AI; a change reaches it only as a validated event, or as code the owner approves |
+| AI-written proposals act on prompt-injected content (Twitch, assets, retrieved text) | Unwanted game changes | Proposals are data, validated on the main thread against an allowlist. In the AI's copies of the game (the clone's copies, on the dummy driver) the AI may do anything: set attributes, call methods, run its own Python (the owner, 2026-11-07). The live game is reached only through validated events, and installing code on a live object needs the owner's approval in the console each time. Copies run inside an operating-system sandbox with no network and no writes outside a scratch folder ([Stage 4b](lucid-circuit-4b-mirror.md)) |
 | An upgrade breaks correct output silently (older builds give gibberish without errors) | Silent garbage | Smoke test checks answers; every tag change repeats it |
 | A brief this large never finishes | Effort spreads across research with nothing usable | Stages stop independently; each one delivers something. Stage 4 is the first decision point |
 

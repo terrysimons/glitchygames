@@ -595,6 +595,14 @@ only replays; Part 2 Task 1).
   frames). Draw it as a diagram for review, turn it into the system prompt's instructions, and add a behaviour test per
   branch (plans/lucid-circuit-5-load-harness.md, Part 2b).
 
+- **A `/gist` mode in the AI console** (the owner, 2026-11-07): `/gist enable` and `/gist disable`. While
+  enabled, the AI considers what each request most likely means and answers that. When it can't
+  reasonably choose between readings, it says so instead of guessing: it explains the ambiguity,
+  lists the readings, and asks which was meant. Show the mode in `/ai` and the AI debug panel, keep
+  it per game like the history, and add behaviour tests (plans/lucid-circuit-5-load-harness.md,
+  Part 2b) with deliberately ambiguous questions: one with a clear likeliest meaning, which should
+  be answered, and one with no clear winner, which should be asked about.
+
 ## Games
 
 - **Convert Drawing Fire to sprites** (the owner, 2026-11-07). It draws its soldiers, sandbags and bullets straight
