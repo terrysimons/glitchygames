@@ -7,7 +7,13 @@ ai_service_bonsai_tiers:
   - {minimum_memory_mb: 16384, size: "4b"}
   - {minimum_memory_mb: 24576, size: "9b"}
   - {minimum_memory_mb: 32768, size: "27b"}
-# Set to always use one size: written to config/selection.env, where ai-service.sh reads it
+# The size every run uses unless a size was chosen by hand (the owner, 2026-11-07: "we're just going
+# to stick with the 2B model for the foreseeable future"). Built into bin/ai-service.sh and the
+# package's setup, which downloads only it; empty chooses the largest size that fits, by the tiers
+# above. A size that doesn't fit what's free still gets nothing
+ai_service_default_bonsai_size: "2b"
+# A size chosen by hand: written to config/selection.env, where ai-service.sh and the package's
+# setup read it, beating the default. AI_BONSAI_SIZE beats both for one run
 ai_service_bonsai_size: ""
 ai_service_qwen_size: "0.6b"
 

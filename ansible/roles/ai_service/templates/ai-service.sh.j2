@@ -59,8 +59,10 @@ files_present() {
 }
 
 # Physical memory says what a machine can ever run, and free memory what it can run now. Overrides
-# are for testing the choice, and selection.env for a user who picks a size by hand. AI_BONSAI_SIZE
-# beats selection.env for one run: a size that isn't downloaded, or doesn't fit, still gets nothing
+# are for testing the choice, and selection.env for a user who picks a size by hand. The default size
+# (ai_service_default_bonsai_size; empty: the largest that fits) gives way to selection.env, and
+# AI_BONSAI_SIZE beats both for one run: a size that isn't downloaded, or doesn't fit, still gets
+# nothing
 select_sizes() {
     memory_mb=${AI_MEMORY_MB:-$(( $(sysctl -n hw.memsize) / 1048576 ))}
     free_percent=${AI_FREE_PERCENT:-$(sysctl -n kern.memorystatus_level)}
@@ -69,7 +71,7 @@ select_sizes() {
 
     bonsai_size=""
     qwen_size={{ ai_service_qwen_size }}
-    bonsai_override=""
+    bonsai_override={{ ai_service_default_bonsai_size | quote }}
     if [ -f "$config/selection.env" ]; then
         . "$config/selection.env"
     fi

@@ -603,11 +603,11 @@ only replays; Part 2 Task 1).
   Part 2b) with deliberately ambiguous questions: one with a clear likeliest meaning, which should
   be answered, and one with no clear winner, which should be asked about.
 
-- **Deferred: a 2B-only size picker** (the owner, 2026-11-07: "we're just going to stick with the 2B
-  model for the foreseeable future"). Agreed earlier: `bin/ai-service.sh` would always choose 2B and
-  only vary its context by free memory (full, then 32K, then 8K, then none), with Qwen starting with
-  the game as it does today. The service still picks the largest size that fits; until this is built,
-  use `config/selection.env` or `AI_BONSAI_SIZE` (Stage 5, Part 1) to pin 2B.
+- **Deferred: choosing 2B's context by free memory** (the owner, 2026-11-07: "we're just going to
+  stick with the 2B model for the foreseeable future"). Every run already uses 2B
+  (`ai_service_default_bonsai_size`, plans/lucid-circuit.md section 5), at its full context, or
+  nothing when that doesn't fit. Agreed earlier and deferred: step down instead, full context, then
+  32K, then 8K, then none, with Qwen starting with the game as it does today.
 
 ## Games
 

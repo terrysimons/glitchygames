@@ -119,7 +119,7 @@ that path adds no code to any frame. A replay has no host, so it never runs.
 
 | Situation | Behaviour |
 |---|---|
-| A live game, service installed | As the game loads, `bin/ai-service.sh start` picks sizes from physical and free memory and starts them, without the frame loop waiting. The worker proposes nothing until something asks: the console, or a game that enables an agent |
+| A live game, service installed | As the game loads, `bin/ai-service.sh start` starts Bonsai 2B and Qwen when free memory allows (section 5, "2B by default"), without the frame loop waiting. The worker proposes nothing until something asks: the console, or a game that enables an agent |
 | Not enough memory free | `ai-service.sh` reports it and starts nothing; the game plays on with AI unavailable |
 | AI idle during play | The model unloads after 30 minutes (down to about 150 MiB) and reloads on the next request, in seconds |
 | The last game exits | Its WebSocket closes, and 30 s later the service stops the models and itself. It counts sessions, so one game leaving doesn't take the models from another, and a crashed game's socket closes the same way |
@@ -258,6 +258,12 @@ takes the largest size that the physical-memory table below allows, that's downl
 reserved memory plus Qwen's fits in free memory (`kern.memorystatus_level`) less 2 GB for the game. If
 none fits, AI is unavailable for that run. Tested with faked figures: 128 GB with 12% free picks 9B, and
 with 3% free picks nothing. A hand-picked size goes in `config/selection.env`.
+
+**2B by default (the owner, 2026-11-07).** "We're just going to stick with the 2B model for the
+foreseeable future": every run uses 2B (`ai_service_default_bonsai_size`, built into the script and the
+package's setup, which downloads only it), still started only when it fits what's free. A hand-picked
+`selection.env`, or `AI_BONSAI_SIZE` for one run, beats it; an empty default brings back the largest that
+fits. Choosing 2B's context by free memory is deferred (plans/future-work.md).
 
 **Physical-memory ceilings (provisional).** Reserved memory and speed were measured on the owner's M4 Max
 (128 GB) at `b12167` on 2026-11-06, with every layer on Metal and `graph splits = 1`. Reserved memory

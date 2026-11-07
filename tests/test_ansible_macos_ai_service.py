@@ -88,6 +88,25 @@ def test_the_memory_tiers_catch_every_machine_and_name_real_sizes():
     assert {tier['size'] for tier in tiers} <= set(models['ai_models_bonsai'])
 
 
+def test_every_run_uses_2b_unless_a_size_was_chosen_by_hand():
+    """2B for the foreseeable future (the owner, 2026-11-07), on the owner's Mac and a player's.
+
+    Without the default, a 128 GB Mac would load 27B: the largest size that fits.
+    """
+    models = role_defaults(role='ai_models')
+    service = role_defaults(role='ai_service')
+    starts_from_the_default = 'bonsai_override={{ ai_service_default_bonsai_size | quote }}'
+
+    assert service['ai_service_default_bonsai_size'] == '2b'
+    assert service['ai_service_default_bonsai_size'] in models['ai_models_bonsai_sizes']
+    assert not service['ai_service_bonsai_size'], 'a hand-picked size belongs in selection.env'
+    for template in ('ai_service/templates/ai-service.sh.j2', 'ai_package/templates/setup.sh.j2'):
+        script = (ROLES / template).read_text(encoding='utf-8')
+        assert script.count(starts_from_the_default) == 1, template
+        # The user's choice is read after the default, so it wins
+        assert script.index(starts_from_the_default) < script.index('. "$config/selection.env"')
+
+
 def test_the_agents_listen_on_loopback_only():
     """The script is what starts every model server, on the owner's Mac and on a player's."""
     runner = (ROLES / 'ai_service' / 'templates' / 'run-llama-server.sh.j2').read_text(

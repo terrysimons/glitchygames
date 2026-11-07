@@ -34,8 +34,8 @@ if [ "$memory_mb" -ge {{ tier.minimum_memory_mb }} ]; then bonsai_size={{ tier.s
 {% endfor %}
 qwen_size={{ ai_service_qwen_size }}
 
-# A choice the user made stays
-bonsai_override=""
+# The default size (empty: the one memory allows), then a choice the user made, which stays
+bonsai_override={{ ai_service_default_bonsai_size | quote }}
 if [ -f "$config/selection.env" ]; then
     . "$config/selection.env"
 fi

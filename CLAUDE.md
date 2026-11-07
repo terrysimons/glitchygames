@@ -184,7 +184,8 @@ nox -s docs-serve          # Serve the docs locally (same strict build, graphs i
 # unsigned .pkg, everything created by the playbook. No root. macOS on Apple Silicon, with Xcode and
 # CMake already installed. First run downloads 14.57 GB; running it again changes nothing
 uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml
-# Nothing runs until asked: ai-service.sh start picks sizes from physical and free memory. A model
+# Nothing runs until asked: ai-service.sh start loads Bonsai 2B (ai_service_default_bonsai_size;
+# config/selection.env or AI_BONSAI_SIZE picks another) when free memory allows. A model
 # unloads after 30 idle minutes (ai_service_sleep_idle_seconds)
 "$HOME/Library/Application Support/GlitchyGames/AI/bin/ai-service.sh" select   # or start, stop, status
 # ...one piece: --tags llama_cpp, ai_models, ai_sidecar, ai_service or ai_package

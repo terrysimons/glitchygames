@@ -21,6 +21,7 @@ No result from this stage may be quoted as a smaller Mac's speed.
 
 ## Part 1: choosing a size for a run
 
+(Built. Since 2026-11-07 every run uses 2B unless told otherwise: plans/lucid-circuit.md, section 5.)
 `bin/ai-service.sh` always takes the largest size that fits, unless `config/selection.env` says otherwise. Add an
 `AI_BONSAI_SIZE` environment override beside the existing `AI_MEMORY_MB` and `AI_FREE_PERCENT`, so a run can pick a
 size without changing the machine's settings. It's a change to the Ansible template, so the playbook runs again.
