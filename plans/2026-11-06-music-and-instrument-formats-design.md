@@ -219,6 +219,14 @@ Loaders live in a registry, as the waves and the instrument catalog do. Each reg
 `glitchygames sound-import FILE` runs the same loader and writes TOML for hand editing, with the
 import report printed and kept as comments in the output.
 
+**Output layout** (the owner, 2026-11-07): one output file per input file. `battle.mid` becomes
+`battle.toml`, holding every sequence the source has (all of an ABC file's `X:` tunes, a
+module's songs) and each instrument they use, written once. Re-importing replaces exactly that
+file, and the report heads it. `--split` writes one file per sequence instead, with the shared
+instruments once in `<name>-instruments.toml`, so no instrument is defined in two files (the
+short-name lookup refuses a name found in two files). Games find sequences by short name either
+way.
+
 ### The formats, and where each fits
 
 In order: what needs only sequences first, then what needs engine features M1 lacks.
@@ -273,7 +281,8 @@ starts by reading its format's published specification, cited in the loader's so
    `instrument =`.
 4. Sound effects and every other sound can be placed in a sequence, converted to notes
    automatically where the sound is synthesized ("Any sound in a sequence").
+5. `sound-import` writes one file per input file, or one per sequence with `--split` ("Loaders").
 
 ## Open questions
 
-1. Whether `sound-import` writes one file per sequence or one file for all.
+None at the moment.
