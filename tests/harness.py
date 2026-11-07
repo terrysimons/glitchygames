@@ -23,7 +23,7 @@ from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
 
 import pygame
 
-from glitchygames import engine_context, pixel_snap, randomness, sources
+from glitchygames import engine_context, pixel_snap, process, randomness, sources
 from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
 from glitchygames.audio.library import ENGINE_SOUND_CACHE
 from glitchygames.audio.voices import release_channels
@@ -42,6 +42,7 @@ from glitchygames.sprites import (
     SingletonBitmappySprite,
 )
 from glitchygames.user_files import install_user_files
+from tests.ai_service_stand_in import CONTROL_SCRIPT_NAME, python_twin
 from tests.display_canvas import (
     CANVAS_PATTERN,
     TEST_DISPLAY_SIZE,
@@ -67,6 +68,9 @@ from tests.signal_handlers import preserved_signal_handlers
 # checkout", whichever copy of the engine is imported
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CHECKOUT_ENGINE_DIRECTORY = PROJECT_ROOT / ENGINE_DIRECTORY
+# Windows can't run the stand-in AI control script (a POSIX shell script): there,
+# stand_in_ai_control_scripts runs its Python twin
+CONTROL_SCRIPTS_RUN_THROUGH_THEIR_TWINS = sys.platform == 'win32'
 
 
 # Before any window opens: a real driver's test windows are hidden, so the machine's pointer and
@@ -362,6 +366,28 @@ def in_process_clipboard():
     install_clipboard(clipboard=clipboard)
     yield clipboard
     install_clipboard(clipboard=None)
+
+
+@pytest.fixture
+def stand_in_ai_control_scripts(mocker):
+    """Run a stand-in install's control script on every platform (tests/ai_service_stand_in.py).
+
+    The stand-in is a POSIX shell script, which Windows can't run, so there the engine's launcher
+    runs its Python twin instead; every other command, and every other platform, is untouched.
+    """
+    if not CONTROL_SCRIPTS_RUN_THROUGH_THEIR_TWINS:
+        return
+    real_run_command = process.run_command
+
+    def run_command(*, command, environment, **options):
+        if command and Path(command[0]).name == CONTROL_SCRIPT_NAME:
+            twin = python_twin(control_script=Path(command[0]))
+            command = [sys.executable, str(twin), *command[1:]]
+            # The service's callers pass a bare environment; Windows' Python needs SYSTEMROOT
+            environment = {**environment, 'SYSTEMROOT': os.environ.get('SYSTEMROOT', '')}
+        return real_run_command(command=command, environment=environment, **options)
+
+    mocker.patch.object(process, 'run_command', side_effect=run_command)
 
 
 @pytest.fixture(autouse=True)

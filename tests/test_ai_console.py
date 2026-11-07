@@ -34,7 +34,11 @@ from glitchygames.debug.overlay import load_debug_font
 from glitchygames.input.state import InputSnapshot
 from glitchygames.scenes import Scene
 from glitchygames.testing.keys import qwerty_scancode
-from tests.test_ai_link import FakeInnerSources, install
+from tests.ai_service_stand_in import install
+from tests.test_ai_link import FakeInnerSources
+
+# Every install here can run its control script, on Windows too (tests/ai_service_stand_in.py)
+pytestmark = pytest.mark.usefixtures('stand_in_ai_control_scripts')
 
 WAIT_SECONDS = 10.0
 GRAVE = pygame.K_BACKQUOTE

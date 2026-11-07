@@ -24,11 +24,16 @@ from glitchygames.recording import post_input_event
 from glitchygames.replay.tools.golden_traces import command_line
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.testing.keys import qwerty_scancode
-from tests.test_ai_link import KEY_PRESS, FakeService, install
+from tests.ai_service_stand_in import install
+from tests.test_ai_link import KEY_PRESS, FakeService
 
 # These runs can't be --headless, which turns AI off, so on the dummy driver SCALED asks for a
 # renderer it doesn't have (BUGS.md #178 item 32). Expected here, and harmless to what's tested
-pytestmark = pytest.mark.filterwarnings('ignore:no fast renderer available')
+pytestmark = [
+    pytest.mark.filterwarnings('ignore:no fast renderer available'),
+    # Every install here runs its control script, on Windows too (tests/ai_service_stand_in.py)
+    pytest.mark.usefixtures('stand_in_ai_control_scripts'),
+]
 
 # The discard port: nothing answers there
 NOTHING_LISTENING_URL = 'ws://127.0.0.1:9/v1/session'

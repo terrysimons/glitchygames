@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import stat
 import threading
 from pathlib import Path
 from typing import Any
@@ -25,8 +24,11 @@ from glitchygames.ai_link import (
     create_link,
 )
 from glitchygames.host import HostSources
+from tests.ai_service_stand_in import SERVICE_KEY, install
 
-SERVICE_KEY = 'service-token'
+# Every install here runs its control script, on Windows too (tests/ai_service_stand_in.py)
+pytestmark = pytest.mark.usefixtures('stand_in_ai_control_scripts')
+
 WAIT_SECONDS = 10.0
 KEY_PRESS = {
     'type': 'input_event',
@@ -34,24 +36,6 @@ KEY_PRESS = {
     'key': pygame.K_F13,
     'scancode': 104,
 }
-
-
-def install(*, root: Path, exit_code: int = 0) -> Path:
-    """Lay out an install: a real control script that records its calls, and the key.
-
-    Returns:
-        The file the script records its calls in.
-
-    """
-    calls = root / 'control-calls'
-    script = root / 'bin' / 'ai-service.sh'
-    script.parent.mkdir(parents=True)
-    script.write_text(f'#!/bin/sh\necho "$1" >> "{calls}"\nexit {exit_code}\n', encoding='utf-8')
-    script.chmod(script.stat().st_mode | stat.S_IEXEC)
-    key = root / 'config' / 'service-api-key'
-    key.parent.mkdir(parents=True)
-    key.write_text(f'{SERVICE_KEY}\n', encoding='utf-8')
-    return calls
 
 
 def wait_until(condition: Any) -> bool:
@@ -173,11 +157,7 @@ def test_the_control_script_starts_the_service_as_the_link_starts(service, start
 def test_start_returns_before_the_service_does(tmp_path):
     """The frame loop never waits: a script that takes a while doesn't hold up start()."""
     release = tmp_path / 'release'
-    script = tmp_path / 'bin' / 'ai-service.sh'
-    install(root=tmp_path)
-    script.write_text(
-        f'#!/bin/sh\nwhile [ ! -e "{release}" ]; do sleep 0.01; done\nexit 1\n', encoding='utf-8'
-    )
+    install(root=tmp_path, exit_code=1, waits_for=release)
     link = AiLink(install_root=tmp_path, session_url='ws://127.0.0.1:9/v1/session')
 
     link.start()

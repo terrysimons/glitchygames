@@ -2,7 +2,6 @@
 
 import json
 import os
-import stat
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,11 +19,14 @@ from glitchygames.ai.local_service import (
     create_chat_client,
 )
 from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE
+from tests.ai_service_stand_in import SERVICE_KEY, install
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-SERVICE_KEY = 'service-token'
+# Every install here runs its control script, on Windows too (tests/ai_service_stand_in.py)
+pytestmark = pytest.mark.usefixtures('stand_in_ai_control_scripts')
+
 ANSWER = {'choices': [{'message': {'content': '42', 'reasoning_content': 'adding'}}], 'timings': {}}
 MESSAGES = [{'role': 'user', 'content': 'What is 17 + 25?'}]
 
@@ -86,24 +88,6 @@ def service():
     server.shutdown()
     server.server_close()
     thread.join(timeout=5)
-
-
-def install(*, root: Path, exit_code: int = 0) -> Path:
-    """Lay out an install: a real control script that records its calls, and the key.
-
-    Returns:
-        The file the script records its calls in.
-
-    """
-    calls = root / 'control-calls'
-    script = root / 'bin' / 'ai-service.sh'
-    script.parent.mkdir(parents=True)
-    script.write_text(f'#!/bin/sh\necho "$1" >> "{calls}"\nexit {exit_code}\n', encoding='utf-8')
-    script.chmod(script.stat().st_mode | stat.S_IEXEC)
-    key = root / 'config' / 'service-api-key'
-    key.parent.mkdir(parents=True)
-    key.write_text(f'{SERVICE_KEY}\n', encoding='utf-8')
-    return calls
 
 
 def client_for(*, root: Path, base_url: str) -> LocalAIClient:
