@@ -4,6 +4,15 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 262. A Console Test Left Its Worker Polling for the AI Service, and Its Sleeps Failed a Later Audio Test
+- **Description**: The pre-push shuffled run (`nox -s test-random`, seed 1473918285, 2026-11-07) failed `tests/audio/test_audio_engine.py::TestTheContextSlot::test_close_without_a_mixer_does_not_wait`: its patched `clock.raw_sleep` was called 14 times with 0.25, a sleep it never makes. 0.25 s is `READY_POLL_SECONDS` in `src/glitchygames/ai/local_service.py`. `tests/test_ai_console.py::test_ctrl_c_cancels_what_is_running_and_keeps_the_line` cancelled its request at once, before the worker reached the fake service; the fixture then shut the service down, so the worker's readiness check failed, the test install's control script "started" the service (exit 0), and the worker polled for readiness through `clock.raw_sleep` for `READY_TIMEOUT_SECONDS` (120 s), landing in whichever later test on that worker had patched it
+- **Status**: Fixed (2026-11-07: proven with a throwaway plugin listing live `ai-console` threads after each test: one was left after that test, inside `_ensure_ready`'s poll, every run; none after the fix. The test now waits for the request to reach the service first, through `wait_until_the_request_reached`, which `test_stop_abandons_what_is_running` already did inline for the same reason and now shares)
+- **Priority**: Medium (an intermittent failure that stops pushes)
+- **Reporter**: The pre-push `test-random` hook, pushing branch `worktree-ai-service-ansible`
+- **Date Reported**: 2026-11-07
+- **Details**: Found, not changed: a cancelled console request isn't checked during `LocalAIClient._ensure_ready`, so in a real game a request cancelled while the models load keeps its daemon thread waiting (up to 120 s) before it notices the cancel. Harmless today (the thread then stops reading and records the cancel). A harness check failing a test that leaves a worker thread alive would catch the next leak of this kind
+- **Files**: `tests/test_ai_console.py`
+
 ### 261. The Partial-Commit Refusal Test Returned SUCCESS Once in a Full Run (Suspected Order Dependence)
 - **Description**: In one full `uv run pytest` on branch `worktree-ai-service-ansible` (2026-11-07), `tests/test_measure_staged_replays.py::test_a_partial_commit_that_needs_measuring_is_refused` failed: the hook returned `SUCCESS`, not `OPTIONS_REFUSED`. `glitchygames unmeasured` reported nothing to measure, so the hook said "already measured" before it reached the partial-commit check. The test passed alone, in three parallel reruns, and in the next full run
 - **Status**: Open (not reproduced). Suspected: state left by another test on the same xdist worker (a ledger, rows directory or settings the `unmeasured` child reads) made every recording look measured

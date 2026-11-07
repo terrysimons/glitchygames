@@ -103,6 +103,20 @@ def wait_for(console: AiConsole, text: str) -> str:
     pytest.fail(f'{text!r} never appeared in: {transcript(console)}')
 
 
+def wait_until_the_request_reached(fake: ChatService) -> None:
+    """Wait for the worker's request to reach the fake service, before abandoning it.
+
+    A request abandoned sooner can find the service gone once its test ends: its readiness
+    check then fails, the installed control script "starts" the service, and the worker polls
+    for readiness through ``clock.raw_sleep`` for two minutes, landing in later tests' patches
+    of it (BUGS.md #262).
+    """
+    deadline = clock.raw_counter_seconds() + WAIT_SECONDS
+    while not fake.bodies and clock.raw_counter_seconds() < deadline:
+        clock.raw_sleep(0.01)
+    assert fake.bodies, 'the request never reached the service'
+
+
 def stream_line(**delta: str) -> bytes:
     """Build one line of a llama.cpp event stream.
 
@@ -1028,10 +1042,7 @@ def test_stop_abandons_what_is_running(console, chat_service):
     fake.hold.clear()
     enter(console, 'anything')
     running = console.running
-    # Reached the server, so the worker isn't left polling for a service gone after this test
-    deadline = clock.raw_counter_seconds() + WAIT_SECONDS
-    while not fake.bodies and clock.raw_counter_seconds() < deadline:
-        clock.raw_sleep(0.01)
+    wait_until_the_request_reached(fake)
 
     console.stop()
 
@@ -1286,6 +1297,7 @@ def test_ctrl_c_cancels_what_is_running_and_keeps_the_line(console, chat_service
     fake.hold.clear()
     enter(console, 'something')
     running = console.running
+    wait_until_the_request_reached(fake)
     type_text(console, 'next')
 
     control(console, pygame.K_c)
