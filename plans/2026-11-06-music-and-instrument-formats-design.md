@@ -101,7 +101,9 @@ and `notes` in a track is always beats, so no string changes meaning with a key 
 | `\|` | a bar line; every bar is checked against the meter, and a short or long bar is a load error naming the bar |
 | `[C4 E4 G4]:2` | a chord |
 | `E4@0.8` | an optional velocity |
-| rest | to settle: `.` (the spec's drum step grid uses it) or `r` |
+| `.` | a rest of one beat (`.:2` for two), as in the spec's drum step grid (the owner, 2026-11-07) |
+| `x` | play the track's instrument or sound at its own pitch (an unpitched drum's tone; a sound as written); see "Any sound in a sequence" |
+| `{coin}` | play another sound at this beat inside a melody; see "Any sound in a sequence" |
 
 **Timing** follows the spec: each note's start is an exact beat, a fraction counted from the start
 of the piece, converted through the tempo map to seconds and then to a frame, separately for
@@ -110,6 +112,57 @@ every note, so rounding never accumulates. Tempo changes happen only at bar line
 ```toml
 tempo_changes = [{ bar = 9, tempo = 120 }]
 ```
+
+### Any sound in a sequence
+
+The owner's rule (2026-11-07): sound effects must fit into a song, and placing them should be
+automatic, because every synthesized sound is already built from waveforms. So a track can play
+any sound the engine can name, not only an instrument:
+
+- a catalog instrument (`"thunder sheet"`, from the sound effects family, or `"violin"`);
+- an `[instruments]` or `[sounds]` entry, found by the same short-name lookup as `audio.sound`
+  (`"coin"`, `"sounds/pickups.toml#coin"`);
+- a recorded file (`file =` sounds, `.wav`, `.ogg`).
+
+A whole track of one sound, on a step grid:
+
+```toml
+[sequences.storm.tracks.weather]
+sound = "thunder"                  # instead of instrument =
+notes = ". . x . | x . . . | . x . x | x . . ."
+```
+
+One sound dropped into a melody, at the beat it falls on:
+
+```toml
+[sequences.level_one.tracks.lead]
+instrument = "chip_lead"
+notes = "E4 G4 {coin} A4 | G4 E4 {jump}:1/2 D4:1/2 _ | C4 D4 E4 G4 | E4 _ _ _"
+```
+
+**How a sound is placed.** A sound with notes of its own (a coin's `"B5:0.06 E6:0.18"`, in
+seconds) is placed one of two ways, chosen per track with `fit` (or per token, `{coin|tempo}`):
+
+- `fit = "as written"` (the default): the sound plays whole from its beat with its own timing in
+  seconds, the way a sample would. A token's length only says when the next token starts. An
+  explosion does not stretch when the tempo changes.
+- `fit = "tempo"`: the loader converts the sound into ordinary notes on its own instrument and
+  inserts them into the track. Its seconds become beats at its written tempo (`tempo = ...` on
+  the `[sounds]` entry, default 120 BPM: one second is two beats), so from then on it follows the
+  sequence's tempo map, transposes with `transpose`, is checked against the bar lines, and
+  exports to MIDI and LilyPond as notes. This is exact, because a synthesized sound is a recipe
+  (an instrument and its notes), not audio.
+
+**Pitch.** `x` plays a sound as written. A pitch token on a sound track transposes a synthesized
+sound so its first note lands on that pitch (`G5` plays the coin a third lower than written). An
+unpitched sound ignores the pitch, as the catalog's drums do.
+
+**What cannot be converted.** A recorded file has no notes: it plays as written only, and
+`fit = "tempo"` on one is a load error naming the file. (Pitching recorded audio waits for sample
+playback, which the instrument formats below also need.)
+
+**Exports.** Sounds placed as written have no note form; MIDI and LilyPond exports write them as
+markers (a MIDI cue point, a LilyPond text mark) and list them in the export report.
 
 ### `music = <path>`: another format as a sequence
 
@@ -203,14 +256,24 @@ starts by reading its format's published specification, cited in the loader's so
   `expected.toml`).
 - Sequences: bar checks against the meter; frame-exact onsets after long pieces and tempo changes
   (rounding never accumulates); triplets exact.
+- Sounds in sequences: a `[sounds]` entry placed as written renders the same samples as playing
+  it alone, starting on its beat's frame; placed with `fit = "tempo"` its notes land on the
+  expected beats and follow a tempo change; a recorded file with `fit = "tempo"` is refused by
+  name; an unpitched sound ignores pitch tokens.
 - Detection: an extension whose content does not match is refused; an unknown extension lists
   the readable formats.
 - ABC: `scripts/pipe_tunes_abc/` loads through the loader and renders the same notes as
   `scripts/pipe_tunes.py` today.
 
+## Decisions (the owner, 2026-11-07)
+
+1. The file form ships with M5's `Sequence`, not after it.
+2. The rest token is `.`.
+3. The General MIDI map gives one catalog instrument per program, overridable per track with
+   `instrument =`.
+4. Sound effects and every other sound can be placed in a sequence, converted to notes
+   automatically where the sound is synthesized ("Any sound in a sequence").
+
 ## Open questions
 
-1. Whether the file form ships with M5's `Sequence` or after it.
-2. The rest token: `.` or `r`.
-3. Whether `sound-import` writes one file per sequence or one file for all.
-4. The General MIDI map: one catalog instrument per program, or several to choose from.
+1. Whether `sound-import` writes one file per sequence or one file for all.

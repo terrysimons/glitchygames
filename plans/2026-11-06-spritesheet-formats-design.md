@@ -66,9 +66,11 @@ Two ways, one loader:
   TOML is what the game ships and what people edit.
 - **Open in Bitmappy:** File > Open accepts any registered format; saving writes TOML.
 
-Whether a game may also load a foreign file directly at run time (`AnimatedSprite("hero.aseprite")`)
-is open question 1. The music design does load `music = <path>` directly; sprites differ because
-the TOML is the editable artifact, and converting at run time would hide the report.
+Games do not load foreign files at run time (the owner, 2026-11-07): `sprite-import` is the
+one way in, so the TOML is always what ships, what is reviewed and what Bitmappy edits, and the
+import report is never hidden. `sprite-import --watch` re-converts whenever the source file
+changes, so an artist saving in Aseprite sees the game's sprite update. (The music design does
+load `music = <path>` directly; sprites differ because the TOML is the editable artifact.)
 
 ### Detection
 
@@ -102,14 +104,14 @@ none is refused with the list of formats that can be read. A `--format` option n
 | Looping | `loop` | infinite or unspecified → `true`; once → `false` |
 | Reverse direction | frame order | reordered at import |
 | Anchor / pivot | `frame_anchor` | Aseprite slice pivots, TexturePacker `pivot`/`anchor`, Unity pivots, where the pivot is one of the format's nine anchors; otherwise reported |
-| Hitbox | `[sprite.hitbox]` / per-frame `hitbox` | Aseprite slice named `hitbox` (a convention), Tiled tile collision rectangles |
+| Hitbox | `[sprite.hitbox]` / per-frame `hitbox` | Aseprite slice named `hitbox` (the convention, the owner, 2026-11-07), Tiled tile collision rectangles |
 | Palette | `[colors]` | Aseprite indexed, GIF and indexed PNG carry one; RGBA sources count unique colors (see below) |
 | Text and properties | `description`, `tags` | Aseprite user data, Tiled properties, where they are plain words |
 
 No equivalent, so reported (and handled as listed):
 
-- **Ping-pong** (Aseprite, Phaser `yoyo`, Godot `LOOP_PINGPONG`): baked into frames (A B C B), or
-  a new `direction` field in the sprite format (open question 2).
+- **Ping-pong** (Aseprite, Phaser `yoyo`, Godot `LOOP_PINGPONG`): baked into frames at import
+  (A B C D becomes A B C D C B; the owner, 2026-11-07), and noted in the report.
 - **Repeat counts above one:** `loop` is a boolean; reported.
 - **Layers and blend modes** (Aseprite, Piskel): visible layers are flattened, honoring opacity,
   cel offsets and z-order; blend modes other than Normal are reported.
@@ -128,8 +130,9 @@ and RGBA sources (TexturePacker sheets, Aseprite RGBA, Piskel) have no palette a
 3. Over it: refuse, naming the count and the budget. `--reduce-colors N` quantizes on request,
    and the report lists the colors merged.
 
-Whether the budget should grow (more glyphs, as files already use `█` for magenta) is open
-question 3.
+The budget stays at 64 glyphs (the owner, 2026-11-07). A sprite file's rows stay readable and
+align in every editor. If imports keep hitting the limit, a later option is two characters per
+pixel for sprites over 64 colors (4,096 colors in plain ASCII), not more Unicode glyphs.
 
 ### Loaders
 
@@ -181,9 +184,10 @@ Each loader cites its format's specification in its source.
 - Palette: a 65-color source is refused with the count; `--reduce-colors` reports its merges.
 - Detection: a `.png` that is an APNG, a grid sheet and a plain image each take the right path.
 
-## Open questions
+## Decisions (the owner, 2026-11-07)
 
-1. Whether games may load foreign files directly at run time, or only through `sprite-import`.
-2. Ping-pong: bake frames at import, or add a `direction` field to the sprite format.
-3. The palette budget: keep 64 glyphs, or allow more (Unicode glyphs).
-4. The hitbox convention for Aseprite slices: a slice named `hitbox`, or a user-data flag.
+1. Import only, through `sprite-import` and Bitmappy, plus `sprite-import --watch`; no run-time
+   loading of foreign files.
+2. Ping-pong animations are baked into frames at import.
+3. The palette budget stays at 64 glyphs; over it, refuse with the count, or `--reduce-colors N`.
+4. An Aseprite slice named `hitbox` is the sprite's hitbox.
