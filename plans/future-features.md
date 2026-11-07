@@ -1745,6 +1745,17 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
+### 70. Sound Engine: Every Musical Instrument Known to Man — DESIGN
+- **Description**: Grow the instrument catalog from 431 instruments toward every instrument a
+  game might want, in one verified batch per family. Adversarial audits (2026-11-07) found
+  1,303 candidates, only 84 with source-verified ranges. Proposes three new families (plucked
+  idiophones, friction instruments, noise makers), mechanical instruments as a tag, and lists
+  the instruments that wait for engine features (sympathetic strings, moving formants, FM,
+  samples)
+- **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
+- **Status**: Design (requested by the owner 2026-11-06)
+- **Priority**: Medium
+
 ## Notes
 
 - All features are currently in planning phase
