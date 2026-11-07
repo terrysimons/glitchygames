@@ -74,9 +74,11 @@ what has happened, but it can't act in the past.
 - **Objects in the timing gap.** The clone is behind, so anything it can name already exists in the live game, or did.
   A call can only find its object gone, never not yet made, and a gone object's id can't have passed to another. Such a
   call is refused, and the AI is told. New objects it hasn't reached yet simply aren't known to it until it does.
-- **Which events may come back.** `ALLOWED_INPUT_EVENT_TYPES` holds only key presses and releases today. Widening it is
-  the deliberate step, as an event a game handles can do whatever its handler does, and text the AI read could be trying
-  to steer it (section 8). Stage 7 decides what's allowed.
+- **Which events may come back.** `ALLOWED_INPUT_EVENT_TYPES` holds only key presses and releases today. Stable ids are
+  what let this grow massively (the owner, 2026-11-06): once an event can name any object, the AI's capabilities can
+  expand far beyond input. The small first list proves the path and isn't the goal. Each widening is still deliberate,
+  as an event a game handles can do whatever its handler does, and text the AI read could be trying to steer it
+  (section 8). Stage 7 decides how far it goes.
 - **Event fields.** Only JSON-safe values and sprite ids can cross. Anything else is refused by name.
 - **Silent drift.** Replays compare sprites and recorded events, not all game state, so a wrong `rally_count` would go
   unseen. The stream carries a per-frame check, and a clone that drifts is flagged and restarted from frame 0. Restarting
