@@ -46,6 +46,9 @@ The output is a page showing the sizes' answers side by side, because a score ca
 
 ## Part 3: frames beside a real game
 
+**This waits for [Stage 4b](lucid-circuit-4b-mirror.md), steps 1-3** (the owner, 2026-11-06): the AI will work on a
+clone, so the real load is game, clone and model together. The AI load below must include the clone.
+
 Real games on the real display, driven by the existing scripted sessions (`record_scripted_session`,
 `PostedPolledInput`), with their existing frame-time summaries. The load comes from a separate process calling the
 service's REST API, so the game is exactly what a player runs.

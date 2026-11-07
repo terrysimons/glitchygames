@@ -77,6 +77,10 @@ nothing yet about a game really rendering beside the model, which is Stage 5's j
 
 ## Still open
 
+- **What the model sees comes from the live game, capped at 40 sprites.** `describe_scene` runs on the main thread when
+  a question is asked, and the cap was picked without measuring. In Mr. Muncher it leaves out the player. It goes away
+  with the mirror game ([Stage 4b](lucid-circuit-4b-mirror.md)), where the console reads a clone with no cap.
+
 - **A real display.** The GPU contention that matters needs one, and needs a person at the keyboard to judge the
   console itself. The screenshots were drawn on a copy of the frame.
 - **Whether the answers are useful.** Two questions prove the path, not the quality.
