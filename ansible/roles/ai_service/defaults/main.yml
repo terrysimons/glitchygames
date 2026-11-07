@@ -1,0 +1,78 @@
+---
+# The largest Bonsai 2 size a machine may run, by physical memory, smallest first. bin/ai-service.sh
+# decides when a game loads, also by what's free right now, so this is only the ceiling. These cutoffs
+# are starting guesses, since Prism publishes no memory figures: plans/lucid-circuit.md, section 5
+ai_service_bonsai_tiers:
+  - {minimum_memory_mb: 0, size: "2b"}
+  - {minimum_memory_mb: 16384, size: "4b"}
+  - {minimum_memory_mb: 24576, size: "9b"}
+  - {minimum_memory_mb: 32768, size: "27b"}
+# The size every run uses unless a size was chosen by hand (the owner, 2026-11-07: "we're just going
+# to stick with the 2B model for the foreseeable future"). Built into bin/ai-service.sh and the
+# package's setup, which downloads only it; empty chooses the largest size that fits, by the tiers
+# above. A size that doesn't fit what's free still gets nothing
+ai_service_default_bonsai_size: "2b"
+# A size chosen by hand: written to config/selection.env, where ai-service.sh and the package's
+# setup read it, beating the default. AI_BONSAI_SIZE beats both for one run
+ai_service_bonsai_size: ""
+ai_service_qwen_size: "0.6b"
+
+# What each size reserves at the full context, from llama.cpp's reported buffers on an M4 Max at
+# b12167 (2026-11-06): the
+# ai_validate role's log, with mapped weights. Qwen's 4B and 8B aren't downloaded by default and
+# weren't measured, so theirs are the file's size plus the 0.6B's non-weight buffers
+ai_service_bonsai_reserved_mib: {"2b": 4816, "4b": 11185, "9b": 12312, "27b": 25486}
+ai_service_qwen_reserved_mib: {"0.6b": 1884, "4b": 5200, "8b": 8800}
+# Memory left free for the game and the system
+ai_service_game_reserve_mib: 2048
+
+# A model unloads after this long without a request, and reloads on the next one: 27B fell to 158 MiB,
+# and answered an image question 4.5 s later (measured 2026-11-06). The owner's default is 30 minutes.
+# One model can differ, with AI_SLEEP_IDLE_SECONDS in its config/LABEL.env.runtime
+ai_service_sleep_idle_seconds: 1800
+
+# What games and tools use. The ports below it are private to the service
+ai_service_api_port: 23231
+# How long after the last game disconnects everything stops: long enough for a quick relaunch
+ai_service_shutdown_grace_seconds: 30
+
+# Private ports, behind the API: the owner's 2323[1..n] (the API is 23231)
+ai_service_bonsai_ports: {"2b": 23232, "4b": 23233, "9b": 23234, "27b": 23235}
+ai_service_qwen_ports: {"0.6b": 23236, "4b": 23237, "8b": 23238}
+
+ai_service_label_prefix: ai.glitchygames
+ai_package_identifier: ai.glitchygames.service
+
+# The whole context the model supports (262K, its card), and no separate output limit (-1), by
+# the owner's choice: a small limit ends the model's reasoning before it answers, which returns
+# nothing. A request then ends when the model finishes, the context fills or it times out.
+# https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf/blob/main/KNOWN_ISSUES.md
+# Prism suggests a 24 GiB prompt cache for single-user use; this is lower because a game shares the
+# same memory
+ai_service_bonsai_context_size: 262144
+ai_service_bonsai_output_limit: -1
+ai_service_bonsai_cache_ram_mib: 4096
+ai_service_bonsai_reasoning_effort: medium
+
+# https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF
+ai_service_qwen_micro_batch: 8192
+# Left to default, the context is the model's whole 32K, which reserved 3584 MiB on Metal for the
+# 0.6B (measured 2026-11-06, llama_kv_cache). Records are split up before embedding, so one batch
+# is all this needs
+ai_service_qwen_context_size: 8192
+
+# How long a model may take to load before the agent is called failed
+ai_service_ready_retries: 60
+ai_service_ready_delay_seconds: 5
+
+ai_service_config_directory: "{{ ai_install_root }}/config"
+ai_service_bin_directory: "{{ ai_install_root }}/bin"
+ai_service_launch_agents_directory: "{{ ai_home }}/Library/LaunchAgents"
+# Not LaunchAgents: launchd loads everything there at login, and these only run when a game asks
+ai_service_agents_directory: "{{ ai_install_root }}/agents"
+# Only the service holds the workers' key. Games and tools use the service's
+ai_service_api_key_file: "{{ ai_service_config_directory }}/worker-api-key"
+ai_service_service_key_file: "{{ ai_service_config_directory }}/service-api-key"
+ai_service_api_label: "{{ ai_service_label_prefix }}.api"
+ai_service_runner: "{{ ai_service_bin_directory }}/run-llama-server.sh"
+ai_service_control: "{{ ai_service_bin_directory }}/ai-service.sh"

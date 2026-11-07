@@ -1,0 +1,16 @@
+---
+# The AI service's own Python, in a plain folder: a venv stops working when moved, as it points at its
+# Python by absolute path, and every player's home differs (plans/lucid-circuit.md, section 4)
+ai_sidecar_python_version: "3.14.8"
+ai_sidecar_python_build: "cpython-{{ ai_sidecar_python_version }}-macos-aarch64-none"
+
+ai_sidecar_project: "{{ playbook_dir }}/../services/ai-service"
+ai_sidecar_directory: "{{ ai_install_root }}/sidecar"
+ai_sidecar_build_directory: "{{ ai_cache_root }}/sidecar-build"
+
+# Served by /docs from this file, so the docs need no network. MIT:
+# https://github.com/scalar/scalar
+ai_sidecar_scalar_version: "1.77.0"
+ai_sidecar_scalar_sha256: 4f387c930903fe6b63b3497ebf02ca65005d52016c72dcc8bfc44ac662986cb3
+ai_sidecar_scalar_url: >-
+  https://cdn.jsdelivr.net/npm/@scalar/api-reference@{{ ai_sidecar_scalar_version }}/dist/browser/standalone.js

@@ -1,0 +1,89 @@
+---
+# Every model file, by immutable revision, size and SHA-256, read from the Hugging Face Hub API on
+# 2026-11-06. None of these repositories is gated, and Hugging Face's cards list all of them as
+# Apache-2.0. Stock llama.cpp runs Bonsai 2's Q2_0 packing, the only compact one it can; the mmproj
+# file is the vision part. Each Bonsai file has the same SHA-256 as Ollama's bonsai-2:<size> tag.
+# https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf
+# https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF
+ai_models_base_url: https://huggingface.co
+
+ai_models_bonsai:
+  2b:
+    repository: prism-ml/Ternary-Bonsai-2-2B-gguf
+    revision: a6032a5089ac27e96be3a80c7b42d1ad0bd89887
+    model:
+      file: Ternary-Bonsai-2-2B-Q2_0.gguf
+      bytes: 546689504
+      sha256: c2893fa6f951daee8b7263d5f49b455e57989ef56417a22125b03566dc560650
+    vision:
+      file: Ternary-Bonsai-2-2B-mmproj-Q8_0.gguf
+      bytes: 364664352
+      sha256: ac9934e8d7966d0d62442c202ec8fdad99a045dea79366c1a4a246a46f5c0533
+  4b:
+    repository: prism-ml/Ternary-Bonsai-2-4B-gguf
+    revision: 50ebba61be85e5be07e8083db468ace0fc1bac43
+    model:
+      file: Ternary-Bonsai-2-4B-Q2_0.gguf
+      bytes: 1212103520
+      sha256: 64a5183b44921bdb5ac4a6f5f92007821d6ebe5c66997d3c147fd214ab9433d4
+    vision:
+      file: Ternary-Bonsai-2-4B-mmproj-Q8_0.gguf
+      bytes: 366894624
+      sha256: db939d5f9b7014137810205e91d05e5f54afd72b0b3af9d33bd7d82f7906a55d
+  9b:
+    repository: prism-ml/Ternary-Bonsai-2-9B-gguf
+    revision: 82265ccc78ddaac4700286a35e9badcc32376dd9
+    model:
+      file: Ternary-Bonsai-2-9B-Q2_0.gguf
+      bytes: 2556640128
+      sha256: 1f884aa56aacd2bbbb2e4b7abaead2b1102b74a9c75a23fc33dab916813a384d
+    vision:
+      file: Ternary-Bonsai-2-9B-mmproj-Q8_0.gguf
+      bytes: 624229664
+      sha256: e0cb6f6988cea323ef798cd77d019bbb819af75582f034eaab0e7232314953db
+  27b:
+    repository: prism-ml/Ternary-Bonsai-2-27B-gguf
+    revision: 839bd57023c1558945afea70a74fa83c054f35f9
+    model:
+      file: Ternary-Bonsai-2-27B-Q2_0.gguf
+      bytes: 7626008928
+      sha256: 4f99aed01b8a877e153f9aa6569a4440fe17c59701cc0953e36d7f460549e70e
+    vision:
+      file: Ternary-Bonsai-2-27B-mmproj-Q8_0.gguf
+      bytes: 629246976
+      sha256: 6807ede61d570bb86ba34b756a0fa109edc33668604de867c6ea6d8f1d631903
+
+ai_models_qwen:
+  0.6b:
+    repository: Qwen/Qwen3-Embedding-0.6B-GGUF
+    revision: 370f27d7550e0def9b39c1f16d3fbaa13aa67728
+    dimensions: 1024
+    model:
+      file: Qwen3-Embedding-0.6B-Q8_0.gguf
+      bytes: 639150592
+      sha256: 06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439
+  4b:
+    repository: Qwen/Qwen3-Embedding-4B-GGUF
+    revision: f4602530db1d980e16da9d7d3a70294cf5c190be
+    dimensions: 2560
+    model:
+      file: Qwen3-Embedding-4B-Q8_0.gguf
+      bytes: 4279660224
+      sha256: b60ae5ce2dd6a0b77f82cadf21def1f310a3e10cde380ad0081b07a9d416949d
+  8b:
+    repository: Qwen/Qwen3-Embedding-8B-GGUF
+    revision: 69d0e58a13e463cd99a9b83e3f5fee7c10265fab
+    dimensions: 4096
+    model:
+      file: Qwen3-Embedding-8B-Q8_0.gguf
+      bytes: 8047105824
+      sha256: d20ddc71e8a5c4344f2343481e242233a997dc5eaff442427a945836c97b4deb
+
+# What this host downloads: all four Bonsai sizes, and the Compact Qwen
+ai_models_bonsai_sizes: ["2b", "4b", "9b", "27b"]
+ai_models_qwen_sizes: ["0.6b"]
+
+# Left free after the downloads
+ai_models_free_margin_bytes: 5368709120
+
+ai_models_directory: "{{ ai_install_root }}/models"

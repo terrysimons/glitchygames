@@ -1,0 +1,32 @@
+---
+- name: Build the package
+  ansible.builtin.command:
+    argv:
+      - pkgbuild
+      - --root
+      - "{{ ai_package_stage }}"
+      - --identifier
+      - "{{ ai_package_identifier }}"
+      - --version
+      - "{{ ai_package_version }}"
+      - --install-location
+      - /
+      - --ownership
+      - recommended
+      - --scripts
+      - "{{ ai_package_scripts }}"
+      - "{{ ai_package_component }}"
+  listen: Build the package
+  changed_when: true
+
+- name: Wrap the package for a home-folder install
+  ansible.builtin.command:
+    argv:
+      - productbuild
+      - --distribution
+      - "{{ ai_package_distribution }}"
+      - --package-path
+      - "{{ ai_package_directory }}"
+      - "{{ ai_package_output }}"
+  listen: Build the package
+  changed_when: true

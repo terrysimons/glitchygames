@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>{{ agent.label | e }}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{ ai_service_runner | e }}</string>
+    <string>{{ ai_service_config_directory | e }}</string>
+    <string>{{ agent.label | e }}</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>{{ ai_install_root | e }}</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>ExitTimeOut</key>
+  <integer>30</integer>
+  <key>SoftResourceLimits</key>
+  <dict>
+    <key>NumberOfFiles</key>
+    <integer>65536</integer>
+  </dict>
+  <key>HardResourceLimits</key>
+  <dict>
+    <key>NumberOfFiles</key>
+    <integer>65536</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>{{ (ai_log_root ~ '/' ~ agent.label ~ '.log') | e }}</string>
+  <key>StandardErrorPath</key>
+  <string>{{ (ai_log_root ~ '/' ~ agent.label ~ '.err') | e }}</string>
+</dict>
+</plist>

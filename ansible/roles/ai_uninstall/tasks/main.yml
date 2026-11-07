@@ -1,0 +1,17 @@
+---
+# Removes the service with the same script a player's package installs. Only when asked:
+#   --tags ai_uninstall                         keeps the models
+#   --tags ai_uninstall -e ai_uninstall_models=true   removes them too
+- name: Look for the uninstaller
+  ansible.builtin.stat:
+    path: "{{ ai_service_bin_directory }}/uninstall.sh"
+    get_checksum: false
+  register: ai_uninstall_script
+
+- name: Run the uninstaller
+  ansible.builtin.command:
+    argv: >-
+      {{ [ai_service_bin_directory ~ '/uninstall.sh']
+         + (['--remove-models'] if ai_uninstall_models | bool else []) }}
+  when: ai_uninstall_script.stat.exists
+  changed_when: true

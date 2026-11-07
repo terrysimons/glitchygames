@@ -4,6 +4,32 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 263. The AI Tests' Stand-In Control Script Couldn't Run on Windows
+- **Description**: CircleCI build 2935 (`build-and-test-windows`, PR #157) failed 22 tests in `tests/test_ai_link.py`, `tests/ai/test_local_service.py` and `tests/engine/test_engine_ai_connection.py`, and so coverage (99.85%: `ai_link.py` 60%, `ai/local_service.py` 87%). Their stand-in install's control script, `bin/ai-service.sh`, is a `#!/bin/sh` script, as the real one is (the service is macOS only), and Windows can't start one (`OSError: [WinError 193] %1 is not a valid Win32 application`), so every test that has the link or client start the service failed there. Linux and macOS passed
+- **Status**: Fixed (2026-11-07: one stand-in install for all four AI test files, `tests/ai_service_stand_in.py` (the two copies of `install()` merged), writes a Python twin beside each control script that records the same call, waits the same way and exits the same; on Windows the harness fixture `stand_in_ai_control_scripts`, which those files request, has the engine's launcher (`process.run_command`) run the twin in the script's place, so the code under test is unchanged. Proven on macOS with the routing forced on and the shell scripts made to fail: all 174 AI tests passed through the twins alone. That found `test_start_returns_before_the_service_does` writing its own shell script, which had passed on Windows only because a failing start ends the same way; it now asks `install(waits_for=...)`)
+- **Priority**: High (the Windows job fails every PR touching the AI)
+- **Reporter**: CircleCI pipeline for PR #157, build 2935
+- **Date Reported**: 2026-11-07
+- **Files**: `tests/ai_service_stand_in.py`, `tests/harness.py`, `tests/test_ai_link.py`, `tests/ai/test_local_service.py`, `tests/engine/test_engine_ai_connection.py`, `tests/test_ai_console.py`
+
+### 262. A Console Test Left Its Worker Polling for the AI Service, and Its Sleeps Failed a Later Audio Test
+- **Description**: The pre-push shuffled run (`nox -s test-random`, seed 1473918285, 2026-11-07) failed `tests/audio/test_audio_engine.py::TestTheContextSlot::test_close_without_a_mixer_does_not_wait`: its patched `clock.raw_sleep` was called 14 times with 0.25, a sleep it never makes. 0.25 s is `READY_POLL_SECONDS` in `src/glitchygames/ai/local_service.py`. `tests/test_ai_console.py::test_ctrl_c_cancels_what_is_running_and_keeps_the_line` cancelled its request at once, before the worker reached the fake service; the fixture then shut the service down, so the worker's readiness check failed, the test install's control script "started" the service (exit 0), and the worker polled for readiness through `clock.raw_sleep` for `READY_TIMEOUT_SECONDS` (120 s), landing in whichever later test on that worker had patched it
+- **Status**: Fixed (2026-11-07: proven with a throwaway plugin listing live `ai-console` threads after each test: one was left after that test, inside `_ensure_ready`'s poll, every run; none after the fix. The test now waits for the request to reach the service first, through `wait_until_the_request_reached`, which `test_stop_abandons_what_is_running` already did inline for the same reason and now shares)
+- **Priority**: Medium (an intermittent failure that stops pushes)
+- **Reporter**: The pre-push `test-random` hook, pushing branch `worktree-ai-service-ansible`
+- **Date Reported**: 2026-11-07
+- **Details**: Found, not changed: a cancelled console request isn't checked during `LocalAIClient._ensure_ready`, so in a real game a request cancelled while the models load keeps its daemon thread waiting (up to 120 s) before it notices the cancel. Harmless today (the thread then stops reading and records the cancel). A harness check failing a test that leaves a worker thread alive would catch the next leak of this kind
+- **Files**: `tests/test_ai_console.py`
+
+### 261. The Partial-Commit Refusal Test Returned SUCCESS Once in a Full Run (Suspected Order Dependence)
+- **Description**: In one full `uv run pytest` on branch `worktree-ai-service-ansible` (2026-11-07), `tests/test_measure_staged_replays.py::test_a_partial_commit_that_needs_measuring_is_refused` failed: the hook returned `SUCCESS`, not `OPTIONS_REFUSED`. `glitchygames unmeasured` reported nothing to measure, so the hook said "already measured" before it reached the partial-commit check. The test passed alone, in three parallel reruns, and in the next full run
+- **Status**: Open (not reproduced). Suspected: state left by another test on the same xdist worker (a ledger, rows directory or settings the `unmeasured` child reads) made every recording look measured
+- **Priority**: Low (intermittent; would fail a run at random)
+- **Reporter**: Claude, during the AI behaviour suite's full checks, 2026-11-07
+- **Date Reported**: 2026-11-07
+- **Details**: Next step: replay the failing worker's test order (`-p randomly` with the run's seed, or `nox -s test-random` until it recurs), then bisect the tests that ran before it on that worker
+- **Files**: `tests/test_measure_staged_replays.py`, `scripts/measure_staged_replays.py`
+
 ### 255. Inner Pytest Runs Were Shuffled, So Tests Running Them Presented Different Frames Each Run
 - **Description**: The first full `compare-drivers` pre-push run (2026-11-02) failed on `tests/test_frame_fingerprints.py::TestRecordingARun::test_without_the_option_nothing_is_recorded` (frame 0, all 480,000 pixels), with two tests of the same class listed nondeterministic; a full local run had flagged two of them the same way. Not a driver dependence: on dummy alone, with only the inner run's seed changing, the test presented `e0f4..` first in some runs and `657a..` in others. Its inner pytest run (pytester) printed a new `--randomly-seed` every time: pytest-randomly, added the same day, is blocked by the project's addopts, which an inner run does not read, so every inner run shuffled its tests, and what they presented and left behind depended on that order
 - **Status**: Fixed (2026-11-02, bug sweep: `tests/harness.py`'s autouse `inner_runs_keep_their_order` adds `-p no:randomly` to `PYTEST_ADDOPTS` for every test that uses `pytester`, after pytester is made (making it deletes `PYTEST_ADDOPTS`); in process and subprocess inner runs read it, and the outer run, which read it already, stays shuffled. Four runs then presented the same frames in the written order. Tests: `tests/test_inner_runs.py`)

@@ -1,0 +1,70 @@
+#!/bin/sh
+# Starts one llama-server for one launchd agent: run-llama-server.sh CONFIG_DIRECTORY LABEL.
+# This is a file and not a script inside the plist, because a raw & in a plist's XML makes the whole
+# plist invalid. Settings: LABEL.env from the install, then LABEL.env.runtime if it exists.
+set -u
+
+config_directory=$1
+label=$2
+
+. "$config_directory/$label.env"
+if [ -f "$config_directory/$label.env.runtime" ]; then
+    . "$config_directory/$label.env.runtime"
+fi
+
+# launchd restarts this job after any failure, so waiting 10 seconds and failing the same way
+# forever would help nobody. Exiting 0 stops it (KeepAlive's SuccessfulExit is false) and the log
+# says why.
+refuse() {
+    echo "$label: $1" >&2
+    exit 0
+}
+
+# The API, in its sidecar Python, using nothing outside it
+if [ "$AI_ROLE" = api ]; then
+    [ -x "$AI_SIDECAR/python/bin/python3.14" ] || refuse "no sidecar at $AI_SIDECAR"
+    [ -f "$GLITCHYGAMES_AI_SERVICE_CONFIG" ] || refuse "no settings at $GLITCHYGAMES_AI_SERVICE_CONFIG"
+    export GLITCHYGAMES_AI_SERVICE_CONFIG
+    export PYTHONPATH="$AI_SIDECAR/site"
+    exec "$AI_SIDECAR/python/bin/python3.14" -m glitchygames_ai_service
+fi
+
+[ -x "$AI_LLAMA_SERVER" ] || refuse "no llama-server at $AI_LLAMA_SERVER"
+[ -f "$AI_MODEL_FILE" ] || refuse "no model at $AI_MODEL_FILE"
+[ -f "$AI_API_KEY_FILE" ] || refuse "no API key at $AI_API_KEY_FILE"
+
+set -- \
+    --host 127.0.0.1 \
+    --port "$AI_PORT" \
+    --model "$AI_MODEL_FILE" \
+    --alias "$AI_ALIAS" \
+    --gpu-layers "$AI_GPU_LAYERS" \
+    --api-key-file "$AI_API_KEY_FILE" \
+    --sleep-idle-seconds "$AI_SLEEP_IDLE_SECONDS" \
+    --parallel 1 \
+    --no-webui
+
+case "$AI_ROLE" in
+    reasoning)
+        [ -f "$AI_VISION_FILE" ] || refuse "no vision file at $AI_VISION_FILE"
+        set -- "$@" \
+            --mmproj "$AI_VISION_FILE" \
+            --flash-attn on \
+            --ctx-size "$AI_CONTEXT_SIZE" \
+            --n-predict "$AI_OUTPUT_LIMIT" \
+            --cache-ram "$AI_CACHE_RAM_MIB" \
+            --chat-template-kwargs "{\"reasoning_effort\":\"$AI_REASONING_EFFORT\"}"
+        ;;
+    embedding)
+        set -- "$@" \
+            --embedding \
+            --pooling last \
+            --ctx-size "$AI_CONTEXT_SIZE" \
+            --ubatch-size "$AI_MICRO_BATCH"
+        ;;
+    *)
+        refuse "unknown role $AI_ROLE"
+        ;;
+esac
+
+exec "$AI_LLAMA_SERVER" "$@"

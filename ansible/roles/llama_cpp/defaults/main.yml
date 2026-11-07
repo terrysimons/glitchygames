@@ -1,0 +1,33 @@
+---
+# The newest build tag when this was pinned (2026-11-06). Stock llama.cpp runs Bonsai 2's Q2_0 files
+# from b11556 on, and an older build loads them without warning and writes gibberish
+# (https://huggingface.co/prism-ml/Ternary-Bonsai-2-27B-gguf/blob/main/KNOWN_ISSUES.md). A newer tag
+# is a deliberate update: change both values, then run the ai_service smoke test again.
+llama_cpp_tag: b12167
+llama_cpp_commit: 240d68fcfe0c2a1f298c8e18ca181368b1914259
+llama_cpp_repository: https://github.com/ggml-org/llama.cpp.git
+
+# The oldest macOS the built binary runs on
+llama_cpp_macos_deployment_target: "14.0"
+
+# Free disk space the source and the build need
+llama_cpp_required_free_megabytes: 4096
+
+# Always set, whatever the host's llama_cpp_cmake_options add. The web UI is off because its default
+# fetches a prebuilt copy from a Hugging Face bucket during the build, and this service has no use
+# for it. OpenSSL is off because it would link Homebrew's copy, which a player's Mac doesn't have, and
+# the service only speaks HTTP over loopback; Prism's build_mac.sh turns it off too. Options at the
+# pinned tag: https://github.com/ggml-org/llama.cpp/blob/b12167/CMakeLists.txt
+llama_cpp_base_cmake_options:
+  CMAKE_BUILD_TYPE: Release
+  BUILD_SHARED_LIBS: "OFF"
+  LLAMA_OPENSSL: "OFF"
+  LLAMA_BUILD_TESTS: "OFF"
+  LLAMA_BUILD_EXAMPLES: "OFF"
+  LLAMA_BUILD_UI: "OFF"
+  LLAMA_USE_PREBUILT_UI: "OFF"
+
+# The inventory's macos group sets the Metal options
+llama_cpp_cmake_options: {}
+
+llama_cpp_source_directory: "{{ ai_cache_root }}/llama.cpp/source-{{ llama_cpp_tag }}"

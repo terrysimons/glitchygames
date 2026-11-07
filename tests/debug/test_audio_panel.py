@@ -788,11 +788,13 @@ class TestPanelSelection:
     """F4 order, the All panel and the Performance panel's voices line."""
 
     def test_f4_reaches_the_audio_panel_after_performance(self):
-        """F4 from Performance shows Audio, and Audio wraps round to All."""
+        """F4 from Performance shows Audio, then AI, which wraps round to All."""
         overlay = DebugOverlay(visible=True)
         overlay.panel = DebugPanel.PERFORMANCE
         overlay.cycle_panel()
         assert overlay.panel is DebugPanel.AUDIO
+        overlay.cycle_panel()
+        assert overlay.panel is DebugPanel.AI
         overlay.cycle_panel()
         assert overlay.panel is DebugPanel.ALL
 

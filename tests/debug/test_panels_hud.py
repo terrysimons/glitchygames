@@ -482,6 +482,7 @@ class TestModeLine:
             (DebugPanel.PHYSICS, 'Physics'),
             (DebugPanel.CAMERA, 'Camera'),
             (DebugPanel.PERFORMANCE, 'Performance'),
+            (DebugPanel.AI, 'AI'),
         ],
     )
     def test_text_names_the_panel(self, surface, font, panel, title):

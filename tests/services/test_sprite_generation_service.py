@@ -1,6 +1,6 @@
 """Tests for sprite generation service.
 
-The AI client (aisuite) is the boundary and is replaced with a fake.
+The AI client (the local AI service's) is the boundary and is replaced with a fake.
 """
 
 import types
@@ -49,10 +49,9 @@ class TestSpriteGenerationService:
 
     def test_initialization_with_config(self):
         """Test service initialization with custom config."""
-        config = ServiceConfig(ai_provider='openai', ai_model='gpt-4')
+        config = ServiceConfig(ai_model='gpt-4')
         service = SpriteGenerationService(config)
 
-        assert service.config.ai_provider == 'openai'
         assert service.config.ai_model == 'gpt-4'
 
     def test_initialization_default_config(self):
@@ -62,14 +61,16 @@ class TestSpriteGenerationService:
         assert service.config is not None
         assert service._client is None  # Lazy initialization
 
-    def test_ensure_client_no_aisuite(self, mocker):
-        """Test that AIProviderError is raised when aisuite is not available."""
-        service = SpriteGenerationService()
+    def test_ensure_client_service_not_installed(self, mocker):
+        """AIProviderError is raised when the local AI service is not installed."""
+        from glitchygames.ai.local_service import LocalAIServiceNotInstalledError
 
-        mocker.patch.dict('sys.modules', {'aisuite': None})
-        # Mock import to fail
-        mocker.patch('builtins.__import__', side_effect=ImportError("No module named 'aisuite'"))
-        # This should raise an error on import attempt
+        service = SpriteGenerationService()
+        mocker.patch(
+            'glitchygames.ai.local_service.create_chat_client',
+            side_effect=LocalAIServiceNotInstalledError('not installed'),
+        )
+
         with pytest.raises(AIProviderError):
             service._ensure_client()
 
@@ -202,7 +203,7 @@ blue = 3"""
 
 
 class FakeAIClient:
-    """Stands in for aisuite.Client: answers a scripted reply and records the requests."""
+    """Stands in for the local service's client: answers a scripted reply, recording requests."""
 
     def __init__(self, *, reply):
         """Answer `reply` to every request."""
@@ -227,49 +228,40 @@ def _service_answering(reply):
         The service and its fake client.
 
     """
-    service = SpriteGenerationService(ServiceConfig(ai_provider='anthropic', ai_model='model-x'))
+    service = SpriteGenerationService(ServiceConfig(ai_model='model-x'))
     client = FakeAIClient(reply=reply)
     service._client = client
     return service, client
 
 
 class TestEnsureClient:
-    """_ensure_client imports aisuite lazily, builds one client and reuses it."""
+    """_ensure_client imports the local service's client lazily, builds one and reuses it."""
 
     def test_builds_the_client_once(self, mocker):
-        """The client comes from aisuite.Client and is cached for later calls."""
+        """The client comes from create_chat_client, with the config's timeout, and is cached."""
         client = object()
-        fake_aisuite = types.SimpleNamespace(Client=mocker.Mock(return_value=client))
-        mocker.patch.dict('sys.modules', {'aisuite': fake_aisuite})
-        service = SpriteGenerationService(ServiceConfig(ai_provider='openai', ai_model='m'))
+        create_chat_client = mocker.patch(
+            'glitchygames.ai.local_service.create_chat_client',
+            return_value=client,
+        )
+        service = SpriteGenerationService(ServiceConfig(ai_model='m', ai_timeout=42))
 
         assert service._ensure_client() is client
         assert service._ensure_client() is client
-        fake_aisuite.Client.assert_called_once_with()
-        assert service._ai_module is fake_aisuite
+        create_chat_client.assert_called_once_with(timeout_seconds=42)
 
-    def test_missing_aisuite_names_the_install(self, mocker):
-        """With aisuite not importable: an AIProviderError with no provider and the ImportError."""
-        mocker.patch.dict('sys.modules', {'aisuite': None})
-        service = SpriteGenerationService(ServiceConfig(ai_provider='openai', ai_model='m'))
+    def test_service_not_installed_names_the_local_provider(self, mocker):
+        """Service not installed: an AIProviderError naming it and the original error."""
+        from glitchygames.ai.local_service import LocalAIServiceNotInstalledError
 
-        with pytest.raises(AIProviderError, match='aisuite is not installed') as raised:
-            service._ensure_client()
-
-        assert raised.value.provider is None
-        assert isinstance(raised.value.original_error, ImportError)
-
-    def test_client_construction_failure(self, mocker):
-        """A client that cannot be built gives an AIProviderError naming the provider."""
-        failure = RuntimeError('missing API key')
-        fake_aisuite = types.SimpleNamespace(Client=mocker.Mock(side_effect=failure))
-        mocker.patch.dict('sys.modules', {'aisuite': fake_aisuite})
-        service = SpriteGenerationService(ServiceConfig(ai_provider='openai', ai_model='m'))
+        failure = LocalAIServiceNotInstalledError('not installed')
+        mocker.patch('glitchygames.ai.local_service.create_chat_client', side_effect=failure)
+        service = SpriteGenerationService(ServiceConfig(ai_model='m'))
 
         with pytest.raises(AIProviderError, match='Failed to initialize AI client') as raised:
             service._ensure_client()
 
-        assert raised.value.provider == 'openai'
+        assert raised.value.provider == 'local-service'
         assert raised.value.original_error is failure
         assert service._client is None
 
@@ -333,8 +325,8 @@ class TestGenerateSprite:
         assert result.frame_count == 1
         assert result.raw_response == VALID_STATIC_TOML
         (request,) = client.requests
-        assert request['model'] == 'anthropic:model-x'
-        assert request['max_tokens'] == 8192
+        assert request['model'] == 'model-x'
+        assert 'max_tokens' not in request
         assert 'a heart (8x8 pixels)' in request['messages'][-1]['content']
 
     def test_model_override_and_training_examples(self):
@@ -342,10 +334,10 @@ class TestGenerateSprite:
         service, client = _service_answering(VALID_STATIC_TOML)
         example = {'name': 'example', 'raw_content': '[sprite]\nname = "example_marker"'}
 
-        service.generate_sprite('a heart', model='openai:gpt-x', training_examples=[example])
+        service.generate_sprite('a heart', model='bonsai-2-9b', training_examples=[example])
 
         request = client.requests[0]
-        assert request['model'] == 'openai:gpt-x'
+        assert request['model'] == 'bonsai-2-9b'
         assert any('example_marker' in message['content'] for message in request['messages'])
 
     def test_markdown_wrapped_reply_is_cleaned(self):
@@ -407,7 +399,7 @@ class TestGenerateSprite:
         with pytest.raises(AIProviderError, match='AI generation failed: timed out') as raised:
             service.generate_sprite('a heart')
 
-        assert raised.value.provider == 'anthropic'
+        assert raised.value.provider == 'local-service'
         assert raised.value.original_error is failure
 
 
@@ -429,8 +421,8 @@ class TestRefineSprite:
         assert result.success is True
         assert result.sprite_name == 'heart'
         request = client.requests[0]
-        assert request['model'] == 'anthropic:model-x'
-        assert request['max_tokens'] == 8192
+        assert request['model'] == 'model-x'
+        assert 'max_tokens' not in request
         assert request['messages'][3:5] == history
         assert 'name = "old"' in request['messages'][-1]['content']
         assert 'make it red' in request['messages'][-1]['content']

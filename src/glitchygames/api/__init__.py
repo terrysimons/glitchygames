@@ -1,7 +1,7 @@
 r"""GlitchyGames API - FastAPI application for sprite generation.
 
 This module provides a REST API for generating and rendering pixel art sprites
-using AI providers via aisuite.
+using the local AI service.
 
 Server Usage:
     # Run the server

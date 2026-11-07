@@ -369,6 +369,7 @@ LOG.addHandler(logging.NullHandler())
 # Options the recording never overrides: how this run is watched, logged, paced and recorded,
 # not what the game does
 REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
+    'ai',
     'replay_trace',
     'record_trace',
     'audit',

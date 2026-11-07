@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, 
 import pygame
 
 from glitchygames import clock, events
+from glitchygames.ai_link import AiLink, create_link
 from glitchygames.argument_types import non_negative_int, unit_interval
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -171,6 +172,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Generator, Sequence
     from types import FrameType
 
+    from glitchygames.ai_console import AiConsole
     from glitchygames.audio.voices import ChannelPartition
     from glitchygames.crt_power_on_sound import CrtPowerOnSound
     from glitchygames.input.devices import OpenedController, ReplayDeviceRegistry
@@ -775,6 +777,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     # the teardown (_shutdown). Class defaults so they read None on an engine whose __init__
     # did not run.
     onion_skin: OnionSkin | None = None
+    # The AI's console, for a run with a link (glitchygames/ai_console.py); the debug overlay's
+    # AI panel reads it
+    ai_console: AiConsole | None = None
     frame_stream: FrameStream | None = None
     # OLD when --compare-trace OLD is played live (no --replay-trace; rule 9 of
     # glitchygames/replay/tools/compare.py), else None
@@ -852,6 +857,17 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             '-w',
             '--windowed',
             help='run in a window; --no-windowed runs fullscreen (default: windowed)',
+            action=argparse.BooleanOptionalAction,
+            default=True,
+        )
+        # Not a tool in the registry: two tool flags at once are refused, and this is on by default
+        group.add_argument(
+            '--ai',
+            help=(
+                'connect to the local AI service if it is installed, starting its models as '
+                'the game loads; --no-ai never touches it (default: on, but never with '
+                '--headless or in a replay)'
+            ),
             action=argparse.BooleanOptionalAction,
             default=True,
         )
@@ -1392,19 +1408,20 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # A live run is hosted: the outer game (glitchygames/host.py) reads through the live
         # doors and drives the frames. A replay has no host (its viewer is its outer game)
         self.host: GameHost | None = None
+        # The run's session with the local AI service, if it has one (glitchygames/ai_link.py)
+        self.ai_link: AiLink | None = None
         if self.replay_sources is None:
+            live_sources = LiveSources(
+                random_seed=self.random_seed,
+                use_fastevents=GameEngine.USE_FASTEVENTS,
+                # A recorded run captures scene starts from its first scene on, which
+                # is built before recording starts (glitchygames/scene_start.py)
+                captures_scene_starts=options.get('record_trace') is not None,
+            )
+            self.ai_link = create_link(options=options)
             self.host = GameHost(
-                sources=HostSources(
-                    inner=LiveSources(
-                        random_seed=self.random_seed,
-                        use_fastevents=GameEngine.USE_FASTEVENTS,
-                        # A recorded run captures scene starts from its first scene on, which
-                        # is built before recording starts (glitchygames/scene_start.py)
-                        captures_scene_starts=options.get('record_trace') is not None,
-                    ),
-                    # Live play against OLD draws OLD over each presented frame
-                    overlay=self.onion_skin,
-                )
+                # Live play against OLD draws OLD over each presented frame
+                sources=self._host_sources(inner=live_sources, overlay=self.onion_skin)
             )
             install_sources(sources=self.host.sources)
         else:
@@ -3229,6 +3246,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # the timer holds here, not in its finaliser, which must not log (BUGS.md #188)
         if self.timer is not None:
             self.timer.close()
+        # Closes this game's session; the service stops the models once the last one has gone
+        if self.ai_console is not None:
+            self.ai_console.stop()
+        if self.ai_link is not None:
+            self.ai_link.stop()
         # Before pygame quits: the sound library's voices fade over 50 ms, waited for at most
         # 100 ms (sound engine impl spec 10.3), then the channel reservation is given back (SDL
         # would keep it for a mixer started again in this process). Even when closing the audio
@@ -3675,6 +3697,26 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if outcome is PowerOnOutcome.QUIT:
             post_input_event(event=pygame.event.Event(pygame.QUIT))
 
+    def _host_sources(self: Self, *, inner: LiveSources, overlay: OnionSkin | None) -> HostSources:
+        """Build the host's doors: the AI's subclass only for a run that has a link.
+
+        Args:
+            inner: The live doors.
+            overlay: Drawn over each presented frame, or None.
+
+        Returns:
+            The doors.
+
+        """
+        if self.ai_link is None:
+            return HostSources(inner=inner, overlay=overlay)
+        # Imported here: a run without AI never loads it
+        from glitchygames.ai_host import AiHostSources
+
+        ai_sources = AiHostSources(inner=inner, link=self.ai_link, overlay=overlay)
+        self.ai_console = ai_sources.console
+        return ai_sources
+
     def _build_game(self: Self, *, paced_by_timer: bool) -> None:
         """Construct the game and its first scene, up to the first frame (inside the boundary).
 
@@ -3683,6 +3725,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 is then calibrated; False for ``start_async()``.
 
         """
+        # As the game loads: this returns at once, and the models load on the link's thread
+        if self.ai_link is not None:
+            self.ai_link.start()
+
         # Initialize the game instance
         self.game = self.game(options=GameEngine.OPTIONS)
 

@@ -1,0 +1,18 @@
+---
+ai_package_version: 0.1.0
+# Unsigned until there are Developer ID certificates (plans/lucid-circuit.md, section 6). Gatekeeper
+# blocks an unsigned package that was downloaded, so this one only suits the Mac that built it
+ai_package_directory: "{{ ai_cache_root }}/package"
+ai_package_stage: "{{ ai_package_directory }}/stage"
+ai_package_scripts: "{{ ai_package_directory }}/scripts"
+ai_package_stage_root: "{{ ai_package_stage }}/Library/Application Support/GlitchyGames/AI"
+ai_package_output: "{{ ai_package_directory }}/GlitchyGames-AI-{{ ai_package_version }}.pkg"
+ai_package_component: "{{ ai_package_directory }}/component.pkg"
+ai_package_distribution: "{{ ai_package_directory }}/distribution.xml"
+
+# Written into plists and settings, and replaced with the player's home when they install
+ai_package_home_placeholder: __GLITCHYGAMES_HOME__
+
+# A player's Mac gets the model the setup picks, not every size: 13.93 GB is a lot to take from a
+# small disk (plans/lucid-circuit.md, section 10, question 6). They can ask for another later
+ai_package_setup_label: "{{ ai_service_label_prefix }}.setup"

@@ -93,7 +93,7 @@ __all__ = [
 def __getattr__(name: str) -> object:
     """Import ``VoiceAssistant`` when it is first asked for (a module ``__getattr__``, PEP 562).
 
-    Its module imports aisuite (about 150 ms, with the AI providers' clients), and every engine
+    Its module imports speech recognition, which is slow to import, and every engine
     run imports this package (``glitchygames.audio.live``, its live voices), every child process
     the tools start included: a run that never asks for the voice assistant no longer imports it.
     ``from glitchygames.audio import VoiceAssistant`` works as it always did.

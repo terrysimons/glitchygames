@@ -29,7 +29,6 @@ async def health_check() -> HealthResponse:
     return HealthResponse(
         status='healthy',
         version='1.0.0',
-        ai_provider=config.ai_provider,
         ai_model=config.ai_model,
         pygame_initialized=pygame_initialized,
     )

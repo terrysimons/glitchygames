@@ -33,24 +33,14 @@ try:
 except ImportError:  # pragma: no cover
     sr = None
 
-try:
-    import aisuite as ai
-except ImportError, AttributeError:  # pragma: no cover
-    ai = None
-    log.warning(
-        '*** aisuite not available — voice assistant AI features disabled. '
-        'Install aisuite or check Python 3.14 compatibility (ast.NameConstant removed). ***',
-    )
-
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from glitchygames.audio.tts import TTSBackend
 
 
-# Default AI configuration
-_DEFAULT_PROVIDER = 'anthropic'
-_DEFAULT_MODEL = 'claude-sonnet-4-5'
+# The local AI service's role name: it answers with whichever size this machine can run
+_DEFAULT_MODEL = 'reasoning'
 
 _SYSTEM_PROMPT = (
     'You are a helpful game assistant. The player is speaking to you through '
@@ -70,8 +60,7 @@ class VoiceAssistant:
 
     Args:
         controller_audio: The controller's audio devices.
-        ai_provider: AI provider name for aisuite (default: from env or 'anthropic').
-        ai_model: AI model identifier (default: from env or 'claude-sonnet-4-5').
+        ai_model: The local AI service's model (default: from env or 'reasoning').
         system_prompt: System prompt for the AI assistant.
         on_transcription: Callback when speech is transcribed. Receives the text.
         on_response: Callback when AI responds. Receives the response text.
@@ -83,7 +72,6 @@ class VoiceAssistant:
         self,
         controller_audio: ControllerAudio,
         *,
-        ai_provider: str | None = None,
         ai_model: str | None = None,
         system_prompt: str = _SYSTEM_PROMPT,
         on_transcription: Callable[[str], None] | None = None,
@@ -96,7 +84,6 @@ class VoiceAssistant:
         self._system_prompt = system_prompt
 
         # AI configuration (env vars override defaults)
-        self._ai_provider = ai_provider or os.environ.get('SPRITE_AI_PROVIDER', _DEFAULT_PROVIDER)
         self._ai_model = ai_model or os.environ.get('SPRITE_AI_MODEL', _DEFAULT_MODEL)
 
         # Callbacks for game integration
@@ -291,10 +278,6 @@ class VoiceAssistant:
             The AI's response text, or None.
 
         """
-        if ai is None:
-            log.warning('aisuite not available')
-            return None
-
         # Trim the history to the turns kept before the question joins it. The history holds
         # whole user/assistant pairs (a failed request removes its question below), so dropping
         # whole pairs from the front keeps it starting with a user message, which some
@@ -320,10 +303,11 @@ class VoiceAssistant:
             ]
 
         try:
-            client: Any = ai.Client()
-            model_string = f'{self._ai_provider}:{self._ai_model}'
-            response = client.chat.completions.create(
-                model=model_string,
+            # Imported here: most games never use the assistant
+            from glitchygames.ai.local_service import create_chat_client
+
+            response = create_chat_client().chat.completions.create(
+                model=self._ai_model,
                 messages=messages,
             )
             response_text: str = response.choices[0].message.content

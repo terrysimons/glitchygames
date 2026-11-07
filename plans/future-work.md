@@ -584,8 +584,50 @@ only replays; Part 2 Task 1).
   `dirty_pixels` list was removed unread (BUGS.md #178.15, 2026-11-01); a new design must also
   mark everything on pan, frame switch, hover and onion-skin changes.
 
+## AI (Lucid Circuit; plans/lucid-circuit.md)
+
+- **A flow chart the AI follows for every query** (the owner, 2026-11-07): does it already have the pieces to answer,
+  or must it infer them? For example, PaddleSlap tracks no longest rally and Mr. Muncher doesn't record which chaser
+  caught you, yet both can be worked out by rewinding and replaying history. The chart decides, in order: is it in the
+  cached opening (mechanics, controls)? Can a tool read it now (`get_scene`, `get_sprite`, `get_game_facts`)? Can it be
+  computed from history (`history`, replaying to a frame) or found by experiment in a copy (`try_in_copy`)? Or is it
+  impossible, a false premise, or something to refuse? When it infers, it says how (what it counted, over which
+  frames). Draw it as a diagram for review, turn it into the system prompt's instructions, and add a behaviour test per
+  branch (plans/lucid-circuit-5-load-harness.md, Part 2b).
+
+- **A `/gist` mode in the AI console** (the owner, 2026-11-07): `/gist enable` and `/gist disable`. While
+  enabled, the AI considers what each request most likely means and answers that. When it can't
+  reasonably choose between readings, it says so instead of guessing: it explains the ambiguity,
+  lists the readings, and asks which was meant. Show the mode in `/ai` and the AI debug panel, keep
+  it per game like the history, and add behaviour tests (plans/lucid-circuit-5-load-harness.md,
+  Part 2b) with deliberately ambiguous questions: one with a clear likeliest meaning, which should
+  be answered, and one with no clear winner, which should be asked about.
+
+- **Deferred: choosing 2B's context by free memory** (the owner, 2026-11-07: "we're just going to
+  stick with the 2B model for the foreseeable future"). Every run already uses 2B
+  (`ai_service_default_bonsai_size`, plans/lucid-circuit.md section 5), at its full context, or
+  nothing when that doesn't fit. Agreed earlier and deferred: step down instead, full context, then
+  32K, then 8K, then none, with Qwen starting with the game as it does today.
+
+## Games
+
+- **Convert Drawing Fire to sprites** (the owner, 2026-11-07). It draws its soldiers, sandbags and bullets straight
+  onto the screen, so it has no sprites: the AI's sprite tools see nothing, the stable ids name nothing, and replays
+  compare nothing of it, which is why it posts a GAMEEVENT per death and seat change to give its replay something to
+  compare. As sprites (one per soldier, sandbag and bullet; its soldiers are already drawn from `sprites/soldier.toml`
+  with palette swaps), it gets ids, sprite comparison, hitboxes in the debug overlay, and the AI's tools for free.
+  Its golden replay will change, so re-recording it is a reviewed step, and the GAMEEVENTs can stay or go once the
+  sprites carry what they did. Check the per-frame cost against the run ledger, since it draws many soldiers.
+
 ## Performance and pacing
 
+- **A per-game AI sweep of performance bottlenecks** (the owner, 2026-11-07). For each game, have the AI
+  read what our benchmarks record (the run ledger in `quality/replay-ledger/`, each recording's
+  `processing_seconds` and `FrameProfile`, the slowest frames and scenes in each `RunSummary`, and
+  `nox -s performance-test`), find where that game spends its frame time, and suggest fixes, each
+  with the evidence behind it. Suggestions are a report for the owner to choose from, not changes
+  made by the sweep. It can use Stage 4b's churn measurements (garbage collector pauses,
+  allocations by type) once they exist (plans/lucid-circuit-4b-mirror.md, step 1).
 - **Raspberry Pi hardware runners** (the user, 2026-11-02; do this on its own branch, separate from
   the sound engine work). Self-hosted CI runners on the user's Raspberry Pis, so the replay ledger
   and the sound benchmarks (`docs/specs/2026-11-02-sound-engine-implementation-spec.md` §11) are

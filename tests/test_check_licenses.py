@@ -189,13 +189,17 @@ def test_gpl_is_denied_lgpl_and_unknown_are_unreviewed_and_mpl_passes():
 
 
 def test_an_override_replaces_the_sbom_license_and_is_still_checked(mocker: MockerFixture):
-    """The pandas digest is replaced by its BSD-3-Clause; an overridden GPL is still denied."""
+    """A digest as the license is replaced by the override; an overridden GPL is still denied."""
     mocker.patch.dict(
-        PACKAGE_LICENSE_OVERRIDES, {'overridden-gpl-tool': ('GPL-2.0-or-later', 'its LICENSE')}
+        PACKAGE_LICENSE_OVERRIDES,
+        {
+            'digest-licensed-library': ('BSD-3-Clause', 'its METADATA'),
+            'overridden-gpl-tool': ('GPL-2.0-or-later', 'its LICENSE'),
+        },
     )
     sbom = {
         'components': [
-            library('pandas', {'license': {'name': 'sha256:1efd'}}),
+            library('digest-licensed-library', {'license': {'name': 'sha256:1efd'}}),
             library('overridden-gpl-tool'),
         ]
     }

@@ -48,6 +48,14 @@ RECORDINGS_NOT_REPLAYED = {
         "tests/replay/tools/test_provenance.py reads its runs: a frozen copy of Clockwork Keep's "
         'golden from before game_source_revision existed'
     ),
+    'scripts/ai_behaviour/recordings/brave-adventurer-hazards.jsonl.gz': (
+        "scripts/ai_behaviour/capture.py replays it to snapshot the AI behaviour tests' moments: "
+        "Brave Adventurer's walls, pits, one missed jump and a cobra (record_brave_adventurer.py)"
+    ),
+    'scripts/ai_behaviour/recordings/paddleslap-no-input.jsonl.gz': (
+        "scripts/ai_behaviour/capture.py replays it to snapshot the AI behaviour tests' moments: "
+        "PaddleSlap's game-over screen and the demo it plays, with no input"
+    ),
 }
 
 

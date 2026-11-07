@@ -1,0 +1,209 @@
+#!/bin/sh
+# Starts and stops the local AI models on demand, so nothing uses memory until a game needs it:
+#   ai-service.sh select    print the sizes this machine can run right now, starting nothing
+#   ai-service.sh start     pick sizes the same way and start them
+#   ai-service.sh stop      stop every model
+#   ai-service.sh status    print what's running
+# Prints key=value lines. Exits 3 when no model fits in the memory free right now, and 4 when a port
+# is held by something else: AI is then unavailable and the game plays on without it.
+#
+# The plists live in the install folder and not in ~/Library/LaunchAgents, because launchd loads
+# everything there at login. Bootstrapped from here they run only when asked, and launchd still
+# restarts one that crashes.
+set -u
+
+install_root="$HOME/Library/Application Support/GlitchyGames/AI"
+models="$install_root/models"
+agents="$install_root/agents"
+config="$install_root/config"
+domain="gui/$(id -u)"
+api_label={{ ai_service_api_label }}
+api_port={{ ai_service_api_port }}
+
+# Left for the game, the system and whatever else is open. Provisional (plans/lucid-circuit.md, 5)
+game_reserve_mb={{ ai_service_game_reserve_mib }}
+
+bonsai_label() { echo "{{ ai_service_label_prefix }}.bonsai-2-$1.llama-cpp"; }
+qwen_label() { echo "{{ ai_service_label_prefix }}.qwen3-embedding-$1.llama-cpp"; }
+
+# Sets files, reserved_mb, minimum_mb and port for a size, smallest size first in the lists below
+bonsai_facts() {
+    case "$1" in
+{% for tier in ai_service_bonsai_tiers %}
+        {{ tier.size }})
+            files="{{ ai_models_bonsai[tier.size].model.file }} {{ ai_models_bonsai[tier.size].vision.file }}"
+            reserved_mb={{ ai_service_bonsai_reserved_mib[tier.size] }}
+            minimum_mb={{ tier.minimum_memory_mb }}
+            port={{ ai_service_bonsai_ports[tier.size] }}
+            ;;
+{% endfor %}
+    esac
+}
+qwen_facts() {
+    case "$1" in
+{% for size, model in ai_models_qwen.items() %}
+        {{ size }})
+            files="{{ model.model.file }}"
+            reserved_mb={{ ai_service_qwen_reserved_mib[size] }}
+            port={{ ai_service_qwen_ports[size] }}
+            ;;
+{% endfor %}
+    esac
+}
+
+files_present() {
+    for file in $files; do
+        [ -f "$models/$file" ] || return 1
+    done
+    return 0
+}
+
+# Physical memory says what a machine can ever run, and free memory what it can run now. Overrides
+# are for testing the choice, and selection.env for a user who picks a size by hand. The default size
+# (ai_service_default_bonsai_size; empty: the largest that fits) gives way to selection.env, and
+# AI_BONSAI_SIZE beats both for one run: a size that isn't downloaded, or doesn't fit, still gets
+# nothing
+select_sizes() {
+    memory_mb=${AI_MEMORY_MB:-$(( $(sysctl -n hw.memsize) / 1048576 ))}
+    free_percent=${AI_FREE_PERCENT:-$(sysctl -n kern.memorystatus_level)}
+    free_mb=$(( memory_mb * free_percent / 100 ))
+    budget_mb=$(( free_mb - game_reserve_mb ))
+
+    bonsai_size=""
+    qwen_size={{ ai_service_qwen_size }}
+    bonsai_override={{ ai_service_default_bonsai_size | quote }}
+    if [ -f "$config/selection.env" ]; then
+        . "$config/selection.env"
+    fi
+    bonsai_override=${AI_BONSAI_SIZE:-$bonsai_override}
+
+    qwen_facts "$qwen_size"
+    if ! files_present; then
+        echo "reason=qwen-$qwen_size-not-downloaded"
+        return 3
+    fi
+    qwen_reserved_mb=$reserved_mb
+
+    # Largest first, so the first that fits wins
+    for size in {{ ai_service_bonsai_tiers | map(attribute='size') | reverse | join(' ') }}; do
+        if [ -n "$bonsai_override" ] && [ "$size" != "$bonsai_override" ]; then
+            continue
+        fi
+        bonsai_facts "$size"
+        files_present || continue
+        if [ -z "$bonsai_override" ] && [ "$memory_mb" -lt "$minimum_mb" ]; then
+            continue
+        fi
+        if [ $(( reserved_mb + qwen_reserved_mb )) -le "$budget_mb" ]; then
+            bonsai_size=$size
+            break
+        fi
+    done
+
+    echo "memory_mb=$memory_mb"
+    echo "free_mb=$free_mb"
+    echo "budget_mb=$budget_mb"
+    if [ -z "$bonsai_size" ]; then
+        echo "reason=nothing-fits"
+        return 3
+    fi
+    echo "bonsai=$bonsai_size"
+    echo "qwen=$qwen_size"
+    return 0
+}
+
+is_loaded() {
+    launchctl print "$domain/$1" >/dev/null 2>&1
+}
+
+# launchd refuses a job for about a second after it's stopped, so this tries for a while
+start_agent() {
+    label=$1
+    agent_port=$2
+    is_loaded "$label" && return 0
+    if lsof -nP "-iTCP:$agent_port" -sTCP:LISTEN >/dev/null 2>&1; then
+        echo "reason=port-$agent_port-in-use"
+        return 4
+    fi
+    attempts=0
+    until launchctl bootstrap "$domain" "$agents/$label.plist" 2>/dev/null; do
+        attempts=$(( attempts + 1 ))
+        if [ "$attempts" -ge 30 ]; then
+            echo "reason=could-not-start-$label"
+            return 1
+        fi
+        sleep 1
+    done
+    return 0
+}
+
+# The API last: it may be what's running this script, once the last game has gone
+stop_all() {
+    for plist in "$agents"/*.plist; do
+        [ -e "$plist" ] || continue
+        label=$(basename "$plist" .plist)
+        if [ "$label" != "$api_label" ] && is_loaded "$label"; then
+            launchctl bootout "$domain/$label" 2>/dev/null
+        fi
+    done
+    if is_loaded "$api_label"; then
+        launchctl bootout "$domain/$api_label" 2>/dev/null
+    fi
+}
+
+# Which reasoning and embedding agents run now, if any
+running_size() {
+    for plist in "$agents"/$1-*.plist; do
+        [ -e "$plist" ] || continue
+        label=$(basename "$plist" .plist)
+        if is_loaded "$label"; then
+            size=${label#*"$1"-}
+            echo "${size%.llama-cpp}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+case "${1:-}" in
+    select)
+        select_sizes
+        ;;
+    start)
+        # Another game may already have started them. Measuring again would see less free memory, as
+        # those models are holding it, and could stop a size that game is using
+        bonsai_running=$(running_size {{ ai_service_label_prefix }}.bonsai-2)
+        qwen_running=$(running_size {{ ai_service_label_prefix }}.qwen3-embedding)
+        if [ -n "$bonsai_running" ] && [ -n "$qwen_running" ]; then
+            echo "bonsai=$bonsai_running"
+            echo "qwen=$qwen_running"
+            start_agent "$api_label" "$api_port" || exit $?
+            exit 0
+        fi
+        selection=$(select_sizes)
+        result=$?
+        echo "$selection"
+        [ "$result" -eq 0 ] || exit "$result"
+        bonsai_size=$(echo "$selection" | sed -n 's/^bonsai=//p')
+        qwen_size=$(echo "$selection" | sed -n 's/^qwen=//p')
+        bonsai_facts "$bonsai_size"
+        start_agent "$(bonsai_label "$bonsai_size")" "$port" || exit $?
+        qwen_facts "$qwen_size"
+        start_agent "$(qwen_label "$qwen_size")" "$port" || exit $?
+        start_agent "$api_label" "$api_port" || exit $?
+        ;;
+    stop)
+        stop_all
+        ;;
+    status)
+        for plist in "$agents"/*.plist; do
+            [ -e "$plist" ] || continue
+            label=$(basename "$plist" .plist)
+            is_loaded "$label" && echo "running=$label"
+        done
+        ;;
+    *)
+        echo "usage: ai-service.sh select|start|stop|status" >&2
+        exit 64
+        ;;
+esac
