@@ -13,13 +13,13 @@ intercepted and posted back to the real game, which is an architectural update t
 the full loop.
 
 ```
-             frame stream: seed, dt, events, polled input, control events
+             the AI socket, forwards: events, with dt and polled input
 Live game ──────────────────────────────────────────────────────> Clone
 (the player's window)                                             (dummy driver, uncapped)
     ^                                                                 |
-    |  validated on the main thread, applied as a recorded            | the AI inspects it
-    |  control event, which the stream then carries to the clone      | and tries calls on it
-    └─────────────────────────── intercepted calls <──────────────────┘
+    |  validated, added to the live pump, recorded,                   | the AI inspects it
+    |  and so sent forwards like any other event                      | and acts through events
+    └─────────────── the AI socket, backwards: events <───────────────┘
 ```
 
 Earlier plans put the mirror in Stage 10, behind checkpoints. That was wrong: a clone that starts with the game replays
@@ -34,21 +34,24 @@ from frame 0, so it needs none.
 3. **Every answer says its age:** which frame it describes, and how far behind that is.
 4. **A clone that's behind or gone is said to be so.** The console reports it rather than falling back to the main
    thread. The game plays on regardless.
-5. **Nothing runs in the clone that the live game didn't run,** or the two would part. An intercepted call is captured,
-   not executed. It runs on the clone when the stream brings it back.
-6. **A posted-back call is a proposal, not an order.** It's validated on the main thread and may be refused.
+5. **Nothing runs in the clone that the live game didn't run,** or the two would part. An event the AI makes is captured,
+   not handled. It's handled on the clone when the socket brings it back.
+6. **An event from the AI is a proposal, not an order.** It's validated on the main thread and may be refused.
 
-## How a call gets back
+## How the two games talk
 
-`SceneManager.record_control_event` already records an action into its frame and runs its handlers, and a replay
-re-applies it at the same point in that frame. So:
+**Events pump backwards and forwards across the AI socket. That's all** (the owner, 2026-11-06). There's no separate
+call-forwarding layer.
 
-1. The AI calls something on an object in the clone. A proxy captures the call instead of running it.
-2. The call travels to the live game as data: a stable handle for the object, the method, and its arguments.
-3. On the main thread, inside a budget, the host validates it against what's allowed and against the object's state.
-4. If accepted, it's applied as a control event on the next frame, and recorded like any other.
-5. The stream carries it to the clone, which applies it at the same frame. Both copies stay in step, and a recording of
-   the run replays with no AI at all.
+1. **Forwards:** each frame's events go from the live game to the clone over the socket, with their timing.
+2. **Backwards:** what the AI does in the clone is captured as events instead of being handled there, and goes back over
+   the same socket. An event can name its object with a sprite id.
+3. **Into the game:** the host adds them to the live pump, as `AiHostSources.pump_events` already does for AI input,
+   beneath the recorder. Refused ones go no further.
+4. **And round again:** being in the pump, they're recorded and go forwards like any other event, reaching the clone at
+   the frame the live game handled them. Both copies stay in step, and a recording of the run replays with no AI at all.
+
+A replay also needs each frame's dt and polled input, so those ride on the same socket beside the events.
 
 An action always lands on a later live frame than the one the AI was looking at. The AI can find the right moment in
 what has happened, but it can't act in the past.
@@ -71,10 +74,10 @@ what has happened, but it can't act in the past.
 - **Objects in the timing gap.** The clone is behind, so anything it can name already exists in the live game, or did.
   A call can only find its object gone, never not yet made, and a gone object's id can't have passed to another. Such a
   call is refused, and the AI is told. New objects it hasn't reached yet simply aren't known to it until it does.
-- **What may be called.** Forwarding any call would amount to running AI-written code in the game, which the plan rules
-  out (section 8). Stage 7 decides what's allowed, with discovery that doesn't run properties. The first version only
-  carries a small allowlist.
-- **Arguments.** Only JSON-safe values and handles can cross. Anything else is refused by name.
+- **Which events may come back.** `ALLOWED_INPUT_EVENT_TYPES` holds only key presses and releases today. Widening it is
+  the deliberate step, as an event a game handles can do whatever its handler does, and text the AI read could be trying
+  to steer it (section 8). Stage 7 decides what's allowed.
+- **Event fields.** Only JSON-safe values and sprite ids can cross. Anything else is refused by name.
 - **Silent drift.** Replays compare sprites and recorded events, not all game state, so a wrong `rally_count` would go
   unseen. The stream carries a per-frame check, and a clone that drifts is flagged and restarted from frame 0. Restarting
   a long session may be slow, which is where checkpoints would help later.
@@ -96,8 +99,8 @@ what has happened, but it can't act in the past.
 3. **Read-only introspection.** A query socket on the clone. The console's `/ask` and `/inspect` read it, with no cap, and
    the live-path `describe_scene` goes. The answer comparison's affected questions run again on the full state.
 4. **Drift checks.**
-5. **Posting calls back.** Handles, the proxy, validation, control events, refusal and stale-call handling, with one
-   allowlisted call proved end to end: applied live, recorded, seen by the clone, and replayed with no AI.
+5. **Events backwards.** Capturing the AI's events in the clone, ids in their fields, refusal and stale handling, with one
+   allowed event proved end to end: applied live, recorded, seen by the clone, and replayed with no AI.
 
 ## What this changes elsewhere
 
@@ -113,5 +116,5 @@ what has happened, but it can't act in the past.
 - The live game's frame times with the clone running, against `--no-ai`, on a real display.
 - The clone keeps under 5 seconds behind on the games measured, or the limit is stated for those that don't.
 - `/inspect` shows every sprite in Mr. Muncher's scene, including the player.
-- One call goes clone to live and back, and a recording of that run replays exactly with no AI.
+- One event goes clone to live and back, and a recording of that run replays exactly with no AI.
 - Killing the clone leaves the game playing, and the console says what happened.
