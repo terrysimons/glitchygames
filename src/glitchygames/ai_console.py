@@ -21,14 +21,15 @@ The rules:
    setting and never changes it.
 4. It doesn't pause the game. Pausing belongs to the game, so pause it first if that matters: the
    console works over the pause screen, and inspects the paused game.
-5. The frame never waits. Requests, the model's stream and the history file all live on a worker
-   thread, which hands updates to the main thread through a deque. With the console closed and
-   nothing to say, ``filter_events`` is one truth test and a loop over the batch's keys, and nothing
-   is drawn.
+5. The frame never waits. Requests, the model's stream, the history file and the system clipboard
+   (which can mean running another program) all live on a worker thread, which hands updates to
+   the main thread through a deque. With the console closed and nothing to say, ``filter_events``
+   is one truth test and a loop over the batch's keys, and nothing is drawn.
 """
 
 from __future__ import annotations
 
+import bisect
 import collections
 import dataclasses
 import json
@@ -43,6 +44,7 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock
 from glitchygames.ai_link import LinkState
+from glitchygames.clipboard import ClipboardUnavailableError, system_clipboard
 from glitchygames.debug.overlay import OVERLAY_KEYS, load_debug_font
 from glitchygames.debug.panels import HUD_TEXT_COLOR, blit_text
 from glitchygames.fonts import FontManager
@@ -77,7 +79,16 @@ HEIGHT_FRACTION = 0.6
 PAGE_LINES = 8
 
 # A held key repeats after the delay, each repeat coming sooner than the last, down to the shortest
-REPEATING_KEYS = frozenset({pygame.K_BACKSPACE})
+REPEATING_KEYS = frozenset({
+    pygame.K_BACKSPACE,
+    pygame.K_DELETE,
+    pygame.K_LEFT,
+    pygame.K_RIGHT,
+    pygame.K_UP,
+    pygame.K_DOWN,
+    pygame.K_PAGEUP,
+    pygame.K_PAGEDOWN,
+})
 REPEAT_DELAY_SECONDS = 0.35
 REPEAT_FIRST_INTERVAL_SECONDS = 0.07
 REPEAT_ACCELERATION = 0.9
@@ -86,8 +97,12 @@ REPEAT_SHORTEST_INTERVAL_SECONDS = 0.015
 MAXIMUM_REPEATS_PER_BATCH = 8
 KEYS_HELP = (
     'Keys: Up/Down recall, Shift+Up/Down scroll a line, Page Up/Down scroll a page, Tab completes, '
-    'Ctrl-A/Ctrl-E start/end of line, Ctrl-K cut to end of line, Ctrl-Y paste what was cut'
+    'Ctrl-A/Ctrl-E start/end of line, Alt-Left/Alt-Right move a word, Ctrl-K/Ctrl-U/Ctrl-W cut to '
+    'the end, to the start or a word, Ctrl-Y paste what was cut, Ctrl-C cancel or clear the line, '
+    'Ctrl-R search earlier input (Esc leaves the search)'
 )
+# A clipboard can hold anything, and this much is already far more than one line can show
+MAXIMUM_PASTED_CHARACTERS = 4000
 
 MAXIMUM_TRANSCRIPT_LINES = 500
 MAXIMUM_RECALLED_INPUTS = 100
@@ -235,6 +250,26 @@ def wrapped_lines(*, text: str, font: pygame.font.Font, width: int) -> list[str]
     return lines
 
 
+def fitting_tail(*, text: str, font: pygame.font.Font, width: int) -> str:
+    """Return as much of the end of the text as fits a pixel width.
+
+    Args:
+        text: The text.
+        font: The font it will be drawn in.
+        width: The width in pixels.
+
+    Returns:
+        The tail, without measuring more than a pixel a character can hold.
+
+    """
+    earliest = max(0, len(text) - width)
+    starts = range(earliest, len(text) + 1)
+    first_fitting = bisect.bisect_left(
+        starts, x=True, key=lambda start: font.size(text[start:])[0] <= width
+    )
+    return text[earliest + first_fitting :]
+
+
 class AiConsole:
     """The console's state, input, drawing and requests."""
 
@@ -268,6 +303,7 @@ class AiConsole:
         self.requests_cancelled = 0
         self.last_seconds: float | None = None
         self.last_pieces = 0
+        self.last_answer = ''
         self.unread_answer = False
         self.scene: Scene | None = None
         self._held: dict[int, pygame.event.Event] = {}
@@ -278,8 +314,16 @@ class AiConsole:
         )
         self._recalled: collections.deque[str] = collections.deque(maxlen=MAXIMUM_RECALLED_INPUTS)
         self._recall_position: int | None = None
+        # Ctrl-R's search: its text (None when not searching), the match, and what to go back to
+        self._search_query: str | None = None
+        self._search_index: int | None = None
+        self._search_original = ''
+        self._search_failed = False
+        self._past_questions: list[str] = []
+        self._past_questions_requested = False
         self._conversation: list[dict[str, str]] = []
         self._scroll_lines = 0
+        self._rendered_line_count = 0
         self._font: pygame.font.Font | None = None
         self._panel: pygame.Surface | None = None
         self._notice: pygame.Surface | None = None
@@ -317,6 +361,18 @@ class AiConsole:
                     run=self._history,
                 ),
                 ConsoleCommand(
+                    name='copy',
+                    usage='/copy',
+                    summary='copy the last answer to the system clipboard',
+                    run=self._copy,
+                ),
+                ConsoleCommand(
+                    name='paste',
+                    usage='/paste',
+                    summary='put the system clipboard on the input line, to edit before Enter',
+                    run=self._paste,
+                ),
+                ConsoleCommand(
                     name='clear',
                     usage='/clear',
                     summary='empty this screen, and start the conversation over',
@@ -349,12 +405,20 @@ class AiConsole:
         self._control_keys: dict[int, Callable[[], None]] = {
             pygame.K_a: lambda: self._move_cursor(0),
             pygame.K_e: lambda: self._move_cursor(len(self.input_text)),
-            pygame.K_k: self._cut_to_end,
+            pygame.K_k: lambda: self._cut(start=self.cursor, end=len(self.input_text)),
+            pygame.K_u: lambda: self._cut(start=0, end=self.cursor),
+            pygame.K_w: lambda: self._cut(start=self._previous_word_start(), end=self.cursor),
             pygame.K_y: lambda: self._type(text=self.cut_text),
+            pygame.K_c: self._interrupt,
+            pygame.K_r: self._search_earlier,
         }
         self._shift_keys: dict[int, Callable[[], None]] = {
             pygame.K_UP: lambda: self._scroll(1),
             pygame.K_DOWN: lambda: self._scroll(-1),
+        }
+        self._alt_keys: dict[int, Callable[[], None]] = {
+            pygame.K_LEFT: lambda: self._move_cursor(self._previous_word_start()),
+            pygame.K_RIGHT: lambda: self._move_cursor(self._next_word_end()),
         }
         self._add_line(text='AI console: read-only. /help lists commands. Esc or ` closes.')
 
@@ -499,6 +563,7 @@ class AiConsole:
         self.is_open = is_open
         self._panel = None
         self._repeating = None
+        self._search_query = None
         if not is_open:
             return
         self.unread_answer = False
@@ -521,6 +586,8 @@ class AiConsole:
         self._panel = None
         # A new key takes over from one being held, as on any keyboard
         self._repeating = None
+        if self._search_query is not None and self._edit_search(event=event):
+            return
         action = self._action_for(event=event)
         if action is None:
             self._type(text=getattr(event, 'unicode', ''))
@@ -542,10 +609,14 @@ class AiConsole:
 
         """
         modifiers = getattr(event, 'mod', 0)
+        has_control = bool(modifiers & pygame.KMOD_CTRL)
+        has_alt = bool(modifiers & pygame.KMOD_ALT)
         action = None
         # Windows reports AltGr as Ctrl+Alt, and AltGr+E types a character on many layouts
-        if modifiers & pygame.KMOD_CTRL and not modifiers & pygame.KMOD_ALT:
+        if has_control and not has_alt:
             action = self._control_keys.get(event.key)
+        elif has_alt and not has_control:
+            action = self._alt_keys.get(event.key)
         elif modifiers & pygame.KMOD_SHIFT:
             action = self._shift_keys.get(event.key)
         return action or self._editing_keys.get(event.key)
@@ -571,12 +642,119 @@ class AiConsole:
         self.is_open = False
         self._repeating = None
 
-    def _cut_to_end(self) -> None:
-        """Cut from the cursor to the end of the line. Nothing to cut keeps what was cut before."""
-        cut = self.input_text[self.cursor :]
+    def _cut(self, *, start: int, end: int) -> None:
+        """Cut part of the line for Ctrl-Y. Nothing to cut keeps what was cut before."""
+        cut = self.input_text[start:end]
         if cut:
             self.cut_text = cut
-            self.input_text = self.input_text[: self.cursor]
+            self.input_text = self.input_text[:start] + self.input_text[end:]
+            self.cursor = start
+
+    def _previous_word_start(self) -> int:
+        """Find where the word before the cursor starts, past any spaces in between.
+
+        Returns:
+            The position.
+
+        """
+        before = self.input_text[: self.cursor].rstrip(' ')
+        return before.rfind(' ') + 1
+
+    def _next_word_end(self) -> int:
+        """Find where the word after the cursor ends, past any spaces in between.
+
+        Returns:
+            The position.
+
+        """
+        after = self.input_text[self.cursor :]
+        word_start = len(after) - len(after.lstrip(' '))
+        space = after.find(' ', word_start)
+        return self.cursor + (len(after) if space < 0 else space)
+
+    def _interrupt(self) -> None:
+        """Ctrl-C: stop the running request, or with none running, empty the line."""
+        if self.running is not None:
+            self._cancel('')
+        else:
+            self._set_input(text='')
+            self._recall_position = None
+
+    # Ctrl-R's search of earlier input, newest first: this run's, then past runs' questions
+
+    def _search_earlier(self) -> None:
+        """Begin a search, or find the next older match of the one under way."""
+        if self._search_query is not None:
+            self._find_match(before=self._search_index)
+            return
+        self._search_query = ''
+        self._search_index = None
+        self._search_original = self.input_text
+        self._search_failed = False
+        if not self._past_questions_requested:
+            self._past_questions_requested = True
+            self._on_worker(work=partial(self._read_past_questions, self._history_path()))
+
+    def _edit_search(self, *, event: pygame.event.Event) -> bool:
+        """Act on a key press during a search.
+
+        Returns:
+            Whether the search took it. A key it doesn't take ends the search, keeping the match,
+            and then does what it always does, so Enter runs the match and Left starts editing it.
+
+        """
+        assert self._search_query is not None  # _edit only calls this during a search
+        if event.key == pygame.K_ESCAPE:
+            self._set_input(text=self._search_original)
+            self._search_query = None
+            return True
+        if event.key == pygame.K_BACKSPACE:
+            self._search_query = self._search_query[:-1]
+            self._find_match(before=None)
+            return True
+        action = self._action_for(event=event)
+        if action == self._search_earlier:
+            self._search_earlier()
+            return True
+        if action is not None:
+            self._search_query = None
+            return False
+        text = getattr(event, 'unicode', '')
+        if text and text.isprintable():
+            self._search_query += text
+            self._find_match(before=None)
+        return True
+
+    def _find_match(self, *, before: int | None) -> None:
+        """Put the newest match older than an index on the line, one differing from the current."""
+        query = (self._search_query or '').casefold()
+        if not query:
+            self._search_index = None
+            self._search_failed = False
+            self._set_input(text=self._search_original)
+            return
+        candidates = [*self._past_questions, *self._recalled]
+        newest = len(candidates) if before is None else before
+        for index in range(newest - 1, -1, -1):
+            text = candidates[index]
+            if query in text.casefold() and (before is None or text != candidates[before]):
+                self._search_index = index
+                self._search_failed = False
+                self._set_input(text=text)
+                return
+        self._search_failed = True
+
+    def _input_prompt(self) -> str:
+        """Say what the input line is doing.
+
+        Returns:
+            What goes before the input's text.
+
+        """
+        if self._search_query is None:
+            return '> '
+        label = 'no match' if self._search_failed else 'search'
+        return f'({label}: {self._search_query}) '
 
     def _delete_left(self) -> None:
         """Delete the character before the cursor."""
@@ -745,6 +923,17 @@ class AiConsole:
         else:
             self._on_worker(work=partial(self._read_history, path, argument))
 
+    def _copy(self, _argument: str) -> None:
+        """Copy the last answer to the system clipboard, on the worker."""
+        if self.last_answer:
+            self._on_worker(work=partial(self._write_clipboard, self.last_answer))
+        else:
+            self._add_line(text='No answer to copy yet', color=NOTE_COLOR)
+
+    def _paste(self, _argument: str) -> None:
+        """Bring the system clipboard to the input line, on the worker."""
+        self._on_worker(work=self._read_clipboard)
+
     # The worker's side: these never touch console state directly, except through self._updates
 
     def _on_worker(self, *, work: Callable[[], None]) -> None:
@@ -828,8 +1017,7 @@ class AiConsole:
 
     def _read_history(self, path: Path, text: str) -> None:
         """Send the newest records holding the text to the transcript."""
-        lines = path.read_text(encoding='utf-8').splitlines() if path.exists() else []
-        records: list[dict[str, Any]] = [json.loads(line) for line in lines]
+        records = self._history_records(path=path)
         matching = [
             record for record in records if text.casefold() in record['question'].casefold()
         ]
@@ -839,6 +1027,42 @@ class AiConsole:
             self._updates.append(partial(self._add_line, text=line, color=NOTE_COLOR))
         if not matching:
             self._updates.append(partial(self._add_line, text='No history', color=NOTE_COLOR))
+
+    @staticmethod
+    def _history_records(*, path: Path) -> list[dict[str, Any]]:
+        """Read this game's history file.
+
+        Returns:
+            Its records, oldest first.
+
+        """
+        lines = path.read_text(encoding='utf-8').splitlines() if path.exists() else []
+        return [json.loads(line) for line in lines]
+
+    def _read_past_questions(self, path: Path) -> None:
+        """Send past runs' questions to Ctrl-R's search."""
+        questions = [record['question'] for record in self._history_records(path=path)]
+        self._updates.append(partial(self._take_past_questions, questions))
+
+    def _write_clipboard(self, text: str) -> None:
+        """Put text on the system clipboard, and say how that went."""
+        try:
+            system_clipboard().copy(text)
+        except ClipboardUnavailableError as error:
+            self._updates.append(partial(self._add_line, text=str(error), color=ERROR_COLOR))
+        else:
+            self._updates.append(
+                partial(self._add_line, text='Copied the last answer', color=NOTE_COLOR)
+            )
+
+    def _read_clipboard(self) -> None:
+        """Send the system clipboard's text to the input line."""
+        try:
+            text = system_clipboard().paste()
+        except ClipboardUnavailableError as error:
+            self._updates.append(partial(self._add_line, text=str(error), color=ERROR_COLOR))
+        else:
+            self._updates.append(partial(self._paste_text, text))
 
     def _forget_history(self, path: Path) -> None:
         """Delete this game's history file."""
@@ -852,6 +1076,30 @@ class AiConsole:
         return self.install_root / 'history' / f'{package}.jsonl'
 
     # Applied on the main thread, from self._updates
+
+    def _take_past_questions(self, questions: list[str]) -> None:
+        """Keep past runs' questions, and search them if a search is under way."""
+        self._past_questions = questions
+        if self._search_query:
+            self._find_match(before=None)
+        self._panel = None
+
+    def _paste_text(self, text: str) -> None:
+        """Insert the clipboard's text at the cursor, as one line."""
+        one_line = ''.join(
+            character if character.isprintable() else ' '
+            for character in ' '.join(text.splitlines())
+        )
+        if not one_line:
+            self._add_line(text='The clipboard holds no text', color=NOTE_COLOR)
+            return
+        if len(one_line) > MAXIMUM_PASTED_CHARACTERS:
+            self._add_line(
+                text=f'Pasted only the first {MAXIMUM_PASTED_CHARACTERS} characters',
+                color=NOTE_COLOR,
+            )
+        self._type(text=one_line[:MAXIMUM_PASTED_CHARACTERS])
+        self._panel = None
 
     def _received(self, request: AiRequest, *, text: str, is_answer: bool) -> None:
         """Take one piece of a running request's stream."""
@@ -885,6 +1133,7 @@ class AiConsole:
             )
             self.requests_failed += 1
             return
+        self.last_answer = request.answer
         self._conversation += [
             {'role': 'user', 'content': request.question},
             {'role': 'assistant', 'content': request.answer},
@@ -971,6 +1220,10 @@ class AiConsole:
         ]
         input_top = panel_height - LINE_HEIGHT_PIXELS - MARGIN_PIXELS
         fitting = max(1, input_top // LINE_HEIGHT_PIXELS)
+        # Scrolled back, new lines arriving below shouldn't move what's being read
+        if self._scroll_lines:
+            self._scroll_lines += max(0, len(lines) - self._rendered_line_count)
+        self._rendered_line_count = len(lines)
         self._scroll_lines = min(self._scroll_lines, max(0, len(lines) - fitting))
         end = len(lines) - self._scroll_lines
         top = input_top - LINE_HEIGHT_PIXELS * min(fitting, len(lines))
@@ -978,7 +1231,24 @@ class AiConsole:
             if line:
                 panel.blit(self._rendered(text=line, color=color), (MARGIN_PIXELS, top))
             top += LINE_HEIGHT_PIXELS
-        prompt = f'> {self.input_text[: self.cursor]}'
+        if self._scroll_lines:
+            note = self._rendered(
+                text=f'scrolled back {self._scroll_lines} (Enter returns)', color=NOTE_COLOR
+            )
+            note_rect = note.get_rect(topright=(width - MARGIN_PIXELS, 0))
+            panel.fill(BACKGROUND_COLOR, note_rect)
+            panel.blit(note, note_rect)
+        self._draw_input_line(panel=panel, input_top=input_top, text_width=text_width)
+        return panel
+
+    def _draw_input_line(self, *, panel: pygame.Surface, input_top: int, text_width: int) -> None:
+        """Draw the prompt and input. It follows the cursor, what's right of it clipped."""
+        assert self._font is not None  # draw() loads it first
+        # Drawn in pieces so the cursor sits between them
+        prefix = self._input_prompt()
+        room = max(1, text_width - self._font.size(prefix)[0])
+        before = fitting_tail(text=self.input_text[: self.cursor], font=self._font, width=room)
+        prompt = f'{prefix}{before}'
         panel.blit(self._rendered(text=prompt, color=INPUT_COLOR), (MARGIN_PIXELS, input_top))
         cursor_left = MARGIN_PIXELS + self._font.size(prompt)[0]
         pygame.draw.line(
@@ -987,7 +1257,6 @@ class AiConsole:
             (cursor_left, input_top),
             (cursor_left, input_top + LINE_HEIGHT_PIXELS - 2),
         )
-        rest = self.input_text[self.cursor :]
+        rest = self.input_text[self.cursor : self.cursor + room]
         if rest:
             panel.blit(self._rendered(text=rest, color=INPUT_COLOR), (cursor_left + 1, input_top))
-        return panel

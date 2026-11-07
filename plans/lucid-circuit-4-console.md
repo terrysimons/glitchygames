@@ -17,13 +17,19 @@ The `` ` `` key opens a console over any game with AI, with no change to the gam
 | `/ai` | The connection, the models and the requests so far |
 | `/cancel` | Stops the running request |
 | `/history [TEXT \| clear]` | This game's past questions, those holding TEXT, or forgets them |
-| `/clear`, `/help [COMMAND]` | Empties the screen and conversation; lists the commands |
+| `/copy`, `/paste` | Copies the last answer to the system clipboard; puts the clipboard on the input line to edit before Enter, as one line, up to 4,000 characters |
+| `/clear`, `/help [COMMAND]` | Empties the screen and conversation; lists the commands and keys |
 
 Up and Down recall input, Tab completes commands, Page Up and Down scroll a page, Shift+Up and Shift+Down scroll
 a line, and F4 reaches a new AI panel on the debug overlay. Ctrl-A and Ctrl-E go to the start and end of the
-line. Ctrl-K cuts to the end of the line into the console's own buffer, never the clipboard, and Ctrl-Y pastes
-it. A held Backspace repeats, faster the longer it's held; SDL's own key repeat, which a game may turn on, is
-ignored.
+line, and Alt-Left and Alt-Right move a word. Ctrl-K, Ctrl-U and Ctrl-W cut to the end, to the start or a word
+back, into the console's own buffer, never the clipboard, and Ctrl-Y pastes it. Ctrl-C cancels the running
+request, or with none running empties the line. Ctrl-R searches this run's input and past runs' questions: type
+to narrow, Ctrl-R again for older, Esc to go back, any other key to keep the match and act on it.
+
+Backspace, Delete and the arrow and page keys repeat when held, faster the longer they're held; SDL's own key
+repeat, which a game may turn on, is ignored. A scrolled view stays put as lines arrive and says how far back it
+is, and a long input line follows the cursor.
 
 ## Decisions
 

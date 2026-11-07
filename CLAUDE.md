@@ -197,7 +197,7 @@ uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_
 # HostSources subclass; host.py doesn't change). The harness sets GLITCHYGAMES_AI_INSTALL_ROOT
 # to nowhere, so no test can reach the real service
 # In any game with AI the ` key opens the read-only console (src/glitchygames/ai_console.py, its
-# docstring the rules): /ask, /inspect, /ai, /cancel, /history, /clear, /help. Its keys reach
+# docstring the rules): /ask, /inspect, /ai, /cancel, /history, /copy, /paste, /clear, /help. Its keys reach
 # neither the game nor a recording. A scene may say more with describe_for_ai()
 # Check every model on Metal (speed, memory, layers on the GPU), or remove the service
 uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_validate

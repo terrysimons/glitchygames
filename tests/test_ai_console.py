@@ -15,6 +15,7 @@ from glitchygames import ai_console, clock
 from glitchygames.ai_console import (
     MAXIMUM_DESCRIBED_SPRITES,
     MAXIMUM_HISTORY_RECORDS,
+    MAXIMUM_PASTED_CHARACTERS,
     MAXIMUM_REPEATS_PER_BATCH,
     PAGE_LINES,
     REPEAT_ACCELERATION,
@@ -23,10 +24,12 @@ from glitchygames.ai_console import (
     REPEAT_SHORTEST_INTERVAL_SECONDS,
     AiConsole,
     describe_scene,
+    fitting_tail,
     wrapped_lines,
 )
 from glitchygames.ai_host import AiHostSources
 from glitchygames.ai_link import AiLink, LinkState
+from glitchygames.clipboard import ClipboardUnavailableError
 from glitchygames.debug.overlay import load_debug_font
 from glitchygames.input.state import InputSnapshot
 from glitchygames.scenes import Scene
@@ -617,7 +620,7 @@ def test_tab_completes_a_command(console):
 
     console._set_input(text='/c')
     press(console, pygame.K_TAB)
-    assert '/cancel /clear' in transcript(console)
+    assert '/cancel /copy /clear' in transcript(console)
 
     console._set_input(text='/zzz')
     press(console, pygame.K_TAB)
@@ -1170,6 +1173,442 @@ def test_wrapping_fits_the_width():
 def test_a_width_too_small_for_one_character_still_ends():
     """A tiny window mustn't hang the frame."""
     assert wrapped_lines(text='abc', font=load_debug_font(), width=1) == ['a', 'b', 'c']
+
+
+def control(console: AiConsole, key: int) -> None:
+    """Press a key with Ctrl held."""
+    press(console, key, mod=pygame.KMOD_LCTRL)
+
+
+@pytest.mark.parametrize(
+    'key',
+    [
+        pygame.K_DELETE,
+        pygame.K_LEFT,
+        pygame.K_RIGHT,
+        pygame.K_UP,
+        pygame.K_DOWN,
+        pygame.K_PAGEUP,
+        pygame.K_PAGEDOWN,
+    ],
+)
+def test_the_other_moving_keys_repeat_too(console, mocker, key):
+    """Held, each does again what it did, and a key that only types doesn't."""
+    now = [100.0]
+    mocker.patch('glitchygames.clock.raw_counter_seconds', side_effect=lambda: now[0])
+    action = mocker.Mock()
+    console._editing_keys[key] = action
+
+    console.filter_events(events=[key_event(pygame.KEYDOWN, key)])
+    assert action.call_count == 1
+    now[0] += REPEAT_DELAY_SECONDS
+    console.filter_events(events=[])
+
+    assert action.call_count == 2
+
+
+def test_a_held_arrow_really_moves_the_cursor(console, mocker):
+    """The whole path, not only the table."""
+    now = [100.0]
+    mocker.patch('glitchygames.clock.raw_counter_seconds', side_effect=lambda: now[0])
+    type_text(console, 'abcd')
+
+    console.filter_events(events=[key_event(pygame.KEYDOWN, pygame.K_LEFT)])
+    now[0] += REPEAT_DELAY_SECONDS
+    console.filter_events(events=[])
+
+    assert console.cursor == 2
+
+
+def test_alt_arrows_move_by_word(console):
+    """To a word's start going left and its end going right, past any spaces."""
+    type_text(console, 'one  two three')
+
+    press(console, pygame.K_LEFT, mod=pygame.KMOD_LALT)
+    assert console.cursor == len('one  two ')
+    press(console, pygame.K_LEFT, mod=pygame.KMOD_LALT)
+    assert console.cursor == len('one  ')
+    press(console, pygame.K_LEFT, mod=pygame.KMOD_LALT)
+    assert console.cursor == 0
+    press(console, pygame.K_LEFT, mod=pygame.KMOD_LALT)
+    assert console.cursor == 0
+
+    press(console, pygame.K_RIGHT, mod=pygame.KMOD_LALT)
+    assert console.cursor == len('one')
+    press(console, pygame.K_RIGHT, mod=pygame.KMOD_LALT)
+    assert console.cursor == len('one  two')
+    press(console, pygame.K_RIGHT, mod=pygame.KMOD_LALT)
+    assert console.cursor == len('one  two three')
+    press(console, pygame.K_RIGHT, mod=pygame.KMOD_LALT)
+    assert console.cursor == len('one  two three')
+
+
+def test_alt_with_a_letter_still_types(console):
+    """Option+letter types a character on a Mac."""
+    press(console, pygame.K_e, 'é', mod=pygame.KMOD_LALT)
+
+    assert console.input_text == 'é'
+
+
+def test_ctrl_w_and_ctrl_u_cut_for_ctrl_y(console):
+    """A word back, then all the way back, each pasted again by Ctrl-Y."""
+    type_text(console, 'one two  ')
+
+    control(console, pygame.K_w)
+    assert (console.input_text, console.cut_text) == ('one ', 'two  ')
+
+    press(console, pygame.K_F15, 'x')
+    press(console, pygame.K_LEFT)
+    control(console, pygame.K_u)
+    assert (console.input_text, console.cut_text, console.cursor) == ('x', 'one ', 0)
+
+    control(console, pygame.K_y)
+    assert (console.input_text, console.cursor) == ('one x', 4)
+
+
+def test_ctrl_c_empties_the_line_when_nothing_is_running(console):
+    """And restarts recall from the newest."""
+    enter(console, '/help')
+    press(console, pygame.K_UP)
+    assert console.input_text == '/help'
+
+    control(console, pygame.K_c)
+
+    assert not console.input_text
+    press(console, pygame.K_UP)
+    assert console.input_text == '/help'
+
+
+def test_ctrl_c_cancels_what_is_running_and_keeps_the_line(console, chat_service):
+    """The request goes first: a half-typed next question stays."""
+    fake, url = chat_service
+    console.service_url = url
+    fake.hold.clear()
+    enter(console, 'something')
+    running = console.running
+    type_text(console, 'next')
+
+    control(console, pygame.K_c)
+    fake.hold.set()
+
+    assert console.running is None
+    assert running.cancelled.is_set()
+    assert console.input_text == 'next'
+    assert f'#{running.number} cancelled' in transcript(console)
+
+
+def test_a_new_line_below_leaves_a_scrolled_view_where_it_is(console):
+    """And says how far back it is, until Enter comes back to the newest."""
+    surface = pygame.Surface((320, 240))
+    for number in range(40):
+        console._add_line(text=f'line {number}')
+    console.draw(surface=surface)
+    newest = pygame.image.tobytes(console._panel, 'RGBA')
+    press(console, pygame.K_UP, mod=pygame.KMOD_LSHIFT)
+    console.draw(surface=surface)
+    assert pygame.image.tobytes(console._panel, 'RGBA') != newest
+    back = console._scroll_lines
+
+    console._add_line(text='new one')
+    console._add_line(text='new two')
+    console.draw(surface=surface)
+    assert console._scroll_lines == back + 2
+
+    press(console, pygame.K_RETURN)
+    console.draw(surface=surface)
+    assert console._scroll_lines == 0
+
+
+def test_the_view_at_the_newest_follows_new_lines(console):
+    """Not scrolled back, it stays on the newest."""
+    surface = pygame.Surface((320, 240))
+    console.draw(surface=surface)
+
+    console._add_line(text='new')
+    console.draw(surface=surface)
+
+    assert console._scroll_lines == 0
+
+
+def test_a_long_input_line_keeps_the_cursor_on_screen(console):
+    """What's before the cursor is cut to fit, and a line of any length still draws."""
+    surface = pygame.Surface((320, 240))
+    font = load_debug_font()
+    long_text = 'word ' * 800
+    console._set_input(text=long_text)
+    console.draw(surface=surface)
+    at_end = pygame.image.tobytes(console._panel, 'RGBA')
+
+    press(console, pygame.K_HOME)
+    console.draw(surface=surface)
+    assert pygame.image.tobytes(console._panel, 'RGBA') != at_end
+
+    tail = fitting_tail(text=long_text, font=font, width=100)
+    assert long_text.endswith(tail)
+    assert 0 < font.size(tail)[0] <= 100
+    assert font.size(f'd{tail}')[0] > 100 or tail[0] != 'd'
+
+
+def test_fitting_a_tail_of_short_or_nothing():
+    """All of what fits, and nothing of what can't."""
+    font = load_debug_font()
+
+    assert fitting_tail(text='abc', font=font, width=1000) == 'abc'
+    assert not fitting_tail(text='', font=font, width=10)
+    assert not fitting_tail(text='W', font=font, width=1)
+
+
+def test_copy_puts_the_last_answer_on_the_clipboard(console, chat_service, in_process_clipboard):
+    """The answer alone, and saying so."""
+    fake, url = chat_service
+    console.service_url = url
+    fake.lines = [stream_line(content='The answer.'), b'data: [DONE]\n\n']
+    enter(console, 'something')
+    wait_for(console, 'tokens in')
+
+    enter(console, '/copy')
+    wait_for(console, 'Copied the last answer')
+
+    assert in_process_clipboard.paste() == 'The answer.'
+
+
+def test_copy_with_no_answer_says_so(console, in_process_clipboard):
+    """The clipboard stays as it was."""
+    in_process_clipboard.copy('mine')
+
+    enter(console, '/copy')
+
+    assert 'No answer to copy yet' in transcript(console)
+    assert in_process_clipboard.paste() == 'mine'
+
+
+def wait_for_input(console: AiConsole) -> None:
+    """Wait for text to reach the input line from the worker."""
+    deadline = clock.raw_counter_seconds() + WAIT_SECONDS
+    while not console.input_text and clock.raw_counter_seconds() < deadline:
+        console.filter_events(events=[])
+        clock.raw_sleep(0.01)
+
+
+def test_paste_puts_the_clipboard_on_the_line_to_edit(console, in_process_clipboard):
+    """As one line, at the cursor, not run: it waits for Enter."""
+    in_process_clipboard.copy('one\r\ntwo\tthree')
+    before = transcript(console)
+
+    enter(console, '/paste')
+    wait_for_input(console)
+
+    assert console.input_text == 'one two three'
+    assert console.cursor == len('one two three')
+    assert transcript(console) == f'{before}\n> /paste'
+
+
+def test_paste_of_nothing_says_so(console):
+    """The harness's clipboard starts empty."""
+    enter(console, '/paste')
+
+    assert 'The clipboard holds no text' in wait_for(console, 'holds no text')
+    assert not console.input_text
+
+
+def test_paste_is_bounded(console, in_process_clipboard):
+    """A clipboard can hold a whole file."""
+    in_process_clipboard.copy('x' * (MAXIMUM_PASTED_CHARACTERS + 1))
+
+    enter(console, '/paste')
+    wait_for(console, 'Pasted only the first')
+
+    assert len(console.input_text) == MAXIMUM_PASTED_CHARACTERS
+    console.draw(surface=pygame.Surface((320, 240)))
+
+
+@pytest.mark.parametrize(
+    ('command', 'method'), [('/paste', 'paste'), ('/copy', 'copy')], ids=['paste', 'copy']
+)
+def test_no_clipboard_on_this_machine_is_reported(
+    console, in_process_clipboard, mocker, command, method
+):
+    """As one line: headless Linux can have no clipboard program."""
+    mocker.patch.object(
+        in_process_clipboard, method, side_effect=ClipboardUnavailableError('no clipboard')
+    )
+    console.last_answer = 'An answer'
+
+    enter(console, command)
+
+    assert 'no clipboard' in wait_for(console, 'no clipboard')
+
+
+def search(console: AiConsole, text: str = '') -> None:
+    """Press Ctrl-R, and type what's given."""
+    control(console, pygame.K_r)
+    type_text(console, text)
+
+
+def test_searching_finds_the_newest_match_then_older_ones(console):
+    """As it's typed, ignoring case, skipping a repeat of the match, and saying when it runs out."""
+    for line in ('/help ask', '/inspect Ball', '/help inspect', '/help ask'):
+        enter(console, line)
+
+    search(console, 'HELP')
+    assert console.input_text == '/help ask'
+    assert console._input_prompt() == '(search: HELP) '
+
+    control(console, pygame.K_r)
+    assert console.input_text == '/help inspect'
+    control(console, pygame.K_r)
+    assert console.input_text == '/help ask'
+    assert console._input_prompt() == '(search: HELP) '
+    control(console, pygame.K_r)
+    assert console.input_text == '/help ask'
+    assert console._input_prompt() == '(no match: HELP) '
+
+
+def test_narrowing_and_widening_a_search(console):
+    """Typing narrows it, Backspace widens it, and emptied it shows what was there before."""
+    enter(console, '/help')
+    enter(console, '/inspect')
+    type_text(console, 'draft')
+
+    search(console, 'i')
+    assert console.input_text == '/inspect'
+    type_text(console, 'zz')
+    assert console._input_prompt() == '(no match: izz) '
+
+    press(console, pygame.K_BACKSPACE)
+    press(console, pygame.K_BACKSPACE)
+    assert console.input_text == '/inspect'
+    assert console._input_prompt() == '(search: i) '
+    press(console, pygame.K_BACKSPACE)
+    assert console.input_text == 'draft'
+    press(console, pygame.K_BACKSPACE)
+    assert console._input_prompt() == '(search: ) '
+
+
+def test_ctrl_r_again_with_nothing_typed_stays_on_the_line(console):
+    """No search text, nothing matches yet."""
+    enter(console, '/help')
+    type_text(console, 'draft')
+
+    search(console)
+    control(console, pygame.K_r)
+
+    assert console.input_text == 'draft'
+
+
+def test_esc_leaves_a_search_rather_than_the_console(console):
+    """And puts back what was on the line."""
+    enter(console, '/help')
+    type_text(console, 'draft')
+    search(console, 'help')
+    assert console.input_text == '/help'
+
+    press(console, pygame.K_ESCAPE)
+
+    assert console.is_open
+    assert console.input_text == 'draft'
+    assert console._input_prompt() == '> '
+
+
+def test_enter_runs_a_match(console):
+    """Any key that does something ends the search and then does it."""
+    enter(console, '/ai')
+    before = transcript(console).count('> /ai')
+    search(console, 'ai')
+
+    press(console, pygame.K_RETURN)
+
+    assert console._input_prompt() == '> '
+    assert transcript(console).count('> /ai') == before + 1
+
+
+def test_an_arrow_starts_editing_a_match(console):
+    """The match stays, and the arrow moves in it."""
+    enter(console, '/help')
+    search(console, 'help')
+
+    press(console, pygame.K_LEFT)
+
+    assert console._input_prompt() == '> '
+    assert (console.input_text, console.cursor) == ('/help', 4)
+
+
+def test_a_key_that_types_nothing_leaves_the_search_alone(console):
+    """Shift on its way to a capital mustn't end it."""
+    enter(console, '/help')
+    search(console, 'help')
+
+    press(console, pygame.K_LSHIFT)
+
+    assert console._input_prompt() == '(search: help) '
+
+
+def test_closing_ends_a_search(console):
+    """Reopening starts on the plain prompt."""
+    search(console, 'x')
+
+    press(console, GRAVE)
+    press(console, GRAVE)
+
+    assert console._input_prompt() == '> '
+
+
+def test_the_input_line_shows_a_search(console):
+    """It's drawn, not only held."""
+    surface = pygame.Surface((320, 240))
+    console.draw(surface=surface)
+    plain = pygame.image.tobytes(console._panel, 'RGBA')
+
+    search(console)
+    console.draw(surface=surface)
+
+    assert pygame.image.tobytes(console._panel, 'RGBA') != plain
+
+
+def wait_for_past_questions(console: AiConsole) -> None:
+    """Wait for the worker to bring past runs' questions."""
+    deadline = clock.raw_counter_seconds() + WAIT_SECONDS
+    while not console._past_questions and clock.raw_counter_seconds() < deadline:
+        console.filter_events(events=[])
+        clock.raw_sleep(0.01)
+
+
+def test_searching_reaches_past_runs_questions(console, tmp_path):
+    """From the history file, older than this run's, found even if they arrive after the typing."""
+    path = console._history_path()
+    path.parent.mkdir(parents=True)
+    record = {'question': 'an old question'}
+    path.write_text(json.dumps(record) + '\n', encoding='utf-8')
+    enter(console, '/help')
+
+    search(console, 'old')
+    wait_for_past_questions(console)
+
+    assert console.input_text == 'an old question'
+
+    press(console, pygame.K_ESCAPE)
+    search(console, 'help')
+    assert console.input_text == '/help'
+    control(console, pygame.K_r)
+    assert console._input_prompt() == '(no match: help) '
+
+
+def test_past_questions_arriving_with_no_search_typed_change_nothing(console):
+    """Only searching looks at them, and the file is read once."""
+    path = console._history_path()
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({'question': 'an old question'}) + '\n', encoding='utf-8')
+    type_text(console, 'draft')
+
+    search(console)
+    wait_for_past_questions(console)
+    assert console.input_text == 'draft'
+
+    press(console, pygame.K_ESCAPE)
+    path.unlink()
+    search(console)
+    console.filter_events(events=[])
+    assert console._past_questions == ['an old question']
 
 
 class TestTheDoors:
