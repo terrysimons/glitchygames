@@ -467,3 +467,42 @@ def test_an_unknown_name_suggests_aliases_too():
     """A near miss of an alias suggests it."""
     with pytest.raises(KeyError, match='did you mean slapstick'):
         instruments.entry('slapstik')
+
+
+def test_plucked_idiophones_hold_the_lamellophones_and_music_boxes():
+    """Kalimba, mbira and music box moved here by name; the music box plays itself."""
+    plucked = instruments.names(family=Family.PLUCKED_IDIOPHONES)
+    assert {'kalimba', 'mbira', 'music box', 'sansula'} <= set(plucked)
+    moved = {'kalimba', 'mbira', 'music box'}
+    assert not moved & set(instruments.names(family=Family.TUNED_PERCUSSION))
+    assert instruments.entry('kalimba').playing_range == (Note('C4'), Note('E6'))
+    assert instruments.names(tag=Tag.MECHANICAL) == ('music box',)
+
+
+def test_the_sansula_rings_longer_and_brighter_than_the_kalimba():
+    """The sansula ships as its own entry because it sounds different from the kalimba."""
+    rendered_note_seconds = 2.5
+    onset_window_seconds = 0.05
+
+    def level_after_onset(name: str, *, seconds: float) -> float:
+        samples = render_sound(
+            spec_for(instruments.get(name), name=name, pitch='C4', length=rendered_note_seconds)
+        ).samples
+        window = round(onset_window_seconds * SAMPLE_RATE)
+        peak = max(
+            float(np.sqrt(np.mean(samples[start : start + window] ** 2)))
+            for start in range(0, len(samples) - window, window // 5)
+        )
+        start = round(seconds * SAMPLE_RATE)
+        return float(np.sqrt(np.mean(samples[start : start + window] ** 2))) / peak
+
+    assert level_after_onset('sansula', seconds=1.0) > 3 * level_after_onset('kalimba', seconds=1.0)
+
+
+@pytest.mark.parametrize(
+    ('alias', 'target'),
+    [('zanza', 'mbira'), ('cylinder music box', 'music box'), ('disc music box', 'music box')],
+)
+def test_the_plucked_idiophone_aliases_resolve(alias, target):
+    """Zanza is the mbira; both music-box mechanisms play the one comb."""
+    assert instruments.entry(alias) is instruments.entry(target)

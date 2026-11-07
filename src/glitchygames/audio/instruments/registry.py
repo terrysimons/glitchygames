@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Final
 from glitchygames.audio.instruments.aliases import ALIASES
 from glitchygames.audio.instruments.brass import BRASS
 from glitchygames.audio.instruments.catalog import ENTRY_NAME_PATTERN, CatalogEntry, Family, Tag
+from glitchygames.audio.instruments.idiophones import PLUCKED_IDIOPHONES
 from glitchygames.audio.instruments.keyboards import ELECTRONIC, KEYBOARDS, ORGANS
 from glitchygames.audio.instruments.percussion import DRUMS_AND_PERCUSSION, TUNED_PERCUSSION
 from glitchygames.audio.instruments.strings import (
@@ -51,6 +52,7 @@ FAMILY_TABLES: Final[tuple[tuple[CatalogEntry, ...], ...]] = (
     ORGANS,
     ELECTRONIC,
     TUNED_PERCUSSION,
+    PLUCKED_IDIOPHONES,
     DRUMS_AND_PERCUSSION,
     VOICES,
     CHOIRS,

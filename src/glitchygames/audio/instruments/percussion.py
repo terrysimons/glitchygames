@@ -31,7 +31,7 @@ SINGING_METAL_SECOND_PARTIAL: Final[float] = 2.71  # ruff: ignore[math-constant]
 # --- Tuned percussion -----------------------------------------------------------------------
 
 
-def _bar(  # ruff: ignore[too-many-arguments] - a struck bar's partials
+def struck_bar(  # ruff: ignore[too-many-arguments] - a struck bar's partials
     ratios: tuple[float, ...],
     levels: tuple[float, ...],
     *,
@@ -40,6 +40,20 @@ def _bar(  # ruff: ignore[too-many-arguments] - a struck bar's partials
     mallet_low_pass: float = 3000.0,
     overtone_ring: float = 0.25,
 ) -> Instrument:
+    """A struck or plucked bar: a fundamental and its overtones, each ringing out on its own.
+
+    Args:
+        ratios: Each partial's frequency as a multiple of the note's.
+        levels: Each partial's level, one per ratio.
+        ring_seconds: How long the fundamental rings (it is also the release).
+        mallet: Seconds of the mallet's noise burst.
+        mallet_low_pass: Cutoff in hertz of the mallet's noise.
+        overtone_ring: The overtones' ring time as a fraction of the fundamental's, divided by
+            the overtone's number.
+
+    Returns:
+        The instrument.
+    """
     partials = tuple(
         Partial(
             ratio=ratio,
@@ -57,7 +71,7 @@ FREE_BAR_RATIOS: Final[tuple[float, ...]] = (1.0, 2.76)
 # A clamped tine's first two modes (its third, 17.55x, is past hearing for most of its notes)
 TINE_RATIOS: Final[tuple[float, ...]] = (1.0, 6.27)
 GLOCKENSPIEL = partial(
-    _bar,
+    struck_bar,
     FREE_BAR_RATIOS,
     (1.0, 0.45),
     ring_seconds=2.5,
@@ -66,7 +80,7 @@ GLOCKENSPIEL = partial(
     overtone_ring=0.5,
 )
 XYLOPHONE = partial(
-    _bar,
+    struck_bar,
     (1.0, 3.0),
     (1.0, 0.35),
     ring_seconds=0.6,
@@ -75,10 +89,15 @@ XYLOPHONE = partial(
     overtone_ring=0.5,
 )
 MARIMBA = partial(
-    _bar, (1.0, 4.0, 9.9), (1.0, 0.25, 0.06), ring_seconds=1.2, mallet=0.04, mallet_low_pass=2000.0
+    struck_bar,
+    (1.0, 4.0, 9.9),
+    (1.0, 0.25, 0.06),
+    ring_seconds=1.2,
+    mallet=0.04,
+    mallet_low_pass=2000.0,
 )
 VIBRAPHONE = partial(
-    _bar,
+    struck_bar,
     (1.0, 4.0, 10.0),
     (1.0, 0.22, 0.05),
     ring_seconds=4.0,
@@ -87,7 +106,7 @@ VIBRAPHONE = partial(
     overtone_ring=0.15,
 )
 GAMELAN_METALLOPHONE = partial(
-    _bar,
+    struck_bar,
     (1.0, SINGING_METAL_SECOND_PARTIAL, 5.15),
     (1.0, 0.4, 0.15),
     ring_seconds=3.0,
@@ -96,7 +115,7 @@ GAMELAN_METALLOPHONE = partial(
     overtone_ring=0.4,
 )
 KETTLE_GONG = partial(
-    _bar,
+    struck_bar,
     (1.0, 1.52, 2.0),
     (1.0, 0.35, 0.25),
     ring_seconds=2.0,
@@ -105,7 +124,7 @@ KETTLE_GONG = partial(
     overtone_ring=0.6,
 )
 HARMONIC_PAN = partial(
-    _bar,
+    struck_bar,
     (1.0, 2.0, 3.0),
     (1.0, 0.5, 0.25),
     ring_seconds=1.8,
@@ -169,7 +188,7 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'C6',
         'C8',
         partial(
-            _bar,
+            struck_bar,
             (1.0, 2.0, 3.0),
             (1.0, 0.3, 0.15),
             ring_seconds=4.0,
@@ -189,7 +208,7 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'C3',
         'C6',
         partial(
-            _bar,
+            struck_bar,
             (1.0, 4.0, 9.0),
             (1.0, 0.35, 0.1),
             ring_seconds=0.7,
@@ -228,7 +247,7 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'C5',
         'C8',
         partial(
-            _bar,
+            struck_bar,
             (1.0, 3.0, 5.0),
             (1.0, 0.25, 0.1),
             ring_seconds=2.5,
@@ -260,58 +279,13 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'D3',
         'A4',
         partial(
-            _bar,
+            struck_bar,
             (1.0, 2.0, 3.0),
             (1.0, 0.4, 0.3),
             ring_seconds=3.0,
             mallet=0.03,
             mallet_low_pass=1500.0,
             overtone_ring=0.6,
-        ),
-    ),
-    CatalogEntry(
-        'kalimba',
-        'Kalimba',
-        Family.TUNED_PERCUSSION,
-        'C4',
-        'E6',
-        partial(
-            _bar,
-            TINE_RATIOS,
-            (1.0, 0.15),
-            ring_seconds=1.5,
-            mallet=0.08,
-            mallet_low_pass=5000.0,
-        ),
-    ),
-    CatalogEntry(
-        'mbira',
-        'Mbira',
-        Family.TUNED_PERCUSSION,
-        'G2',
-        'D5',
-        partial(
-            _bar,
-            TINE_RATIOS,
-            (1.0, 0.2),
-            ring_seconds=1.5,
-            mallet=0.15,
-            mallet_low_pass=6000.0,
-        ),
-    ),
-    CatalogEntry(
-        'music box',
-        'Music box',
-        Family.TUNED_PERCUSSION,
-        'C4',
-        'C7',
-        partial(
-            _bar,
-            TINE_RATIOS,
-            (1.0, 0.2),
-            ring_seconds=1.2,
-            mallet=0.03,
-            mallet_low_pass=8000.0,
         ),
     ),
     CatalogEntry('timpani', 'Timpani', Family.TUNED_PERCUSSION, 'D2', 'C4', _timpani),
@@ -329,7 +303,7 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'C2',
         'C4',
         partial(
-            _bar,
+            struck_bar,
             (1.0, 1.52, 2.0),
             (1.0, 0.35, 0.25),
             ring_seconds=5.0,
@@ -345,7 +319,7 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'C3',
         'C5',
         partial(
-            _bar,
+            struck_bar,
             (1.0, SINGING_METAL_SECOND_PARTIAL, 5.15),
             (1.0, 0.5, 0.2),
             ring_seconds=8.0,
@@ -364,7 +338,7 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'C4',
         'D5',
         partial(
-            _bar,
+            struck_bar,
             (1.0, 2.0, 3.0),
             (1.0, 0.5, 0.35),
             ring_seconds=0.6,
