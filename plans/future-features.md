@@ -281,7 +281,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: TODO, after workspace packages Parts 1 and 2 (`plans/2026-10-24-workspace-packages.md`)
 - **Priority**: Medium
 
-### 54. Docs Deploys That Cannot Go Stale — TODO
+### 68. Docs Deploys That Cannot Go Stale — TODO
 - **Goal**: the published docs (https://terrysimons.github.io/glitchygames/) are always `main`'s
   latest, not just usually (the user, 2026-10-25)
 - **Today**: CircleCI's `deploy-docs` publishes its own pipeline's commit after every merge to
@@ -920,7 +920,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 
 ## Animation Features
 
-### 21. Onion Skinning ✅ COMPLETED
+### 66. Onion Skinning ✅ COMPLETED
 - **Description**: Animation feature that allows users to see previous/future frames as semi-transparent overlays while editing current frame
 - **Use Case**: Helps with smooth animation creation by providing visual reference of motion
 - **Status**: ✅ COMPLETED
@@ -941,7 +941,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - `tests/tools/test_onion_skinning.py` - Comprehensive test suite
 
 
-### 22. Multi-Controller Navigation System (BETTER) ✅ COMPLETED
+### 67. Multi-Controller Navigation System (BETTER) ✅ COMPLETED
 - **Description**: Multi-controller support system for bitmappy tool allowing up to 4 simultaneous controllers with independent navigation and visual distinction
 - **Use Case**: Enables multiple users to navigate and select different frames/animations simultaneously using separate controllers
 - **Status**: ✅ COMPLETED
@@ -1318,7 +1318,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   whose commits are pure renames.
 - **Priority**: Low
 
-### 61. Bitmappy: White Outline on the Color-Slider Knob — TODO
+### 69. Bitmappy: White Outline on the Color-Slider Knob — TODO
 - **Description**: Give each color slider's draggable knob (`SliderSprite.slider_knob`,
   `src/glitchygames/ui/sliders.py`, created around line 150 and filled `(200, 200, 200)`) a white
   outline, so it contrasts the dark-gray slider track and reads clearly at a glance.
@@ -1723,6 +1723,26 @@ This document tracks planned future features for the GlitchyGames project. Featu
   recording keeps the options it was played with so `--replay-trace` starts with them and no
   screen, and that the golden and the Rally demo still replay identically (the screen must not
   shift a recorded frame; rebaseline only deliberately).
+- **Priority**: Medium
+
+### 64. Sound Engine: Sequences in Sound Files, and Music and Instrument Formats — DESIGN
+- **Description**: A beat-based `[sequences]` table in sound files (the file form of M5's
+  `Sequence`), `music = <path>` to read other music formats into it with loaders that work out a
+  file's type, and `patch = <path>` for instrument formats. ABC first; then MIDI, Csound scores,
+  MML, sfxr, SFZ, trackers and FM patches as the engine gains what each needs
+- **Design**: `plans/2026-11-06-music-and-instrument-formats-design.md`
+- **Status**: Design (requested by the owner 2026-11-03: ABC import is in scope, and "eventually
+  support all of these formats, and wire them into our formats in ways that make sense")
+- **Priority**: Medium
+
+### 65. Sprites: Importing Sprite and Spritesheet Formats — DESIGN
+- **Description**: A registry of sprite loaders (detected by extension, confirmed by content) and
+  a `glitchygames sprite-import` converter that writes sprite TOML and reports what it could not
+  carry over; Bitmappy opens the same formats. Aseprite first, then Aseprite JSON sheets,
+  animated GIF and APNG, grid sheets, TexturePacker JSON and Tiled tilesets; libGDX, Godot,
+  Unity and Piskel as needed. Replaces `LOADER_README.md`'s "Future Format Ideas"
+- **Design**: `plans/2026-11-06-spritesheet-formats-design.md`
+- **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ## Notes
