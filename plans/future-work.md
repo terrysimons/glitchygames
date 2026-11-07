@@ -603,6 +603,12 @@ only replays; Part 2 Task 1).
   Part 2b) with deliberately ambiguous questions: one with a clear likeliest meaning, which should
   be answered, and one with no clear winner, which should be asked about.
 
+- **Deferred: a 2B-only size picker** (the owner, 2026-11-07: "we're just going to stick with the 2B
+  model for the foreseeable future"). Agreed earlier: `bin/ai-service.sh` would always choose 2B and
+  only vary its context by free memory (full, then 32K, then 8K, then none), with Qwen starting with
+  the game as it does today. The service still picks the largest size that fits; until this is built,
+  use `config/selection.env` or `AI_BONSAI_SIZE` (Stage 5, Part 1) to pin 2B.
+
 ## Games
 
 - **Convert Drawing Fire to sprites** (the owner, 2026-11-07). It draws its soldiers, sandbags and bullets straight
