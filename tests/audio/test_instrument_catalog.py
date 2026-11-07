@@ -6,7 +6,7 @@ import pytest
 from glitchygames.audio import instruments
 from glitchygames.audio.instrument import Filter, Instrument
 from glitchygames.audio.instruments import CatalogEntry, Family, Tag
-from glitchygames.audio.instruments.registry import FAMILY_TABLES, catalog_from
+from glitchygames.audio.instruments.registry import FAMILY_TABLES, aliases_from, catalog_from
 from glitchygames.audio.instruments.timbres import (
     Course,
     Formant,
@@ -435,3 +435,35 @@ def test_an_entry_keeps_its_tag_members():
         tags=frozenset({Tag.MECHANICAL}),
     )
     assert tagged.tags == frozenset({Tag.MECHANICAL})
+
+
+def test_an_alias_finds_its_instrument_in_any_case():
+    """An alias resolves to its catalog entry, and get shares the one build."""
+    assert instruments.ALIASES['slapstick'] == 'whip'
+    assert instruments.entry('Slapstick') is instruments.entry('whip')
+    assert instruments.get('SLAPSTICK') is instruments.get('whip')
+    assert 'slapstick' not in instruments.names()
+    assert 'slapstick' not in [catalog_entry.name for catalog_entry in instruments.entries()]
+
+
+def test_every_alias_names_one_entry_and_shadows_none():
+    """No alias is a catalog name; every alias names an entry; aliases follow the naming rule."""
+    for alias, target in instruments.ALIASES.items():
+        assert alias not in instruments.CATALOG, alias
+        assert target in instruments.CATALOG, (alias, target)
+
+
+def test_the_alias_table_is_refused_when_it_is_wrong():
+    """A bad alias table fails when the catalog is assembled, naming the alias."""
+    with pytest.raises(ValueError, match="alias 'flute' is a catalog name"):
+        aliases_from({'flute': 'piccolo'}, instruments.CATALOG)
+    with pytest.raises(ValueError, match="alias 'fife of doom' names no instrument: 'fyfe'"):
+        aliases_from({'fife of doom': 'fyfe'}, instruments.CATALOG)
+    with pytest.raises(ValueError, match="alias 'Bad Alias' must be lower-case words"):
+        aliases_from({'Bad Alias': 'flute'}, instruments.CATALOG)
+
+
+def test_an_unknown_name_suggests_aliases_too():
+    """A near miss of an alias suggests it."""
+    with pytest.raises(KeyError, match='did you mean slapstick'):
+        instruments.entry('slapstik')
