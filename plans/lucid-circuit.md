@@ -262,7 +262,8 @@ with 3% free picks nothing. A hand-picked size goes in `config/selection.env`.
 is llama.cpp's reported buffers, mapped weights included, with Bonsai at its full 262K context (the
 owner's choice, with no separate output cap) and Qwen's at 8192; it leaves out
 the vision file until an image loads it. Speed is one short answer, so it's only a rough guide, and
-other Macs will differ. The tiers are still guesses until they're run with a game on smaller Macs.
+other Macs will differ. The tiers are still guesses: Stage 5 measures each size's memory and answers on this
+Mac, and only Stage 12 can run them with a game on smaller Macs.
 
 | Memory | Bonsai 2 | Qwen3-Embedding | Reserved, both | Bonsai decode |
 |---|---|---|---|---|
@@ -353,7 +354,7 @@ small end-to-end result first, and proves frame safety before AI is on by defaul
 | 2 | **Installer (owner)** | Unsigned `.pkg` installs and uninstalls with no root as the owner, its setup job downloads what's missing and starts nothing, and the picker was tried against faked memory figures by hand (**done**). **Not done:** a second user account with no developer tools; an automated test of the picker |
 | 3 | **Engine connection** ([sub-plan](lucid-circuit-3-engine-connection.md)) | **Done:** no diff in `host.py`; a default run connects, and a run with no service plays normally; a proposal reaches the scene, is recorded, and replays with no service; crashes of the API, a model or the game all recover. Idle cost about 0.03-0.06 ms a frame on the dummy driver. **Not done:** a real display. The owner accepted that cost for prototyping (2026-11-06) |
 | 4 | **First playable: read-only** ([sub-plan](lucid-circuit-4-console.md)) | **Done:** the ` key opens a console in every game with AI, with `/ask`, `/inspect`, `/ai`, `/cancel`, `/history`, `/clear`, `/help` and an AI debug panel. Real questions took 7-9 s on 27B in PaddleSlap. Typing reaches neither the game nor a recording. **Not done:** a real display. Bitmappy already uses local Bonsai (Stage 1), though its sprite requests still fail validation |
-| 5 | **Load harness and throttle** | Scripted sessions at fixed AI loads; p50/p95/p99 frame times against AI off, on the owner's Mac and at least one smaller Mac. Real numbers replace section 5's tiers. Throttle backs off fast and recovers without oscillating. Must pass before any game runs an agent without being asked |
+| 5 | **Sweet spot, load harness and throttle** ([sub-plan](lucid-circuit-5-load-harness.md)) | All four Bonsai sizes compared on the owner's Mac, the only one available (2026-11-06): answer quality, memory, and p50/p95/p99 frame times at fixed AI loads against AI off, on a real display. The owner picks the default size. Throttle backs off fast and recovers without oscillating. Must pass before any game runs an agent without being asked. Speed on smaller Macs moves to Stage 12 |
 | 6 | **Retrieval and agent loop** | Asset and capability index with versioned model identity; dense + BM25 + filters; a bounded agent loop that retrieves, plans in JSON, validates and stops on budget |
 | 7 | **Lucid Circuit** | Capability discovery on unannotated classes without running properties; validated field edits and one composed behaviour nobody wrote a command for, in two games; restoration tested; glitch manifest and `/augment`, `/undo`, `/glitch` |
 | 8 | **Frame context and vision** | CPU capture audit with numbers; sampled frames to Bonsai with bounded frame age and no hitches beyond budget; capture off is the fallback |
@@ -367,7 +368,7 @@ small end-to-end result first, and proves frame safety before AI is on by defaul
 
 | Risk | Consequence | Handling |
 |---|---|---|
-| Bonsai isn't fast or reliable enough for interesting behaviour on ordinary Macs | The feature's appeal shrinks to slow, high-end use | Stage 0 and Stage 4 answer this early and cheaply. Stage 5's smaller Mac is the real test |
+| Bonsai isn't fast or reliable enough for interesting behaviour on ordinary Macs | The feature's appeal shrinks to slow, high-end use | Stage 0 and Stage 4 answer this early and cheaply. Stage 5 compares the sizes on the owner's Mac, so a smaller size's answers and memory are known early, but Stage 12's smaller Macs are the real test of speed |
 | GPU contention hurts the game even with perfect process isolation | Frame hitches on Macs where both share a GPU | Stage 5 throttle. Long kernels can't be pre-empted, so cap work unit size |
 | Runtime patching and reversal is unreliable in Python | Hard-to-undo changes, broken saves | Prefer declared capabilities. Patches are a labelled experiment, off by default |
 | AI-written proposals act on prompt-injected content (Twitch, assets, retrieved text) | Unwanted game changes | Proposals are data, validated on the main thread against an allowlist. No code execution |
