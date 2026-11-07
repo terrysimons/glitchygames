@@ -61,12 +61,21 @@ what has happened, but it can't act in the past.
 - **Object identity.** The clone's objects and the live game's are the same objects, in the sense that matters: the
   same seed and inputs give the same objects, which is the contract (the owner, 2026-11-06). They need a stable way to
   be referenced, and one exists: `tracing.StableSpriteIds` gives each sprite `<ClassName>#<n>`, the next number for its
-  class, and every golden replay already depends on the two sides agreeing. Each id names one object for the whole run
-  and is never reused. A hash would be no more stable, and the name is readable. What it needs for this:
+  class, and every golden replay already depends on the two sides agreeing. A hash would be no more stable, and the name
+  is readable. It's inherent to every game: no game opts in, and none may need to (the owner, 2026-11-06).
+
+  **An id is never recycled** (the owner, 2026-11-06). The numbers only go up, for the whole run: when `Ball#2` leaves,
+  the next ball is `Ball#3`, whatever happens to memory, scenes or the object. Anything built on these ids must keep
+  that, with a test that a removed sprite's number is never given out again. What it needs for this:
   - **A way back:** today it goes from object to id only, and a call needs id to object. `sprite.alive()` says whether
     it's gone.
-  - **Letting go:** it holds every sprite it has seen for the whole run, so `id()` is never reused. That's fine for a
-    recording, but an always-on stream would keep every bullet alive for the session. Weak references should do both jobs.
+  - **Letting go, without recycling:** it holds every sprite it has seen for the whole run, because it looks them up by
+    Python's `id()`, which Python gives to a new object once the old one is freed. That's fine for a recording, but an
+    always-on stream would keep every bullet alive for the session. Simply dropping those references would hand a new
+    ball a dead ball's number, so the lookup must stop using `id()`: keep the id on the sprite itself or in a weak-keyed
+    map, and test it by freeing sprites and making new ones.
+  - **Pooled objects:** a game that reuses one sprite object for a new ball would keep its old number. No game here pools
+    sprites today. If one ever does, it counts as the same object until there's a way to say otherwise.
   - **Its cost:** it's assigned on first sight while sampling each frame, on the main thread. If Step 1 finds that too
     dear, assign the same kind of id when a sprite is created instead (`RootSprite.__init__`), which costs nothing per
     frame but needs its own proof that both sides agree.
