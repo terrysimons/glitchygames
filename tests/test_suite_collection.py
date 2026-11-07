@@ -1155,6 +1155,7 @@ CONFTEST_FILE_NAME = 'conftest.py'
 # script's own test file by name"). A test of the engine that uses a script's code as its test
 # data is listed only while it does (the sprite tests: the legacy loader and the stack prototype)
 SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
+    'tests/test_ai_model_comparison.py': ('scripts/ai_model_comparison.py',),
     'tests/replay/test_record_scripted_session.py': ('scripts/record_scripted_session.py',),
     'tests/sprites/test_animated_sprite.py': ('scripts/sprite_stack.py',),
     'tests/sprites/test_legacy_sprite_glyphs.py': ('scripts/raw_sprite_loader.py',),

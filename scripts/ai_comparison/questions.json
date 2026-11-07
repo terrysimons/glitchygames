@@ -1,0 +1,238 @@
+[
+  {
+    "name": "paddleslap-ball-count",
+    "state": "paddleslap",
+    "kind": "fact",
+    "turns": ["How many balls are in play?"],
+    "required": ["\\b(2|two)\\b"],
+    "example_answer": "There are 2 balls in play."
+  },
+  {
+    "name": "paddleslap-rally-count",
+    "state": "paddleslap",
+    "kind": "fact",
+    "turns": ["What is the rally count?"],
+    "required": ["\\b(1|one)\\b"],
+    "example_answer": "The rally count is 1."
+  },
+  {
+    "name": "paddleslap-screen-size",
+    "state": "paddleslap",
+    "kind": "fact",
+    "turns": ["How big is the screen?"],
+    "required": ["\\b800\\b", "\\b480\\b"],
+    "example_answer": "The screen is 800 by 480."
+  },
+  {
+    "name": "paddleslap-player-two-position",
+    "state": "paddleslap",
+    "kind": "fact",
+    "turns": ["Where is Player 2's paddle?"],
+    "required": ["\\b780\\b", "\\b190\\b"],
+    "example_answer": "Player 2's paddle is at x 780, y 190."
+  },
+  {
+    "name": "paddleslap-high-score",
+    "state": "paddleslap",
+    "kind": "absent",
+    "turns": ["What is the high score?"],
+    "does_not_know": true,
+    "example_answer": "I do not know: the state doesn't show a high score."
+  },
+  {
+    "name": "paddleslap-lives",
+    "state": "paddleslap",
+    "kind": "absent",
+    "turns": ["How many lives does Player 2 have?"],
+    "does_not_know": true,
+    "example_answer": "I do not know how many lives Player 2 has."
+  },
+  {
+    "name": "paddleslap-nearest-paddle",
+    "state": "paddleslap",
+    "kind": "deduction",
+    "turns": ["The ball at world x 47.32: is it nearer Player 1 or Player 2?"],
+    "required": ["player 1"],
+    "forbidden": ["(nearer|closer)( to)?( the)? player 2", "\\bis player 2\\b"],
+    "example_answer": "It is nearer Player 1."
+  },
+  {
+    "name": "paddleslap-higher-ball",
+    "state": "paddleslap",
+    "kind": "deduction",
+    "turns": ["Which ball is higher up the screen, and where is it?"],
+    "required": ["\\b(49|47\\.32|166|164\\.37)\\b"],
+    "forbidden": ["\\b(717|712\\.6)\\b.*\\bhigher\\b"],
+    "example_answer": "The ball at x 49, y 166 is higher."
+  },
+  {
+    "name": "paddleslap-follow-up",
+    "state": "paddleslap",
+    "kind": "follow_up",
+    "turns": ["Where is the ball at x 717?", "and the other ball?"],
+    "required": ["\\b(49|47\\.32)\\b", "\\b(166|164\\.37)\\b"],
+    "example_answer": "The other ball is at x 49, y 166."
+  },
+  {
+    "name": "paddleslap-as-json",
+    "state": "paddleslap",
+    "kind": "structured",
+    "turns": ["Reply with only JSON in this shape, nothing else: {\"balls\": NUMBER, \"rally\": NUMBER}"],
+    "expected_json": {"balls": 2, "rally": 1},
+    "example_answer": "{\"balls\": 2, \"rally\": 1}"
+  },
+  {
+    "name": "muncher-sprite-total",
+    "state": "mr_muncher",
+    "kind": "fact",
+    "turns": ["How many sprites does the scene have in total?"],
+    "required": ["\\b267\\b"],
+    "example_answer": "The scene has 267 sprites."
+  },
+  {
+    "name": "muncher-listed-kind",
+    "state": "mr_muncher",
+    "kind": "fact",
+    "turns": ["What kind of sprite are the ones listed?"],
+    "required": ["sprocket"],
+    "example_answer": "They are all Sprockets."
+  },
+  {
+    "name": "muncher-player-position",
+    "state": "mr_muncher",
+    "kind": "absent",
+    "turns": ["Where is Mr. Muncher himself on the screen?"],
+    "does_not_know": true,
+    "example_answer": "I do not know: the player isn't among the sprites listed."
+  },
+  {
+    "name": "muncher-score",
+    "state": "mr_muncher",
+    "kind": "absent",
+    "turns": ["What is the player's score?"],
+    "does_not_know": true,
+    "example_answer": "I do not know the score from this state."
+  },
+  {
+    "name": "muncher-as-json",
+    "state": "mr_muncher",
+    "kind": "structured",
+    "turns": ["Reply with only JSON in this shape, nothing else: {\"scene\": TEXT, \"paused\": true or false}"],
+    "expected_json": {"scene": "Mr. Muncher", "paused": false},
+    "example_answer": "{\"scene\": \"Mr. Muncher\", \"paused\": false}"
+  },
+  {
+    "name": "clockwork-tinker-position",
+    "state": "clockwork_keep",
+    "kind": "fact",
+    "turns": ["What is Tinker's world position?"],
+    "required": ["\\b400\\b", "\\b894\\b"],
+    "example_answer": "Tinker is at world position 400, 894."
+  },
+  {
+    "name": "clockwork-tinker-velocity",
+    "state": "clockwork_keep",
+    "kind": "fact",
+    "turns": ["Is Tinker moving? Answer from the velocity."],
+    "required": ["\\b(no|not moving|isn't moving|stationary|still)\\b|\\b0(\\.0)?\\b"],
+    "forbidden": ["\\byes\\b"],
+    "example_answer": "No: Tinker's velocity is 0."
+  },
+  {
+    "name": "clockwork-cog-count",
+    "state": "clockwork_keep",
+    "kind": "deduction",
+    "turns": ["How many cogs are listed?"],
+    "required": ["\\b(6|six)\\b"],
+    "example_answer": "6 cogs are listed."
+  },
+  {
+    "name": "clockwork-hidden-cog",
+    "state": "clockwork_keep",
+    "kind": "deduction",
+    "turns": ["Which cog is off screen? Give its world position."],
+    "required": ["\\b400\\b", "\\b328\\.35\\b"],
+    "example_answer": "The cog at world 400, 328.35 isn't visible."
+  },
+  {
+    "name": "clockwork-follow-up",
+    "state": "clockwork_keep",
+    "kind": "follow_up",
+    "turns": ["Where is the elevator?", "Is it visible right now?"],
+    "required": ["\\bno\\b|not visible|isn't visible|invisible|off.?screen|hidden|\\b0\\b"],
+    "forbidden": ["\\byes\\b"],
+    "example_answer": "No, it isn't visible."
+  },
+  {
+    "name": "clockwork-lives",
+    "state": "clockwork_keep",
+    "kind": "absent",
+    "turns": ["How many lives does the player have left?"],
+    "does_not_know": true,
+    "example_answer": "I do not know how many lives are left."
+  },
+  {
+    "name": "clockwork-as-json",
+    "state": "clockwork_keep",
+    "kind": "structured",
+    "turns": ["Reply with only JSON in this shape, nothing else: {\"sprite_with_velocity\": NAME, \"cogs\": NUMBER, \"platforms\": NUMBER}"],
+    "expected_json": {"sprite_with_velocity": "Tinker", "cogs": 6, "platforms": 14},
+    "example_answer": "{\"sprite_with_velocity\": \"Tinker\", \"cogs\": 6, \"platforms\": 14}"
+  },
+  {
+    "name": "hard-paddleslap-ball-distance",
+    "state": "paddleslap",
+    "kind": "deduction",
+    "turns": ["How far apart are the two balls horizontally, in screen pixels?"],
+    "required": ["\\b668\\b"],
+    "example_answer": "They are 668 pixels apart."
+  },
+  {
+    "name": "hard-clockwork-visible-platforms",
+    "state": "clockwork_keep",
+    "kind": "deduction",
+    "turns": ["How many of the listed platforms are visible?"],
+    "required": ["\\b(12|twelve)\\b"],
+    "example_answer": "12 platforms are visible."
+  },
+  {
+    "name": "hard-clockwork-visible-sprites",
+    "state": "clockwork_keep",
+    "kind": "deduction",
+    "turns": ["Counting every kind, how many of the listed sprites are visible?"],
+    "required": ["\\b(19|nineteen)\\b"],
+    "example_answer": "19 sprites are visible."
+  },
+  {
+    "name": "hard-clockwork-widest-platform",
+    "state": "clockwork_keep",
+    "kind": "deduction",
+    "turns": ["Which platform is the widest? Give its width and its world y."],
+    "required": ["\\b600\\b", "\\b936(\\.0)?\\b"],
+    "example_answer": "The widest is 600 wide, at world y 936."
+  },
+  {
+    "name": "hard-clockwork-nearest-cog",
+    "state": "clockwork_keep",
+    "kind": "deduction",
+    "turns": ["By world position, which cog is nearest to Tinker? Give its world y."],
+    "required": ["\\b858\\.35\\b"],
+    "example_answer": "The cog at world y 858.35 is nearest."
+  },
+  {
+    "name": "hard-clockwork-visible-cogs-json",
+    "state": "clockwork_keep",
+    "kind": "structured",
+    "turns": ["Reply with only JSON in this shape, nothing else, in the order listed: {\"visible_cog_world_y\": [NUMBER, ...]}"],
+    "expected_json": {"visible_cog_world_y": [858.35, 778.35, 778.35, 688.35, 508.35]},
+    "example_answer": "{\"visible_cog_world_y\": [858.35, 778.35, 778.35, 688.35, 508.35]}"
+  },
+  {
+    "name": "hard-paddleslap-balls-json",
+    "state": "paddleslap",
+    "kind": "structured",
+    "turns": ["Reply with only JSON in this shape, nothing else: {\"left_ball_x\": NUMBER, \"right_ball_x\": NUMBER, \"gap\": NUMBER}, using the x of each ball's rect."],
+    "expected_json": {"left_ball_x": 49, "right_ball_x": 717, "gap": 668},
+    "example_answer": "{\"left_ball_x\": 49, \"right_ball_x\": 717, \"gap\": 668}"
+  }
+]
