@@ -43,8 +43,9 @@ made-up instrument is a bug, so every addition has to be traceable to a source.
 
 ## What the audits found (2026-11-07)
 
-Two rounds of audits are in the session's scratch notes, not in the repository (see open
-question 6):
+Two rounds of audits, kept in `plans/data/instrument-audit/` (`merged.tsv`, every candidate
+with its audit, family, range, range status and sources; one Markdown file per audit; `round-1/`
+for the first round):
 
 - Round 1 (2026-11-06): five agents, one per Hornbostel–Sachs class, 402 candidates.
 - Round 2 (2026-11-07): one adversarial agent per catalog family (18 families; voices and choirs
@@ -79,8 +80,8 @@ and round 2 corrected or discarded them.
 **Corrections to the current catalog found on the way:**
 
 - `whip` is titled "Whip (slapstick)" and is a slapstick; a real whip crack (H-S 411) is missing.
-- `glass harmonica` and `singing bowl` belong in a friction family if one is created; `kalimba`,
-  `mbira` and `music box` in a plucked-idiophone family.
+- `glass harmonica` and `singing bowl` move to friction instruments; `kalimba`, `mbira` and
+  `music box` to plucked idiophones; the electromechanical voices to electromechanical.
 - The recorder sizes follow one naming (great bass C3, contrabass F2, the Paetzold/Mollenhauer
   convention); a second "great bass in F" exists elsewhere. Not a bug, but the titles could state
   the lowest note to remove the ambiguity.
@@ -89,22 +90,40 @@ and round 2 corrected or discarded them.
 
 ### Families
 
-The 18 families stay. The audits propose:
+The 18 families stay, and five are added (the owner, 2026-11-07, for every row below):
 
-| Proposed family | Holds | Verdict |
+| Family | Holds | Decision |
 |---|---|---|
 | plucked idiophones | jaw harps (H-S 121.2), lamellophones (mbira, likembe, marimbula), music-box combs (122) | **Add.** A distinct mechanism and sound; ~40 instruments. Kalimba, mbira and music box move in |
 | friction instruments | musical saw, nail violin, daxophone, glass harmonica and harp, verrophone, Cristal Baschet, terpodion (H-S 13) | **Add.** ~16 instruments; glass harmonica and singing bowl (when rubbed) move in |
-| noise makers | bullroarers, sirens, whirled tubes, klaxons and air horns, party horns, whip cracks (H-S 41) | **Add.** ~21; the sound effects a game needs most |
-| mechanical instruments | music boxes, barrel and fairground organs, orchestrions, player pianos | **A tag, not a family** (recommended by the audit): each sounds like an existing family; only ~9 have their own timbre |
+| noise makers | bullroarers, sirens, whirled tubes, klaxons and air horns, party horns, whip cracks (H-S 41) | **Add.** ~21 |
+| sound effects | theatre and Foley devices that are not instruments: thunder sheet, wind machine, rain machine, cannon, and the like | **Add.** Their own family; see "Sound effects" below |
+| electromechanical | instruments whose sound is made mechanically and picked up or generated electrically (H-S 51, 52): Hammond, Rhodes, Wurlitzer, Clavinet, Telharmonium | **Add,** split from electronic, which keeps purely electronic sound (H-S 53: synthesizers, sound chips, theremin, ondes Martenot); electronic would otherwise pass 100 entries |
+| mechanical instruments | music boxes, barrel and fairground organs, orchestrions, player pianos | **A tag, not a family:** each sounds like an existing family; only ~9 have their own timbre |
 | environmental instruments | sea and wave organs, aeolian harps, suikinkutsu | **Drop.** Mostly one-off installations; the 5 usable voices go to existing families (aeolian harp: plucked strings; wind chimes: tuned percussion; pyrophone: organs) |
 
 A family is defined by **how the sound is made** (the Hornbostel–Sachs class), with the existing
-player-facing splits kept where they already exist (keyboards and organs; voices and choirs).
+player-facing splits kept where they already exist (keyboards and organs; voices and choirs),
+and sound effects as the one family defined by use.
+
+**Boundary calls** (the owner, 2026-11-07): friction drums (cuíca, lion's roar) stay in drums and
+percussion; duck calls and signal whistles go in flutes (they are edge-blown); the kazoo goes in
+voices (it colours a voice); the hydraulophone goes in flutes (Hornbostel–Sachs gives it no
+class).
+
+### Sound effects
+
+The owner's rule (2026-11-07): sound effects must be usable in music. Every catalog entry, sound
+effects included, is an `Instrument` built from waveforms and noise, so each one is playable as
+a note in a sequence like any other instrument (a thunder sheet on beat 1 of bar 9). An
+unpitched effect ignores the pitch it is given, as the drums already do. How a song places any
+sound, not only catalog instruments (a game's `[sounds]` entries, effects with notes of their
+own), is designed in `plans/2026-11-06-music-and-instrument-formats-design.md`, "Any sound in a
+sequence".
 
 ### Batches
 
-One batch per family, in this order: the three new families first (they fill the biggest
+One batch per family, in this order: the new families first (they fill the biggest
 gaps for games), then the largest existing ones (drums and percussion, plucked strings, tuned
 percussion, electronic, bowed strings), then the rest. Each batch is one PR:
 
@@ -135,8 +154,8 @@ URL and whether the range was verified; the code comment carries the URL.
 | sub-audio fundamentals | octobass lowest notes, bullroarer, some sirens |
 
 The engine already has a pitch glide (`pitch_curve`); it lacks pitch and filter LFOs. These
-instruments wait for the feature, or ship as a clearly titled approximation if the owner agrees
-(open question 4).
+instruments wait for the feature (the owner, 2026-11-07): none ships as an approximation under
+its real name or a qualified one. Each feature's design lists the instruments it unlocks.
 
 ## Tests
 
@@ -145,18 +164,17 @@ instruments wait for the feature, or ship as a clearly titled approximation if t
 - Aliases resolve to exactly one entry; no alias equals a catalog name.
 - A family test: every entry's family is one of the declared families.
 
+## Decisions (the owner, 2026-11-07)
+
+1. New families: plucked idiophones, friction instruments, noise makers, sound effects and
+   electromechanical; mechanical instruments are a tag; no environmental family.
+2. Boundary calls as listed under "Families".
+3. Electronic is split into electromechanical (H-S 51, 52) and electronic (H-S 53).
+4. Instruments the engine cannot make well yet wait for the feature.
+5. Sound effects are a family, and every one is usable in music.
+6. The audit tables are kept in `plans/data/instrument-audit/` as the batches' working list.
+
 ## Open questions
 
-1. The new families: add plucked idiophones, friction instruments and noise makers; make
-   mechanical a tag; drop environmental. Agree?
-2. Boundary calls: friction drums (cuíca, lion's roar) in drums or friction; signal whistles and
-   duck calls in flutes or noise makers; kazoo in voices or noise makers; hydraulophone (no H-S
-   slot) in flutes.
-3. Split electronic into electromechanical (Hammond, Rhodes, Telharmonium) and electronic? It
-   would otherwise be the largest family.
-4. Instruments the engine cannot make well yet: wait for the feature, or ship a titled
-   approximation (`sitar (no sympathetic strings)`)?
-5. Sound effects that are not instruments (thunder sheet, wind machine, rain machine): a
-   `sound effects` family, or out of scope?
-6. Keep the audit tables in the repository (for example `plans/data/instrument-audit/`) as the
-   working list for the batches, or only in this document's summary?
+1. How the mechanical tag is stored and queried (a `tags` field on `CatalogEntry`, and
+   `instruments.names(tag=...)`), left to the first batch that needs it.
