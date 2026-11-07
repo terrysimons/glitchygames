@@ -36,6 +36,11 @@ ARGUMENTS = ['--windowed', '--resolution', '320x240', '--log-level', 'warning']
 # Paced, as uncapped frames would run out before the link had a moment to connect. A run that
 # gets its proposal ends long before this: it only bounds a broken link, at about 10 s
 MAXIMUM_FRAMES = 1200
+# Why a run that ends on the AI's key presents a different number of frames each time
+PROPOSAL_ARRIVES_IN_REAL_TIME = (
+    "the run quits on the frame the AI's key arrives, sent over a real socket from the link's "
+    'thread: how many frames that takes depends on how fast the driver presents them'
+)
 
 
 class ProposalWatchingScene(Scene):
@@ -161,6 +166,7 @@ def test_a_machine_without_the_service_gets_the_plain_doors(scene):
     assert engine.ai_link is None
 
 
+@pytest.mark.frames_vary(reason=PROPOSAL_ARRIVES_IN_REAL_TIME)
 def test_a_proposal_reaches_the_scene_and_the_session_ends_with_the_run(
     scene, fake_service, installed
 ):
@@ -191,6 +197,7 @@ def test_a_service_that_never_answers_leaves_the_game_running(scene, installed, 
     assert engine.ai_link.state is LinkState.STOPPED
 
 
+@pytest.mark.frames_vary(reason=PROPOSAL_ARRIVES_IN_REAL_TIME)
 def test_a_run_with_ai_replays_exactly_with_no_service(scene, fake_service, tmp_path, monkeypatch):
     """The core promise: AI input is recorded, so a replay needs no AI, model or service."""
     root = tmp_path / 'install'
