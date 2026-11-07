@@ -7,6 +7,7 @@ Usage:
     sound = self.scene_manager.audio.sound(violin, notes='G3:0.5 D4:0.5 A4:1')
     instruments.entry('alto saxophone').playing_range   # (Note('Db3'), Note('Ab5'))
     instruments.names(family=instruments.Family.BRASS)  # every brass instrument's name
+    instruments.names(tag=instruments.Tag.MECHANICAL)   # every entry carrying a tag
 
 Every entry is an ``Instrument`` made from the engine's own parts (waves from overtone series,
 noise, layered sources with their own envelopes and pitches, filters and drive; see
@@ -21,7 +22,7 @@ filters in the engine yet, so sustained tones are steady and a vowel is truest m
 instrument afterwards.
 """
 
-from glitchygames.audio.instruments.catalog import CatalogEntry, Family
+from glitchygames.audio.instruments.catalog import CatalogEntry, Family, Tag
 from glitchygames.audio.instruments.registry import (
     CATALOG,
     entries,
@@ -31,4 +32,14 @@ from glitchygames.audio.instruments.registry import (
     names,
 )
 
-__all__ = ['CATALOG', 'CatalogEntry', 'Family', 'entries', 'entry', 'families', 'get', 'names']
+__all__ = [
+    'CATALOG',
+    'CatalogEntry',
+    'Family',
+    'Tag',
+    'entries',
+    'entry',
+    'families',
+    'get',
+    'names',
+]

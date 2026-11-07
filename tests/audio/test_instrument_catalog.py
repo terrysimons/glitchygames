@@ -5,7 +5,7 @@ import pytest
 
 from glitchygames.audio import instruments
 from glitchygames.audio.instrument import Filter, Instrument
-from glitchygames.audio.instruments import CatalogEntry, Family
+from glitchygames.audio.instruments import CatalogEntry, Family, Tag
 from glitchygames.audio.instruments.registry import FAMILY_TABLES, catalog_from
 from glitchygames.audio.instruments.timbres import (
     Course,
@@ -380,3 +380,58 @@ def test_lookups_refuse_unknown_names_in_any_case():
         instruments.get('Kazoo Deluxe')
     with pytest.raises(ValueError, match='spoons'):
         instruments.names(family='Spoons')
+
+
+def test_a_tag_lists_exactly_its_tagged_entries():
+    """names(tag=...) is every entry carrying that tag, in catalog order, alone or with family."""
+    tagged = instruments.names(tag=Tag.MECHANICAL)
+    assert tagged == tuple(
+        entry.name for entry in instruments.entries() if Tag.MECHANICAL in entry.tags
+    )
+    assert instruments.names(tag='Mechanical') == tagged
+    assert instruments.names(family=Family.BRASS, tag=Tag.MECHANICAL) == ()
+    assert instruments.entries(tag=Tag.MECHANICAL) == tuple(
+        instruments.entry(name) for name in tagged
+    )
+    with pytest.raises(ValueError, match='self playing'):
+        instruments.names(tag='self playing')
+
+
+def test_every_entry_tag_is_a_tag_member():
+    """Tags are members of the closed Tag enum, never bare strings."""
+    for entry in instruments.entries():
+        assert all(type(tag) is Tag for tag in entry.tags), entry.name
+
+
+def test_an_entry_refuses_a_string_tag():
+    """A string equal to a tag's value is still refused: tags cannot drift into synonyms."""
+    flute = instruments.entry('flute')
+    with pytest.raises(TypeError, match="tag 'mechanical' must be a Tag"):
+        CatalogEntry(
+            'test flute',
+            'Test flute',
+            Family.FLUTES,
+            'C4',
+            'C7',
+            flute.build,
+            tags=frozenset({'mechanical'}),  # pyright: ignore[reportArgumentType] - the refusal
+        )
+    assert (
+        CatalogEntry('test flute', 'Test flute', Family.FLUTES, 'C4', 'C7', flute.build).tags
+        == frozenset()
+    )
+
+
+def test_an_entry_keeps_its_tag_members():
+    """A Tag member is accepted and kept on the entry."""
+    flute = instruments.entry('flute')
+    tagged = CatalogEntry(
+        'test flute',
+        'Test flute',
+        Family.FLUTES,
+        'C4',
+        'C7',
+        flute.build,
+        tags=frozenset({Tag.MECHANICAL}),
+    )
+    assert tagged.tags == frozenset({Tag.MECHANICAL})

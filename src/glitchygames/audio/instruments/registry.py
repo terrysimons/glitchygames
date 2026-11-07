@@ -7,7 +7,7 @@ import functools
 from typing import TYPE_CHECKING, Final
 
 from glitchygames.audio.instruments.brass import BRASS
-from glitchygames.audio.instruments.catalog import CatalogEntry, Family
+from glitchygames.audio.instruments.catalog import CatalogEntry, Family, Tag
 from glitchygames.audio.instruments.keyboards import ELECTRONIC, KEYBOARDS, ORGANS
 from glitchygames.audio.instruments.percussion import DRUMS_AND_PERCUSSION, TUNED_PERCUSSION
 from glitchygames.audio.instruments.strings import (
@@ -135,33 +135,52 @@ def _family(family: Family | str | None) -> Family | None:
     return Family(family.lower())
 
 
-def names(*, family: Family | str | None = None) -> tuple[str, ...]:
-    """Every catalog name, in catalog order, or only one family's.
+def _tag(tag: Tag | str | None) -> Tag | None:
+    """``tag`` as a Tag, lowercased first when it is a string (None stays None).
+
+    Returns:
+        The tag, or None. A string that names no tag raises Tag's ValueError.
+    """
+    if tag is None:
+        return None
+    return Tag(tag.lower())
+
+
+def names(*, family: Family | str | None = None, tag: Tag | str | None = None) -> tuple[str, ...]:
+    """Every catalog name, in catalog order, or only one family's and/or one tag's.
 
     Args:
         family: A family, its name in any case (``'Double Reeds'``), or None for all.
+        tag: A tag, its name in any case (``'Mechanical'``), or None for all.
 
     Returns:
         The names.
 
-    An unknown family name raises ``ValueError``.
+    An unknown family or tag name raises ``ValueError``.
     """
-    wanted = _family(family)
+    wanted_family = _family(family)
+    wanted_tag = _tag(tag)
     return tuple(
-        name for name, value in CATALOG.items() if wanted is None or value.family == wanted
+        name
+        for name, value in CATALOG.items()
+        if (wanted_family is None or value.family == wanted_family)
+        and (wanted_tag is None or wanted_tag in value.tags)
     )
 
 
-def entries(*, family: Family | str | None = None) -> tuple[CatalogEntry, ...]:
-    """Every catalog entry, in catalog order, or only one family's.
+def entries(
+    *, family: Family | str | None = None, tag: Tag | str | None = None
+) -> tuple[CatalogEntry, ...]:
+    """Every catalog entry, in catalog order, or only one family's and/or one tag's.
 
     Args:
         family: A family, its name in any case (``'Double Reeds'``), or None for all.
+        tag: A tag, its name in any case (``'Mechanical'``), or None for all.
 
     Returns:
         The entries.
     """
-    return tuple(CATALOG[name] for name in names(family=family))
+    return tuple(CATALOG[name] for name in names(family=family, tag=tag))
 
 
 def families() -> tuple[Family, ...]:
