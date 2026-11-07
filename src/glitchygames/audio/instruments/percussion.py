@@ -20,7 +20,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Final
 
 from glitchygames.audio.instruments.catalog import CatalogEntry, Family
-from glitchygames.audio.instruments.timbres import Partial, Tone, blown, drum, struck
+from glitchygames.audio.instruments.timbres import Partial, Tone, drum, struck
 
 if TYPE_CHECKING:
     from glitchygames.audio.instrument import Instrument
@@ -175,10 +175,6 @@ def _timpani() -> Instrument:
     )
 
 
-def _sustained_glass() -> Instrument:
-    return blown((1.0, 0.04, 0.02), attack=0.25, release=0.6, chorus_cents=2.0)
-
-
 TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
     CatalogEntry('glockenspiel', 'Glockenspiel', Family.TUNED_PERCUSSION, 'G5', 'C8', GLOCKENSPIEL),
     CatalogEntry(
@@ -327,9 +323,6 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
             mallet_low_pass=2000.0,
             overtone_ring=0.6,
         ),
-    ),
-    CatalogEntry(
-        'glass harmonica', 'Glass harmonica', Family.TUNED_PERCUSSION, 'G3', 'C6', _sustained_glass
     ),
     CatalogEntry(
         'tabla dayan',

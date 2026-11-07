@@ -12,6 +12,8 @@ envelope, filters and drive), built by one of the shapes here:
 - ``struck``: a bar, bell, plate or membrane whose partials are not harmonics (mallets, bells,
   steel pans, timpani): up to four sine partials at their own frequency ratios, each with its
   own decay, so the high partials die first, as they do in a struck bar.
+- ``rubbed``: a glass, rod or bowl set singing by friction (a wet finger, a rosined cylinder):
+  the ``struck`` partials, but swelling in over an attack and holding while the note is held.
 - ``drum``: an unpitched hit: a tone that may glide (a kick's drop) and filtered noise, each
   decaying on its own.
 
@@ -51,6 +53,7 @@ QUIETEST_LEVEL: Final[float] = 1e-4  # quieter harmonics are left out (-80 dB)
 CHORUS_LEVEL: Final[float] = 0.7
 BITE_DECAY_SECONDS: Final[float] = 0.09
 BITE_SUSTAIN: Final[float] = 0.15
+MAXIMUM_PARTIALS: Final[int] = 4  # one source each: the four sources an instrument has
 MAXIMUM_COURSES: Final[int] = 2  # the string, two courses and the pick: the four sources
 
 
@@ -483,6 +486,49 @@ def struck(
     return Instrument(
         sources=sources,
         envelope=envelope(attack=0.0, release=release),
+        filter=_instrument_filter(low_pass=low_pass, high_pass=None),
+        normalize=True,
+    )
+
+
+def rubbed(
+    partials: Sequence[Partial],
+    *,
+    attack: float,
+    release: float,
+    low_pass: float | None = None,
+) -> Instrument:
+    """A glass, rod or bowl set singing by friction: partials at their own ratios, held.
+
+    Friction feeds the vibration steadily, so the sound swells in over ``attack`` and then
+    sustains for as long as the note is held (a struck bar rings down instead).
+
+    Args:
+        partials: One to four partials. Only each ratio, level and wave are used: a rubbed
+            partial does not die away, so its ``ring_seconds`` is ignored.
+        attack: Seconds to full level (a wet finger on a glass speaks sooner than a rosined
+            cylinder on a rod).
+        release: Seconds to silence after the note ends.
+        low_pass: A low-pass cutoff for the instrument, or None.
+
+    Returns:
+        The instrument.
+
+    Raises:
+        ValueError: With no partials, or more than the four sources allow.
+    """
+    if not partials or len(partials) > MAXIMUM_PARTIALS:
+        message = (
+            f'a rubbed instrument takes 1 to {MAXIMUM_PARTIALS} partials here, got {len(partials)}'
+        )
+        raise ValueError(message)
+    sources: dict[str, Source] = {
+        f'partial_{number}': Source(partial.wave, semitones=partial.semitones, level=partial.level)
+        for number, partial in enumerate(partials, start=1)
+    }
+    return Instrument(
+        sources=sources,
+        envelope=envelope(attack=attack, release=release),
         filter=_instrument_filter(low_pass=low_pass, high_pass=None),
         normalize=True,
     )

@@ -43,6 +43,7 @@ class Family(StrEnum):
     ELECTRONIC = 'electronic'
     TUNED_PERCUSSION = 'tuned percussion'
     PLUCKED_IDIOPHONES = 'plucked idiophones'
+    FRICTION_INSTRUMENTS = 'friction instruments'
     DRUMS_AND_PERCUSSION = 'drums and percussion'
     VOICES = 'voices'
     CHOIRS = 'choirs'

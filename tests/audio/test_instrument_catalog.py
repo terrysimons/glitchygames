@@ -21,6 +21,7 @@ from glitchygames.audio.instruments.timbres import (
     noise_layer,
     plucked,
     plucked_series,
+    rubbed,
     struck,
     with_drones,
 )
@@ -301,6 +302,28 @@ def test_overtone_series():
     assert harmonics_from_levels((1.0, 0.00001, 0.5)).octave == 0.0
 
 
+def test_rubbed_partials_swell_and_hold():
+    """A rubbed sound swells in over its attack and then sustains while the note is held."""
+    instrument = rubbed(
+        [
+            Partial(ratio=1.0, level=1.0, ring_seconds=0.0),
+            Partial(ratio=2.76, level=0.3, ring_seconds=0.0),
+        ],
+        attack=0.2,
+        release=0.3,
+    )
+    samples = rendered(instrument, pitch='A4')
+    peak = np.max(np.abs(samples))
+    first_twenty_milliseconds = np.max(np.abs(samples[: round(0.02 * SAMPLE_RATE)]))
+    held_window = samples[round(0.33 * SAMPLE_RATE) : round(0.35 * SAMPLE_RATE)]
+    assert first_twenty_milliseconds < 0.3 * peak
+    assert np.max(np.abs(held_window)) >= 0.5 * peak
+    with pytest.raises(ValueError, match='1 to 4 partials'):
+        rubbed([Partial(ratio=1.0, level=1.0, ring_seconds=0.0)] * 5, attack=0.2, release=0.3)
+    with pytest.raises(ValueError, match='1 to 4 partials'):
+        rubbed((), attack=0.2, release=0.3)
+
+
 def test_timbre_shapes_refuse_more_layers_than_four_sources():
     """Each shape refuses more layers than an instrument has sources."""
     with pytest.raises(ValueError, match='between 1 and 32'):
@@ -506,3 +529,41 @@ def test_the_sansula_rings_longer_and_brighter_than_the_kalimba():
 def test_the_plucked_idiophone_aliases_resolve(alias, target):
     """Zanza is the mbira; both music-box mechanisms play the one comb."""
     assert instruments.entry(alias) is instruments.entry(target)
+
+
+def test_friction_instruments_hold_the_glass_harmonica_glass_harp_and_terpodion():
+    """The glass harmonica moved here by name; the glass harp and terpodion are new and swell."""
+    friction = set(instruments.names(family=Family.FRICTION_INSTRUMENTS))
+    assert {'glass harmonica', 'glass harp', 'terpodion'} <= friction
+    # A rubbed singing bowl waits for a sourced range: only the struck bowl is in the catalog
+    assert 'rubbed singing bowl' not in instruments.CATALOG
+    assert instruments.entry('singing bowl').family == Family.TUNED_PERCUSSION
+    assert instruments.entry('glass harmonica').playing_range == (Note('G3'), Note('C6'))
+    # Rubbed, not struck: it swells, so its first 50 ms are quieter than its next 150 ms
+    entry = instruments.entry('glass harp')
+    samples = rendered(instruments.get('glass harp'), pitch=entry.middle_note().name)
+    onset = np.max(np.abs(samples[: round(0.05 * SAMPLE_RATE)]))
+    held = np.max(np.abs(samples[round(0.05 * SAMPLE_RATE) : round(0.2 * SAMPLE_RATE)]))
+    assert onset < held
+
+
+def test_the_glass_harp_swells_sooner_and_is_brighter_than_the_glass_harmonica():
+    """The glass harp ships as its own entry because it sounds unlike the glass harmonica."""
+    smoothing_seconds = 0.005
+
+    def seconds_to_ninety_percent(name: str) -> float:
+        samples = rendered(instruments.get(name), pitch='G4')
+        window = round(smoothing_seconds * SAMPLE_RATE)
+        level = np.sqrt(np.convolve(samples**2, np.ones(window) / window, mode='same'))
+        return float(np.argmax(level >= 0.9 * np.max(level))) / SAMPLE_RATE
+
+    def spectral_centroid(name: str) -> float:
+        samples = rendered(instruments.get(name), pitch='G4')[round(0.2 * SAMPLE_RATE) :]
+        magnitudes = np.abs(np.fft.rfft(samples * np.hanning(len(samples))))
+        frequencies = np.fft.rfftfreq(len(samples), 1 / SAMPLE_RATE)
+        return float(np.sum(frequencies * magnitudes) / np.sum(magnitudes))
+
+    assert seconds_to_ninety_percent('glass harp') < seconds_to_ninety_percent('glass harmonica')
+    assert seconds_to_ninety_percent('glass harmonica') < seconds_to_ninety_percent('terpodion')
+    assert spectral_centroid('glass harp') > spectral_centroid('glass harmonica')
+    assert spectral_centroid('terpodion') > spectral_centroid('glass harp')
