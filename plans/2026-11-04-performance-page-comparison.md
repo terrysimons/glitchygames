@@ -1,7 +1,12 @@
 # A readable Performance page, platform comparison, and benchmarks beside the replays
 
-Status: proposed; nothing is built. Part 1 stands alone. Part 2 starts only if its audit says the
-benchmarks add enough.
+Status: proposed; only the game list is built (below). Part 1 stands alone. Part 2 starts only if
+its audit says the benchmarks add enough.
+
+Built since this was written: a list above the graphs picks one game, and only that game's graphs
+load. It replaces the one-section-per-recording layout described under Today, and does the lazy
+loading of stage 2 per game rather than per collapsed section. The table and graphs now come before
+the explanation text, the move stage 2 asked for.
 
 ## Goal
 

@@ -646,7 +646,7 @@ def _json_safe_scalar(value: float | str | None) -> JsonValue:
     return {FLOAT_TAG: _non_finite_float_name(value)}
 
 
-def _json_safe_number(value: numbers.Real | np.generic) -> JsonValue:
+def _json_safe_number(value: numbers.Real | np.generic[Any]) -> JsonValue:
     """Store a number that is not a Python bool, int or float (a numpy scalar) as one.
 
     ``numbers.Integral`` and ``numbers.Real`` cover numpy's integer and floating scalars;
@@ -728,7 +728,7 @@ def json_safe_value(value: object) -> JsonValue:
     if isinstance(value, (bytes, bytearray)):
         return {BYTES_TAG: bytes(value).hex()}
     if isinstance(value, (numbers.Real, np.generic)):
-        return _json_safe_number(value)
+        return _json_safe_number(cast('numbers.Real | np.generic[Any]', value))
     return _json_safe_object(value)
 
 
