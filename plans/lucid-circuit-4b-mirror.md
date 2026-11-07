@@ -55,9 +55,22 @@ what has happened, but it can't act in the past.
 
 ## Hard problems, to be settled here and not assumed
 
-- **Object identity.** The clone and the live game share no objects, so a call needs a handle that names the same
-  object in both: deterministic per scene if possible. Nothing like it exists yet.
-- **Stale calls.** The object may have gone by the time the call lands. It's refused, and the AI is told.
+- **Object identity.** The clone's objects and the live game's are the same objects, in the sense that matters: the
+  same seed and inputs give the same objects, which is the contract (the owner, 2026-11-06). They need a stable way to
+  be referenced, and one exists: `tracing.StableSpriteIds` gives each sprite `<ClassName>#<n>`, the next number for its
+  class, and every golden replay already depends on the two sides agreeing. Each id names one object for the whole run
+  and is never reused. A hash would be no more stable, and the name is readable. What it needs for this:
+  - **A way back:** today it goes from object to id only, and a call needs id to object. `sprite.alive()` says whether
+    it's gone.
+  - **Letting go:** it holds every sprite it has seen for the whole run, so `id()` is never reused. That's fine for a
+    recording, but an always-on stream would keep every bullet alive for the session. Weak references should do both jobs.
+  - **Its cost:** it's assigned on first sight while sampling each frame, on the main thread. If Step 1 finds that too
+    dear, assign the same kind of id when a sprite is created instead (`RootSprite.__init__`), which costs nothing per
+    frame but needs its own proof that both sides agree.
+  - **Beyond sprites:** it covers sprites in `all_sprites`. Other game objects are for Stage 7.
+- **Objects in the timing gap.** The clone is behind, so anything it can name already exists in the live game, or did.
+  A call can only find its object gone, never not yet made, and a gone object's id can't have passed to another. Such a
+  call is refused, and the AI is told. New objects it hasn't reached yet simply aren't known to it until it does.
 - **What may be called.** Forwarding any call would amount to running AI-written code in the game, which the plan rules
   out (section 8). Stage 7 decides what's allowed, with discovery that doesn't run properties. The first version only
   carries a small allowlist.
