@@ -15,7 +15,10 @@ The rules:
    polled snapshot. A key the game saw pressed gets its release as the console opens, and a key
    still held as it closes stays hidden until it's released, so the game never sees half a press.
    The debug overlay's keys still work. The mouse still reaches the game. A key press the game
-   posts itself while the console is open (none of ours does) is hidden as typing would be.
+   posts itself while the console is open (none of ours does) is hidden as typing would be. A key
+   already hidden that arrives pressed again is SDL repeating it, which a game may have turned on,
+   and is ignored: the console does its own repeating, on the raw clock, so it never depends on that
+   setting and never changes it.
 4. It doesn't pause the game. Pausing belongs to the game, so pause it first if that matters: the
    console works over the pause screen, and inspects the paused game.
 5. The frame never waits. Requests, the model's stream and the history file all live on a worker
@@ -73,6 +76,19 @@ LINE_HEIGHT_PIXELS = 16
 HEIGHT_FRACTION = 0.6
 PAGE_LINES = 8
 
+# A held key repeats after the delay, each repeat coming sooner than the last, down to the shortest
+REPEATING_KEYS = frozenset({pygame.K_BACKSPACE})
+REPEAT_DELAY_SECONDS = 0.35
+REPEAT_FIRST_INTERVAL_SECONDS = 0.07
+REPEAT_ACCELERATION = 0.9
+REPEAT_SHORTEST_INTERVAL_SECONDS = 0.015
+# So a stalled frame can't eat a whole line while the key is held
+MAXIMUM_REPEATS_PER_BATCH = 8
+KEYS_HELP = (
+    'Keys: Up/Down recall, Shift+Up/Down scroll a line, Page Up/Down scroll a page, Tab completes, '
+    'Ctrl-A/Ctrl-E start/end of line, Ctrl-K cut to end of line, Ctrl-Y paste what was cut'
+)
+
 MAXIMUM_TRANSCRIPT_LINES = 500
 MAXIMUM_RECALLED_INPUTS = 100
 # Earlier questions and answers sent along, so a follow-up question makes sense
@@ -96,6 +112,16 @@ class TranscriptLine:
 
     text: str
     color: tuple[int, int, int]
+
+
+@dataclasses.dataclass(eq=False)
+class KeyRepeat:
+    """The key being held, and when it next repeats."""
+
+    key: int
+    action: Callable[[], None]
+    next_seconds: float
+    interval_seconds: float
 
 
 @dataclasses.dataclass(eq=False)
@@ -234,6 +260,8 @@ class AiConsole:
         self.hidden_scancodes: set[int] = set()
         self.input_text = ''
         self.cursor = 0
+        # What Ctrl-K cut, for Ctrl-Y. The console's own: the system clipboard is never touched
+        self.cut_text = ''
         self.running: AiRequest | None = None
         self.requests_made = 0
         self.requests_failed = 0
@@ -243,6 +271,7 @@ class AiConsole:
         self.unread_answer = False
         self.scene: Scene | None = None
         self._held: dict[int, pygame.event.Event] = {}
+        self._repeating: KeyRepeat | None = None
         self._updates: collections.deque[Callable[[], object]] = collections.deque()
         self._transcript: collections.deque[TranscriptLine] = collections.deque(
             maxlen=MAXIMUM_TRANSCRIPT_LINES
@@ -317,6 +346,16 @@ class AiConsole:
             pygame.K_PAGEDOWN: lambda: self._scroll(-PAGE_LINES),
             pygame.K_TAB: self._complete,
         }
+        self._control_keys: dict[int, Callable[[], None]] = {
+            pygame.K_a: lambda: self._move_cursor(0),
+            pygame.K_e: lambda: self._move_cursor(len(self.input_text)),
+            pygame.K_k: self._cut_to_end,
+            pygame.K_y: lambda: self._type(text=self.cut_text),
+        }
+        self._shift_keys: dict[int, Callable[[], None]] = {
+            pygame.K_UP: lambda: self._scroll(1),
+            pygame.K_DOWN: lambda: self._scroll(-1),
+        }
         self._add_line(text='AI console: read-only. /help lists commands. Esc or ` closes.')
 
     # The doors' side: called on the main thread, every frame
@@ -350,6 +389,8 @@ class AiConsole:
             elif not self.is_open and not self.hidden_scancodes:
                 # Text from a key the console took would arrive just after that key
                 kept.append(event)
+        if self._repeating is not None:
+            self._repeat_held_key(repeating=self._repeating)
         return kept
 
     def masked_snapshot(self, *, snapshot: InputSnapshot) -> InputSnapshot:
@@ -424,6 +465,9 @@ class AiConsole:
         """Take a press that belongs to the console, or pass it to the game and remember it."""
         # A game's own posted key press may have no scancode
         scancode = getattr(event, 'scancode', None)
+        if scancode in self.hidden_scancodes:
+            # Pressed again with no release: SDL's own repeat, if a game has turned it on
+            return
         if event.key == TOGGLE_KEY or scancode == TOGGLE_SCANCODE:
             self._set_open(is_open=not self.is_open, kept=kept)
             if scancode is not None:
@@ -439,6 +483,8 @@ class AiConsole:
 
     def _filter_key_up(self, *, event: pygame.event.Event, kept: list[pygame.event.Event]) -> None:
         """Take a release whose press was hidden from the game, or pass it on."""
+        if self._repeating is not None and event.key == self._repeating.key:
+            self._repeating = None
         scancode: int | None = getattr(event, 'scancode', None)
         if scancode is None:
             kept.append(event)
@@ -452,6 +498,7 @@ class AiConsole:
         """Open or close it. Opening releases, for the game, what the game saw pressed."""
         self.is_open = is_open
         self._panel = None
+        self._repeating = None
         if not is_open:
             return
         self.unread_answer = False
@@ -472,15 +519,64 @@ class AiConsole:
     def _edit(self, *, event: pygame.event.Event) -> None:
         """Act on one key press while open."""
         self._panel = None
-        action = self._editing_keys.get(event.key)
-        if action is not None:
-            action()
-        else:
+        # A new key takes over from one being held, as on any keyboard
+        self._repeating = None
+        action = self._action_for(event=event)
+        if action is None:
             self._type(text=getattr(event, 'unicode', ''))
+            return
+        action()
+        if event.key in REPEATING_KEYS:
+            self._repeating = KeyRepeat(
+                key=event.key,
+                action=action,
+                next_seconds=clock.raw_counter_seconds() + REPEAT_DELAY_SECONDS,
+                interval_seconds=REPEAT_FIRST_INTERVAL_SECONDS,
+            )
+
+    def _action_for(self, *, event: pygame.event.Event) -> Callable[[], None] | None:
+        """Find what a key press does, its modifiers first.
+
+        Returns:
+            The action, or None for a key that only types.
+
+        """
+        modifiers = getattr(event, 'mod', 0)
+        action = None
+        # Windows reports AltGr as Ctrl+Alt, and AltGr+E types a character on many layouts
+        if modifiers & pygame.KMOD_CTRL and not modifiers & pygame.KMOD_ALT:
+            action = self._control_keys.get(event.key)
+        elif modifiers & pygame.KMOD_SHIFT:
+            action = self._shift_keys.get(event.key)
+        return action or self._editing_keys.get(event.key)
+
+    def _repeat_held_key(self, *, repeating: KeyRepeat) -> None:
+        """Repeat the held key as many times as have come due, each interval shorter."""
+        now = clock.raw_counter_seconds()
+        repeats = 0
+        while repeating.next_seconds <= now and repeats < MAXIMUM_REPEATS_PER_BATCH:
+            repeating.action()
+            repeating.interval_seconds = max(
+                REPEAT_SHORTEST_INTERVAL_SECONDS,
+                repeating.interval_seconds * REPEAT_ACCELERATION,
+            )
+            repeating.next_seconds += repeating.interval_seconds
+            repeats += 1
+            self._panel = None
+        if repeating.next_seconds <= now:
+            repeating.next_seconds = now + repeating.interval_seconds
 
     def _close(self) -> None:
         """Close it, with Esc."""
         self.is_open = False
+        self._repeating = None
+
+    def _cut_to_end(self) -> None:
+        """Cut from the cursor to the end of the line. Nothing to cut keeps what was cut before."""
+        cut = self.input_text[self.cursor :]
+        if cut:
+            self.cut_text = cut
+            self.input_text = self.input_text[: self.cursor]
 
     def _delete_left(self) -> None:
         """Delete the character before the cursor."""
@@ -497,8 +593,8 @@ class AiConsole:
         self.cursor = max(0, min(len(self.input_text), position))
 
     def _scroll(self, lines: int) -> None:
-        """Move the transcript, staying within what's there."""
-        self._scroll_lines = max(0, min(len(self._transcript), self._scroll_lines + lines))
+        """Move the transcript. Drawing limits it, as only drawing knows how lines wrap."""
+        self._scroll_lines = max(0, self._scroll_lines + lines)
 
     def _type(self, *, text: str) -> None:
         """Insert printable text at the cursor."""
@@ -564,6 +660,7 @@ class AiConsole:
         else:
             for command in self.commands.values():
                 self._add_line(text=f'{command.usage}: {command.summary}', color=NOTE_COLOR)
+            self._add_line(text=KEYS_HELP, color=NOTE_COLOR)
 
     def _clear(self, _argument: str) -> None:
         """Empty the screen, and forget the conversation so far."""
@@ -874,7 +971,8 @@ class AiConsole:
         ]
         input_top = panel_height - LINE_HEIGHT_PIXELS - MARGIN_PIXELS
         fitting = max(1, input_top // LINE_HEIGHT_PIXELS)
-        end = max(fitting, len(lines) - self._scroll_lines)
+        self._scroll_lines = min(self._scroll_lines, max(0, len(lines) - fitting))
+        end = len(lines) - self._scroll_lines
         top = input_top - LINE_HEIGHT_PIXELS * min(fitting, len(lines))
         for line, color in lines[max(0, end - fitting) : end]:
             if line:

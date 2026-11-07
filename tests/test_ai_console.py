@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Event, Thread
@@ -14,6 +15,12 @@ from glitchygames import ai_console, clock
 from glitchygames.ai_console import (
     MAXIMUM_DESCRIBED_SPRITES,
     MAXIMUM_HISTORY_RECORDS,
+    MAXIMUM_REPEATS_PER_BATCH,
+    PAGE_LINES,
+    REPEAT_ACCELERATION,
+    REPEAT_DELAY_SECONDS,
+    REPEAT_FIRST_INTERVAL_SECONDS,
+    REPEAT_SHORTEST_INTERVAL_SECONDS,
     AiConsole,
     describe_scene,
     wrapped_lines,
@@ -30,7 +37,9 @@ WAIT_SECONDS = 10.0
 GRAVE = pygame.K_BACKQUOTE
 
 
-def key_event(event_type: int, key: int, unicode: str = '', scancode: int | None = None) -> Any:
+def key_event(
+    event_type: int, key: int, unicode: str = '', scancode: int | None = None, mod: int = 0
+) -> Any:
     """Build a key event as SDL would, its scancode from the keymap unless given.
 
     Returns:
@@ -38,17 +47,17 @@ def key_event(event_type: int, key: int, unicode: str = '', scancode: int | None
 
     """
     code = qwerty_scancode(key=key) if scancode is None else scancode
-    return pygame.event.Event(event_type, key=key, scancode=code, mod=0, unicode=unicode)
+    return pygame.event.Event(event_type, key=key, scancode=code, mod=mod, unicode=unicode)
 
 
-def press(console: AiConsole, key: int, unicode: str = '') -> list[Any]:
+def press(console: AiConsole, key: int, unicode: str = '', mod: int = 0) -> list[Any]:
     """Press and release a key.
 
     Returns:
         What the game saw.
 
     """
-    down = key_event(pygame.KEYDOWN, key, unicode)
+    down = key_event(pygame.KEYDOWN, key, unicode, mod=mod)
     up = key_event(pygame.KEYUP, key)
     return console.filter_events(events=[down, up])
 
@@ -383,6 +392,200 @@ def test_keys_that_type_nothing_change_nothing(console):
     press(console, pygame.K_F15, '\x01')
 
     assert not console.input_text
+
+
+def test_control_keys_move_to_the_ends_of_the_line(console):
+    """Ctrl-A and Ctrl-E, by the key's name, typing nothing."""
+    type_text(console, 'abc')
+
+    press(console, pygame.K_a, '\x01', mod=pygame.KMOD_LCTRL)
+    assert (console.input_text, console.cursor) == ('abc', 0)
+    press(console, pygame.K_e, '\x05', mod=pygame.KMOD_RCTRL)
+    assert (console.input_text, console.cursor) == ('abc', 3)
+
+
+def test_cutting_to_the_end_and_pasting_back(console, in_process_clipboard):
+    """Ctrl-K cuts from the cursor, Ctrl-Y inserts it at the cursor, as often as asked."""
+    in_process_clipboard.copy('the clipboard')
+    type_text(console, 'hello world')
+    for _ in range(5):
+        press(console, pygame.K_LEFT)
+
+    press(console, pygame.K_k, '\x0b', mod=pygame.KMOD_LCTRL)
+    assert (console.input_text, console.cursor) == ('hello ', 6)
+    assert console.cut_text == 'world'
+
+    press(console, pygame.K_y, '\x19', mod=pygame.KMOD_LCTRL)
+    press(console, pygame.K_HOME)
+    press(console, pygame.K_y, '\x19', mod=pygame.KMOD_LCTRL)
+    assert (console.input_text, console.cursor) == ('worldhello world', 5)
+    assert in_process_clipboard.paste() == 'the clipboard'
+
+
+def test_cutting_nothing_keeps_what_was_cut(console):
+    """Ctrl-K at the end of the line keeps the buffer, and pasting nothing does nothing."""
+    press(console, pygame.K_y, '\x19', mod=pygame.KMOD_LCTRL)
+    assert not console.input_text
+
+    type_text(console, 'keep')
+    press(console, pygame.K_HOME)
+    press(console, pygame.K_k, '\x0b', mod=pygame.KMOD_LCTRL)
+    press(console, pygame.K_k, '\x0b', mod=pygame.KMOD_LCTRL)
+
+    assert not console.input_text
+    assert console.cut_text == 'keep'
+
+
+def test_altgr_still_types(console):
+    """Windows reports AltGr as Ctrl+Alt, and AltGr+E is a character on many layouts."""
+    press(console, pygame.K_e, '€', mod=pygame.KMOD_LCTRL | pygame.KMOD_RALT)
+
+    assert console.input_text == '€'
+
+
+def test_modifiers_with_no_action_of_their_own(console):
+    """Shift still types capitals, and a modified editing key still edits."""
+    press(console, pygame.K_a, 'A', mod=pygame.KMOD_LSHIFT)
+    press(console, pygame.K_b, '\x02', mod=pygame.KMOD_LCTRL)
+    assert console.input_text == 'A'
+
+    press(console, pygame.K_BACKSPACE, mod=pygame.KMOD_LCTRL)
+    assert not console.input_text
+
+
+@pytest.fixture
+def held_backspace(console, mocker):
+    """Hold Backspace over a long line, on a clock the test moves.
+
+    Returns:
+        A function moving the clock on by that many seconds, then polling the console.
+
+    """
+    now = [100.0]
+    mocker.patch('glitchygames.clock.raw_counter_seconds', side_effect=lambda: now[0])
+    type_text(console, 'x' * 200)
+    console.filter_events(events=[key_event(pygame.KEYDOWN, pygame.K_BACKSPACE)])
+
+    def advance(seconds: float) -> None:
+        now[0] += seconds
+        console.filter_events(events=[])
+
+    return advance
+
+
+def test_a_held_backspace_repeats_faster_and_faster(console, held_backspace):
+    """One at once, nothing until the delay, then each gap shorter down to the shortest."""
+    assert len(console.input_text) == 199
+    held_backspace(REPEAT_DELAY_SECONDS - 0.01)
+    assert len(console.input_text) == 199
+
+    gaps = []
+    since_last = 0.0
+    held_backspace(0.011)
+    assert len(console.input_text) == 198
+    previous_length = 198
+    while len(console.input_text) > 50:
+        held_backspace(0.001)
+        since_last += 0.001
+        if len(console.input_text) < previous_length:
+            gaps.append(since_last)
+            since_last = 0.0
+            previous_length = len(console.input_text)
+
+    assert all(later <= earlier + 0.002 for earlier, later in itertools.pairwise(gaps))
+    assert gaps[0] == pytest.approx(REPEAT_FIRST_INTERVAL_SECONDS * REPEAT_ACCELERATION, abs=0.002)
+    assert gaps[-1] == pytest.approx(REPEAT_SHORTEST_INTERVAL_SECONDS, abs=0.002)
+
+
+def test_releasing_backspace_stops_it(console, held_backspace):
+    """Only its own release: another key's leaves it repeating."""
+    held_backspace(REPEAT_DELAY_SECONDS)
+    length = len(console.input_text)
+
+    console.filter_events(events=[key_event(pygame.KEYUP, pygame.K_F15)])
+    held_backspace(REPEAT_FIRST_INTERVAL_SECONDS)
+    assert len(console.input_text) < length
+
+    length = len(console.input_text)
+    console.filter_events(events=[key_event(pygame.KEYUP, pygame.K_BACKSPACE)])
+    held_backspace(10.0)
+    assert len(console.input_text) == length
+
+
+def test_another_key_takes_over_from_a_held_backspace(console, held_backspace):
+    """Typing while it's held stops it, and types."""
+    press(console, pygame.K_F15, 'y')
+    length = len(console.input_text)
+
+    held_backspace(10.0)
+
+    assert len(console.input_text) == length
+    assert console.input_text.endswith('y')
+
+
+@pytest.mark.parametrize('closing_key', [pygame.K_ESCAPE, GRAVE])
+def test_closing_stops_a_held_backspace(console, held_backspace, closing_key):
+    """Whichever key closes it."""
+    length = len(console.input_text)
+    console.filter_events(events=[key_event(pygame.KEYDOWN, closing_key)])
+
+    held_backspace(10.0)
+
+    assert len(console.input_text) == length
+
+
+def test_a_stalled_frame_cant_eat_the_line(console, held_backspace):
+    """A few repeats at most, then it carries on from now rather than catching up."""
+    length = len(console.input_text)
+
+    held_backspace(60.0)
+    assert len(console.input_text) == length - MAXIMUM_REPEATS_PER_BATCH
+
+    held_backspace(0.0)
+    assert len(console.input_text) == length - MAXIMUM_REPEATS_PER_BATCH
+
+
+def test_sdls_own_repeat_is_ignored(console):
+    """A game may turn key repeat on: a key pressed again with no release is that, not typing."""
+    letter = key_event(pygame.KEYDOWN, pygame.K_a, 'a')
+    console.filter_events(events=[letter, letter, letter])
+    assert console.input_text == 'a'
+
+    console.filter_events(events=[key_event(pygame.KEYUP, pygame.K_a), letter])
+    assert console.input_text == 'aa'
+
+    backspace = key_event(pygame.KEYDOWN, pygame.K_BACKSPACE)
+    console.filter_events(events=[backspace, backspace])
+    assert console.input_text == 'a'
+
+
+def test_holding_the_toggle_key_with_sdls_repeat_on_toggles_once(tmp_path):
+    """It would flicker open and closed at the repeat rate."""
+    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    grave = key_event(pygame.KEYDOWN, GRAVE, '`')
+
+    built.filter_events(events=[grave, grave, grave])
+
+    assert built.is_open
+
+
+def test_a_key_held_as_it_opens_types_nothing_when_sdl_repeats_it(tmp_path):
+    """The game saw the press, so its repeats are not typing."""
+    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    letter = key_event(pygame.KEYDOWN, pygame.K_a, 'a')
+    built.filter_events(events=[letter, key_event(pygame.KEYDOWN, GRAVE, '`')])
+
+    built.filter_events(events=[letter])
+
+    assert not built.input_text
+
+
+def test_help_lists_the_keys(console):
+    """They can't be found any other way."""
+    enter(console, '/help')
+
+    assert 'Ctrl-K' in transcript(console)
+    assert 'Shift+Up/Down' in transcript(console)
 
 
 def test_recalling_earlier_input(console):
@@ -875,6 +1078,55 @@ def test_scrolling_shows_older_lines(console):
 
     for _ in range(10):
         press(console, pygame.K_PAGEDOWN)
+    console.draw(surface=surface)
+    assert pygame.image.tobytes(console._panel, 'RGBA') == newest
+
+
+def test_shift_and_arrows_scroll_one_line_at_a_time(console):
+    """A page is that many lines, plain arrows still recall, and Shift+Down comes back."""
+    surface = pygame.Surface((320, 240))
+    for number in range(40):
+        console._add_line(text=f'line {number}')
+    console.draw(surface=surface)
+    newest = pygame.image.tobytes(console._panel, 'RGBA')
+
+    press(console, pygame.K_UP, mod=pygame.KMOD_LSHIFT)
+    console.draw(surface=surface)
+    one_line = pygame.image.tobytes(console._panel, 'RGBA')
+    assert one_line != newest
+    assert not console.input_text
+
+    for _ in range(PAGE_LINES - 1):
+        press(console, pygame.K_UP, mod=pygame.KMOD_RSHIFT)
+    console.draw(surface=surface)
+    by_lines = pygame.image.tobytes(console._panel, 'RGBA')
+    for _ in range(PAGE_LINES):
+        press(console, pygame.K_DOWN, mod=pygame.KMOD_LSHIFT)
+    console.draw(surface=surface)
+    assert pygame.image.tobytes(console._panel, 'RGBA') == newest
+
+    press(console, pygame.K_PAGEUP)
+    console.draw(surface=surface)
+    assert pygame.image.tobytes(console._panel, 'RGBA') == by_lines
+
+
+def test_scrolling_reaches_the_top_of_one_long_answer(console):
+    """The limit counts lines as wrapped: one long answer is one entry but many lines."""
+    surface = pygame.Surface((320, 240))
+    enter(console, '/clear')
+    console._add_line(text='\n'.join(f'line {number}' for number in range(40)))
+    console.draw(surface=surface)
+    newest = pygame.image.tobytes(console._panel, 'RGBA')
+
+    for _ in range(10):
+        press(console, pygame.K_PAGEUP)
+    console.draw(surface=surface)
+    # Panel 144 high, its input line from 122: seven lines fit
+    assert console._scroll_lines == 33
+
+    # Clamped, so no dead presses on the way back
+    for _ in range(33):
+        press(console, pygame.K_DOWN, mod=pygame.KMOD_LSHIFT)
     console.draw(surface=surface)
     assert pygame.image.tobytes(console._panel, 'RGBA') == newest
 
