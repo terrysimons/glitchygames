@@ -44,6 +44,34 @@ from real scenes, saved as JSON, so every size sees exactly the same thing.
 Each result records the score, the time to the first token, the total time, the token count, and the answer itself.
 The output is a page showing the sizes' answers side by side, because a score can't say whether an answer is useful.
 
+## Part 2b: behaviour tests per game (the owner, 2026-11-07)
+
+Ten questions per game, reviewed by the owner one game at a time, run on 2B at 8K so they also prove the lower bound.
+They can be as slow as they need: they test what the AI does, not its speed. Every answer keeps llama-server's prompt
+and generated counts, to see whether the context could shrink further. Each question runs as the model sees the game
+today, then with each game's rules text, then with game facts, so each addition's worth shows and the model is checked
+for saying it doesn't know when it can't.
+
+**Categories,** a question may have several, and each carries how fast its answer goes stale, since an answer arrives
+seconds after the frame it describes:
+
+| Category | For |
+|---|---|
+| Live | Help while playing, worth it only when the answer stays true for several seconds |
+| Analysis | Mechanics and strategy, where waiting is fine |
+| Base context | Facts loaded once and kept in the cached opening (rules, scoring) |
+| Testing | Checking the model: false premises, refusals |
+| Performance | Debugging timing and frame cost |
+| Visual | The answer is drawn on the overlay (an unreachable platform in red, the best route as a curve) |
+| Code | The answer is Python, shown in the console and never run |
+
+**Clockwork Keep, as the owner reviewed it:** floor, lives and score (live, base context); can Tinker reach that
+platform, and colour it red if not (analysis, visual); the nearest cog and its worth (live, analysis); when the
+elevator arrives (testing: it doesn't move); why Tinker fell through a platform, from the frames and events before it
+(analysis); the best route up, drawn as a curve (analysis, visual); scoring (base context); whether the frame-time cap
+slows a jump (testing, performance); an extra life, explained as impossible, with a Python draft (code, testing); how
+Gear Works differs from the Boiler Room (analysis, base context).
+
 ## Part 3: frames beside a real game
 
 **This waits for [Stage 4b](lucid-circuit-4b-mirror.md), steps 1-3** (the owner, 2026-11-06): the AI will work on a

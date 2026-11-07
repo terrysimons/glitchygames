@@ -116,6 +116,12 @@ what has happened, but it can't act in the past.
    | Pauses don't match slow frames | Neither helps frame times. A pool waits for a game that needs one |
 
    PaddleSlap's golden built 4 balls at about 0.2 ms each in 622 frames, so a pool wouldn't help it on that evidence.
+
+   Also track the context a question needs, as the game goes on (the owner, 2026-11-07). A question carries one frame's
+   state, roughly fixed while the scene is (the same balls in play), plus the recent conversation, plus the model's
+   reasoning, which was up to about 6,000 tokens on hard questions. With no sprite cap, a busy frame is large: Mr.
+   Muncher's 267 sprites are about 35 KB. Measure each frame's whole state over every golden replay, and keep
+   llama-server's own prompt and generated counts for every answer, so the service's context size is set from these.
 2. **The pipe.** A socket from the doors to a clone that starts with the game, a replay source that waits at the live
    edge, and supervision: start, restart, stop with the game. A frontier report: received, processed, age.
 3. **Read-only introspection.** A query socket on the clone. The console's `/ask` and `/inspect` read it, with no cap, and
@@ -132,6 +138,22 @@ what has happened, but it can't act in the past.
 - **Stage 8** may draw frames in the clone rather than capture them from the live game. That's untested, and the dummy
   driver may not match the screen exactly.
 - **Stage 10** keeps checkpoints and branching. A branch would be a disposable copy of the clone, labelled speculative.
+- **Copies the AI experiments in** (the owner, 2026-11-07). The AI introspects the game and runs events through
+  disposable copies to work out how it behaves, with nothing wired by the game. The copies are the physics: a search
+  over inputs ("run right, jump at x 340"), run uncapped and read back by introspection, finds routes and reach in any
+  game. In order:
+  1. **Input search in copies:** game-agnostic, no generated code. It gives a best route, drawn as a curve on the
+     overlay, and which platforms can't be reached, coloured red.
+  2. **Saved findings:** jump reach and the like, kept as facts for later questions.
+  3. **Model-written code (a planner, say), in sandboxed copies only:** no network, no writes outside a scratch folder,
+     under the approval rule in section 8 of the master plan.
+
+  The hard parts: a copy at frame N replays from frame 0 until checkpoints exist, and forking the clone's process on
+  macOS needs testing; copies use CPU and memory within a budget behind the live game and the clone; copies drift as the
+  clone can, so the drift check covers them; and a 2B model should choose and explain searches well but write planners
+  poorly, which is why search comes first.
+- **AI drawings** use the host's overlay, the console's layer: never recorded, never in screenshots, never changing
+  the game, and shown without the debug overlay (the owner, 2026-11-07).
 
 ## Exit evidence
 

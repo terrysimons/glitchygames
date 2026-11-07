@@ -586,6 +586,13 @@ only replays; Part 2 Task 1).
 
 ## Performance and pacing
 
+- **A per-game AI sweep of performance bottlenecks** (the owner, 2026-11-07). For each game, have the AI
+  read what our benchmarks record (the run ledger in `quality/replay-ledger/`, each recording's
+  `processing_seconds` and `FrameProfile`, the slowest frames and scenes in each `RunSummary`, and
+  `nox -s performance-test`), find where that game spends its frame time, and suggest fixes, each
+  with the evidence behind it. Suggestions are a report for the owner to choose from, not changes
+  made by the sweep. It can use Stage 4b's churn measurements (garbage collector pauses,
+  allocations by type) once they exist (plans/lucid-circuit-4b-mirror.md, step 1).
 - **Raspberry Pi hardware runners** (the user, 2026-11-02; do this on its own branch, separate from
   the sound engine work). Self-hosted CI runners on the user's Raspberry Pis, so the replay ledger
   and the sound benchmarks (`docs/specs/2026-11-02-sound-engine-implementation-spec.md` §11) are
