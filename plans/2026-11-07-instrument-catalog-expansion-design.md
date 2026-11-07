@@ -99,7 +99,7 @@ The 18 families stay, and five are added (the owner, 2026-11-07, for every row b
 | noise makers | bullroarers, sirens, whirled tubes, klaxons and air horns, party horns, whip cracks (H-S 41) | **Add.** ~21 |
 | sound effects | theatre and Foley devices that are not instruments: thunder sheet, wind machine, rain machine, cannon, and the like | **Add.** Their own family; see "Sound effects" below |
 | electromechanical | instruments whose sound is made mechanically and picked up or generated electrically (H-S 51, 52): Hammond, Rhodes, Wurlitzer, Clavinet, Telharmonium | **Add,** split from electronic, which keeps purely electronic sound (H-S 53: synthesizers, sound chips, theremin, ondes Martenot); electronic would otherwise pass 100 entries |
-| mechanical instruments | music boxes, barrel and fairground organs, orchestrions, player pianos | **A tag, not a family:** each sounds like an existing family; only ~9 have their own timbre |
+| mechanical instruments | music boxes, barrel and fairground organs, orchestrions, player pianos | **A tag, not a family** (`Tag.MECHANICAL`, see "Tags"): each sounds like an existing family; only ~9 have their own timbre |
 | environmental instruments | sea and wave organs, aeolian harps, suikinkutsu | **Drop.** Mostly one-off installations; the 5 usable voices go to existing families (aeolian harp: plucked strings; wind chimes: tuned percussion; pyrophone: organs) |
 
 A family is defined by **how the sound is made** (the Hornbostel–Sachs class), with the existing
@@ -110,6 +110,23 @@ and sound effects as the one family defined by use.
 percussion; duck calls and signal whistles go in flutes (they are edge-blown); the kazoo goes in
 voices (it colours a voice); the hydraulophone goes in flutes (Hornbostel–Sachs gives it no
 class).
+
+### Tags
+
+A grouping that cuts across families is a tag, not a family (the owner, 2026-11-07):
+
+- `CatalogEntry.tags: frozenset[Tag]`, empty by default. `Tag` is a closed `StrEnum` beside
+  `Family` in `audio/instruments/catalog.py`, so entries cannot drift into synonyms
+  ("mechanical", "automatic", "self playing"); a new tag is a deliberate change to the enum.
+- The first tag is `Tag.MECHANICAL`: instruments that play themselves from a pinned cylinder,
+  punched disc, roll or book (music boxes, barrel and fairground organs, orchestrions, player
+  pianos, serinettes). Each stays in the family it sounds like.
+- `instruments.names(tag=Tag.MECHANICAL)` lists them, beside `names(family=...)`; both may be
+  given together.
+- Later tags (`chip` for the sound-chip voices, `historical`, regions) are added the same way
+  when a batch needs one.
+- Tests: every entry's tags are members of `Tag`; `names(tag=...)` returns exactly the tagged
+  entries.
 
 ### Sound effects
 
@@ -174,7 +191,9 @@ its real name or a qualified one. Each feature's design lists the instruments it
 5. Sound effects are a family, and every one is usable in music.
 6. The audit tables are kept in `plans/data/instrument-audit/` as the batches' working list.
 
+7. Tags are a `tags: frozenset[Tag]` field on `CatalogEntry`, where `Tag` is a closed enum like
+   `Family`; see "Tags".
+
 ## Open questions
 
-1. How the mechanical tag is stored and queried (a `tags` field on `CatalogEntry`, and
-   `instruments.names(tag=...)`), left to the first batch that needs it.
+None at the moment.
