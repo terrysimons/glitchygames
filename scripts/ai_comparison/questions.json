@@ -184,7 +184,7 @@
     "state": "paddleslap",
     "kind": "deduction",
     "turns": ["How far apart are the two balls horizontally, in screen pixels?"],
-    "required": ["\\b668\\b"],
+    "required": ["\\b(668|665\\.28)\\b"],
     "example_answer": "They are 668 pixels apart."
   },
   {

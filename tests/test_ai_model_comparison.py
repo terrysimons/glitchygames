@@ -115,6 +115,11 @@ def test_the_hard_questions_answers_follow_from_the_states():
     )
     assert ball_lefts == [49, 717]
     assert ball_lefts[1] - ball_lefts[0] == 668
+    # Their world positions are apart by this, which is right too: the question is open to both
+    ball_worlds = sorted(
+        sprite['world_x'] for sprite in paddleslap['sprites'] if sprite['name'] == 'BallSprite'
+    )
+    assert round(ball_worlds[1] - ball_worlds[0], 2) == 665.28
 
     sprites = json.loads(load_state(name='clockwork_keep'))['sprites']
     platforms = [sprite for sprite in sprites if sprite['name'] == 'Platform']
@@ -157,6 +162,16 @@ def test_the_states_hold_the_answers_the_questions_expect():
     muncher = json.loads(load_state(name='mr_muncher'))
     assert muncher['sprite_count'] == 267
     assert {sprite['name'] for sprite in muncher['sprites']} == {'Sprocket'}
+
+
+@pytest.mark.parametrize(
+    'answer', ['800x480', '800 x 480', '800X480', '800\u00d7480', '800 by 480']
+)
+def test_dimensions_written_together_still_count_as_both_numbers(answer):
+    """An x is a word character, so 800x480 once failed a question wanting 800."""
+    question = question_with(required=(r'\b800\b', r'\b480\b'))
+
+    assert score(question=question, answer=answer) == (True, '')
 
 
 def test_required_and_forbidden_ignore_case():

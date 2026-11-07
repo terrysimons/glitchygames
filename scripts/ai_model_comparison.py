@@ -77,6 +77,8 @@ FOOTPRINT_TIMEOUT_SECONDS = 60.0
 STATUS_TIMEOUT_SECONDS = 30.0
 MEBIBYTE = 1024 * 1024
 HTTP_OK = 200
+# x, X, or the multiplication sign
+DIMENSIONS_SEPARATOR = re.compile(r'(\d)[x\u00d7](\d)', re.IGNORECASE)
 NOT_KNOWN = re.compile(
     r"\b(do not|don't|does not|doesn't|cannot|can't|could not|couldn't) "
     r'(know|say|show|state|include|list|contain|mention|provide|tell|determine|see)\b'
@@ -216,6 +218,8 @@ def score(*, question: Question, answer: str) -> tuple[bool, str]:
         return False, 'no answer'
     if question.expected_json is not None:
         return _score_json(expected=question.expected_json, text=text)
+    # "800x480" is two numbers, but x is a word character, so \b800\b wouldn't find the first
+    text = DIMENSIONS_SEPARATOR.sub(r'\1 x \2', text)
     if question.does_not_know and not NOT_KNOWN.search(text):
         return False, 'should have said it does not know'
     for pattern in question.required:
