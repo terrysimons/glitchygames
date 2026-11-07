@@ -63,6 +63,7 @@ class DebugPanel(enum.Enum):
         CAMERA (str): Camera position and bounds.
         PERFORMANCE (str): FPS readout, 1% low and frame-time graph.
         AUDIO (str): Audio engine header, audio-time graph, channels, buses and compile log.
+        AI (str): The local AI's connection, models and requests.
 
     """
 
@@ -72,6 +73,7 @@ class DebugPanel(enum.Enum):
     CAMERA = 'camera'
     PERFORMANCE = 'performance'
     AUDIO = 'audio'
+    AI = 'ai'
 
 
 class DebugOverlay:
@@ -317,6 +319,8 @@ class DebugOverlay:
                 font=font,
                 frame_info=frame_info,
             )
+        elif self.panel is DebugPanel.AI:
+            panels.draw_ai_panel(surface=surface, font=font, frame_info=frame_info)
         elif self.panel is DebugPanel.ALL:
             # All panels: the Audio panel contributes only its header, below the camera panel's
             # lines (sound engine feature spec 11.1.1)
@@ -335,7 +339,7 @@ class DebugOverlay:
 
         # The Performance and Audio panels are text and graphs over the whole screen: game
         # annotations would sit on top of them
-        if self.panel not in {DebugPanel.PERFORMANCE, DebugPanel.AUDIO}:
+        if self.panel not in {DebugPanel.PERFORMANCE, DebugPanel.AUDIO, DebugPanel.AI}:
             self._call_hooks(surface=surface, scene=scene, camera=camera)
 
     def _call_hooks(

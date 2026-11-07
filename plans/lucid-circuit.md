@@ -3,7 +3,7 @@
 - **Date:** 2026-11-06
 - **Status:** In progress on branch `worktree-ai-service-ansible` (uncommitted). Built: the Ansible
   setup for the model service and its `.pkg` (`ansible/macos_ai_service.yml`), the service itself, and
-  the engine's connection to it (section 7, Stages 0-3).
+  the engine's connection to it, and a read-only console (section 7, Stages 0-4).
   Agents and everything after are not built.
 - **Source:** the owner's brief, `/Users/terry/Documents/glitchygames-embedding-service-instructions.md`
   ("GlitchyGames AI platform"), plus the owner's decisions in the 2026-11-06 planning session. The
@@ -14,7 +14,7 @@
   whole platform, so the name is the project's, not a change to that decision.
 - **Sub-plans:** this is the master plan. Each stage gets its own `plans/lucid-circuit-<stage>.md`
   when it starts, linked from here and linking back: [Stage 1](lucid-circuit-1-local-service.md),
-  [Stage 3](lucid-circuit-3-engine-connection.md).
+  [Stage 3](lucid-circuit-3-engine-connection.md), [Stage 4](lucid-circuit-4-console.md).
 
 ## 1. Goal
 
@@ -296,8 +296,8 @@ code the urgent decisions, as the brief says.
 | Binaries, models, manifests, notices | `~/Library/Application Support/GlitchyGames/AI/` (versioned, so rollback works) |
 | Settings | Same directory, `.env` then `.env.runtime` |
 | Logs | `~/Library/Logs/GlitchyGames/AI/`. Rotation isn't built yet |
-| API port | `127.0.0.1:11449`, public to local clients |
-| Worker ports | Bonsai `11450`-`11453`, Qwen `11454`-`11456`: private. Avoids Ollama's `11434` and exoneris's `11435`, `11437`, `11439` and `11440`. Checked at install; a conflict is reported, and no other process is ever killed |
+| API port | `127.0.0.1:23231`, public to local clients |
+| Worker ports | Bonsai `23232`-`23235`, Qwen `23236`-`23238`: private. Avoids Ollama's `11434` and exoneris's `11435`, `11437`, `11439` and `11440`. Checked at install; a conflict is reported, and no other process is ever killed |
 | Running | Nothing until a game loads, then one Bonsai and one Qwen, which settles the session's open question and matches the brief's one resident Qwen. The game never sees a port |
 | Unloading | `llama-server --sleep-idle-seconds`, 1800 by default: `ai_service_sleep_idle_seconds`, or `AI_SLEEP_IDLE_SECONDS` in a model's `.env.runtime` |
 | Auth | A locally generated token in a `0600` file. Loopback alone isn't authentication. CORS restricted |
@@ -351,8 +351,8 @@ small end-to-end result first, and proves frame safety before AI is on by defaul
 | 0 | **Measure first** (done, through `ai_validate`, except the reference check) | On this Mac at `b12167`: all four Bonsai sizes answered text and image questions correctly on Metal, with all layers on the GPU and `graph splits = 1`, so the `MUL_MAT_HADAMARD` concern didn't bite. Memory figures are in section 5. **Not done:** comparing Qwen's vectors with the reference implementation (only shape, norms and a similarity check so far) |
 | 1 | **Local service** ([sub-plan](lucid-circuit-1-local-service.md)) | **Done:** roles install and rerun cleanly; all the REST routes and the WebSocket, with real models; Scalar with the network blocked; everything stops when the last game leaves. **Not done:** agents surviving a crash and a reboot; the service in CI, the SBOM and the license check |
 | 2 | **Installer (owner)** | Unsigned `.pkg` installs and uninstalls with no root as the owner, its setup job downloads what's missing and starts nothing, and the picker was tried against faked memory figures by hand (**done**). **Not done:** a second user account with no developer tools; an automated test of the picker |
-| 3 | **Engine connection** ([sub-plan](lucid-circuit-3-engine-connection.md)) | **Done:** no diff in `host.py`; a default run connects, and a run with no service plays normally; a proposal reaches the scene, is recorded, and replays with no service; crashes of the API, a model or the game all recover. Idle cost about 0.03-0.06 ms a frame on the dummy driver. **Not done:** a real display; a budget for that figure, which the owner decides |
-| 4 | **First playable: read-only** | In one real game (proposed: PaddleSlap), `/ask` and `/inspect` in a console, with an AI debug panel and history. Bitmappy can use local Bonsai through a setting |
+| 3 | **Engine connection** ([sub-plan](lucid-circuit-3-engine-connection.md)) | **Done:** no diff in `host.py`; a default run connects, and a run with no service plays normally; a proposal reaches the scene, is recorded, and replays with no service; crashes of the API, a model or the game all recover. Idle cost about 0.03-0.06 ms a frame on the dummy driver. **Not done:** a real display. The owner accepted that cost for prototyping (2026-11-06) |
+| 4 | **First playable: read-only** ([sub-plan](lucid-circuit-4-console.md)) | **Done:** the ` key opens a console in every game with AI, with `/ask`, `/inspect`, `/ai`, `/cancel`, `/history`, `/clear`, `/help` and an AI debug panel. Real questions took 7-9 s on 27B in PaddleSlap. Typing reaches neither the game nor a recording. **Not done:** a real display. Bitmappy already uses local Bonsai (Stage 1), though its sprite requests still fail validation |
 | 5 | **Load harness and throttle** | Scripted sessions at fixed AI loads; p50/p95/p99 frame times against AI off, on the owner's Mac and at least one smaller Mac. Real numbers replace section 5's tiers. Throttle backs off fast and recovers without oscillating. Must pass before any game runs an agent without being asked |
 | 6 | **Retrieval and agent loop** | Asset and capability index with versioned model identity; dense + BM25 + filters; a bounded agent loop that retrieves, plans in JSON, validates and stops on budget |
 | 7 | **Lucid Circuit** | Capability discovery on unannotated classes without running properties; validated field edits and one composed behaviour nobody wrote a command for, in two games; restoration tested; glitch manifest and `/augment`, `/undo`, `/glitch` |

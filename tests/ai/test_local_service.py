@@ -289,3 +289,33 @@ def test_without_the_variable_the_usual_install_is_used(monkeypatch, tmp_path):
     monkeypatch.setattr(ai_link, 'DEFAULT_INSTALL_ROOT', tmp_path)
 
     assert LocalAIClient().install_root == tmp_path
+
+
+def test_a_stream_line_with_nothing_in_it_gives_nothing():
+    """Blank lines, comments, the end marker and empty deltas."""
+    for line in ('', ': comment', 'data: [DONE]', 'data: {"choices": [{"delta": {}}]}', 'data: {}'):
+        assert local_service.pieces_of_stream_line(line=line) == []
+
+
+def test_a_stream_line_tells_reasoning_from_answer():
+    """llama.cpp writes them as separate fields."""
+    line = 'data: {"choices": [{"delta": {"reasoning_content": "r", "content": "a"}}]}'
+
+    pieces = local_service.pieces_of_stream_line(line=line)
+
+    assert [(piece.text, piece.is_answer) for piece in pieces] == [('r', False), ('a', True)]
+
+
+def test_a_dropped_stream_is_a_service_error(tmp_path, mocker):
+    """The caller only ever sees the one error type."""
+    (tmp_path / 'bin').mkdir()
+    (tmp_path / 'bin' / 'ai-service.sh').touch()
+    (tmp_path / 'config').mkdir()
+    (tmp_path / 'config' / 'service-api-key').write_text('key', encoding='utf-8')
+    client = local_service.LocalAIClient(install_root=tmp_path)
+    mocker.patch.object(client, '_is_ready', return_value=True)
+    failure = local_service.httpx2.ReadError('the connection dropped')
+    mocker.patch.object(local_service.httpx2, 'stream', side_effect=failure)
+
+    with pytest.raises(local_service.LocalAIServiceError, match='ReadError'):
+        list(client.stream(model='reasoning', messages=[]))

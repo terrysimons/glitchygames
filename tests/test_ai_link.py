@@ -295,20 +295,25 @@ def test_stop_before_start_is_harmless(tmp_path):
     assert link.state is LinkState.STOPPED
 
 
-def test_stop_during_a_retry_ends_the_thread(mocker, tmp_path):
+def test_stop_during_a_retry_ends_the_thread(tmp_path):
     """Stopping while waiting to reconnect doesn't start another attempt."""
     install(root=tmp_path)
+    waits = []
+
+    def stop_while_waiting(seconds: float) -> None:
+        waits.append(seconds)
+        link.stop()
+
     link = AiLink(
         install_root=tmp_path,
         session_url='ws://127.0.0.1:9/v1/session',
-        sleep=lambda _seconds: link.stop(),
+        sleep=stop_while_waiting,
     )
-    connect = mocker.spy(ai_link.clock, 'raw_sleep')
 
     link._run()  # Run directly: the stop then comes from the same thread, deterministically
 
     assert link.state is LinkState.STOPPED
-    connect.assert_not_called()
+    assert len(waits) == 1
 
 
 def test_messages_for_the_game_reach_the_inbox_in_order(service, started_link):

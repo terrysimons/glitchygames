@@ -26,13 +26,13 @@ ai_service_game_reserve_mib: 2048
 ai_service_sleep_idle_seconds: 1800
 
 # What games and tools use. The ports below it are private to the service
-ai_service_api_port: 11449
+ai_service_api_port: 23231
 # How long after the last game disconnects everything stops: long enough for a quick relaunch
 ai_service_shutdown_grace_seconds: 30
 
-# Private ports, behind the API. Clear of Ollama's 11434 and exoneris's 11435-11440
-ai_service_bonsai_ports: {"2b": 11450, "4b": 11451, "9b": 11452, "27b": 11453}
-ai_service_qwen_ports: {"0.6b": 11454, "4b": 11455, "8b": 11456}
+# Private ports, behind the API: the owner's 2323[1..n] (the API is 23231)
+ai_service_bonsai_ports: {"2b": 23232, "4b": 23233, "9b": 23234, "27b": 23235}
+ai_service_qwen_ports: {"0.6b": 23236, "4b": 23237, "8b": 23238}
 
 ai_service_label_prefix: ai.glitchygames
 ai_package_identifier: ai.glitchygames.service

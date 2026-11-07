@@ -136,7 +136,7 @@ def settings(tmp_path, running_worker, control_log) -> Settings:
         worker_key_file=tmp_path / 'worker-key',
         control_script=control,
         scalar_file=tmp_path / 'scalar.js',
-        allowed_origins=('http://127.0.0.1:11449',),
+        allowed_origins=('http://127.0.0.1:23231',),
         shutdown_grace_seconds=0.05,
         maximum_concurrent_requests=2,
     )

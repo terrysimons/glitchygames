@@ -102,7 +102,7 @@ def test_a_website_is_refused_even_with_the_token(client):
 
 
 def test_an_allowed_origin_is_let_in(client, worker):
-    headers = {**AUTHORIZED, 'Origin': 'http://127.0.0.1:11449'}
+    headers = {**AUTHORIZED, 'Origin': 'http://127.0.0.1:23231'}
     with client.websocket_connect('/v1/session', headers=headers) as session:
         session.send_json(HELLO)
 

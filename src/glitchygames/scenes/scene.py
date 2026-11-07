@@ -1414,7 +1414,18 @@ class SceneManager(SceneInterface, events.EventManager):
             screen_shake_offset=shake_offset,
             mouse_position=mouse_position,
             inspected_scene_label=inspected_scene_label,
+            ai_status=self._ai_status(),
         )
+
+    def _ai_status(self: Self) -> tuple[str, ...]:
+        """Read the AI console's state for the overlay's AI panel.
+
+        Returns:
+            Its lines, or nothing for a run without AI.
+
+        """
+        console = None if self.game_engine is None else self.game_engine.ai_console
+        return () if console is None else tuple(console.status_lines())
 
     def _active_scene_has_focused_sprite(self: Self) -> bool:
         """Report whether a sprite in the active scene has keyboard focus.
@@ -3168,6 +3179,17 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         with the frozen picture.
         """
         return self
+
+    def describe_for_ai(self: Self) -> dict[str, Any]:
+        """Say what a game knows that its sprites don't show, for the AI console to read.
+
+        Read only when asked, and it must change nothing.
+
+        Returns:
+            JSON-ready facts: the score, say. A scene without any says nothing.
+
+        """
+        return {}
 
     @property
     def scene_start(self: Self) -> SceneStart | None:

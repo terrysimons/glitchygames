@@ -189,13 +189,16 @@ uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_
 "$HOME/Library/Application Support/GlitchyGames/AI/bin/ai-service.sh" select   # or start, stop, status
 # ...one piece: --tags llama_cpp, ai_models, ai_sidecar, ai_service or ai_package
 # The service is its own project, outside the workspace, sharing no code with the engine. A game
-# reaches it only over a socket (127.0.0.1:11449: WebSocket /v1/session, REST /v1/*, docs at /docs)
+# reaches it only over a socket (127.0.0.1:23231: WebSocket /v1/session, REST /v1/*, docs at /docs)
 (cd services/ai-service && uv run pytest)   # its own tests, lock file and 100% coverage
 # Games connect to it by default: --ai (on), --no-ai. Never with --headless, in a replay or browser,
 # or without the service installed: those runs build plain HostSources and never import
 # websockets. src/glitchygames/ai_link.py (the link, on its own thread) and ai_host.py (a
 # HostSources subclass; host.py doesn't change). The harness sets GLITCHYGAMES_AI_INSTALL_ROOT
 # to nowhere, so no test can reach the real service
+# In any game with AI the ` key opens the read-only console (src/glitchygames/ai_console.py, its
+# docstring the rules): /ask, /inspect, /ai, /cancel, /history, /clear, /help. Its keys reach
+# neither the game nor a recording. A scene may say more with describe_for_ai()
 # Check every model on Metal (speed, memory, layers on the GPU), or remove the service
 uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_validate
 uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_uninstall
@@ -1264,7 +1267,7 @@ screen size - 1), performance HUD with FPS, frame time, 1% low and a frame-time 
 line), and an Audio panel after Performance (cache mode, mixer, voices, an audio-time graph stacked by
 kind of work, channel strip, bus meters, compile log; under All only its header; `--sound-diagnostics`
 opens on it; built from `AudioEngine.snapshot()` only while the overlay is visible and the engine
-already exists). Drawn in `SceneManager._present_frame`, never in screenshots, with the bundled Bitstream
+already exists), then an AI panel (the link, models and requests, from the AI console). Drawn in `SceneManager._present_frame`, never in screenshots, with the bundled Bitstream
 Vera Sans font on translucent cached backings. Scenes or sprites can add annotations with
 `debug_draw(surface, camera)`. `Scene.debug_subject` names the scene to inspect (normally the scene
 itself; `PauseScene` returns the paused game, so its hitboxes line up with the frozen picture and

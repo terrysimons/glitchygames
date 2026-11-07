@@ -16,12 +16,17 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
+from glitchygames.ai_console import AiConsole
 from glitchygames.host import HostSources
 
 if TYPE_CHECKING:
     from glitchygames.ai_link import AiLink
+    from glitchygames.audio.accounting import AudioFrameAccount
+    from glitchygames.input.state import InputSnapshot
     from glitchygames.replay.driver import FrameOverlay
+    from glitchygames.scenes import Scene
     from glitchygames.sources import EngineSources
+    from glitchygames.supervision import ControlEvent
 
 LOG = logging.getLogger('game.ai_host')
 
@@ -60,7 +65,7 @@ def input_event_from(*, message: dict[str, Any]) -> pygame.event.Event | None:
 
 
 class AiHostSources(HostSources):
-    """``HostSources``, with what the AI proposes added to each event batch."""
+    """``HostSources``, with AI input in each event batch, and the console around the game."""
 
     def __init__(
         self: Self, *, inner: EngineSources, link: AiLink, overlay: FrameOverlay | None = None
@@ -75,18 +80,64 @@ class AiHostSources(HostSources):
         """
         super().__init__(inner=inner, overlay=overlay)
         self.link = link
+        self.console = AiConsole(link=link, install_root=link.install_root)
 
     @override
     def pump_events(self: Self) -> list[pygame.event.Event]:
-        """Return the host's batch, with what the AI proposed since the last one after it.
+        """Return the host's batch less the console's keys, then what the AI has proposed.
 
         Returns:
             The batch, in queue order.
 
         """
-        events = super().pump_events()
+        events = self.console.filter_events(events=super().pump_events())
         messages = self.link.take_messages()
         if not messages:
             return events
         proposed = [input_event_from(message=message) for message in messages]
         return [*events, *(event for event in proposed if event is not None)]
+
+    @override
+    def input_snapshot(self: Self) -> InputSnapshot:
+        """Return the host's polled input, less the keys the console took.
+
+        Returns:
+            The snapshot.
+
+        """
+        return self.console.masked_snapshot(snapshot=super().input_snapshot())
+
+    @property
+    @override
+    def draws_overlay(self: Self) -> bool:
+        """Whether the console has anything on screen, or the host draws an overlay."""
+        return self.console.needs_drawing or super().draws_overlay
+
+    @override
+    def draw_overlay(self: Self, *, surface: pygame.Surface) -> None:
+        """Draw the host's overlay, then the console over it."""
+        super().draw_overlay(surface=surface)
+        if self.console.needs_drawing:
+            self.console.draw(surface=surface)
+
+    @override
+    def end_frame(
+        self: Self,
+        *,
+        frame_number: int,
+        dt: float,
+        scene: Scene | None,
+        control_events: list[ControlEvent],
+        processing_seconds: float | None = None,
+        audio_frame: AudioFrameAccount | None = None,
+    ) -> None:
+        """End the frame as the host does, noting the scene for the console to read."""
+        self.console.scene = scene
+        super().end_frame(
+            frame_number=frame_number,
+            dt=dt,
+            scene=scene,
+            control_events=control_events,
+            processing_seconds=processing_seconds,
+            audio_frame=audio_frame,
+        )

@@ -52,7 +52,7 @@ class Settings(BaseModel):
     model_config = ConfigDict(frozen=True, extra='forbid')
 
     host: str = '127.0.0.1'
-    port: int = 11449
+    port: int = 23231
     models: tuple[ModelEntry, ...]
     service_key_file: Path
     worker_key_file: Path

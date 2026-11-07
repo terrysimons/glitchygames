@@ -468,6 +468,16 @@ class Game(Scene):
         )
         self.previous_scene = self
 
+    @override
+    def describe_for_ai(self: Self) -> dict[str, Any]:
+        """Say what the score is, which no sprite shows.
+
+        Returns:
+            The rally count and the balls in play.
+
+        """
+        return {'rally_count': self.rally_count, 'balls_in_play': len(self.balls)}
+
     def _save_high_score(self: Self) -> list[dict[str, int]]:
         """Save the current rally count to the high scores list.
 

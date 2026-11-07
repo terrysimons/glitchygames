@@ -7,28 +7,31 @@ the models is real. The install points at a real control script, never the machi
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Any, ClassVar, Self, override
+from pathlib import Path
+from typing import Any, ClassVar, Self, override
 
 import pygame
 import pytest
 from websockets.sync.server import serve
 
 from glitchygames import ai_link
+from glitchygames.ai_console import AiConsole
 from glitchygames.ai_host import AiHostSources
-from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE, LinkState
+from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE, AiLink, LinkState
 from glitchygames.engine import ExitCode, GameEngine
 from glitchygames.host import HostSources
+from glitchygames.recording import post_input_event
 from glitchygames.replay.tools.golden_traces import command_line
-from glitchygames.scenes import Scene
+from glitchygames.scenes import Scene, SceneManager
+from glitchygames.testing.keys import qwerty_scancode
 from tests.test_ai_link import KEY_PRESS, FakeService, install
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 # These runs can't be --headless, which turns AI off, so on the dummy driver SCALED asks for a
 # renderer it doesn't have (BUGS.md #178 item 32). Expected here, and harmless to what's tested
 pytestmark = pytest.mark.filterwarnings('ignore:no fast renderer available')
 
+# The discard port: nothing answers there
+NOTHING_LISTENING_URL = 'ws://127.0.0.1:9/v1/session'
 ARGUMENTS = ['--windowed', '--resolution', '320x240', '--log-level', 'warning']
 # Paced, as uncapped frames would run out before the link had a moment to connect. A run that
 # gets its proposal ends long before this: it only bounds a broken link, at about 10 s
@@ -89,16 +92,20 @@ def fake_service(monkeypatch):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     url = f'ws://127.0.0.1:{server.socket.getsockname()[1]}/v1/session'
-    monkeypatch.setattr(ai_link, 'DEFAULT_SESSION_URL', url)
+    links_connect_to(url=url, monkeypatch=monkeypatch)
+    yield fake
+    server.shutdown()
+    thread.join(timeout=5)
+
+
+def links_connect_to(*, url: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Have every new link use this URL: never the real service's port."""
     real_init = ai_link.AiLink.__init__
 
     def init_with_url(self: ai_link.AiLink, **arguments: Any) -> None:
         real_init(self, **{**arguments, 'session_url': url})
 
     monkeypatch.setattr(ai_link.AiLink, '__init__', init_with_url)
-    yield fake
-    server.shutdown()
-    thread.join(timeout=5)
 
 
 @pytest.fixture
@@ -170,8 +177,9 @@ def test_a_proposal_reaches_the_scene_and_the_session_ends_with_the_run(
     assert fake_service.sessions_closed.wait(timeout=5)
 
 
-def test_a_service_that_never_answers_leaves_the_game_running(scene, installed):
+def test_a_service_that_never_answers_leaves_the_game_running(scene, installed, monkeypatch):
     """Nothing listening is only a state: the run plays out, and ends as it would have."""
+    links_connect_to(url=NOTHING_LISTENING_URL, monkeypatch=monkeypatch)
     scene.maximum_frames = 30
     with command_line(ARGUMENTS):
         engine = GameEngine(game=scene)
@@ -206,3 +214,90 @@ def test_a_run_with_ai_replays_exactly_with_no_service(scene, fake_service, tmp_
 
     assert ended.value.code == ExitCode.SUCCESS
     assert pygame.K_F13 in scene.keys_received
+
+
+class TypingScene(ProposalWatchingScene):
+    """Opens the console at frame 5, types while a real key is held, closes it, then quits."""
+
+    NAME = 'Typing Scene'
+    KEYS: ClassVar[dict[int, list[tuple[int, int, str]]]] = {
+        3: [(pygame.KEYDOWN, pygame.K_w, 'w')],
+        5: [(pygame.KEYDOWN, pygame.K_BACKQUOTE, '`')],
+        6: [(pygame.KEYUP, pygame.K_BACKQUOTE, '')],
+        7: [(pygame.KEYDOWN, pygame.K_q, 'q')],
+        8: [(pygame.KEYUP, pygame.K_q, ''), (pygame.KEYUP, pygame.K_w, '')],
+        9: [(pygame.KEYDOWN, pygame.K_BACKQUOTE, '`')],
+        10: [(pygame.KEYUP, pygame.K_BACKQUOTE, '')],
+        12: [(pygame.KEYDOWN, pygame.K_F13, '')],
+    }
+    releases_received: ClassVar[list[int]] = []
+    console_frames: ClassVar[int] = 0
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Post this frame's keys, as a player would press them."""
+        super().dt_tick(dt)
+        for event_type, key, unicode in self.KEYS.get(self.frames_run, []):
+            post_input_event(
+                pygame.event.Event(
+                    event_type,
+                    key=key,
+                    scancode=qwerty_scancode(key=key),
+                    mod=0,
+                    unicode=unicode,
+                )
+            )
+
+    @override
+    def on_key_up_event(self: Self, event: Any) -> None:
+        """Note the release."""
+        type(self).releases_received.append(event.key)
+
+
+def test_typing_in_the_console_reaches_neither_the_game_nor_the_recording(tmp_path, monkeypatch):
+    """The whole path on a real engine: the game sees one clean press and release of its own key.
+
+    The recording then replays exactly, with no AI, no console and no service.
+    """
+    root = tmp_path / 'install'
+    root.mkdir()
+    install(root=root)
+    monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(root))
+    links_connect_to(url=NOTHING_LISTENING_URL, monkeypatch=monkeypatch)
+    recording = tmp_path / 'typed.jsonl.gz'
+    TypingScene.keys_received = []
+    TypingScene.releases_received = []
+    TypingScene.maximum_frames = MAXIMUM_FRAMES
+    with command_line([*ARGUMENTS, '--record-trace', str(recording)]):
+        GameEngine(game=TypingScene).start()
+
+    assert TypingScene.keys_received == [pygame.K_w, pygame.K_F13]
+    assert TypingScene.releases_received == [pygame.K_w]
+
+    monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path / 'gone'))
+    TypingScene.keys_received = []
+    TypingScene.releases_received = []
+    with (
+        command_line([*ARGUMENTS, '--replay-trace', str(recording), '--headless']),
+        pytest.raises(SystemExit) as ended,
+    ):
+        GameEngine(game=TypingScene).start()
+
+    assert ended.value.code == ExitCode.SUCCESS
+    assert TypingScene.keys_received == [pygame.K_w, pygame.K_F13]
+    assert TypingScene.releases_received == [pygame.K_w]
+
+
+def test_the_debug_overlay_shows_the_consoles_status(scene):
+    """The AI panel's lines come from the console; without one there are none."""
+    with command_line(ARGUMENTS):
+        engine = GameEngine(game=scene)
+    manager = SceneManager()
+    manager.game_engine = engine
+    assert manager._ai_status() == ()
+
+    engine.ai_console = AiConsole(link=AiLink(install_root=Path()), install_root=Path())
+    assert manager._ai_status()[0].startswith('Link: ')
+
+    manager.game_engine = None
+    assert manager._ai_status() == ()

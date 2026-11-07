@@ -12,6 +12,7 @@ build, which has no AI: it can't start the service) never loads it.
 
 from __future__ import annotations
 
+import json
 import logging
 from http import HTTPStatus
 from pathlib import Path
@@ -24,11 +25,11 @@ from glitchygames import clock, process
 from glitchygames.ai_link import install_root as default_install_root
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Iterator, Sequence
 
 LOG = logging.getLogger('glitchygames.ai.local_service')
 
-DEFAULT_BASE_URL = 'http://127.0.0.1:11449'
+DEFAULT_BASE_URL = 'http://127.0.0.1:23231'
 # The role, not a size: the service answers with whichever size this machine could run
 REASONING_MODEL = 'reasoning'
 DEFAULT_TIMEOUT_SECONDS = 600.0
@@ -81,6 +82,15 @@ class ChatChoice(BaseModel):
     message: ChatMessage
 
 
+class StreamedPiece(BaseModel):
+    """One piece of a streamed answer: the answer itself, or the model's reasoning before it."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    text: str
+    is_answer: bool
+
+
 class ChatCompletion(BaseModel):
     """A chat completion."""
 
@@ -124,6 +134,50 @@ class ChatClient(Protocol):
     def chat(self) -> ChatEndpoints:
         """The client's chat namespace."""
         ...
+
+
+def pieces_of_stream_line(*, line: str) -> list[StreamedPiece]:
+    """Read one line of an OpenAI-style event stream, as llama.cpp's server writes them.
+
+    Args:
+        line: The line, which may be blank, a comment or the closing ``[DONE]``.
+
+    Returns:
+        The text it held, if any.
+
+    """
+    data = line.removeprefix('data:').strip()
+    if not line.startswith('data:') or data == '[DONE]':
+        return []
+    pieces: list[StreamedPiece] = []
+    for choice in json.loads(data).get('choices', []):
+        delta = choice.get('delta', {})
+        if delta.get('reasoning_content'):
+            pieces.append(StreamedPiece(text=delta['reasoning_content'], is_answer=False))
+        if delta.get('content'):
+            pieces.append(StreamedPiece(text=delta['content'], is_answer=True))
+    return pieces
+
+
+def pieces_of_response(*, response: httpx2.Response) -> Iterator[StreamedPiece]:
+    """Read a streamed response, or raise what the service said instead.
+
+    Args:
+        response: The open response.
+
+    Yields:
+        Each piece of text.
+
+    Raises:
+        LocalAIServiceError: If the service refused.
+
+    """
+    if response.status_code != HTTPStatus.OK:
+        text = response.read().decode(errors='replace')
+        message = f'The local AI service answered {response.status_code}: {text}'
+        raise LocalAIServiceError(message, status_code=response.status_code)
+    for line in response.iter_lines():
+        yield from pieces_of_stream_line(line=line)
 
 
 class LocalAIClient:
@@ -205,6 +259,40 @@ class LocalAIClient:
             message = f'The local AI service answered {response.status_code}: {response.text}'
             raise LocalAIServiceError(message, status_code=response.status_code)
         return ChatCompletion.model_validate(response.json())
+
+    def stream(
+        self, *, model: str, messages: list[dict[str, Any]], reasoning_effort: str | None = None
+    ) -> Iterator[StreamedPiece]:
+        """Request a chat completion, as it's written. Leaving the loop stops the model's work.
+
+        Args:
+            model: The model: a role (``REASONING_MODEL``), or an exact size's alias.
+            messages: The conversation.
+            reasoning_effort: How much the model reasons first, or None for the service's.
+
+        Yields:
+            Each piece of text as the service sends it.
+
+        Raises:
+            LocalAIServiceError: If the service can't be started, or doesn't answer.
+
+        """
+        self._ensure_ready()
+        body: dict[str, Any] = {'model': model, 'messages': messages, 'stream': True}
+        if reasoning_effort is not None:
+            body['reasoning_effort'] = reasoning_effort
+        try:
+            with httpx2.stream(
+                'POST',
+                f'{self.base_url}/v1/chat/completions',
+                json=body,
+                headers={'Authorization': f'Bearer {self._service_key()}'},
+                timeout=self.timeout_seconds,
+            ) as response:
+                yield from pieces_of_response(response=response)
+        except httpx2.HTTPError as error:
+            message = f'The local AI service failed: {type(error).__name__}: {error}'
+            raise LocalAIServiceError(message) from error
 
     def _service_key(self) -> str:
         """Read the token clients send.

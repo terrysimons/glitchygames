@@ -172,6 +172,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Generator, Sequence
     from types import FrameType
 
+    from glitchygames.ai_console import AiConsole
     from glitchygames.audio.voices import ChannelPartition
     from glitchygames.crt_power_on_sound import CrtPowerOnSound
     from glitchygames.input.devices import OpenedController, ReplayDeviceRegistry
@@ -776,6 +777,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     # the teardown (_shutdown). Class defaults so they read None on an engine whose __init__
     # did not run.
     onion_skin: OnionSkin | None = None
+    # The AI's console, for a run with a link (glitchygames/ai_console.py); the debug overlay's
+    # AI panel reads it
+    ai_console: AiConsole | None = None
     frame_stream: FrameStream | None = None
     # OLD when --compare-trace OLD is played live (no --replay-trace; rule 9 of
     # glitchygames/replay/tools/compare.py), else None
@@ -3243,6 +3247,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if self.timer is not None:
             self.timer.close()
         # Closes this game's session; the service stops the models once the last one has gone
+        if self.ai_console is not None:
+            self.ai_console.stop()
         if self.ai_link is not None:
             self.ai_link.stop()
         # Before pygame quits: the sound library's voices fade over 50 ms, waited for at most
@@ -3707,7 +3713,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # Imported here: a run without AI never loads it
         from glitchygames.ai_host import AiHostSources
 
-        return AiHostSources(inner=inner, link=self.ai_link, overlay=overlay)
+        ai_sources = AiHostSources(inner=inner, link=self.ai_link, overlay=overlay)
+        self.ai_console = ai_sources.console
+        return ai_sources
 
     def _build_game(self: Self, *, paced_by_timer: bool) -> None:
         """Construct the game and its first scene, up to the first frame (inside the boundary).

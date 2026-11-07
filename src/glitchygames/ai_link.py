@@ -48,7 +48,7 @@ DEFAULT_INSTALL_ROOT = Path.home() / 'Library' / 'Application Support' / 'Glitch
 # Overrides DEFAULT_INSTALL_ROOT. The test harness points it nowhere, so no test can reach the real
 # service on a machine that has it
 INSTALL_ROOT_ENVIRONMENT_VARIABLE = 'GLITCHYGAMES_AI_INSTALL_ROOT'
-DEFAULT_SESSION_URL = 'ws://127.0.0.1:11449/v1/session'
+DEFAULT_SESSION_URL = 'ws://127.0.0.1:23231/v1/session'
 
 # Bumped with the service's own PROTOCOL_VERSION when the messages change incompatibly
 PROTOCOL_VERSION = 1
@@ -96,12 +96,15 @@ class AiLink:
                 each wait, so a patch on ``glitchygames.clock`` reaches it.
 
         """
+        self.install_root = install_root
         self.control_script = install_root / 'bin' / 'ai-service.sh'
         self.key_file = install_root / 'config' / 'service-api-key'
         self.session_url = session_url
         self.sleep = sleep
         self.state = LinkState.NOT_STARTED
         self.round_trips = 0
+        # What the service reported as this session opened
+        self.models: list[dict[str, Any]] = []
         self._inbox: collections.deque[dict[str, Any]] = collections.deque(
             maxlen=MAXIMUM_INBOX_MESSAGES
         )
@@ -238,6 +241,7 @@ class AiLink:
         kind = message.get('type')
         if kind == 'welcome':
             self.state = LinkState.CONNECTED
+            self.models = message.get('models', [])
             LOG.info('Connected to the local AI service')
         elif kind == 'pong':
             self.round_trips += 1
