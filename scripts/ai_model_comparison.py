@@ -10,9 +10,10 @@ The questions are ``scripts/ai_comparison/questions.json``, about states saved f
 turn is sent as the console sends it: the same system prompt, the state in the same form, and
 ``reasoning_effort`` low.
 
-Writes to ``--output``: ``results.jsonl`` (every answer, as it comes), ``summary.md`` (one row per
-size and context), ``answers.html`` (the answers side by side) and each server's log. Speed and
-memory are this Mac's: they say how the sizes compare here, not how fast a smaller Mac would be.
+Writes to ``--output``: ``results.jsonl`` (every answer, as it comes), ``servers.jsonl`` (each
+server's load time and memory, as it finishes), ``summary.md`` (one row per size and context),
+``answers.html`` (the answers side by side) and each server's log. Speed and memory are this Mac's:
+they say how the sizes compare here, not how fast a smaller Mac would be.
 
 Usage:
     uv run python -m scripts.ai_model_comparison --output test-results/ai-comparison
@@ -107,17 +108,20 @@ class Question(BaseModel):
 
 
 class Configuration(BaseModel):
-    """One size at one context."""
+    """One size at one context, and optionally a prompt cache other than the installed one."""
 
     model_config = ConfigDict(frozen=True, extra='forbid')
 
     size: str
     context: int
+    # llama-server's --cache-ram, in MiB. None keeps the installed setting
+    cache_mebibytes: int | None = None
 
     @property
     def name(self) -> str:
         """Name it for reports and file names."""
-        return f'{self.size}-{self.context}'
+        cache = '' if self.cache_mebibytes is None else f'-cache{self.cache_mebibytes}'
+        return f'{self.size}-{self.context}{cache}'
 
 
 class Answer(BaseModel):
@@ -132,6 +136,24 @@ class Answer(BaseModel):
     first_answer_seconds: float | None
     # Stopped at ANSWER_TIME_LIMIT_SECONDS rather than finishing
     stopped: bool
+    # llama-server's own counts, from the stream's last event: together, the context this turn
+    # used. None when it didn't say (stopped early, failed, or results from before they were kept)
+    prompt_tokens: int | None = None
+    generated_tokens: int | None = None
+
+
+def stream_line_timings(*, line: str) -> dict[str, Any] | None:
+    """Read llama-server's token counts from a stream line, if it holds them.
+
+    Returns:
+        The line's ``timings``, or None for every line but the last.
+
+    """
+    data = line.removeprefix('data:').strip()
+    if not line.startswith('data:') or data == '[DONE]' or '"timings"' not in data:
+        return None
+    timings = json.loads(data).get('timings')
+    return cast('dict[str, Any]', timings) if isinstance(timings, dict) else None
 
 
 class QuestionResult(BaseModel):
@@ -175,14 +197,17 @@ def say(message: str) -> None:
 
 
 def parse_configuration(text: str) -> Configuration:
-    """Read ``SIZE:CONTEXT``.
+    """Read ``SIZE:CONTEXT``, or ``SIZE:CONTEXT:CACHE_MIB``.
 
     Returns:
         The configuration.
 
     """
-    size, _, context = text.partition(':')
-    return Configuration(size=size, context=int(context))
+    size, _, rest = text.partition(':')
+    context, _, cache = rest.partition(':')
+    return Configuration(
+        size=size, context=int(context), cache_mebibytes=int(cache) if cache else None
+    )
 
 
 def load_questions(*, data_directory: Path = DATA_DIRECTORY) -> list[Question]:
@@ -282,6 +307,7 @@ def ask(
     first_piece: float | None = None
     first_answer: float | None = None
     stopped = False
+    timings: dict[str, Any] = {}
     with httpx2.stream(
         'POST',
         f'{target.base_url}/v1/chat/completions',
@@ -297,6 +323,7 @@ def ask(
             if elapsed > time_limit_seconds:
                 stopped = True
                 break
+            timings = stream_line_timings(line=line) or timings
             for piece in pieces_of_stream_line(line=line):
                 pieces += 1
                 first_piece = elapsed if first_piece is None else first_piece
@@ -310,6 +337,8 @@ def ask(
         first_piece_seconds=None if first_piece is None else round(first_piece, 3),
         first_answer_seconds=None if first_answer is None else round(first_answer, 3),
         stopped=stopped,
+        prompt_tokens=timings.get('prompt_n'),
+        generated_tokens=timings.get('predicted_n'),
     )
 
 
@@ -341,12 +370,13 @@ def agent_label(*, size: str) -> str:
 
 
 def write_settings(*, root: Path, configuration: Configuration, port: int, directory: Path) -> None:
-    """Copy a size's installed settings, changing only the port and context."""
+    """Copy a size's installed settings, changing only the port, context and any prompt cache."""
     label = agent_label(size=configuration.size)
     shutil.copy(root / 'config' / f'{label}.env', directory / f'{label}.env')
-    (directory / f'{label}.env.runtime').write_text(
-        f'AI_PORT={port}\nAI_CONTEXT_SIZE={configuration.context}\n', encoding='utf-8'
-    )
+    runtime = f'AI_PORT={port}\nAI_CONTEXT_SIZE={configuration.context}\n'
+    if configuration.cache_mebibytes is not None:
+        runtime += f'AI_CACHE_RAM_MIB={configuration.cache_mebibytes}\n'
+    (directory / f'{label}.env.runtime').write_text(runtime, encoding='utf-8')
 
 
 def memory_footprint_mebibytes(*, process_id: int) -> float | None:
@@ -594,7 +624,10 @@ def compare(
     results: list[QuestionResult] = []
     servers: list[ServerFacts] = []
     states = {question.state: load_state(name=question.state) for question in questions}
-    with (output / 'results.jsonl').open('w', encoding='utf-8') as results_file:
+    with (
+        (output / 'results.jsonl').open('w', encoding='utf-8') as results_file,
+        (output / 'servers.jsonl').open('w', encoding='utf-8') as servers_file,
+    ):
         for configuration in configurations:
             log_path = output / f'server-{configuration.name}.log'
             say(f'{configuration.name}: loading')
@@ -613,13 +646,15 @@ def compare(
                         results.append(result)
                         results_file.write(result.model_dump_json() + '\n')
                         results_file.flush()
-                servers.append(
-                    ServerFacts(
-                        configuration=configuration.name,
-                        load_seconds=load_seconds,
-                        footprint_mebibytes=read_footprint(),
-                    )
+                server = ServerFacts(
+                    configuration=configuration.name,
+                    load_seconds=load_seconds,
+                    footprint_mebibytes=read_footprint(),
                 )
+                servers.append(server)
+                # Written as each finishes, so a run stopped early keeps what it measured
+                servers_file.write(server.model_dump_json() + '\n')
+                servers_file.flush()
             say(f'{configuration.name}: done')
     rows = summary_rows(results=results, servers=servers)
     (output / 'summary.md').write_text(summary_markdown(rows=rows), encoding='utf-8')

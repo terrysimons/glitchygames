@@ -25,6 +25,7 @@ from scripts.ai_model_comparison import (
     load_state,
     parse_configuration,
     score,
+    stream_line_timings,
     summary_markdown,
     summary_rows,
     write_settings,
@@ -238,13 +239,32 @@ class FakeChatServer(BaseHTTPRequestHandler):
         if type(self).status != 200:
             self.wfile.write(b'refused')
             return
-        for delta in type(self).answers.pop(0):
+        deltas = type(self).answers.pop(0)
+        for delta in deltas:
             line = json.dumps({'choices': [{'delta': delta}]})
             self.wfile.write(f'data: {line}\n\n'.encode())
+        # As llama-server ends a stream: no text, and its counts
+        last = {
+            'choices': [{'delta': {}, 'finish_reason': 'stop'}],
+            'timings': {'prompt_n': PROMPT_TOKENS, 'predicted_n': len(deltas)},
+        }
+        self.wfile.write(f'data: {json.dumps(last)}\n\n'.encode())
         self.wfile.write(b'data: [DONE]\n\n')
 
     def log_message(self, format: str, *args: Any) -> None:  # ruff: ignore[builtin-argument-shadowing] - the method's own name for it
         """Say nothing."""
+
+
+PROMPT_TOKENS = 42
+
+
+def test_only_the_streams_last_event_holds_counts():
+    """Text events, comments and the closing marker hold none."""
+    assert stream_line_timings(line='data: {"choices": [{"delta": {"content": "x"}}]}') is None
+    assert stream_line_timings(line='data: [DONE]') is None
+    assert stream_line_timings(line=': keep-alive "timings"') is None
+    assert stream_line_timings(line='data: {"timings": "odd"}') is None
+    assert stream_line_timings(line='data: {"timings": {"prompt_n": 7}}') == {'prompt_n': 7}
 
 
 @pytest.fixture
@@ -284,6 +304,8 @@ def test_asking_sends_what_the_console_sends_and_times_the_answer(chat_target):
     assert answer.first_piece_seconds is not None
     assert answer.first_answer_seconds is not None
     assert answer.stopped is False
+    # The context this turn used: what was read, and what was written
+    assert (answer.prompt_tokens, answer.generated_tokens) == (PROMPT_TOKENS, 3)
     body = FakeChatServer.bodies[0]
     assert body['model'] == 'bonsai-2-4b'
     assert body['stream'] is True
@@ -303,6 +325,8 @@ def test_an_answer_past_the_time_limit_is_stopped_and_fails(chat_target, mocker)
 
     assert answer.stopped is True
     assert not answer.text
+    # It never reached the event holding them
+    assert (answer.prompt_tokens, answer.generated_tokens) == (None, None)
 
 
 def test_a_follow_up_is_scored_on_its_last_turn_with_the_first_in_its_history(chat_target):
@@ -393,7 +417,30 @@ def test_a_configuration_is_read_and_named():
     configuration = parse_configuration('9b:32768')
 
     assert (configuration.size, configuration.context) == ('9b', 32768)
+    assert configuration.cache_mebibytes is None
     assert configuration.name == '9b-32768'
+
+
+def test_a_configuration_may_set_the_prompt_cache(tmp_path):
+    """SIZE:CONTEXT:CACHE_MIB, written beside the port and context, the installed file untouched."""
+    configuration = parse_configuration('2b:8192:512')
+    assert configuration.cache_mebibytes == 512
+    assert configuration.name == '2b-8192-cache512'
+    root = tmp_path / 'install'
+    (root / 'config').mkdir(parents=True)
+    label = 'ai.glitchygames.bonsai-2-2b.llama-cpp'
+    (root / 'config' / f'{label}.env').write_text('AI_CACHE_RAM_MIB=4096\n', encoding='utf-8')
+    directory = tmp_path / 'copy'
+    directory.mkdir()
+
+    write_settings(root=root, configuration=configuration, port=23239, directory=directory)
+
+    assert (directory / f'{label}.env.runtime').read_text(encoding='utf-8') == (
+        'AI_PORT=23239\nAI_CONTEXT_SIZE=8192\nAI_CACHE_RAM_MIB=512\n'
+    )
+    assert (root / 'config' / f'{label}.env').read_text(
+        encoding='utf-8'
+    ) == 'AI_CACHE_RAM_MIB=4096\n'
 
 
 def test_the_summary_separates_facts_from_json():
