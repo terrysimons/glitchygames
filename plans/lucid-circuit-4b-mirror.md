@@ -71,6 +71,7 @@ the sprites, read one, then answered), but combined a speed's two parts by addin
 | `calculate(expression)` | Arithmetic, so the model doesn't guess |
 | Later: `history(from_frame, to_frame)` | Events and changes over a window, for the "why" questions |
 | Later: `draw_*` | Overlay drawings: highlight, curve, marker |
+| Later: `screenshot(frame)` | A picture of that frame, rendered in the clone or a copy (replaying to a past frame), scaled down and sent to the model's vision part. Never part of ordinary reads (`ai_introspection.NEVER_READ`), as rendering on every read would cost too much. A picture costs hundreds to thousands of tokens, so the tests measure it; it's drawn on the dummy driver, which can differ from the screen, and the answer says so (the owner, 2026-11-07; Stage 8's simplest form) |
 | Later: `try_in_copy(events)` | Inputs run through a disposable copy, and what happened |
 
 Each call is another turn of generation, so a Live question should need few. The description pushed today stays as a

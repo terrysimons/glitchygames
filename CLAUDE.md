@@ -253,6 +253,11 @@ uv run glitchygames record-session paddleslap out.jsonl.gz --headless \
 ```
 
 ### Example Games
+**Always use the sprite classes when creating new games** (the owner, 2026-11-07): every game object is a sprite in
+the scene's groups, never drawn straight onto the screen. Sprites are the robust objects the AI works with: stable ids
+that are never recycled, sprite comparison in replays, debug-overlay hitboxes and the AI's introspection tools. Drawing
+Fire predates this and draws without sprites (converting it is in plans/future-work.md).
+
 Every game is its own workspace package under `src/games/` (Part 2 of
 plans/2026-10-24-workspace-packages.md; the recipe is docs/architecture/game_packages.md), with
 its code, tests and golden replay; the engine has no examples package. The `demos` layer

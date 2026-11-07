@@ -584,6 +584,27 @@ only replays; Part 2 Task 1).
   `dirty_pixels` list was removed unread (BUGS.md #178.15, 2026-11-01); a new design must also
   mark everything on pan, frame switch, hover and onion-skin changes.
 
+## AI (Lucid Circuit; plans/lucid-circuit.md)
+
+- **A flow chart the AI follows for every query** (the owner, 2026-11-07): does it already have the pieces to answer,
+  or must it infer them? For example, PaddleSlap tracks no longest rally and Mr. Muncher doesn't record which chaser
+  caught you, yet both can be worked out by rewinding and replaying history. The chart decides, in order: is it in the
+  cached opening (mechanics, controls)? Can a tool read it now (`get_scene`, `get_sprite`, `get_game_facts`)? Can it be
+  computed from history (`history`, replaying to a frame) or found by experiment in a copy (`try_in_copy`)? Or is it
+  impossible, a false premise, or something to refuse? When it infers, it says how (what it counted, over which
+  frames). Draw it as a diagram for review, turn it into the system prompt's instructions, and add a behaviour test per
+  branch (plans/lucid-circuit-5-load-harness.md, Part 2b).
+
+## Games
+
+- **Convert Drawing Fire to sprites** (the owner, 2026-11-07). It draws its soldiers, sandbags and bullets straight
+  onto the screen, so it has no sprites: the AI's sprite tools see nothing, the stable ids name nothing, and replays
+  compare nothing of it, which is why it posts a GAMEEVENT per death and seat change to give its replay something to
+  compare. As sprites (one per soldier, sandbag and bullet; its soldiers are already drawn from `sprites/soldier.toml`
+  with palette swaps), it gets ids, sprite comparison, hitboxes in the debug overlay, and the AI's tools for free.
+  Its golden replay will change, so re-recording it is a reviewed step, and the GAMEEVENTs can stay or go once the
+  sprites carry what they did. Check the per-frame cost against the run ledger, since it draws many soldiers.
+
 ## Performance and pacing
 
 - **A per-game AI sweep of performance bottlenecks** (the owner, 2026-11-07). For each game, have the AI
