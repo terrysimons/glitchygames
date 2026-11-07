@@ -56,6 +56,38 @@ A replay also needs each frame's dt and polled input, so those ride on the same 
 An action always lands on a later live frame than the one the AI was looking at. The AI can find the right moment in
 what has happened, but it can't act in the past.
 
+## The console's design: tool calls and a cached opening (the owner, 2026-11-07)
+
+The model reads the game through **tool calls** on the clone, rather than a description pushed with every question.
+Bonsai 2B made correct OpenAI-style calls through the installed llama-server on the first try (2026-11-07: it listed
+the sprites, read one, then answered), but combined a speed's two parts by adding them, so tools do the arithmetic:
+
+| Tool | Returns |
+|---|---|
+| `get_scene()` | Name, class, paused, game time, screen, sprite counts by class |
+| `list_sprites(class_name=...)` | Sprite ids, optionally of one class |
+| `get_sprite(id)` | Every plain attribute, read without running properties, with speed and direction worked out |
+| `get_game_facts()` | What the game reports of itself (`describe_for_ai()`) |
+| `calculate(expression)` | Arithmetic, so the model doesn't guess |
+| Later: `history(from_frame, to_frame)` | Events and changes over a window, for the "why" questions |
+| Later: `draw_*` | Overlay drawings: highlight, curve, marker |
+| Later: `try_in_copy(events)` | Inputs run through a disposable copy, and what happened |
+
+Each call is another turn of generation, so a Live question should need few. The description pushed today stays as a
+fallback until the tools exist.
+
+**Every prompt opens the same way for a game,** so the prompt cache serves it nearly free after the first question:
+the system prompt, the tools, the engine's shared mechanics (pausing, world and screen positions, ids never reused),
+then this game's mechanics and controls. The conversation and question follow. Its size counts against the context, so
+the tests measure it per game at 8K.
+
+**The game's mechanics are worked out by the AI as a startup task,** by introspecting the game's code and state in the
+clone, not written by hand (the owner, 2026-11-07). Getting ready may take a while. The model starts when the game
+does and is kept warm while it runs. Proposed, to be confirmed: keep the result per game version, reusing the
+engine's game source revision, so a launch with unchanged code reuses it; read the code a class at a time and combine
+the summaries, as a game's code doesn't fit in 8K. The research reports of 2026-11-07, which cite file and line, are
+a reference the tests check the model's mechanics against, catching invented rules.
+
 ## Hard problems, to be settled here and not assumed
 
 - **Object identity.** The clone's objects and the live game's are the same objects, in the sense that matters: the
@@ -124,8 +156,9 @@ what has happened, but it can't act in the past.
    llama-server's own prompt and generated counts for every answer, so the service's context size is set from these.
 2. **The pipe.** A socket from the doors to a clone that starts with the game, a replay source that waits at the live
    edge, and supervision: start, restart, stop with the game. A frontier report: received, processed, age.
-3. **Read-only introspection.** A query socket on the clone. The console's `/ask` and `/inspect` read it, with no cap, and
-   the live-path `describe_scene` goes. The answer comparison's affected questions run again on the full state.
+3. **Read-only introspection.** A query socket on the clone. The console's `/ask` and `/inspect` read it through the
+   tool calls above, with no cap, and the live-path `describe_scene` goes. The startup task works out the game's
+   mechanics, and the cached opening carries them. The answer comparison's affected questions run again.
 4. **Drift checks.**
 5. **Events backwards.** Capturing the AI's events in the clone, ids in their fields, refusal and stale handling, with one
    allowed event proved end to end: applied live, recorded, seen by the clone, and replayed with no AI.
