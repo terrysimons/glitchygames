@@ -69,11 +69,9 @@ what has happened, but it can't act in the past.
   that, with a test that a removed sprite's number is never given out again. What it needs for this:
   - **A way back:** today it goes from object to id only, and a call needs id to object. `sprite.alive()` says whether
     it's gone.
-  - **Letting go, without recycling:** it holds every sprite it has seen for the whole run, because it looks them up by
-    Python's `id()`, which Python gives to a new object once the old one is freed. That's fine for a recording, but an
-    always-on stream would keep every bullet alive for the session. Simply dropping those references would hand a new
-    ball a dead ball's number, so the lookup must stop using `id()`: keep the id on the sprite itself or in a weak-keyed
-    map, and test it by freeing sprites and making new ones.
+  - **Holding no sprite alive (done, 2026-11-06):** it used to hold every sprite it had seen for the whole run, because
+    it looks them up by Python's `id()`, which Python gives to a new object once the old one is freed. Now it watches each
+    through a weak reference and forgets it as it's freed, with tests that a freed sprite's number isn't given out again.
   - **Pooled objects:** a game that reuses one sprite object for a new ball would keep its old number. No game here pools
     sprites today. If one ever does, it counts as the same object until there's a way to say otherwise.
   - **Its cost:** it's assigned on first sight while sampling each frame, on the main thread. If Step 1 finds that too
@@ -105,6 +103,19 @@ what has happened, but it can't act in the past.
 
 1. **Measure the risk.** On PaddleSlap and a heavier game, on a real display: the stream's main-thread cost, how fast the
    clone runs, and how far behind it stays. Every other step depends on this.
+
+   Also measure allocation churn on every game's golden replay, as the clone repeats the same allocations uncapped.
+   The engine leaves the garbage collector on Python's defaults, so measure, in separate runs so one doesn't skew
+   another: collector pauses (`gc.callbacks`) and whether they line up with slow frames, allocations by type
+   (`tracemalloc`), `pygame.Surface` creations, and what each sprite class costs to build. That decides what follows:
+
+   | Finding | What follows |
+   |---|---|
+   | Pauses match slow frames, and sprites dominate | An engine `SpritePool`: `acquire()` gives a reset sprite the next id, so numbers never recycle |
+   | Pauses match slow frames, and small objects dominate | Tune the collector (`gc.freeze()` after loading) and cut those allocations. No pool |
+   | Pauses don't match slow frames | Neither helps frame times. A pool waits for a game that needs one |
+
+   PaddleSlap's golden built 4 balls at about 0.2 ms each in 622 frames, so a pool wouldn't help it on that evidence.
 2. **The pipe.** A socket from the doors to a clone that starts with the game, a replay source that waits at the live
    edge, and supervision: start, restart, stop with the game. A frontier report: received, processed, age.
 3. **Read-only introspection.** A query socket on the clone. The console's `/ask` and `/inspect` read it, with no cap, and

@@ -1210,6 +1210,9 @@ SOURCE_GUARD_REASON = (
 # had them moved out to a file named for what it checks (Task D9 fix round 1), so no engine test
 # shares an exemption. They may reach scripts/ too
 REPOSITORY_TEST_FILES: dict[str, str] = {
+    'tests/replay/test_removed_sprites_are_freed.py': (
+        "replays our members' goldens, watching for removed sprites still in memory"
+    ),
     'tests/benchmarks/test_logging_cost.py': (
         "measures what logging costs our members' goldens and bundled demos"
     ),
