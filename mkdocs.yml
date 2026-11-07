@@ -89,6 +89,7 @@ extra_javascript:
   # Pinned: an unversioned URL took every new Mermaid release unannounced
   - https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js
   - js/mermaid-init.js
+  - js/performance-game-select.js
 
 # The complexity and performance graphs' snippets, which quality/complexity.md and
 # quality/performance.md include (pymdownx.snippets), are not pages of their own
