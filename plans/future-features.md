@@ -1746,9 +1746,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Priority**: Medium
 
 ### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 1 DONE
-- **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after batch 1)
-  toward every instrument a
-  game might want, in one verified batch per family. Adversarial audits (2026-11-07) found
+- **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
+  batch 1) toward every instrument a game might want, in one verified batch per family. Adversarial audits (2026-11-07) found
   1,303 candidates, only 84 with source-verified ranges. Adds five families (plucked
   idiophones, friction instruments, noise makers, sound effects, and electromechanical split
   from electronic), makes mechanical instruments a tag, and lists the instruments that wait for

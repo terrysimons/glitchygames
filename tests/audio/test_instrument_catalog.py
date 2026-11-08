@@ -499,11 +499,12 @@ def test_plucked_idiophones_hold_the_lamellophones_and_music_boxes():
     moved = {'kalimba', 'mbira', 'music box'}
     assert not moved & set(instruments.names(family=Family.TUNED_PERCUSSION))
     assert instruments.entry('kalimba').playing_range == (Note('C4'), Note('E6'))
+    # This lists every mechanical entry, so it grows when another entry is tagged mechanical
     assert instruments.names(tag=Tag.MECHANICAL) == ('music box',)
 
 
-def test_the_sansula_rings_longer_and_brighter_than_the_kalimba():
-    """The sansula ships as its own entry because it sounds different from the kalimba."""
+def test_the_sansula_rings_longer_than_the_kalimba():
+    """The sansula ships as its own entry because it rings longer than the kalimba."""
     rendered_note_seconds = 2.5
     onset_window_seconds = 0.05
 
@@ -585,6 +586,7 @@ def test_the_whip_crack_is_sharper_than_the_slapstick_whip():
         level = np.sqrt(np.convolve(samples**2, np.ones(window) / window, mode='same'))
         peak_index = int(np.argmax(level))
         below = np.nonzero(level[peak_index:] < 0.1 * level[peak_index])[0]
+        assert below.size > 0, 'the signal never falls below one tenth of its peak'
         return float(below[0]) / SAMPLE_RATE
 
     def share_of_energy_below(samples: np.ndarray, *, hertz: float) -> float:
@@ -597,6 +599,50 @@ def test_the_whip_crack_is_sharper_than_the_slapstick_whip():
     assert seconds_to_one_tenth(crack) < seconds_to_one_tenth(whip)
     # The whip's 1 kHz high-pass leaves energy between 1 and 3 kHz that the crack's cuts
     assert share_of_energy_below(crack, hertz=3000.0) < share_of_energy_below(whip, hertz=3000.0)
+
+
+HELD_SECONDS = 3.0
+HORNS = ('diaphone', 'air horn', 'vehicle horn', 'party horn')
+
+
+def held_level(name: str, *, start_seconds: float) -> float:
+    """The RMS level of a 0.1 s window of the entry held for HELD_SECONDS at A4.
+
+    Returns:
+        The RMS level.
+    """
+    samples = render_sound(
+        spec_for(instruments.get(name), name=name, pitch='A4', length=HELD_SECONDS)
+    ).samples
+    start = round(start_seconds * SAMPLE_RATE)
+    window = round(0.1 * SAMPLE_RATE)
+    return float(np.sqrt(np.mean(samples[start : start + window] ** 2)))
+
+
+@pytest.mark.parametrize('name', HORNS)
+def test_a_horn_sounds_for_as_long_as_it_is_held(name):
+    """Held for three seconds, a horn is still sounding at 2.5 s; the whip crack is not."""
+    assert held_level(name, start_seconds=2.5) > 0.5 * held_level(name, start_seconds=0.2)
+
+
+def test_the_whip_crack_is_a_one_shot_however_long_it_is_held():
+    """The crack is over by 2.5 s of a three second hold."""
+    assert held_level('whip crack', start_seconds=2.5) < 0.01 * held_level(
+        'whip crack', start_seconds=0.0
+    )
+
+
+def test_a_tone_with_the_default_sustain_dies_away_as_before():
+    """A tone's default sustain is 0 (a drum dies away), and an explicit 0 renders the same."""
+    assert Tone(hertz=200.0, ring_seconds=0.3).sustain == 0.0
+    default = drum(tones=(Tone(hertz=200.0, ring_seconds=0.3),), noise=0.2)
+    explicit = drum(tones=(Tone(hertz=200.0, ring_seconds=0.3, sustain=0.0),), noise=0.2)
+    assert np.array_equal(
+        rendered(default, pitch='A4', name='default-sustain'),
+        rendered(explicit, pitch='A4', name='default-sustain'),
+    )
+    held = drum(tones=(Tone(hertz=200.0, ring_seconds=0.3, sustain=0.5),))
+    assert np.max(np.abs(rendered(held, pitch='A4')[-1000:])) > 0.0
 
 
 @pytest.mark.parametrize(

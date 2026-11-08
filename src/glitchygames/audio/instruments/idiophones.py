@@ -1,4 +1,4 @@
-"""Idiophones other than the tuned percussion bars and bells: plucked and friction.
+"""Idiophones other than the tuned percussion bars and bells: plucked and rubbed.
 
 An idiophone is an instrument whose own body is the vibrating, sounding part
 (Hornbostel-Sachs class 1). The Hornbostel-Sachs list of idiophones is at
@@ -117,11 +117,14 @@ PLUCKED_IDIOPHONES: Final[tuple[CatalogEntry, ...]] = (
 # A goblet's rim vibrates like a thin ring, whose bending modes (2, 3, 4 nodal diameters) sit at
 # n(n^2 - 1) / sqrt(n^2 + 1): 1 : 2.83 : 5.42 of the lowest. That is the textbook thin-ring
 # result (Rayleigh, Theory of Sound), worked out here, not read from a fetched source; real
-# glasses deviate from it. Kept below 5.5x, under the Nyquist limit at E6 (1319 Hz)
+# glasses deviate from it. Three partials: the highest, 5.42 x 1319 Hz (E6) = 7.1 kHz, is far
+# below the Nyquist limit
 GOBLET_RATIOS: Final[tuple[float, ...]] = (1.0, 2.83, 5.42)
-# A free rod's bending modes: the free bar's 1 : 2.76 : 5.40 (see ``percussion.FREE_BAR_RATIOS``;
-# standard bar acoustics). Three partials keep F7 (2794 Hz) under the Nyquist limit: a fourth,
-# at 8.93x, would sit at 25 kHz
+# A free rod's bending modes: the free bar's 1 : 2.76 : 5.40. The source the code already cites
+# for the free bar, ``percussion``'s module docstring (Rossing, *Science of Percussion
+# Instruments*), gives 1 : 2.76 : 5.40 : 8.93; 5.40 is the free bar's third mode (5.404), which
+# ``percussion.FREE_BAR_RATIOS`` leaves out (it holds only 1.0 and 2.76). Three partials keep F7
+# (2794 Hz) under the Nyquist limit: a fourth, at 8.93x, would sit at 25 kHz
 ROD_RATIOS: Final[tuple[float, ...]] = (1.0, 2.76, 5.40)
 
 

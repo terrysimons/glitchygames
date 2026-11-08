@@ -4,12 +4,10 @@ Tuned percussion's partials are not harmonics. A free bar (glockenspiel) rings a
 5.40 : 8.93 of its fundamental; marimba and vibraphone bars are cut so the first overtone is
 the fourth harmonic and the xylophone's the third; a tubular bell's and a carillon bell's
 partials (hum, prime, tierce and nominal; the weak quint is left out) give the bell's
-minor-third colour; a tubular
-bell's struck note is heard an octave below its fourth mode, which with the fifth and sixth
-rings near 2 : 3 : 4 of that note; kalimba and music-box tines are clamped bars, ringing at 1 :
-6.27 : 17.55, with no harmonics between; steel pans
-and handpans are tuned to the octave and twelfth; a timpani's head favours 1 : 1.5 : 2 (Rossing,
-*Science of Percussion Instruments*; Fletcher and Rossing, *The Physics of Musical
+minor-third colour; a tubular bell's struck note is heard an octave below its fourth mode, which
+with the fifth and sixth rings near 2 : 3 : 4 of that note; steel pans and handpans are tuned to
+the octave and twelfth; a timpani's head favours 1 : 1.5 : 2 (Rossing, *Science of Percussion
+Instruments*; Fletcher and Rossing, *The Physics of Musical
 Instruments*). Untuned percussion is fixed tones and filtered noise: its sounds do not follow the
 note's pitch, so those entries have no range.
 """

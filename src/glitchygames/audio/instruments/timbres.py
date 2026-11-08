@@ -540,11 +540,14 @@ class Tone:
 
     Attributes:
         hertz: Where it starts.
-        ring_seconds: Seconds it takes to die away.
+        ring_seconds: Seconds it takes to fall from full level to its sustain level (to die away,
+            for a drum).
         glide_to: Where it glides to, or None.
         glide_seconds: How long the glide takes.
         level: Its level, 0-1.
         wave: The wave it is drawn with.
+        sustain: The level, 0-1, the tone holds at after ``ring_seconds`` while the note is held;
+            0 for a drum that dies away, near 1 for a horn that sounds as long as it is held.
     """
 
     hertz: float
@@ -553,6 +556,7 @@ class Tone:
     glide_seconds: float = 0.05
     level: float = 1.0
     wave: str = 'sine'
+    sustain: float = 0.0
 
 
 def drum(  # ruff: ignore[too-many-arguments] - each keyword is one physical trait
@@ -600,7 +604,9 @@ def drum(  # ruff: ignore[too-many-arguments] - each keyword is one physical tra
             pitch=Hz(tone.hertz),
             pitch_curve=glide,
             level=tone.level,
-            envelope=envelope(attack=attack, decay=tone.ring_seconds, sustain=0.0, release=tail),
+            envelope=envelope(
+                attack=attack, decay=tone.ring_seconds, sustain=tone.sustain, release=tail
+            ),
         )
     if noise > 0.0:
         sources['noise'] = noise_layer(
