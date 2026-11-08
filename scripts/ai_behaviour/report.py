@@ -4,7 +4,8 @@ Reads each configuration's ``results.jsonl`` (one per game) and ``server.json``,
 Markdown: passes by game, category and question with 95% Wilson intervals; why answers failed;
 how much context answers used, and how close they came to the limit; the opening's size; tool
 use, errors and answer sizes; rounds, finish reasons, time and memory; and, between two
-configurations, the questions that got better or worse.
+configurations, the questions that got better or worse, and, for a paired run
+(``scripts.ai_behaviour.paired``), the pairs that split with McNemar's exact test.
 
 Usage:
     uv run python -m scripts.ai_behaviour.report DIRECTORY [DIRECTORY ...]
@@ -220,8 +221,82 @@ def report(*, runs: dict[str, tuple[list[dict[str, Any]], dict[str, Any]]]) -> s
         cost_section(runs=runs),
     ])
     if len(names) == PAIRED_CONFIGURATIONS:
-        sections.append(change_section(runs=runs))
+        sections.extend([change_section(runs=runs), paired_section(runs=runs)])
     return '\n'.join(sections)
+
+
+def mcnemar_exact(*, only_first: int, only_second: int) -> float:
+    """McNemar's exact test: how likely a split this uneven is when neither version is better.
+
+    Only the pairs one version passed and the other failed count; under no difference each is
+    equally likely to go either way, so the two-sided p-value is a binomial tail at one half.
+
+    Args:
+        only_first: Pairs only the first version passed.
+        only_second: Pairs only the second version passed.
+
+    Returns:
+        The p-value, from 0 to 1 (1 when no pair split).
+
+    """
+    disagreements = only_first + only_second
+    smaller = min(only_first, only_second)
+    tail = sum(math.comb(disagreements, count) for count in range(smaller + 1))
+    return min(1.0, 2 * tail / 2**disagreements)
+
+
+def paired_section(*, runs: dict[str, tuple[list[dict[str, Any]], dict[str, Any]]]) -> str:
+    """Compare two versions pair by pair: the same question and repeat, asked of each.
+
+    Only results from a paired run (``scripts.ai_behaviour.paired``) carry a ``pair``; other runs
+    get no section.
+
+    Returns:
+        Markdown, or an empty string when the runs share no pairs.
+
+    """
+    first, second = list(runs)
+    passed = {
+        name: {(result['game'], result['pair']): result['passed'] for result in results}
+        for name, (results, _servers) in runs.items()
+        if all('pair' in result for result in results)
+    }
+    if len(passed) < PAIRED_CONFIGURATIONS:
+        return ''
+    shared = sorted(set(passed[first]) & set(passed[second]))
+    if not shared:
+        return ''
+    splits: dict[str, collections.Counter[str]] = collections.defaultdict(collections.Counter)
+    for game, pair in shared:
+        question = pair.rpartition('#')[0]
+        if passed[first][game, pair] and not passed[second][game, pair]:
+            splits[question][first] += 1
+        elif passed[second][game, pair] and not passed[first][game, pair]:
+            splits[question][second] += 1
+    only_first = sum(split[first] for split in splits.values())
+    only_second = sum(split[second] for split in splits.values())
+    first_passes = sum(passed[first][key] for key in shared)
+    second_passes = sum(passed[second][key] for key in shared)
+    p_value = mcnemar_exact(only_first=only_first, only_second=only_second)
+    verdict = (
+        f'{len(shared)} pairs. Passed: {first} {first_passes}, {second} {second_passes} '
+        f'({second_passes - first_passes:+d}). Only {first} passed {only_first}, only {second} '
+        f'passed {only_second}: McNemar exact p = {p_value:.3f}.'
+    )
+    lines = [f'## Paired: {first} against {second}', '', verdict, '', '']
+    if not splits:
+        return '\n'.join(lines) + 'No pair split.\n'
+    rows = [
+        [question, str(split[first]), str(split[second])]
+        for question, split in sorted(
+            splits.items(), key=lambda item: (item[1][second] - item[1][first], item[0])
+        )
+    ]
+    return '\n'.join(lines) + table(
+        title='Pairs that split, by question',
+        header=['question', f'only {first}', f'only {second}'],
+        rows=rows,
+    )
 
 
 def context_section(*, runs: dict[str, tuple[list[dict[str, Any]], dict[str, Any]]]) -> str:

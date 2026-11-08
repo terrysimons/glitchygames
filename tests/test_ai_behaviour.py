@@ -13,7 +13,17 @@ from threading import Thread
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import pytest
-from scripts.ai_behaviour.capture import loggable
+from scripts.ai_behaviour.capture import FIXTURES_DIRECTORY, loggable
+from scripts.ai_behaviour.paired import (
+    PROJECT_ROOT,
+    VERSIONS,
+    WORKING_TREE,
+    VersionError,
+    Worker,
+    exported_tree,
+    first_answers,
+)
+from scripts.ai_behaviour.paired import main as paired_main
 from scripts.ai_behaviour.questions import (
     QUESTIONS,
     Answered,
@@ -26,6 +36,7 @@ from scripts.ai_behaviour.questions import (
 from scripts.ai_behaviour.report import (
     CUT_OFF,
     failure_kind,
+    mcnemar_exact,
     percentile,
     scored_again,
     wilson,
@@ -49,6 +60,7 @@ from scripts.ai_model_comparison import AskedOf
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from pathlib import Path
 
 
 def snapshot_with(**parts: Any) -> dict[str, Any]:
@@ -787,3 +799,165 @@ def test_report_compares_two_configurations(tmp_path, capsys):
     assert '1 repeated calls' in text
     assert '| 5243 |' in text
     assert '| q | 0/1 | 1/1 | +1 |' in text
+
+
+def test_mcnemar_counts_only_the_pairs_that_split():
+    """Even splits, or none, say nothing; six to none is unlikely by chance."""
+    assert mcnemar_exact(only_first=0, only_second=0) == 1.0
+    assert mcnemar_exact(only_first=3, only_second=3) == 1.0
+    assert mcnemar_exact(only_first=0, only_second=6) == pytest.approx(2 / 64)
+    assert mcnemar_exact(only_first=9, only_second=1) == pytest.approx(22 / 1024)
+
+
+def test_the_coin_is_seeded_and_lets_each_version_answer_first():
+    """The same seed gives the same order, and over many pairs neither version always leads."""
+    orders = list(first_answers(seed=7, count=40))
+
+    assert orders == list(first_answers(seed=7, count=40))
+    assert {order[0] for order in orders} == set(VERSIONS)
+    assert all(sorted(order) == sorted(VERSIONS) for order in orders)
+
+
+def stand_in_version(
+    *, root: Path, question_name: str, passes: bool, crashes: bool = False
+) -> Path:
+    """Lay out a version's tree with just what a worker imports, answering without a model.
+
+    Returns:
+        The tree.
+
+    """
+    package = root / 'scripts' / 'ai_behaviour'
+    package.mkdir(parents=True)
+    (root / 'scripts' / '__init__.py').write_text('', encoding='utf-8')
+    (package / '__init__.py').write_text('', encoding='utf-8')
+    (root / 'scripts' / 'ai_model_comparison.py').write_text(
+        'from pydantic import BaseModel\n\n'
+        'class AskedOf(BaseModel):\n'
+        '    base_url: str\n'
+        '    api_key: str\n'
+        '    alias: str\n',
+        encoding='utf-8',
+    )
+    (package / 'questions.py').write_text(
+        f'import types\n\nQUESTIONS = [types.SimpleNamespace(name={question_name!r})]\n',
+        encoding='utf-8',
+    )
+    result = report_result(question=question_name, passed=passes, why='' if passes else 'wrong')
+    answer = 'raise SystemExit(3)' if crashes else f'return json.loads({json.dumps(result)!r})'
+    (package / 'run.py').write_text(
+        'import json\n\n'
+        'def ask(*, target, question):\n'
+        "    print('a version may print', target.alias)\n"
+        f'    {answer}\n',
+        encoding='utf-8',
+    )
+    return root
+
+
+def test_a_worker_answers_from_its_own_version(tmp_path):
+    """Its tree's code answers, and what it prints stays out of the answer.
+
+    A question the version lacks, or a version that stops, is named.
+    """
+    target = AskedOf(base_url='http://127.0.0.1:9', api_key='key', alias='bonsai-2-2b')
+    tree = stand_in_version(root=tmp_path / 'tree', question_name='q', passes=True)
+    log = tmp_path / 'worker.log'
+    with (
+        log.open('w', encoding='utf-8') as log_file,
+        Worker(tree=tree, target=target, log=log_file) as worker,
+    ):
+        assert worker.ask(question_name='q')['passed'] is True
+        with pytest.raises(VersionError, match='has no question unknown'):
+            worker.ask(question_name='unknown')
+    assert 'a version may print bonsai-2-2b' in log.read_text(encoding='utf-8')
+
+    broken = stand_in_version(
+        root=tmp_path / 'broken', question_name='q', passes=True, crashes=True
+    )
+    with (
+        (tmp_path / 'broken.log').open('w', encoding='utf-8') as log_file,
+        Worker(tree=broken, target=target, log=log_file) as worker,
+        pytest.raises(VersionError, match='stopped'),
+    ):
+        worker.ask(question_name='q')
+
+
+def test_a_version_is_the_working_tree_or_a_refs_scripts(tmp_path):
+    """A ref's scripts are exported, reading the working tree's snapshots; a bad ref is named."""
+    assert exported_tree(ref=WORKING_TREE, directory=tmp_path) == PROJECT_ROOT
+
+    tree = exported_tree(ref='HEAD', directory=tmp_path / 'head')
+    assert (tree / 'scripts' / 'ai_behaviour' / 'run.py').is_file()
+    assert (
+        tree / 'scripts' / 'ai_behaviour' / 'fixtures'
+    ).resolve() == FIXTURES_DIRECTORY.resolve()
+    assert not (tree / 'scripts.tar').exists()
+
+    with pytest.raises(VersionError, match='could not export no-such-ref'):
+        exported_tree(ref='no-such-ref', directory=tmp_path / 'bad')
+
+
+def test_a_paired_run_asks_both_versions_and_reports_the_split(tmp_path, mocker, capsys):
+    """Each pair goes to both versions on one server; the report counts pairs only one passed."""
+    question = next(question for question in QUESTIONS if question.game == 'paddleslap')
+    trees = {
+        'HEAD': stand_in_version(root=tmp_path / 'old', question_name=question.name, passes=False),
+        WORKING_TREE: stand_in_version(
+            root=tmp_path / 'new', question_name=question.name, passes=True
+        ),
+    }
+    mocker.patch('scripts.ai_behaviour.paired.service_is_running', return_value=False)
+    mocker.patch(
+        'scripts.ai_behaviour.paired.exported_tree',
+        side_effect=lambda *, ref, directory: trees[ref],
+    )
+    target = AskedOf(base_url='http://127.0.0.1:9', api_key='key', alias='bonsai-2-2b')
+    server = mocker.patch('scripts.ai_behaviour.paired.running_server')
+    server.return_value.__enter__.return_value = (target, 1.5, lambda: 900)
+    output = tmp_path / 'paired'
+
+    assert (
+        paired_main([
+            '--game',
+            'paddleslap',
+            '--output',
+            str(output),
+            '--repeats',
+            '6',
+            '--only',
+            question.name,
+        ])
+        == 0
+    )
+
+    pairing = json.loads((output / 'pairing.json').read_text(encoding='utf-8'))
+    assert pairing['old'] == 'HEAD'
+    assert pairing['new'] == WORKING_TREE
+    for version in VERSIONS:
+        lines = (output / version / 'paddleslap' / 'results.jsonl').read_text(encoding='utf-8')
+        results = [json.loads(line) for line in lines.splitlines()]
+        assert [result['pair'] for result in results] == [
+            f'{question.name}#{repeat}' for repeat in range(6)
+        ]
+        server_facts = json.loads(
+            (output / version / 'paddleslap' / 'server.json').read_text(encoding='utf-8')
+        )
+        assert server_facts['footprint_mebibytes'] == 900
+    capsys.readouterr()
+    assert report_main([str(output / 'old'), str(output / 'new')]) == 0
+    text = capsys.readouterr().out
+    assert 'Only old passed 0, only new passed 6: McNemar exact p = 0.031.' in text
+    assert f'| {question.name} | 0 | 6 |' in text
+
+
+def test_runs_that_were_not_paired_get_no_paired_section(tmp_path, capsys):
+    """Two ordinary runs have no pairs to match."""
+    for configuration in ('first', 'second'):
+        game_directory = tmp_path / configuration / 'paddleslap'
+        game_directory.mkdir(parents=True)
+        (game_directory / 'results.jsonl').write_text(json.dumps(report_result()), encoding='utf-8')
+
+    assert report_main([str(tmp_path / 'first'), str(tmp_path / 'second')]) == 0
+
+    assert 'Paired:' not in capsys.readouterr().out
