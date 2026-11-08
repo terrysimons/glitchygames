@@ -1249,9 +1249,10 @@ M2 next)
   (`lowest`/`highest`, sounding; None for unpitched drums, whose fixed tones ignore the pitch
   given). 439 entries in 21 `Family`s (every size of each family, voices soprano to basso
   profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones, `names(tag=...)` lists them;
-  `ALIASES` maps 4 other names to catalog names, resolved by `get`/`entry`), each built by a
-  shape in `timbres.py` (`blown`, `plucked`, `struck`, `rubbed`, `drum`, `with_drones`) from overtone
-  series (`falling_series`, `plucked_series`, `formant_series`); `tests/audio/test_instrument_catalog.py` renders every entry across its
+  `ALIASES` (read-only, as `CATALOG` is) maps 4 other names to catalog names, resolved by
+  `get`/`entry`), each built by a shape in `timbres.py` (`blown`, `plucked`, `struck`, `rubbed`,
+  `drum`, `with_drones`) from overtone series (`falling_series`, `plucked_series`,
+  `formant_series`); `tests/audio/test_instrument_catalog.py` renders every entry across its
   range and checks each harmonic one's pitch. `scripts/make_instrument_demos.py` writes WAVs
 - The older toolkit, kept until M2 moves the games over and removes `SoundBank`, `load_sound`
   and `live_audio`: oscillators (PolyBLEP square/saw), pitch curves via easing, envelopes, FIR

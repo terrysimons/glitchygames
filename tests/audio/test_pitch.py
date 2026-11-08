@@ -199,7 +199,7 @@ def test_out_of_range_but_under_nyquist_warns_once_per_value(caplog):
 
 def test_note_validation_and_value_semantics():
     """Note validation and value semantics."""
-    for bad in ['H4', 'C', '4C', 'C##4', 'c4', 'C10', '']:
+    for bad in ['H4', 'C', '4C', 'C##4', 'c4', 'C10', '', 'C4\n']:
         with pytest.raises(ValueError, match='Invalid note name'):
             Note(bad)
     with pytest.raises(ValueError, match='Invalid note name'):
@@ -278,3 +278,9 @@ def test_unsupported_types_and_bad_names_raise():
         resolve_pitch([440.0], tuning=Tuning())  # type: ignore[arg-type]
     with pytest.raises(ValueError, match='Invalid note name'):
         resolve_pitch('H9', tuning=Tuning())
+
+
+def test_a_scale_root_with_a_trailing_newline_is_refused():
+    """``$`` alone matches before a final newline; the root must be the whole string."""
+    with pytest.raises(ValueError, match='Invalid scale root'):
+        Scale('C\n', 'major')
