@@ -1,10 +1,16 @@
 ---
 all:
+  vars:
+    # Whether a host gets the local AI service (ansible/macos_ai_service.yml). A platform that
+    # can't run it turns it off here, and the AI playbook then leaves that host alone
+    ai_enabled: true
   hosts:
     raspberry-pi-runner:
       ansible_host: 172.23.23.155
       ansible_user: terry
       ansible_python_interpreter: /usr/bin/python3
+      # A Raspberry Pi has neither the memory nor the GPU for the models
+      ai_enabled: false
       raspberry_pi_hostname: rpi4-ubuntu-2610
       # .circleci/config.yml's build-and-test-raspberry-pi names this (tests/test_ci_config.py)
       raspberry_pi_resource_class: terrysimons/raspberry-pi-4
