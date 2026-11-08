@@ -378,7 +378,8 @@ def test_a_file_name_lists_the_classes_its_file_defines():
     # A class's name still reads its code, even where a file has that name too (game.py)
     scene = tool_answer(drawing_fire, name='read_source', arguments={'name': 'DrawingFireScene'})
     assert 'files' not in scene
-    assert scene['where'].startswith('src/games/drawing-fire/src/drawing_fire/game.py:')
+    # Wherever the package is installed: src/games/... editable (uv sync), site-packages under nox
+    assert '/drawing_fire/game.py:' in scene['where']
     # Neither a class nor a file: the error lists the files too
     missing = tool_answer(drawing_fire, name='read_source', arguments={'name': 'src'})
     assert 'drawing_fire/game.py' in missing['files']
