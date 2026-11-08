@@ -204,7 +204,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 450 ready-made instruments in 23 families. Each is an
+`glitchygames.audio.instruments` holds 448 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -242,7 +242,7 @@ instruments.get('slapstick')                             # an alias: the same in
 | `friction instruments` | 3 | glass harmonica, glass harp, terpodion |
 | `drums and percussion` | 61 | kits (kicks, snares, toms, hi-hats, cymbals), hand drums, shakers, blocks |
 | `noise makers` | 5 | whip crack, diaphone, air horn, vehicle horn, party horn |
-| `sound effects` | 10 | thunder sheet, rain machine, ocean drum, cannon, crash box, coconut shells, door slam |
+| `sound effects` | 8 | thunder sheet, rain machine, ocean drum, cannon, crash box, coconut shells, door slam |
 | `voices` | 55 | soprano, mezzo, alto, treble, countertenor, tenor, baritone, bass and basso profundo on ah, eh, ee, oh, oo and humming; whistling |
 | `choirs` | 13 | soprano, alto, tenor and bass sections on ah, oh and oo; children's choir |
 

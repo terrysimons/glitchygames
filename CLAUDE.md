@@ -1247,7 +1247,7 @@ M2 next)
 - Instrument catalog (`audio/instruments/`): `instruments.get('violin')` is an ordinary
   `Instrument` (built once per process), `instruments.entry(name)` its title, family and range
   (`lowest`/`highest`, sounding; None for unpitched drums, whose fixed tones ignore the pitch
-  given). 450 entries in 23 `Family`s (every size of each family, voices soprano to basso
+  given). 448 entries in 23 `Family`s (every size of each family, voices soprano to basso
   profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones, `names(tag=...)` lists them;
   `ALIASES` (read-only, as `CATALOG` is) maps 8 other names to catalog names, resolved by
   `get`/`entry`), each built by a shape in `timbres.py` (`blown`, `plucked`, `struck`, `rubbed`,

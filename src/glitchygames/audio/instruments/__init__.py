@@ -25,10 +25,11 @@ Three families hold the instruments that are neither struck bars nor blown: pluc
 ``vehicle horn``, ``party horn``). A ``Tag`` marks a quality across families (``Tag.MECHANICAL``,
 on the ``music box``), so ``names(tag=...)`` finds those wherever they sound.
 
-Two more families split off from keyboards, organs and electronic: electromechanical
-(``tine electric piano``, ``reed electric piano``, ``clavinet``, ``hohner pianet``, the
-``tonewheel organ ...`` registrations) and sound effects (``thunder sheet``, ``rain machine``,
-``ocean drum``, ``cannon``, ``coconut shells``, ``door slam``), each playable as a note.
+Electromechanical takes the electric pianos (``tine electric piano``, ``reed electric
+piano``), the ``clavinet`` and the ``tonewheel organ ...`` registrations from keyboards and
+organs, and adds the ``hohner pianet``. Sound effects is a new family (``thunder sheet``,
+``rain machine``, ``ocean drum``, ``cannon``, ``coconut shells``, ``door slam``), each effect
+playable as a note.
 
 ``instruments.ALIASES`` (read-only, as ``CATALOG`` is) maps each other name (``slapstick``) to
 its catalog name (``whip``); ``entry`` and ``get`` resolve them, while ``names`` and ``entries``

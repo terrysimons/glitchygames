@@ -11,7 +11,7 @@
   `plans/data/instrument-audit/batch-2.tsv`. The later batches are not yet planned.
 - **Depends on:** the instrument catalog (`src/glitchygames/audio/instruments/`, 431 instruments
   in 18 families when this was written, shipped with the sound engine M1; 439 in 21 after batch
-  1, 450 in 23 after batch 2), its range audit, and the engine's four sources per instrument
+  1, 448 in 23 after batch 2), its range audit, and the engine's four sources per instrument
   (`src/glitchygames/audio/instrument.py`).
 - **Tracked as:** `plans/future-features.md` #70.
 
