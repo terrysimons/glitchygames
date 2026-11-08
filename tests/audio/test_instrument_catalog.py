@@ -567,3 +567,44 @@ def test_the_glass_harp_swells_sooner_and_is_brighter_than_the_glass_harmonica()
     assert seconds_to_ninety_percent('glass harmonica') < seconds_to_ninety_percent('terpodion')
     assert spectral_centroid('glass harp') > spectral_centroid('glass harmonica')
     assert spectral_centroid('terpodion') > spectral_centroid('glass harp')
+
+
+def test_noise_makers_crack_the_whip():
+    """The whip crack is a noise maker; the slapstick whip stayed in drums and percussion."""
+    assert instruments.entry('whip crack').family == Family.NOISE_MAKERS
+    assert instruments.entry('whip').family == Family.DRUMS_AND_PERCUSSION
+    assert not instruments.entry('whip crack').pitched
+
+
+def test_the_whip_crack_is_sharper_than_the_slapstick_whip():
+    """The crack dies away sooner and has more energy high up than the whip, or it is an alias."""
+    smoothing_seconds = 0.002
+
+    def seconds_to_one_tenth(samples: np.ndarray) -> float:
+        window = round(smoothing_seconds * SAMPLE_RATE)
+        level = np.sqrt(np.convolve(samples**2, np.ones(window) / window, mode='same'))
+        peak_index = int(np.argmax(level))
+        below = np.nonzero(level[peak_index:] < 0.1 * level[peak_index])[0]
+        return float(below[0]) / SAMPLE_RATE
+
+    def share_of_energy_below(samples: np.ndarray, *, hertz: float) -> float:
+        power = np.abs(np.fft.rfft(samples)) ** 2
+        frequencies = np.fft.rfftfreq(len(samples), 1 / SAMPLE_RATE)
+        return float(np.sum(power[frequencies < hertz]) / np.sum(power))
+
+    crack = rendered(instruments.get('whip crack'), pitch='A4')
+    whip = rendered(instruments.get('whip'), pitch='A4')
+    assert seconds_to_one_tenth(crack) < seconds_to_one_tenth(whip)
+    # The whip's 1 kHz high-pass leaves energy between 1 and 3 kHz that the crack's cuts
+    assert share_of_energy_below(crack, hertz=3000.0) < share_of_energy_below(whip, hertz=3000.0)
+
+
+@pytest.mark.parametrize(
+    'name', [entry.name for entry in instruments.entries() if not entry.pitched]
+)
+def test_unpitched_entries_sound_the_same_at_any_pitch(name):
+    """An unpitched entry (a drum, an effect) ignores the pitch it is given."""
+    instrument = instruments.get(name)
+    assert np.array_equal(
+        rendered(instrument, pitch='A4', name=name), rendered(instrument, pitch='C2', name=name)
+    )

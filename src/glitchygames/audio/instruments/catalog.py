@@ -45,6 +45,7 @@ class Family(StrEnum):
     PLUCKED_IDIOPHONES = 'plucked idiophones'
     FRICTION_INSTRUMENTS = 'friction instruments'
     DRUMS_AND_PERCUSSION = 'drums and percussion'
+    NOISE_MAKERS = 'noise makers'
     VOICES = 'voices'
     CHOIRS = 'choirs'
 
