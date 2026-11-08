@@ -551,11 +551,16 @@ def file_classes(*, module: types.ModuleType) -> dict[str, JsonValue]:
 def shown_path(path: Path) -> str:
     """A source file's path as the model is shown it: from the repository's root when inside it.
 
+    Always with forward slashes, as module_file_name writes them, so the model sees one form on
+    every platform (Windows' separators would otherwise show).
+
     Returns:
         The path.
 
     """
-    return str(path.relative_to(Path.cwd()) if path.is_relative_to(Path.cwd()) else path.name)
+    if not path.is_relative_to(Path.cwd()):
+        return path.name
+    return path.relative_to(Path.cwd()).as_posix()
 
 
 def code_names(game: str) -> list[str]:
