@@ -19,6 +19,12 @@ saxophones and recorders, alto to contrabass trombones, piccolo to contrabass fl
 on). They are synthesized approximations: there are no recorded samples, vibrato or moving
 filters in the engine yet, so sustained tones are steady and a vowel is truest mid-range.
 
+Three families hold the instruments that are neither struck bars nor blown: plucked idiophones
+(``kalimba``, ``mbira``, ``music box``, ``sansula``), friction instruments (``glass harmonica``,
+``glass harp``, ``terpodion``) and noise makers (``whip crack``, ``diaphone``, ``air horn``,
+``vehicle horn``, ``party horn``). A ``Tag`` marks a quality across families (``Tag.MECHANICAL``,
+on the ``music box``), so ``names(tag=...)`` finds those wherever they sound.
+
 ``instruments.ALIASES`` maps each other name (``slapstick``) to its catalog name (``whip``);
 ``entry`` and ``get`` resolve them, while ``names`` and ``entries`` list catalog names only.
 
