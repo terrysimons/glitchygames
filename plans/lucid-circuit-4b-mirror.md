@@ -207,13 +207,16 @@ a reference the tests check the model's mechanics against, catching invented rul
      negligible (1 to 26 ms per golden; Papyrus's player 2.4 ms). Neither a sprite pool nor tuning the collector would
      help frame times. Python's allocations grow only into bounded histories (the overlay's 5,000 frame times, the
      performance manager's 100,000 samples).
-   - **Surface churn: Brave Adventurer Papyrus makes 51 `Surface.copy` calls a frame.** Every other game makes 0 to 6
-     Surface-making calls a frame (Clockwork Keep's 5.4 are `Font.render`). Worth finding, separately from this stage.
+   - **Surface churn: Brave Adventurer Papyrus made 51 `Surface.copy` calls a frame.** Every other game makes 0 to 6
+     Surface-making calls a frame (Clockwork Keep's 5.4 are `Font.render`). Fixed (BUGS.md #265): a helper copied every
+     Papyrus sprite's frame each tick, though only the player's fade needed it; now none in its golden.
    - **A frame's whole state is too big for one prompt, so the tools choose.** Read as the tools read it (properties
      on, plumbing off, no sprite cap), compact JSON: Mr. Muncher 74 KB (267 sprites, about 250 B each), Brave
      Adventurer Classic 30 KB, Clockwork Keep 7 KB, PaddleSlap 5 KB, Drawing Fire 1 KB (no sprites). The state is
-     nearly constant within a scene. Papyrus reads as 352 KB because each `AnimatedSprite` gives every animation frame's
-     pixels, three times (`frames`, `animations`, `animation_data`): step 3's tools must leave pixel data out.
+     nearly constant within a scene. Papyrus read as 352 KB because each `AnimatedSprite` gave every animation frame's
+     pixels, three times (`frames`, `animations`, `animation_data`). Fixed (2026-11-08): `ai_introspection` reads a
+     `SpriteFrame` as its size and duration and leaves `animation_data` out as plumbing, so Papyrus reads as 92 KB (854 B
+     a sprite, its frames shown twice as summaries).
    - **What an answer uses.** From llama-server's own counts in the last paired run (2B, 8K, 150 answers): the opening
      prompt (system prompt and tools) is about 1,800 tokens; an answer used 2,900 to 4,700 tokens of context at the
      median across the games, and its generation 670 to 1,300 tokens (up to 5,400). Some answers in Brave Adventurer,

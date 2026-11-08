@@ -446,20 +446,77 @@ class TestPapyrusSpriteUtilities:
         assert sprite.image is image
         assert sprite.scale == 2
 
-    def test_scale_one_draws_a_copy_of_the_frame(self):
+    def test_scale_one_draws_the_frame_itself(self):
+        """A refresh resets image to the drawn frame, not a copy (BUGS.md #265)."""
         _start_display()
         sprite = AnimatedSprite(
             filename=str(SPRITES_DIR / 'cobra.toml'), groups=pygame.sprite.LayeredDirty()
         )
         prepare_papyrus_sprite(sprite, scale_factor=1)
+        sprite.image = pygame.Surface((1, 1))
 
         refresh_drawn_image(sprite)
 
-        drawn_surface = sprite.drawn_frame_surface()
-        assert sprite.image is not drawn_surface
+        assert sprite.image is sprite.drawn_frame_surface()
         assert sprite.image.get_size() == sprite.get_current_frame().image.get_size()
-        assert _surface_bytes(sprite.image) == _surface_bytes(drawn_surface)
         assert sprite.scale == 1
+
+    @pytest.mark.parametrize(
+        'make_sprite',
+        [
+            lambda groups: PapyrusCobra(world_x=100.0, groups=groups),
+            lambda groups: PapyrusScarab(world_x=100.0, groups=groups),
+            lambda groups: PapyrusGoldScarab(world_x=100.0, world_y=100.0, groups=groups),
+            lambda groups: PapyrusScorpion(world_x=100.0, groups=groups),
+            lambda groups: PapyrusPlayer(world_x=100.0, world_y=100.0, groups=groups),
+        ],
+        ids=['cobra', 'scarab', 'gold-scarab', 'scorpion-facing-right', 'player-facing-right'],
+    )
+    def test_a_tick_draws_the_cached_frame_without_copying_it(self, make_sprite):
+        """Unflipped and unfaded, a sprite's image is the engine's cached frame (BUGS.md #265).
+
+        Papyrus copied every sprite's frame every tick, 51 surfaces a frame in its golden.
+        """
+        _start_display()
+        sprite = make_sprite(pygame.sprite.LayeredDirty())
+        sprite.facing_right = True
+
+        sprite.dt_tick(1 / 60)
+
+        assert sprite.image is sprite.drawn_frame_surface()
+
+    def test_the_players_fade_never_reaches_the_cached_frame(self):
+        """set_alpha changes a surface in place, so the fading player draws a copy."""
+        _start_display()
+        player = PapyrusPlayer(world_x=100.0, world_y=100.0, groups=pygame.sprite.LayeredDirty())
+        player.facing_right = True
+        player.alpha = 100.0
+
+        player.dt_tick(1 / 60)
+
+        assert player.image is not player.drawn_frame_surface()
+        assert player.image.get_alpha() == 100
+        assert player.drawn_frame_surface().get_alpha() in {None, 255}
+
+        player.alpha = 255.0
+        player.dt_tick(1 / 60)
+
+        # Faded in again: the frame itself, never faded
+        assert player.image is player.drawn_frame_surface()
+        assert player.drawn_frame_surface().get_alpha() in {None, 255}
+
+    def test_a_flipped_player_fades_its_flipped_image_without_another_copy(self):
+        """Facing left, the image is already the flip's new surface: it fades that one."""
+        _start_display()
+        player = PapyrusPlayer(world_x=100.0, world_y=100.0, groups=pygame.sprite.LayeredDirty())
+        player.facing_right = False
+        player.alpha = 100.0
+
+        player.dt_tick(1 / 60)
+
+        assert player.image is not player.drawn_frame_surface()
+        assert player.image.get_alpha() == 100
+        assert player.drawn_frame_surface().get_alpha() in {None, 255}
 
     def test_a_flip_each_tick_does_not_stack(self):
         """Refreshing before each flip draws the same mirrored image every tick."""
