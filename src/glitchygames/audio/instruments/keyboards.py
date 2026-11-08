@@ -298,6 +298,20 @@ def _reed_piano() -> Instrument:
     )
 
 
+def _pianet() -> Instrument:
+    # A reed released by a pad: harmonics 1 to 4, each higher one ringing shorter
+    return struck(
+        (
+            Partial(ratio=1.0, level=1.0, ring_seconds=1.2),
+            Partial(ratio=2.0, level=0.5, ring_seconds=0.5),
+            Partial(ratio=3.0, level=0.35, ring_seconds=0.2),
+            Partial(ratio=4.0, level=0.25, ring_seconds=0.08),
+        ),
+        release=0.15,
+        low_pass=3000.0,
+    )
+
+
 def _clavinet() -> Instrument:
     return plucked(
         plucked_series(count=28, decibels_per_octave=2.0, pluck_position=0.06),
@@ -400,27 +414,25 @@ ELECTROMECHANICAL: Final[tuple[CatalogEntry, ...]] = (
         'C7',
         partial(_tonewheel_with_percussion, '888000000', percussion_harmonic=3.0),
     ),
-    # Range: https://en.wikipedia.org/wiki/Hohner_Pianet ("It had 61 keys ranging from F1 to F6")
-    # Sound: https://en.wikipedia.org/wiki/Hohner_Pianet (a pad "adheres to the reed when at rest,
-    # and lifts and releases the reed" when the key is pressed: the reed is released, not
-    # hammered; the strike gives "a complex mixture of harmonics" that settles to a cleaner tone)
-    # The 12 harmonics at 9 dB per octave, the 1.2 s ring, the 0.15 s release and the 3 kHz low
-    # pass are to be tuned by ear (the sources give no numbers). Unlike the reed electric piano
-    # it has no drive (no hammer bark), a shorter ring, and harmonics that fall faster than the
-    # fundamental
+    # Range: https://en.wikipedia.org/wiki/Hohner_Pianet ("It had 61 keys ranging from F1 to F6";
+    # "Later models had 60 keys, missing the top F": the original compass is used)
+    # Sound: https://en.wikipedia.org/wiki/Hohner_Pianet ("This pad adheres to the reed when at
+    # rest, and lifts and releases the reed causing it to vibrate when the key is depressed": the
+    # reed is released, not hammered; "The resulting sound has a complex mixture of harmonics when
+    # the reed is first struck, which later reduces to a cleaner sustained tone")
+    # Built with struck so each harmonic dies away at its own rate: the higher a harmonic, the
+    # shorter its ring, so the strike is bright and the tone settles toward the fundamental. A
+    # reed, not a tine, so its partials are harmonics, with no tine piano's 7.1x bell partial.
+    # The levels, the 1.2 s to 0.08 s rings, the 0.15 s release and the 3 kHz low pass are to be
+    # tuned by ear (the sources give no numbers). Unlike the reed electric piano it has no drive
+    # (no hammer bark) and a shorter ring
     CatalogEntry(
         'hohner pianet',
         'Hohner Pianet',
         Family.ELECTROMECHANICAL,
         'F1',
         'F6',
-        partial(
-            plucked,
-            falling_series(count=12, decibels_per_octave=9.0),
-            ring_seconds=1.2,
-            release=0.15,
-            low_pass=3000.0,
-        ),
+        _pianet,
     ),
 )
 

@@ -767,3 +767,31 @@ def test_a_sound_effect_strikes_again_on_each_note(name):
     assert second_half_energy_share(twice, length=length) > SECOND_STRIKE_FACTOR * (
         second_half_energy_share(single, length=length)
     ), name
+
+
+def test_the_pianet_settles_from_a_bright_strike():
+    """The Pianet's strike has far more energy above its fundamental than its tone 0.3 s on.
+
+    The page (https://en.wikipedia.org/wiki/Hohner_Pianet): "a complex mixture of harmonics when
+    the reed is first struck, which later reduces to a cleaner sustained tone". Measured, the
+    share of energy above 1.5 times the fundamental is 0.20 in the first 50 ms and 0.0037 from
+    0.3 to 0.4 s at B3 (53.7 times), 52.8 times at F1 and 46.8 times at F6; the reed electric
+    piano, whose harmonics fall together, measures 0.80 to 0.86 times. 10 is clearly settled.
+    """
+
+    def share_above(samples: np.ndarray, *, hertz: float) -> float:
+        power = np.abs(np.fft.rfft(samples * np.hanning(len(samples)))) ** 2
+        frequencies = np.fft.rfftfreq(len(samples), 1 / SAMPLE_RATE)
+        return float(np.sum(power[frequencies > hertz]) / np.sum(power))
+
+    entry = instruments.entry('hohner pianet')
+    for note in (entry.middle_note(), Note('F1'), Note('F6')):
+        samples = render_sound(
+            spec_for(instruments.get(entry.name), name=entry.name, pitch=note.name, length=0.5)
+        ).samples
+        cutoff = 1.5 * float(note.to_hz())
+        strike = share_above(samples[: round(0.05 * SAMPLE_RATE)], hertz=cutoff)
+        settled = share_above(
+            samples[round(0.3 * SAMPLE_RATE) : round(0.4 * SAMPLE_RATE)], hertz=cutoff
+        )
+        assert strike > 10.0 * settled, note.name
