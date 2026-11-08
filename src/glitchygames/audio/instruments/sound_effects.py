@@ -7,8 +7,10 @@ https://en.wikipedia.org/wiki/Foley_(filmmaking)
 
 Every effect plays as a note, so it can be used in music; each is unpitched and ignores the
 pitch it is given, as a drum does, so each is built with ``drum``: a noise band with a ring for
-a one-shot (a thunder sheet's crash), with an attack for a swell (a thunder run, an ocean drum).
-None of them sustains while held: each dies away after its ring.
+a one-shot (a thunder sheet's crash), with an attack for a swell (an ocean drum). None of them
+sustains while held: each dies away after its ring. A ring is also cut when the note ends: it
+fades out over the entry's ``tail`` from the note's end, so a note shorter than the ring sounds
+shorter than the ring figures in the comments below.
 """
 
 from __future__ import annotations
@@ -43,27 +45,10 @@ SOUND_EFFECTS: Final[tuple[CatalogEntry, ...]] = (
             drive=2.0,
         ),
     ),
-    # Sound: https://bristololdvic.org.uk/archive/thunder-run (iron weights "rolled down" a wooden
-    # trough), https://theatrecrafts.com/pages/home/topics/sound/sound-effects-for-the-stage/
-    # The 0.9 noise level, 400 Hz low pass, 0.6 s attack, 4.0 s ring and 1.5 s tail are sound
-    # design (no source gives a figure): a low rolling rumble with no metal ring, so no tone
-    CatalogEntry(
-        'thunder run',
-        'Thunder run',
-        Family.SOUND_EFFECTS,
-        None,
-        None,
-        partial(
-            drum,
-            noise=0.9,
-            noise_ring_seconds=4.0,
-            noise_low_pass=400.0,
-            attack=0.6,
-            tail=1.5,
-        ),
-    ),
     # Sound: https://api.vam.ac.uk/v2/object/O74191 (a "Sound machine" holding dried peas or small
-    # stones, made "to produce the sound of rain")
+    # stones, made "to produce the sound of rain"), https://collections.ed.ac.uk/mimed/record/15506
+    # (the "Surf and rain effect.": a "Shallow single-headed drum fitted with nylon timpano head
+    # and `beans'")
     # The 0.7 noise level, 3 kHz high pass, 0.05 s attack, 1.5 s ring and 0.5 s tail are sound
     # design (no source gives a figure): a patter of many small impacts as one steady high band
     CatalogEntry(
@@ -124,7 +109,10 @@ SOUND_EFFECTS: Final[tuple[CatalogEntry, ...]] = (
         ),
     ),
     # Sound: https://en.wikipedia.org/wiki/Crash_box_(stagecraft)
-    # ("a device which reproduces a crash or collision sound effect"; glassware or crockery dropped)
+    # ("a device which reproduces a crash or collision sound effect"; glassware or crockery
+    # dropped), https://theatrecrafts.com/pages/home/topics/sound/sound-effects-for-the-stage/ ("A
+    # wooden box with some broken glass or broken crockery which is dropped / rolled around
+    # offstage")
     # The 0.9 noise level, 2 kHz high pass, 0.6 s ring, the 1.2 kHz and 2.1 kHz rings (level 0.3,
     # 0.3 s), the drive and the 0.3 s tail are sound design (no source gives a figure): bright,
     # glassy noise with two high rings
@@ -148,7 +136,11 @@ SOUND_EFFECTS: Final[tuple[CatalogEntry, ...]] = (
         ),
     ),
     # Sound: https://en.wikipedia.org/wiki/Foley_(filmmaking)
-    # (the page says coconut shells "cut in half and stuffed with padding make horse hoof noises")
+    # (the page says coconut shells "cut in half and stuffed with padding make horse hoof noises"),
+    # https://theatrecrafts.com/pages/home/topics/sound/sound-effects-for-the-stage/ ("the classic
+    # coconut halves for horses hooves"),
+    # https://props.eric-hart.com/how-to/mechanical-sound-effects (wood blocks for galloping
+    # horses, or "coconut halves" with cut ends "perfectly flat and smooth")
     # The 900 Hz and 1.7 kHz tones (0.04 s and 0.02 s rings, levels 1.0 and 0.4), the 0.2 noise
     # level, 2 kHz high pass and 0.01 s ring are sound design (no source gives a figure), with no
     # tail: a short hollow clop, higher and less dry than the catalog woodblock
@@ -204,24 +196,6 @@ SOUND_EFFECTS: Final[tuple[CatalogEntry, ...]] = (
             drum,
             tones=(Tone(hertz=55.0, ring_seconds=0.3, glide_to=40.0, glide_seconds=0.1),),
             tail=0.1,
-        ),
-    ),
-    # Sound: https://www.props.eric-hart.com/?p=1063 (glass-paper imitating a railway engine)
-    # The 0.7 noise level, 4 kHz high pass, 0.03 s attack and 0.15 s ring are sound design (no
-    # source gives a figure), with no tail: one short rasp, a quick high swish
-    CatalogEntry(
-        'sandpaper blocks',
-        'Sandpaper blocks',
-        Family.SOUND_EFFECTS,
-        None,
-        None,
-        partial(
-            drum,
-            noise=0.7,
-            noise_ring_seconds=0.15,
-            noise_high_pass=4000.0,
-            attack=0.03,
-            tail=0.0,
         ),
     ),
 )
