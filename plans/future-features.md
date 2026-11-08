@@ -1745,22 +1745,27 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 1 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 2 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
-  batch 1) toward every instrument a game might want, in one verified batch per family. Adversarial audits (2026-11-07) found
-  1,303 candidates, only 84 with source-verified ranges. Adds five families (plucked
+  batch 1, 450 in 23 after batch 2) toward every instrument a game might want, in one
+  verified batch per family. Adversarial audits (2026-11-07) found 1,303 candidates, only 84
+  with source-verified ranges. Adds five families (plucked
   idiophones, friction instruments, noise makers, sound effects, and electromechanical split
   from electronic), makes mechanical instruments a tag, and lists the instruments that wait for
   engine features (sympathetic strings, moving formants, FM, samples); every sound effect is
   usable in music.
   Batch 1 (plucked idiophones, friction instruments, noise makers, tags and aliases) is done:
   of its 79 audited candidates 8 shipped, 4 moved family, 58 wait for engine features, 4 became
-  aliases and 5 were dropped. Next: sound effects and electromechanical, then drums and
-  percussion
+  aliases and 5 were dropped.
+  Batch 2 (electromechanical and sound effects) is done: of its 62 audited candidates (30
+  electromechanical, 32 sound effects) 11 shipped, 10 moved family, 10 wait for engine
+  features, 4 became aliases and 27 were dropped. Next: drums and percussion
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
-- **Status**: Batch 1 done (requested by the owner 2026-11-06)
+- **Plan (batch 2)**: `plans/2026-11-08-instrument-catalog-batch-2-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-2.tsv`
+- **Status**: Batches 1 and 2 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ## Notes

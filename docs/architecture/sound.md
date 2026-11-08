@@ -204,7 +204,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 439 ready-made instruments in 21 families. Each is an
+`glitchygames.audio.instruments` holds 450 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -233,14 +233,16 @@ instruments.get('slapstick')                             # an alias: the same in
 | `plucked strings` | 58 | guitars (nylon, steel, twelve-string, electric clean to distortion), basses, ukuleles, banjos, mandolins, lutes, sitar, koto |
 | `harps` | 7 | concert, lever, wire-strung, triple harp, lyre, kora |
 | `struck strings` | 5 | hammered dulcimer, cimbalom, santur, yangqin, berimbau |
-| `keyboards` | 14 | pianos, harpsichords, clavichord, electric pianos, clavinet, celesta |
-| `organs` | 16 | pipe organ stops and plenum, tonewheel registrations and percussion, calliope |
+| `keyboards` | 11 | pianos, harpsichords, clavichord, celesta, toy piano |
+| `organs` | 9 | pipe organ stops and plenum, positive, combo and theatre organs, calliope |
+| `electromechanical` | 11 | electric pianos (tine, reed), Clavinet, Pianet, tonewheel organ registrations and percussion |
 | `electronic` | 15 | theremin, ondes Martenot, leads, pads, basses, chiptune pulses |
 | `tuned percussion` | 23 | glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan |
 | `plucked idiophones` | 4 | kalimba, mbira, music box, sansula |
 | `friction instruments` | 3 | glass harmonica, glass harp, terpodion |
 | `drums and percussion` | 61 | kits (kicks, snares, toms, hi-hats, cymbals), hand drums, shakers, blocks |
 | `noise makers` | 5 | whip crack, diaphone, air horn, vehicle horn, party horn |
+| `sound effects` | 10 | thunder sheet, rain machine, ocean drum, cannon, crash box, coconut shells, door slam |
 | `voices` | 55 | soprano, mezzo, alto, treble, countertenor, tenor, baritone, bass and basso profundo on ah, eh, ee, oh, oo and humming; whistling |
 | `choirs` | 13 | soprano, alto, tenor and bass sections on ah, oh and oo; children's choir |
 
@@ -253,8 +255,10 @@ instruments.get('slapstick')                             # an alias: the same in
   with `family=`.
 - `instruments.ALIASES` (read-only, as `instruments.CATALOG` is) maps another name to its
   catalog name: `slapstick` to `whip`, `zanza` to `mbira`, `cylinder music box` and `disc music
-  box` to `music box` (4 in all). `get` and `entry` resolve an alias, while `names` and `entries`
-  list catalog names only.
+  box` to `music box`, `wurlitzer electronic piano` to `reed electric piano`, `hohner clavinet`
+  to `clavinet`, `rain box` to `rain machine` and `horse hooves` to `coconut shells` (8 in
+  all). `get` and `entry` resolve an alias, while `names` and `entries` list catalog names
+  only.
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (`pitch='A4'`); it does not change
