@@ -724,26 +724,46 @@ def test_electromechanical_holds_the_electric_pianos_clavinet_and_tonewheels():
     assert 'combo organ' in instruments.names(family=Family.ORGANS)
 
 
-# Compared as a string, so the list is simply empty (no cases) before the family exists
+# Empty (no cases) when the catalog holds no sound effects; the family is compared as a string
 SOUND_EFFECT_NAMES = [
     entry.name for entry in instruments.entries() if entry.family == 'sound effects'
 ]
 
+# The least measured margin is the thunder run's: its second note's energy is 4.85 times its
+# single note's tail (the others are 6.8 times or more); 3 leaves room without being near 1
+SECOND_STRIKE_FACTOR = 3.0
+
 
 def test_sound_effects_hold_the_thunder_sheet():
-    """The thunder sheet is a sound effect, and plays as a note at any pitch."""
+    """The thunder sheet is a sound effect, and it is unpitched."""
     assert instruments.entry('thunder sheet').family == Family.SOUND_EFFECTS
     assert not instruments.entry('thunder sheet').pitched
 
 
+def second_half_energy_share(samples: np.ndarray, *, length: int) -> float:
+    """Energy from 0.5 s to 1.0 s relative to the energy in the first 0.5 s.
+
+    The render is padded with zeros to ``length``. A share survives each render being
+    normalized to its own peak.
+
+    Returns:
+        The share.
+    """
+    padded = np.zeros(length)
+    padded[: min(len(samples), length)] = samples[:length]
+    half = round(0.5 * SAMPLE_RATE)
+    return float(np.sum(padded[half : 2 * half] ** 2) / np.sum(padded[:half] ** 2))
+
+
 @pytest.mark.parametrize('name', SOUND_EFFECT_NAMES)
 def test_a_sound_effect_strikes_again_on_each_note(name):
-    """Two notes in a sequence are two hits, not one hit ringing on (usable in music)."""
+    """A second note adds its own strike: more energy after 0.5 s than the first note's tail."""
     instrument = instruments.get(name)
     pitch = instruments.entry(name).middle_note().name
     twice = render_sound(spec_for(instrument, name=name, notes=f'{pitch}:0.5 {pitch}:0.5')).samples
-    once = render_sound(spec_for(instrument, name=name, notes=f'{pitch}:1')).samples
-    half = round(0.5 * SAMPLE_RATE)
-    window = slice(half, half + round(0.05 * SAMPLE_RATE))
+    single = render_sound(spec_for(instrument, name=name, notes=f'{pitch}:0.5')).samples
+    length = max(len(twice), len(single))
     assert np.max(np.abs(twice)) <= 1.0, name
-    assert not np.allclose(twice[window], once[window]), name
+    assert second_half_energy_share(twice, length=length) > SECOND_STRIKE_FACTOR * (
+        second_half_energy_share(single, length=length)
+    ), name
