@@ -343,6 +343,47 @@ def test_source_is_read_from_the_games_code():
     assert 'hypot' in refused['allowed']
 
 
+def test_a_file_name_lists_the_classes_its_file_defines():
+    """2B asks for files (game.py, a path, a module) about as often as for classes.
+
+    In the two latest full runs, about 40 of 85 failed read_source calls named a file.
+    """
+    drawing_fire = SnapshotTools(snapshot=snapshot_with(game='drawing-fire'))
+
+    def files(tools: SnapshotTools, name: str) -> list[dict[str, Any]]:
+        return tool_answer(tools, name='read_source', arguments={'name': name})['files']
+
+    (game_file,) = files(drawing_fire, 'game.py')
+    assert game_file['file'].endswith('drawing_fire/game.py')
+    # Only the classes the file defines, not the ones it imports (Battle is battle.py's)
+    assert list(game_file['classes']) == ['Phase', 'DrawingFireScene']
+    # A path from anywhere in the repository, a module's dotted name, or a bare module name
+    for name in (
+        'src/games/drawing-fire/src/drawing_fire/drivers.py',
+        'drawing_fire.drivers',
+        'drivers',
+        'Drivers.py',
+    ):
+        (drivers_file,) = files(drawing_fire, name)
+        assert list(drivers_file['classes']) == ['ComputerSoldier']
+    # A package's own file
+    paddleslap = SnapshotTools(snapshot=snapshot_with())
+    (package_file,) = files(paddleslap, 'paddleslap/__init__.py')
+    assert 'Game' in package_file['classes']
+    # Two files of one name: both, unless the path tells them apart
+    brave = SnapshotTools(snapshot=snapshot_with(game='brave-adventurer'))
+    assert len(files(brave, 'levels.py')) == 2
+    (core_levels,) = files(brave, 'brave_adventurer_core/levels.py')
+    assert list(core_levels['classes']) == ['ScreenData', 'LevelManager']
+    # A class's name still reads its code, even where a file has that name too (game.py)
+    scene = tool_answer(drawing_fire, name='read_source', arguments={'name': 'DrawingFireScene'})
+    assert 'files' not in scene
+    assert scene['where'].startswith('src/games/drawing-fire/src/drawing_fire/game.py:')
+    # Neither a class nor a file: the error lists the files too
+    missing = tool_answer(drawing_fire, name='read_source', arguments={'name': 'src'})
+    assert 'drawing_fire/game.py' in missing['files']
+
+
 def test_drawing_is_recorded_and_copies_say_they_need_the_mirror():
     """For the checks; and nothing pretends to run."""
     tools = SnapshotTools(snapshot=snapshot_with())
