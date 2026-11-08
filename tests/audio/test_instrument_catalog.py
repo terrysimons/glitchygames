@@ -384,12 +384,7 @@ def test_the_o_vowels_keep_csounds_bandwidths():
 
 def test_organ_ranges_start_at_their_keys_eight_foot_pitch():
     """An organ's range is its manual at 8' pitch: from C2, not the 16' octave below."""
-    tonewheel_organs = tuple(
-        entry
-        for entry in instruments.entries(family=Family.ELECTROMECHANICAL)
-        if entry.name.startswith('tonewheel organ')
-    )
-    assert tonewheel_organs
+    tonewheel_organs = tuple(instruments.entry(name) for name in MOVED_TONEWHEEL_ORGANS)
     for organ in (*instruments.entries(family=Family.ORGANS), *tonewheel_organs):
         playing_range = organ.playing_range
         assert playing_range is not None
@@ -701,10 +696,7 @@ def test_the_catalog_and_aliases_are_read_only():
         instruments.ALIASES['bones'] = 'nope'  # pyright: ignore[reportIndexIssue] - the write is the point
 
 
-MOVED_TO_ELECTROMECHANICAL = (
-    'tine electric piano',
-    'reed electric piano',
-    'clavinet',
+MOVED_TONEWHEEL_ORGANS = (
     'tonewheel organ jazz',
     'tonewheel organ full',
     'tonewheel organ ballad',
@@ -712,6 +704,12 @@ MOVED_TO_ELECTROMECHANICAL = (
     'tonewheel organ gospel',
     'tonewheel organ percussion second',
     'tonewheel organ percussion third',
+)
+MOVED_TO_ELECTROMECHANICAL = (
+    'tine electric piano',
+    'reed electric piano',
+    'clavinet',
+    *MOVED_TONEWHEEL_ORGANS,
 )
 
 
@@ -729,9 +727,23 @@ SOUND_EFFECT_NAMES = [
     entry.name for entry in instruments.entries() if entry.family == 'sound effects'
 ]
 
-# The least measured margin is the thunder run's: its second note's energy is 4.85 times its
-# single note's tail (the others are 6.8 times or more); 3 leaves room without being near 1
+# The least measured margin is the ocean drum's: its second note's energy is 6.76 times its
+# single note's tail (the others are 17 times or more, and infinite for the three whose single
+# note is silent by 0.5 s); 3 leaves room without being near 1
 SECOND_STRIKE_FACTOR = 3.0
+# The envelopes are 20 ms RMS windows over the whole render, each scaled to unit length, so the
+# comparison survives each render being normalized to its own peak
+ENVELOPE_WINDOW_SECONDS = 0.02
+# Measured distances, two notes from one note plus the same note 0.5 s later against two notes
+# from one held note (P:1): thunder sheet 0.045 / 0.363, rain machine 0.022 / 0.569, ocean drum
+# 0.067 / 0.218, cannon 0.016 / 0.749, crash box 0.018 / 0.757, coconut shells 0.041 / 0.803,
+# door slam 0.012 / 0.766, giants footsteps 0.000 / 0.765. The least margin is the ocean drum's
+# (3.25 times); 2 keeps room on both sides
+RESTRIKE_CLOSER_FACTOR = 2.0
+# Held for six seconds, every effect's ring is long over by 5 s (the longest, the ocean drum's
+# 0.8 s attack and 2.5 s ring, ends by 3.3 s); measured, every effect is exactly silent there
+ONE_SHOT_HELD_SECONDS = 6.0
+ONE_SHOT_CHECK_SECONDS = 5.0
 
 
 def test_sound_effects_hold_the_thunder_sheet():
@@ -755,18 +767,72 @@ def second_half_energy_share(samples: np.ndarray, *, length: int) -> float:
     return float(np.sum(padded[half : 2 * half] ** 2) / np.sum(padded[:half] ** 2))
 
 
+def unit_envelope(samples: np.ndarray, *, length: int) -> np.ndarray:
+    """The render's RMS level in ENVELOPE_WINDOW_SECONDS windows, scaled to unit length.
+
+    The render is padded with zeros to ``length``.
+
+    Returns:
+        The envelope.
+    """
+    padded = np.zeros(length)
+    padded[: min(len(samples), length)] = samples[:length]
+    window = round(ENVELOPE_WINDOW_SECONDS * SAMPLE_RATE)
+    window_count = length // window
+    levels = np.sqrt(np.mean(padded[: window_count * window].reshape(window_count, window) ** 2, 1))
+    return levels / np.linalg.norm(levels)
+
+
+def strikes_again(twice: np.ndarray, *, single: np.ndarray, merged: np.ndarray) -> bool:
+    """Whether ``twice`` is two strikes rather than one held note.
+
+    It must be closer, by RESTRIKE_CLOSER_FACTOR, to ``single`` plus ``single`` 0.5 s later
+    than to ``merged``, the same notes merged into one held note: a re-strike starts the swell
+    again from nothing, or adds a fresh transient, where a held note carries on.
+
+    Returns:
+        True for two strikes.
+    """
+    half = round(0.5 * SAMPLE_RATE)
+    length = max(len(twice), len(merged), half + len(single))
+    expected = np.zeros(length)
+    expected[: len(single)] += single
+    expected[half : half + len(single)] += single
+    twice_envelope = unit_envelope(twice, length=length)
+    to_expected = np.linalg.norm(twice_envelope - unit_envelope(expected, length=length))
+    to_merged = np.linalg.norm(twice_envelope - unit_envelope(merged, length=length))
+    return bool(RESTRIKE_CLOSER_FACTOR * to_expected < to_merged)
+
+
 @pytest.mark.parametrize('name', SOUND_EFFECT_NAMES)
 def test_a_sound_effect_strikes_again_on_each_note(name):
-    """A second note adds its own strike: more energy after 0.5 s than the first note's tail."""
+    """A second note adds its own strike, and is not the first note merged into a held one."""
     instrument = instruments.get(name)
     pitch = instruments.entry(name).middle_note().name
     twice = render_sound(spec_for(instrument, name=name, notes=f'{pitch}:0.5 {pitch}:0.5')).samples
     single = render_sound(spec_for(instrument, name=name, notes=f'{pitch}:0.5')).samples
+    merged = render_sound(spec_for(instrument, name=name, notes=f'{pitch}:1')).samples
     length = max(len(twice), len(single))
     assert np.max(np.abs(twice)) <= 1.0, name
     assert second_half_energy_share(twice, length=length) > SECOND_STRIKE_FACTOR * (
         second_half_energy_share(single, length=length)
     ), name
+    assert strikes_again(twice, single=single, merged=merged), name
+
+
+@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES)
+def test_a_sound_effect_is_a_one_shot_however_long_it_is_held(name):
+    """Held for six seconds, an effect is far below its loudest by 5 s: none sustains."""
+    samples = render_sound(
+        spec_for(instruments.get(name), name=name, pitch='A4', length=ONE_SHOT_HELD_SECONDS)
+    ).samples
+    window = round(0.1 * SAMPLE_RATE)
+    window_count = len(samples) // window
+    levels = np.sqrt(
+        np.mean(samples[: window_count * window].reshape(window_count, window) ** 2, 1)
+    )
+    late = levels[round(ONE_SHOT_CHECK_SECONDS / 0.1)]
+    assert late < 0.01 * np.max(levels), name
 
 
 def test_the_pianet_settles_from_a_bright_strike():
