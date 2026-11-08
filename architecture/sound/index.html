@@ -560,9 +560,10 @@ and renders offline like any other:</p>
   the music box so far, stays in the family the instrument sounds like.
   <code>instruments.names(tag=...)</code> and <code>entries(tag=...)</code> list the entries carrying it, and combine
   with <code>family=</code>.</li>
-<li><code>instruments.ALIASES</code> maps another name to its catalog name: <code>slapstick</code> to <code>whip</code>, <code>zanza</code> to
-  <code>mbira</code>, <code>cylinder music box</code> and <code>disc music box</code> to <code>music box</code> (4 in all). <code>get</code> and <code>entry</code>
-  resolve an alias, while <code>names</code> and <code>entries</code> list catalog names only.</li>
+<li><code>instruments.ALIASES</code> (read-only, as <code>instruments.CATALOG</code> is) maps another name to its
+  catalog name: <code>slapstick</code> to <code>whip</code>, <code>zanza</code> to <code>mbira</code>, <code>cylinder music box</code> and <code>disc music
+  box</code> to <code>music box</code> (4 in all). <code>get</code> and <code>entry</code> resolve an alias, while <code>names</code> and <code>entries</code>
+  list catalog names only.</li>
 <li>Each entry has a <code>title</code>, a <code>family</code> and its playing range, <code>lowest</code> and <code>highest</code> (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (<code>pitch='A4'</code>); it does not change
