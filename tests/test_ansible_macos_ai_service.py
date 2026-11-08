@@ -189,3 +189,33 @@ def test_the_package_never_takes_the_models():
     tasks = (ROLES / 'ai_package' / 'tasks' / 'main.yml').read_text(encoding='utf-8')
 
     assert r"is not search('\.gguf')" in tasks
+
+
+def test_the_ai_service_is_on_by_default_and_off_on_the_raspberry_pi():
+    """Every host gets the service unless its platform turns ai_enabled off, as the Pi does."""
+    inventory = yaml.safe_load(
+        (PROJECT_ROOT / 'ansible' / 'inventory.yml').read_text(encoding='utf-8'),
+    )
+
+    assert inventory['all']['vars']['ai_enabled'] is True
+    assert inventory['all']['hosts']['raspberry-pi-runner']['ai_enabled'] is False
+
+
+def test_only_hosts_with_ai_enabled_get_the_ai_service():
+    """The hosts are sorted without connecting, then only enabled Macs get the service.
+
+    Checked by hand with ansible-playbook: a host with ai_enabled false is never contacted.
+    """
+    sorting_play, service_play = yaml.safe_load(
+        (PROJECT_ROOT / 'ansible' / 'macos_ai_service.yml').read_text(encoding='utf-8'),
+    )
+
+    assert sorting_play['hosts'] == 'all'
+    assert sorting_play['gather_facts'] is False
+    # Every --tags run needs the groups, or the service play would match no host
+    assert sorting_play['tags'] == ['always']
+    (sorting_task,) = sorting_play['tasks']
+    assert sorting_task['ansible.builtin.group_by']['key'] == (
+        "{{ 'ai_enabled' if ai_enabled | bool else 'ai_disabled' }}"
+    )
+    assert service_play['hosts'] == 'macos:&ai_enabled'

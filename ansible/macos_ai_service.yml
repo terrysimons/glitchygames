@@ -5,8 +5,20 @@
 # One piece at a time with --tags llama_cpp (or ai_models, ai_sidecar, ai_service, ai_package). No root: this
 # installs for the user running it. Running it again changes nothing unless something did.
 # --tags ai_validate checks every model, and --tags ai_uninstall removes the service.
+# Only hosts whose ai_enabled is true (ansible/inventory.yml) get it; the others are never contacted.
+- name: Sort the hosts by whether they get the AI service
+  hosts: all
+  # group_by runs on the controller, so a host that is off (or unreachable) is never connected to
+  gather_facts: false
+  tags: [always]
+  tasks:
+    - name: Put each host in ai_enabled or ai_disabled
+      ansible.builtin.group_by:
+        key: "{{ 'ai_enabled' if ai_enabled | bool else 'ai_disabled' }}"
+      changed_when: false
+
 - name: Build and install the local AI service
-  hosts: macos
+  hosts: macos:&ai_enabled
   become: false
   roles:
     # Also under the later tags: they need to know which build llama_cpp installed
