@@ -654,3 +654,26 @@ def test_unpitched_entries_sound_the_same_at_any_pitch(name):
     assert np.array_equal(
         rendered(instrument, pitch='A4', name=name), rendered(instrument, pitch='C2', name=name)
     )
+
+
+def test_a_name_or_alias_with_a_trailing_newline_is_refused():
+    """``$`` alone matches before a final newline; a name must be the whole string."""
+    with pytest.raises(ValueError, match='must be lower-case words'):
+        CatalogEntry(
+            name='fife\n',
+            title='Fife',
+            family=Family.FLUTES,
+            lowest=None,
+            highest=None,
+            build=lambda: instruments.get('fife'),
+        )
+    with pytest.raises(ValueError, match='must be lower-case words'):
+        aliases_from({'slapstick\n': 'whip'}, instruments.CATALOG)
+
+
+def test_the_catalog_and_aliases_are_read_only():
+    """A write would skip the load-time checks and change every lookup, so both refuse it."""
+    with pytest.raises(TypeError):
+        instruments.CATALOG['kazoo'] = instruments.entry('flute')  # pyright: ignore[reportIndexIssue] - the write is the point
+    with pytest.raises(TypeError):
+        instruments.ALIASES['bones'] = 'nope'  # pyright: ignore[reportIndexIssue] - the write is the point
