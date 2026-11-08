@@ -3727,555 +3727,6 @@ and selecting training examples.</p>
 
 
 
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="bitmappy.ai_worker.AIChat" class="doc doc-heading">
-            <code>AIChat</code>
-
-
-<a href="#bitmappy.ai_worker.AIChat" class="headerlink" title="Permanent link">#</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
-
-
-
-        <p>The chat API (<code>client.chat</code>).</p>
-
-
-
-
-
-
-
-              <details class="quote">
-                <summary>Source code in <code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.AIChat--source--__codelineno-0-103">103</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChat--source--__codelineno-0-104">104</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChat--source--__codelineno-0-105">105</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChat--source--__codelineno-0-106">106</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChat--source--__codelineno-0-107">107</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChat--source--__codelineno-0-108">108</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChat--source--__codelineno-0-109">109</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.AIChat--source--__codelineno-0-103" name="bitmappy.ai_worker.AIChat--source--__codelineno-0-103"></a><span class="k">class</span><span class="w"> </span><span class="nc">AIChat</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
-<a id="bitmappy.ai_worker.AIChat--source--__codelineno-0-104" name="bitmappy.ai_worker.AIChat--source--__codelineno-0-104"></a><span class="w">    </span><span class="sd">"""The chat API (``client.chat``)."""</span>
-<a id="bitmappy.ai_worker.AIChat--source--__codelineno-0-105" name="bitmappy.ai_worker.AIChat--source--__codelineno-0-105"></a>
-<a id="bitmappy.ai_worker.AIChat--source--__codelineno-0-106" name="bitmappy.ai_worker.AIChat--source--__codelineno-0-106"></a>    <span class="nd">@property</span>
-<a id="bitmappy.ai_worker.AIChat--source--__codelineno-0-107" name="bitmappy.ai_worker.AIChat--source--__codelineno-0-107"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">completions</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIChatCompletions</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.AIChat--source--__codelineno-0-108" name="bitmappy.ai_worker.AIChat--source--__codelineno-0-108"></a><span class="w">        </span><span class="sd">"""The chat completions endpoint."""</span>
-<a id="bitmappy.ai_worker.AIChat--source--__codelineno-0-109" name="bitmappy.ai_worker.AIChat--source--__codelineno-0-109"></a>        <span class="o">...</span>
-</code></pre></div></td></tr></table></div>
-              </details>
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="bitmappy.ai_worker.AIChat.completions" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">completions</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-<a href="#bitmappy.ai_worker.AIChat.completions" class="headerlink" title="Permanent link">#</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>The chat completions endpoint.</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="bitmappy.ai_worker.AIChatChoice" class="doc doc-heading">
-            <code>AIChatChoice</code>
-
-
-<a href="#bitmappy.ai_worker.AIChatChoice" class="headerlink" title="Permanent link">#</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
-
-
-
-        <p>One choice of a chat completion (aisuite.framework.choice.Choice).</p>
-
-
-
-
-
-
-
-              <details class="quote">
-                <summary>Source code in <code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-71">71</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-72">72</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-73">73</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-74">74</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-75">75</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-76">76</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-77">77</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-71" name="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-71"></a><span class="k">class</span><span class="w"> </span><span class="nc">AIChatChoice</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
-<a id="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-72" name="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-72"></a><span class="w">    </span><span class="sd">"""One choice of a chat completion (aisuite.framework.choice.Choice)."""</span>
-<a id="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-73" name="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-73"></a>
-<a id="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-74" name="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-74"></a>    <span class="nd">@property</span>
-<a id="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-75" name="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-75"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">message</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIChatMessage</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-76" name="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-76"></a><span class="w">        </span><span class="sd">"""The choice's message."""</span>
-<a id="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-77" name="bitmappy.ai_worker.AIChatChoice--source--__codelineno-0-77"></a>        <span class="o">...</span>
-</code></pre></div></td></tr></table></div>
-              </details>
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="bitmappy.ai_worker.AIChatChoice.message" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">message</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-<a href="#bitmappy.ai_worker.AIChatChoice.message" class="headerlink" title="Permanent link">#</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>The choice's message.</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="bitmappy.ai_worker.AIChatCompletion" class="doc doc-heading">
-            <code>AIChatCompletion</code>
-
-
-<a href="#bitmappy.ai_worker.AIChatCompletion" class="headerlink" title="Permanent link">#</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
-
-
-
-        <p>A chat completion response (aisuite.framework.ChatCompletionResponse).</p>
-
-
-
-
-
-
-
-              <details class="quote">
-                <summary>Source code in <code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-80">80</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-81">81</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-82">82</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-83">83</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-84">84</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-85">85</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-86">86</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-80" name="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-80"></a><span class="k">class</span><span class="w"> </span><span class="nc">AIChatCompletion</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
-<a id="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-81" name="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-81"></a><span class="w">    </span><span class="sd">"""A chat completion response (aisuite.framework.ChatCompletionResponse)."""</span>
-<a id="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-82" name="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-82"></a>
-<a id="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-83" name="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-83"></a>    <span class="nd">@property</span>
-<a id="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-84" name="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-84"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">choices</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">AIChatChoice</span><span class="p">]:</span>
-<a id="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-85" name="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-85"></a><span class="w">        </span><span class="sd">"""The response's choices."""</span>
-<a id="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-86" name="bitmappy.ai_worker.AIChatCompletion--source--__codelineno-0-86"></a>        <span class="o">...</span>
-</code></pre></div></td></tr></table></div>
-              </details>
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="bitmappy.ai_worker.AIChatCompletion.choices" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">choices</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-<a href="#bitmappy.ai_worker.AIChatCompletion.choices" class="headerlink" title="Permanent link">#</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>The response's choices.</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="bitmappy.ai_worker.AIChatCompletions" class="doc doc-heading">
-            <code>AIChatCompletions</code>
-
-
-<a href="#bitmappy.ai_worker.AIChatCompletions" class="headerlink" title="Permanent link">#</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
-
-
-
-        <p>The chat completions endpoint (<code>client.chat.completions</code>).</p>
-
-
-
-
-
-
-
-              <details class="quote">
-                <summary>Source code in <code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-89"> 89</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-90"> 90</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-91"> 91</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-92"> 92</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-93"> 93</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-94"> 94</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-95"> 95</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-96"> 96</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-97"> 97</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-98"> 98</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-99"> 99</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-100">100</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-89" name="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-89"></a><span class="k">class</span><span class="w"> </span><span class="nc">AIChatCompletions</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
-<a id="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-90" name="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-90"></a><span class="w">    </span><span class="sd">"""The chat completions endpoint (``client.chat.completions``)."""</span>
-<a id="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-91" name="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-91"></a>
-<a id="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-92" name="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-92"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span>
-<a id="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-93" name="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-93"></a>        <span class="bp">self</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-94" name="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-94"></a>        <span class="o">*</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-95" name="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-95"></a>        <span class="n">model</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-96" name="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-96"></a>        <span class="n">messages</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]],</span>
-<a id="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-97" name="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-97"></a>        <span class="o">**</span><span class="n">arguments</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-98" name="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-98"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIChatCompletion</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-99" name="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-99"></a><span class="w">        </span><span class="sd">"""Send the messages to the model and return its completion."""</span>
-<a id="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-100" name="bitmappy.ai_worker.AIChatCompletions--source--__codelineno-0-100"></a>        <span class="o">...</span>
-</code></pre></div></td></tr></table></div>
-              </details>
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="bitmappy.ai_worker.AIChatCompletions.create" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">create</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">messages</span><span class="p">,</span> <span class="o">**</span><span class="n">arguments</span><span class="p">)</span></code>
-
-<a href="#bitmappy.ai_worker.AIChatCompletions.create" class="headerlink" title="Permanent link">#</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Send the messages to the model and return its completion.</p>
-
-
-            <details class="mkdocstrings-source">
-              <summary>Source code in <code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-92"> 92</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-93"> 93</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-94"> 94</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-95"> 95</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-96"> 96</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-97"> 97</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-98"> 98</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-99"> 99</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-100">100</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-92" name="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-92"></a><span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span>
-<a id="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-93" name="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-93"></a>    <span class="bp">self</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-94" name="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-94"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-95" name="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-95"></a>    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-96" name="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-96"></a>    <span class="n">messages</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]],</span>
-<a id="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-97" name="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-97"></a>    <span class="o">**</span><span class="n">arguments</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-98" name="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-98"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIChatCompletion</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-99" name="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-99"></a><span class="w">    </span><span class="sd">"""Send the messages to the model and return its completion."""</span>
-<a id="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-100" name="bitmappy.ai_worker.AIChatCompletions.create--source--__codelineno-0-100"></a>    <span class="o">...</span>
-</code></pre></div></td></tr></table></div>
-            </details>
-    </div>
-
-</div>
-
-
-
-  </div>
-
-    </div>
-
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="bitmappy.ai_worker.AIChatMessage" class="doc doc-heading">
-            <code>AIChatMessage</code>
-
-
-<a href="#bitmappy.ai_worker.AIChatMessage" class="headerlink" title="Permanent link">#</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
-
-
-
-        <p>A response choice's message (aisuite.framework.message.Message).</p>
-
-
-
-
-
-
-
-              <details class="quote">
-                <summary>Source code in <code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-62">62</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-63">63</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-64">64</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-65">65</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-66">66</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-67">67</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-68">68</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-62" name="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-62"></a><span class="k">class</span><span class="w"> </span><span class="nc">AIChatMessage</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
-<a id="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-63" name="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-63"></a><span class="w">    </span><span class="sd">"""A response choice's message (aisuite.framework.message.Message)."""</span>
-<a id="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-64" name="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-64"></a>
-<a id="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-65" name="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-65"></a>    <span class="nd">@property</span>
-<a id="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-66" name="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-66"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">content</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-67" name="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-67"></a><span class="w">        </span><span class="sd">"""The message text, or None when the model returned none."""</span>
-<a id="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-68" name="bitmappy.ai_worker.AIChatMessage--source--__codelineno-0-68"></a>        <span class="o">...</span>
-</code></pre></div></td></tr></table></div>
-              </details>
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="bitmappy.ai_worker.AIChatMessage.content" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">content</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-<a href="#bitmappy.ai_worker.AIChatMessage.content" class="headerlink" title="Permanent link">#</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>The message text, or None when the model returned none.</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="bitmappy.ai_worker.AIClient" class="doc doc-heading">
-            <code>AIClient</code>
-
-
-<a href="#bitmappy.ai_worker.AIClient" class="headerlink" title="Permanent link">#</a></h2>
-
-
-    <div class="doc doc-contents ">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="typing.Protocol">Protocol</span></code></p>
-
-
-
-        <p>The AI client (aisuite.Client): the chat completions API is all this module uses.</p>
-
-
-
-
-
-
-
-              <details class="quote">
-                <summary>Source code in <code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code></summary>
-                <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.AIClient--source--__codelineno-0-112">112</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIClient--source--__codelineno-0-113">113</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIClient--source--__codelineno-0-114">114</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIClient--source--__codelineno-0-115">115</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIClient--source--__codelineno-0-116">116</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIClient--source--__codelineno-0-117">117</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.AIClient--source--__codelineno-0-118">118</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.AIClient--source--__codelineno-0-112" name="bitmappy.ai_worker.AIClient--source--__codelineno-0-112"></a><span class="k">class</span><span class="w"> </span><span class="nc">AIClient</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
-<a id="bitmappy.ai_worker.AIClient--source--__codelineno-0-113" name="bitmappy.ai_worker.AIClient--source--__codelineno-0-113"></a><span class="w">    </span><span class="sd">"""The AI client (aisuite.Client): the chat completions API is all this module uses."""</span>
-<a id="bitmappy.ai_worker.AIClient--source--__codelineno-0-114" name="bitmappy.ai_worker.AIClient--source--__codelineno-0-114"></a>
-<a id="bitmappy.ai_worker.AIClient--source--__codelineno-0-115" name="bitmappy.ai_worker.AIClient--source--__codelineno-0-115"></a>    <span class="nd">@property</span>
-<a id="bitmappy.ai_worker.AIClient--source--__codelineno-0-116" name="bitmappy.ai_worker.AIClient--source--__codelineno-0-116"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">chat</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIChat</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.AIClient--source--__codelineno-0-117" name="bitmappy.ai_worker.AIClient--source--__codelineno-0-117"></a><span class="w">        </span><span class="sd">"""The chat API."""</span>
-<a id="bitmappy.ai_worker.AIClient--source--__codelineno-0-118" name="bitmappy.ai_worker.AIClient--source--__codelineno-0-118"></a>        <span class="o">...</span>
-</code></pre></div></td></tr></table></div>
-              </details>
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h3 id="bitmappy.ai_worker.AIClient.chat" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">chat</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-property"><code>property</code></small>
-  </span>
-
-<a href="#bitmappy.ai_worker.AIClient.chat" class="headerlink" title="Permanent link">#</a></h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>The chat API.</p>
-
-    </div>
-
-</div>
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-
-</div>
-
 
 <div class="doc doc-object doc-function">
 
@@ -4348,113 +3799,113 @@ and selecting training examples.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-875">875</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-876">876</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-877">877</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-878">878</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-879">879</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-880">880</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-881">881</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-882">882</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-883">883</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-884">884</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-885">885</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-886">886</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-887">887</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-888">888</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-889">889</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-890">890</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-891">891</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-892">892</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-893">893</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-894">894</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-895">895</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-896">896</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-897">897</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-898">898</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-899">899</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-900">900</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-901">901</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-902">902</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-903">903</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-904">904</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-905">905</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-906">906</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-907">907</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-908">908</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-909">909</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-910">910</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-911">911</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-912">912</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-913">913</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-914">914</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-915">915</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-916">916</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-917">917</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-918">918</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-919">919</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-920">920</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-921">921</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-922">922</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-923">923</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-924">924</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-925">925</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-926">926</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-927">927</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-928">928</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-875" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-875"></a><span class="k">def</span><span class="w"> </span><span class="nf">build_retry_prompt</span><span class="p">(</span><span class="n">original_prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">validation_error</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-876" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-876"></a><span class="w">    </span><span class="sd">"""Build a targeted retry prompt based on validation error.</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-877" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-877"></a>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-878" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-878"></a><span class="sd">    Args:</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-879" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-879"></a><span class="sd">        original_prompt: Original user request</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-880" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-880"></a><span class="sd">        validation_error: Error message from validate_ai_response()</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-881" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-881"></a>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-882" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-882"></a><span class="sd">    Returns:</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-883" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-883"></a><span class="sd">        Enhanced prompt with specific corrections</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-884" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-884"></a>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-885" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-885"></a><span class="sd">    """</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-886" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-886"></a>    <span class="c1"># Base prompt</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-887" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-887"></a>    <span class="n">retry_prompt</span> <span class="o">=</span> <span class="n">original_prompt</span> <span class="o">+</span> <span class="s1">'</span><span class="se">\n\n</span><span class="s1">'</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-888" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-888"></a>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-889" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-889"></a>    <span class="c1"># Add specific corrections based on error type</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-890" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-890"></a>    <span class="n">error_lower</span> <span class="o">=</span> <span class="n">validation_error</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-891" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-891"></a>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-892" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-892"></a>    <span class="k">if</span> <span class="n">PIXEL_ROWS_ERROR_PREFIX</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-893" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-893"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="n">_pixel_rows_corrections</span><span class="p">(</span><span class="n">error_lower</span><span class="p">)</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-894" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-894"></a>    <span class="k">elif</span> <span class="s1">'missing [sprite] section'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-895" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-895"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="s1">'CRITICAL: You must include a [sprite] section at the beginning.'</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-896" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-896"></a>    <span class="k">elif</span> <span class="s1">'missing [colors] section'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-897" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-897"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="p">(</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-898" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-898"></a>            <span class="s1">'CRITICAL: You must include [colors] sections defining every color used in pixels.'</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-899" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-899"></a>        <span class="p">)</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-900" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-900"></a>    <span class="k">elif</span> <span class="s1">'truncated'</span> <span class="ow">in</span> <span class="n">error_lower</span> <span class="ow">or</span> <span class="s1">'incomplete'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-901" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-901"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="p">(</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-902" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-902"></a>            <span class="s1">'IMPORTANT: Previous response was cut off. '</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-903" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-903"></a>            <span class="s1">'Reduce detail, use fewer frames, or make it smaller to fit within token limits.'</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-904" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-904"></a>        <span class="p">)</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-905" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-905"></a>    <span class="k">elif</span> <span class="s1">'mixed'</span> <span class="ow">in</span> <span class="n">error_lower</span> <span class="ow">and</span> <span class="s1">'format'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-906" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-906"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="p">(</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-907" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-907"></a>            <span class="s2">"CRITICAL: For animated sprites, do NOT include 'pixels' in [sprite] section. "</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-908" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-908"></a>            <span class="s1">'Only include pixels in [[animation.frame]] sections.'</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-909" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-909"></a>        <span class="p">)</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-910" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-910"></a>    <span class="k">elif</span> <span class="s1">'comma'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-911" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-911"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="p">(</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-912" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-912"></a>            <span class="s1">'CRITICAL: Color values must use separate fields (red = X, green = Y, blue = Z), '</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-913" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-913"></a>            <span class="s1">'NOT comma-separated tuples.'</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-914" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-914"></a>        <span class="p">)</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-915" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-915"></a>    <span class="k">elif</span> <span class="s1">'markdown'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-916" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-916"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="p">(</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-917" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-917"></a>            <span class="s1">'CRITICAL: Return ONLY raw TOML, no markdown code blocks (```), no explanations.'</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-918" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-918"></a>        <span class="p">)</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-919" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-919"></a>    <span class="k">elif</span> <span class="s1">'empty'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-920" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-920"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="s1">'CRITICAL: You must generate sprite content, not an empty or error message.'</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-921" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-921"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-922" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-922"></a>        <span class="c1"># Generic retry message</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-923" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-923"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="p">(</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-924" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-924"></a>            <span class="sa">f</span><span class="s1">'IMPORTANT: Previous attempt had an error: '</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-925" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-925"></a>            <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">validation_error</span><span class="si">}</span><span class="s1">. Please fix and try again.'</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-926" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-926"></a>        <span class="p">)</span>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-927" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-927"></a>
-<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-928" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-928"></a>    <span class="k">return</span> <span class="n">retry_prompt</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-649">649</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-650">650</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-651">651</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-652">652</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-653">653</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-654">654</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-655">655</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-656">656</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-657">657</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-658">658</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-659">659</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-660">660</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-661">661</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-662">662</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-663">663</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-664">664</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-665">665</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-666">666</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-667">667</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-668">668</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-669">669</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-670">670</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-671">671</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-672">672</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-673">673</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-674">674</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-675">675</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-676">676</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-677">677</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-678">678</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-679">679</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-680">680</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-681">681</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-682">682</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-683">683</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-684">684</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-685">685</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-686">686</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-687">687</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-688">688</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-689">689</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-690">690</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-691">691</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-692">692</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-693">693</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-694">694</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-695">695</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-696">696</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-697">697</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-698">698</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-699">699</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-700">700</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-701">701</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-702">702</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-649" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-649"></a><span class="k">def</span><span class="w"> </span><span class="nf">build_retry_prompt</span><span class="p">(</span><span class="n">original_prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">validation_error</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-650" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-650"></a><span class="w">    </span><span class="sd">"""Build a targeted retry prompt based on validation error.</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-651" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-651"></a>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-652" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-652"></a><span class="sd">    Args:</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-653" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-653"></a><span class="sd">        original_prompt: Original user request</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-654" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-654"></a><span class="sd">        validation_error: Error message from validate_ai_response()</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-655" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-655"></a>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-656" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-656"></a><span class="sd">    Returns:</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-657" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-657"></a><span class="sd">        Enhanced prompt with specific corrections</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-658" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-658"></a>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-659" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-659"></a><span class="sd">    """</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-660" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-660"></a>    <span class="c1"># Base prompt</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-661" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-661"></a>    <span class="n">retry_prompt</span> <span class="o">=</span> <span class="n">original_prompt</span> <span class="o">+</span> <span class="s1">'</span><span class="se">\n\n</span><span class="s1">'</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-662" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-662"></a>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-663" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-663"></a>    <span class="c1"># Add specific corrections based on error type</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-664" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-664"></a>    <span class="n">error_lower</span> <span class="o">=</span> <span class="n">validation_error</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-665" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-665"></a>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-666" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-666"></a>    <span class="k">if</span> <span class="n">PIXEL_ROWS_ERROR_PREFIX</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-667" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-667"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="n">_pixel_rows_corrections</span><span class="p">(</span><span class="n">error_lower</span><span class="p">)</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-668" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-668"></a>    <span class="k">elif</span> <span class="s1">'missing [sprite] section'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-669" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-669"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="s1">'CRITICAL: You must include a [sprite] section at the beginning.'</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-670" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-670"></a>    <span class="k">elif</span> <span class="s1">'missing [colors] section'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-671" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-671"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="p">(</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-672" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-672"></a>            <span class="s1">'CRITICAL: You must include [colors] sections defining every color used in pixels.'</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-673" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-673"></a>        <span class="p">)</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-674" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-674"></a>    <span class="k">elif</span> <span class="s1">'truncated'</span> <span class="ow">in</span> <span class="n">error_lower</span> <span class="ow">or</span> <span class="s1">'incomplete'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-675" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-675"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="p">(</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-676" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-676"></a>            <span class="s1">'IMPORTANT: Previous response was cut off. '</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-677" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-677"></a>            <span class="s1">'Reduce detail, use fewer frames, or make it smaller to fit within token limits.'</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-678" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-678"></a>        <span class="p">)</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-679" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-679"></a>    <span class="k">elif</span> <span class="s1">'mixed'</span> <span class="ow">in</span> <span class="n">error_lower</span> <span class="ow">and</span> <span class="s1">'format'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-680" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-680"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="p">(</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-681" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-681"></a>            <span class="s2">"CRITICAL: For animated sprites, do NOT include 'pixels' in [sprite] section. "</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-682" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-682"></a>            <span class="s1">'Only include pixels in [[animation.frame]] sections.'</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-683" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-683"></a>        <span class="p">)</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-684" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-684"></a>    <span class="k">elif</span> <span class="s1">'comma'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-685" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-685"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="p">(</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-686" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-686"></a>            <span class="s1">'CRITICAL: Color values must use separate fields (red = X, green = Y, blue = Z), '</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-687" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-687"></a>            <span class="s1">'NOT comma-separated tuples.'</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-688" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-688"></a>        <span class="p">)</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-689" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-689"></a>    <span class="k">elif</span> <span class="s1">'markdown'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-690" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-690"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="p">(</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-691" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-691"></a>            <span class="s1">'CRITICAL: Return ONLY raw TOML, no markdown code blocks (```), no explanations.'</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-692" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-692"></a>        <span class="p">)</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-693" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-693"></a>    <span class="k">elif</span> <span class="s1">'empty'</span> <span class="ow">in</span> <span class="n">error_lower</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-694" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-694"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="s1">'CRITICAL: You must generate sprite content, not an empty or error message.'</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-695" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-695"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-696" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-696"></a>        <span class="c1"># Generic retry message</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-697" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-697"></a>        <span class="n">retry_prompt</span> <span class="o">+=</span> <span class="p">(</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-698" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-698"></a>            <span class="sa">f</span><span class="s1">'IMPORTANT: Previous attempt had an error: '</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-699" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-699"></a>            <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">validation_error</span><span class="si">}</span><span class="s1">. Please fix and try again.'</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-700" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-700"></a>        <span class="p">)</span>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-701" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-701"></a>
+<a id="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-702" name="bitmappy.ai_worker.build_retry_prompt--source--__codelineno-0-702"></a>    <span class="k">return</span> <span class="n">retry_prompt</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -4531,7 +3982,7 @@ and selecting training examples.</p>
                   <code><span title="ImportError">ImportError</span></code>
               –
               <div class="doc-md-description">
-                <p>If aisuite cannot be imported.</p>
+                <p>If the AI client cannot be imported.</p>
               </div>
             </li>
             <li>
@@ -4570,73 +4021,73 @@ and selecting training examples.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1043">1043</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1044">1044</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1045">1045</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1046">1046</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1047">1047</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1048">1048</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1049">1049</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1050">1050</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1051">1051</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1052">1052</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1053">1053</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1054">1054</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1055">1055</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1056">1056</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1057">1057</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1058">1058</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1059">1059</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1060">1060</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1061">1061</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1062">1062</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1063">1063</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1064">1064</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1065">1065</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1066">1066</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1067">1067</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1068">1068</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1069">1069</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1070">1070</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1071">1071</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1072">1072</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1073">1073</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1074">1074</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1075">1075</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1076">1076</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1043" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1043"></a><span class="k">def</span><span class="w"> </span><span class="nf">run_ai_worker</span><span class="p">(</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1044" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1044"></a>    <span class="n">request_queue</span><span class="p">:</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Queue</span><span class="p">[</span><span class="n">AIRequest</span> <span class="o">|</span> <span class="kc">None</span><span class="p">],</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1045" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1045"></a>    <span class="n">response_queue</span><span class="p">:</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Queue</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AIResponse</span><span class="p">]],</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1046" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1046"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1047" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1047"></a><span class="w">    </span><span class="sd">"""Worker process for handling AI requests.</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1048" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1048"></a>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1049" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1049"></a><span class="sd">    Args:</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1050" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1050"></a><span class="sd">        request_queue: Queue to receive requests from</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1051" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1051"></a><span class="sd">        response_queue: Queue to send responses to</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1052" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1052"></a>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1053" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1053"></a><span class="sd">    Raises:</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1054" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1054"></a><span class="sd">        ImportError: If aisuite cannot be imported.</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1055" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1055"></a><span class="sd">        ValueError: If the AI request contains invalid data.</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1056" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1056"></a><span class="sd">        KeyError: If a required key is missing from the request or response.</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1057" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1057"></a><span class="sd">        AttributeError: If an expected attribute is missing from an object.</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1058" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1058"></a><span class="sd">        OSError: If an I/O error occurs during processing.</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1059" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1059"></a>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1060" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1060"></a><span class="sd">    """</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1061" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1061"></a>    <span class="n">log</span> <span class="o">=</span> <span class="n">_setup_ai_worker_logging</span><span class="p">()</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1062" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1062"></a>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1063" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1063"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1064" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1064"></a>        <span class="n">client</span> <span class="o">=</span> <span class="n">_initialize_ai_client</span><span class="p">(</span><span class="n">log</span><span class="p">)</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1065" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1065"></a>        <span class="n">_serve_ai_requests</span><span class="p">(</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1066" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1066"></a>            <span class="n">request_queue</span><span class="o">=</span><span class="n">request_queue</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1067" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1067"></a>            <span class="n">response_queue</span><span class="o">=</span><span class="n">response_queue</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1068" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1068"></a>            <span class="n">client</span><span class="o">=</span><span class="n">client</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1069" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1069"></a>            <span class="n">log</span><span class="o">=</span><span class="n">log</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1070" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1070"></a>        <span class="p">)</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1071" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1071"></a>    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1072" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1072"></a>        <span class="n">log</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s1">'Failed to import aisuite'</span><span class="p">)</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1073" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1073"></a>        <span class="k">raise</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1074" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1074"></a>    <span class="k">except</span> <span class="ne">OSError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1075" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1075"></a>        <span class="n">log</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s1">'Fatal error in AI worker process'</span><span class="p">)</span>
-<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1076" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-1076"></a>        <span class="k">raise</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-817">817</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-818">818</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-819">819</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-820">820</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-821">821</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-822">822</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-823">823</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-824">824</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-825">825</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-826">826</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-827">827</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-828">828</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-829">829</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-830">830</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-831">831</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-832">832</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-833">833</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-834">834</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-835">835</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-836">836</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-837">837</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-838">838</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-839">839</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-840">840</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-841">841</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-842">842</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-843">843</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-844">844</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-845">845</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-846">846</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-847">847</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-848">848</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-849">849</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-850">850</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-817" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-817"></a><span class="k">def</span><span class="w"> </span><span class="nf">run_ai_worker</span><span class="p">(</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-818" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-818"></a>    <span class="n">request_queue</span><span class="p">:</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Queue</span><span class="p">[</span><span class="n">AIRequest</span> <span class="o">|</span> <span class="kc">None</span><span class="p">],</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-819" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-819"></a>    <span class="n">response_queue</span><span class="p">:</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Queue</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AIResponse</span><span class="p">]],</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-820" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-820"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-821" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-821"></a><span class="w">    </span><span class="sd">"""Worker process for handling AI requests.</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-822" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-822"></a>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-823" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-823"></a><span class="sd">    Args:</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-824" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-824"></a><span class="sd">        request_queue: Queue to receive requests from</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-825" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-825"></a><span class="sd">        response_queue: Queue to send responses to</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-826" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-826"></a>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-827" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-827"></a><span class="sd">    Raises:</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-828" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-828"></a><span class="sd">        ImportError: If the AI client cannot be imported.</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-829" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-829"></a><span class="sd">        ValueError: If the AI request contains invalid data.</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-830" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-830"></a><span class="sd">        KeyError: If a required key is missing from the request or response.</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-831" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-831"></a><span class="sd">        AttributeError: If an expected attribute is missing from an object.</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-832" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-832"></a><span class="sd">        OSError: If an I/O error occurs during processing.</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-833" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-833"></a>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-834" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-834"></a><span class="sd">    """</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-835" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-835"></a>    <span class="n">log</span> <span class="o">=</span> <span class="n">_setup_ai_worker_logging</span><span class="p">()</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-836" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-836"></a>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-837" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-837"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-838" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-838"></a>        <span class="n">client</span> <span class="o">=</span> <span class="n">_initialize_ai_client</span><span class="p">(</span><span class="n">log</span><span class="p">)</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-839" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-839"></a>        <span class="n">_serve_ai_requests</span><span class="p">(</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-840" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-840"></a>            <span class="n">request_queue</span><span class="o">=</span><span class="n">request_queue</span><span class="p">,</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-841" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-841"></a>            <span class="n">response_queue</span><span class="o">=</span><span class="n">response_queue</span><span class="p">,</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-842" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-842"></a>            <span class="n">client</span><span class="o">=</span><span class="n">client</span><span class="p">,</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-843" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-843"></a>            <span class="n">log</span><span class="o">=</span><span class="n">log</span><span class="p">,</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-844" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-844"></a>        <span class="p">)</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-845" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-845"></a>    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-846" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-846"></a>        <span class="n">log</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s1">'Failed to import the AI client'</span><span class="p">)</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-847" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-847"></a>        <span class="k">raise</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-848" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-848"></a>    <span class="k">except</span> <span class="ne">OSError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-849" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-849"></a>        <span class="n">log</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s1">'Fatal error in AI worker process'</span><span class="p">)</span>
+<a id="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-850" name="bitmappy.ai_worker.run_ai_worker--source--__codelineno-0-850"></a>        <span class="k">raise</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -4704,39 +4155,39 @@ sends while it shuts down (AIManager.cleanup). terminate() (SIGTERM) still stops
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-957">957</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-958">958</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-959">959</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-960">960</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-961">961</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-962">962</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-963">963</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-964">964</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-965">965</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-966">966</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-967">967</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-968">968</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-969">969</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-970">970</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-971">971</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-972">972</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-973">973</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-957" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-957"></a><span class="k">def</span><span class="w"> </span><span class="nf">run_ai_worker_process</span><span class="p">(</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-958" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-958"></a>    <span class="n">request_queue</span><span class="p">:</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Queue</span><span class="p">[</span><span class="n">AIRequest</span> <span class="o">|</span> <span class="kc">None</span><span class="p">],</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-959" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-959"></a>    <span class="n">response_queue</span><span class="p">:</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Queue</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AIResponse</span><span class="p">]],</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-960" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-960"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-961" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-961"></a><span class="w">    </span><span class="sd">"""Run the AI worker as the editor's background process (AIManager's Process target).</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-962" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-962"></a>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-963" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-963"></a><span class="sd">    Ctrl-C in a terminal sends SIGINT to the whole process group. The worker ignores it so it</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-964" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-964"></a><span class="sd">    is not killed by KeyboardInterrupt and instead exits on the shutdown message the editor</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-965" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-965"></a><span class="sd">    sends while it shuts down (AIManager.cleanup). terminate() (SIGTERM) still stops it.</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-966" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-966"></a>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-967" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-967"></a><span class="sd">    Args:</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-968" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-968"></a><span class="sd">        request_queue: Queue to receive requests from (None asks the worker to exit).</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-969" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-969"></a><span class="sd">        response_queue: Queue to send responses to.</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-970" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-970"></a>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-971" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-971"></a><span class="sd">    """</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-972" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-972"></a>    <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIG_IGN</span><span class="p">)</span>
-<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-973" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-973"></a>    <span class="n">run_ai_worker</span><span class="p">(</span><span class="n">request_queue</span><span class="p">,</span> <span class="n">response_queue</span><span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-731">731</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-732">732</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-733">733</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-734">734</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-735">735</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-736">736</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-737">737</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-738">738</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-739">739</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-740">740</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-741">741</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-742">742</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-743">743</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-744">744</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-745">745</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-746">746</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-747">747</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-731" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-731"></a><span class="k">def</span><span class="w"> </span><span class="nf">run_ai_worker_process</span><span class="p">(</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-732" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-732"></a>    <span class="n">request_queue</span><span class="p">:</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Queue</span><span class="p">[</span><span class="n">AIRequest</span> <span class="o">|</span> <span class="kc">None</span><span class="p">],</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-733" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-733"></a>    <span class="n">response_queue</span><span class="p">:</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Queue</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AIResponse</span><span class="p">]],</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-734" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-734"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-735" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-735"></a><span class="w">    </span><span class="sd">"""Run the AI worker as the editor's background process (AIManager's Process target).</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-736" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-736"></a>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-737" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-737"></a><span class="sd">    Ctrl-C in a terminal sends SIGINT to the whole process group. The worker ignores it so it</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-738" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-738"></a><span class="sd">    is not killed by KeyboardInterrupt and instead exits on the shutdown message the editor</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-739" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-739"></a><span class="sd">    sends while it shuts down (AIManager.cleanup). terminate() (SIGTERM) still stops it.</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-740" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-740"></a>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-741" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-741"></a><span class="sd">    Args:</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-742" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-742"></a><span class="sd">        request_queue: Queue to receive requests from (None asks the worker to exit).</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-743" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-743"></a><span class="sd">        response_queue: Queue to send responses to.</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-744" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-744"></a>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-745" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-745"></a><span class="sd">    """</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-746" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-746"></a>    <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIG_IGN</span><span class="p">)</span>
+<a id="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-747" name="bitmappy.ai_worker.run_ai_worker_process--source--__codelineno-0-747"></a>    <span class="n">run_ai_worker</span><span class="p">(</span><span class="n">request_queue</span><span class="p">,</span> <span class="n">response_queue</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -4782,83 +4233,83 @@ sends while it shuts down (AIManager.cleanup). terminate() (SIGTERM) still stops
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/apps/bitmappy/src/bitmappy/ai_worker.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-750">750</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-751">751</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-752">752</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-753">753</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-754">754</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-755">755</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-756">756</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-757">757</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-758">758</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-759">759</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-760">760</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-761">761</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-762">762</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-763">763</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-764">764</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-765">765</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-766">766</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-767">767</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-768">768</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-769">769</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-770">770</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-771">771</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-772">772</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-773">773</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-774">774</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-775">775</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-776">776</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-777">777</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-778">778</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-779">779</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-780">780</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-781">781</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-782">782</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-783">783</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-784">784</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-785">785</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-786">786</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-787">787</a></span>
-<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-788">788</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-750" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-750"></a><span class="k">def</span><span class="w"> </span><span class="nf">select_relevant_training_examples</span><span class="p">(</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-751" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-751"></a>    <span class="n">user_request</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-752" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-752"></a>    <span class="n">max_examples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">AI_MAX_TRAINING_EXAMPLES</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-753" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-753"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-754" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-754"></a><span class="w">    </span><span class="sd">"""Select the most relevant training examples based on user request.</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-755" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-755"></a>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-756" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-756"></a><span class="sd">    Returns:</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-757" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-757"></a><span class="sd">        list: The result.</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-758" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-758"></a>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-759" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-759"></a><span class="sd">    """</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-760" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-760"></a>    <span class="n">training_data</span> <span class="o">=</span> <span class="n">ai_training_state</span><span class="p">[</span><span class="s1">'data'</span><span class="p">]</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-761" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-761"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">training_data</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-762" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-762"></a>        <span class="k">return</span> <span class="p">[]</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-763" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-763"></a>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-764" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-764"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">training_data</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">max_examples</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-765" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-765"></a>        <span class="k">return</span> <span class="n">training_data</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-766" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-766"></a>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-767" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-767"></a>    <span class="n">user_lower</span> <span class="o">=</span> <span class="n">user_request</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-768" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-768"></a>    <span class="n">requested_size</span> <span class="o">=</span> <span class="n">get_sprite_size_hint</span><span class="p">(</span><span class="n">user_request</span><span class="p">)</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-769" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-769"></a>    <span class="n">user_words</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">user_lower</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-770" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-770"></a>    <span class="n">wants_alpha</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-771" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-771"></a>        <span class="n">kw</span> <span class="ow">in</span> <span class="n">user_lower</span> <span class="k">for</span> <span class="n">kw</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">'alpha'</span><span class="p">,</span> <span class="s1">'transparent'</span><span class="p">,</span> <span class="s1">'transparency'</span><span class="p">,</span> <span class="s1">'translucent'</span><span class="p">]</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-772" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-772"></a>    <span class="p">)</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-773" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-773"></a>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-774" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-774"></a>    <span class="n">scored_examples</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-775" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-775"></a>    <span class="k">for</span> <span class="n">example</span> <span class="ow">in</span> <span class="n">training_data</span><span class="p">:</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-776" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-776"></a>        <span class="n">score</span> <span class="o">=</span> <span class="n">_score_training_example</span><span class="p">(</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-777" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-777"></a>            <span class="n">example</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-778" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-778"></a>            <span class="n">user_lower</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-779" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-779"></a>            <span class="n">user_words</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-780" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-780"></a>            <span class="n">wants_alpha</span><span class="o">=</span><span class="n">wants_alpha</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-781" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-781"></a>            <span class="n">requested_size</span><span class="o">=</span><span class="n">requested_size</span><span class="p">,</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-782" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-782"></a>        <span class="p">)</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-783" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-783"></a>        <span class="n">scored_examples</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">score</span><span class="p">,</span> <span class="n">example</span><span class="p">))</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-784" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-784"></a>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-785" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-785"></a>    <span class="n">scored_examples</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">operator</span><span class="o">.</span><span class="n">itemgetter</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-786" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-786"></a>    <span class="c1"># There are more examples than max_examples (fewer returned above), so this takes</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-787" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-787"></a>    <span class="c1"># exactly max_examples of them</span>
-<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-788" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-788"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">example</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">example</span> <span class="ow">in</span> <span class="n">scored_examples</span><span class="p">[:</span><span class="n">max_examples</span><span class="p">]]</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-524">524</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-525">525</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-526">526</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-527">527</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-528">528</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-529">529</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-530">530</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-531">531</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-532">532</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-533">533</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-534">534</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-535">535</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-536">536</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-537">537</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-538">538</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-539">539</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-540">540</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-541">541</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-542">542</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-543">543</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-544">544</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-545">545</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-546">546</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-547">547</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-548">548</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-549">549</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-550">550</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-551">551</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-552">552</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-553">553</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-554">554</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-555">555</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-556">556</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-557">557</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-558">558</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-559">559</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-560">560</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-561">561</a></span>
+<span class="normal"><a href="#bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-562">562</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-524" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-524"></a><span class="k">def</span><span class="w"> </span><span class="nf">select_relevant_training_examples</span><span class="p">(</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-525" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-525"></a>    <span class="n">user_request</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-526" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-526"></a>    <span class="n">max_examples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">AI_MAX_TRAINING_EXAMPLES</span><span class="p">,</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-527" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-527"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-528" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-528"></a><span class="w">    </span><span class="sd">"""Select the most relevant training examples based on user request.</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-529" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-529"></a>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-530" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-530"></a><span class="sd">    Returns:</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-531" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-531"></a><span class="sd">        list: The result.</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-532" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-532"></a>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-533" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-533"></a><span class="sd">    """</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-534" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-534"></a>    <span class="n">training_data</span> <span class="o">=</span> <span class="n">ai_training_state</span><span class="p">[</span><span class="s1">'data'</span><span class="p">]</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-535" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-535"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">training_data</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-536" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-536"></a>        <span class="k">return</span> <span class="p">[]</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-537" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-537"></a>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-538" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-538"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">training_data</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">max_examples</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-539" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-539"></a>        <span class="k">return</span> <span class="n">training_data</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-540" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-540"></a>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-541" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-541"></a>    <span class="n">user_lower</span> <span class="o">=</span> <span class="n">user_request</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-542" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-542"></a>    <span class="n">requested_size</span> <span class="o">=</span> <span class="n">get_sprite_size_hint</span><span class="p">(</span><span class="n">user_request</span><span class="p">)</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-543" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-543"></a>    <span class="n">user_words</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">user_lower</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-544" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-544"></a>    <span class="n">wants_alpha</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-545" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-545"></a>        <span class="n">kw</span> <span class="ow">in</span> <span class="n">user_lower</span> <span class="k">for</span> <span class="n">kw</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">'alpha'</span><span class="p">,</span> <span class="s1">'transparent'</span><span class="p">,</span> <span class="s1">'transparency'</span><span class="p">,</span> <span class="s1">'translucent'</span><span class="p">]</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-546" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-546"></a>    <span class="p">)</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-547" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-547"></a>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-548" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-548"></a>    <span class="n">scored_examples</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-549" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-549"></a>    <span class="k">for</span> <span class="n">example</span> <span class="ow">in</span> <span class="n">training_data</span><span class="p">:</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-550" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-550"></a>        <span class="n">score</span> <span class="o">=</span> <span class="n">_score_training_example</span><span class="p">(</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-551" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-551"></a>            <span class="n">example</span><span class="p">,</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-552" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-552"></a>            <span class="n">user_lower</span><span class="p">,</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-553" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-553"></a>            <span class="n">user_words</span><span class="p">,</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-554" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-554"></a>            <span class="n">wants_alpha</span><span class="o">=</span><span class="n">wants_alpha</span><span class="p">,</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-555" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-555"></a>            <span class="n">requested_size</span><span class="o">=</span><span class="n">requested_size</span><span class="p">,</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-556" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-556"></a>        <span class="p">)</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-557" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-557"></a>        <span class="n">scored_examples</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">score</span><span class="p">,</span> <span class="n">example</span><span class="p">))</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-558" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-558"></a>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-559" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-559"></a>    <span class="n">scored_examples</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">operator</span><span class="o">.</span><span class="n">itemgetter</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-560" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-560"></a>    <span class="c1"># There are more examples than max_examples (fewer returned above), so this takes</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-561" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-561"></a>    <span class="c1"># exactly max_examples of them</span>
+<a id="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-562" name="bitmappy.ai_worker.select_relevant_training_examples--source--__codelineno-0-562"></a>    <span class="k">return</span> <span class="p">[</span><span class="n">example</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">example</span> <span class="ow">in</span> <span class="n">scored_examples</span><span class="p">[:</span><span class="n">max_examples</span><span class="p">]]</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
