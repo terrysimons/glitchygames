@@ -1157,7 +1157,9 @@ CONFTEST_FILE_NAME = 'conftest.py'
 SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     'tests/test_ai_behaviour.py': (
         'scripts/ai_behaviour/capture.py',
+        'scripts/ai_behaviour/paired.py',
         'scripts/ai_behaviour/questions.py',
+        'scripts/ai_behaviour/report.py',
         'scripts/ai_behaviour/run.py',
         'scripts/ai_behaviour/tools.py',
     ),

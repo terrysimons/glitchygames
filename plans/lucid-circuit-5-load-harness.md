@@ -87,8 +87,11 @@ the 50 questions with checks that work out the expected answers by code, a runne
 | 8K, forgiving names | 107 (43%) | 7 | A leading `scene.`, quoted ids, a class with one sprite |
 
 - **The noise is about ±8 points a run,** with near-identical code (104 to 123), so one run can't show a change in
-  passes smaller than that; tool error rates are steadier (`read_source` 64% → 34%, `get_sprite` 10% → 3%). Next:
-  paired runs, old and new code interleaved on one server.
+  passes smaller than that; tool error rates are steadier (`read_source` 64% → 34%, `get_sprite` 10% → 3%).
+  **Paired runs, built (2026-11-07):** `scripts/ai_behaviour/paired.py` asks every question and repeat of two
+  versions (git refs, or the working tree) back to back on one server, in a seeded coin's order, each version in a
+  worker process run from its own exported tree; `report.py` adds the pairs that split and McNemar's exact test,
+  which only those pairs move. Checked with a short real run on 2B.
 - **8K overflows in about 2.4% of answers,** 16K in none, at no measurable cost in answers and about 0.3 GB more
   memory: 8K only where memory forces it.
 - **The opening is about 1,800 tokens** (prompt, tools, mechanics): 22% of 8K before the question.
