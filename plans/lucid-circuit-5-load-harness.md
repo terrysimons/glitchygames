@@ -92,6 +92,15 @@ the 50 questions with checks that work out the expected answers by code, a runne
   versions (git refs, or the working tree) back to back on one server, in a seeded coin's order, each version in a
   worker process run from its own exported tree; `report.py` adds the pairs that split and McNemar's exact test,
   which only those pairs move. Checked with a short real run on 2B.
+- **`read_source` takes file names (2026-11-07):** about 40 of the 85 failed calls in the two latest runs named a
+  file (`game.py`, `mr_muncher/game.py`, a path from the root, `drawing_fire.drivers`, `actors`). A name that is
+  neither a class nor a method now lists the classes its file defines (several files when one name is in two
+  packages and the path doesn't tell them apart), and a name that is nothing lists the game's files too. Asked
+  again, 43 of those 85 names are answered; the rest are in-game names (`Chaser`, `Floor#0`), constants and
+  invented methods. Paired run against main (2B, 8K, three repeats, 150 pairs): `read_source` errors fell from
+  36% of calls (19 of 53) to 16% (14 of 87), and `get_object` was called less (93 to 56 calls), but passes didn't
+  move (72 to 67; only main passed 21 pairs, only the change 16: McNemar exact p = 0.51). Reading the code
+  works more often now; the answers didn't get better for it.
 - **8K overflows in about 2.4% of answers,** 16K in none, at no measurable cost in answers and about 0.3 GB more
   memory: 8K only where memory forces it.
 - **The opening is about 1,800 tokens** (prompt, tools, mechanics): 22% of 8K before the question.

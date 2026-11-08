@@ -21,6 +21,7 @@ import json
 import math
 import operator
 import pkgutil
+import re
 import types
 from collections.abc import Callable
 from pathlib import Path
@@ -117,7 +118,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             # game were copied into every other (2026-11-07)
             (
                 "The game's code for a class or a method, e.g. {examples}. A large class lists its "
-                'methods; then ask for one.'
+                'methods, and a file its classes; then ask for one.'
             ),
             {'name': {'type': 'string'}},
             ['name'],
@@ -449,6 +450,28 @@ def source_examples(*, game: str) -> list[str]:
 
 
 @functools.cache
+def game_modules(game: str) -> tuple[types.ModuleType, ...]:
+    """Every module in a game's packages, each package before the modules inside it.
+
+    Returns:
+        The modules that import.
+
+    """
+    modules: list[types.ModuleType] = []
+    for package_name in GAME_PACKAGES.get(game, ()):
+        package = importlib.import_module(package_name)
+        modules.append(package)
+        for found in pkgutil.walk_packages(
+            getattr(package, '__path__', []), prefix=f'{package_name}.'
+        ):
+            try:
+                modules.append(importlib.import_module(found.name))
+            except ImportError:
+                continue
+    return tuple(modules)
+
+
+@functools.cache
 def game_classes(game: str) -> dict[str, type]:
     """Every class a game's packages define, by name.
 
@@ -458,20 +481,86 @@ def game_classes(game: str) -> dict[str, type]:
     """
     classes: dict[str, type] = {}
     for package_name in GAME_PACKAGES.get(game, ()):
-        package = importlib.import_module(package_name)
-        modules = [package]
-        for found in pkgutil.walk_packages(
-            getattr(package, '__path__', []), prefix=f'{package_name}.'
-        ):
-            try:
-                modules.append(importlib.import_module(found.name))
-            except ImportError:
+        for module in game_modules(game):
+            if module.__name__ != package_name and not module.__name__.startswith(
+                f'{package_name}.'
+            ):
                 continue
-        for module in modules:
             for name, candidate in vars(module).items():
                 if inspect.isclass(candidate) and candidate.__module__.startswith(package_name):
                     classes.setdefault(name, candidate)
     return classes
+
+
+def module_file_name(module: types.ModuleType) -> str:
+    """A module's file as a path inside its package's directory: ``drawing_fire/game.py``.
+
+    Returns:
+        The path.
+
+    """
+    path = module.__name__.replace('.', '/')
+    return f'{path}/__init__.py' if hasattr(module, '__path__') else f'{path}.py'
+
+
+def named_files(*, name: str, game: str) -> list[types.ModuleType]:
+    """The game's modules a file name, path or module name means.
+
+    2B asks for ``game.py``, ``mr_muncher/game.py``, a path from the repository's root,
+    ``drawing_fire.drivers`` or ``actors``. A name matches a module when its last parts are the
+    module's last parts, ignoring case; the modules matching the most parts win, so a path tells
+    apart two files of one name.
+
+    Returns:
+        The modules meant, or none.
+
+    """
+    lowered = name.strip().lower().removesuffix('.py')
+    wanted = [part for part in re.split(r'[/\\.]', lowered) if part]
+    # A package's own file is the package
+    if wanted and wanted[-1] == '__init__':
+        wanted.pop()
+    matched: dict[int, list[types.ModuleType]] = {}
+    for module in game_modules(game):
+        parts = module.__name__.lower().split('.')
+        count = 0
+        for wanted_part, part in zip(reversed(wanted), reversed(parts), strict=False):
+            if wanted_part != part:
+                break
+            count += 1
+        if count:
+            matched.setdefault(count, []).append(module)
+    return matched[max(matched)] if matched else []
+
+
+def file_classes(*, module: types.ModuleType) -> dict[str, JsonValue]:
+    """The classes one file defines (not those it imports), each with its docstring's first line.
+
+    Returns:
+        The file's path and its classes.
+
+    """
+    classes: dict[str, JsonValue] = {
+        name: (inspect.getdoc(candidate) or '').split('\n')[0]
+        for name, candidate in vars(module).items()
+        if inspect.isclass(candidate) and candidate.__module__ == module.__name__
+    }
+    return {'file': shown_path(Path(inspect.getsourcefile(module) or '')), 'classes': classes}
+
+
+def shown_path(path: Path) -> str:
+    """A source file's path as the model is shown it: from the repository's root when inside it.
+
+    Always with forward slashes, as module_file_name writes them, so the model sees one form on
+    every platform (Windows' separators would otherwise show).
+
+    Returns:
+        The path.
+
+    """
+    if not path.is_relative_to(Path.cwd()):
+        return path.name
+    return path.relative_to(Path.cwd()).as_posix()
 
 
 def code_names(game: str) -> list[str]:
@@ -539,13 +628,7 @@ def source_text(*, code: type | types.FunctionType) -> dict[str, Any]:
 
     """
     lines, first = inspect.getsourcelines(code)
-    source_file = Path(inspect.getsourcefile(code) or '')
-    shown_file = (
-        source_file.relative_to(Path.cwd())
-        if source_file.is_relative_to(Path.cwd())
-        else source_file.name
-    )
-    where = f'{shown_file}:{first}'
+    where = f'{shown_path(Path(inspect.getsourcefile(code) or ""))}:{first}'
     numbered = [f'{first + index}: {line}' for index, line in enumerate(lines)]
     whole: dict[str, JsonValue] = {'where': where, 'source': ''.join(numbered)}
     if fits(whole):
@@ -816,14 +899,22 @@ class SnapshotTools:
         """
         game = self.snapshot['game']
         code = named_code(name=name, game=game)
-        if code is None:
-            names = code_names(game)
+        if code is not None:
+            return source_text(code=code)
+        # Neither a class nor a method: a file, which lists its classes to ask for next
+        files = named_files(name=name, game=game)
+        if files:
             return {
-                'error': f'no class or method {name} in this game',
-                'closest_names': suggestions(wanted=name, names=names),
-                'classes': list(game_classes(game))[: LIST_LIMITS[0]],
+                'files': [file_classes(module=module) for module in files],
+                'next': 'Ask for one of these classes, or Class.method.',
             }
-        return source_text(code=code)
+        names = code_names(game)
+        return {
+            'error': f'no class, method or file {name} in this game',
+            'closest_names': suggestions(wanted=name, names=names),
+            'classes': list(game_classes(game))[: LIST_LIMITS[0]],
+            'files': [module_file_name(module) for module in game_modules(game)],
+        }
 
     def tool_calculate(self, expression: str) -> dict[str, Any]:
         """The ``calculate`` tool.
