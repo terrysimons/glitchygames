@@ -4,6 +4,20 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 264. A Watched Comparison Replay Skipped Presenting a Frame Once on CircleCI's macOS Job
+- **Description**: CircleCI build 2986 (`build-and-test-macos`, main after #161's merge, `beb53bb8`) failed `tests/replay/tools/test_compare_trace.py::test_a_shorter_old_holds_its_last_frame_with_the_label`: the watched replay of NEW with `--compare-trace` (an OLD cut to three frames) presented frames `{1, 3, 4}`, not `{1, 2, 3, 4}`, so one viewer tick ran inner frames 2 and 3 together. Exit status was SUCCESS. The other 24,937 tests passed; the test passed on #161's own CI run. Nothing was logged in the test's capture beyond the options table. A red main also kept the merge's docs from deploying (`deploy-docs` waits for the macOS job)
+- **Status**: Open (not reproduced)
+- **Priority**: Medium (intermittent; a failure on main stops the docs deploy)
+- **Reporter**: CircleCI pipeline for main, build 2986
+- **Date Reported**: 2026-11-08
+- **Details**: Ruled out so far (2026-11-08):
+  - The viewer's clock: every read in `src/glitchygames/replay/viewer.py` is `clock.measured_seconds`, which the test's `watched_replay` fakes along with `sleep_for` and `sleep_coarsely`, so the ticks and the inner-frame budget (`INNER_FRAME_BUDGET_SECONDS`) don't see real time
+  - OLD's uneven recorded frame times: `recorded_old` records OLD live and paced in a child, so its dt values are the machine's (locally `[0.01, 17.53, 16.67, 16.67, 16.67, 16.67]` ms). A throwaway test rewrote both recordings with a late frame 1 and a short catch-up frame 2 (17.5 to 32 ms, then the rest of two periods): every frame was still presented, as the viewer's half-frame phase absorbs it
+  - Load: 15 runs of the test alone under 20 busy loops all passed (16-core Mac)
+
+  Not ruled out: the onion skin's OLD child (a real process, reached over a socket with real-time timeouts) and order dependence (CI ran the suite with `-n 3`: state left by an earlier test on that worker, such as controls or queued key events). Next step: rerun the failing worker's test order, or `nox -s test-random` until it recurs, then bisect what ran before it
+- **Files**: `tests/replay/tools/test_compare_trace.py`, `src/glitchygames/replay/viewer.py`, `src/glitchygames/replay/tools/compare.py`
+
 ### 263. The AI Tests' Stand-In Control Script Couldn't Run on Windows
 - **Description**: CircleCI build 2935 (`build-and-test-windows`, PR #157) failed 22 tests in `tests/test_ai_link.py`, `tests/ai/test_local_service.py` and `tests/engine/test_engine_ai_connection.py`, and so coverage (99.85%: `ai_link.py` 60%, `ai/local_service.py` 87%). Their stand-in install's control script, `bin/ai-service.sh`, is a `#!/bin/sh` script, as the real one is (the service is macOS only), and Windows can't start one (`OSError: [WinError 193] %1 is not a valid Win32 application`), so every test that has the link or client start the service failed there. Linux and macOS passed
 - **Status**: Fixed (2026-11-07: one stand-in install for all four AI test files, `tests/ai_service_stand_in.py` (the two copies of `install()` merged), writes a Python twin beside each control script that records the same call, waits the same way and exits the same; on Windows the harness fixture `stand_in_ai_control_scripts`, which those files request, has the engine's launcher (`process.run_command`) run the twin in the script's place, so the code under test is unchanged. Proven on macOS with the routing forced on and the shell scripts made to fail: all 174 AI tests passed through the twins alone. That found `test_start_returns_before_the_service_does` writing its own shell script, which had passed on Windows only because a failing start ends the same way; it now asks `install(waits_for=...)`)
