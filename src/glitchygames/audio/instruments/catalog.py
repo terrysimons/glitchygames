@@ -47,6 +47,7 @@ class Family(StrEnum):
     FRICTION_INSTRUMENTS = 'friction instruments'
     DRUMS_AND_PERCUSSION = 'drums and percussion'
     NOISE_MAKERS = 'noise makers'
+    SOUND_EFFECTS = 'sound effects'
     VOICES = 'voices'
     CHOIRS = 'choirs'
 

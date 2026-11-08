@@ -24,4 +24,10 @@ ALIASES: Final[dict[str, str]] = {
     # https://en.wikipedia.org/wiki/Hohner_Clavinet: Hohner's instrument, "most models have 60
     # keys ranging from F1 to E6", the catalog clavinet's range
     'hohner clavinet': 'clavinet',
+    # https://api.vam.ac.uk/v2/object/O74191: the object history says "This rain box" and the brief
+    # description calls it a "rain machine": the same device
+    'rain box': 'rain machine',
+    # https://theatrecrafts.com/pages/home/topics/sound/sound-effects-for-the-stage/: "the classic
+    # coconut halves for horses hooves"
+    'horse hooves': 'coconut shells',
 }

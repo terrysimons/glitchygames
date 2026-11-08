@@ -541,13 +541,15 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('disc music box', 'music box'),
         ('wurlitzer electronic piano', 'reed electric piano'),
         ('hohner clavinet', 'clavinet'),
+        ('rain box', 'rain machine'),
+        ('horse hooves', 'coconut shells'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
     """Each alias is the catalog instrument it names.
 
-    Zanza is the mbira, both music boxes the one comb, and the audit's Wurlitzer and Clavinet
-    spellings the catalog's.
+    Zanza is the mbira, both music boxes the one comb, the audit's Wurlitzer and Clavinet
+    spellings the catalog's, and the rain box and horse hooves the sound effects they name.
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -720,3 +722,28 @@ def test_electromechanical_holds_the_electric_pianos_clavinet_and_tonewheels():
     assert not set(MOVED_TO_ELECTROMECHANICAL) & set(instruments.names(family=Family.KEYBOARDS))
     assert not set(MOVED_TO_ELECTROMECHANICAL) & set(instruments.names(family=Family.ORGANS))
     assert 'combo organ' in instruments.names(family=Family.ORGANS)
+
+
+# Compared as a string, so the list is simply empty (no cases) before the family exists
+SOUND_EFFECT_NAMES = [
+    entry.name for entry in instruments.entries() if entry.family == 'sound effects'
+]
+
+
+def test_sound_effects_hold_the_thunder_sheet():
+    """The thunder sheet is a sound effect, and plays as a note at any pitch."""
+    assert instruments.entry('thunder sheet').family == Family.SOUND_EFFECTS
+    assert not instruments.entry('thunder sheet').pitched
+
+
+@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES)
+def test_a_sound_effect_strikes_again_on_each_note(name):
+    """Two notes in a sequence are two hits, not one hit ringing on (usable in music)."""
+    instrument = instruments.get(name)
+    pitch = instruments.entry(name).middle_note().name
+    twice = render_sound(spec_for(instrument, name=name, notes=f'{pitch}:0.5 {pitch}:0.5')).samples
+    once = render_sound(spec_for(instrument, name=name, notes=f'{pitch}:1')).samples
+    half = round(0.5 * SAMPLE_RATE)
+    window = slice(half, half + round(0.05 * SAMPLE_RATE))
+    assert np.max(np.abs(twice)) <= 1.0, name
+    assert not np.allclose(twice[window], once[window]), name

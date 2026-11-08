@@ -19,6 +19,7 @@ from glitchygames.audio.instruments.keyboards import (
 )
 from glitchygames.audio.instruments.noise_makers import NOISE_MAKERS
 from glitchygames.audio.instruments.percussion import DRUMS_AND_PERCUSSION, TUNED_PERCUSSION
+from glitchygames.audio.instruments.sound_effects import SOUND_EFFECTS
 from glitchygames.audio.instruments.strings import (
     BOWED_STRINGS,
     HARPS,
@@ -64,6 +65,7 @@ FAMILY_TABLES: Final[tuple[tuple[CatalogEntry, ...], ...]] = (
     FRICTION_INSTRUMENTS,
     DRUMS_AND_PERCUSSION,
     NOISE_MAKERS,
+    SOUND_EFFECTS,
     VOICES,
     CHOIRS,
 )
