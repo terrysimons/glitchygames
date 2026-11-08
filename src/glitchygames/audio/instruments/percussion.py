@@ -4,12 +4,10 @@ Tuned percussion's partials are not harmonics. A free bar (glockenspiel) rings a
 5.40 : 8.93 of its fundamental; marimba and vibraphone bars are cut so the first overtone is
 the fourth harmonic and the xylophone's the third; a tubular bell's and a carillon bell's
 partials (hum, prime, tierce and nominal; the weak quint is left out) give the bell's
-minor-third colour; a tubular
-bell's struck note is heard an octave below its fourth mode, which with the fifth and sixth
-rings near 2 : 3 : 4 of that note; kalimba and music-box tines are clamped bars, ringing at 1 :
-6.27 : 17.55, with no harmonics between; steel pans
-and handpans are tuned to the octave and twelfth; a timpani's head favours 1 : 1.5 : 2 (Rossing,
-*Science of Percussion Instruments*; Fletcher and Rossing, *The Physics of Musical
+minor-third colour; a tubular bell's struck note is heard an octave below its fourth mode, which
+with the fifth and sixth rings near 2 : 3 : 4 of that note; steel pans and handpans are tuned to
+the octave and twelfth; a timpani's head favours 1 : 1.5 : 2 (Rossing, *Science of Percussion
+Instruments*; Fletcher and Rossing, *The Physics of Musical
 Instruments*). Untuned percussion is fixed tones and filtered noise: its sounds do not follow the
 note's pitch, so those entries have no range.
 """
@@ -20,7 +18,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Final
 
 from glitchygames.audio.instruments.catalog import CatalogEntry, Family
-from glitchygames.audio.instruments.timbres import Partial, Tone, blown, drum, struck
+from glitchygames.audio.instruments.timbres import Partial, Tone, drum, struck
 
 if TYPE_CHECKING:
     from glitchygames.audio.instrument import Instrument
@@ -31,7 +29,7 @@ SINGING_METAL_SECOND_PARTIAL: Final[float] = 2.71  # ruff: ignore[math-constant]
 # --- Tuned percussion -----------------------------------------------------------------------
 
 
-def _bar(  # ruff: ignore[too-many-arguments] - a struck bar's partials
+def struck_bar(  # ruff: ignore[too-many-arguments] - a struck bar's partials
     ratios: tuple[float, ...],
     levels: tuple[float, ...],
     *,
@@ -40,6 +38,20 @@ def _bar(  # ruff: ignore[too-many-arguments] - a struck bar's partials
     mallet_low_pass: float = 3000.0,
     overtone_ring: float = 0.25,
 ) -> Instrument:
+    """A struck or plucked bar: a fundamental and its overtones, each ringing out on its own.
+
+    Args:
+        ratios: Each partial's frequency as a multiple of the note's.
+        levels: Each partial's level, one per ratio.
+        ring_seconds: How long the fundamental rings (it is also the release).
+        mallet: Seconds of the mallet's noise burst.
+        mallet_low_pass: Cutoff in hertz of the mallet's noise.
+        overtone_ring: The overtones' ring time as a fraction of the fundamental's, divided by
+            the overtone's number.
+
+    Returns:
+        The instrument.
+    """
     partials = tuple(
         Partial(
             ratio=ratio,
@@ -57,7 +69,7 @@ FREE_BAR_RATIOS: Final[tuple[float, ...]] = (1.0, 2.76)
 # A clamped tine's first two modes (its third, 17.55x, is past hearing for most of its notes)
 TINE_RATIOS: Final[tuple[float, ...]] = (1.0, 6.27)
 GLOCKENSPIEL = partial(
-    _bar,
+    struck_bar,
     FREE_BAR_RATIOS,
     (1.0, 0.45),
     ring_seconds=2.5,
@@ -66,7 +78,7 @@ GLOCKENSPIEL = partial(
     overtone_ring=0.5,
 )
 XYLOPHONE = partial(
-    _bar,
+    struck_bar,
     (1.0, 3.0),
     (1.0, 0.35),
     ring_seconds=0.6,
@@ -75,10 +87,15 @@ XYLOPHONE = partial(
     overtone_ring=0.5,
 )
 MARIMBA = partial(
-    _bar, (1.0, 4.0, 9.9), (1.0, 0.25, 0.06), ring_seconds=1.2, mallet=0.04, mallet_low_pass=2000.0
+    struck_bar,
+    (1.0, 4.0, 9.9),
+    (1.0, 0.25, 0.06),
+    ring_seconds=1.2,
+    mallet=0.04,
+    mallet_low_pass=2000.0,
 )
 VIBRAPHONE = partial(
-    _bar,
+    struck_bar,
     (1.0, 4.0, 10.0),
     (1.0, 0.22, 0.05),
     ring_seconds=4.0,
@@ -87,7 +104,7 @@ VIBRAPHONE = partial(
     overtone_ring=0.15,
 )
 GAMELAN_METALLOPHONE = partial(
-    _bar,
+    struck_bar,
     (1.0, SINGING_METAL_SECOND_PARTIAL, 5.15),
     (1.0, 0.4, 0.15),
     ring_seconds=3.0,
@@ -96,7 +113,7 @@ GAMELAN_METALLOPHONE = partial(
     overtone_ring=0.4,
 )
 KETTLE_GONG = partial(
-    _bar,
+    struck_bar,
     (1.0, 1.52, 2.0),
     (1.0, 0.35, 0.25),
     ring_seconds=2.0,
@@ -105,7 +122,7 @@ KETTLE_GONG = partial(
     overtone_ring=0.6,
 )
 HARMONIC_PAN = partial(
-    _bar,
+    struck_bar,
     (1.0, 2.0, 3.0),
     (1.0, 0.5, 0.25),
     ring_seconds=1.8,
@@ -156,10 +173,6 @@ def _timpani() -> Instrument:
     )
 
 
-def _sustained_glass() -> Instrument:
-    return blown((1.0, 0.04, 0.02), attack=0.25, release=0.6, chorus_cents=2.0)
-
-
 TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
     CatalogEntry('glockenspiel', 'Glockenspiel', Family.TUNED_PERCUSSION, 'G5', 'C8', GLOCKENSPIEL),
     CatalogEntry(
@@ -169,7 +182,7 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'C6',
         'C8',
         partial(
-            _bar,
+            struck_bar,
             (1.0, 2.0, 3.0),
             (1.0, 0.3, 0.15),
             ring_seconds=4.0,
@@ -189,7 +202,7 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'C3',
         'C6',
         partial(
-            _bar,
+            struck_bar,
             (1.0, 4.0, 9.0),
             (1.0, 0.35, 0.1),
             ring_seconds=0.7,
@@ -228,7 +241,7 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'C5',
         'C8',
         partial(
-            _bar,
+            struck_bar,
             (1.0, 3.0, 5.0),
             (1.0, 0.25, 0.1),
             ring_seconds=2.5,
@@ -260,58 +273,13 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'D3',
         'A4',
         partial(
-            _bar,
+            struck_bar,
             (1.0, 2.0, 3.0),
             (1.0, 0.4, 0.3),
             ring_seconds=3.0,
             mallet=0.03,
             mallet_low_pass=1500.0,
             overtone_ring=0.6,
-        ),
-    ),
-    CatalogEntry(
-        'kalimba',
-        'Kalimba',
-        Family.TUNED_PERCUSSION,
-        'C4',
-        'E6',
-        partial(
-            _bar,
-            TINE_RATIOS,
-            (1.0, 0.15),
-            ring_seconds=1.5,
-            mallet=0.08,
-            mallet_low_pass=5000.0,
-        ),
-    ),
-    CatalogEntry(
-        'mbira',
-        'Mbira',
-        Family.TUNED_PERCUSSION,
-        'G2',
-        'D5',
-        partial(
-            _bar,
-            TINE_RATIOS,
-            (1.0, 0.2),
-            ring_seconds=1.5,
-            mallet=0.15,
-            mallet_low_pass=6000.0,
-        ),
-    ),
-    CatalogEntry(
-        'music box',
-        'Music box',
-        Family.TUNED_PERCUSSION,
-        'C4',
-        'C7',
-        partial(
-            _bar,
-            TINE_RATIOS,
-            (1.0, 0.2),
-            ring_seconds=1.2,
-            mallet=0.03,
-            mallet_low_pass=8000.0,
         ),
     ),
     CatalogEntry('timpani', 'Timpani', Family.TUNED_PERCUSSION, 'D2', 'C4', _timpani),
@@ -329,7 +297,7 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'C2',
         'C4',
         partial(
-            _bar,
+            struck_bar,
             (1.0, 1.52, 2.0),
             (1.0, 0.35, 0.25),
             ring_seconds=5.0,
@@ -345,7 +313,7 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         'C3',
         'C5',
         partial(
-            _bar,
+            struck_bar,
             (1.0, SINGING_METAL_SECOND_PARTIAL, 5.15),
             (1.0, 0.5, 0.2),
             ring_seconds=8.0,
@@ -355,16 +323,13 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
         ),
     ),
     CatalogEntry(
-        'glass harmonica', 'Glass harmonica', Family.TUNED_PERCUSSION, 'G3', 'C6', _sustained_glass
-    ),
-    CatalogEntry(
         'tabla dayan',
         'Tabla (dayan)',
         Family.TUNED_PERCUSSION,
         'C4',
         'D5',
         partial(
-            _bar,
+            struck_bar,
             (1.0, 2.0, 3.0),
             (1.0, 0.5, 0.35),
             ring_seconds=0.6,

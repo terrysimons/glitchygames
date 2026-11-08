@@ -5,8 +5,8 @@ import pytest
 
 from glitchygames.audio import instruments
 from glitchygames.audio.instrument import Filter, Instrument
-from glitchygames.audio.instruments import CatalogEntry, Family
-from glitchygames.audio.instruments.registry import FAMILY_TABLES, catalog_from
+from glitchygames.audio.instruments import CatalogEntry, Family, Tag
+from glitchygames.audio.instruments.registry import FAMILY_TABLES, aliases_from, catalog_from
 from glitchygames.audio.instruments.timbres import (
     Course,
     Formant,
@@ -21,6 +21,7 @@ from glitchygames.audio.instruments.timbres import (
     noise_layer,
     plucked,
     plucked_series,
+    rubbed,
     struck,
     with_drones,
 )
@@ -301,6 +302,28 @@ def test_overtone_series():
     assert harmonics_from_levels((1.0, 0.00001, 0.5)).octave == 0.0
 
 
+def test_rubbed_partials_swell_and_hold():
+    """A rubbed sound swells in over its attack and then sustains while the note is held."""
+    instrument = rubbed(
+        [
+            Partial(ratio=1.0, level=1.0, ring_seconds=0.0),
+            Partial(ratio=2.76, level=0.3, ring_seconds=0.0),
+        ],
+        attack=0.2,
+        release=0.3,
+    )
+    samples = rendered(instrument, pitch='A4')
+    peak = np.max(np.abs(samples))
+    first_twenty_milliseconds = np.max(np.abs(samples[: round(0.02 * SAMPLE_RATE)]))
+    held_window = samples[round(0.33 * SAMPLE_RATE) : round(0.35 * SAMPLE_RATE)]
+    assert first_twenty_milliseconds < 0.3 * peak
+    assert np.max(np.abs(held_window)) >= 0.5 * peak
+    with pytest.raises(ValueError, match='1 to 4 partials'):
+        rubbed([Partial(ratio=1.0, level=1.0, ring_seconds=0.0)] * 5, attack=0.2, release=0.3)
+    with pytest.raises(ValueError, match='1 to 4 partials'):
+        rubbed((), attack=0.2, release=0.3)
+
+
 def test_timbre_shapes_refuse_more_layers_than_four_sources():
     """Each shape refuses more layers than an instrument has sources."""
     with pytest.raises(ValueError, match='between 1 and 32'):
@@ -380,3 +403,254 @@ def test_lookups_refuse_unknown_names_in_any_case():
         instruments.get('Kazoo Deluxe')
     with pytest.raises(ValueError, match='spoons'):
         instruments.names(family='Spoons')
+
+
+def test_a_tag_lists_exactly_its_tagged_entries():
+    """names(tag=...) is every entry carrying that tag, in catalog order, alone or with family."""
+    tagged = instruments.names(tag=Tag.MECHANICAL)
+    assert tagged == tuple(
+        entry.name for entry in instruments.entries() if Tag.MECHANICAL in entry.tags
+    )
+    assert instruments.names(tag='Mechanical') == tagged
+    assert instruments.names(family=Family.BRASS, tag=Tag.MECHANICAL) == ()
+    assert instruments.entries(tag=Tag.MECHANICAL) == tuple(
+        instruments.entry(name) for name in tagged
+    )
+    with pytest.raises(ValueError, match='self playing'):
+        instruments.names(tag='self playing')
+
+
+def test_every_entry_tag_is_a_tag_member():
+    """Tags are members of the closed Tag enum, never bare strings."""
+    for entry in instruments.entries():
+        assert all(type(tag) is Tag for tag in entry.tags), entry.name
+
+
+def test_an_entry_refuses_a_string_tag():
+    """A string equal to a tag's value is still refused: tags cannot drift into synonyms."""
+    flute = instruments.entry('flute')
+    with pytest.raises(TypeError, match="tag 'mechanical' must be a Tag"):
+        CatalogEntry(
+            'test flute',
+            'Test flute',
+            Family.FLUTES,
+            'C4',
+            'C7',
+            flute.build,
+            tags=frozenset({'mechanical'}),  # pyright: ignore[reportArgumentType] - the refusal
+        )
+    assert (
+        CatalogEntry('test flute', 'Test flute', Family.FLUTES, 'C4', 'C7', flute.build).tags
+        == frozenset()
+    )
+
+
+def test_an_entry_keeps_its_tag_members():
+    """A Tag member is accepted and kept on the entry."""
+    flute = instruments.entry('flute')
+    tagged = CatalogEntry(
+        'test flute',
+        'Test flute',
+        Family.FLUTES,
+        'C4',
+        'C7',
+        flute.build,
+        tags=frozenset({Tag.MECHANICAL}),
+    )
+    assert tagged.tags == frozenset({Tag.MECHANICAL})
+
+
+def test_an_alias_finds_its_instrument_in_any_case():
+    """An alias resolves to its catalog entry, and get shares the one build."""
+    assert instruments.ALIASES['slapstick'] == 'whip'
+    assert instruments.entry('Slapstick') is instruments.entry('whip')
+    assert instruments.get('SLAPSTICK') is instruments.get('whip')
+    assert 'slapstick' not in instruments.names()
+    assert 'slapstick' not in [catalog_entry.name for catalog_entry in instruments.entries()]
+
+
+def test_every_alias_names_one_entry_and_shadows_none():
+    """No alias is a catalog name; every alias names an entry; aliases follow the naming rule."""
+    for alias, target in instruments.ALIASES.items():
+        assert alias not in instruments.CATALOG, alias
+        assert target in instruments.CATALOG, (alias, target)
+
+
+def test_the_alias_table_is_refused_when_it_is_wrong():
+    """A bad alias table fails when the catalog is assembled, naming the alias."""
+    with pytest.raises(ValueError, match="alias 'flute' is a catalog name"):
+        aliases_from({'flute': 'piccolo'}, instruments.CATALOG)
+    with pytest.raises(ValueError, match="alias 'fife of doom' names no instrument: 'fyfe'"):
+        aliases_from({'fife of doom': 'fyfe'}, instruments.CATALOG)
+    with pytest.raises(ValueError, match="alias 'Bad Alias' must be lower-case words"):
+        aliases_from({'Bad Alias': 'flute'}, instruments.CATALOG)
+
+
+def test_an_unknown_name_suggests_aliases_too():
+    """A near miss of an alias suggests it."""
+    with pytest.raises(KeyError, match='did you mean slapstick'):
+        instruments.entry('slapstik')
+
+
+def test_plucked_idiophones_hold_the_lamellophones_and_music_boxes():
+    """Kalimba, mbira and music box moved here by name; the music box plays itself."""
+    plucked = instruments.names(family=Family.PLUCKED_IDIOPHONES)
+    assert {'kalimba', 'mbira', 'music box', 'sansula'} <= set(plucked)
+    moved = {'kalimba', 'mbira', 'music box'}
+    assert not moved & set(instruments.names(family=Family.TUNED_PERCUSSION))
+    assert instruments.entry('kalimba').playing_range == (Note('C4'), Note('E6'))
+    # This lists every mechanical entry, so it grows when another entry is tagged mechanical
+    assert instruments.names(tag=Tag.MECHANICAL) == ('music box',)
+
+
+def test_the_sansula_rings_longer_than_the_kalimba():
+    """The sansula ships as its own entry because it rings longer than the kalimba."""
+    rendered_note_seconds = 2.5
+    onset_window_seconds = 0.05
+
+    def level_after_onset(name: str, *, seconds: float) -> float:
+        samples = render_sound(
+            spec_for(instruments.get(name), name=name, pitch='C4', length=rendered_note_seconds)
+        ).samples
+        window = round(onset_window_seconds * SAMPLE_RATE)
+        peak = max(
+            float(np.sqrt(np.mean(samples[start : start + window] ** 2)))
+            for start in range(0, len(samples) - window, window // 5)
+        )
+        start = round(seconds * SAMPLE_RATE)
+        return float(np.sqrt(np.mean(samples[start : start + window] ** 2))) / peak
+
+    assert level_after_onset('sansula', seconds=1.0) > 3 * level_after_onset('kalimba', seconds=1.0)
+
+
+@pytest.mark.parametrize(
+    ('alias', 'target'),
+    [('zanza', 'mbira'), ('cylinder music box', 'music box'), ('disc music box', 'music box')],
+)
+def test_the_plucked_idiophone_aliases_resolve(alias, target):
+    """Zanza is the mbira; both music-box mechanisms play the one comb."""
+    assert instruments.entry(alias) is instruments.entry(target)
+
+
+def test_friction_instruments_hold_the_glass_harmonica_glass_harp_and_terpodion():
+    """The glass harmonica moved here by name; the glass harp and terpodion are new and swell."""
+    friction = set(instruments.names(family=Family.FRICTION_INSTRUMENTS))
+    assert {'glass harmonica', 'glass harp', 'terpodion'} <= friction
+    # A rubbed singing bowl waits for a sourced range: only the struck bowl is in the catalog
+    assert 'rubbed singing bowl' not in instruments.CATALOG
+    assert instruments.entry('singing bowl').family == Family.TUNED_PERCUSSION
+    assert instruments.entry('glass harmonica').playing_range == (Note('G3'), Note('C6'))
+    # Rubbed, not struck: it swells, so its first 50 ms are quieter than its next 150 ms
+    entry = instruments.entry('glass harp')
+    samples = rendered(instruments.get('glass harp'), pitch=entry.middle_note().name)
+    onset = np.max(np.abs(samples[: round(0.05 * SAMPLE_RATE)]))
+    held = np.max(np.abs(samples[round(0.05 * SAMPLE_RATE) : round(0.2 * SAMPLE_RATE)]))
+    assert onset < held
+
+
+def test_the_glass_harp_swells_sooner_and_is_brighter_than_the_glass_harmonica():
+    """The glass harp ships as its own entry because it sounds unlike the glass harmonica."""
+    smoothing_seconds = 0.005
+
+    def seconds_to_ninety_percent(name: str) -> float:
+        samples = rendered(instruments.get(name), pitch='G4')
+        window = round(smoothing_seconds * SAMPLE_RATE)
+        level = np.sqrt(np.convolve(samples**2, np.ones(window) / window, mode='same'))
+        return float(np.argmax(level >= 0.9 * np.max(level))) / SAMPLE_RATE
+
+    def spectral_centroid(name: str) -> float:
+        samples = rendered(instruments.get(name), pitch='G4')[round(0.2 * SAMPLE_RATE) :]
+        magnitudes = np.abs(np.fft.rfft(samples * np.hanning(len(samples))))
+        frequencies = np.fft.rfftfreq(len(samples), 1 / SAMPLE_RATE)
+        return float(np.sum(frequencies * magnitudes) / np.sum(magnitudes))
+
+    assert seconds_to_ninety_percent('glass harp') < seconds_to_ninety_percent('glass harmonica')
+    assert seconds_to_ninety_percent('glass harmonica') < seconds_to_ninety_percent('terpodion')
+    assert spectral_centroid('glass harp') > spectral_centroid('glass harmonica')
+    assert spectral_centroid('terpodion') > spectral_centroid('glass harp')
+
+
+def test_noise_makers_crack_the_whip():
+    """The whip crack is a noise maker; the slapstick whip stayed in drums and percussion."""
+    assert instruments.entry('whip crack').family == Family.NOISE_MAKERS
+    assert instruments.entry('whip').family == Family.DRUMS_AND_PERCUSSION
+    assert not instruments.entry('whip crack').pitched
+
+
+def test_the_whip_crack_is_sharper_than_the_slapstick_whip():
+    """The crack dies away sooner and has more energy high up than the whip, or it is an alias."""
+    smoothing_seconds = 0.002
+
+    def seconds_to_one_tenth(samples: np.ndarray) -> float:
+        window = round(smoothing_seconds * SAMPLE_RATE)
+        level = np.sqrt(np.convolve(samples**2, np.ones(window) / window, mode='same'))
+        peak_index = int(np.argmax(level))
+        below = np.nonzero(level[peak_index:] < 0.1 * level[peak_index])[0]
+        assert below.size > 0, 'the signal never falls below one tenth of its peak'
+        return float(below[0]) / SAMPLE_RATE
+
+    def share_of_energy_below(samples: np.ndarray, *, hertz: float) -> float:
+        power = np.abs(np.fft.rfft(samples)) ** 2
+        frequencies = np.fft.rfftfreq(len(samples), 1 / SAMPLE_RATE)
+        return float(np.sum(power[frequencies < hertz]) / np.sum(power))
+
+    crack = rendered(instruments.get('whip crack'), pitch='A4')
+    whip = rendered(instruments.get('whip'), pitch='A4')
+    assert seconds_to_one_tenth(crack) < seconds_to_one_tenth(whip)
+    # The whip's 1 kHz high-pass leaves energy between 1 and 3 kHz that the crack's cuts
+    assert share_of_energy_below(crack, hertz=3000.0) < share_of_energy_below(whip, hertz=3000.0)
+
+
+HELD_SECONDS = 3.0
+HORNS = ('diaphone', 'air horn', 'vehicle horn', 'party horn')
+
+
+def held_level(name: str, *, start_seconds: float) -> float:
+    """The RMS level of a 0.1 s window of the entry held for HELD_SECONDS at A4.
+
+    Returns:
+        The RMS level.
+    """
+    samples = render_sound(
+        spec_for(instruments.get(name), name=name, pitch='A4', length=HELD_SECONDS)
+    ).samples
+    start = round(start_seconds * SAMPLE_RATE)
+    window = round(0.1 * SAMPLE_RATE)
+    return float(np.sqrt(np.mean(samples[start : start + window] ** 2)))
+
+
+@pytest.mark.parametrize('name', HORNS)
+def test_a_horn_sounds_for_as_long_as_it_is_held(name):
+    """Held for three seconds, a horn is still sounding at 2.5 s; the whip crack is not."""
+    assert held_level(name, start_seconds=2.5) > 0.5 * held_level(name, start_seconds=0.2)
+
+
+def test_the_whip_crack_is_a_one_shot_however_long_it_is_held():
+    """The crack is over by 2.5 s of a three second hold."""
+    assert held_level('whip crack', start_seconds=2.5) < 0.01 * held_level(
+        'whip crack', start_seconds=0.0
+    )
+
+
+def test_a_tone_with_the_default_sustain_dies_away_as_before():
+    """A tone's default sustain is 0 (a drum dies away), and an explicit 0 renders the same."""
+    assert Tone(hertz=200.0, ring_seconds=0.3).sustain == 0.0
+    default = drum(tones=(Tone(hertz=200.0, ring_seconds=0.3),), noise=0.2)
+    explicit = drum(tones=(Tone(hertz=200.0, ring_seconds=0.3, sustain=0.0),), noise=0.2)
+    assert np.array_equal(
+        rendered(default, pitch='A4', name='default-sustain'),
+        rendered(explicit, pitch='A4', name='default-sustain'),
+    )
+    held = drum(tones=(Tone(hertz=200.0, ring_seconds=0.3, sustain=0.5),))
+    assert np.max(np.abs(rendered(held, pitch='A4')[-1000:])) > 0.0
+
+
+@pytest.mark.parametrize(
+    'name', [entry.name for entry in instruments.entries() if not entry.pitched]
+)
+def test_unpitched_entries_sound_the_same_at_any_pitch(name):
+    """An unpitched entry (a drum, an effect) ignores the pitch it is given."""
+    instrument = instruments.get(name)
+    assert np.array_equal(
+        rendered(instrument, pitch='A4', name=name), rendered(instrument, pitch='C2', name=name)
+    )

@@ -1,8 +1,10 @@
-"""The catalog's entry type and families (the tables are in the family modules).
+"""The catalog's entry type, families and tags (the tables are in the family modules).
 
 A ``CatalogEntry`` names an instrument, its family and its playing range (sounding pitch, from
 standard orchestration ranges; folk and world instruments vary by maker and tuning, so theirs
-are typical). Unpitched entries (drums, cymbals) have no range: their tones are fixed.
+are typical). Unpitched entries (drums, cymbals) have no range: their tones are fixed. A ``Tag``
+marks a quality that cuts across families (``Tag.MECHANICAL``); the set is closed, so tags cannot
+drift into synonyms.
 """
 
 from __future__ import annotations
@@ -40,9 +42,18 @@ class Family(StrEnum):
     ORGANS = 'organs'
     ELECTRONIC = 'electronic'
     TUNED_PERCUSSION = 'tuned percussion'
+    PLUCKED_IDIOPHONES = 'plucked idiophones'
+    FRICTION_INSTRUMENTS = 'friction instruments'
     DRUMS_AND_PERCUSSION = 'drums and percussion'
+    NOISE_MAKERS = 'noise makers'
     VOICES = 'voices'
     CHOIRS = 'choirs'
+
+
+class Tag(StrEnum):
+    """The closed set of tags an entry may carry, across families."""
+
+    MECHANICAL = 'mechanical'
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +67,7 @@ class CatalogEntry:
         lowest: Its lowest sounding note name, or None when it is unpitched.
         highest: Its highest sounding note name, or None when it is unpitched.
         build: Makes the instrument (called once; ``instruments.get`` keeps the result).
+        tags: Its tags, members of ``Tag`` (empty for most entries).
     """
 
     name: str
@@ -64,14 +76,16 @@ class CatalogEntry:
     lowest: str | None
     highest: str | None
     build: Callable[[], Instrument] = field(repr=False, compare=False)
+    tags: frozenset[Tag] = field(default=frozenset())
 
     def __post_init__(self) -> None:
-        """Validate the name and the range.
+        """Validate the name, the range and the tags.
 
         Raises:
             ValueError: On a name that is not lower-case words separated by single spaces, a range
                 with only one end, a note name that does not parse, or a lowest note above the
                 highest.
+            TypeError: On a tag that is not a ``Tag`` (a string equal to a tag's value included).
         """
         if ENTRY_NAME_PATTERN.match(self.name) is None:
             message = (
@@ -88,6 +102,10 @@ class CatalogEntry:
         ):
             message = f'{self.name}: lowest {self.lowest} is above highest {self.highest}'
             raise ValueError(message)
+        for tag in self.tags:
+            if type(tag) is not Tag:
+                message = f'{self.name}: tag {tag!r} must be a Tag'
+                raise TypeError(message)
 
     @property
     def pitched(self) -> bool:
