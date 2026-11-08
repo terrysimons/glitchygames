@@ -268,8 +268,8 @@ ORGANS: Final[tuple[CatalogEntry, ...]] = (
 # electrophone list is at https://en.wikipedia.org/wiki/Electrophone ("51=electrically actuated
 # acoustic instruments", "52=electrically amplified acoustic instruments"; it calls the Hammond
 # organ "an electromechanical instrument, as it used both mechanical elements and electronic
-# parts"). The ten moved entries keep their builders and their ranges unchanged; their sources
-# are in the audit sheet plans/data/instrument-audit/batch-2.tsv.
+# parts"). The ten moved entries keep their builders and their ranges unchanged; each cites its
+# sources below, as the audit sheet plans/data/instrument-audit/batch-2.tsv does.
 
 
 def _tine_piano() -> Instrument:
@@ -341,6 +341,13 @@ def _tonewheel_with_percussion(setting: str, *, percussion_harmonic: float) -> I
 
 
 ELECTROMECHANICAL: Final[tuple[CatalogEntry, ...]] = (
+    # Range: kept from the catalog: no source gives the ends
+    # (https://en.wikipedia.org/wiki/Fender_Rhodes gives "54, 73 or 88 keys" and no note names
+    # for them; E1 - E7 is 73 keys, and nothing fetched shows it wrong)
+    # Sound: https://en.wikipedia.org/wiki/Fender_Rhodes ("the hammers strike thin metal tines,
+    # which vibrate next to an electromagnetic pickup"; "Vibrating tines produce a mellower
+    # timbre"; tine and pickup close together give "a characteristic "bell" sound"); the build is
+    # unchanged from before the move
     CatalogEntry(
         'tine electric piano',
         'Electric piano (tine)',
@@ -349,6 +356,12 @@ ELECTROMECHANICAL: Final[tuple[CatalogEntry, ...]] = (
         'E7',
         _tine_piano,
     ),
+    # Range: https://en.wikipedia.org/wiki/Wurlitzer_electric_piano ("Most Wurlitzer pianos are
+    # 64-note instruments whose keyboard range is from A an octave above the lowest note of a
+    # standard 88-note piano to the C an octave below its top note": A1 - C7)
+    # Sound: the same page ("striking a metal reed with a felt hammer", an electrostatic pickup;
+    # "closer to a sawtooth wave"; played hard, a tone "usually described as a "bark""); the build
+    # is unchanged from before the move
     CatalogEntry(
         'reed electric piano',
         'Electric piano (reed)',
@@ -357,7 +370,20 @@ ELECTROMECHANICAL: Final[tuple[CatalogEntry, ...]] = (
         'C7',
         _reed_piano,
     ),
+    # Range: https://en.wikipedia.org/wiki/Hohner_Clavinet ("Most models have 60 keys ranging from
+    # F1 to E6")
+    # Sound: the same page ("a harp of 60 tensioned steel strings placed diagonally below the key
+    # surface"); the build is unchanged from before the move
     CatalogEntry('clavinet', 'Clavinet', Family.ELECTROMECHANICAL, 'F1', 'E6', _clavinet),
+    # The seven tonewheel organ entries below share these sources.
+    # Range: kept from the catalog: no source gives the ends
+    # (https://en.wikipedia.org/wiki/Hammond_organ says "Most Hammond organs have two 61-note
+    # (five-octave) keyboards" and names no notes; C2 - C7 is a 61-note manual at 8' pitch, and
+    # nothing fetched shows it wrong)
+    # Sound: the same page (a tonewheel turns "near an electromagnetic pickup", giving "a signal
+    # similar to a sine wave"; mixing the drawbars makes it "a type of additive synthesis"; the
+    # percussion "plays a decaying second- or third-harmonic overtone when a key is pressed"); the
+    # builds are unchanged from before the move
     CatalogEntry(
         'tonewheel organ jazz',
         'Tonewheel organ (888000000)',
