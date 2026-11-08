@@ -1,12 +1,14 @@
-"""Keyboards (pianos, harpsichords, electric pianos, celesta), organs and electronic instruments.
+"""Keyboards (pianos, harpsichords, celesta), organs, electromechanical and electronic instruments.
 
 A piano string is struck by a hammer near a seventh of its length, so its seventh harmonic is
 nearly gone; each note has two or three slightly detuned strings, whose beating is the piano's
 shimmer. A harpsichord's quill plucks near the end (bright) and has a 4' octave rank. Organs are
 drawbar registrations (``Harmonics.drawbars``) or pipe stops: a principal's every harmonic, a
 flute stop's nearly pure tone, a reed stop's brassy one. The tonewheel organ's percussion is a
-decaying second or third harmonic. Ranges are each instrument's keyboard; an organ's are its
-keys at 8' pitch (a 61-note manual, C2-C7), and a 16' stop or drawbar sounds an octave lower.
+decaying second or third harmonic. Electromechanical instruments (the electric pianos, the
+Clavinet, the tonewheel organs) read a mechanical vibration electrically. Ranges are each
+instrument's keyboard; an organ's are its keys at 8' pitch (a 61-note manual, C2-C7), and a 16'
+stop or drawbar sounds an octave lower.
 """
 
 from __future__ import annotations
@@ -57,42 +59,6 @@ def _harpsichord(*, low_pass: float, octave_rank: bool) -> Instrument:
         pick=0.04,
         pick_high_pass=3000.0,
         low_pass=low_pass,
-    )
-
-
-def _tine_piano() -> Instrument:
-    # A tine electric piano: a nearly pure tone with a bell-like partial on the attack
-    return struck(
-        (
-            Partial(ratio=1.0, level=1.0, ring_seconds=3.0),
-            Partial(ratio=2.0, level=0.25, ring_seconds=1.5),
-            Partial(ratio=7.1, level=0.3, ring_seconds=0.25),
-        ),
-        release=0.35,
-        mallet=0.02,
-        mallet_low_pass=2000.0,
-    )
-
-
-def _reed_piano() -> Instrument:
-    # A reed electric piano: a struck steel reed read by an electrostatic pickup, every harmonic
-    # (close to a sawtooth) and driven, as the pickup's nonlinearity gives its bark
-    return plucked(
-        falling_series(count=16, decibels_per_octave=6.0),
-        ring_seconds=2.0,
-        release=0.2,
-        drive=1.5,
-        low_pass=4000.0,
-    )
-
-
-def _clavinet() -> Instrument:
-    return plucked(
-        plucked_series(count=28, decibels_per_octave=2.0, pluck_position=0.06),
-        ring_seconds=1.0,
-        release=0.08,
-        high_pass=150.0,
-        drive=0.8,
     )
 
 
@@ -194,37 +160,12 @@ KEYBOARDS: Final[tuple[CatalogEntry, ...]] = (
         partial(_piano, ring_seconds=1.5, low_pass=5000.0, cents=1.0, slope=4.0, hammer=0.0),
     ),
     CatalogEntry(
-        'tine electric piano', 'Electric piano (tine)', Family.KEYBOARDS, 'E1', 'E7', _tine_piano
-    ),
-    CatalogEntry(
-        'reed electric piano', 'Electric piano (reed)', Family.KEYBOARDS, 'A1', 'C7', _reed_piano
-    ),
-    CatalogEntry('clavinet', 'Clavinet', Family.KEYBOARDS, 'F1', 'E6', _clavinet),
-    CatalogEntry(
         'celesta', 'Celesta', Family.KEYBOARDS, 'C4', 'C8', partial(_celesta, ring_seconds=1.5)
     ),
     CatalogEntry('toy piano', 'Toy piano', Family.KEYBOARDS, 'F3', 'F6', _toy_piano),
 )
 
 # --- Organs ---------------------------------------------------------------------------------
-
-
-def _tonewheel_with_percussion(setting: str, *, percussion_harmonic: float) -> Instrument:
-    # The percussion: a second or third harmonic that decays while the key is held
-    body = Wave.from_harmonics(Harmonics.drawbars(setting))
-    return Instrument(
-        sources={
-            'drawbars': Source(body),
-            'percussion': Source(
-                'sine',
-                semitones=12.0 * math.log2(percussion_harmonic),
-                level=0.6,
-                envelope=envelope(attack=0.001, decay=0.4, sustain=0.0, release=0.05),
-            ),
-        },
-        envelope=envelope(attack=0.004, release=0.05, curve='linear'),
-        normalize=True,
-    )
 
 
 def _pipe_stop(levels: tuple[float, ...], *, chiff: float, release: float = 0.15) -> Instrument:
@@ -287,62 +228,6 @@ ORGANS: Final[tuple[CatalogEntry, ...]] = (
         partial(drawbar_organ, '008505000', attack=0.03, release=0.1),
     ),
     CatalogEntry(
-        'tonewheel organ jazz',
-        'Tonewheel organ (888000000)',
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(drawbar_organ, '888000000'),
-    ),
-    CatalogEntry(
-        'tonewheel organ full',
-        'Tonewheel organ (888888888)',
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(drawbar_organ, '888888888'),
-    ),
-    CatalogEntry(
-        'tonewheel organ ballad',
-        'Tonewheel organ (808000000)',
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(drawbar_organ, '808000000'),
-    ),
-    CatalogEntry(
-        'tonewheel organ rock',
-        'Tonewheel organ (888800000)',
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(drawbar_organ, '888800000'),
-    ),
-    CatalogEntry(
-        'tonewheel organ gospel',
-        'Tonewheel organ (868000004)',
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(drawbar_organ, '868000004'),
-    ),
-    CatalogEntry(
-        'tonewheel organ percussion second',
-        'Tonewheel organ, second-harmonic percussion',
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(_tonewheel_with_percussion, '808000000', percussion_harmonic=2.0),
-    ),
-    CatalogEntry(
-        'tonewheel organ percussion third',
-        'Tonewheel organ, third-harmonic percussion',
-        Family.ORGANS,
-        'C2',
-        'C7',
-        partial(_tonewheel_with_percussion, '888000000', percussion_harmonic=3.0),
-    ),
-    CatalogEntry(
         'combo organ',
         'Combo organ',
         Family.ORGANS,
@@ -371,6 +256,170 @@ ORGANS: Final[tuple[CatalogEntry, ...]] = (
         'G5',
         partial(
             blown, CALLIOPE_LEVELS, attack=0.02, release=0.1, breath=0.05, breath_low_pass=7000.0
+        ),
+    ),
+)
+
+# --- Electromechanical ----------------------------------------------------------------------
+
+# Electromechanical instruments (Hornbostel-Sachs 51 and 52): a mechanical vibration (a tine, a
+# reed, a string, a spinning tonewheel) picked up electrically, so the sound starts as a
+# mechanical vibration and the electronics only read and amplify it. The Hornbostel-Sachs
+# electrophone list is at https://en.wikipedia.org/wiki/Electrophone ("51=electrically actuated
+# acoustic instruments", "52=electrically amplified acoustic instruments"; it calls the Hammond
+# organ "an electromechanical instrument, as it used both mechanical elements and electronic
+# parts"). The ten moved entries keep their builders and their ranges unchanged; their sources
+# are in the audit sheet plans/data/instrument-audit/batch-2.tsv.
+
+
+def _tine_piano() -> Instrument:
+    # A tine electric piano: a nearly pure tone with a bell-like partial on the attack
+    return struck(
+        (
+            Partial(ratio=1.0, level=1.0, ring_seconds=3.0),
+            Partial(ratio=2.0, level=0.25, ring_seconds=1.5),
+            Partial(ratio=7.1, level=0.3, ring_seconds=0.25),
+        ),
+        release=0.35,
+        mallet=0.02,
+        mallet_low_pass=2000.0,
+    )
+
+
+def _reed_piano() -> Instrument:
+    # A reed electric piano: a struck steel reed read by an electrostatic pickup, every harmonic
+    # (close to a sawtooth) and driven, as the pickup's nonlinearity gives its bark
+    return plucked(
+        falling_series(count=16, decibels_per_octave=6.0),
+        ring_seconds=2.0,
+        release=0.2,
+        drive=1.5,
+        low_pass=4000.0,
+    )
+
+
+def _clavinet() -> Instrument:
+    return plucked(
+        plucked_series(count=28, decibels_per_octave=2.0, pluck_position=0.06),
+        ring_seconds=1.0,
+        release=0.08,
+        high_pass=150.0,
+        drive=0.8,
+    )
+
+
+def _tonewheel_with_percussion(setting: str, *, percussion_harmonic: float) -> Instrument:
+    # The percussion: a second or third harmonic that decays while the key is held
+    body = Wave.from_harmonics(Harmonics.drawbars(setting))
+    return Instrument(
+        sources={
+            'drawbars': Source(body),
+            'percussion': Source(
+                'sine',
+                semitones=12.0 * math.log2(percussion_harmonic),
+                level=0.6,
+                envelope=envelope(attack=0.001, decay=0.4, sustain=0.0, release=0.05),
+            ),
+        },
+        envelope=envelope(attack=0.004, release=0.05, curve='linear'),
+        normalize=True,
+    )
+
+
+ELECTROMECHANICAL: Final[tuple[CatalogEntry, ...]] = (
+    CatalogEntry(
+        'tine electric piano',
+        'Electric piano (tine)',
+        Family.ELECTROMECHANICAL,
+        'E1',
+        'E7',
+        _tine_piano,
+    ),
+    CatalogEntry(
+        'reed electric piano',
+        'Electric piano (reed)',
+        Family.ELECTROMECHANICAL,
+        'A1',
+        'C7',
+        _reed_piano,
+    ),
+    CatalogEntry('clavinet', 'Clavinet', Family.ELECTROMECHANICAL, 'F1', 'E6', _clavinet),
+    CatalogEntry(
+        'tonewheel organ jazz',
+        'Tonewheel organ (888000000)',
+        Family.ELECTROMECHANICAL,
+        'C2',
+        'C7',
+        partial(drawbar_organ, '888000000'),
+    ),
+    CatalogEntry(
+        'tonewheel organ full',
+        'Tonewheel organ (888888888)',
+        Family.ELECTROMECHANICAL,
+        'C2',
+        'C7',
+        partial(drawbar_organ, '888888888'),
+    ),
+    CatalogEntry(
+        'tonewheel organ ballad',
+        'Tonewheel organ (808000000)',
+        Family.ELECTROMECHANICAL,
+        'C2',
+        'C7',
+        partial(drawbar_organ, '808000000'),
+    ),
+    CatalogEntry(
+        'tonewheel organ rock',
+        'Tonewheel organ (888800000)',
+        Family.ELECTROMECHANICAL,
+        'C2',
+        'C7',
+        partial(drawbar_organ, '888800000'),
+    ),
+    CatalogEntry(
+        'tonewheel organ gospel',
+        'Tonewheel organ (868000004)',
+        Family.ELECTROMECHANICAL,
+        'C2',
+        'C7',
+        partial(drawbar_organ, '868000004'),
+    ),
+    CatalogEntry(
+        'tonewheel organ percussion second',
+        'Tonewheel organ, second-harmonic percussion',
+        Family.ELECTROMECHANICAL,
+        'C2',
+        'C7',
+        partial(_tonewheel_with_percussion, '808000000', percussion_harmonic=2.0),
+    ),
+    CatalogEntry(
+        'tonewheel organ percussion third',
+        'Tonewheel organ, third-harmonic percussion',
+        Family.ELECTROMECHANICAL,
+        'C2',
+        'C7',
+        partial(_tonewheel_with_percussion, '888000000', percussion_harmonic=3.0),
+    ),
+    # Range: https://en.wikipedia.org/wiki/Hohner_Pianet ("It had 61 keys ranging from F1 to F6")
+    # Sound: https://en.wikipedia.org/wiki/Hohner_Pianet (a pad "adheres to the reed when at rest,
+    # and lifts and releases the reed" when the key is pressed: the reed is released, not
+    # hammered; the strike gives "a complex mixture of harmonics" that settles to a cleaner tone)
+    # The 12 harmonics at 9 dB per octave, the 1.2 s ring, the 0.15 s release and the 3 kHz low
+    # pass are to be tuned by ear (the sources give no numbers). Unlike the reed electric piano
+    # it has no drive (no hammer bark), a shorter ring, and harmonics that fall faster than the
+    # fundamental
+    CatalogEntry(
+        'hohner pianet',
+        'Hohner Pianet',
+        Family.ELECTROMECHANICAL,
+        'F1',
+        'F6',
+        partial(
+            plucked,
+            falling_series(count=12, decibels_per_octave=9.0),
+            ring_seconds=1.2,
+            release=0.15,
+            low_pass=3000.0,
         ),
     ),
 )

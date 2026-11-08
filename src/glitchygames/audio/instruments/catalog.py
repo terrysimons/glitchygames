@@ -40,6 +40,7 @@ class Family(StrEnum):
     STRUCK_STRINGS = 'struck strings'
     KEYBOARDS = 'keyboards'
     ORGANS = 'organs'
+    ELECTROMECHANICAL = 'electromechanical'
     ELECTRONIC = 'electronic'
     TUNED_PERCUSSION = 'tuned percussion'
     PLUCKED_IDIOPHONES = 'plucked idiophones'

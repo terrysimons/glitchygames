@@ -17,4 +17,11 @@ ALIASES: Final[dict[str, str]] = {
     'cylinder music box': 'music box',
     # https://en.wikipedia.org/wiki/Polyphon: star wheels pluck the same kind of comb; no range
     'disc music box': 'music box',
+    # https://en.wikipedia.org/wiki/Wurlitzer_electric_piano: sound by "striking a metal reed with
+    # a felt hammer", read by an electrostatic pickup: the catalog reed electric piano (the
+    # audit's spelling is "electronic")
+    'wurlitzer electronic piano': 'reed electric piano',
+    # https://en.wikipedia.org/wiki/Hohner_Clavinet: Hohner's instrument, "most models have 60
+    # keys ranging from F1 to E6", the catalog clavinet's range
+    'hohner clavinet': 'clavinet',
 }

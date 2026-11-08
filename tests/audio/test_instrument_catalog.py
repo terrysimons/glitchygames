@@ -45,6 +45,7 @@ HARMONIC_FAMILIES = {
     Family.HARPS,
     Family.KEYBOARDS,
     Family.ORGANS,
+    Family.ELECTROMECHANICAL,
     Family.ELECTRONIC,
     Family.VOICES,
     Family.CHOIRS,
@@ -61,7 +62,10 @@ NOT_PERIODIC_AT_THE_NOTE = {
 # repeats every two of its periods, as a real organ's does
 SIXTEEN_FOOT_ORGANS = {
     entry.name
-    for entry in instruments.entries(family=Family.ORGANS)
+    for entry in (
+        instruments.entries(family=Family.ORGANS)
+        + instruments.entries(family=Family.ELECTROMECHANICAL)
+    )
     for _, source in instruments.get(entry.name).sources
     if not isinstance(source.content, str)
     and getattr(source.content, 'note_periods_per_cycle', 1) == 2
@@ -380,7 +384,13 @@ def test_the_o_vowels_keep_csounds_bandwidths():
 
 def test_organ_ranges_start_at_their_keys_eight_foot_pitch():
     """An organ's range is its manual at 8' pitch: from C2, not the 16' octave below."""
-    for organ in instruments.entries(family=Family.ORGANS):
+    tonewheel_organs = tuple(
+        entry
+        for entry in instruments.entries(family=Family.ELECTROMECHANICAL)
+        if entry.name.startswith('tonewheel organ')
+    )
+    assert tonewheel_organs
+    for organ in (*instruments.entries(family=Family.ORGANS), *tonewheel_organs):
         playing_range = organ.playing_range
         assert playing_range is not None
         assert playing_range[0].midi_number >= Note('C2').midi_number, organ.name
@@ -525,10 +535,20 @@ def test_the_sansula_rings_longer_than_the_kalimba():
 
 @pytest.mark.parametrize(
     ('alias', 'target'),
-    [('zanza', 'mbira'), ('cylinder music box', 'music box'), ('disc music box', 'music box')],
+    [
+        ('zanza', 'mbira'),
+        ('cylinder music box', 'music box'),
+        ('disc music box', 'music box'),
+        ('wurlitzer electronic piano', 'reed electric piano'),
+        ('hohner clavinet', 'clavinet'),
+    ],
 )
-def test_the_plucked_idiophone_aliases_resolve(alias, target):
-    """Zanza is the mbira; both music-box mechanisms play the one comb."""
+def test_the_batch_aliases_resolve(alias, target):
+    """Each alias is the catalog instrument it names.
+
+    Zanza is the mbira, both music boxes the one comb, and the audit's Wurlitzer and Clavinet
+    spellings the catalog's.
+    """
     assert instruments.entry(alias) is instruments.entry(target)
 
 
@@ -677,3 +697,26 @@ def test_the_catalog_and_aliases_are_read_only():
         instruments.CATALOG['kazoo'] = instruments.entry('flute')  # pyright: ignore[reportIndexIssue] - the write is the point
     with pytest.raises(TypeError):
         instruments.ALIASES['bones'] = 'nope'  # pyright: ignore[reportIndexIssue] - the write is the point
+
+
+MOVED_TO_ELECTROMECHANICAL = (
+    'tine electric piano',
+    'reed electric piano',
+    'clavinet',
+    'tonewheel organ jazz',
+    'tonewheel organ full',
+    'tonewheel organ ballad',
+    'tonewheel organ rock',
+    'tonewheel organ gospel',
+    'tonewheel organ percussion second',
+    'tonewheel organ percussion third',
+)
+
+
+def test_electromechanical_holds_the_electric_pianos_clavinet_and_tonewheels():
+    """The ten moved entries are electromechanical now, under the same names."""
+    electromechanical = set(instruments.names(family=Family.ELECTROMECHANICAL))
+    assert set(MOVED_TO_ELECTROMECHANICAL) <= electromechanical
+    assert not set(MOVED_TO_ELECTROMECHANICAL) & set(instruments.names(family=Family.KEYBOARDS))
+    assert not set(MOVED_TO_ELECTROMECHANICAL) & set(instruments.names(family=Family.ORGANS))
+    assert 'combo organ' in instruments.names(family=Family.ORGANS)
