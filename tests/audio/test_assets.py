@@ -11,6 +11,7 @@ import pytest
 
 from glitchygames.audio.assets import (
     FIELDS_ARRIVING_LATER,
+    EnvelopeTable,
     SoundEntry,
     SoundFile,
     clear_sound_file_cache,
@@ -868,3 +869,12 @@ def test_a_dependency_that_disappears_makes_the_cached_file_stale(tmp_path):
 
     with pytest.raises(SoundAssetError, match=r'shared\.toml'):
         load_sound_file(path)
+
+
+@pytest.mark.parametrize('curve', ['linear\n', 'steps(4)\n'])
+def test_an_envelope_curve_with_a_trailing_newline_is_refused(curve):
+    """``$`` alone matches before a final newline; the curve must be the whole string."""
+    with pytest.raises(ValueError, match='unknown envelope curve'):
+        EnvelopeSpec(attack=0.0, decay=0.0, sustain=1.0, release=0.0, curve=curve)
+    with pytest.raises(ValueError, match='unknown envelope curve'):
+        EnvelopeTable(attack=0.0, decay=0.0, sustain=1.0, release=0.0, curve=curve)

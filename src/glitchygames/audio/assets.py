@@ -417,7 +417,7 @@ class EnvelopeTable(_Table):
     @field_validator('curve')
     @classmethod
     def _known_curve(cls, value: str) -> str:
-        if ENVELOPE_CURVE_PATTERN.match(value) is None:
+        if ENVELOPE_CURVE_PATTERN.fullmatch(value) is None:
             message = f'unknown envelope curve {value!r}; use linear, exponential or steps(n)'
             raise ValueError(message)
         return value

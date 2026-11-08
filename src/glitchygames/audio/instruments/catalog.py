@@ -87,7 +87,7 @@ class CatalogEntry:
                 highest.
             TypeError: On a tag that is not a ``Tag`` (a string equal to a tag's value included).
         """
-        if ENTRY_NAME_PATTERN.match(self.name) is None:
+        if ENTRY_NAME_PATTERN.fullmatch(self.name) is None:
             message = (
                 f'catalog name {self.name!r} must be lower-case words separated by single spaces'
             )

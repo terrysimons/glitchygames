@@ -119,7 +119,7 @@ class EnvelopeSpec:
         if not 0.0 <= self.sustain <= 1.0:
             message = f'envelope sustain must be between 0 and 1, got {self.sustain}'
             raise ValueError(message)
-        if ENVELOPE_CURVE_PATTERN.match(self.curve) is None:
+        if ENVELOPE_CURVE_PATTERN.fullmatch(self.curve) is None:
             message = f'unknown envelope curve {self.curve!r}; use linear, exponential or steps(n)'
             raise ValueError(message)
 
