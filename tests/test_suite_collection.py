@@ -1198,6 +1198,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/golden_inputs.py',
         'scripts/record_scripted_session.py',
     ),
+    'tests/test_replay_schedule.py': ('scripts/replay_schedule.py',),
     'tests/test_workspace_packages.py': (
         'scripts/workspace_packages.py',
         'scripts/git_checkout.py',
@@ -1234,6 +1235,9 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/replay/test_golden_replays.py': "checks our members' goldens with our games' tables",
     'tests/replay/test_replays_log_quietly.py': (
         "replays our members' goldens and bundled demos at the tools' log level"
+    ),
+    'tests/replay/test_committed_recordings_present_every_frame.py': (
+        'checks a watched 1x replay presents every frame of every committed recording'
     ),
     'tests/replay/test_recording_logical_names.py': (
         'checks the logical names of every committed recording of our members'
