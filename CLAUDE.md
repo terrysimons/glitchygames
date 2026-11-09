@@ -1645,5 +1645,10 @@ alpha = 127  # 0-254 for transparency, omit for opaque
 - **Documentation**: Architecture details in `docs/architecture/` (the mkdocs site) and root .md files
   (ANIMATION_README.md, LOADER_README.md, etc.). The engine's API reference pages are written by
   hand (`docs/glitchygames/`); each workspace member package's (`mr_muncher/index.md`) is
-  generated in the build by `scripts/gen_ref_pages.py` (mkdocs-gen-files), and mkdocs.yml's nav
-  names it (`tests/test_workspace_config.py` checks every member's)
+  generated in the build by `scripts/gen_ref_pages.py` (mkdocs-gen-files), and zensical.yml's nav
+  names it (`tests/test_workspace_config.py` checks every member's). The site is mkdocs 1.x
+  (`mkdocs<2.0`) with the Material theme; its configuration is `zensical.yml`, and `mkdocs.yml` is a
+  link to it (`test_mkdocs_yml_is_a_link_to_zensical_yml`). Code reads `zensical.yml` by name:
+  Windows may check the link out as a text file. `docs/requirements.md` is the requirements page:
+  its pickers and tables are `docs/js/requirements.js` over `docs/data/requirements.json`
+  (each measured machine's ranges from the replay ledger, regenerated when they are re-measured)

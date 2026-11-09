@@ -24,7 +24,7 @@ changed); running this script regenerates them unconditionally. The steps:
    plotly.js loaded from jsDelivr at the exact version plotly wrote (wily's ``--cdn-js`` names
    cdn.plot.ly; the graph pages would otherwise inline the whole 4.5 MB plotly.js each);
 6. write ``GRAPHS_SNIPPET_NAME``, the markdown docs/quality/complexity.md includes (pymdownx
-   snippets; mkdocs.yml's ``exclude_docs`` keeps it from becoming a page of its own). Without it
+   snippets; zensical.yml's ``exclude_docs`` keeps it from becoming a page of its own). Without it
    the page builds with its own text only, so ``mkdocs build --strict`` passes either way.
 
 Everything is made in a staging directory inside the output directory

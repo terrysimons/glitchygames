@@ -1147,7 +1147,7 @@ requires-dist = [
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.151.9" },
     { name = "joystick-demo", marker = "extra == 'demos'", editable = "src/demos/joystick-demo" },
     { name = "miniaudio" },
-    { name = "mkdocs", marker = "extra == 'docs'" },
+    { name = "mkdocs", marker = "extra == 'docs'", specifier = "<2.0" },
     { name = "mkdocs-autorefs", marker = "extra == 'docs'" },
     { name = "mkdocs-gen-files", marker = "extra == 'docs'" },
     { name = "mkdocs-literate-nav", marker = "extra == 'docs'" },

@@ -5,7 +5,8 @@ each game's `tests/fixtures/replays/` and the demos bundled with the games), com
 measurement replays a recording headless and unpaced on one machine (`--rebaseline`, which times
 each frame's work without the pacing sleep), so a line moves only when the code got faster or
 slower, or the machine changed. Times compare only on one machine: each machine (its CPU model)
-and kind of run is its own line.
+and kind of run is its own line. [Requirements](../requirements.md) turns these measurements into a
+verdict per game for each measured machine.
 
 ## What the graphs show
 

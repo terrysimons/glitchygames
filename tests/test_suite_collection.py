@@ -1897,7 +1897,7 @@ def test_a_reference_outside_the_exempt_paths_is_found(tmp_path):
     """Code, config and a living doc are found; history, exempt paths and other types are not."""
     files = {
         'src/engine.py': 'import glitchygames.examples\n',
-        'mkdocs.yml': 'path: src/glitchygames/examples\n',
+        'zensical.yml': 'path: src/glitchygames/examples\n',
         'docs/guide.md': 'fine\nsee glitchygames/examples/x\n',
         'plans/old.md': 'glitchygames.examples\n',
         'BUGS.md': (
@@ -1918,6 +1918,6 @@ def test_a_reference_outside_the_exempt_paths_is_found(tmp_path):
     assert former_examples_references(project_root=tmp_path) == [
         'BUGS.md:3: glitchygames.examples',
         'docs/guide.md:2: see glitchygames/examples/x',
-        'mkdocs.yml:1: path: src/glitchygames/examples',
         'src/engine.py:1: import glitchygames.examples',
+        'zensical.yml:1: path: src/glitchygames/examples',
     ]

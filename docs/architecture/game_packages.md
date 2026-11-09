@@ -133,7 +133,7 @@ extra; `tests/test_workspace_config.py` keeps each extra equal to its layer's me
 - **The browser build** ships a member's package as its own archive (`<package>.zip`) beside the
   engine's `glitchygames.zip` (`scripts/build_browser_bundle.py`, `GameSpecification.member_packages`).
 - **API reference**: `scripts/gen_ref_pages.py` writes a page per member package
-  (`<package>/index.md`), listed in `mkdocs.yml` under "Games API Reference", "Demos API
+  (`<package>/index.md`), listed in `zensical.yml` under "Games API Reference", "Demos API
   Reference" or "Apps API Reference" by its layer.
 - **Wheels**: `nox -s build-wheel` builds the wheel of the engine and of every member
   (`uv build --all-packages`).
@@ -186,7 +186,7 @@ which entries no test checks.
 | `pyrightconfig.json` | `include`; its `src/` in the `extraPaths` of the `tests` environment and of every member's tests environment (each is a copy of `tests`'s); a tests environment for it (a copy of `tests`'s), before its own environment (`"extraPaths": ["src", "<member>/src"]`) |
 | `noxfile.py` | `_CODE_DIRS`, `_SOURCE_PACKAGE_DIRS`, `_MEMBER_DISTRIBUTIONS` |
 | `wily.cfg` | The `path` list |
-| `mkdocs.yml` | The mkdocstrings `paths` (its `src/`; not checked by a test, but without it `nox -s lint-docs` fails to render its API page), and its API page under its layer's "API Reference" |
+| `zensical.yml` | The mkdocstrings `paths` (its `src/`; not checked by a test, but without it `nox -s lint-docs` fails to render its API page), and its API page under its layer's "API Reference" |
 | `uv.lock` | Regenerate: `uv lock`, then read its diff: only the new member |
 
 The per-layer entries need nothing: the ruff per-file ignores and ty's `src.exclude` name each
@@ -251,7 +251,7 @@ games ship member packages. Demos have no browser build.
 
 - `docs/games/<game>.md` (a game) or a section of the page for the feature a demo shows (the
   Sound Board demo's is in [Sound](sound.md)), with an "Its package" line linking here; and its
-  entry in `mkdocs.yml`'s `nav`.
+  entry in `zensical.yml`'s `nav`.
 - `README.md` and `CLAUDE.md`: where it lives and how to run it.
 
 ### 6. Verify

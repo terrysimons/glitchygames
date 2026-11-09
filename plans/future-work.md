@@ -645,6 +645,14 @@ only replays; Part 2 Task 1).
 
 ## Performance and pacing
 
+- **Re-measure the requirements page** (the owner, 2026-11-09). `docs/requirements.md` gives each
+  measured machine's verdict per game from runs of November 5 to 9, 2026 (Raspberry Pi 4,
+  Raspberry Pi 5, Apple M4 Max). The owner expects the numbers to improve once the in-flight work
+  lands: the Arcade's engine-context sub-plans, Lucid Circuit Stage 4b and the Raspberry Pi
+  speedups below. Then re-measure every machine, regenerate `docs/data/requirements.json` from the
+  replay ledger (the page's tables and verdicts are drawn from it), and update the page's prose
+  and dates. The page also has a claude.ai doc copy, "GlitchyGames Requirements"; update it or
+  retire it then.
 - **Raspberry Pi hardware runners** (the user, 2026-11-02; do this on its own branch, separate from
   the sound engine work). Self-hosted CI runners on the user's Raspberry Pis, so the replay ledger
   and the sound benchmarks (`docs/specs/2026-11-02-sound-engine-implementation-spec.md` §11) are

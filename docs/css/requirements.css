@@ -1,0 +1,81 @@
+/* The requirements page's pickers, FPS scale and tables (docs/js/requirements.js). */
+
+.requirements-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 2rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+
+.requirements-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.requirements-picker-label {
+  font-weight: 700;
+  margin-right: 0.2rem;
+}
+
+.requirements-picker-option {
+  border: 1px solid var(--md-primary-fg-color);
+  border-radius: 0.2rem;
+  padding: 0.2rem 0.6rem;
+  color: var(--md-primary-fg-color);
+  background: transparent;
+  cursor: pointer;
+}
+
+.requirements-picker-option[aria-pressed="true"] {
+  color: var(--md-primary-bg-color);
+  background: var(--md-primary-fg-color);
+}
+
+.requirements-legend {
+  flex: 1 1 18rem;
+  max-width: 32rem;
+}
+
+.requirements-legend-bar {
+  position: relative;
+  height: 1.2rem;
+  border-radius: 0.2rem;
+}
+
+/* The target frame rate, marked on the scale */
+.requirements-legend-target {
+  position: absolute;
+  top: -0.25rem;
+  bottom: -0.25rem;
+  width: 0.2rem;
+  margin-left: -0.1rem;
+  background: var(--md-default-fg-color);
+}
+
+.requirements-legend-ticks {
+  position: relative;
+  height: 1.4rem;
+  font-size: 0.7rem;
+}
+
+.requirements-legend-ticks span {
+  position: absolute;
+  white-space: nowrap;
+}
+
+.requirements-caption {
+  color: var(--md-default-fg-color--light);
+}
+
+/* Colored cells keep dark text, whatever the theme's text color */
+.requirements-fps {
+  color: #000;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.requirements-verdict-below {
+  font-weight: 700;
+}

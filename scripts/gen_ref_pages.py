@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate the workspace members' API reference pages (mkdocs-gen-files; mkdocs.yml plugins).
+"""Generate the workspace members' API reference pages (mkdocs-gen-files; zensical.yml plugins).
 
 The engine's reference pages are written by hand (docs/glitchygames/, one page per package with
 the options each needs). Each workspace member's import packages (scripts/workspace_packages.py)
 get one generated page each, ``<package>/index.md``: the package, then each of its modules (a
 subpackage's by their dotted path; ``__main__`` left out), rendered as the engine's pages render
-theirs, so a member's API is documented as soon as it joins the workspace. mkdocs.yml's nav names
+theirs, so a member's API is documented as soon as it joins the workspace. zensical.yml's nav names
 each page (tests/test_workspace_config.py checks every member's is there) and mkdocstrings' python
 ``paths`` find the packages.
 
