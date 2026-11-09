@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import dataclasses
 import difflib
 import functools
+import inspect
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, cast
 
 from glitchygames.audio.instruments.aliases import ALIASES
 from glitchygames.audio.instruments.brass import BRASS
@@ -38,7 +40,7 @@ from glitchygames.audio.instruments.winds import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from glitchygames.audio.instrument import Instrument
 
@@ -94,9 +96,113 @@ def catalog_from(tables: Sequence[Sequence[CatalogEntry]]) -> dict[str, CatalogE
     return catalog
 
 
-# Read-only views: a caller writing into either would skip catalog_from's and aliases_from's checks
-# and change what every lookup answers
-CATALOG: Final[Mapping[str, CatalogEntry]] = MappingProxyType(catalog_from(FAMILY_TABLES))
+def _keyword_parameters(builder: functools.partial[Instrument]) -> frozenset[str]:
+    """The parameters a keyword may replace in ``builder``.
+
+    They are its function's keyword parameters that its positional arguments do not already fill.
+
+    Returns:
+        The parameter names.
+    """
+    parameters = list(inspect.signature(builder.func).parameters.values())
+    keyword_kinds = {inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY}
+    filled_positionally = {parameter.name for parameter in parameters[: len(builder.args)]}
+    return frozenset(
+        parameter.name
+        for parameter in parameters
+        if parameter.kind in keyword_kinds and parameter.name not in filled_positionally
+    )
+
+
+def _sound_alike_build(
+    catalog_entry: CatalogEntry, parent: CatalogEntry
+) -> Callable[[], Instrument]:
+    """The parent's builder, with the sound-alike's ``sound_changes`` replacing its keywords.
+
+    Returns:
+        The builder.
+
+    Raises:
+        ValueError: When there are changes and the parent's builder is not a
+            ``functools.partial``, or a change names no keyword parameter of its function.
+    """
+    # The catalog's assembly has checked that the parent is no sound-alike, so it has a build
+    parent_build = cast('Callable[[], Instrument]', parent.build)
+    if not catalog_entry.sound_changes:
+        return parent_build
+    if not isinstance(parent_build, functools.partial):
+        message = (
+            f'{catalog_entry.name}: sound changes need a functools.partial builder, and '
+            f'{parent.name!r} has none'
+        )
+        raise ValueError(message)  # ruff: ignore[type-check-without-type-error] - a catalog refusal
+    builder = cast('functools.partial[Instrument]', parent_build)
+    unknown = sorted(set(catalog_entry.sound_changes) - _keyword_parameters(builder))
+    if unknown:
+        message = (
+            f'{catalog_entry.name}: sound changes {unknown} are not keyword parameters of '
+            f"{parent.name!r}'s builder"
+        )
+        raise ValueError(message)
+    return functools.partial(
+        builder.func, *builder.args, **{**builder.keywords, **catalog_entry.sound_changes}
+    )
+
+
+def sound_alikes_from(catalog: Mapping[str, CatalogEntry]) -> dict[str, CatalogEntry]:
+    """The catalog with every sound-alike given its build, checked against its parent.
+
+    A sound-alike (an entry with ``sounds_like``) builds its parent's instrument, with its
+    ``sound_changes`` replacing the parent builder's keywords.
+
+    Args:
+        catalog: Name to entry, as ``catalog_from`` assembles it.
+
+    Returns:
+        Name to entry, in the same order, each sound-alike carrying its build.
+
+    Raises:
+        ValueError: Naming the entry, when sound changes come without ``sounds_like``, or a
+            sound-alike has its own build, sounds like itself, an entry that is not in the
+            catalog or another sound-alike, has a range other than its parent's, or carries
+            changes its parent's builder cannot take.
+    """
+    assembled: dict[str, CatalogEntry] = {}
+    for name, catalog_entry in catalog.items():
+        parent_name = catalog_entry.sounds_like
+        if parent_name is None:
+            if catalog_entry.sound_changes:
+                message = f'{name}: sound changes need the entry it sounds like'
+                raise ValueError(message)
+            assembled[name] = catalog_entry
+            continue
+        if catalog_entry.build is not None:
+            message = f'{name}: a sound-alike takes the build of {parent_name!r}, not its own'
+            raise ValueError(message)
+        if parent_name == name:
+            message = f'{name}: sounds like itself'
+            raise ValueError(message)
+        parent = catalog.get(parent_name)
+        if parent is None:
+            message = f'{name}: sounds like no instrument: {parent_name!r}'
+            raise ValueError(message)
+        if parent.sounds_like is not None:
+            message = f'{name}: sounds like {parent_name!r}, itself a sound-alike'
+            raise ValueError(message)
+        if (catalog_entry.lowest, catalog_entry.highest) != (parent.lowest, parent.highest):
+            message = f'{name}: its range must be that of {parent_name!r}'
+            raise ValueError(message)
+        assembled[name] = dataclasses.replace(
+            catalog_entry, build=_sound_alike_build(catalog_entry, parent)
+        )
+    return assembled
+
+
+# Read-only views: a caller writing into either would skip catalog_from's, sound_alikes_from's and
+# aliases_from's checks and change what every lookup answers
+CATALOG: Final[Mapping[str, CatalogEntry]] = MappingProxyType(
+    sound_alikes_from(catalog_from(FAMILY_TABLES))
+)
 
 
 def aliases_from(table: Mapping[str, str], catalog: Mapping[str, CatalogEntry]) -> dict[str, str]:
@@ -173,7 +279,11 @@ def get(name: str) -> Instrument:
 
 @functools.cache
 def _built(name: str) -> Instrument:
-    return entry(name).build()
+    build = entry(name).build
+    if build is None:  # pragma: no cover - sound_alikes_from gives every sound-alike a build
+        message = f'{name}: no build'
+        raise ValueError(message)
+    return build()
 
 
 def _family(family: Family | str | None) -> Family | None:

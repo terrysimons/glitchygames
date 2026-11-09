@@ -1,12 +1,19 @@
 """The instrument catalog: every entry builds, renders across its range and plays its pitch."""
 
+from functools import partial
+
 import numpy as np
 import pytest
 
 from glitchygames.audio import instruments
 from glitchygames.audio.instrument import Filter, Instrument
 from glitchygames.audio.instruments import CatalogEntry, Family, Tag
-from glitchygames.audio.instruments.registry import FAMILY_TABLES, aliases_from, catalog_from
+from glitchygames.audio.instruments.registry import (
+    FAMILY_TABLES,
+    aliases_from,
+    catalog_from,
+    sound_alikes_from,
+)
 from glitchygames.audio.instruments.timbres import (
     Course,
     Formant,
@@ -491,6 +498,135 @@ def test_the_alias_table_is_refused_when_it_is_wrong():
         aliases_from({'Bad Alias': 'flute'}, instruments.CATALOG)
 
 
+def plain_drum(noise: float = 0.5) -> Instrument:
+    """A stand-in builder that is a plain function, not a partial.
+
+    Returns:
+        The instrument.
+    """
+    return drum(tones=(Tone(hertz=200.0, ring_seconds=0.2),), noise=noise, tail=0.2)
+
+
+def sound_alike_table(*extra: CatalogEntry) -> dict[str, CatalogEntry]:
+    """A test-only catalog: a parent drum built by a partial, a plain-function drum, and ``extra``.
+
+    Returns:
+        Name to entry, as ``catalog_from`` assembles it.
+    """
+    parent = CatalogEntry(
+        'test parent',
+        'Test parent',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(drum, tones=(Tone(hertz=200.0, ring_seconds=0.2),), noise=0.5, tail=0.2),
+    )
+    plain = CatalogEntry(
+        'test plain', 'Test plain', Family.DRUMS_AND_PERCUSSION, None, None, plain_drum
+    )
+    return catalog_from([(parent, plain, *extra)])
+
+
+def unpitched_drum(name: str, **fields) -> CatalogEntry:
+    """An unpitched drums and percussion entry named ``name`` with ``fields``.
+
+    Returns:
+        The entry.
+    """
+    return CatalogEntry(name, name.capitalize(), Family.DRUMS_AND_PERCUSSION, None, None, **fields)
+
+
+def test_an_entry_needs_a_build_or_a_parent():
+    """An entry with neither a build nor ``sounds_like`` could make no sound."""
+    with pytest.raises(ValueError, match='test nothing: give a build, or the entry it sounds like'):
+        unpitched_drum('test nothing')
+
+
+def test_an_entrys_sound_changes_are_read_only():
+    """The changes are copied and frozen: the caller's dict cannot change the entry."""
+    changes = {'noise': 0.9}
+    alike = unpitched_drum('test alike', sounds_like='test parent', sound_changes=changes)
+    changes['noise'] = 0.1
+    assert alike.sound_changes == {'noise': 0.9}
+    with pytest.raises(TypeError):
+        alike.sound_changes['noise'] = 0.2  # pyright: ignore[reportIndexIssue] - the write is the point
+
+
+def test_the_sound_alikes_are_refused_when_they_are_wrong():
+    """A bad sound-alike fails when the catalog is assembled, naming the entry."""
+    refusals = [
+        (
+            unpitched_drum('test alike', sounds_like='test missing'),
+            "test alike: sounds like no instrument: 'test missing'",
+        ),
+        (unpitched_drum('test alike', sounds_like='test alike'), 'test alike: sounds like itself'),
+        (
+            unpitched_drum('test alike', sounds_like='test plain', build=plain_drum),
+            "test alike: a sound-alike takes the build of 'test plain', not its own",
+        ),
+        (
+            CatalogEntry(
+                'test alike',
+                'Test alike',
+                Family.DRUMS_AND_PERCUSSION,
+                'C4',
+                'C5',
+                sounds_like='test parent',
+            ),
+            "test alike: its range must be that of 'test parent'",
+        ),
+        (
+            unpitched_drum('test alike', build=plain_drum, sound_changes={'noise': 0.9}),
+            'test alike: sound changes need the entry it sounds like',
+        ),
+        (
+            unpitched_drum('test alike', sounds_like='test plain', sound_changes={'noise': 0.9}),
+            "test alike: sound changes need a functools.partial builder, and 'test plain' has none",
+        ),
+        (
+            unpitched_drum('test alike', sounds_like='test parent', sound_changes={'wobble': 1.0}),
+            r"test alike: sound changes \['wobble'\] are not keyword parameters of 'test parent'",
+        ),
+    ]
+    for alike, message in refusals:
+        with pytest.raises(ValueError, match=message):
+            sound_alikes_from(sound_alike_table(alike))
+    first = unpitched_drum('test first', sounds_like='test parent')
+    second = unpitched_drum('test second', sounds_like='test first')
+    with pytest.raises(ValueError, match="test second: sounds like 'test first', itself a sound"):
+        sound_alikes_from(sound_alike_table(first, second))
+
+
+def test_a_sound_change_cannot_replace_a_positional_argument():
+    """A parameter the parent's partial fills positionally is not a keyword it can replace."""
+    positional_parent = CatalogEntry(
+        'test tom', 'Test tom', Family.DRUMS_AND_PERCUSSION, None, None, partial(plain_drum, 0.3)
+    )
+    alike = unpitched_drum('test alike', sounds_like='test tom', sound_changes={'noise': 0.9})
+    with pytest.raises(ValueError, match=r"sound changes \['noise'\] are not keyword parameters"):
+        sound_alikes_from(catalog_from([(positional_parent, alike)]))
+
+
+def test_a_changed_sound_alike_builds_the_changed_instrument():
+    """A sound-alike with a change builds its parent's builder with that keyword replaced."""
+    plain_alike = unpitched_drum('test same', sounds_like='test parent')
+    changed_alike = unpitched_drum(
+        'test changed', sounds_like='test parent', sound_changes={'noise': 0.9}
+    )
+    assembled = sound_alikes_from(sound_alike_table(plain_alike, changed_alike))
+    parent_build = assembled['test parent'].build
+    same_build = assembled['test same'].build
+    changed_build = assembled['test changed'].build
+    assert parent_build is not None and same_build is not None and changed_build is not None
+    expected = partial(drum, tones=(Tone(hertz=200.0, ring_seconds=0.2),), noise=0.9, tail=0.2)
+    assert changed_build() == expected()
+    assert changed_build() != parent_build()
+    assert same_build() == parent_build()
+    # The entries keep their own names and order, and the rest of the table is unchanged
+    assert list(assembled) == ['test parent', 'test plain', 'test same', 'test changed']
+    assert assembled['test changed'].sound_changes == {'noise': 0.9}
+
+
 def test_an_unknown_name_suggests_aliases_too():
     """A near miss of an alias suggests it."""
     with pytest.raises(KeyError, match='did you mean slapstick'):
@@ -538,102 +674,18 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('hohner clavinet', 'clavinet'),
         ('rain box', 'rain machine'),
         ('horse hooves', 'coconut shells'),
-        ('alfaia', 'taiko'),
-        ('ashiko', 'djembe tone'),
-        ('atabaque', 'conga'),
-        ('atumpan', 'tumba'),
-        ('bamboula', 'conga'),
-        ('bangu', 'darbuka tek'),
-        ('bata drum', 'conga'),
-        ('bedug', 'orchestral bass drum'),
-        ('bougarabou', 'djembe bass'),
-        ('buk', 'taiko'),
-        ('caixa malacacheta', 'snare drum'),
-        ('candombe drums', 'conga'),
-        ('carimbo', 'tumba'),
-        ('concert tom', 'mid tom'),
-        ('cultrun', 'bodhran'),
-        ('dabakan', 'conga slap'),
-        ('damphu', 'bodhran'),
-        ('davul', 'dhol'),
         ('dayereh', 'daf'),
-        ('dhak', 'dhol'),
-        ('dhimay', 'surdo'),
-        ('dohol', 'dhol'),
-        ('dollu', 'dhol'),
-        ('dunun', 'floor tom'),
-        ('fontomfrom', 'orchestral bass drum'),
         ('ganrang', 'kendang'),
-        ('gbedu', 'orchestral bass drum'),
-        ('gome', 'cajon bass'),
-        ('gudugudu', 'high timbale'),
-        ('hira daiko', 'taiko'),
-        ('huehuetl', 'tumba'),
-        ('igba', 'low bongo'),
-        ('jwago', 'taiko'),
-        ('kakko', 'high tom'),
-        ('kendang ciblon', 'kendang'),
-        ('kendang wadon', 'kendang'),
-        ('kenkeni', 'mid tom'),
-        ('klong khaek', 'kendang'),
-        ('kpanlogo', 'conga'),
-        ('kundu', 'conga'),
-        ('kus', 'taiko'),
-        ('madal', 'kendang'),
-        ('maddalam', 'mridangam'),
-        ('makuta', 'conga'),
-        ('marching snare', 'field drum'),
-        ('nagado daiko', 'taiko'),
         ('nagara', 'naqareh'),
-        ('ngoma', 'conga'),
-        ('octoban', 'high tom'),
-        ('okedo daiko', 'high tom'),
-        ('pahu', 'tumba'),
-        ('pakhavaj', 'mridangam'),
         ('paila criolla', 'high timbale'),
-        ('pandero jarocho', 'tambourine'),
-        ('parai', 'bodhran'),
-        ('popcorn snare', 'piccolo snare'),
-        ('puniu', 'high bongo'),
-        ('rebana', 'tambourine'),
-        ('repinique', 'high timbale'),
         ('riq', 'daf'),
-        ('sabar', 'djembe tone'),
-        ('sakara drum', 'bodhran'),
-        ('samphor', 'kendang'),
-        ('sangban', 'low tom'),
-        ('shime daiko', 'high tom'),
-        ('tabor', 'field drum'),
-        ('tambora', 'conga'),
-        ('tamborim', 'darbuka tek'),
-        ('tan tan', 'surdo'),
-        ('tanggu', 'mid tom'),
-        ('taphon', 'kendang'),
-        ('tar drum', 'frame drum'),
-        ('tarol', 'snare drum'),
-        ('tasha', 'naqareh'),
-        ('tbilat', 'high bongo'),
-        ('thunder drum', 'orchestral bass drum'),
-        ('thunder tube', 'thunder sheet'),
-        ('tifa', 'djembe tone'),
-        ('tombak', 'darbuka doum'),
-        ('trong chau', 'darbuka tek'),
-        ('trong com', 'kendang'),
-        ('tsuri daiko', 'orchestral bass drum'),
-        ('uchiwa daiko', 'bodhran'),
-        ('urumi', 'high tom'),
-        ('zabumba', 'dhol'),
         ('naqara', 'naqareh'),
         ('naqqara', 'naqareh'),
         ('tavil', 'thavil'),
         ('chende', 'chenda'),
-        ('khanjani', 'daf'),
         ('ganjira', 'kanjira'),
-        ('tabl', 'dhol'),
         ('doira', 'daf'),
         ('gran cassa', 'orchestral bass drum'),
-        ('timbal', 'conga'),
-        ('tumbaknari', 'darbuka doum'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -641,8 +693,8 @@ def test_the_batch_aliases_resolve(alias, target):
 
     Zanza is the mbira, both music boxes the one comb, the audit's Wurlitzer and Clavinet
     spellings the catalog's, and the rain box and horse hooves the sound effects they name.
-    Batch 3's drum aliases are other names for a drum or drums that sound like one (a
-    sound-alike resolves to the entry it would sound like; the sheet's notes say which).
+    Batch 3's drum aliases are other names for the same drum (a distinct drum that sounds like
+    one is its own entry: ``test_a_sound_alike_is_listed_and_builds_its_parents_sound``).
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -850,6 +902,94 @@ NEW_DRUM_NAMES = [
     'pipe band snare',
     'thavil',
 ]
+# Batch 3's sound-alikes and the entry each sounds like, in the sheet's order
+SOUND_ALIKE_PARENTS = {
+    'alfaia': 'taiko',
+    'ashiko': 'djembe tone',
+    'atabaque': 'conga',
+    'atumpan': 'tumba',
+    'bamboula': 'conga',
+    'bangu': 'darbuka tek',
+    'bata drum': 'conga',
+    'bedug': 'orchestral bass drum',
+    'bougarabou': 'djembe bass',
+    'buk': 'taiko',
+    'caixa malacacheta': 'snare drum',
+    'candombe drums': 'conga',
+    'carimbo': 'tumba',
+    'concert tom': 'mid tom',
+    'cultrun': 'bodhran',
+    'dabakan': 'conga slap',
+    'damphu': 'bodhran',
+    'davul': 'dhol',
+    'dhak': 'dhol',
+    'dhimay': 'surdo',
+    'dohol': 'dhol',
+    'dollu': 'dhol',
+    'dunun': 'floor tom',
+    'fontomfrom': 'orchestral bass drum',
+    'gbedu': 'orchestral bass drum',
+    'gome': 'cajon bass',
+    'gudugudu': 'high timbale',
+    'hira daiko': 'taiko',
+    'huehuetl': 'tumba',
+    'igba': 'low bongo',
+    'jwago': 'taiko',
+    'kakko': 'high tom',
+    'kendang ciblon': 'kendang',
+    'kendang wadon': 'kendang',
+    'kenkeni': 'mid tom',
+    'klong khaek': 'kendang',
+    'kpanlogo': 'conga',
+    'kundu': 'conga',
+    'kus': 'taiko',
+    'madal': 'kendang',
+    'maddalam': 'mridangam',
+    'makuta': 'conga',
+    'marching snare': 'field drum',
+    'nagado daiko': 'taiko',
+    'ngoma': 'conga',
+    'octoban': 'high tom',
+    'okedo daiko': 'high tom',
+    'pahu': 'tumba',
+    'pakhavaj': 'mridangam',
+    'pandero jarocho': 'tambourine',
+    'parai': 'bodhran',
+    'popcorn snare': 'piccolo snare',
+    'puniu': 'high bongo',
+    'rebana': 'tambourine',
+    'repinique': 'high timbale',
+    'sabar': 'djembe tone',
+    'sakara drum': 'bodhran',
+    'samphor': 'kendang',
+    'sangban': 'low tom',
+    'shime daiko': 'high tom',
+    'tabor': 'field drum',
+    'tambora': 'conga',
+    'tamborim': 'darbuka tek',
+    'tan tan': 'surdo',
+    'tanggu': 'mid tom',
+    'taphon': 'kendang',
+    'tar drum': 'frame drum',
+    'tarol': 'snare drum',
+    'tasha': 'naqareh',
+    'tbilat': 'high bongo',
+    'thunder drum': 'orchestral bass drum',
+    'thunder tube': 'thunder sheet',
+    'tifa': 'djembe tone',
+    'tombak': 'darbuka doum',
+    'trong chau': 'darbuka tek',
+    'trong com': 'kendang',
+    'tsuri daiko': 'orchestral bass drum',
+    'uchiwa daiko': 'bodhran',
+    'urumi': 'high tom',
+    'zabumba': 'dhol',
+    'khanjani': 'daf',
+    'tabl': 'dhol',
+    'timbal': 'conga',
+    'tumbaknari': 'darbuka doum',
+}
+SOUND_ALIKE_NAMES = list(SOUND_ALIKE_PARENTS)
 
 # The least measured margin is the ocean drum's: its second note's energy is 6.76 times its
 # single note's tail (the other effects are 17 times or more, and infinite for the three whose
@@ -963,16 +1103,48 @@ def test_a_one_shot_stops_however_long_it_is_held(name):
     assert late < 0.01 * np.max(levels), name
 
 
+def sound_group(name: str) -> str:
+    """The name an entry's sound belongs to: an unchanged sound-alike's parent, else its own.
+
+    Returns:
+        The name.
+    """
+    catalog_entry = instruments.entry(name)
+    if catalog_entry.sounds_like is not None and not catalog_entry.sound_changes:
+        return catalog_entry.sounds_like
+    return name
+
+
 def test_no_two_drums_build_the_same_instrument():
-    """Every entry in the family is its own sound (the anti-goal: no renamed copies)."""
+    """Every entry in the family is its own sound (the anti-goal: no renamed copies).
+
+    Only an entry and its unchanged sound-alikes, or two unchanged sound-alikes of one parent,
+    may be equal; a sound-alike with changes must differ from every other entry.
+    """
     names = instruments.names(family=Family.DRUMS_AND_PERCUSSION)
     same = [
         (first, second)
         for index, first in enumerate(names)
         for second in names[index + 1 :]
         if instruments.get(first) == instruments.get(second)
+        and sound_group(first) != sound_group(second)
     ]
     assert same == []
+
+
+def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
+    """Each sound-alike is a drums and percussion name of its own, building its parent's sound."""
+    listed = instruments.names(family=Family.DRUMS_AND_PERCUSSION)
+    for name, parent in SOUND_ALIKE_PARENTS.items():
+        assert name in listed, name
+        assert instruments.entry(name).sounds_like == parent, name
+        assert instruments.get(name) == instruments.get(parent), name
+    every_sound_alike = [
+        catalog_entry.name
+        for catalog_entry in instruments.entries()
+        if catalog_entry.sounds_like is not None
+    ]
+    assert every_sound_alike == SOUND_ALIKE_NAMES
 
 
 def test_the_new_drums_are_in_their_family():
