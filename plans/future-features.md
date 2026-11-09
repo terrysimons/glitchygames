@@ -1745,23 +1745,66 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 1 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 2 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
-  batch 1) toward every instrument a game might want, in one verified batch per family. Adversarial audits (2026-11-07) found
-  1,303 candidates, only 84 with source-verified ranges. Adds five families (plucked
-  idiophones, friction instruments, noise makers, sound effects, and electromechanical split
-  from electronic), makes mechanical instruments a tag, and lists the instruments that wait for
-  engine features (sympathetic strings, moving formants, FM, samples); every sound effect is
-  usable in music.
+  batch 1, 448 in 23 after batch 2) toward every instrument a game might want, in one verified
+  batch per family. Adversarial audits (2026-11-07) found 1,303 candidates, only 84 with
+  source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
+  makers, sound effects, and electromechanical, which takes the electric pianos, Clavinet and
+  tonewheel organs from keyboards and organs), makes mechanical instruments a tag, and lists
+  the instruments that wait for engine features (sympathetic strings, moving formants, FM,
+  samples); every sound effect is usable in music.
   Batch 1 (plucked idiophones, friction instruments, noise makers, tags and aliases) is done:
   of its 79 audited candidates 8 shipped, 4 moved family, 58 wait for engine features, 4 became
-  aliases and 5 were dropped. Next: sound effects and electromechanical, then drums and
-  percussion
+  aliases and 5 were dropped.
+  Batch 2 (electromechanical and sound effects) is done: of its 62 audited candidates (30
+  electromechanical, 32 sound effects) 9 shipped, 10 moved family, 11 wait for engine
+  features, 4 became aliases and 28 were dropped. Next: drums and percussion
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
-- **Status**: Batch 1 done (requested by the owner 2026-11-06)
+- **Plan (batch 2)**: `plans/2026-11-08-instrument-catalog-batch-2-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-2.tsv`
+- **Status**: Batches 1 and 2 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
+
+### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
+- **Goal**: confirm or overturn the calls made while batch 2 of #70 ran, and listen to its new
+  instruments (the owner, 2026-11-08: "make note of those checks")
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+  every level, filter, ring and glide below is sound design, not sourced):
+  - [ ] `hohner pianet` against `reed electric piano`: distinct enough to be two entries (the
+    anti-goal), and does the Pianet's bright strike settle as its source describes?
+  - [ ] The eight sound effects (`build/instruments/sound effects/`): thunder sheet, rain
+    machine, ocean drum, cannon, crash box, coconut shells, door slam, giants footsteps
+  - [ ] `thunder sheet`: `drum`'s one `attack` also swells its 120 Hz metal-ring tone, not
+    only the noise
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-2.tsv`):
+  - [ ] `thunder run` waits for an amplitude LFO (its separate ball impacts), as fire crackle
+    does, rather than shipping as a smooth rumble
+  - [ ] `sandpaper blocks` is dropped to drums and percussion (batch 3), like the washboard
+    and rain stick
+  - [ ] `gunshot`, `snow crunch` and `bone crack` are dropped as Foley tricks, not devices
+  - [ ] `rain stick` is a percussion instrument (batch 3), not an alias of `rain machine`
+  - [ ] `rumble cart` stays DROP; its note says it would wait for the same feature as the
+    thunder run (WAIT instead is one cell)
+  - [ ] `thunder sheet` ships although it is shaken slowly then quickly
+  - [ ] The Pianet is built with `struck` (harmonics 1–4, higher ones ringing shorter)
+  - [ ] Electric guitars, basses, violins and steels stay in their string families rather
+    than electromechanical; `combo organ` stays in organs (H-S 53)
+  - [ ] The tine electric piano (E1–E7) and tonewheel organ (C2–C7) ranges are kept from the
+    catalog: no fetched source gives their ends
+- **Follow-ups**:
+  - [ ] Brand aliases a game developer would type (`fender rhodes`, `rhodes piano`,
+    `hammond organ`), each sourced in the sheet
+  - [ ] The tonewheel source comment quotes "near an electromagnetic pickup"; the sheet quotes
+    "in front of"; align both with the Hammond organ page
+  - [ ] CI: the macOS syft and grype install (`.circleci/config.yml`, `install_release`) makes
+    one `curl` attempt, so a GitHub 504 fails the job (PR #162's first run); add
+    `--retry 5 --retry-delay 5 --retry-all-errors`
+- **Found**: batch 2's reviews and final whole-branch review (2026-11-08)
+- **Status**: TODO
+- **Priority**: Medium (before batch 3 builds on the family boundaries)
 
 ## Notes
 
