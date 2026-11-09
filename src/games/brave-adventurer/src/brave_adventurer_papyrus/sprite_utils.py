@@ -68,7 +68,7 @@ def refresh_drawn_image(sprite: AnimatedSprite) -> None:
     surface, not a copy: ``pygame.transform.flip`` returns a new surface, so a flip never
     reaches the cache, and a change made in place (``set_alpha``) must copy first, as the
     player's fade does. A sprite that never changes its image needs no refresh: the engine's
-    own redraw is enough. (Copying here every tick made 51 surfaces a frame, BUGS.md #265.)
+    own redraw is enough. (Copying here every tick made 51 surfaces a frame, BUGS.md #270.)
 
     Args:
         sprite: The sprite to refresh.

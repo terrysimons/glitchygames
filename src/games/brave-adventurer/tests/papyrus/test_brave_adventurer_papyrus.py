@@ -447,7 +447,7 @@ class TestPapyrusSpriteUtilities:
         assert sprite.scale == 2
 
     def test_scale_one_draws_the_frame_itself(self):
-        """A refresh resets image to the drawn frame, not a copy (BUGS.md #265)."""
+        """A refresh resets image to the drawn frame, not a copy (BUGS.md #270)."""
         _start_display()
         sprite = AnimatedSprite(
             filename=str(SPRITES_DIR / 'cobra.toml'), groups=pygame.sprite.LayeredDirty()
@@ -473,7 +473,7 @@ class TestPapyrusSpriteUtilities:
         ids=['cobra', 'scarab', 'gold-scarab', 'scorpion-facing-right', 'player-facing-right'],
     )
     def test_a_tick_draws_the_cached_frame_without_copying_it(self, make_sprite):
-        """Unflipped and unfaded, a sprite's image is the engine's cached frame (BUGS.md #265).
+        """Unflipped and unfaded, a sprite's image is the engine's cached frame (BUGS.md #270).
 
         Papyrus copied every sprite's frame every tick, 51 surfaces a frame in its golden.
         """

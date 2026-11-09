@@ -208,7 +208,7 @@ a reference the tests check the model's mechanics against, catching invented rul
      help frame times. Python's allocations grow only into bounded histories (the overlay's 5,000 frame times, the
      performance manager's 100,000 samples).
    - **Surface churn: Brave Adventurer Papyrus made 51 `Surface.copy` calls a frame.** Every other game makes 0 to 6
-     Surface-making calls a frame (Clockwork Keep's 5.4 are `Font.render`). Fixed (BUGS.md #265): a helper copied every
+     Surface-making calls a frame (Clockwork Keep's 5.4 are `Font.render`). Fixed (BUGS.md #270): a helper copied every
      Papyrus sprite's frame each tick, though only the player's fade needed it; now none in its golden.
    - **A frame's whole state is too big for one prompt, so the tools choose.** Read as the tools read it (properties
      on, plumbing off, no sprite cap), compact JSON: Mr. Muncher 74 KB (267 sprites, about 250 B each), Brave
