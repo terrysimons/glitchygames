@@ -4,6 +4,14 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 270. Brave Adventurer Papyrus Copied Every Sprite's Frame Every Tick
+- **Description**: The mirror measurements (plans/lucid-circuit-4b-mirror.md, step 1, 2026-11-08) counted 51 `Surface.copy` calls a frame in Papyrus's golden replay; every other game made 0 to 6 Surface-making calls a frame. All came from `refresh_drawn_image` (`brave_adventurer_papyrus/sprite_utils.py`), which every Papyrus sprite called each tick to reset its image to a fresh copy of its frame. The copy was only ever needed by the player, whose respawn fade calls `set_alpha` (a change in place, which would otherwise reach the engine's cached frame). The 46 gold scarabs, the cobra and the scarab did nothing with their copies, and the scorpion only flips, which returns a new surface. About 27 µs a frame (half a microsecond a copy), so churn rather than a slowdown
+- **Status**: Fixed (2026-11-08: `refresh_drawn_image` resets image to the drawn frame without copying; the gold scarab, cobra and scarab no longer call it (the engine redraws image as the frame changes); the scorpion still resets before its flip; the player copies only while it fades and its image is still the cached frame. `AnimatedSprite.drawn_frame_surface`'s docstring now says when a copy is needed. Tests: each sprite's tick leaves the cached frame as its image, and the player's fade never reaches it. Both Brave Adventurer goldens and the golden traces still match; the measurement now counts no copies)
+- **Priority**: Low (allocation churn)
+- **Reporter**: Claude, from the mirror measurements' surfaces count
+- **Date Reported**: 2026-11-08
+- **Files**: `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py`, `player.py`, `enemies.py`, `terrain.py`, `src/glitchygames/sprites/animated.py`, `src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus.py`
+
 ### 267. A Watched Comparison Replay Skipped Presenting a Frame Once on CircleCI's macOS Job
 - **Description**: CircleCI build 2986 (`build-and-test-macos`, main after #161's merge, `beb53bb8`) failed `tests/replay/tools/test_compare_trace.py::test_a_shorter_old_holds_its_last_frame_with_the_label`: the watched replay of NEW with `--compare-trace` (an OLD cut to three frames) presented frames `{1, 3, 4}`, not `{1, 2, 3, 4}`, so one viewer tick ran inner frames 2 and 3 together. Exit status was SUCCESS. The other 24,937 tests passed; the test passed on #161's own CI run. Nothing was logged in the test's capture beyond the options table. A red main also kept the merge's docs from deploying (`deploy-docs` waits for the macOS job)
 - **Status**: Open (not reproduced)

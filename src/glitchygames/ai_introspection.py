@@ -13,8 +13,11 @@ this, in the mirror's clone and its copies. The rules:
    the fonts and sounds a game keeps. What's left is the game's state, which keeps prompts small.
    ``screenshot``, which renders a picture, never runs.
 3. Every value becomes JSON: plain values as they are, an Enum by name, a rect as ``[x, y, width,
-   height]``, a surface by its size, a colour as its channels. Lists, sets and dictionaries keep
-   their first ``MAXIMUM_ITEMS`` and say how many more there were.
+   height]``, a surface by its size, a colour as its channels, and a sprite's animation frame
+   (``SpriteFrame``) by its size and duration, never its pixels: those are the artwork, not game
+   state (a Papyrus frame read as 352 KB with them; plans/lucid-circuit-4b-mirror.md, step 1).
+   Lists, sets and dictionaries keep their first ``MAXIMUM_ITEMS`` and say how many more there
+   were.
 4. Nested objects are read to a depth, and below it are named, never expanded: a sprite by its
    stable id (``Ball#3``, from the run's ``tracing.StableSpriteIds``), anything else by its class.
    An object met again inside itself is named, so a cycle ends. A sprite group is its members'
@@ -33,6 +36,8 @@ from typing import TYPE_CHECKING, Any, cast
 import pygame
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.sprites.frame import SpriteFrame
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
@@ -44,6 +49,9 @@ MAXIMUM_ITEMS = 20
 # What the engine's sprites and scenes set up for drawing, dispatch and running, read from real
 # games' objects (PaddleSlap, Clockwork Keep and Mr. Muncher, 2026-11-07)
 ENGINE_PLUMBING = frozenset({
+    # AnimatedSprite's direct access to its frames for its frame manager: the same frames its
+    # frames and animations properties show
+    'animation_data',
     'blendmode',
     'callbacks',
     'collisions',
@@ -97,6 +105,11 @@ def _rect_value(value: pygame.Rect | pygame.FRect) -> JsonValue:
     return [value.x, value.y, value.width, value.height]
 
 
+def _sprite_frame_value(value: SpriteFrame) -> JsonValue:
+    # The engine's own frame: its image property only returns the surface it stores
+    return {'sprite_frame': list(value.image.get_size()), 'duration': value.duration}
+
+
 # Values that hold no objects, each with its JSON, checked in order: an Enum before the plain
 # types, as an IntEnum is an int too
 SCALAR_CONVERSIONS: tuple[tuple[type | tuple[type, ...], Callable[[Any], JsonValue]], ...] = (
@@ -106,6 +119,7 @@ SCALAR_CONVERSIONS: tuple[tuple[type | tuple[type, ...], Callable[[Any], JsonVal
     ((pygame.Rect, pygame.FRect), _rect_value),
     (pygame.Color, list),
     (pygame.Surface, lambda value: {'surface': list(value.get_size())}),
+    (SpriteFrame, _sprite_frame_value),
 )
 
 
