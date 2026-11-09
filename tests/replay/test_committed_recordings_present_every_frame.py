@@ -23,10 +23,12 @@ from scripts.replay_schedule import (
     simulate_schedule,
 )
 
+from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
 from glitchygames.replay.viewer import ReplayViewer
 from tests.test_our_stored_paths import tracked_files
-from tests.workspace_goldens import every_golden_and_bundled_demo
+from tests.workspace_expectations import MEMBER_PACKAGES
+from tests.workspace_goldens import every_games_golden
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 RECORDING_SUFFIX = '.jsonl.gz'
@@ -141,13 +143,30 @@ def test_a_weakened_behind_condition_is_caught_by_the_tool(mocker, capsys):
 
 
 def test_every_golden_and_bundled_demo_is_checked():
-    """The tracked recordings checked hold every golden and every bundled demo of our members."""
-    checked = {recording.resolve() for recording in committed_recordings()}
+    """The tracked recordings checked hold every golden and every bundled demo of our members.
 
-    missing = [
-        path
-        for _console_script, path in every_golden_and_bundled_demo(project_root=PROJECT_ROOT)
-        if path.resolve() not in checked
+    A golden is found in the repository, so it is matched by its path. A bundled demo is found
+    where its package is installed: in the repository under ``uv sync`` (editable), in
+    site-packages under nox (not editable). So it is matched by its install name
+    (``paddleslap/demos/rally.jsonl.gz``), which is the same under any install.
+    """
+    checked = committed_recordings()
+    checked_paths = {recording.resolve() for recording in checked}
+    checked_names = [recording.as_posix() for recording in checked]
+
+    missing_goldens = [
+        golden
+        for golden in every_games_golden(project_root=PROJECT_ROOT)
+        if golden.resolve() not in checked_paths
+    ]
+    demos = bundled_demos(packages=MEMBER_PACKAGES)
+    missing_demos = [
+        demo.install_name
+        for demo in demos
+        if not any(name.endswith(f'/{demo.install_name}') for name in checked_names)
     ]
 
-    assert missing == []
+    # Found at all: with the members not installed, nothing would be missing either
+    assert demos
+    assert missing_goldens == []
+    assert missing_demos == []
