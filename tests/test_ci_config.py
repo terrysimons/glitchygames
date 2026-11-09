@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from typing import NoReturn
 
 import pytest
+import yaml
 from scripts.workspace_packages import workspace_members
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -79,14 +80,50 @@ def test_the_raspberry_pi_playbook_pins_circlecis_uv():
     assert f'    raspberry_pi_uv_version: "{uv_version}"\n' in playbook
 
 
-def test_the_raspberry_pi_job_uses_the_resource_class_ansible_registers():
-    """The job's resource class is the one the playbook creates and registers the runner with."""
-    inventory = (PROJECT_ROOT / 'ansible' / 'inventory.yml').read_text(encoding='utf-8')
-    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-    match = re.search(r'raspberry_pi_resource_class: (?P<name>\S+)', inventory)
+def raspberry_pi_hosts() -> dict[str, dict[str, str]]:
+    """Return the inventory's Raspberry Pis, by host name.
 
-    assert match is not None
-    assert f'    resource_class: {match["name"]}\n' in configuration
+    Returns:
+        Each host's variables (``raspberry-pi-4``: its address, resource class, ...).
+
+    """
+    inventory = yaml.safe_load(
+        (PROJECT_ROOT / 'ansible' / 'inventory.yml').read_text(encoding='utf-8')
+    )
+    return inventory['all']['children']['raspberry_pis']['hosts']
+
+
+def circleci_jobs() -> dict[str, dict[str, object]]:
+    """Return the CircleCI configuration's jobs, with YAML merge keys resolved.
+
+    Returns:
+        Each job's settings, by name.
+
+    """
+    return yaml.safe_load(CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8'))['jobs']
+
+
+def test_each_raspberry_pis_job_uses_the_resource_class_ansible_registers():
+    """Each Pi's job (build-and-test-<host>) runs on the resource class its runner registers."""
+    jobs = circleci_jobs()
+    hosts = raspberry_pi_hosts()
+
+    assert sorted(hosts) == ['raspberry-pi-4', 'raspberry-pi-5']
+    for host, variables in hosts.items():
+        assert (
+            jobs[f'build-and-test-{host}']['resource_class']
+            == (variables['raspberry_pi_resource_class'])
+        )
+
+
+def test_the_raspberry_pi_5_job_is_the_raspberry_pi_4_job_on_its_own_runner():
+    """Only the runner differs, so the two Pis' results compare the hardware, not the settings."""
+    jobs = circleci_jobs()
+
+    assert jobs['build-and-test-raspberry-pi-5'] == {
+        **jobs['build-and-test-raspberry-pi-4'],
+        'resource_class': 'terrysimons/raspberry-pi-5',
+    }
 
 
 def test_circleci_runs_an_installed_nox_never_through_uvx():
@@ -102,7 +139,7 @@ def test_circleci_runs_an_installed_nox_never_through_uvx():
     jobs = configuration[configuration.index('\njobs:\n') : configuration.index('\nworkflows:\n')]
     windows_job = jobs[
         jobs.index('\n  build-and-test-windows:\n') : jobs.index(
-            '\n  build-and-test-raspberry-pi:\n'
+            '\n  build-and-test-raspberry-pi-4:'
         )
     ]
     install_deps_posix = configuration[
@@ -601,25 +638,29 @@ def test_the_wheel_build_builds_every_workspace_package(mocker):
 
 
 def raspberry_pi_job() -> str:
-    """Return the Raspberry Pi job's text in the CircleCI configuration.
+    """Return the Raspberry Pi 4 job's text in the CircleCI configuration.
+
+    The Pi 5's job is this one merged with its own resource class
+    (``test_the_raspberry_pi_5_job_is_the_raspberry_pi_4_job_on_its_own_runner``).
 
     Returns:
-        From its name to the docs deploy job's.
+        From its name to the Pi 5 job's comment.
 
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-    job = configuration[configuration.index('\n  build-and-test-raspberry-pi:\n') :]
-    return job[: job.index('\n  # Publishes the docs')]
+    job = configuration[configuration.index('\n  build-and-test-raspberry-pi-4:') :]
+    return job[: job.index('\n  # The same job on a Raspberry Pi 5')]
 
 
-def test_no_workflow_runs_the_raspberry_pi_job():
-    """The Pi measures replays when the owner pushes, and takes no CI jobs."""
+@pytest.mark.parametrize('host', ['raspberry-pi-4', 'raspberry-pi-5'])
+def test_no_workflow_runs_a_raspberry_pis_job(host):
+    """The Pis measure replays when the owner pushes, and take no CI jobs."""
     configuration = (PROJECT_ROOT / '.circleci' / 'config.yml').read_text(encoding='utf-8')
     workflow = configuration[configuration.index('\nworkflows:\n') :]
 
-    assert '\n      # - build-and-test-raspberry-pi\n' in workflow
-    assert '\n      - build-and-test-raspberry-pi\n' not in workflow
-    assert '            - build-and-test-raspberry-pi\n' not in workflow
+    assert f'\n      # - build-and-test-{host}\n' in workflow
+    assert f'\n      - build-and-test-{host}\n' not in workflow
+    assert f'            - build-and-test-{host}\n' not in workflow
 
 
 def test_the_raspberry_pi_job_runs_the_tests_serially_on_its_runner():

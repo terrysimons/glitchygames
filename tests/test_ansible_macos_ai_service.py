@@ -191,14 +191,17 @@ def test_the_package_never_takes_the_models():
     assert r"is not search('\.gguf')" in tasks
 
 
-def test_the_ai_service_is_on_by_default_and_off_on_the_raspberry_pi():
-    """Every host gets the service unless its platform turns ai_enabled off, as the Pi does."""
+def test_the_ai_service_is_on_by_default_and_off_on_the_raspberry_pis():
+    """Every host gets the service unless its platform turns ai_enabled off, as the Pis do."""
     inventory = yaml.safe_load(
         (PROJECT_ROOT / 'ansible' / 'inventory.yml').read_text(encoding='utf-8'),
     )
+    raspberry_pis = inventory['all']['children']['raspberry_pis']
 
     assert inventory['all']['vars']['ai_enabled'] is True
-    assert inventory['all']['hosts']['raspberry-pi-runner']['ai_enabled'] is False
+    assert raspberry_pis['vars']['ai_enabled'] is False
+    # No Pi turns it back on for itself
+    assert all('ai_enabled' not in host for host in raspberry_pis['hosts'].values())
 
 
 def test_only_hosts_with_ai_enabled_get_the_ai_service():

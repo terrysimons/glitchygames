@@ -429,7 +429,7 @@ jobs:
   # tests/benchmarks/test_logging_cost.py, whose heavy logs wear the Pi's SD card. The uv cache
   # stays on the host, so no CircleCI cache (storage and network use credits), and the job has no
   # sudo, so the host is provisioned with what it needs (fontconfig)
-  build-and-test-raspberry-pi:
+  build-and-test-raspberry-pi-4: &raspberry-pi-job
     machine: true
     resource_class: terrysimons/raspberry-pi-4
 
@@ -466,6 +466,13 @@ jobs:
           command: |
             export PATH="$HOME/.local/bin:$PATH"
             uv cache prune
+
+  # The same job on a Raspberry Pi 5 (16 GB, Ubuntu 26.04), set up by the same playbook: only its
+  # runner differs. The same limits (the owner, 2026-11-08: the runner stays capped at 2 GB), so
+  # the two Pis' results compare the hardware, not the settings
+  build-and-test-raspberry-pi-5:
+    <<: *raspberry-pi-job
+    resource_class: terrysimons/raspberry-pi-5
 
   # Publishes the docs (https://terrysimons.github.io/glitchygames/, the gh-pages branch) after
   # a merge to main: nox -s docs-deploy, browser games (play/) included, without measuring the
@@ -557,9 +564,11 @@ workflows:
       - build-and-test-linux
       - build-and-test-macos
       - build-and-test-windows
-      # Off: the Pi measures replays when the owner pushes, and takes no CI jobs
-      # (plans/2026-11-04-raspberry-pi-ci-runner.md). deploy-docs must not wait for this if it returns
-      # - build-and-test-raspberry-pi
+      # Off: the Pis measure replays when the owner pushes, and take no CI jobs
+      # (plans/2026-11-04-raspberry-pi-ci-runner.md; the Pi 5 likewise, the owner, 2026-11-08).
+      # deploy-docs must not wait for these if they return
+      # - build-and-test-raspberry-pi-4
+      # - build-and-test-raspberry-pi-5
       # After a merge to main: as soon as the macOS job passes (the same tree passed all three in
       # its pull request), one deploy at a time so two quick merges cannot race gh-pages
       - deploy-docs:

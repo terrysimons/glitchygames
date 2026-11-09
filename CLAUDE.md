@@ -185,7 +185,7 @@ nox -s docs-serve          # Serve the docs locally (same strict build, graphs i
 # CMake already installed. First run downloads 14.57 GB; running it again changes nothing
 uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml
 # Only hosts whose ai_enabled is true get it (ansible/inventory.yml: on by default, off on the
-# Raspberry Pi); the playbook's first play sorts the hosts without connecting to any
+# Raspberry Pis); the playbook's first play sorts the hosts without connecting to any
 # Nothing runs until asked: ai-service.sh start loads Bonsai 2B (ai_service_default_bonsai_size;
 # config/selection.env or AI_BONSAI_SIZE picks another) when free memory allows. A model
 # unloads after 30 idle minutes (ai_service_sleep_idle_seconds)
