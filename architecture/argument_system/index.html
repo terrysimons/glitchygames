@@ -409,7 +409,7 @@ each with its type and default, then its help text.</p>
 <li><code>--crt-power-on-sound {on,off}</code> (<code>choice</code>, default <code>on</code>): play the CRT power-on sequence with its sound</li>
 <li><code>--crt-power-on {auto,on,off}</code> (<code>choice</code>, default <code>auto</code>): show the game's canvas switching on like a CRT before the game starts: auto (default: when someone can see it, so not on SDL's dummy driver or before a replay, audit, rebaseline or recording), on (always; refused with a replay or a recording) or off</li>
 <li><code>--default-background {test-pattern,channel-3}</code> (<code>choice</code>): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)</li>
-<li><code>--video-driver {cocoa,offscreen,dummy}</code> (<code>choice</code>, default <code>None</code>): SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: SDL_VIDEODRIVER's own value, or SDL's choice; --headless overrides it)</li>
+<li><code>--video-driver {cocoa,offscreen,dummy}</code> (<code>choice</code>, default <code>None</code>): SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: SDL_VIDEODRIVER's own value, then Wayland on a Linux Wayland session, then SDL's choice; --headless overrides it)</li>
 </ul>
 <p><strong><code>--video-driver</code> choices by platform</strong> (SDL 2's video driver names, by <code>platform.system()</code>;
 <code>--help</code> above is macOS's):</p>
