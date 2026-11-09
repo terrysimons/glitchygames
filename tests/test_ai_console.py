@@ -1589,15 +1589,30 @@ def wait_for_past_questions(console: AiConsole) -> None:
         clock.raw_sleep(0.01)
 
 
-def test_searching_reaches_past_runs_questions(console, tmp_path):
-    """From the history file, older than this run's, found even if they arrive after the typing."""
+def test_searching_reaches_past_runs_questions(console, mocker):
+    """From the history file, older than this run's, found even if they arrive after the typing.
+
+    The worker's read is held until the search is typed: without the hold, a read finishing
+    before the first key hands the questions over while the search is still empty, and the
+    arrival-during-a-search path is covered or not by the threads' timing (BUGS.md #269).
+    """
     path = console._history_path()
     path.parent.mkdir(parents=True)
     record = {'question': 'an old question'}
     path.write_text(json.dumps(record) + '\n', encoding='utf-8')
     enter(console, '/help')
+    typing_done = Event()
+    read_past_questions = console._read_past_questions
+
+    def read_once_the_search_is_typed(history_path):
+        typing_done.wait(timeout=WAIT_SECONDS)
+        read_past_questions(history_path)
+
+    mocker.patch.object(console, '_read_past_questions', side_effect=read_once_the_search_is_typed)
 
     search(console, 'old')
+    assert console._input_prompt() == '(no match: old) '
+    typing_done.set()
     wait_for_past_questions(console)
 
     assert console.input_text == 'an old question'

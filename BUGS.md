@@ -4,10 +4,20 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 269. The AI Console's Past-Questions Test Covered Its Own Path Only When the Worker Was Slow
+- **Description**: `test_searching_reaches_past_runs_questions` (`tests/test_ai_console.py`) says past runs' questions are "found even if they arrive after the typing", the path `AiConsole._take_past_questions` takes when a search is under way (`src/glitchygames/ai_console.py`, the `self._find_match(before=None)` line). Ctrl-R starts the history read on the console's worker thread, and each typed key drains the worker's finished updates. When the read finished before the first key, the questions were handed over while the search was still empty, the line was skipped, and typing then found them by the ordinary path: the test passed either way, and that line was covered or not by the threads' timing
+- **Status**: Resolved (2026-11-08: the test holds the worker's read until the search is typed, checks the search finds nothing before the questions arrive, then releases it)
+- **Priority**: Medium (the suite's 100% coverage gate failed at random: `ai_console.py` 99.77%, line 1084 missed, in two full `-n auto` runs on 2026-11-08)
+- **Reporter**: Found in the full suite runs while rebasing the engine-context and watched-replay branches
+- **Date Reported**: 2026-11-08
+- **Details**: The other past-questions test (`test_past_questions_arriving_with_no_search_typed_change_nothing`) covers the empty-search arrival on purpose. Pattern to avoid: a test whose subject is an ordering between a worker thread and the main thread, left to the scheduler
+- **Files**: `tests/test_ai_console.py`
+
 ### 267. A Watched Comparison Replay Skipped Presenting a Frame Once on CircleCI's macOS Job
 - **Description**: CircleCI build 2986 (`build-and-test-macos`, main after #161's merge, `beb53bb8`) failed `tests/replay/tools/test_compare_trace.py::test_a_shorter_old_holds_its_last_frame_with_the_label`: the watched replay of NEW with `--compare-trace` (an OLD cut to three frames) presented frames `{1, 3, 4}`, not `{1, 2, 3, 4}`, so one viewer tick ran inner frames 2 and 3 together. Exit status was SUCCESS. The other 24,937 tests passed; the test passed on #161's own CI run. Nothing was logged in the test's capture beyond the options table. A red main also kept the merge's docs from deploying (`deploy-docs` waits for the macOS job)
-- **Status**: Open (not reproduced)
+- **Status**: Resolved (2026-11-08, branch `watched-replay-every-frame`: the 2026-10-30 work of `test/compare-trace-steady-frame-times`, rebased onto main. Recurred on #164's CI, build 3019, with the same `{1, 3, 4}`)
 - **Priority**: Medium (intermittent; a failure on main stops the docs deploy)
+- **Root cause** (reproduced 2026-11-08): the time a 1x watched replay owes before presenting frame N is frame N+1's recorded `dt` (a frame's `dt` runs from its start to the next frame's start), and the accumulator ran every frame a 60 Hz tick's time covered, presenting only the last. `recorded_old` records the color game live and paced in a child, so its frame times are that machine's: a pacing hiccup on a busy runner leaves short frames, and two of them fit one tick. Rewriting the test's recording to frame times `[0.01 ms, P, P, 12 ms, 12 ms, P]` (P = 1/60.01 s) gave exactly CI's `{1, 3, 4}` with exit SUCCESS, on a faked viewer clock; a frame 33.3 ms long followed by a near-zero one hid frame 1 instead. The same rule hid real frames in committed recordings (Brave Adventurer `golden-classic` frame 460, PaddleSlap `rally` frame 286). Fixed by rule 2 of `src/glitchygames/replay/viewer.py` (up to 1x a tick runs a second frame only when the accumulator holds that frame's time plus a whole tick, so the replay runs at most a tick behind and presents every frame), a guard over every committed recording (`tests/replay/test_committed_recordings_present_every_frame.py`), steady frame times for the compare-trace tests' recordings, and `scripts/replay_schedule.py` to simulate a recording's schedule; both reproducing patterns then present every frame. Whether live pacing's catch-up after a late frame is right is future-features #72
 - **Reporter**: CircleCI pipeline for main, build 2986
 - **Date Reported**: 2026-11-08
 - **Details**: Ruled out so far (2026-11-08):
