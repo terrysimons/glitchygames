@@ -6,7 +6,7 @@ import itertools
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Event, Thread
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pygame
 import pytest
@@ -36,6 +36,9 @@ from glitchygames.scenes import Scene
 from glitchygames.testing.keys import qwerty_scancode
 from tests.ai_service_stand_in import install
 from tests.test_ai_link import FakeInnerSources
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # Every install here can run its control script, on Windows too (tests/ai_service_stand_in.py)
 pytestmark = pytest.mark.usefixtures('stand_in_ai_control_scripts')
@@ -1589,16 +1592,24 @@ def wait_for_past_questions(console: AiConsole) -> None:
         clock.raw_sleep(0.01)
 
 
-def test_searching_reaches_past_runs_questions(console, tmp_path):
+def test_searching_reaches_past_runs_questions(console, tmp_path, mocker):
     """From the history file, older than this run's, found even if they arrive after the typing."""
     path = console._history_path()
     path.parent.mkdir(parents=True)
     record = {'question': 'an old question'}
     path.write_text(json.dumps(record) + '\n', encoding='utf-8')
     enter(console, '/help')
+    # The file is read on a worker thread that Ctrl-R starts; left to run, it may finish before
+    # the typing (the search text still empty), and the arrival during a search is never seen.
+    # Holding the work and running it after the typing makes the order this test is about.
+    held_work: list[Callable[[], None]] = []
+    mocker.patch.object(console, '_on_worker', side_effect=lambda *, work: held_work.append(work))
 
     search(console, 'old')
-    wait_for_past_questions(console)
+    assert not console.input_text
+    assert len(held_work) == 1
+    held_work.pop()()
+    console.filter_events(events=[])
 
     assert console.input_text == 'an old question'
 
