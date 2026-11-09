@@ -538,6 +538,102 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('hohner clavinet', 'clavinet'),
         ('rain box', 'rain machine'),
         ('horse hooves', 'coconut shells'),
+        ('alfaia', 'taiko'),
+        ('ashiko', 'djembe tone'),
+        ('atabaque', 'conga'),
+        ('atumpan', 'tumba'),
+        ('bamboula', 'conga'),
+        ('bangu', 'darbuka tek'),
+        ('bata drum', 'conga'),
+        ('bedug', 'orchestral bass drum'),
+        ('bougarabou', 'djembe bass'),
+        ('buk', 'taiko'),
+        ('caixa malacacheta', 'snare drum'),
+        ('candombe drums', 'conga'),
+        ('carimbo', 'tumba'),
+        ('concert tom', 'mid tom'),
+        ('cultrun', 'bodhran'),
+        ('dabakan', 'conga slap'),
+        ('damphu', 'bodhran'),
+        ('davul', 'dhol'),
+        ('dayereh', 'daf'),
+        ('dhak', 'dhol'),
+        ('dhimay', 'surdo'),
+        ('dohol', 'dhol'),
+        ('dollu', 'dhol'),
+        ('dunun', 'floor tom'),
+        ('fontomfrom', 'orchestral bass drum'),
+        ('ganrang', 'kendang'),
+        ('gbedu', 'orchestral bass drum'),
+        ('gome', 'cajon bass'),
+        ('gudugudu', 'high timbale'),
+        ('hira daiko', 'taiko'),
+        ('huehuetl', 'tumba'),
+        ('igba', 'low bongo'),
+        ('jwago', 'taiko'),
+        ('kakko', 'high tom'),
+        ('kendang ciblon', 'kendang'),
+        ('kendang wadon', 'kendang'),
+        ('kenkeni', 'mid tom'),
+        ('klong khaek', 'kendang'),
+        ('kpanlogo', 'conga'),
+        ('kundu', 'conga'),
+        ('kus', 'taiko'),
+        ('madal', 'kendang'),
+        ('maddalam', 'mridangam'),
+        ('makuta', 'conga'),
+        ('marching snare', 'field drum'),
+        ('nagado daiko', 'taiko'),
+        ('nagara', 'naqareh'),
+        ('ngoma', 'conga'),
+        ('octoban', 'high tom'),
+        ('okedo daiko', 'high tom'),
+        ('pahu', 'tumba'),
+        ('pakhavaj', 'mridangam'),
+        ('paila criolla', 'high timbale'),
+        ('pandero jarocho', 'tambourine'),
+        ('parai', 'bodhran'),
+        ('popcorn snare', 'piccolo snare'),
+        ('puniu', 'high bongo'),
+        ('rebana', 'tambourine'),
+        ('repinique', 'high timbale'),
+        ('riq', 'daf'),
+        ('sabar', 'djembe tone'),
+        ('sakara drum', 'bodhran'),
+        ('samphor', 'kendang'),
+        ('sangban', 'low tom'),
+        ('shime daiko', 'high tom'),
+        ('tabor', 'field drum'),
+        ('tambora', 'conga'),
+        ('tamborim', 'darbuka tek'),
+        ('tan tan', 'surdo'),
+        ('tanggu', 'mid tom'),
+        ('taphon', 'kendang'),
+        ('tar drum', 'frame drum'),
+        ('tarol', 'snare drum'),
+        ('tasha', 'naqareh'),
+        ('tbilat', 'high bongo'),
+        ('thunder drum', 'orchestral bass drum'),
+        ('thunder tube', 'thunder sheet'),
+        ('tifa', 'djembe tone'),
+        ('tombak', 'darbuka doum'),
+        ('trong chau', 'darbuka tek'),
+        ('trong com', 'kendang'),
+        ('tsuri daiko', 'orchestral bass drum'),
+        ('uchiwa daiko', 'bodhran'),
+        ('urumi', 'high tom'),
+        ('zabumba', 'dhol'),
+        ('naqara', 'naqareh'),
+        ('naqqara', 'naqareh'),
+        ('tavil', 'thavil'),
+        ('chende', 'chenda'),
+        ('khanjani', 'daf'),
+        ('ganjira', 'kanjira'),
+        ('tabl', 'dhol'),
+        ('doira', 'daf'),
+        ('gran cassa', 'orchestral bass drum'),
+        ('timbal', 'conga'),
+        ('tumbaknari', 'darbuka doum'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -545,6 +641,8 @@ def test_the_batch_aliases_resolve(alias, target):
 
     Zanza is the mbira, both music boxes the one comb, the audit's Wurlitzer and Clavinet
     spellings the catalog's, and the rain box and horse hooves the sound effects they name.
+    Batch 3's drum aliases are other names for a drum or drums that sound like one (a
+    sound-alike resolves to the entry it would sound like; the sheet's notes say which).
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -726,10 +824,38 @@ def test_electromechanical_holds_the_electric_pianos_clavinet_and_tonewheels():
 SOUND_EFFECT_NAMES = [
     entry.name for entry in instruments.entries() if entry.family == 'sound effects'
 ]
+# Batch 3's new entries, in the sheet's order (Task 4 appends the idiophones)
+NEW_DRUM_NAMES = [
+    'bendir',
+    'bombo leguero',
+    'chenda',
+    'daf',
+    'dhol',
+    'dholak',
+    'field drum',
+    'gong bass drum',
+    'janggu',
+    'kanjira',
+    'kebero',
+    'kendang',
+    'kendang ageng',
+    'ketipung',
+    'khol',
+    'lambeg drum',
+    'mridangam',
+    'naqareh',
+    'otsuzumi',
+    'pandeiro',
+    'piccolo snare',
+    'pipe band snare',
+    'thavil',
+]
 
 # The least measured margin is the ocean drum's: its second note's energy is 6.76 times its
-# single note's tail (the others are 17 times or more, and infinite for the three whose single
-# note is silent by 0.5 s); 3 leaves room without being near 1
+# single note's tail (the other effects are 17 times or more, and infinite for the three whose
+# single note is silent by 0.5 s; of batch 3's drums the gong bass drum, ringing 3 s, is the least
+# at 13.5 times, the lambeg drum 397 times, and most are infinite); 3 leaves room without being
+# near 1
 SECOND_STRIKE_FACTOR = 3.0
 # The envelopes are 20 ms RMS windows over the whole render, each scaled to unit length, so the
 # comparison survives each render being normalized to its own peak
@@ -737,11 +863,13 @@ ENVELOPE_WINDOW_SECONDS = 0.02
 # Measured distances, two notes from one note plus the same note 0.5 s later against two notes
 # from one held note (P:1): thunder sheet 0.045 / 0.363, rain machine 0.022 / 0.569, ocean drum
 # 0.067 / 0.218, cannon 0.016 / 0.749, crash box 0.018 / 0.757, coconut shells 0.041 / 0.803,
-# door slam 0.012 / 0.766, giants footsteps 0.000 / 0.765. The least margin is the ocean drum's
-# (3.25 times); 2 keeps room on both sides
+# door slam 0.012 / 0.766, giants footsteps 0.000 / 0.765. Batch 3's drums are all 0.040 or less
+# against 0.454 or more (the otsuzumi's 0.040 / 0.802 is their least margin, 19.96 times). The
+# least margin is the ocean drum's (3.25 times); 2 keeps room on both sides
 RESTRIKE_CLOSER_FACTOR = 2.0
-# Held for six seconds, every effect's ring is long over by 5 s (the longest, the ocean drum's
-# 0.8 s attack and 2.5 s ring, ends by 3.3 s); measured, every effect is exactly silent there
+# Held for six seconds, every effect's and drum's ring is long over by 5 s (the longest, the ocean
+# drum's 0.8 s attack and 2.5 s ring, ends by 3.3 s; the gong bass drum's 3 s ring by 3 s);
+# measured, every one is exactly silent there
 ONE_SHOT_HELD_SECONDS = 6.0
 ONE_SHOT_CHECK_SECONDS = 5.0
 
@@ -804,8 +932,8 @@ def strikes_again(twice: np.ndarray, *, single: np.ndarray, merged: np.ndarray) 
     return bool(RESTRIKE_CLOSER_FACTOR * to_expected < to_merged)
 
 
-@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES)
-def test_a_sound_effect_strikes_again_on_each_note(name):
+@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES + NEW_DRUM_NAMES)
+def test_a_one_shot_strikes_again_on_each_note(name):
     """A second note adds its own strike, and is not the first note merged into a held one."""
     instrument = instruments.get(name)
     pitch = instruments.entry(name).middle_note().name
@@ -820,9 +948,9 @@ def test_a_sound_effect_strikes_again_on_each_note(name):
     assert strikes_again(twice, single=single, merged=merged), name
 
 
-@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES)
-def test_a_sound_effect_is_a_one_shot_however_long_it_is_held(name):
-    """Held for six seconds, an effect is far below its loudest by 5 s: none sustains."""
+@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES + NEW_DRUM_NAMES)
+def test_a_one_shot_stops_however_long_it_is_held(name):
+    """Held for six seconds, a one-shot is far below its loudest by 5 s: none sustains."""
     samples = render_sound(
         spec_for(instruments.get(name), name=name, pitch='A4', length=ONE_SHOT_HELD_SECONDS)
     ).samples
@@ -833,6 +961,25 @@ def test_a_sound_effect_is_a_one_shot_however_long_it_is_held(name):
     )
     late = levels[round(ONE_SHOT_CHECK_SECONDS / 0.1)]
     assert late < 0.01 * np.max(levels), name
+
+
+def test_no_two_drums_build_the_same_instrument():
+    """Every entry in the family is its own sound (the anti-goal: no renamed copies)."""
+    names = instruments.names(family=Family.DRUMS_AND_PERCUSSION)
+    same = [
+        (first, second)
+        for index, first in enumerate(names)
+        for second in names[index + 1 :]
+        if instruments.get(first) == instruments.get(second)
+    ]
+    assert same == []
+
+
+def test_the_new_drums_are_in_their_family():
+    """Each new drum is a drums and percussion entry, unpitched."""
+    for name in NEW_DRUM_NAMES:
+        assert instruments.entry(name).family == Family.DRUMS_AND_PERCUSSION, name
+        assert not instruments.entry(name).pitched, name
 
 
 def test_the_pianet_settles_from_a_bright_strike():

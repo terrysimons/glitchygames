@@ -712,4 +712,518 @@ DRUMS_AND_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
             drum, noise=1.0, noise_ring_seconds=0.03, noise_high_pass=1000.0, tail=0.05, drive=2.0
         ),
     ),
+    # --- Batch 3: membranophones (Hornbostel-Sachs 2), in the order of
+    # plans/data/instrument-audit/batch-3.tsv, whose notes hold each row's full quotes. In every
+    # entry below each tone, glide, ring, noise band, level, drive and tail is sound design: no
+    # fetched source gives a number. The source gives the traits each comment names.
+    #
+    # Sound: https://en.wikipedia.org/wiki/Bendir ("a wooden-framed frame drum"; "The bandir often
+    # has a snare (usually made of gut) stretched across the head, which gives the tone a buzzing
+    # quality when the drum is struck with the fingers or palm")
+    # A large hand-struck frame drum: a low tone (105 Hz falling to 98 Hz) under the gut snare's
+    # buzz, a noise band above 1.2 kHz that rings 0.25 s with the head
+    CatalogEntry(
+        'bendir',
+        'Bendir',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(Tone(hertz=105.0, glide_to=98.0, glide_seconds=0.05, ring_seconds=0.45),),
+            noise=0.6,
+            noise_ring_seconds=0.25,
+            noise_high_pass=1200.0,
+            tail=0.45,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Bombo_leg%C3%BCero ("Because the fur is left on the
+    # hide, the bombo's sound is deep and dark"; "The player's hands hold a soft-headed mallet")
+    # A bass drum damped by its fur-covered head: a deep tone (58 Hz falling to 50 Hz) that dies in
+    # 0.5 s, and the soft mallet's noise kept dark (below 300 Hz) and short
+    CatalogEntry(
+        'bombo leguero',
+        'Bombo legüero',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(Tone(hertz=58.0, glide_to=50.0, glide_seconds=0.1, ring_seconds=0.5),),
+            noise=0.3,
+            noise_ring_seconds=0.06,
+            noise_low_pass=300.0,
+            tail=0.45,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Chenda ("famous for its loud and rigid sound"; "the
+    # "Valamthala" will have a five/seven layer skin, so as to have a bass sound")
+    # A loud stick hit: the layered bass head's tone (160 Hz falling to 140 Hz), the stick on the
+    # head (600 Hz, 0.06 s) and a bright crack above 1.8 kHz, driven for the loud, rigid sound
+    CatalogEntry(
+        'chenda',
+        'Chenda',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=160.0, glide_to=140.0, glide_seconds=0.05, ring_seconds=0.3),
+                Tone(hertz=600.0, ring_seconds=0.06, level=0.5),
+            ),
+            noise=0.7,
+            noise_ring_seconds=0.08,
+            noise_high_pass=1800.0,
+            tail=0.3,
+            drive=4.0,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Daf ("an Iranian frame drum"; "a round wooden frame
+    # ..., jingles, and a thin, translucent head")
+    # A low frame-drum tone (85 Hz falling to 80 Hz) with its jingles ringing over it: a 5.8 kHz
+    # metal ring and a noise band above 5 kHz, both ringing 0.35 s
+    CatalogEntry(
+        'daf',
+        'Daf',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=85.0, glide_to=80.0, glide_seconds=0.05, ring_seconds=0.5),
+                Tone(hertz=5800.0, ring_seconds=0.35, level=0.3),
+            ),
+            noise=0.5,
+            noise_ring_seconds=0.35,
+            noise_high_pass=5000.0,
+            tail=0.5,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Dhol ("a double-sided barrel drum"; "to produce the
+    # preferred loud bass"; the thick bass stick, the dagga, and "the teeli, is much thinner and
+    # flexible and used to play the higher note end of the instrument")
+    # Both sticks on both heads in one hit (sounding them together is sound design): the bass
+    # head's low tone (70 Hz falling to 58 Hz) and the treble head's short 380 Hz tone, driven
+    CatalogEntry(
+        'dhol',
+        'Dhol',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=70.0, glide_to=58.0, glide_seconds=0.12, ring_seconds=0.6),
+                Tone(hertz=380.0, ring_seconds=0.08, level=0.5),
+            ),
+            noise=0.35,
+            noise_ring_seconds=0.04,
+            noise_low_pass=3000.0,
+            tail=0.5,
+            drive=2.0,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Dholak ("a two-headed hand drum"; a smaller drumhead
+    # "made for sharp notes while the bigger drumhead ... is made for low pitch"; "the typical
+    # Dholak sliding sound ("giss" or "gissa")")
+    # A hand stroke on both heads: the bass head sliding (120 Hz down to 95 Hz over 0.25 s; the
+    # slide's direction, depth and speed are sound design) under the small head's short 520 Hz note
+    CatalogEntry(
+        'dholak',
+        'Dholak',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=120.0, glide_to=95.0, glide_seconds=0.25, ring_seconds=0.45),
+                Tone(hertz=520.0, ring_seconds=0.08, level=0.5),
+            ),
+            noise=0.2,
+            noise_ring_seconds=0.02,
+            noise_low_pass=5000.0,
+            tail=0.4,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Snare_drum ("Military drum/field drum: a snare drum
+    # with a diameter of 14-16 in and 9-16 in deep"; the kit snare is "5" to 8" deep")
+    # A snare drum with a deep shell: a lower, longer tone than the kit snare (150 Hz, 0.15 s)
+    # under a longer, darker snare rattle (noise above 1 kHz ringing 0.3 s)
+    CatalogEntry(
+        'field drum',
+        'Field drum',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(Tone(hertz=150.0, ring_seconds=0.15),),
+            noise=0.85,
+            noise_ring_seconds=0.3,
+            noise_high_pass=1000.0,
+            tail=0.35,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Tom_drum ("A gong bass drum ... is a large,
+    # single-headed tom often sized at 20 in (51 cm) or 22 in (56 cm)"; "similar to a bass drum,
+    # though it is more open and has longer sustain")
+    # A very low tone (50 Hz falling to 46 Hz) that rings 3 s, longer than the orchestral bass
+    # drum's 1.8 s, with less beater noise (below 400 Hz)
+    CatalogEntry(
+        'gong bass drum',
+        'Gong bass drum',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(Tone(hertz=50.0, glide_to=46.0, glide_seconds=0.3, ring_seconds=3.0),),
+            noise=0.15,
+            noise_ring_seconds=0.3,
+            noise_low_pass=400.0,
+            tail=2.5,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Janggu ("an hourglass-shaped body with two heads"; "The
+    # two heads produce sounds of different pitch and timbre"; the left head's "thick cowhide ...
+    # to produce deep and low tones", the right's lighter skin "to produce higher tones")
+    # Both heads struck together: the thick left head under the round mallet (140 Hz falling to
+    # 130 Hz) and the thin right head under the bamboo stick (420 Hz, 0.1 s) with its slap
+    CatalogEntry(
+        'janggu',
+        'Janggu',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=140.0, glide_to=130.0, glide_seconds=0.08, ring_seconds=0.4),
+                Tone(hertz=420.0, ring_seconds=0.1, level=0.6),
+            ),
+            noise=0.4,
+            noise_ring_seconds=0.02,
+            noise_high_pass=2500.0,
+            tail=0.4,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Kanjira ("a frame drum with a single pair of
+    # jingles"; "between 7 and 9 inches in width"; "it has a very high pitched sound")
+    # A small, very high frame-drum tone (480 Hz falling to 460 Hz) with one quiet jingle pair (a
+    # 6.5 kHz ring and a little noise above 6 kHz); the player's pitch bend is not modelled
+    CatalogEntry(
+        'kanjira',
+        'Kanjira',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=480.0, glide_to=460.0, glide_seconds=0.03, ring_seconds=0.15),
+                Tone(hertz=6500.0, ring_seconds=0.15, level=0.25),
+            ),
+            noise=0.3,
+            noise_ring_seconds=0.12,
+            noise_high_pass=6000.0,
+            tail=0.2,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Kebero ("a double-headed, conical hand drum"; "hard
+    # particles are inserted into it"; "two cow leather membranes, so that one can be tuned higher
+    # than the other")
+    # A low head (100 Hz falling to 94 Hz), the head tuned higher (190 Hz), and the rattle of the
+    # particles inside (noise above 3 kHz ringing 0.15 s)
+    CatalogEntry(
+        'kebero',
+        'Kebero',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=100.0, glide_to=94.0, glide_seconds=0.05, ring_seconds=0.45),
+                Tone(hertz=190.0, ring_seconds=0.25, level=0.4),
+            ),
+            noise=0.35,
+            noise_ring_seconds=0.15,
+            noise_high_pass=3000.0,
+            tail=0.45,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Kendang ("a two-headed drum"; "hit with the hands on
+    # either side"; "Buffalo hide is often used for the bam (inferior surface which emits low-pitch
+    # beats) while soft goatskin is used for the chang (superior surface which emits high-pitch
+    # beats)")
+    # The medium (ciblon) drum, a hand stroke on both heads: the low bam (115 Hz falling to 108 Hz)
+    # under the high chang (360 Hz)
+    CatalogEntry(
+        'kendang',
+        'Kendang',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=115.0, glide_to=108.0, glide_seconds=0.05, ring_seconds=0.35),
+                Tone(hertz=360.0, ring_seconds=0.1, level=0.5),
+            ),
+            noise=0.2,
+            noise_ring_seconds=0.02,
+            noise_low_pass=5000.0,
+            tail=0.35,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Kendang ("Kendhang ageng ... is the largest kendang,
+    # which usually has the deepest tone"), https://nat.museum-digital.de/tag/37818 ("Kendang
+    # Ageng is very large and deep in pitch")
+    # The kendang's hand stroke on the largest drum: both heads lower (80 and 250 Hz) and ringing
+    # longer
+    CatalogEntry(
+        'kendang ageng',
+        'Kendang ageng',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=80.0, glide_to=75.0, glide_seconds=0.06, ring_seconds=0.6),
+                Tone(hertz=250.0, ring_seconds=0.15, level=0.4),
+            ),
+            noise=0.15,
+            noise_ring_seconds=0.03,
+            noise_low_pass=4000.0,
+            tail=0.6,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Kendang ("Kendhang ketipung is the smallest kendang"),
+    # https://nat.museum-digital.de/tag/37818 ("Kendang Kitipung - Java. A very small version of
+    # the Ciblon")
+    # The kendang's hand stroke on the smallest drum: both heads higher (200 and 560 Hz) and
+    # shorter
+    CatalogEntry(
+        'ketipung',
+        'Ketipung',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=200.0, glide_to=190.0, glide_seconds=0.03, ring_seconds=0.2),
+                Tone(hertz=560.0, ring_seconds=0.07, level=0.5),
+            ),
+            noise=0.25,
+            noise_ring_seconds=0.02,
+            noise_low_pass=6000.0,
+            tail=0.2,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Khol ("a terracotta two-sided drum"; "The right face of
+    # the drum has a high pitch and produces a metallic sound, whereas the left face, produces a
+    # lower bass sound")
+    # A hand stroke on both faces: the left face's bass (95 Hz falling to 90 Hz) under the right
+    # face's high tone (450 Hz) with an inharmonic 1170 Hz partial that rings, for its metallic
+    # sound
+    CatalogEntry(
+        'khol',
+        'Khol',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=95.0, glide_to=90.0, glide_seconds=0.05, ring_seconds=0.4),
+                Tone(hertz=450.0, ring_seconds=0.3, level=0.6),
+                Tone(hertz=1170.0, ring_seconds=0.2, level=0.3),
+            ),
+            noise=0.15,
+            noise_ring_seconds=0.02,
+            noise_low_pass=5000.0,
+            tail=0.4,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Lambeg_drum ("beaten with curved malacca canes"; "one
+    # of the loudest acoustic instruments in the world, frequently reaching over 120 dB"; "(92.1
+    # cm) in diameter"; "The thin heads are pulled tight until the tone is bright and hard")
+    # A very large drum's deep tone (72 Hz falling to 66 Hz) with a bright upper tone that rings
+    # (300 Hz, 0.2 s), the canes' crack above 2 kHz, and drive for the loudness
+    CatalogEntry(
+        'lambeg drum',
+        'Lambeg drum',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=72.0, glide_to=66.0, glide_seconds=0.08, ring_seconds=0.8),
+                Tone(hertz=300.0, ring_seconds=0.2, level=0.5),
+            ),
+            noise=0.75,
+            noise_ring_seconds=0.05,
+            noise_high_pass=2000.0,
+            tail=0.7,
+            drive=3.0,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Mridangam ("a double-sided drum"; "The smaller
+    # membrane, when struck, produces higher pitched sounds with a metallic timbre"; "unique and
+    # distinct harmonics"; the paste "lowers the pitch of the wider membrane and gives it a very
+    # powerful resonating bass sound")
+    # Tuned to the singer, so a fixed tone, as the tabla bayan is (plan decision): the small head
+    # ringing at 280 Hz with an overtone at twice it (560 Hz) over the wide head's 80 Hz bass;
+    # sounding both heads together is sound design (the page names no strokes)
+    CatalogEntry(
+        'mridangam',
+        'Mridangam',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=280.0, ring_seconds=0.6),
+                Tone(hertz=560.0, ring_seconds=0.45, level=0.5),
+                Tone(hertz=80.0, ring_seconds=0.4, level=0.6),
+            ),
+            noise=0.15,
+            noise_ring_seconds=0.02,
+            noise_low_pass=5000.0,
+            tail=0.6,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Naqareh ("The rounded section of a naqqara is made of
+    # baked clay"; "one naqqara will produce low pitch beats called nar"; "beaten with short wooden
+    # sticks ... called damka"; "The diameter of the bam is about 22 cm")
+    # The low drum of the pair struck with a short wooden stick: a small clay kettle's short tone
+    # (230 Hz falling to 218 Hz, 0.2 s) with a bright stick click above 2.5 kHz
+    CatalogEntry(
+        'naqareh',
+        'Naqareh (naqqara)',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(Tone(hertz=230.0, glide_to=218.0, glide_seconds=0.03, ring_seconds=0.2),),
+            noise=0.55,
+            noise_ring_seconds=0.015,
+            noise_high_pass=2500.0,
+            tail=0.2,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/%C5%8Ctsuzumi ("higher and sharper in pitch, resembling
+    # more of a dry, almost metallic "crack""; "The heads of the drum are taut very tightly";
+    # "struck with a player's bare hands")
+    # A bare-hand stroke on a very tight, stiff head: a high tone (1100 Hz) with an inharmonic
+    # partial (2650 Hz), both very short, under a bright, dry crack above 3 kHz
+    CatalogEntry(
+        'otsuzumi',
+        'Ōtsuzumi',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=1100.0, ring_seconds=0.05),
+                Tone(hertz=2650.0, ring_seconds=0.035, level=0.5),
+            ),
+            noise=0.8,
+            noise_ring_seconds=0.02,
+            noise_high_pass=3000.0,
+            tail=0.07,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Pandeiro ("a type of hand frame drum"; "The drumhead is
+    # tunable, and the rim holds metal jingles (platinelas) which are cupped, creating a crisper,
+    # drier and less sustained tone on the pandeiro than on the tambourine")
+    # A hand stroke on the head (210 Hz falling to 200 Hz) with the cupped jingles' short, dry
+    # jingle (a 6.2 kHz ring and noise above 4.5 kHz, both under 0.1 s)
+    CatalogEntry(
+        'pandeiro',
+        'Pandeiro',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=210.0, glide_to=200.0, glide_seconds=0.03, ring_seconds=0.15),
+                Tone(hertz=6200.0, ring_seconds=0.05, level=0.2),
+            ),
+            noise=0.6,
+            noise_ring_seconds=0.06,
+            noise_high_pass=4500.0,
+            tail=0.15,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Snare_drum ("Because the piccolo snare has a narrower
+    # depth ..., a higher-pitched "pop" is more widely associated with it"; "the "sharper" sound of
+    # the piccolo"; "about 3 in (7.6 cm) deep")
+    # A snare drum with a shallow shell: a higher, shorter tone (330 Hz, 0.06 s), the pop, under a
+    # brighter snare rattle (noise above 2.5 kHz)
+    CatalogEntry(
+        'piccolo snare',
+        'Piccolo snare',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(Tone(hertz=330.0, ring_seconds=0.06),),
+            noise=0.85,
+            noise_ring_seconds=0.15,
+            noise_high_pass=2500.0,
+            tail=0.2,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Snare_drum ("pipe band snares are deep and tuned quite
+    # tightly"; "a second set of snare wires beneath the batter head ... This gives them an even
+    # more crisp and snappy sound")
+    # A deep, tightly tuned snare drum: a lowish tone that dies fast (175 Hz, 0.08 s) under the two
+    # snare sets' crisp, snappy rattle (full noise above 3.5 kHz, 0.08 s)
+    CatalogEntry(
+        'pipe band snare',
+        'Pipe band snare',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(Tone(hertz=175.0, ring_seconds=0.08),),
+            noise=1.0,
+            noise_ring_seconds=0.08,
+            noise_high_pass=3500.0,
+            tail=0.15,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Thavil ("the right drum head is stretched very tightly";
+    # "The player usually wears thumb caps on all the fingers of the right hand, made of hardened
+    # glue from maida flour")
+    # The right-hand stroke: fingers in hard thumb caps on the very tight right head, a high tone
+    # (400 Hz falling to 385 Hz) with a hard click above 3.5 kHz
+    CatalogEntry(
+        'thavil',
+        'Thavil',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(Tone(hertz=400.0, glide_to=385.0, glide_seconds=0.03, ring_seconds=0.18),),
+            noise=0.85,
+            noise_ring_seconds=0.012,
+            noise_high_pass=3500.0,
+            tail=0.2,
+        ),
+    ),
 )
