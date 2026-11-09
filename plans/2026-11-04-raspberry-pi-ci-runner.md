@@ -14,6 +14,22 @@ inherit the display: SDL's `wayland` driver on the 2560x1440 screen, the `circle
 Goal: run the test suite on real ARM
 hardware, on every push, on `rpi4-ubuntu-2610` (terry@172.23.23.155).
 
+**A second Pi (the owner, 2026-11-08):** a Raspberry Pi 5 Model B Rev 1.1, 16 GB, 4 cores, on
+Ubuntu 26.04.1 LTS (aarch64, a local Wayland session), `rpi5-ubuntu-2604` (terry@172.23.23.161).
+It does both jobs the Pi 4 does: a CircleCI machine runner (resource class
+`terrysimons/raspberry-pi-5`, job `build-and-test-raspberry-pi-5`, the Pi 4's job merged with
+its own resource class, and like it left out of the workflow) and a machine the pre-push hook
+measures on. The two Pis are `ansible/inventory.yml`'s `raspberry_pis`, which the playbook sets
+up together (`--limit raspberry-pi-5` for one); the Pi 4's host and job were renamed
+`raspberry-pi-4` and `build-and-test-raspberry-pi-4`. The hook measures on both at once, each
+Pi's push, measurement and row fetch in its own thread, its output prefixed with its name;
+staging, git's index, runs once for both (the owner: the row copying runs in parallel). A Pi that
+cannot be reached stops the push before either measures. Its runner keeps the 2 GB limit (the
+owner: "Leave it capped at 2GB"). The playbook's OS steps were checked against it on 2026-11-08
+and need no change: `/dev/vcio` is root-only as on the Pi 4, gdm3 and its `custom.conf` are
+there, chrony is not yet (the playbook installs it), and the runner's repository is added for any
+release.
+
 ## The host (read 2026-11-04)
 
 - Ubuntu 26.10, aarch64, 4 CPUs, 3.7 GB RAM (1.7 GB in use while idle), 1 GB swap file.

@@ -4,17 +4,29 @@ all:
     # Whether a host gets the local AI service (ansible/macos_ai_service.yml). A platform that
     # can't run it turns it off here, and the AI playbook then leaves that host alone
     ai_enabled: true
-  hosts:
-    raspberry-pi-runner:
-      ansible_host: 172.23.23.155
-      ansible_user: terry
-      ansible_python_interpreter: /usr/bin/python3
-      # A Raspberry Pi has neither the memory nor the GPU for the models
-      ai_enabled: false
-      raspberry_pi_hostname: rpi4-ubuntu-2610
-      # .circleci/config.yml's build-and-test-raspberry-pi names this (tests/test_ci_config.py)
-      raspberry_pi_resource_class: terrysimons/raspberry-pi-4
   children:
+    # The Raspberry Pis (ansible/raspberry_pi_runner.yml sets each up): CircleCI machine runners
+    # whose jobs no workflow runs, and the machines the pre-push hook measures replays on.
+    # scripts/measure_on_raspberry_pi.py lists each host by name (its tests check the two agree)
+    raspberry_pis:
+      vars:
+        ansible_user: terry
+        ansible_python_interpreter: /usr/bin/python3
+        # A Raspberry Pi has neither the memory nor the GPU for the models
+        ai_enabled: false
+      hosts:
+        raspberry-pi-4:
+          ansible_host: 172.23.23.155
+          raspberry_pi_hostname: rpi4-ubuntu-2610
+          # .circleci/config.yml's build-and-test-raspberry-pi-4 names this (tests/test_ci_config.py)
+          raspberry_pi_resource_class: terrysimons/raspberry-pi-4
+          raspberry_pi_description: Raspberry Pi 4 with a real display
+        raspberry-pi-5:
+          ansible_host: 172.23.23.161
+          raspberry_pi_hostname: rpi5-ubuntu-2604
+          # .circleci/config.yml's build-and-test-raspberry-pi-5 names this (tests/test_ci_config.py)
+          raspberry_pi_resource_class: terrysimons/raspberry-pi-5
+          raspberry_pi_description: Raspberry Pi 5 (16 GB) with a real display
     macos:
       vars:
         # llama.cpp's Metal options:

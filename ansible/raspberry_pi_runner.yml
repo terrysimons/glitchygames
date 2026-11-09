@@ -1,6 +1,8 @@
 ---
-# The Raspberry Pi 4 that runs CircleCI's build-and-test-raspberry-pi job
-# (plans/2026-11-04-raspberry-pi-ci-runner.md). From the repository root, on another machine with
+# The Raspberry Pis (ansible/inventory.yml's raspberry_pis: a Pi 4 on Ubuntu 26.10, a Pi 5 on
+# Ubuntu 26.04), each a CircleCI machine runner for its build-and-test-raspberry-pi-N job and a
+# machine the pre-push hook measures on (plans/2026-11-04-raspberry-pi-ci-runner.md). Add
+# --limit raspberry-pi-5 (or -4) to set up one. From the repository root, on another machine with
 # the circleci CLI logged in, and a personal API token (https://app.circleci.com/settings/user/tokens)
 # typed where the shell's history will not keep it. The CLI rejects that token for its runner
 # commands, so it reads its own login; a CIRCLE_TOKEN in the environment would override that:
@@ -9,10 +11,10 @@
 #   read -rs CIRCLECI_API_TOKEN && export CIRCLECI_API_TOKEN
 #   uvx --from ansible-core ansible-playbook -i ansible/inventory.yml \
 #     ansible/raspberry_pi_runner.yml --ask-become-pass
-# Registers the Pi with CircleCI on the first run. The auto-login takes effect at the next reboot,
-# which this never does: rebooting ends the desktop session in use.
-- name: Set up the Raspberry Pi runner
-  hosts: raspberry-pi-runner
+# Registers each Pi with CircleCI on its first run. The auto-login takes effect at the next
+# reboot, which this never does: rebooting ends the desktop session in use.
+- name: Set up the Raspberry Pi runners
+  hosts: raspberry_pis
   become: true
   vars:
     # Add the runner's circleci user here once machine runner 3 is installed
@@ -26,7 +28,8 @@
     raspberry_pi_circleci_org: c50c5385-12e3-4835-946b-67938ab70fdf
     raspberry_pi_runner_config: /etc/circleci-runner/circleci-runner-config.yaml
     raspberry_pi_runner_home: /var/lib/circleci
-    # Limits stay on the real hardware: no swap on the SD card, and the desktop keeps its memory
+    # Limits stay on the real hardware: no swap on the SD card, and the desktop keeps its memory.
+    # The same on the 16 GB Pi 5 (the owner, 2026-11-08: "Leave it capped at 2GB")
     raspberry_pi_runner_memory_max: 2G
     # What the owner measures by hand with (nox -s measure-staged). The CI job installs its own.
     # Keep this at .circleci/config.yml's UV_VERSION (tests/test_ci_config.py checks it)
@@ -202,7 +205,7 @@
             cmd: >-
               circleci runner resource-class create {{ raspberry_pi_resource_class }}
               --org {{ raspberry_pi_circleci_org }}
-              --description "Raspberry Pi 4 with a real display"
+              --description "{{ raspberry_pi_description }}"
           become: false
           delegate_to: localhost
           vars:
