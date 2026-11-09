@@ -423,7 +423,7 @@ or two and a halt, as measured above). Otherwise the tail loops into the game an
 500 ms from frame 0's first audio update. <code>--crt-power-on-sound off</code> plays the picture silently;
 the sound never plays where the picture does not (<code>--headless</code>, tests, replays, recordings).</p>
 <h2 id="the-instrument-catalog">The instrument catalog<a class="headerlink" href="#the-instrument-catalog" title="Permanent link">#</a></h2>
-<p><code>glitchygames.audio.instruments</code> holds 439 ready-made instruments in 21 families. Each is an
+<p><code>glitchygames.audio.instruments</code> holds 448 ready-made instruments in 23 families. Each is an
 ordinary <code>Instrument</code>, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:</p>
@@ -502,13 +502,18 @@ and renders offline like any other:</p>
 </tr>
 <tr>
 <td><code>keyboards</code></td>
-<td>14</td>
-<td>pianos, harpsichords, clavichord, electric pianos, clavinet, celesta</td>
+<td>11</td>
+<td>pianos, harpsichords, clavichord, celesta, toy piano</td>
 </tr>
 <tr>
 <td><code>organs</code></td>
-<td>16</td>
-<td>pipe organ stops and plenum, tonewheel registrations and percussion, calliope</td>
+<td>9</td>
+<td>pipe organ stops and plenum, positive, combo and theatre organs, calliope</td>
+</tr>
+<tr>
+<td><code>electromechanical</code></td>
+<td>11</td>
+<td>electric pianos (tine, reed), Clavinet, Pianet, tonewheel organ registrations and percussion</td>
 </tr>
 <tr>
 <td><code>electronic</code></td>
@@ -541,6 +546,11 @@ and renders offline like any other:</p>
 <td>whip crack, diaphone, air horn, vehicle horn, party horn</td>
 </tr>
 <tr>
+<td><code>sound effects</code></td>
+<td>8</td>
+<td>thunder sheet, rain machine, ocean drum, cannon, crash box, coconut shells, door slam</td>
+</tr>
+<tr>
 <td><code>voices</code></td>
 <td>55</td>
 <td>soprano, mezzo, alto, treble, countertenor, tenor, baritone, bass and basso profundo on ah, eh, ee, oh, oo and humming; whistling</td>
@@ -562,8 +572,10 @@ and renders offline like any other:</p>
   with <code>family=</code>.</li>
 <li><code>instruments.ALIASES</code> (read-only, as <code>instruments.CATALOG</code> is) maps another name to its
   catalog name: <code>slapstick</code> to <code>whip</code>, <code>zanza</code> to <code>mbira</code>, <code>cylinder music box</code> and <code>disc music
-  box</code> to <code>music box</code> (4 in all). <code>get</code> and <code>entry</code> resolve an alias, while <code>names</code> and <code>entries</code>
-  list catalog names only.</li>
+  box</code> to <code>music box</code>, <code>wurlitzer electronic piano</code> to <code>reed electric piano</code>, <code>hohner clavinet</code>
+  to <code>clavinet</code>, <code>rain box</code> to <code>rain machine</code> and <code>horse hooves</code> to <code>coconut shells</code> (8 in
+  all). <code>get</code> and <code>entry</code> resolve an alias, while <code>names</code> and <code>entries</code> list catalog names
+  only.</li>
 <li>Each entry has a <code>title</code>, a <code>family</code> and its playing range, <code>lowest</code> and <code>highest</code> (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (<code>pitch='A4'</code>); it does not change
