@@ -6,7 +6,7 @@ import itertools
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Event, Thread
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import Any, ClassVar
 
 import pygame
 import pytest
@@ -36,9 +36,6 @@ from glitchygames.scenes import Scene
 from glitchygames.testing.keys import qwerty_scancode
 from tests.ai_service_stand_in import install
 from tests.test_ai_link import FakeInnerSources
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 # Every install here can run its control script, on Windows too (tests/ai_service_stand_in.py)
 pytestmark = pytest.mark.usefixtures('stand_in_ai_control_scripts')
