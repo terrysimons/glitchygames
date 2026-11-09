@@ -187,7 +187,7 @@ class TestDebugOverlayFlag:
     def test_sound_diagnostics_open_the_overlay(self, manager, mocker):
         """--sound-diagnostics starts with the overlay on (its Audio panel: impl spec 10.5)."""
         engine = mocker.Mock()
-        engine.OPTIONS = {
+        engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': 1000,
             'debug_overlay': False,
@@ -199,7 +199,7 @@ class TestDebugOverlayFlag:
     def test_sound_diagnostics_starts_on_the_audio_panel(self, manager, mocker):
         """--sound-diagnostics opens the overlay on its Audio panel, not on All."""
         engine = mocker.Mock()
-        engine.OPTIONS = {
+        engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': 1000,
             'debug_overlay': False,
@@ -211,7 +211,7 @@ class TestDebugOverlayFlag:
     def test_the_debug_overlay_option_alone_starts_on_all_panels(self, manager, mocker):
         """--debug-overlay without --sound-diagnostics keeps the All panel."""
         engine = mocker.Mock()
-        engine.OPTIONS = {
+        engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': 1000,
             'debug_overlay': True,

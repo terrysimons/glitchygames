@@ -16,7 +16,6 @@ from glitchygames.audio import voices as voices_module
 from glitchygames.audio.accounting import CompileRecord
 from glitchygames.audio.engine import AudioEngine, existing_audio_engine
 from glitchygames.audio.voices import ChannelPartition, reserved_channel_count
-from glitchygames.engine import GameEngine
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_history import (
     AUDIO_SECONDS_FIELD,
@@ -47,7 +46,9 @@ def engine_run_environment(mocker):
     yield from demo_runs.engine_run_environment(mocker)
 
 
-def build_engine(mocker, *, game: type[Scene], extra_arguments: tuple[str, ...] = ()):
+def build_engine(
+    mocker, *, game: type[Scene], extra_arguments: tuple[str, ...] = ()
+) -> GoldenTraceEngine:
     """Construct a real engine for ``game`` on ENGINE_ARGUMENTS plus ``extra_arguments``.
 
     Returns:
@@ -99,9 +100,7 @@ class TestSoundOptions:
     """The options impl spec 10.2 adds to every game."""
 
     def test_the_sound_options_have_the_spec_defaults(self, mocker):
-        build_engine(mocker, game=SoundingGame)
-
-        options = GameEngine.OPTIONS
+        options = build_engine(mocker, game=SoundingGame).options
         assert options['sound_channels'] == 32
         assert options['sound_cache'] == 'ram'
         assert options['sound_cache_memory'] == 256
@@ -109,7 +108,7 @@ class TestSoundOptions:
         assert options['sound_diagnostics'] is False
 
     def test_the_sound_options_are_read_as_given(self, mocker):
-        build_engine(
+        engine = build_engine(
             mocker,
             game=SoundingGame,
             extra_arguments=(
@@ -125,7 +124,7 @@ class TestSoundOptions:
             ),
         )
 
-        options = GameEngine.OPTIONS
+        options = engine.options
         assert options['sound_channels'] == 12
         assert options['sound_cache'] == 'none'
         assert options['sound_cache_memory'] == 64

@@ -574,7 +574,7 @@ def engine_font_manager(*arguments: str) -> FontManager:
     """
     parser = FontManager.args(argparse.ArgumentParser())
     engine_options = vars(parser.parse_args(list(arguments)))
-    return FontManager(game=types.SimpleNamespace(OPTIONS=engine_options))
+    return FontManager(game=types.SimpleNamespace(engine_options=engine_options))
 
 
 class TestFontStyleOptions:
@@ -597,7 +597,9 @@ class TestFontStyleOptions:
     def test_options_without_the_style_options_get_the_defaults(self):
         """A game whose options lack the style options gets antialiased, upright, regular text."""
         FontManager(
-            game=types.SimpleNamespace(OPTIONS={'font_name': DEFAULT_FONT_NAME, 'font_size': 14})
+            game=types.SimpleNamespace(
+                engine_options={'font_name': DEFAULT_FONT_NAME, 'font_size': 14}
+            )
         )
 
         freetype_font = FontManager.get_font(font_system='freetype')
