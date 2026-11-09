@@ -1,11 +1,14 @@
 # GlitchyGames Arcade: a showcase and game picker (`uv run arcade`) — master spec
 
-Status: SPEC (agreed with the user 2026-10-25; drafted 2026-10-23), not started. Tracked as
-feature #43 in `plans/future-features.md`. This is the master plan: each piece below gets its own
-sub-plan, linked both ways from here (sub-plans link back to this file).
+Status: SPEC (agreed with the user 2026-10-25; drafted 2026-10-23); sub-plan 1 under way
+(2026-11-08, branch `arcade-1-engine-state`: engine context sub-plan 2's Tasks 1-7 rebased onto
+main, the owner's RunningGame ruling done). Tracked as feature #43 in `plans/future-features.md`.
+This is the master plan: each piece below gets its own sub-plan, linked both ways from here
+(sub-plans link back to this file). Since 2026-11-08 it also holds the engine context plan's
+remaining sub-plans (Sub-plans, below).
 
 Mockup (the owner's, 2026-10-25): https://claude.ai/artifact/3QKddtTADVqC1LVpvDSQSD, the screen with
-real frames from each game's golden replay (a 5x2 grid of ten tiles; the tile count is still open).
+real frames from each game's golden replay (a 5x2 grid of ten tiles, the count settled 2026-11-08).
 
 ## What it is
 
@@ -249,18 +252,53 @@ sprite being drawn; the joystick demo's shows its readout answering a recorded p
 
 ## Sub-plans (each written before its work starts, linked both ways)
 
-1. **Engine context** (its own master plan with sub-plans,
-   [2026-10-25-engine-context.md](2026-10-25-engine-context.md)): `EngineContext`, the default
-   context, switching, the isolation tests. First.
-2. **Audit and refactor playback into one core, then `DemoPlayer`:** the audit, the shared
-   inner-game runner, the viewer and playback scope on it, fast-forward, the frame budget,
-   poster frames.
-3. **Demos for all nine games** (can run beside 1 and 2).
-4. **The Arcade screen, reel and chime:** the app `src/apps/arcade/`, the console script, layout,
-   highlight, input, idle time-out, the chime recipe.
-5. **Launching in the same process:** discovery by entry point, fresh contexts for games, return,
-   window size.
-6. **The browser bundle:** `nox -s browser -- arcade`.
+The order the owner set on 2026-11-08, after seeing the single-process spike again
+(`.superpowers/arcade-spike/arcade_spike_in_process.py`): the engine context plan
+([2026-10-25-engine-context.md](2026-10-25-engine-context.md)) is folded in here, each of its
+remaining sub-plans going into the Arcade sub-plan that needs it, and its research (the audit
+table, the decisions) staying there as reference. Sub-plan 1 of the engine context (merged, #108)
+is the base. The spike's findings
+(`.superpowers/arcade-spike/engine-context-spike-findings.md`, its collision list) show why
+almost nothing could be dropped: shared event handlers diverged a game at frame 2, SDL's one
+event queue at frame 29, and the display, `--headless` and the live-voice channels broke the
+window and the sound. The rows harmless in the spike were harmless only because its two goldens
+recorded the same options; ten tiles with different games and resolutions make them real.
+
+1. **Each engine owns its own state** = engine context sub-plan 2
+   ([2026-10-27-engine-context-2-engine-state.md](2026-10-27-engine-context-2-engine-state.md),
+   branch `arcade-1-engine-state`): the engine's own state (C7-C20) per engine and context, the
+   read-only views, the process-state guard, two engines with different options side by side.
+2. **Demos for every tile** (can run beside 1): a bundled demo recording for Bitmappy and the dt,
+   joystick and text-input demos (the games have theirs), each a bundled-demo test.
+3. **A game inside the Arcade** = engine context sub-plans 3, 4, 6 and 7: an inner engine built
+   from options (not `sys.argv`), drawing offscreen (a render target per context), its own event
+   queue and internal-post tracker, contained errors, and nothing touching the window, SDL's
+   environment, signals or `pygame.quit()`. Proof: every golden replay and bundled demo replayed
+   in an inner context equals its headless replay, frame for frame, several at once.
+4. **Sound only from the watched game** = engine context sub-plan 5: an audio route per context;
+   silent tiles keep off the shared channels entirely; only the top frame or a launched game is
+   heard.
+5. **One playback core, then `DemoPlayer`** (section 2 above), with engine context sub-plan 8:
+   the replay viewer's inner game moves onto the core, in its own context. Looping,
+   fast-forward, poster frames, the frame budget.
+6. **The Arcade screen, reel and chime:** the app `src/apps/arcade/`, `uv run arcade`, ten tiles
+   (5x2), the highlight, input, the idle time-out, each tile's debug overlay (the spike's
+   overlay rules and its opaque-tile fix become this sub-plan's tests, as Testing above says).
+7. **Launching in the same process:** discovery by entry point, a live game owning the window in
+   a fresh context, return with the highlight kept, window size.
+8. **The browser bundle:** `nox -s browser -- arcade`, with engine context sub-plan 3's browser
+   rule (no switch across an `await`) and its rule for the engine's own threads.
+
+**Players.** The player roster (`plans/2026-10-28-player-roster-design.md`, a design parked in the
+docs PR #145, to be picked up later) sits between sub-plans 1 and 3: a launched game's players
+(sub-plan 7) and each inner game's devices (sub-plan 3) build on it.
+
+**Benchmarks** (the owner, 2026-11-08: "Make sure it's also wired up to the benchmarks"): what each
+sub-plan measures goes into the benchmark suite (`pytest --benchmark-only`, `nox -s
+performance-test`, `tests/benchmarks/`), never a one-off script. Sub-plan 1's per-read and
+per-call costs are `tests/benchmarks/test_engine_context_benchmarks.py` (its Tasks 16 and 17);
+sub-plan 3 adds the cost of ten inner games per Arcade frame, and sub-plan 5 the demo player's
+frame budget against `INNER_FRAME_BUDGET_SECONDS`.
 
 ## Decisions (the user, 2026-10-23 and 2026-10-25)
 
@@ -269,20 +307,21 @@ sprite being drawn; the joystick demo's shows its readout answering a recorded p
   "for each game" rule stays exceptionless). It depends on every game, demo and app it shows,
   kept equal to the layers by a test, and discovers them by entry point. Where it appears in the
   showcase (first on the play page) is presentation, not its directory.
-- **Open:** Papyrus's tile. #109 (2026-10-26) folded Brave Adventurer: Papyrus into the
-  `brave-adventurer` package (one distribution, both editions) and removed the
-  `brave-adventurer-papyrus` console script: show Papyrus as its own tile (the package then
-  declares two games for the Arcade's discovery) or one Brave Adventurer tile for both editions.
-- **Open:** the tile count. The grid was drawn as 3x3 for nine (five games, Bitmappy, three
-  demos); Drawing Fire makes ten. To decide before the screen sub-plan: a 4x3 grid with two
-  empty cells, a scrolling grid, or which entries get a tile.
+- **Papyrus's tile** (settled 2026-10-27, after the spikes): one Brave Adventurer tile, its
+  launcher, which offers both editions. A tile is a game's command, not an edition (What it is,
+  above).
+- **The tile count** (settled 2026-11-08): ten tiles from the start, a 5x2 grid as the mockup
+  draws it: the six games (Drawing Fire included), Bitmappy and the three demos. Bitmappy and
+  the demos need their demo recordings first (sub-plan 2).
+- **The order** (2026-11-08): the engine context plan is folded into these sub-plans (Sub-plans,
+  above), and benchmarks are part of each.
 
 - One process, in-process engine contexts (D1); child processes are not a fallback (the browser
   has none). Launching a game is in-process too.
 - One screen: the top frame and the grid together, a separator between them.
 - The top frame is the highlighted tile's own player, scaled up, with sound; tiles are live,
   silent playback of every game's demo at once.
-- All nine games get a tile.
+- Every game, Bitmappy and the demos get a tile (nine then; ten since Drawing Fire, 2026-11-08).
 - `DemoPlayer` is built on one playback core refactored out of the existing four (DRY), not a
   new mechanism; it gets fast-forward now (shared with rebuild and instant replay), rewind later.
 - Tiles start on a poster frame: a frame chosen from the seeded random stream, reached by

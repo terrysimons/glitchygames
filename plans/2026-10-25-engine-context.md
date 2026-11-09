@@ -1,8 +1,13 @@
 # Engine Context (master plan)
 
-Status: sub-plan 1 implemented and verified on feature/engine-context-state (commits
+Status: **folded into the Arcade's master plan on 2026-11-08** (the owner: "Rewrite the plan
+order"): each remaining sub-plan is now part of the Arcade sub-plan that needs it
+([2026-10-23-arcade-showcase.md](2026-10-23-arcade-showcase.md), Sub-plans: sub-plan 2 is Arcade
+1; 3, 4, 6 and 7 are Arcade 3; 5 is Arcade 4; 8 goes with Arcade 5; sub-plan 3's browser and
+thread rules with Arcade 8). This file stays as the reference for the audit table and the
+decisions. Sub-plan 1 implemented and verified on feature/engine-context-state (commits
 9d3a162e^..364f4910, the documentation commits included; whole-branch verification in its
-Task 10). Sub-plans 2-8 are not started. Sub-plan 1 has a full implementation plan; sub-plans 2-8 are one line each below and get
+Task 10), merged as #108. Sub-plan 2's Tasks 1-7 are done (branch `arcade-1-engine-state`). Sub-plan 1 has a full implementation plan; sub-plans 2-8 are one line each below and get
 their plans when each starts, written against how the one before turned out. Execution is
 subagent-driven (superpowers:subagent-driven-development), for every sub-plan. This file is
 listed in `LIVING_PLAN_FILES` in `tests/test_suite_collection.py` (it passes the
