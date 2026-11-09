@@ -203,7 +203,7 @@ All games built on GlitchyGames inherit these command-line options from the engi
 | `-r`, `--resolution` | Display resolution (e.g. `1024x768`) | `800x480` |
 | `--use-gfxdraw` | Not used yet: stored, but nothing draws with pygame.gfxdraw because of it | `False` |
 | `--update-type` | Display update method: `update` (dirty rects) or `flip` (full screen) | `update` |
-| `--video-driver` | SDL's video driver for the run (sets `SDL_VIDEODRIVER`; `--headless` overrides it) | `SDL_VIDEODRIVER`, or SDL's choice |
+| `--video-driver` | SDL's video driver for the run (sets `SDL_VIDEODRIVER`; `--headless` overrides it) | `SDL_VIDEODRIVER`, then Wayland on a Linux Wayland session, then SDL's choice |
 | `--random-seed` | Master seed for every engine random stream | a random 64-bit seed |
 | `--screen-shake-intensity` | Screen shake strength, 0.0 (off) to 1.0 | `1.0` |
 | `--rumble-intensity` | Controller rumble strength, 0.0 (off) to 1.0 | `1.0` |

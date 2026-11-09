@@ -216,6 +216,11 @@ DEFAULT_CRT_POWER_ON_SOUND = CRT_POWER_ON_SOUND_ON
 HEADLESS_SDL_DRIVER = 'dummy'
 # The environment variables that choose SDL's video and audio drivers (--headless sets both)
 SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
+# What a Linux Wayland session runs on when nothing chose a driver: alone, SDL picks x11 there
+# whenever DISPLAY is also set (seen on Ubuntu 26.10), which goes through XWayland and cost a
+# fullscreen window about 25% on a Raspberry Pi 4. SDL tries a list in order, so x11 still starts
+# when Wayland cannot
+WAYLAND_FIRST_VIDEO_DRIVERS = 'wayland,x11'
 # SDL's hint that turns its own SIGINT/SIGTERM handlers off (the engine owns the signals)
 SDL_NO_SIGNAL_HANDLERS_HINT = 'SDL_NO_SIGNAL_HANDLERS'
 # --video-driver's choices: SDL 2's video drivers by platform.system() name (SDL's own list,
@@ -1075,7 +1080,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             '--video-driver',
             help=(
                 "SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: "
-                "SDL_VIDEODRIVER's own value, or SDL's choice; --headless overrides it)"
+                "SDL_VIDEODRIVER's own value, then Wayland on a Linux Wayland session, then "
+                "SDL's choice; --headless overrides it)"
             ),
             default=None,
             choices=video_driver_choices,
@@ -3130,10 +3136,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             )
 
     def _choose_sdl_drivers(self: Self, *, options: dict[str, Any]) -> None:
-        """Apply --headless or --video-driver before anything starts the display or the mixer.
+        """Choose the drivers before anything starts the display or the mixer.
 
         --headless wins: its dummy driver is the point of the run, so --video-driver is ignored
-        (with a warning).
+        (with a warning). With neither, a Linux Wayland session runs on Wayland, unless
+        SDL_VIDEODRIVER already says otherwise.
 
         Args:
             options: The engine's options.
@@ -3150,9 +3157,25 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self._enter_headless_mode()
         elif video_driver:
             self._enter_video_driver(video_driver=video_driver)
+        elif self._is_on_a_wayland_session_with_no_driver_chosen():
+            self._enter_video_driver(video_driver=WAYLAND_FIRST_VIDEO_DRIVERS)
+
+    @staticmethod
+    def _is_on_a_wayland_session_with_no_driver_chosen() -> bool:
+        """Return whether this is a Linux Wayland session whose SDL_VIDEODRIVER chooses nothing.
+
+        Returns:
+            True when the engine should choose Wayland.
+
+        """
+        return (
+            platform.system() == 'Linux'
+            and bool(os.environ.get('WAYLAND_DISPLAY'))
+            and not os.environ.get('SDL_VIDEODRIVER')
+        )
 
     def _enter_video_driver(self: Self, *, video_driver: str) -> None:
-        """--video-driver: start the display on the named SDL video driver.
+        """Start the display on the named SDL video driver, or the first of a list that starts.
 
         Called right after the options are read, before ``pygame.init()`` and the display, as
         ``_enter_headless_mode`` is. A display pygame started before the engine on another driver
@@ -3161,14 +3184,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         (``_restore_sdl_driver_variables``).
 
         Args:
-            video_driver: The SDL video driver (an SDL_VIDEODRIVER name).
+            video_driver: What SDL_VIDEODRIVER is set to: a driver's name, or a comma-separated
+                list of them in the order to try.
 
         """
         self._remember_sdl_driver_variables()
         os.environ['SDL_VIDEODRIVER'] = video_driver
-        if pygame.display.get_init() and pygame.display.get_driver() != video_driver:
+        wanted_driver = video_driver.split(',', maxsplit=1)[0]
+        if pygame.display.get_init() and pygame.display.get_driver() != wanted_driver:
             self.log.warning(
-                '--video-driver: pygame was started before the engine; restarting the display '
+                'pygame was started before the engine; restarting the display '
                 '(video driver %r) on %r',
                 pygame.display.get_driver(),
                 video_driver,
