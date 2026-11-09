@@ -1745,9 +1745,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Design (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
-### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 2 DONE
+### 70. Sound Engine: Every Musical Instrument Known to Man — BATCH 3 DONE
 - **Description**: Grow the instrument catalog from 431 instruments (439 in 21 families after
-  batch 1, 448 in 23 after batch 2) toward every instrument a game might want, in one verified
+  batch 1, 448 in 23 after batch 2, 624 after batch 3) toward every instrument a game might want, in one verified
   batch per family. Adversarial audits (2026-11-07) found 1,303 candidates, only 84 with
   source-verified ranges. Adds five families (plucked idiophones, friction instruments, noise
   makers, sound effects, and electromechanical, which takes the electric pianos, Clavinet and
@@ -1759,13 +1759,24 @@ This document tracks planned future features for the GlitchyGames project. Featu
   aliases and 5 were dropped.
   Batch 2 (electromechanical and sound effects) is done: of its 62 audited candidates (30
   electromechanical, 32 sound effects) 9 shipped, 10 moved family, 11 wait for engine
-  features, 4 became aliases and 28 were dropped. Next: drums and percussion
+  features, 4 became aliases and 28 were dropped.
+  Batch 3 (drums and percussion) is done: of its 255 sheet rows 45 shipped (their own builds),
+  131 became sound-alikes (entries of their own that share a parent's build, `sounds_like`), 29
+  wait for engine features, 27 became aliases and 23 were dropped; the family grew from 61 to
+  237 entries. The audit's "Gaps you could not close"
+  (`plans/data/instrument-audit/drums-and-percussion.md`: MIMO, the Met, Horniman and Grove
+  unconsulted, truncated Wikipedia lists, Korean, Cuban, Oceanian, Indigenous American and
+  Eastern European names never searched) are a later pass over this family. `agung`, `tingsha`
+  and `teponaztli` also have tuned-percussion audit rows (`merged.tsv`) and shipped here under
+  those names, so the tuned percussion batch must not ship them again. Next: plucked strings
 - **Design**: `plans/2026-11-07-instrument-catalog-expansion-design.md`
 - **Plan**: `plans/2026-11-07-instrument-catalog-batch-1-implementation.md`; audit sheet
   `plans/data/instrument-audit/batch-1.tsv`
 - **Plan (batch 2)**: `plans/2026-11-08-instrument-catalog-batch-2-implementation.md`; audit
   sheet `plans/data/instrument-audit/batch-2.tsv`
-- **Status**: Batches 1 and 2 done (requested by the owner 2026-11-06)
+- **Plan (batch 3)**: `plans/2026-11-08-instrument-catalog-batch-3-implementation.md`; audit
+  sheet `plans/data/instrument-audit/batch-3.tsv`
+- **Status**: Batches 1, 2 and 3 done (requested by the owner 2026-11-06)
 - **Priority**: Medium
 
 ### 71. Sound Engine: The Owner's Checks on Instrument Catalog Batch 2 — TODO
@@ -1805,6 +1816,137 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 2's reviews and final whole-branch review (2026-11-08)
 - **Status**: TODO
 - **Priority**: Medium (before batch 3 builds on the family boundaries)
+
+### 72. Sound Engine: The Owner's Checks on Instrument Catalog Batch 3 — TODO
+- **Goal**: confirm or overturn the calls made while batch 3 of #70 ran, and listen to its new
+  instruments (drums and percussion, 61 to 237 entries; the owner, 2026-11-08: "I want them to
+  all show up")
+- **Listen** (render with `uv run python -m scripts.make_instrument_demos build/instruments`;
+  every level, filter, ring and glide is sound design, not sourced; the folder is
+  `build/instruments/drums and percussion/`). The 45 new builds come first, then the
+  sound-alikes; each group below is a parent with the sound-alikes that share its build, which
+  must sound alike by design:
+  - [ ] The 45 new builds: `bendir`, `bombo leguero`, `chenda`, `daf`, `dhol`, `dholak`,
+    `field drum`, `gong bass drum`, `janggu`, `kanjira`, `kebero`, `kendang`, `kendang ageng`,
+    `ketipung`, `khol`, `lambeg drum`, `mridangam`, `naqareh`, `otsuzumi`, `pandeiro`,
+    `piccolo snare`, `pipe band snare`, `thavil`, `agung`, `anvil`, `bak`, `daluo`,
+    `flat ride cymbal`, `garamut`, `ghatam`, `gongue`, `guira`, `jing`, `jingle bells`,
+    `karkabou`, `kemanak`, `khartal`, `kkwaenggwari`, `lagerphone`, `sizzle cymbal`,
+    `tiger gong`, `tingsha`, `udu`, `washboard`, `xiaoluo`: each distinct from the 61 already
+    there and from each other (the anti-goal; the rule-7 test only catches equal builds)
+  - [ ] Near pairs to hear side by side: `garamut` and `janggu` and `kendang`, `anvil` and
+    `kkwaenggwari`, `bak` and `otsuzumi`, `washboard` and `castanets`
+  - [ ] The sound-alikes, 131 in 52 groups (each is its parent's sound):
+  - [ ] `paiban`, `sasara` of `bak`
+  - [ ] `cultrun`, `damphu`, `parai`, `sakara drum`, `uchiwa daiko` of `bodhran`
+  - [ ] `afoxe`, `axatse`, `shekere` of `cabasa`
+  - [ ] `chuk`, `gome` of `cajon bass`
+  - [ ] `bones`, `spoons` of `castanets`
+  - [ ] `bo` of `china cymbal`
+  - [ ] `hyoshigi`, `lummi stick` of `claves`
+  - [ ] `dabakan` of `conga slap`
+  - [ ] `atabaque`, `bamboula`, `bata drum`, `candombe drums`, `kpanlogo`, `kundu`, `makuta`,
+    `ngoma`, `tambora`, `timbal` of `conga`
+  - [ ] `crash ride cymbal` of `crash cymbal`
+  - [ ] `khanjani` of `daf`
+  - [ ] `tombak`, `tumbaknari` of `darbuka doum`
+  - [ ] `bangu`, `tamborim`, `trong chau` of `darbuka tek`
+  - [ ] `davul`, `dhak`, `dohol`, `dollu`, `tabl`, `zabumba` of `dhol`
+  - [ ] `bougarabou` of `djembe bass`
+  - [ ] `ashiko`, `sabar`, `tifa` of `djembe tone`
+  - [ ] `marching snare`, `tabor` of `field drum`
+  - [ ] `elathalam`, `kecer`, `manjira` of `finger cymbals`
+  - [ ] `dunun` of `floor tom`
+  - [ ] `tar drum` of `frame drum`
+  - [ ] `ikoro`, `semantron`, `slit drum`, `teponaztli`, `txalaparta` of `garamut`
+  - [ ] `ferrinho`, `frottoir`, `guayo` of `guira`
+  - [ ] `eo`, `esterilla`, `reco reco` of `guiro`
+  - [ ] `puniu`, `tbilat` of `high bongo`
+  - [ ] `gudugudu`, `repinique` of `high timbale`
+  - [ ] `kakko`, `octoban`, `okedo daiko`, `shime daiko`, `urumi` of `high tom`
+  - [ ] `ghungroo`, `turkish crescent` of `jingle bells`
+  - [ ] `kendang ciblon`, `kendang wadon`, `klong khaek`, `madal`, `samphor`, `taphon`, `trong
+    com` of `kendang`
+  - [ ] `chimta`, `triccaballacca` of `khartal`
+  - [ ] `stomp box` of `kick drum`
+  - [ ] `chengila`, `shoko` of `kkwaenggwari`
+  - [ ] `igba` of `low bongo`
+  - [ ] `sangban` of `low tom`
+  - [ ] `caxirola`, `caxixi`, `hosho` of `maracas`
+  - [ ] `concert tom`, `kenkeni`, `tanggu` of `mid tom`
+  - [ ] `maddalam`, `pakhavaj` of `mridangam`
+  - [ ] `tasha` of `naqareh`
+  - [ ] `bedug`, `fontomfrom`, `gbedu`, `thunder drum`, `tsuri daiko` of `orchestral bass drum`
+  - [ ] `popcorn snare` of `piccolo snare`
+  - [ ] `rainstick` of `rain machine`
+  - [ ] `ganza` of `shaker`
+  - [ ] `swish cymbal` of `sizzle cymbal`
+  - [ ] `sandpaper blocks` of `snare brush`
+  - [ ] `caixa malacacheta`, `tarol` of `snare drum`
+  - [ ] `dhimay`, `tan tan` of `surdo`
+  - [ ] `alfaia`, `buk`, `hira daiko`, `jwago`, `kus`, `nagado daiko` of `taiko`
+  - [ ] `pandero jarocho`, `rebana`, `sistrum` of `tambourine`
+  - [ ] `ekwe`, `moktak` of `temple block`
+  - [ ] `thunder tube` of `thunder sheet`
+  - [ ] `atumpan`, `carimbo`, `huehuetl`, `pahu` of `tumba`
+  - [ ] `quijada` of `vibraslap`
+  - [ ] `cata`, `jam block`, `shishi odoshi` of `woodblock`
+- **Calls to confirm** (each in `plans/data/instrument-audit/batch-3.tsv`; the sheet's counts:
+  SHIP 45, SOUND_ALIKE 131, WAIT 29, ALIAS 27, DROP 23):
+  - [ ] Sound-alikes: each is an entry of its own sharing its parent's build (decision 8). The
+    groups under Listen name each parent; confirm none should rather be an alias (`riq` and
+    `doira` are ALIAS rows of `daf`, `tavil` of `thavil`) or a drum of its own build
+  - [ ] WAIT, amplitude LFO: `damaru`, `lions roar`, `binzasara`, `ratchet`, `bell tree`, `mark
+    tree` and `flexatone` (the last three with a stepped or bent pitch)
+  - [ ] WAIT, a pitch the sequence moves through a phrase (the squeezed cords): `talking drum`,
+    `idakka`, `kotsuzumi`, `udukku`
+  - [ ] WAIT, a filter LFO: `water drum`; a pitch LFO: `wobble board`
+  - [ ] WAIT because their target waits: `den den daiko` and `pellet drum` (target `damaru`),
+    `lion roar` (`lions roar`), `edakka` (`idakka`), and `dundun`, `gangan`, `kalangu`, `dan
+    karbi`, `tama`, `tamma`, `tamanin`, `donno`, `lunna`, `odondo`, `doodo`, `obodom` (`talking
+    drum`)
+  - [ ] Fixed tones: tonic-tuned drums and fixed-pitch gongs ship with one fixed tone (the pitch a
+    game gives is ignored): `mridangam` (280 Hz, tuned to the singer, so a fixed tone as the
+    catalog tabla bayan is), `agung` (110 Hz), `jing` (205 Hz), `kemanak` (600 Hz), `ghatam` (240
+    Hz), `tiger gong` (175 Hz falling), `tingsha` (2350 Hz), `udu` (73 Hz sliding to 137 Hz),
+    `daluo` (330 Hz falling) and `xiaoluo` (360 Hz rising)
+  - [ ] Strokes shipped: each drum ships one struck sound (a two-headed drum's bass and treble
+    heads blended in one hit; no slaps, rolls or open and closed strokes as separate entries), so
+    `kendang`, `kendang ageng` and `ketipung` are three drums, not three strokes
+  - [ ] The two-half split: membranophones (Hornbostel-Sachs class 2) and everything else (class 1)
+    were built in two halves, and the sound-alikes of the second half sit in
+    `drum_sound_alikes.py` beside the first half's; confirm the split reads right to a person
+    adding the next entry
+  - [ ] `bossed gong` is an ALIAS of the tuned percussion family's `tuned gong`, and `chau gong`
+    of `tam tam`
+- **Follow-ups**:
+  - [ ] `candombe drums` (three sizes) is one sound-alike of `conga`; split into three, or keep
+    one
+  - [ ] `riq` is an ALIAS of `daf` by a redirect; a sound-alike if a source separates them
+  - [ ] `kendang ciblon` is the drum `kendang` builds: alias or sound-alike
+  - [ ] `zob stick` and `ugly stick` are ALIAS rows of `lagerphone`; SOUND_ALIKE if the
+    construction differs
+  - [ ] `cata` is parented to `woodblock`, while its source page compares claves
+  - [ ] `pandero jarocho` and `rebana` point at `tambourine`; `daf` or `pandeiro` is nearer by the
+    sheet's own reasoning
+  - [ ] `garamut`'s 1.4 s ring is a weak inference (a sound that carries far is a long hollow
+    resonance), and its 330 Hz wood partial's 0.3 s ring is unexplained
+  - [ ] `washboard` against `castanets`: thin separation; listen, and merge or tune if they sound
+    alike
+  - [ ] `jing` is in `LONG_RINGING_ONE_SHOTS` (its ring outlasts the note), with an energy-share
+    assertion only
+  - [ ] Eight notes and builders disagree where a sourced trait is not built: `jing`, `tiger
+    gong`, `sizzle cymbal` (cuts out sharply), `tingsha`, `ghatam`, `washboard`, `lagerphone`,
+    `kkwaenggwari`; `bendir`, `dholak` (soft attack) and `bombo leguero` (hollow-log body) too
+  - [ ] `LONG_RINGING_ONE_SHOTS` and `NOT_PERIODIC_AT_THE_NOTE` have no guard against going stale
+  - [ ] `lions roar` waits for an amplitude LFO by the sheet's reading, not a sourced gap
+  - [ ] `drums.py` is over 1,800 lines even with the sound-alikes moved out; split it by class if
+    it grows
+  - [ ] A sound-alike a source later sets apart (a smaller head's higher tone, a stick's click)
+    takes `sound_changes`, citing the source
+- **Found**: batch 3's reviews (2026-11-08)
+- **Status**: TODO
+- **Priority**: Medium (before the plucked strings batch builds on the same catalog)
 
 ## Notes
 
