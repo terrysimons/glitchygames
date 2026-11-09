@@ -132,7 +132,8 @@ Graphics Options:
                         test-pattern)
   --video-driver {cocoa,offscreen,dummy}
                         SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: SDL_VIDEODRIVER's own
-                        value, or SDL's choice; --headless overrides it)
+                        value, then Wayland on a Linux Wayland session, then SDL's choice; --headless
+                        overrides it)
 
 Diagnostics Options:
   --log-timer-jitter    log frame pacing jitter statistics periodically

@@ -1951,6 +1951,23 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Found**: batch 3's reviews (2026-11-08)
 - **Status**: TODO
 - **Priority**: Medium (before the plucked strings batch builds on the same catalog)
+### 72. Live Pacing's Catch-Up After a Late Frame: Does the Player See It? — TODO (decision needed)
+- **Description**: An open question about the live pacer (`src/glitchygames/timing.py`,
+  `next_frame_deadline_ns`: a frame up to one period late is caught up by the next, so the
+  average rate holds; only a frame more than a period behind re-anchors). After a late frame the
+  next deadline stays on the original grid, so the next frame is very short: committed
+  recordings hold a 28.63 ms frame followed by a 1.51 ms one (PaddleSlap's `rally.jsonl.gz`,
+  frame 286) and a 34.02 ms frame followed by a 7.44 ms one (Brave Adventurer's
+  `golden-classic.jsonl.gz`, frame 460). A 60 Hz display probably never shows a frame that
+  lasts 1.5 ms (it and the next are presented within one refresh), so "the player saw it" may
+  not hold. The watched replay now presents every recorded frame at 1x (rule 2 of
+  `src/glitchygames/replay/viewer.py`), which assumes the live run showed each; the question is
+  whether the live pacer's catch-up is right, or whether it should re-anchor after any late
+  frame (or otherwise avoid the very short frame), and what that does to the average rate, the
+  recorded frame times and the frame-time statistics.
+- **Status**: TODO, decision needed (found 2026-10-30 while triaging why a watched replay hid a
+  frame, with scripts/replay_schedule.py)
+- **Priority**: Low
 
 ## Notes
 

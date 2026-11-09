@@ -98,14 +98,15 @@ session again, and every frame's sprites are compared with the recorded frame. T
     refuses a digest file it cannot write before the run (``ExitCode.CANNOT_WRITE_OUTPUT``);
     one that cannot be written at the end is logged on one line (``digest_write_failed``), and
     the run exits ``ExitCode.CANNOT_WRITE_OUTPUT`` once the replay is reported.
-13. Pacing: the scene manager never paces a replay (``paced_frame_seconds`` is 0.0). A
-    headless replay (``--headless``) is not paced at all, as its frame times come from the
-    recording. A watched replay is paced by its viewer (glitchygames/replay/viewer.py, whose
-    docstring is the contract): an outer tick 60 times a second of real time
+13. Pacing: the scene manager never paces a replay (``paced_frame_seconds`` is 0.0). A headless
+    replay (``--headless``) is not paced at all, as its frame times come from the recording. A
+    watched replay is paced by its viewer (glitchygames/replay/viewer.py, whose docstring is the
+    contract): an outer tick 60 times a second of real time
     (``glitchygames.clock.measured_seconds``, never replayed: it only decides when frames run,
-    never what they do) runs the inner recorded frames its accumulator pays for (real time
-    times the speed, consumed by each frame's recorded duration, bounded per tick in frames and
-    real time, never owing more than one tick's worth).
+    never what they do) runs the inner recorded frames its accumulator pays for (real time times
+    the speed, consumed by each frame's recorded duration, bounded per tick only by real time,
+    the work budget; the owed time capped at ``MAX_OWED_INNER_FRAMES`` and a half frames, never
+    less than the floor of a frame plus a 60 Hz tick plus the tick paid for).
 14. Watching (not ``--headless``): ``ReplayControls`` (glitchygames/replay/controls.py) take
     the viewer's real key presses and releases; none reaches the game. ``hold_frame`` drives
     the viewer: with no outer tick open it sleeps until the next one, drains the real queue

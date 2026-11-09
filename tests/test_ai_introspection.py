@@ -12,6 +12,7 @@ import pytest
 
 from glitchygames.ai_introspection import MAXIMUM_ITEMS, ReadOptions, plain_value, read_object
 from glitchygames.game_objects.ball import BallSprite
+from glitchygames.sprites import SpriteFactory
 from glitchygames.tracing import StableSpriteIds
 
 
@@ -316,3 +317,47 @@ def test_a_real_ball_with_properties_has_its_position_and_no_plumbing():
 
     assert {'world_x', 'world_y', 'rect', 'speed', 'visible'} <= set(description)
     assert not {'dirty', 'blendmode', 'proxies', 'screen', 'snd'} & set(description)
+
+
+def keys_anywhere(value: Any) -> set[str]:
+    """Every dictionary key anywhere in some JSON.
+
+    Returns:
+        The keys.
+
+    """
+    if isinstance(value, dict):
+        return set(value) | {key for item in value.values() for key in keys_anywhere(item)}
+    if isinstance(value, list):
+        return {key for item in value for key in keys_anywhere(item)}
+    return set()
+
+
+def test_an_animated_sprite_reads_its_frames_as_summaries_never_their_pixels():
+    """A frame is the sprite's artwork: its size and duration, not every pixel.
+
+    Brave Adventurer Papyrus's frame read as 352 KB, each sprite's animation pixels three times
+    over (frames, animations and animation_data; plans/lucid-circuit-4b-mirror.md, step 1).
+    """
+    sprite = SpriteFactory.load_sprite()
+    (frame,) = next(iter(sprite.animation_data.values()))
+
+    description = as_json(
+        read_object(
+            value=sprite,
+            depth=3,
+            sprite_ids=StableSpriteIds(),
+            options=ReadOptions(include_properties=True),
+        )
+    )
+
+    assert 'pixels' not in keys_anywhere(description)
+    # animation_data is the frame manager's access to what frames and animations show
+    assert 'animation_data' not in description
+    for name in ('frames', 'animations'):
+        assert description[name] == {
+            animation: [{'sprite_frame': [16, 16], 'duration': frame.duration}]
+            for animation in sprite.animation_data
+        }
+    # Compact, as the tools send it: 1,035 bytes, against 2,124 with its one frame's pixels
+    assert len(json.dumps(description, separators=(',', ':'))) < 1200
