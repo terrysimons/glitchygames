@@ -71,4 +71,55 @@ ALIASES: Final[dict[str, str]] = {
     # gran cassa, gran tamburo). It is the largest drum of the orchestra"; another name for the
     # orchestral bass drum
     'gran cassa': 'orchestral bass drum',
+    # Batch 3's idiophones, in the order of the same sheet: each another name for the same
+    # instrument. An alias may name a sound-alike entry (the rainstick, sandpaper blocks, frottoir)
+    # or an entry of another family (the tuned gong, tuned percussion)
+    # https://en.wikipedia.org/wiki/Gong: "In Western symphonic music, the flat faced gongs are
+    # generally referred to as tam-tams to distinguish them from their bossed counterparts. Here,
+    # the term "gong" is reserved for the bossed type only"; "They are most often but not always
+    # tuned to various pitches"; another name for the tuned gong
+    'bossed gong': 'tuned gong',
+    # https://en.wikipedia.org/wiki/Rainstick: "A rainstick is a long, hollow tube of bamboo or
+    # dried cactus that is partially flooded with small pebbles"; another spelling of the rainstick
+    'rain stick': 'rainstick',
+    # https://tetonmusic.com/products/basic-beat-sand-blocks-with-handle: "Sliding one sand block
+    # against the other makes a shaker-like sound. The sandpaper is securely attached to each of
+    # the wood blocks"; another name for the sandpaper blocks
+    'sand blocks': 'sandpaper blocks',
+    # https://en.wikipedia.org/wiki/Jingle_bell: "A jingle bell or sleigh bell is a type of bell";
+    # "Sleigh bells" redirects there; another name for the jingle bells
+    'sleigh bells': 'jingle bells',
+    # https://en.wikipedia.org/wiki/Gong: "By far the most familiar to most Westerners is the chau
+    # gong or bullseye gong. Large chau gongs, called tam-tams"; another name for the tam tam
+    'chau gong': 'tam tam',
+    # https://en.wikipedia.org/wiki/Monkey_stick: "In Newfoundland, it is referred to as an "ugly
+    # stick""; another name for the lagerphone
+    'ugly stick': 'lagerphone',
+    # https://en.wikipedia.org/wiki/Monkey_stick: "A monkey stick (also called a mendoza, mendozer,
+    # Murrumbidgee river rattler, lagerphone or zob stick)"; another name for the lagerphone
+    'monkey stick': 'lagerphone',
+    # https://en.wikipedia.org/wiki/Monkey_stick: "(also called a mendoza, mendozer, Murrumbidgee
+    # river rattler, lagerphone or zob stick)"; another name for the lagerphone
+    'zob stick': 'lagerphone',
+    # https://en.wikipedia.org/wiki/Washboard_(musical_instrument): "Conversely, the frottoir
+    # (zydeco rubboard) dispenses with the frame"; another name for the frottoir
+    'zydeco rubboard': 'frottoir',
+    # https://en.wikipedia.org/wiki/Washboard_(musical_instrument): "The frottoir or vest frottoir
+    # is played as a stroked percussion instrument"; another name for the frottoir
+    'vest frottoir': 'frottoir',
+    # https://en.wikipedia.org/wiki/Washboard_(musical_instrument): "In Ukrainian folk music,
+    # washboards, or "zatulas", are also occasionally used"; another name for the washboard
+    'zatulas': 'washboard',
+    # https://en.wikipedia.org/wiki/Zill: "Zills, or finger cymbals"; the infobox's "Other names"
+    # list includes "zillia"; another name for the finger cymbals
+    'zillia': 'finger cymbals',
+    # https://en.wikipedia.org/wiki/Zill: "Zills, or finger cymbals, are part of a family of musical
+    # instruments known as clappers"; another name for the finger cymbals
+    'zills': 'finger cymbals',
+    # https://en.wikipedia.org/wiki/Cencerro: Wikipedia redirects it to the Cowbell (instrument)
+    # article ("(Redirected from Cencerro)"); another name for the cowbell
+    'cencerro': 'cowbell',
+    # https://en.wikipedia.org/wiki/Cabasa: "This company has built a more durable cabasa that they
+    # call an afuche-cabasa"; another name for the cabasa
+    'afuche': 'cabasa',
 }

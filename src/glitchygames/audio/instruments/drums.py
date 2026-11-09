@@ -1229,6 +1229,571 @@ _DRUM_BUILDS: Final[tuple[CatalogEntry, ...]] = (
             tail=0.2,
         ),
     ),
+    # --- Batch 3: idiophones (Hornbostel-Sachs 1), in the order of
+    # plans/data/instrument-audit/batch-3.tsv, whose notes hold each row's full quotes. In every
+    # entry below each tone, glide, ring, noise band, level, drive and tail is sound design (the
+    # udu's three measured frequencies excepted): no fetched source gives a number. The source
+    # gives the traits each comment names.
+    #
+    # Sound: https://en.wikipedia.org/wiki/Agung ("The agung is a large, heavy, wide-rimmed gong
+    # shaped like a kettle gong"; "The larger, lower pitched gong of the two is called the
+    # pangandungan"; mallets "padded with soft but tough material such as rubber at one end"; "A
+    # series of solid, fast decaying sounds are produced using dampening techniques")
+    # The pangandungan struck on its knob with a padded mallet and damped: a deep, steady
+    # bossed-gong tone (110 Hz) with two inharmonic partials (290 and 655 Hz) that dies quickly,
+    # under a soft, dark mallet thump (noise below 600 Hz). The page gives no note, so the tone is
+    # fixed
+    CatalogEntry(
+        'agung',
+        'Agung',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=110.0, ring_seconds=0.45),
+                Tone(hertz=290.0, ring_seconds=0.3, level=0.35),
+                Tone(hertz=655.0, ring_seconds=0.3, level=0.25),
+            ),
+            noise=0.15,
+            noise_ring_seconds=0.03,
+            noise_low_pass=600.0,
+            tail=0.45,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Anvil ("The vast majority of extant works use the anvil
+    # as unpitched"; "Steel anvils are used for tuning for use as musical instruments, because
+    # those based partly on cast iron and similar materials give a duller sound; ... pure steel
+    # anvils are troublesomely noisy")
+    # A struck steel block: a hammer's bright crack (noise above 2 kHz) over three inharmonic steel
+    # partials (1150, 2780 and 4370 Hz) ringing a little under a second, with drive for the noisy
+    # steel
+    CatalogEntry(
+        'anvil',
+        'Anvil',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=1150.0, ring_seconds=0.8),
+                Tone(hertz=2780.0, ring_seconds=0.6, level=0.6),
+                Tone(hertz=4370.0, ring_seconds=0.4, level=0.4),
+            ),
+            noise=0.7,
+            noise_ring_seconds=0.03,
+            noise_high_pass=2000.0,
+            tail=0.8,
+            drive=1.5,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Bak_(instrument) ("The upper part of the six long and
+    # narrow boards are tied with a string, and the lower part is held open with both hands, and
+    # then closed rapidly, creating a clear impact sound"; "The bak is made of 6 flat wood boards
+    # that are about 13 1/2 in. x 2 3/4 in")
+    # Six long boards slapped shut: a loud, broad slap (noise above 700 Hz) over a low, short wood
+    # knock (820 and 1370 Hz)
+    CatalogEntry(
+        'bak',
+        'Bak',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=820.0, ring_seconds=0.05),
+                Tone(hertz=1370.0, ring_seconds=0.03, level=0.4),
+            ),
+            noise=0.9,
+            noise_ring_seconds=0.05,
+            noise_high_pass=700.0,
+            tail=0.08,
+        ),
+    ),
+    # Sound: https://www.geidai.ac.jp/labs/koizumi/gcat0/english/html-text/063.html (daluo: "brass;
+    # Dm. 18.5cm"; "mallet: 1, wood"; "The central raised area of this gong is struck with a
+    # mallet."; "After striking, the pitch falls.") and https://en.wikipedia.org/wiki/Gong ("a pair
+    # of gongs, the larger with a descending tone, the smaller with a rising tone")
+    # A small brass opera gong struck at its centre with a wooden mallet: a mid tone and its upper
+    # partial each falling after the strike (330 to 290 Hz and 760 to 670 Hz over 0.6 s), under a
+    # short wooden knock (noise below 2.5 kHz)
+    CatalogEntry(
+        'daluo',
+        'Daluo',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=330.0, glide_to=290.0, glide_seconds=0.6, ring_seconds=1.6),
+                Tone(hertz=760.0, glide_to=670.0, glide_seconds=0.6, ring_seconds=1.0, level=0.4),
+            ),
+            noise=0.3,
+            noise_ring_seconds=0.03,
+            noise_low_pass=2500.0,
+            tail=1.6,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Flat_ride_cymbal ("a ride cymbal without a bell"; "A flat
+    # ride cymbal produces the tightest, driest, most controlled stick sound of all ride cymbals,
+    # but with an airy wash"; "The lack of bell makes this cymbal quieter")
+    # A ride with no bell: a dry stick ping (2900, 4100 and 5600 Hz, under 0.5 s) under a quiet,
+    # airy wash (noise above 6 kHz) that outlasts it
+    CatalogEntry(
+        'flat ride cymbal',
+        'Flat ride cymbal',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=2900.0, ring_seconds=0.5),
+                Tone(hertz=4100.0, ring_seconds=0.45, level=0.6),
+                Tone(hertz=5600.0, ring_seconds=0.4, level=0.6),
+            ),
+            noise=0.45,
+            noise_ring_seconds=1.4,
+            noise_high_pass=6000.0,
+            tail=1.4,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Garamut ("Carved from a single log, a garamut is beaten
+    # with sticks to produce sound from its central cavity"; "Sounds are made by striking beater
+    # sticks near the slit which leads to a large central cavity"; "The sound can be heard for
+    # multiple kilometres")
+    # A log slit drum struck with a stick by its slit: a deep, steady cavity tone (130 Hz) ringing
+    # long (1.4 s, standing for the large cavity and far-carrying sound), a wood partial (330 Hz)
+    # and a short, hard stick knock (1150 Hz and noise above 1.5 kHz)
+    CatalogEntry(
+        'garamut',
+        'Garamut',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=130.0, ring_seconds=1.4),
+                Tone(hertz=330.0, ring_seconds=0.3, level=0.5),
+                Tone(hertz=1150.0, ring_seconds=0.03, level=0.35),
+            ),
+            noise=0.35,
+            noise_ring_seconds=0.01,
+            noise_high_pass=1500.0,
+            tail=1.4,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Ghatam ("It is a clay pot with a narrow mouth"; "The
+    # Manamadurai ghatam is a heavy, thick pot with tiny shards of brass mixed into the clay. This
+    # type of ghatam ... produces a sharp metallic ringing sound"; "The performer uses their
+    # fingers, thumbs, palms, and heels of the hands to strike its outer surface")
+    # A finger stroke on the pot's side: a short, low clay thud (240 Hz) with a sharp metallic ring
+    # above it (1650 Hz) and a soft finger knock (noise above 2 kHz). The pitch varies with each
+    # pot, so the tone is fixed
+    CatalogEntry(
+        'ghatam',
+        'Ghatam',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=240.0, ring_seconds=0.12),
+                Tone(hertz=1650.0, ring_seconds=0.3, level=0.45),
+            ),
+            noise=0.35,
+            noise_ring_seconds=0.015,
+            noise_high_pass=2000.0,
+            tail=0.3,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Gongu%C3%AA ("a type of cowbell consisting of a big, flat
+    # iron bell, measuring from 20-30 centimetres"; "usually played with a metal drumstick"; "Due
+    # to its size, the Gongue has a loud and strident sound, more clangorous than other types of
+    # cowbells")
+    # A big flat iron cowbell struck with a metal stick: square-wave partials lower than the
+    # cowbell's (380 and 570 Hz), a metal tick (noise above 3 kHz) and drive for the clangour
+    CatalogEntry(
+        'gongue',
+        'Gonguê',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=380.0, ring_seconds=0.45, level=0.6, wave='square'),
+                Tone(hertz=570.0, ring_seconds=0.45, level=0.6, wave='square'),
+            ),
+            noise=0.4,
+            noise_ring_seconds=0.05,
+            noise_high_pass=3000.0,
+            tail=0.45,
+            drive=1.5,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/G%C3%BCira ("It is made of a metal sheet (commonly steel)
+    # and played with a stiff brush"; "its uniquely swishy metallic timbre"; "the guira is usually
+    # brushed (lightly scraped transversely) steadily on the downbeat")
+    # One brush stroke across the steel tube: a bright swish (noise above 4.5 kHz, a 0.06 s attack)
+    # with a light metallic ring from the sheet (3400 and 5200 Hz)
+    CatalogEntry(
+        'guira',
+        'Güira',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=3400.0, ring_seconds=0.12, level=0.25),
+                Tone(hertz=5200.0, ring_seconds=0.1, level=0.25),
+            ),
+            noise=1.0,
+            noise_ring_seconds=0.18,
+            noise_high_pass=4500.0,
+            tail=0.2,
+            attack=0.06,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Jing_(instrument) ("is a large gong"; "struck by a stick
+    # that is layered with cloth at one end to soften the texture of the sound produced"; "capable
+    # of producing a gentle and lingering sound"; "it has a constant pitch and produces a
+    # harmonious sound on its own")
+    # A large brass gong struck gently with a cloth-padded stick: a steady tone with harmonic
+    # partials (205, 410 and 615 Hz) lingering for seconds, under a soft, dark thump (noise below
+    # 700 Hz). The page gives no note, so the tone is fixed
+    CatalogEntry(
+        'jing',
+        'Jing',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=205.0, ring_seconds=4.0),
+                Tone(hertz=410.0, ring_seconds=3.0, level=0.4),
+                Tone(hertz=615.0, ring_seconds=2.0, level=0.2),
+            ),
+            noise=0.15,
+            noise_ring_seconds=0.08,
+            noise_low_pass=700.0,
+            tail=4.0,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Jingle_bell ("A jingle bell or sleigh bell is a type of
+    # bell which produces a distinctive 'jingle' sound, especially in large numbers"; "a single
+    # piece of sheet metal bent into a roughly spherical shape to contain a small ball bearing or
+    # short piece of metal rod")
+    # A cluster of small closed bells shaken: bell partials (3300, 4900 and 6800 Hz) ringing under
+    # the balls' high rattle (noise above 5 kHz)
+    CatalogEntry(
+        'jingle bells',
+        'Jingle bells',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=3300.0, ring_seconds=0.45),
+                Tone(hertz=4900.0, ring_seconds=0.4, level=0.6),
+                Tone(hertz=6800.0, ring_seconds=0.35, level=0.6),
+            ),
+            noise=0.5,
+            noise_ring_seconds=0.2,
+            noise_high_pass=5000.0,
+            tail=0.45,
+            attack=0.01,
+        ),
+    ),
+    # Sound: https://www.afroton.de/en/karkabou-pair-pro-1214-en ("handforged top-quality iron
+    # castanets"; "strong, penetrating, highly variable metal sound") and
+    # https://en.wikipedia.org/wiki/Krakebs ("an iron castanet-like musical instrument"; "In the
+    # Gnawa style, krakeb stay closed between hits so that the instrument clanging shut is the
+    # most prominent sound")
+    # Iron castanets clanged shut: short square-wave metal partials (1850 and 3050 Hz, cut short as
+    # the plates stay closed) under a clack (noise above 3 kHz), with drive for the strong,
+    # penetrating sound
+    CatalogEntry(
+        'karkabou',
+        'Karkabou (qraqeb)',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=1850.0, ring_seconds=0.08, level=0.6, wave='square'),
+                Tone(hertz=3050.0, ring_seconds=0.06, level=0.6, wave='square'),
+            ),
+            noise=0.8,
+            noise_ring_seconds=0.04,
+            noise_high_pass=3000.0,
+            tail=0.1,
+            drive=2.0,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Kemanak ("a banana-shaped idiophone made of bronze";
+    # "It is actually a metal slit drum. It is struck with a padded stick and then allowed to
+    # resonate"; "It has a specific pitch ... but it is not matched to the other instruments of the
+    # gamelan")
+    # A bronze slit drum struck with a padded stick and left to ring: a metal tone (600 Hz) with an
+    # inharmonic partial (1620 Hz) resonating almost two seconds, under a soft, dark strike (noise
+    # below 1 kHz). No compass is given, so the tone is fixed
+    CatalogEntry(
+        'kemanak',
+        'Kemanak',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=600.0, ring_seconds=1.8),
+                Tone(hertz=1620.0, ring_seconds=1.0, level=0.35),
+            ),
+            noise=0.1,
+            noise_ring_seconds=0.02,
+            noise_low_pass=1000.0,
+            tail=1.8,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Khartal ("This wooden clapper ... has discs or plates
+    # that produce a clinking sound when clapped together"; "Kartals (blocks). It consists of a
+    # pair of wooden blocks with jingles or crotales")
+    # A pair of wooden blocks with jingles clapped together: a dry wooden click (2400 Hz, 0.03 s)
+    # with the jingles' clink ringing over it (5800 and 7900 Hz, and noise above 6 kHz)
+    CatalogEntry(
+        'khartal',
+        'Khartal',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=2400.0, ring_seconds=0.03),
+                Tone(hertz=5800.0, ring_seconds=0.3, level=0.5),
+                Tone(hertz=7900.0, ring_seconds=0.25, level=0.4),
+            ),
+            noise=0.6,
+            noise_ring_seconds=0.2,
+            noise_high_pass=6000.0,
+            tail=0.3,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Kkwaenggwari ("a small flat gong ... made of brass and
+    # is played with a hard stick"; "a distinctively high-pitched, metallic tone that breaks into a
+    # cymbal-like crashing timbre when struck forcefully"; "a brass plate with a diameter of
+    # around 20 cm"; the back "is blocked with the left hand to control the volume and tone")
+    # A small flat brass gong struck with a hard stick: high metallic partials (1250, 2050 and 3300
+    # Hz) under a cymbal-like crash (noise above 3 kHz), cut short by the hand behind it
+    CatalogEntry(
+        'kkwaenggwari',
+        'Kkwaenggwari',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=1250.0, ring_seconds=0.5),
+                Tone(hertz=2050.0, ring_seconds=0.45, level=0.6),
+                Tone(hertz=3300.0, ring_seconds=0.4, level=0.6),
+            ),
+            noise=0.6,
+            noise_ring_seconds=0.3,
+            noise_high_pass=3000.0,
+            tail=0.5,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Monkey_stick (Lagerphone redirects there: "a stout pole
+    # with metal "jingles" fastened at intervals along the shaft. These are commonly beer-bottle
+    # tops"; "When played on a wooden floor ..., the sound produced is a combination of a bass drum
+    # and tambourine"; "In Australia, this instrument constructed with beer-bottle tops is known as
+    # a lagerphone")
+    # The pole struck on a wooden floor: a short, low thump (75 Hz, the bass drum part) with the
+    # bottle tops clattering over it (5000 and 6900 Hz, and noise above 5 kHz: the tambourine part)
+    CatalogEntry(
+        'lagerphone',
+        'Lagerphone',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=75.0, ring_seconds=0.18),
+                Tone(hertz=5000.0, ring_seconds=0.3, level=0.5),
+                Tone(hertz=6900.0, ring_seconds=0.25, level=0.4),
+            ),
+            noise=0.7,
+            noise_ring_seconds=0.25,
+            noise_high_pass=5000.0,
+            tail=0.3,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Sizzle_cymbal ("a cymbal to which rivets, chains or other
+    # rattles have been added"; "the sound of the 'wash' of the cymbal is made louder and more
+    # penetrating, and is dominated by the sound of the rattles themselves"; "the cymbal loses some
+    # of its sustain"; "a large ride cymbal with a number of rivets")
+    # A large ride with rivets: a ride's ping (2300, 3300 and 4700 Hz) under a loud, bright rivet
+    # wash (full noise above 3.5 kHz) that dominates it, ringing shorter than a plain ride
+    CatalogEntry(
+        'sizzle cymbal',
+        'Sizzle cymbal',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=2300.0, ring_seconds=1.3),
+                Tone(hertz=3300.0, ring_seconds=1.1, level=0.6),
+                Tone(hertz=4700.0, ring_seconds=0.9, level=0.5),
+            ),
+            noise=1.0,
+            noise_ring_seconds=1.3,
+            noise_high_pass=3500.0,
+            tail=1.3,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Gong ("A tiger gong is a slightly descending or less
+    # commonly ascending gong, larger than an opera gong and with a less pronounced pitch shift.
+    # Most commonly 38 cm")
+    # The common descending tiger gong: a low gong tone and its upper partial sinking slightly
+    # after the strike (175 to 165 Hz and 410 to 387 Hz over 0.8 s), ringing long, under a quiet
+    # mallet (noise below 2 kHz)
+    CatalogEntry(
+        'tiger gong',
+        'Tiger gong',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=175.0, glide_to=165.0, glide_seconds=0.8, ring_seconds=2.5),
+                Tone(hertz=410.0, glide_to=387.0, glide_seconds=0.8, ring_seconds=1.6, level=0.4),
+            ),
+            noise=0.3,
+            noise_ring_seconds=0.03,
+            noise_low_pass=2000.0,
+            tail=2.5,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Tingsha ("are small cymbals"; "The cymbals are struck
+    # together producing a clear and high pitched tone"; "Tingsha are very thick and produce a
+    # unique long ringing tone. Antique tingsha were made from special bronze alloys that produce
+    # harmonic overtones")
+    # A pair of thick small cymbals struck together: a clear, high tone with harmonic overtones
+    # (2350, 4700 and 7050 Hz) ringing a long time, with a faint click as they meet (noise above
+    # 5 kHz)
+    CatalogEntry(
+        'tingsha',
+        'Tingsha',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=2350.0, ring_seconds=4.0),
+                Tone(hertz=4700.0, ring_seconds=3.0, level=0.4),
+                Tone(hertz=7050.0, ring_seconds=2.0, level=0.2),
+            ),
+            noise=0.15,
+            noise_ring_seconds=0.01,
+            noise_high_pass=5000.0,
+            tail=4.0,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Udu ("Usually, the Udu is made of clay"; "The player
+    # produces a bass sound by quickly striking the larger hole.") and
+    # https://physics.byu.edu/docs/publication/1551 (Anderson, Hilton and Giorgini, J. Acoust. Soc.
+    # Am. 133 (3), 2013: "The signature sounds of the Udu are the deep bass aerophonic resonances
+    # and terminal octave slide"; "When the hand strikes a hole and immediately releases, the tone
+    # quickly slides up nearly an octave before dissipating"; "The three aerophone resonance
+    # frequencies are 73, 113, and 137 Hz"; "the lowest dominant partial is at 556 Hz")
+    # The palm strikes the hole and releases: a deep bass sliding up nearly an octave as it dies
+    # (73 rising to 137 Hz, the measured lowest and highest resonances), a faint clay partial (556
+    # Hz, measured) and a soft palm (noise below 1.2 kHz). The frequencies are the paper's Udu
+    # Utar, so the tone is fixed; the glide time, rings, levels, noise and tail are sound design
+    CatalogEntry(
+        'udu',
+        'Udu',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=73.0, glide_to=137.0, glide_seconds=0.15, ring_seconds=0.5),
+                Tone(hertz=556.0, ring_seconds=0.12, level=0.2),
+            ),
+            noise=0.15,
+            noise_ring_seconds=0.02,
+            noise_low_pass=1200.0,
+            tail=0.5,
+        ),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Washboard_(musical_instrument) ("employing the ribbed
+    # metal surface of the cleaning device as a rhythm instrument"; "the washboard remains in its
+    # wooden frame and is played primarily by tapping, but also by scraping with thimbles")
+    # Its main stroke, a thimble tap on the ribbed metal: a short, bright, tinny tick (3600 and 5300
+    # Hz under noise above 4 kHz)
+    CatalogEntry(
+        'washboard',
+        'Washboard',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=3600.0, ring_seconds=0.07, level=0.5),
+                Tone(hertz=5300.0, ring_seconds=0.05, level=0.4),
+            ),
+            noise=0.6,
+            noise_ring_seconds=0.015,
+            noise_high_pass=4000.0,
+            tail=0.08,
+        ),
+    ),
+    # Sound: https://www.geidai.ac.jp/labs/koizumi/gcat0/english/html-text/064.html (xiaoluo:
+    # "brass; Dm. 22.5cm beater: 1, wood"; "struck at the middle with a long rectangular beater
+    # held lightly"; "After being struck, the pitch of the gong rises") and
+    # https://en.wikipedia.org/wiki/Gong ("a pair of gongs, the larger with a descending tone, the
+    # smaller with a rising tone")
+    # The opera gong whose pitch rises: a bright gong tone and its upper partial climbing as they
+    # ring (360 to 420 Hz and 830 to 970 Hz over 0.5 s), under a light wooden beater (noise below
+    # 3 kHz)
+    CatalogEntry(
+        'xiaoluo',
+        'Xiaoluo',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        partial(
+            drum,
+            tones=(
+                Tone(hertz=360.0, glide_to=420.0, glide_seconds=0.5, ring_seconds=1.2),
+                Tone(hertz=830.0, glide_to=970.0, glide_seconds=0.5, ring_seconds=0.8, level=0.4),
+            ),
+            noise=0.3,
+            noise_ring_seconds=0.02,
+            noise_low_pass=3000.0,
+            tail=1.2,
+        ),
+    ),
 )
 
 # The family: its builds, then the sound-alikes that share them (``drum_sound_alikes.py``)

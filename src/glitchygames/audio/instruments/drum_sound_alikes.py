@@ -621,4 +621,343 @@ DRUM_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
         None,
         sounds_like='darbuka doum',
     ),
+    # --- Batch 3's sound-alikes (idiophones), in the order of the same sheet, on the same terms:
+    # each builds the entry it names (``sounds_like``), which may be a batch 3 idiophone (the
+    # garamut, guira, khartal) or an entry of another family (the rain machine, a sound effect).
+    # Sound-alike of the cabasa (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Afox%C3%A9 https://en.wikipedia.org/wiki/Cabasa ("The afoxé
+    # (also known as the cabaça or cabaca) is an Afro-Brazilian unpitched percussion instrument in
+    # the idiophone family")
+    CatalogEntry('afoxe', 'Afoxé', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='cabasa'),
+    # Sound-alike of the cabasa (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Axatse https://en.wikipedia.org/wiki/Cabasa ("made from a dried
+    # gourd, wrapped in a beaded net")
+    CatalogEntry('axatse', 'Axatse', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='cabasa'),
+    # Sound-alike of the china cymbal (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Bo_(instrument) ("is a percussion instrument originating in
+    # China, a type of cymbal. It consists of two plates that are clashed together. It is a
+    # concussion idiophone")
+    CatalogEntry(
+        'bo',
+        'Bo (Chinese cymbals)',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        sounds_like='china cymbal',
+    ),
+    # Sound-alike of the castanets (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Bones_(instrument) ("The bones, also known as rhythm bones, are
+    # a folk instrument that, in their original form, consists of a pair of animal bones, but may
+    # also be played on pieces of wood or similar material")
+    CatalogEntry(
+        'bones', 'Bones', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='castanets'
+    ),
+    # Sound-alike of the woodblock (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Cat%C3%A1 ("It is classified as a directly struck idiophone,
+    # traditionally made out of a hollowed tree trunk, which the player hits with wooden sticks or
+    # mallets")
+    CatalogEntry('cata', 'Catá', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='woodblock'),
+    # Sound-alike of the maracas (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Caxirola https://en.wikipedia.org/wiki/Caxixi ("is a Brazilian
+    # percussion instrument created by Carlinhos Brown and consisting of a closed plastic basket
+    # with a flat-bottom filled with small synthetic particles")
+    CatalogEntry(
+        'caxirola', 'Caxirola', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='maracas'
+    ),
+    # Sound-alike of the maracas (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Caxixi ("is a percussion instrument consisting of a closed
+    # basket with a flat bottom filled with seeds or other small particles")
+    CatalogEntry(
+        'caxixi', 'Caxixi', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='maracas'
+    ),
+    # Sound-alike of the kkwaenggwari (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Chengila https://en.wikipedia.org/wiki/Kkwaenggwari ("It is a
+    # metal gong that a player strikes to mark the tempo")
+    CatalogEntry(
+        'chengila', 'Chengila', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='kkwaenggwari'
+    ),
+    # Sound-alike of the khartal (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Chimta ("The player of the chimta is able to produce a chiming
+    # sound by holding the joint of the instrument in one hand and striking the two sides of the
+    # chimta together")
+    CatalogEntry(
+        'chimta', 'Chimta', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='khartal'
+    ),
+    # Sound-alike of the cajon bass (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Chuk_(instrument) ("It consists of a square wooden box, played
+    # by striking the bottom with a mallet to mark beats or sections")
+    CatalogEntry('chuk', 'Chuk', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='cajon bass'),
+    # Sound-alike of the crash cymbal (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Crash/ride_cymbal ("A crash/ride cymbal is a medium weight,
+    # slightly tapered cymbal, normally in the 18-22-inch (460-560 mm) range, designed to serve in a
+    # drum kit as both a crash and a ride cymbal")
+    CatalogEntry(
+        'crash ride cymbal',
+        'Crash/ride cymbal',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        sounds_like='crash cymbal',
+    ),
+    # Sound-alike of the temple block (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Ekwe https://en.wikipedia.org/wiki/Ikoro ("The ekwe is a slit
+    # drum with rectangular slits in the surface and a hollow interior")
+    CatalogEntry(
+        'ekwe', 'Ekwe', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='temple block'
+    ),
+    # Sound-alike of the finger cymbals (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Elathalam ("It is made completely of bronze and resembles a
+    # miniature pair of cymbals, played by holding one part in the left hand and banging the other
+    # cymbal against it")
+    CatalogEntry(
+        'elathalam',
+        'Elathalam',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        sounds_like='finger cymbals',
+    ),
+    # Sound-alike of the guiro (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Eo_(instrument) ("is a wooden percussion instrument carved in
+    # the shape of a tiger with a serrated back")
+    CatalogEntry('eo', 'Eo', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='guiro'),
+    # Sound-alike of the guiro (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Esterilla ("The esterilla consists of long, narrow pieces of
+    # wood woven together in a similar fashion as a placemat")
+    CatalogEntry(
+        'esterilla', 'Esterilla', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='guiro'
+    ),
+    # Sound-alike of the guira (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Ferrinho ("is a musical instrument, more precisely a scraped
+    # idiophone. It is made up by a metal bar (generally of iron) that is scraped by another metal
+    # object")
+    CatalogEntry(
+        'ferrinho', 'Ferrinho', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='guira'
+    ),
+    # Sound-alike of the guira (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Washboard_(musical_instrument) ("Conversely, the frottoir
+    # (zydeco rubboard) dispenses with the frame and consists simply of the metal ribbing hung
+    # around the neck. It is played primarily with spoon handles or bottle openers in a combination
+    # of strumming, scratching, tapping and rolling")
+    CatalogEntry(
+        'frottoir', 'Frottoir', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='guira'
+    ),
+    # Sound-alike of the shaker (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Ganz%C3%A1 ("is a Brazilian rattle used as a percussion
+    # instrument, especially in samba music")
+    CatalogEntry('ganza', 'Ganzá', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='shaker'),
+    # Sound-alike of the jingle bells (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Ghungroo ("is one of many small metallic bells strung together
+    # to form ghungroos, a musical anklet tied to the feet of classical Indian dancers")
+    CatalogEntry(
+        'ghungroo', 'Ghungroo', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='jingle bells'
+    ),
+    # Sound-alike of the maracas (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Hosho_(instrument) ("The hosho are Zimbabwean musical
+    # instruments consisting of a pair of maranka (mapudzi) gourds with seeds")
+    CatalogEntry('hosho', 'Hosho', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='maracas'),
+    # Sound-alike of the claves (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Hyoshigi ("a type of clapper, consisting of two pieces of
+    # hardwood or bamboo often connected by a thin ornamental rope")
+    CatalogEntry(
+        'hyoshigi', 'Hyōshigi', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='claves'
+    ),
+    # Sound-alike of the garamut (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Ikoro ("It is a slit drum that is beaten with a stick or sticks
+    # and can be used in some parts of Igbo land for communicating, similar to a talking drum")
+    CatalogEntry('ikoro', 'Ikoro', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='garamut'),
+    # Sound-alike of the woodblock (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Jam_block ("A jam block is a percussion instrument developed as
+    # a modern, hard plastic version of the woodblock")
+    CatalogEntry(
+        'jam block', 'Jam block', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='woodblock'
+    ),
+    # Sound-alike of the finger cymbals (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Kecer ("The kecer (or kecèr) are a pair of small cymbals set
+    # inside a rack (rancak) used in the gamelan of Indonesia")
+    CatalogEntry(
+        'kecer', 'Kecer', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='finger cymbals'
+    ),
+    # Sound-alike of the claves (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Lummi_sticks ("Lummi sticks, named after the Lummi Native
+    # American peoples, are hardwood cylindrical sticks, usually roughly 18 cm (7 inches) long and 2
+    # cm (¾ inches) in diameter, used as percussive musical instruments")
+    CatalogEntry(
+        'lummi stick', 'Lummi stick', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='claves'
+    ),
+    # Sound-alike of the finger cymbals (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Taal_(instrument)
+    # https://www.geidai.ac.jp/labs/koizumi/gcat0/english/html-text/034.html ("The taal or manjira
+    # ... is a pair of clash cymbals, ... which make high-pitched percussion sounds")
+    CatalogEntry(
+        'manjira', 'Manjira', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='finger cymbals'
+    ),
+    # Sound-alike of the temple block (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Wooden_fish https://en.wikipedia.org/wiki/Temple_block
+    # https://www.geidai.ac.jp/labs/koizumi/gcat0/english/html-text/058.html ("A wooden fish, also
+    # known as a muyu, moktak, mogeo, mokugyo, Chinese temple block, or wooden bell is a type of
+    # woodblock that originated from China that is used as a percussion instrument by monks and lay
+    # people in the Mahayana tradition of Buddhism")
+    CatalogEntry(
+        'moktak', 'Moktak', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='temple block'
+    ),
+    # Sound-alike of the bak (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Paiban
+    # https://www.geidai.ac.jp/labs/koizumi/gcat0/english/html-text/019.html ("is a clapper made
+    # from several flat pieces of hardwood or bamboo (or, formerly, sometimes also ivory or metal),
+    # which is used in many different forms of Chinese music")
+    CatalogEntry('paiban', 'Paiban', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='bak'),
+    # Sound-alike of the vibraslap (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Jawbone_(instrument) https://en.wikipedia.org/wiki/Vibraslap
+    # ("is an idiophone percussion instrument made from the jawbone of a donkey, horse, mule, or
+    # cattle, producing a powerful buzzing sound")
+    CatalogEntry(
+        'quijada', 'Quijada', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='vibraslap'
+    ),
+    # Sound-alike of the rain machine (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Rainstick
+    # https://props.eric-hart.com/how-to/mechanical-sound-effects ("A rainstick is a long, hollow
+    # tube of bamboo or dried cactus that is partially flooded with small pebbles, rice, dried
+    # beans, or other hard granular matter")
+    CatalogEntry(
+        'rainstick',
+        'Rainstick',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        sounds_like='rain machine',
+    ),
+    # Sound-alike of the guiro (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Reco-reco
+    # https://www.geidai.ac.jp/labs/koizumi/gcat0/english/html-text/111.html
+    # https://en.wikipedia.org/wiki/Guiro ("is a scraper of African origin used as a percussion
+    # instrument in Brazilian music")
+    CatalogEntry(
+        'reco reco', 'Reco-reco', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='guiro'
+    ),
+    # Sound-alike of the snare brush (no fetched source sets it apart in sound):
+    # https://mudcat.org/kids/blocks.cfm https://www.bellperc.com/products/sandpaper-blocks ("Rub
+    # the blocks together in a continuous motion for a swishing, whispering sound")
+    CatalogEntry(
+        'sandpaper blocks',
+        'Sandpaper blocks',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        sounds_like='snare brush',
+    ),
+    # Sound-alike of the bak (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Sasara ("clapper made from wooden slats connected by a rope or
+    # cord")
+    CatalogEntry('sasara', 'Sasara', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='bak'),
+    # Sound-alike of the garamut (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Semantron ("a long wooden plank held in the player's
+    # non-dominant hand and struck with a wooden mallet in the dominant")
+    CatalogEntry(
+        'semantron', 'Semantron', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='garamut'
+    ),
+    # Sound-alike of the cabasa (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Shekere https://en.wikipedia.org/wiki/Cabasa ("is a percussion
+    # instrument consisting of a dried gourd with beads or cowries woven into a net covering the
+    # gourd")
+    CatalogEntry(
+        'shekere', 'Shekere', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='cabasa'
+    ),
+    # Sound-alike of the woodblock (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Shishi-odoshi ("The heavier end then falls back against the
+    # rock, making a sharp sound")
+    CatalogEntry(
+        'shishi odoshi',
+        'Shishi-odoshi',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        sounds_like='woodblock',
+    ),
+    # Sound-alike of the kkwaenggwari (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Sh%C5%8Dko_(instrument)
+    # https://en.wikipedia.org/wiki/Sasara ("is a small bronze gong, struck with two horn beaters,
+    # used in gagaku")
+    CatalogEntry(
+        'shoko', 'Shōko', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='kkwaenggwari'
+    ),
+    # Sound-alike of the tambourine (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Sistrum ("It consists of a handle and a U-shaped metal frame,
+    # made of brass or bronze and ranging from 30 to 76 cm (12-30 in) in width")
+    CatalogEntry(
+        'sistrum', 'Sistrum', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='tambourine'
+    ),
+    # Sound-alike of the garamut (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Slit_drum ("A slit drum, or slit gong, is a hollow percussion
+    # instrument, often made out of wood or bamboo")
+    CatalogEntry(
+        'slit drum', 'Slit drum', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='garamut'
+    ),
+    # Sound-alike of the castanets (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Spoons_(musical_instrument) ("Spoons can be played as a
+    # makeshift percussion instrument, or more specifically, an idiophone related to the castanets.
+    # They are played by hitting one spoon against the other")
+    CatalogEntry(
+        'spoons', 'Spoons', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='castanets'
+    ),
+    # Sound-alike of the kick drum (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Stomp_box ("A stomp box (or stompbox) is a percussion instrument
+    # consisting of a small box placed under the foot, which is tapped or stamped on rhythmically to
+    # produce a sound similar to that of a bass drum")
+    CatalogEntry(
+        'stomp box', 'Stomp box', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='kick drum'
+    ),
+    # Sound-alike of the sizzle cymbal (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Swish_cymbal https://en.wikipedia.org/wiki/Sizzle_cymbal ("The
+    # swish has a higher tone than the pang and is washier with a less pronounced ping")
+    CatalogEntry(
+        'swish cymbal',
+        'Swish cymbal',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        sounds_like='sizzle cymbal',
+    ),
+    # Sound-alike of the garamut (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Teponaztli ("Teponaztli are made of hollow hardwood logs, often
+    # fire-hardened")
+    CatalogEntry(
+        'teponaztli', 'Teponaztli', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='garamut'
+    ),
+    # Sound-alike of the khartal (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Triccaballacca ("a rhythmic sound is produced by the clicking of
+    # wood on wood and the simultaneous sound of the small metal disks")
+    CatalogEntry(
+        'triccaballacca',
+        'Triccaballacca',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        sounds_like='khartal',
+    ),
+    # Sound-alike of the jingle bells (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Turkish_crescent ("consists of an upright wooden pole topped
+    # with a conical brass ornament and having crescent shaped crosspieces, also of brass. Numerous
+    # bells are attached to the crosspieces and elsewhere on the instrument")
+    CatalogEntry(
+        'turkish crescent',
+        'Turkish crescent',
+        Family.DRUMS_AND_PERCUSSION,
+        None,
+        None,
+        sounds_like='jingle bells',
+    ),
+    # Sound-alike of the garamut (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Txalaparta ("In its traditional construction (known as the
+    # txalaparta zaharra), the txalaparta is made of a pair of long wooden boards held up
+    # horizontally on two ends and then beaten vertically with special, thick sticks based on the
+    # press handle")
+    CatalogEntry(
+        'txalaparta', 'Txalaparta', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='garamut'
+    ),
+    # Sound-alike of the guira (no fetched source sets it apart in sound):
+    # https://en.wikipedia.org/wiki/Guayo ("The guayo or ralladera is a metal scraper used as a
+    # percussion instrument in traditional styles of Cuban music such as changüí, predecessor of son
+    # cubano")
+    CatalogEntry('guayo', 'Guayo', Family.DRUMS_AND_PERCUSSION, None, None, sounds_like='guira'),
 )
