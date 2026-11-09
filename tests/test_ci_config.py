@@ -110,8 +110,9 @@ def test_each_raspberry_pis_job_uses_the_resource_class_ansible_registers():
 
     assert sorted(hosts) == ['raspberry-pi-4', 'raspberry-pi-5']
     for host, variables in hosts.items():
-        assert jobs[f'build-and-test-{host}']['resource_class'] == (
-            variables['raspberry_pi_resource_class']
+        assert (
+            jobs[f'build-and-test-{host}']['resource_class']
+            == (variables['raspberry_pi_resource_class'])
         )
 
 
