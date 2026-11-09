@@ -4,10 +4,15 @@ Driven against real git repositories in tmp_path (a real push, real staging, a r
 is replaced, by bash running the same scripts here, and the measurement, by a stand-in that stages
 a row file the way ``scripts/measure_staged_replays.py`` does. Two stand-in Pis are two clones,
 each staging a row file named for itself, as each machine's rows are.
+
+Local only (the owner, 2026-11-09): the hook runs only on the owner's machine, at ``git push``, so
+its tests run there (``uv run pytest``, the push hooks' shuffled suite) and never in CI, on any
+platform.
 """
 
 from __future__ import annotations
 
+import os
 import shlex
 import threading
 from typing import TYPE_CHECKING
@@ -22,6 +27,14 @@ from tests.test_code_tree import git, write
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get('CI') == 'true',
+    reason=(
+        "The Raspberry Pi pre-push hook runs only on the owner's machine; "
+        'its tests run there, not in CI'
+    ),
+)
 
 LEDGER = 'quality/replay-ledger'
 ROW = f'{LEDGER}/tree-raspberry-pi-4-row.json'
