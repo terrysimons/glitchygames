@@ -251,9 +251,10 @@ instruments.get('slapstick')                             # an alias: the same in
   the music box so far, stays in the family the instrument sounds like.
   `instruments.names(tag=...)` and `entries(tag=...)` list the entries carrying it, and combine
   with `family=`.
-- `instruments.ALIASES` maps another name to its catalog name: `slapstick` to `whip`, `zanza` to
-  `mbira`, `cylinder music box` and `disc music box` to `music box` (4 in all). `get` and `entry`
-  resolve an alias, while `names` and `entries` list catalog names only.
+- `instruments.ALIASES` (read-only, as `instruments.CATALOG` is) maps another name to its
+  catalog name: `slapstick` to `whip`, `zanza` to `mbira`, `cylinder music box` and `disc music
+  box` to `music box` (4 in all). `get` and `entry` resolve an alias, while `names` and `entries`
+  list catalog names only.
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (`pitch='A4'`); it does not change

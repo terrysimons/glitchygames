@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import difflib
 import functools
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from glitchygames.audio.instruments.aliases import ALIASES
@@ -84,7 +85,9 @@ def catalog_from(tables: Sequence[Sequence[CatalogEntry]]) -> dict[str, CatalogE
     return catalog
 
 
-CATALOG: Final[dict[str, CatalogEntry]] = catalog_from(FAMILY_TABLES)
+# Read-only views: a caller writing into either would skip catalog_from's and aliases_from's checks
+# and change what every lookup answers
+CATALOG: Final[Mapping[str, CatalogEntry]] = MappingProxyType(catalog_from(FAMILY_TABLES))
 
 
 def aliases_from(table: Mapping[str, str], catalog: Mapping[str, CatalogEntry]) -> dict[str, str]:
@@ -102,7 +105,7 @@ def aliases_from(table: Mapping[str, str], catalog: Mapping[str, CatalogEntry]) 
             a catalog name, or names a target that is not a catalog name.
     """
     for alias, target in table.items():
-        if ENTRY_NAME_PATTERN.match(alias) is None:
+        if ENTRY_NAME_PATTERN.fullmatch(alias) is None:
             message = f'alias {alias!r} must be lower-case words separated by single spaces'
             raise ValueError(message)
         if alias in catalog:
@@ -114,7 +117,7 @@ def aliases_from(table: Mapping[str, str], catalog: Mapping[str, CatalogEntry]) 
     return dict(table)
 
 
-ALIAS_TABLE: Final[dict[str, str]] = aliases_from(ALIASES, CATALOG)
+ALIAS_TABLE: Final[Mapping[str, str]] = MappingProxyType(aliases_from(ALIASES, CATALOG))
 
 
 def entry(name: str) -> CatalogEntry:

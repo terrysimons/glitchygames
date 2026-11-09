@@ -13,6 +13,7 @@ This document tracks bugs reported during development. Bugs are listed in order 
 - **Files**: `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py`, `player.py`, `enemies.py`, `terrain.py`, `src/glitchygames/sprites/animated.py`, `src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus.py`
 
 ### 264. A Watched Comparison Replay Skipped Presenting a Frame Once on CircleCI's macOS Job
+### 267. A Watched Comparison Replay Skipped Presenting a Frame Once on CircleCI's macOS Job
 - **Description**: CircleCI build 2986 (`build-and-test-macos`, main after #161's merge, `beb53bb8`) failed `tests/replay/tools/test_compare_trace.py::test_a_shorter_old_holds_its_last_frame_with_the_label`: the watched replay of NEW with `--compare-trace` (an OLD cut to three frames) presented frames `{1, 3, 4}`, not `{1, 2, 3, 4}`, so one viewer tick ran inner frames 2 and 3 together. Exit status was SUCCESS. The other 24,937 tests passed; the test passed on #161's own CI run. Nothing was logged in the test's capture beyond the options table. A red main also kept the merge's docs from deploying (`deploy-docs` waits for the macOS job)
 - **Status**: Open (not reproduced)
 - **Priority**: Medium (intermittent; a failure on main stops the docs deploy)
@@ -25,6 +26,29 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
   Not ruled out: the onion skin's OLD child (a real process, reached over a socket with real-time timeouts) and order dependence (CI ran the suite with `-n 3`: state left by an earlier test on that worker, such as controls or queued key events). Next step: rerun the failing worker's test order, or `nox -s test-random` until it recurs, then bisect what ran before it
 - **Files**: `tests/replay/tools/test_compare_trace.py`, `src/glitchygames/replay/viewer.py`, `src/glitchygames/replay/tools/compare.py`
+### 266. An Orphaned Never-Ending Stand-In Game Ran for Ten Days and Held the Mac's Audio
+- **Description**: The pre-push `compare-drivers` run for PR #159 (2026-11-08) failed 96 tests on the native driver, every one needing a real mixer: `pygame.error: CoreAudio error (AudioQueueStart): -66681`, then `mixer not initialized`. A `never_ending_game.py --measure` child of `tests/replay/tools/test_measure.py::test_a_game_that_never_ends_is_stopped_at_the_projects_timeout_and_fails` had been running for about ten days. Killed, the mixer started and the next push passed every hook.
+- **Status**: Fixed (2026-11-08: the stand-in game, `tests/stand_in_games.py` `NEVER_ENDING_GAME_SOURCE`, now gives up after `NEVER_ENDING_GAME_GIVE_UP_SECONDS`, 600, far past the 2-second timeout the tests set). `process.run_command_stopped_at_timeout` stops and reaps the child on any exception, so the orphan's test process most likely died in a way Python cannot catch (SIGKILL, a killed xdist worker); that was not reproduced.
+- **Priority**: Medium (it blocked a push, and would again after any hard-killed test run)
+- **Reporter**: Claude, pushing branch `feat/instrument-catalog-batch-1`
+- **Date Reported**: 2026-11-08
+- **Files**: `tests/stand_in_games.py`
+
+### 265. The Instrument Catalog and Alias Table Could Be Changed From Outside, Skipping Their Checks
+- **Description**: `instruments.CATALOG` and `instruments.ALIASES` were the live dicts `entry()` and `get()` read, so `instruments.ALIASES['x'] = 'nope'` changed how names resolve without `aliases_from`'s checks (found by the batch 1 final review, PR #159).
+- **Status**: Fixed (2026-11-08: both are `types.MappingProxyType` views, typed `Mapping`; a write raises `TypeError`)
+- **Priority**: Low (no caller wrote to them)
+- **Reporter**: Claude (final review of instrument catalog batch 1)
+- **Date Reported**: 2026-11-08
+- **Files**: `src/glitchygames/audio/instruments/registry.py`, `tests/audio/test_instrument_catalog.py`
+
+### 264. Name Validators Accepted a Trailing Newline
+- **Description**: Validators compiled as `^...$` and checked with `.match`, where `$` also matches just before a final newline, so `'game\n'`, `'C4\n'`, `'C\n'`, `'linear\n'` and `'fife\n'` passed. The save-directory app name (`state/paths.py` `validate_app_name`) is the one that matters: it guards a directory name. Also note names, scale roots, envelope curves (`audio/spec.py`, `audio/assets.py`), catalog names and aliases.
+- **Status**: Fixed (2026-11-08: each validator uses `fullmatch`). Not changed: `audio/render.py`'s `STEPS_CURVE` (it reads curves already validated) and `animation/expressions.py`'s token patterns (tokens hold no newline)
+- **Priority**: Low (no known input carried one)
+- **Reporter**: Claude (instrument catalog batch 1)
+- **Date Reported**: 2026-11-07
+- **Files**: `src/glitchygames/state/paths.py`, `src/glitchygames/audio/pitch.py`, `src/glitchygames/audio/spec.py`, `src/glitchygames/audio/assets.py`, `src/glitchygames/audio/instruments/catalog.py`, `src/glitchygames/audio/instruments/registry.py`
 
 ### 263. The AI Tests' Stand-In Control Script Couldn't Run on Windows
 - **Description**: CircleCI build 2935 (`build-and-test-windows`, PR #157) failed 22 tests in `tests/test_ai_link.py`, `tests/ai/test_local_service.py` and `tests/engine/test_engine_ai_connection.py`, and so coverage (99.85%: `ai_link.py` 60%, `ai/local_service.py` 87%). Their stand-in install's control script, `bin/ai-service.sh`, is a `#!/bin/sh` script, as the real one is (the service is macOS only), and Windows can't start one (`OSError: [WinError 193] %1 is not a valid Win32 application`), so every test that has the link or client start the service failed there. Linux and macOS passed

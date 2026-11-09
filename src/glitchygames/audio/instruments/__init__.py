@@ -25,8 +25,9 @@ Three families hold the instruments that are neither struck bars nor blown: pluc
 ``vehicle horn``, ``party horn``). A ``Tag`` marks a quality across families (``Tag.MECHANICAL``,
 on the ``music box``), so ``names(tag=...)`` finds those wherever they sound.
 
-``instruments.ALIASES`` maps each other name (``slapstick``) to its catalog name (``whip``);
-``entry`` and ``get`` resolve them, while ``names`` and ``entries`` list catalog names only.
+``instruments.ALIASES`` (read-only, as ``CATALOG`` is) maps each other name (``slapstick``) to
+its catalog name (``whip``); ``entry`` and ``get`` resolve them, while ``names`` and ``entries``
+list catalog names only.
 
 ``instruments.get`` builds each instrument once per process and returns the same (immutable)
 instrument afterwards.

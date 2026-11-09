@@ -79,14 +79,18 @@ STAND_IN_GAME_TARGET_FPS = '60'
 # frames took, which only a test of pacing, or of what reads recorded frame times, looks at
 UNPACED_TARGET_FPS = '0'
 # A "game" that never ends (an editor or a server among a project's [project.scripts], given a
-# tool flag it ignores): it writes its process id into never-ending.pid beside itself, then waits
-NEVER_ENDING_GAME_SOURCE = """\
+# tool flag it ignores): it writes its process id into never-ending.pid beside itself, then waits.
+# It gives up after NEVER_ENDING_GAME_GIVE_UP_SECONDS, far past any timeout a test sets: a test
+# process killed while waiting on it (SIGKILL, a killed xdist worker) cannot stop it, and one such
+# orphan ran for ten days, holding the Mac's audio so the native driver comparison failed
+NEVER_ENDING_GAME_GIVE_UP_SECONDS = 600
+NEVER_ENDING_GAME_SOURCE = f"""\
 import os
 import pathlib
 import time
 
 pathlib.Path(__file__).with_name('never-ending.pid').write_text(str(os.getpid()), encoding='utf-8')
-while True:
+for _second in range({NEVER_ENDING_GAME_GIVE_UP_SECONDS}):
     time.sleep(1)
 """
 # The game-timeout-seconds a project with the never-ending game sets: short, for the tests
