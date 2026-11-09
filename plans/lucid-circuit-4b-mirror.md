@@ -1,7 +1,8 @@
 # Lucid Circuit, Stage 4b: the mirror game
 
 - **Date:** 2026-11-06
-- **Status:** Agreed by the owner. Nothing is built yet. Step 1 measures whether the design holds.
+- **Status:** Agreed by the owner. Step 1 is measured (2026-11-08): the design holds. Nothing is built yet; step 2,
+  the pipe, is next.
 - **Master plan:** [lucid-circuit.md](lucid-circuit.md), section 7. It comes before Stage 5's frame run.
 
 ## What the owner decided (2026-11-06)
@@ -123,8 +124,17 @@ a reference the tests check the model's mechanics against, catching invented rul
   (section 8). Stage 7 decides how far it goes.
 - **Event fields.** Only JSON-safe values and sprite ids can cross. Anything else is refused by name.
 - **Silent drift.** Replays compare sprites and recorded events, not all game state, so a wrong `rally_count` would go
-  unseen. The stream carries a per-frame check, and a clone that drifts is flagged and restarted from frame 0. Restarting
-  a long session may be slow, which is where checkpoints would help later.
+  unseen. The stream carries a per-frame check. **A clone that drifts or crashes is a bug, and should never happen**
+  (the owner, 2026-11-08):
+  1. A restart is recovery, not routine. It keeps the AI working while the bug is found, and it's logged loudly as a
+     bug.
+  2. The drift check reports precisely: the first frame where the clone parted from the live game and the state that
+     differed, as a replay's divergence report does, so the cause can be fixed.
+  3. The slow catch-up after a restart then matters much less, as it only happens when something is already wrong.
+
+  A restarted clone replays from frame 0 uncapped (fast-forward) until it reaches the live edge: for a session T
+  seconds old and a clone at S times real time, that takes T / (S - 1). At Brave Adventurer's 11x (Step 1's
+  measurements), 30 minutes in, about 3 minutes. Checkpoints would bound it later.
 - **The stream's cost.** The recorder's per-frame work runs on the main thread. Sending hashes rather than whole sprite
   samples may be needed.
 - **The clone's cost.** It takes CPU and roughly doubles the game's memory. 26x real time came from one light game, one
@@ -157,12 +167,65 @@ a reference the tests check the model's mechanics against, catching invented rul
    reasoning, which was up to about 6,000 tokens on hard questions. With no sprite cap, a busy frame is large: Mr.
    Muncher's 267 sprites are about 35 KB. Measure each frame's whole state over every golden replay, and keep
    llama-server's own prompt and generated counts for every answer, so the service's context size is set from these.
+
+   **Measured (2026-11-08, one 16-core Mac, every golden replay and PaddleSlap's demo).** The measurements are
+   `scripts/mirror_measurements/` (its docstring has the commands), to run again once the pipe exists. The design
+   holds:
+
+   - **The clone keeps up.** Headless and uncapped, the stand-in clone (a headless replay in its own process, its
+     frames timed) ran three times per recording, agreeing within 3%:
+
+     | Recording | Speed | Frame p50 / p99 | Start-up to frame 0 |
+     |---|---|---|---|
+     | Brave Adventurer Classic / Papyrus | 11.5x / 10.8x | 1.67 / 1.89 ms; 1.78 / 2.04 ms | 0.28 s; 0.30 s |
+     | Mr. Muncher | 22.5x | 0.76 / 0.96 ms | 0.47 s |
+     | Clockwork Keep | 39.6x | 0.42 / 0.71 ms | 0.27 s |
+     | Drawing Fire | 40.8x | 0.40 / 0.59 ms | 0.25 s |
+     | PaddleSlap (golden / demo) | 152x / 169x | 0.10 / 0.19 ms | 0.23 s |
+
+     No frame took longer to replay than it took live, so a clone that starts with the game stays its start-up behind:
+     0.23 to 0.49 s, well inside 5 s. Only a restart is slower (Silent drift, below). Measured on short goldens (8 to 35
+     s); a later level may be heavier.
+   - **The stream is cheap; the recording file isn't.** Live on the real display (cocoa), the recorder's main-thread
+     work per frame, from timers on each piece:
+
+     | Piece | PaddleSlap mean (p99) | Mr. Muncher, 267 sprites, mean (p99) |
+     |---|---|---|
+     | The events, dt and polled-input diff | 0.014 (0.04) ms | 0.007 (0.03) ms |
+     | Every sprite's id, rect and visibility | 0.013 (0.04) ms | 0.078 (0.16) ms |
+     | Content hash | 0.071 (0.18) ms | 0.306 (0.59) ms |
+     | Delta encoding, JSON and gzip | 0.146 (0.34) ms | 0.545 (1.02) ms |
+
+     A clone needs only the first row, about 0.01 ms a frame. Writing a recording costs Mr. Muncher 0.94 ms, 6% of a
+     60 FPS frame. The drift check should be cheaper than the full content hash (0.3 ms).
+   - **The clone doesn't slow the live game.** A stand-in clone replaying uncapped, over and over, on another core
+     (the worst case: a real clone idles at the live edge) left PaddleSlap's and Mr. Muncher's live frame times
+     unchanged (p99 16.67 ms with and without; one 27.7 ms frame in Mr. Muncher, with and without).
+   - **Allocation churn: the third row of the table above.** No generation-2 collection ran in any golden. Young
+     collections are at most 2.5 ms (generation 1, Mr. Muncher), nearly all while the game loads, and no frame among the
+     slowest 1% had one (every game but PaddleSlap, whose frames are a tenth of a millisecond). Building sprites is
+     negligible (1 to 26 ms per golden; Papyrus's player 2.4 ms). Neither a sprite pool nor tuning the collector would
+     help frame times. Python's allocations grow only into bounded histories (the overlay's 5,000 frame times, the
+     performance manager's 100,000 samples).
+   - **Surface churn: Brave Adventurer Papyrus makes 51 `Surface.copy` calls a frame.** Every other game makes 0 to 6
+     Surface-making calls a frame (Clockwork Keep's 5.4 are `Font.render`). Worth finding, separately from this stage.
+   - **A frame's whole state is too big for one prompt, so the tools choose.** Read as the tools read it (properties
+     on, plumbing off, no sprite cap), compact JSON: Mr. Muncher 74 KB (267 sprites, about 250 B each), Brave
+     Adventurer Classic 30 KB, Clockwork Keep 7 KB, PaddleSlap 5 KB, Drawing Fire 1 KB (no sprites). The state is
+     nearly constant within a scene. Papyrus reads as 352 KB because each `AnimatedSprite` gives every animation frame's
+     pixels, three times (`frames`, `animations`, `animation_data`): step 3's tools must leave pixel data out.
+   - **What an answer uses.** From llama-server's own counts in the last paired run (2B, 8K, 150 answers): the opening
+     prompt (system prompt and tools) is about 1,800 tokens; an answer used 2,900 to 4,700 tokens of context at the
+     median across the games, and its generation 670 to 1,300 tokens (up to 5,400). Some answers in Brave Adventurer,
+     Clockwork Keep and Mr. Muncher reached the whole 8,192.
 2. **The pipe.** A socket from the doors to a clone that starts with the game, a replay source that waits at the live
    edge, and supervision: start, restart, stop with the game. A frontier report: received, processed, age.
 3. **Read-only introspection.** A query socket on the clone. The console's `/ask` and `/inspect` read it through the
    tool calls above, with no cap, and the live-path `describe_scene` goes. The startup task works out the game's
    mechanics, and the cached opening carries them. The answer comparison's affected questions run again.
-4. **Drift checks.**
+4. **Drift checks.** A drift or crash is a bug to find and fix, never routine (the owner, 2026-11-08; see Silent
+   drift): the check names the first differing frame and what differed, a restart is logged as a bug, and the console
+   says the clone is catching up and how far behind it is.
 5. **Events backwards.** Capturing the AI's events in the clone, ids in their fields, refusal and stale handling, with one
    allowed event proved end to end: applied live, recorded, seen by the clone, and replayed with no AI.
 

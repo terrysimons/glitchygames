@@ -4,6 +4,19 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 267. A Watched Comparison Replay Skipped Presenting a Frame Once on CircleCI's macOS Job
+- **Description**: CircleCI build 2986 (`build-and-test-macos`, main after #161's merge, `beb53bb8`) failed `tests/replay/tools/test_compare_trace.py::test_a_shorter_old_holds_its_last_frame_with_the_label`: the watched replay of NEW with `--compare-trace` (an OLD cut to three frames) presented frames `{1, 3, 4}`, not `{1, 2, 3, 4}`, so one viewer tick ran inner frames 2 and 3 together. Exit status was SUCCESS. The other 24,937 tests passed; the test passed on #161's own CI run. Nothing was logged in the test's capture beyond the options table. A red main also kept the merge's docs from deploying (`deploy-docs` waits for the macOS job)
+- **Status**: Open (not reproduced)
+- **Priority**: Medium (intermittent; a failure on main stops the docs deploy)
+- **Reporter**: CircleCI pipeline for main, build 2986
+- **Date Reported**: 2026-11-08
+- **Details**: Ruled out so far (2026-11-08):
+  - The viewer's clock: every read in `src/glitchygames/replay/viewer.py` is `clock.measured_seconds`, which the test's `watched_replay` fakes along with `sleep_for` and `sleep_coarsely`, so the ticks and the inner-frame budget (`INNER_FRAME_BUDGET_SECONDS`) don't see real time
+  - OLD's uneven recorded frame times: `recorded_old` records OLD live and paced in a child, so its dt values are the machine's (locally `[0.01, 17.53, 16.67, 16.67, 16.67, 16.67]` ms). A throwaway test rewrote both recordings with a late frame 1 and a short catch-up frame 2 (17.5 to 32 ms, then the rest of two periods): every frame was still presented, as the viewer's half-frame phase absorbs it
+  - Load: 15 runs of the test alone under 20 busy loops all passed (16-core Mac)
+
+  Not ruled out: the onion skin's OLD child (a real process, reached over a socket with real-time timeouts) and order dependence (CI ran the suite with `-n 3`: state left by an earlier test on that worker, such as controls or queued key events). Next step: rerun the failing worker's test order, or `nox -s test-random` until it recurs, then bisect what ran before it
+- **Files**: `tests/replay/tools/test_compare_trace.py`, `src/glitchygames/replay/viewer.py`, `src/glitchygames/replay/tools/compare.py`
 ### 266. An Orphaned Never-Ending Stand-In Game Ran for Ten Days and Held the Mac's Audio
 - **Description**: The pre-push `compare-drivers` run for PR #159 (2026-11-08) failed 96 tests on the native driver, every one needing a real mixer: `pygame.error: CoreAudio error (AudioQueueStart): -66681`, then `mixer not initialized`. A `never_ending_game.py --measure` child of `tests/replay/tools/test_measure.py::test_a_game_that_never_ends_is_stopped_at_the_projects_timeout_and_fails` had been running for about ten days. Killed, the mixer started and the next push passed every hook.
 - **Status**: Fixed (2026-11-08: the stand-in game, `tests/stand_in_games.py` `NEVER_ENDING_GAME_SOURCE`, now gives up after `NEVER_ENDING_GAME_GIVE_UP_SECONDS`, 600, far past the 2-second timeout the tests set). `process.run_command_stopped_at_timeout` stops and reaps the child on any exception, so the orphan's test process most likely died in a way Python cannot catch (SIGKILL, a killed xdist worker); that was not reproduced.
