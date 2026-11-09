@@ -720,7 +720,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         ``ExitCode.SUCCESS`` when there is none, ``CLAIMS_FOUND`` otherwise.
 
     """
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description='List the claims in the living documentation that the code no longer backs.'
+    )
     parser.add_argument(
         '--kind',
         action='append',

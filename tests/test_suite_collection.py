@@ -1752,7 +1752,7 @@ FORMER_EXAMPLES_EXEMPT_PATHS: dict[str, str] = {
         'the recording-renames our settings must give, copied from the constant they replaced'
     ),
     'scripts/docs_claims.py': (
-        "a recorded exception: clockwork_keep.md names the package as the one its move left "
+        'a recorded exception: clockwork_keep.md names the package as the one its move left '
         'nothing of'
     ),
     'src/demos/dt-demo/tests/test_dt_demo_install_location.py': (
