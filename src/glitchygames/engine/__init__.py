@@ -13,6 +13,7 @@ from glitchygames.engine.game_engine import (
     NoRunningEngineError,
     current_engine,
 )
+from glitchygames.engine.running_game import RunningGame
 
 # Re-export GameEventManager since it was importable from glitchygames.engine
 from glitchygames.events.game import GameEventManager
@@ -33,5 +34,6 @@ __all__ = [
     'GameEngine',
     'GameEventManager',
     'NoRunningEngineError',
+    'RunningGame',
     'current_engine',
 ]

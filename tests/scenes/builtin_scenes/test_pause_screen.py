@@ -14,6 +14,7 @@ import pygame
 import pytest
 
 from glitchygames import events
+from glitchygames.engine import RunningGame
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
@@ -92,13 +93,20 @@ def isolated_scene_manager(mocker, tmp_path):
 
 
 def _engine_for(game: Scene) -> types.SimpleNamespace:
-    """Return a stand-in game engine holding the options and the game PauseScene reads.
+    """Return a stand-in game engine holding the options and the running game PauseScene reads.
+
+    As a real engine holds them: ``game`` is the scene's class, ``running_game`` the scene built
+    from it (glitchygames/engine/running_game.py).
 
     Returns:
         types.SimpleNamespace: The engine stand-in.
 
     """
-    return types.SimpleNamespace(options=dict(ENGINE_OPTIONS), game=game)
+    return types.SimpleNamespace(
+        options=dict(ENGINE_OPTIONS),
+        game=type(game),
+        running_game=RunningGame(game_class=type(game), instance=game),
+    )
 
 
 def _key_event(*, event_type: int, key: int) -> events.HashableEvent:

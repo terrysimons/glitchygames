@@ -687,7 +687,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         game_engine = self.game_engine
         self._instant_replay_journal = InstantReplayJournal(
             scene=scene,
-            game=game_engine.game if game_engine is not None else None,
+            game=game_engine.running_game.instance if game_engine is not None else None,
             scene_start_devices=scene_start_devices_record(input_devices=self.input_devices),
         )
 

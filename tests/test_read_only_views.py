@@ -40,7 +40,7 @@ from tests.ast_scanning import PROJECT_ROOT, qualified_name
 from tests.engine_source import ENGINE_DIRECTORY
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Mapping, Sequence
+    from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
     from pathlib import Path
 
     from pytest_mock import MockerFixture
@@ -107,7 +107,13 @@ class StandInScene(Scene):
     VERSION = '1.0'
 
 
-def make_stand_in_engine(*, mocker: MockerFixture, target_fps: int) -> GameEngine:
+class OtherStandInScene(StandInScene):
+    """Another stand-in game scene, so two engines' games can differ."""
+
+
+def make_stand_in_engine(
+    *, mocker: MockerFixture, target_fps: int, scene_class: type[Scene] = StandInScene
+) -> GameEngine:
     """Make an engine of a stand-in scene in the current context (registered as its engine).
 
     The command line is patched as tests/events/test_events_integration.py's
@@ -116,6 +122,7 @@ def make_stand_in_engine(*, mocker: MockerFixture, target_fps: int) -> GameEngin
     Args:
         mocker: pytest-mock's fixture.
         target_fps: The engine's --target-fps.
+        scene_class: The engine's game (StandInScene unless given).
 
     Returns:
         The engine, constructed (not started).
@@ -135,7 +142,7 @@ def make_stand_in_engine(*, mocker: MockerFixture, target_fps: int) -> GameEngin
             str(target_fps),
         ],
     )
-    return GoldenTraceEngine(game=StandInScene)
+    return GoldenTraceEngine(game=scene_class)
 
 
 # --- The scan: where views are declared, and where engine code reads them ---
@@ -505,6 +512,30 @@ def class_and_ancestors(*, class_name: str, classes: Mapping[str, ScannedClass])
     return found
 
 
+def names_owned_through(
+    *,
+    class_name: str,
+    classes: Mapping[str, ScannedClass],
+    class_owners: Mapping[str, Collection[str]],
+) -> set[str]:
+    """Return the view names a class or any of its ancestors owns.
+
+    Args:
+        class_name: The class.
+        classes: Every class the scan knows, by name.
+        class_owners: Each owning class's view names.
+
+    Returns:
+        The names.
+
+    """
+    return {
+        name
+        for ancestor in class_and_ancestors(class_name=class_name, classes=classes)
+        for name in class_owners.get(ancestor, frozenset())
+    }
+
+
 def import_bindings_of(*, tree: ast.Module, module_name: str, is_package: bool) -> dict[str, str]:
     """Map each local name an import binds to the qualified name it refers to.
 
@@ -695,18 +726,14 @@ def engine_view_reads(*, source_path: Path, views: Mapping[str, frozenset[str]])
             continue
         receiver = node.value
         if isinstance(receiver, ast.Name) and receiver.id[:1].isupper():
-            owned_names = {
-                name
-                for ancestor in class_and_ancestors(class_name=receiver.id, classes=classes)
-                for name in class_owners.get(ancestor, frozenset())
-            }
+            owned_names = names_owned_through(
+                class_name=receiver.id, classes=classes, class_owners=class_owners
+            )
             is_read = node.attr in owned_names
         elif names_its_own_class(receiver) and id(node) in enclosing:
-            owned_names = {
-                name
-                for ancestor in class_and_ancestors(class_name=enclosing[id(node)], classes=classes)
-                for name in class_owners.get(ancestor, frozenset())
-            }
+            owned_names = names_owned_through(
+                class_name=enclosing[id(node)], classes=classes, class_owners=class_owners
+            )
             is_read = node.attr in owned_names or node.attr in read_only_view_names
         else:
             is_read = node.attr in read_only_view_names
@@ -1154,22 +1181,24 @@ def check_engine_game_view(
     """GameEngine.game: each context's engine's own game (audit C9).
 
     A class-only view: read on the class, the current context's engine's ``game`` (``None``
-    where no engine runs); an engine's ``game`` is its own attribute, which the engine writes
-    (the scene class, then the scene start() builds). Writing it on the class raises, naming
-    ``engine.game``. The second engine installs its game (a scene instance), so the two
-    engines' games differ.
+    where no engine runs); an engine's ``game`` is its own attribute, its scene class before and
+    after the scene is built (the scene is ``running_game.instance``: the owner, 2026-10-29).
+    Writing it on the class raises, naming ``engine.game``. The two engines run different scene
+    classes, so their games differ; the second installs its game, which leaves ``game`` the class.
     """
     engines: list[GameEngine] = []
     class_reads: list[object] = []
-    for context, target_fps in (
-        (first, STAND_IN_TARGET_FPS),
-        (second, SECOND_STAND_IN_TARGET_FPS),
+    for context, target_fps, scene_class in (
+        (first, STAND_IN_TARGET_FPS, StandInScene),
+        (second, SECOND_STAND_IN_TARGET_FPS, OtherStandInScene),
     ):
         with context.active():
-            engine = make_stand_in_engine(mocker=mocker, target_fps=target_fps)
+            engine = make_stand_in_engine(
+                mocker=mocker, target_fps=target_fps, scene_class=scene_class
+            )
             if context is second:
                 assert isinstance(engine, GoldenTraceEngine)
-                engine.install_game(scene_class=StandInScene)
+                engine.install_game(scene_class=OtherStandInScene)
             engines.append(engine)
             class_reads.append(GameEngine.game)
             reset_sources()
@@ -1177,7 +1206,9 @@ def check_engine_game_view(
         fresh_read = GameEngine.game
 
     assert engines[0].game is StandInScene
-    assert isinstance(engines[1].game, StandInScene)
+    assert engines[1].game is OtherStandInScene
+    assert isinstance(engines[1].running_game.instance, OtherStandInScene)
+    assert engines[0].running_game.instance is None
     assert class_reads == [engines[0].game, engines[1].game]
     assert fresh_read is None
     where_to_write = re.escape("write the engine's own: engine.game")

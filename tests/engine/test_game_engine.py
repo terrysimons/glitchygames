@@ -3499,6 +3499,9 @@ def test_each_engine_notes_its_own_missing_and_unimplemented_events(mocker, capl
         second_engine = _make_engine(mocker, '--target-fps', '50')
     first_engine.on_never_defined_event(events.HashableEvent(pygame.USEREVENT))
     first_engine.process_unimplemented_event(events.HashableEvent(UNMAPPED_EVENT_TYPE))
+    # Only the second engine's record may answer the check below, whatever level was in force
+    # for the first engine's (Task 7 review, minor 1)
+    caplog.clear()
     with caplog.at_level(logging.INFO, logger='game.engine'):
         second_engine.on_never_defined_event(events.HashableEvent(pygame.USEREVENT))
     for context in (first_context, second_context):

@@ -53,6 +53,7 @@ from glitchygames.crt_power_on import (
     should_play,
 )
 from glitchygames.display_mode import set_display_mode
+from glitchygames.engine.running_game import RunningGame
 from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.events.app import AppEventManager
 from glitchygames.events.audio import AudioEventManager
@@ -844,8 +845,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
     """
 
     log: ClassVar[logging.Logger] = LOG
-    # The game scene class (an instance once start() builds it), one per engine (audit C9: set
-    # by __init__, so a second engine's game never replaces the first's); a class-only view:
+    # The game's scene class, before and after start() (the scene it builds is
+    # running_game.instance), one per engine (audit C9: set by __init__, so a second engine's
+    # game never replaces the first's); a class-only view:
     # GameEngine.game is the current engine's, an engine's game its own attribute (an engine
     # whose __init__ never ran reads None)
     game = ClassOnlyView[Any](
@@ -1425,10 +1427,12 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
 
         """
         super().__init__()
-        # The game scene class, until start() builds it (audit C9: this engine's own;
+        # The game's scene class, before and after start() (audit C9: this engine's own;
         # GameEngine.game is a class-only view of it), set first so no view finds the engine
-        # without its game
+        # without its game. The scene start() builds from it is running_game.instance
+        # (glitchygames/engine/running_game.py; the owner, 2026-10-29)
         self.game: Any = game
+        self.running_game = RunningGame(game_class=game)
         # The on_*_event names this engine missed (each logged once), the last one looked up,
         # and the event types no handler took (each logged once): audit C11, one set per engine
         self.missing_events: list[str] = []
@@ -2312,8 +2316,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         """
         active_scene = self.scene_manager.active_scene
         engine_version = installed_engine_version()
-        # The running game (an instance by now: _build_game built it)
-        game: Scene = self.game
+        # The running game's scene (_build_game built it before any recording starts)
+        game: Scene = self.running_game.instance
         game_class = type(game)
         return {
             'game_class': game_class.__name__,
@@ -3920,15 +3924,16 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         if self.ai_link is not None:
             self.ai_link.start()
 
-        # Initialize the game instance
-        self.game = self.game(options=self.options)
+        # Build the game's scene: engine.game stays its class, the scene is running_game.instance
+        scene = self.game(options=self.options)
+        self.running_game = RunningGame(game_class=self.game, instance=scene)
 
         # The setter gives the scene manager this engine's options (manager.engine_options)
         self.scene_manager.game_engine = self
 
         self._initialize_event_managers()
 
-        self.scene_manager.switch_to_scene(self.game)
+        self.scene_manager.switch_to_scene(scene)
         self._configure_timer_and_performance(paced_by_timer=paced_by_timer)
         self._start_requested_trace_recording()
 

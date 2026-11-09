@@ -91,7 +91,10 @@ class PauseScene(Scene):
             screenshot.fill((0, 0, 0))
 
         assert self.scene_manager.game_engine is not None
-        self.overlay = PauseOverlay(self.scene_manager.game_engine.game, screenshot)
+        # The running game's scene (engine.game is its class: glitchygames/engine/running_game.py)
+        self.overlay = PauseOverlay(
+            self.scene_manager.game_engine.running_game.instance, screenshot
+        )
         self.all_sprites.add(self.overlay)
 
         self.log.info('Pause scene setup complete')

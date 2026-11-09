@@ -56,7 +56,7 @@ from typing import TYPE_CHECKING, Any, Protocol, Self, TypedDict, Unpack, overri
 
 import pygame
 
-from glitchygames.engine import GameEngine
+from glitchygames.engine import GameEngine, RunningGame
 from glitchygames.engine_context import current_context
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
 from glitchygames.logical_names import logical_name
@@ -472,9 +472,11 @@ class GoldenTraceEngine(GameEngine):
 
         """
         game = scene_class(options=self.options)
+        # As _build_game does: engine.game is the class, the built scene running_game.instance.
         # Declared as GameEngine.__init__ declares it: ty takes an undeclared write in a subclass
         # for a write of the class body's GameEngine.game view (a ClassOnlyView)
-        self.game: Any = game
+        self.game: Any = scene_class
+        self.running_game = RunningGame(game_class=scene_class, instance=game)
         self.scene_manager.game_engine = self
         self._initialize_event_managers()
         self.scene_manager.switch_to_scene(game)

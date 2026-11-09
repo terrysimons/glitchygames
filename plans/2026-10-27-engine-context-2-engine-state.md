@@ -1538,6 +1538,17 @@ def test_parsing_the_options_leaves_the_game_class_alone(mocker):
 Latent in the spike (no divergence unswapped): its engines each ran `_build_game` before the next
 was built. Built first and used after, the class attribute answers with the last engine's game.
 
+**Ruling after the review (the owner, 2026-10-29: "RunningGame is good"; done 2026-11-08):**
+`engine.game` stays the game's scene class before and after `start()`. The scene `start()` builds
+from it is `engine.running_game.instance` (`RunningGame`, `src/glitchygames/engine/running_game.py`,
+re-exported by `glitchygames.engine`: frozen pydantic, `game_class` and `instance`, None until the
+scene is built, replaced when `_build_game` or the golden-trace harness's `install_game` builds it),
+with room for more facts about the running game later. It reverses this task making `engine.game`
+the instance after `start()`: its readers of the built scene (the recording header, the pause
+screen's overlay, the instant replay journal) read `running_game.instance`. Also from the review:
+the log check of `test_each_engine_notes_its_own_missing_and_unimplemented_events` clears the
+capture first, and the view scan's owned-names comprehension is one function.
+
 **Files:**
 - Modify: `src/glitchygames/engine/game_engine.py:693, 704-706, 1331, 4200-4206, 4330-4336, 4366`
 - Modify: `tests/harness.py:337-359` (`restore_game_engine_class_state` drops `'game'`: a view now;
