@@ -1933,17 +1933,21 @@ This document tracks planned future features for the GlitchyGames project. Featu
     resonance), and its 330 Hz wood partial's 0.3 s ring is unexplained
   - [ ] `washboard` against `castanets`: thin separation; listen, and merge or tune if they sound
     alike
-  - [ ] `jing` is in `LONG_RINGING_ONE_SHOTS` (its ring outlasts the note), with an energy-share
-    assertion only
+  - [ ] `jing` is in `LONG_RINGING_ONE_SHOTS` (its ring outlasts the note): the test exempts it
+    from the energy-share assertion only; the envelope check (`strikes_again`) and the held
+    one-shot test still apply to it
   - [ ] Eight notes and builders disagree where a sourced trait is not built: `jing`, `tiger
     gong`, `sizzle cymbal` (cuts out sharply), `tingsha`, `ghatam`, `washboard`, `lagerphone`,
     `kkwaenggwari`; `bendir`, `dholak` (soft attack) and `bombo leguero` (hollow-log body) too
   - [ ] `LONG_RINGING_ONE_SHOTS` and `NOT_PERIODIC_AT_THE_NOTE` have no guard against going stale
   - [ ] `lions roar` waits for an amplitude LFO by the sheet's reading, not a sourced gap
-  - [ ] `drums.py` is over 1,800 lines even with the sound-alikes moved out; split it by class if
+  - [ ] `drums.py` is 1,800 lines even with the sound-alikes moved out; split it by class if
     it grows
   - [ ] A sound-alike a source later sets apart (a smaller head's higher tone, a stick's click)
     takes `sound_changes`, citing the source
+  - [ ] `sound_changes` cannot change a value a parent's builder fills positionally (e.g. `hertz`
+    in `partial(_hand_drum, 215.0, ...)`, `_tom`, `_metal`; 24 parents, including `conga` and
+    `tumba`), so its first real use needs that parent rewritten with keywords
 - **Found**: batch 3's reviews (2026-11-08)
 - **Status**: TODO
 - **Priority**: Medium (before the plucked strings batch builds on the same catalog)

@@ -45,7 +45,8 @@ different instrument. ``entry`` and ``get`` resolve aliases, while ``names`` and
 list catalog names only.
 
 ``instruments.get`` builds each instrument once per process and returns the same (immutable)
-instrument afterwards.
+instrument afterwards. A sound-alike is built under its own name: its instrument is equal by
+value to its parent's, not the same object.
 """
 
 from glitchygames.audio.instruments.catalog import CatalogEntry, Family, Tag

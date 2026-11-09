@@ -549,7 +549,7 @@ def test_an_entrys_sound_changes_are_read_only():
     changes['noise'] = 0.1
     assert alike.sound_changes == {'noise': 0.9}
     with pytest.raises(TypeError):
-        alike.sound_changes['noise'] = 0.2  # pyright: ignore[reportIndexIssue] - the write is the point
+        alike.sound_changes['noise'] = 0.2  # pyright: ignore[reportIndexIssue] # ty: ignore[invalid-assignment] - the write is the point
 
 
 def test_the_sound_alikes_are_refused_when_they_are_wrong():
@@ -892,6 +892,11 @@ def test_electromechanical_holds_the_electric_pianos_clavinet_and_tonewheels():
 SOUND_EFFECT_NAMES = [
     entry.name for entry in instruments.entries() if entry.family == 'sound effects'
 ]
+# Every catalog entry that a source sets apart from its parent (empty today): it is its own
+# sound, so it gets the one-shot checks as the new drums do
+CHANGED_SOUND_ALIKE_NAMES = [
+    catalog_entry.name for catalog_entry in instruments.entries() if catalog_entry.sound_changes
+]
 # Batch 3's new entries, in the sheet's order: the membranophones, then the idiophones
 NEW_DRUM_NAMES = [
     'bendir',
@@ -1174,7 +1179,7 @@ def strikes_again(twice: np.ndarray, *, single: np.ndarray, merged: np.ndarray) 
     return bool(RESTRIKE_CLOSER_FACTOR * to_expected < to_merged)
 
 
-@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES + NEW_DRUM_NAMES)
+@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES + NEW_DRUM_NAMES + CHANGED_SOUND_ALIKE_NAMES)
 def test_a_one_shot_strikes_again_on_each_note(name):
     """A second note adds its own strike, and is not the first note merged into a held one."""
     instrument = instruments.get(name)
@@ -1191,7 +1196,7 @@ def test_a_one_shot_strikes_again_on_each_note(name):
     assert strikes_again(twice, single=single, merged=merged), name
 
 
-@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES + NEW_DRUM_NAMES)
+@pytest.mark.parametrize('name', SOUND_EFFECT_NAMES + NEW_DRUM_NAMES + CHANGED_SOUND_ALIKE_NAMES)
 def test_a_one_shot_stops_however_long_it_is_held(name):
     """Held for six seconds, a one-shot is far below its loudest by 5 s: none sustains."""
     samples = render_sound(

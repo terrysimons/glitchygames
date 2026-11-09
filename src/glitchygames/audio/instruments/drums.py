@@ -1,15 +1,17 @@
-"""Drums and percussion: drums, rattles, scrapers, clappers, cymbals and gongs, all unpitched.
+"""Drums and percussion: drums, rattles, scrapers, clappers, cymbals and gongs.
 
 The family holds the Hornbostel-Sachs classes 1 (idiophones: rattles, scrapers, clappers,
-blocks, cymbals, gongs, bells) and 2 (membranophones: struck and friction drums) whose sound has
-no definite pitch (https://en.wikipedia.org/wiki/Hornbostel%E2%80%93Sachs). Tuned bars, bells,
-pans and timpani are tuned percussion (``percussion.py``). Untuned percussion is fixed tones and
-filtered noise: its sounds do not follow the note's pitch, so these entries have no range, and a
-fixed tone ignores the pitch given. Each is built with ``drum``: a struck tone that rings out, a
-noise band for the stick, hand or snares, and a tail; a ring is cut when the note ends, fading
-out over the entry's ``tail``. The family's sound-alikes, instruments that share an entry's
-build (``sounds_like``), are listed in the sibling module ``drum_sound_alikes.py``;
-``DRUMS_AND_PERCUSSION`` is this module's builds followed by them.
+blocks, cymbals, gongs, bells) and 2 (membranophones: struck and friction drums) whose entries
+are unpitched or played at one fixed tone
+(https://en.wikipedia.org/wiki/Hornbostel%E2%80%93Sachs). Tuned bars, bells, pans and timpani
+are tuned percussion (``percussion.py``). Percussion here is fixed tones and filtered noise: its
+sounds do not follow the note's pitch, so these entries have no range. The jing, agung, kemanak
+and the tonic-tuned drums have a definite pitch at a fixed tone, and the pitch a note gives is
+ignored. Each is built with ``drum``: a struck tone that rings out, a noise band for the stick,
+hand or snares, and a tail; a ring is cut when the note ends, fading out over the entry's
+``tail``. The family's sound-alikes, instruments that share an entry's build (``sounds_like``),
+are listed in the sibling module ``drum_sound_alikes.py``; ``DRUMS_AND_PERCUSSION`` is this
+module's builds followed by them.
 """
 
 from __future__ import annotations

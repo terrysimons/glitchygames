@@ -32,7 +32,7 @@ ALIASES: Final[dict[str, str]] = {
     'horse hooves': 'coconut shells',
     # Batch 3's drums (membranophones), in the order of plans/data/instrument-audit/batch-3.tsv:
     # each is another name for the same instrument. A distinct drum that sounds like an entry is
-    # its own entry (``sounds_like``, in drums.py), not an alias
+    # its own entry (``sounds_like``, in drum_sound_alikes.py), not an alias
     # https://en.wikipedia.org/wiki/Daf: "The daf (Persian: دف), also known as dap (دپ), dâyere or
     # riq"; another name for the daf
     'dayereh': 'daf',

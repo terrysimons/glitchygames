@@ -71,8 +71,10 @@ class CatalogEntry:
         family: Its family.
         lowest: Its lowest sounding note name, or None when it is unpitched.
         highest: Its highest sounding note name, or None when it is unpitched.
-        build: Makes the instrument (called once; ``instruments.get`` keeps the result). None
-            for a sound-alike, which the catalog's assembly gives its parent's builder.
+        build: Makes the instrument (called once; ``instruments.get`` keeps the result). Every
+            entry from ``CATALOG`` / ``instruments.entry()`` has a build: None only in a raw
+            table entry for a sound-alike, which the catalog's assembly gives its parent's
+            builder.
         tags: Its tags, members of ``Tag`` (empty for most entries).
         sounds_like: The catalog name of the entry this one sounds like (its parent), or None.
             A sound-alike is a distinct instrument, listed under its own name, that no source
@@ -92,6 +94,8 @@ class CatalogEntry:
     build: Callable[[], Instrument] | None = field(default=None, repr=False, compare=False)
     tags: frozenset[Tag] = field(default=frozenset())
     sounds_like: str | None = None
+    # compare=False: a mappingproxy is unhashable and the frozen entry must stay hashable, so
+    # equality ignores the changes
     sound_changes: Mapping[str, object] = field(default=MappingProxyType({}), compare=False)
 
     def __post_init__(self) -> None:
