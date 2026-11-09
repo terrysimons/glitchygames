@@ -35,10 +35,10 @@ parameters:
   # runs on the macOS job only, Apple silicon
   SYFT_VERSION:
     type: string
-    default: "1.55.0"
+    default: "1.57.0"
   SYFT_DARWIN_ARM64_SHA256:
     type: string
-    default: "1217c258bd5eb91ef3189cf22a82e02f9cac07e4ce934350f428e93aff674625"
+    default: "17012a5a110323bb1069e513a8665f1ae445905c56b4e3f9a9df4f95c5bb6161"
   GRYPE_VERSION:
     type: string
     default: "0.121.0"
