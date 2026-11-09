@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 import pytest
 
 from glitchygames.live_sources import LiveSources
+from glitchygames.performance import AdaptiveClamping
 from glitchygames.recording import RecordingSources
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
@@ -829,3 +830,49 @@ class TestSceneFrameCap:
 
     def test_scene_default_has_no_cap(self):
         assert Scene.MAX_FRAME_SECONDS is None
+
+
+# An outer driver's wait between two unpaced steps (GameHost.run_async's tick)
+UNPACED_WAIT_SECONDS = 1 / 8
+UNPACED_STEP_COUNT = 3
+
+
+def test_an_unpaced_steps_processing_leaves_out_the_wait_before_it(mocker):
+    """The wait before an unpaced step is its pacing: in its dt, never its processing (#268).
+
+    The step's processing time used to run from the previous step's closing reading, so it
+    held the outer driver's whole wait (the browser's animation frame, the other games' steps).
+    """
+    clock = FakeClock()
+    # The one clock (glitchygames.clock): patched on the module, as FrameDriver does
+    mocker.patch('glitchygames.clock.raw_counter_seconds', new=clock.perf_counter)
+    mocker.patch.object(
+        SceneManager,
+        'OPTIONS',
+        {'fps_log_interval_ms': FPS_LOG_INTERVAL_MS, 'log_timer_jitter': False},
+    )
+    mocker.patch('glitchygames.scenes.scene.post_event')
+    recorded = mocker.spy(AdaptiveClamping, 'track_fps_from_event')
+    manager = SceneManager()
+    manager.active_scene = Scene(options={})
+    mocker.patch.object(
+        manager,
+        '_run_scene_frame',
+        side_effect=lambda: clock.advance(seconds=FRAME_WORK_SECONDS),
+    )
+
+    frame_start_seconds = manager.begin_frames()
+    frame_seconds: list[float] = []
+    for _step_index in range(UNPACED_STEP_COUNT):
+        clock.advance(seconds=UNPACED_WAIT_SECONDS)
+        frame_start_seconds = manager.run_frame_step(
+            frame_start_seconds=frame_start_seconds, paced=False
+        )
+        frame_seconds.append(manager.dt)
+
+    processing_samples = [call.args[2] for call in recorded.call_args_list]
+    assert len(processing_samples) == UNPACED_STEP_COUNT
+    for processing_seconds in processing_samples:
+        assert FRAME_WORK_SECONDS <= processing_seconds < UNPACED_WAIT_SECONDS
+    for seconds in frame_seconds:
+        assert seconds >= UNPACED_WAIT_SECONDS + FRAME_WORK_SECONDS

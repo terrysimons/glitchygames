@@ -1878,10 +1878,14 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
                 else round(paced_seconds * 1_000_000_000)
             )
 
+        # The frame's work starts here. A paced frame starts where the last one closed (after
+        # its pacing sleep); an unpaced one now: the outer driver's wait since the last step's
+        # closing reading is this frame's pacing, in its dt but never in its processing time
+        work_start_seconds = frame_start_seconds if paced else clock.raw_counter_seconds()
         self._run_frame()
 
         # The frame's processing time: its work, without the pacing sleep that follows
-        processing_seconds = clock.raw_counter_seconds() - frame_start_seconds
+        processing_seconds = clock.raw_counter_seconds() - work_start_seconds
 
         return self._finish_frame(
             frame_start_seconds=frame_start_seconds,
