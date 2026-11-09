@@ -8,6 +8,7 @@ each staging a row file named for itself, as each machine's rows are.
 
 from __future__ import annotations
 
+import shlex
 import threading
 from typing import TYPE_CHECKING
 
@@ -174,17 +175,21 @@ def test_every_pis_rows_land_staged_in_one_push(repository, raspberry_pi, other_
 
 def test_the_pis_measure_at_the_same_time(repository, raspberry_pi, other_raspberry_pi, tmp_path):
     """Each stand-in waits for the other to start: one after the other, the first would give up."""
-    started = tmp_path / 'started'
-    started.mkdir()
+    started_directory = tmp_path / 'started'
+    started_directory.mkdir()
+    # Forward slashes and quoted: bash on Windows reads backslashes as escapes
+    started = shlex.quote(started_directory.as_posix())
 
     def waiting_for_the_other(*, raspberry_pi: RaspberryPi, other: str) -> RaspberryPi:
+        mine = f'{started}/{raspberry_pi.name}'
+        theirs = f'{started}/{other}'
         return with_measurement(
             raspberry_pi=raspberry_pi,
             command=(
-                f'touch {started}/{raspberry_pi.name}; '
+                f'touch {mine}; '
                 f'for _ in $(seq {BOTH_AT_ONCE_SECONDS * 10}); do '
-                f'[ -e {started}/{other} ] && break; sleep 0.1; done; '
-                f'[ -e {started}/{other} ] || exit {FAILED_MEASUREMENT_STATUS}; '
+                f'[ -e {theirs} ] && break; sleep 0.1; done; '
+                f'[ -e {theirs} ] || exit {FAILED_MEASUREMENT_STATUS}; '
                 f'{raspberry_pi.measure_command}'
             ),
         )
