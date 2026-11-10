@@ -20,7 +20,9 @@ our docs site's:
    clear-published`` removes only rows gh-pages holds;
 2. the snippet docs/quality/performance.md includes (``performance_graphs.md``,
    ``performance_snippet``): the latest measurement of each recording on each machine, then
-   each recording's graphs, framed from the page's URL.
+   the explorer (one chart with pickers for the recording, the chart, the statistics and the
+   machines; docs/js/performance.js draws it from ``performance-explorer.json``,
+   ``explorer_data``), then a link to each recording's own graph page.
 
 Our settings are read once, from this repository's pyproject.toml, for the docs paths; the
 functions are given them (``settings=``), never read them for another project.
@@ -33,9 +35,10 @@ Output (gitignored): docs/quality/metrics/
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -44,11 +47,18 @@ from glitchygames.recording_metrics import (
     fps_from_seconds,
     short_commit,
 )
-from glitchygames.replay.tools.performance_pages import build_performance_pages, write_if_changed
+from glitchygames.replay.tools.performance_pages import (
+    PLOTLY_JS_URL,
+    SERIES_COLORS_DARK,
+    SERIES_COLORS_LIGHT,
+    build_performance_pages,
+    recording_charts,
+    write_if_changed,
+)
 from glitchygames.replay.tools.settings import ProjectSettings, load_project_settings
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from glitchygames.recording_metrics import PerformanceSeries
 
@@ -94,7 +104,8 @@ SNIPPET_NAME = 'performance_graphs.md'
 GRAPHS_URL_FROM_PAGE = '../metrics'
 # A markdown link is resolved from the page's source (docs/quality/performance.md) instead
 LEDGER_LINK_FROM_PAGE_SOURCE = f'{METRICS_DIR.name}/{LEDGER_NAME}'
-GRAPH_FRAME_HEIGHT_PIXELS = 1550
+# What the page's explorer draws (docs/js/performance.js), written beside the graph pages
+EXPLORER_DATA_NAME = 'performance-explorer.json'
 
 
 class PerformancePage(BaseModel):
@@ -167,6 +178,41 @@ def latest_table(*, series_list: Sequence[PerformanceSeries]) -> list[str]:
     return lines
 
 
+def explorer_data(
+    *, series_list: Sequence[PerformanceSeries], pages: Mapping[str, str]
+) -> dict[str, Any]:
+    """Return what the page's explorer draws: each recording's charts, as its graph page has them.
+
+    The charts are the engine's (``recording_charts``, over the recording's series in the order
+    its graph page groups them, so each trace's ``meta`` slot indexes ``series``), less the
+    heatmaps, which stay on the recording's own page (``page``).
+
+    Args:
+        series_list: Every series.
+        pages: Each recording's graph page name, in the order the explorer offers them.
+
+    Returns:
+        The plotly.js URL, the series palettes and one entry per recording.
+
+    """
+    recordings: list[dict[str, Any]] = []
+    for recording, name in pages.items():
+        recording_series = [series for series in series_list if series.recording == recording]
+        charts = recording_charts(series_list=recording_series)
+        del charts['heatmaps']
+        recordings.append({
+            'recording': recording,
+            'page': name,
+            'series': [series.label for series in recording_series],
+            'charts': charts,
+        })
+    return {
+        'plotly': PLOTLY_JS_URL,
+        'colors': {'light': list(SERIES_COLORS_LIGHT), 'dark': list(SERIES_COLORS_DARK)},
+        'recordings': recordings,
+    }
+
+
 def performance_snippet(
     *, page: PerformancePage, series_list: Sequence[PerformanceSeries], pages: dict[str, str]
 ) -> str:
@@ -205,16 +251,25 @@ def performance_snippet(
         *latest_table(series_list=series_list),
         '',
     ))
-    for recording, name in pages.items():
-        lines.extend((
-            f'## `{recording}`',
-            '',
-            (
-                f'<iframe src="{GRAPHS_URL_FROM_PAGE}/{name}" width="100%" '
-                f'height="{GRAPH_FRAME_HEIGHT_PIXELS}" frameborder="0"></iframe>'
-            ),
-            '',
-        ))
+    # One explorer instead of a frame per recording (docs/js/performance.js fills it)
+    lines.extend((
+        '## Explore',
+        '',
+        (
+            f'<div class="performance-explorer" '
+            f'data-source="{GRAPHS_URL_FROM_PAGE}/{EXPLORER_DATA_NAME}" '
+            f'data-pages="{GRAPHS_URL_FROM_PAGE}/"></div>'
+        ),
+        '',
+        '## Each recording on its own page',
+        '',
+        'Every chart at once, with the slowest-frame heatmap per machine:',
+        '',
+    ))
+    lines.extend(
+        f'- [`{recording}`]({METRICS_DIR.name}/{name})' for recording, name in pages.items()
+    )
+    lines.append('')
     return '\n'.join(lines)
 
 
@@ -261,9 +316,17 @@ def generate_performance_page(
         written=pages.written,
         removed=pages.removed,
     )
+    explorer = json.dumps(
+        explorer_data(series_list=pages.series, pages=pages.pages), separators=(',', ':')
+    )
     snippet = performance_snippet(page=counts, series_list=pages.series, pages=pages.pages)
-    if write_if_changed(path=metrics_directory / SNIPPET_NAME, text=snippet):
-        counts = counts.model_copy(update={'written': (*pages.written, SNIPPET_NAME)})
+    written = [
+        name
+        for name, text in ((EXPLORER_DATA_NAME, explorer), (SNIPPET_NAME, snippet))
+        if write_if_changed(path=metrics_directory / name, text=text)
+    ]
+    if written:
+        counts = counts.model_copy(update={'written': (*pages.written, *written)})
     return counts
 
 

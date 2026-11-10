@@ -10,6 +10,10 @@ verdict per game for each measured machine.
 
 ## What the graphs show
 
+The explorer below draws one chart at a time: pick the recording, the chart, the statistics
+(p50, p99, max) and the machines to compare. Each recording's own page, linked under it, shows
+every chart at once with the slowest-frame heatmaps.
+
 - **Processing time per frame**: the median (p50), the 99th percentile (p99) and the slowest
   frame (max) of one replay, in milliseconds, by commit (oldest on the left, labelled with the
   short hash). A frame's budget at 60 FPS is 16.7 ms.

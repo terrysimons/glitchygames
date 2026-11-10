@@ -93,12 +93,12 @@
     }
 
     function pickerGroup(label, options, selectedKey, onPick) {
-        var group = element("div", "requirements-picker");
+        var group = element("div", "explorer-picker");
         group.setAttribute("role", "group");
         group.setAttribute("aria-label", label);
-        group.appendChild(element("span", "requirements-picker-label", label));
+        group.appendChild(element("span", "explorer-picker-label", label));
         options.forEach(function (option) {
-            var button = element("button", "requirements-picker-option", option.label);
+            var button = element("button", "explorer-picker-option", option.label);
             button.type = "button";
             button.setAttribute("aria-pressed", String(option.key === selectedKey));
             button.addEventListener("click", function () {
@@ -185,7 +185,7 @@
         var made = element("div");
         made.appendChild(element(
             "p",
-            "requirements-caption",
+            "explorer-caption",
             "At " + state.targetFps + " FPS (" + (1000 / state.targetFps).toFixed(1) + " ms a frame), judged by "
                 + measure.label.toLowerCase() + ": " + measure.describe + ".",
         ));
@@ -230,7 +230,7 @@
     }
 
     function render(root, data, state) {
-        var controls = root.querySelector(".requirements-controls");
+        var controls = root.querySelector(".explorer-controls");
         controls.replaceChildren(
             pickerGroup(
                 "Target",

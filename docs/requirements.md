@@ -27,7 +27,7 @@ measured.
 ## Measured platforms
 
 <div class="requirements-explorer" data-source="../data/requirements.json" markdown>
-<div class="requirements-controls"></div>
+<div class="explorer-controls"></div>
 <div class="requirements-summary"><p>Loading the measurements…</p></div>
 </div>
 

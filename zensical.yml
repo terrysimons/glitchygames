@@ -85,7 +85,9 @@ nav:
 
 extra_css:
   - css/full-width.css
-  # The requirements page's pickers, scale and tables (docs/requirements.md)
+  # The explorers' shared pickers and chart area (requirements, replay performance, complexity)
+  - css/explorer.css
+  # The requirements page's scale and tables (docs/requirements.md)
   - css/requirements.css
 
 extra_javascript:
@@ -95,6 +97,8 @@ extra_javascript:
   - https://unpkg.com/mermaid@12.2.0/dist/mermaid.min.js
   - js/mermaid-config.js
   - js/requirements.js
+  # The Replay Performance explorer (quality/performance.md): loads plotly.js only on that page
+  - js/performance.js
 
 # The complexity and performance graphs' snippets, which quality/complexity.md and
 # quality/performance.md include (pymdownx.snippets), are not pages of their own

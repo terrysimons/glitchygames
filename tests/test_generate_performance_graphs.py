@@ -21,6 +21,7 @@ import pytest
 from mkdocs.exceptions import PluginError
 from scripts import mkdocs_hooks
 from scripts.generate_performance_graphs import (
+    EXPLORER_DATA_NAME,
     LEDGER_NAME,
     PROJECT_ROOT,
     PROJECT_SETTINGS,
@@ -43,6 +44,7 @@ from glitchygames.recording_metrics import (
     write_row_files,
 )
 from glitchygames.replay.tools import command
+from glitchygames.replay.tools.performance_pages import PLOTLY_JS_URL
 from glitchygames.replay.tools.settings import ProjectSettings
 from tests.ledger_repositories import clone_with_published_ledger, git
 from tests.test_code_tree import LEDGER_DIRECTORY, PATHS
@@ -153,7 +155,7 @@ def test_the_snippet_follows_the_pages_in_the_docs_tree(tmp_path):
     merged = parse_ledger(text=(metrics / LEDGER_NAME).read_text(encoding='utf-8')).rows
     assert {row.key for row in merged} == {row.key for row in rows}
     assert page.graph_pages == ('paddleslap-rally.html', 'paddleslap-golden.html')
-    assert page.written == (LEDGER_NAME, *page.graph_pages, SNIPPET_NAME)
+    assert page.written == (LEDGER_NAME, *page.graph_pages, EXPLORER_DATA_NAME, SNIPPET_NAME)
     charts = page_charts(path=metrics / 'paddleslap-golden.html')
     assert charts['commits'] == ['abc1234', 'def5678']
     snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
@@ -161,10 +163,27 @@ def test_the_snippet_follows_the_pages_in_the_docs_tree(tmp_path):
     assert '`def5678 (uncommitted changes)`' in snippet
     # The newer golden row: a 2 ms mean processing time is 500 FPS of headroom
     assert '`def5678 (uncommitted changes)` | 10 | 500 | 2.000 |' in snippet
-    assert '<iframe src="../metrics/paddleslap-golden.html"' in snippet
+    assert (
+        '<div class="performance-explorer" data-source="../metrics/performance-explorer.json" '
+        'data-pages="../metrics/"></div>'
+    ) in snippet
+    assert f'- [`{GOLDEN}`](metrics/paddleslap-golden.html)' in snippet
+    assert '<iframe' not in snippet
     assert f'[{LEDGER_NAME}](metrics/{LEDGER_NAME})' in snippet
     assert snippet.index('paddleslap/demos/rally.jsonl.gz`') < snippet.index(
         'replays/golden.jsonl.gz`'
+    )
+    explorer = json.loads((metrics / EXPLORER_DATA_NAME).read_text(encoding='utf-8'))
+    assert explorer['plotly'] == PLOTLY_JS_URL
+    assert [entry['page'] for entry in explorer['recordings']] == list(page.graph_pages)
+    golden = explorer['recordings'][1]
+    assert golden['recording'] == GOLDEN
+    # The golden graph page's charts, less the heatmaps (they stay on its own page)
+    assert golden['charts']['commits'] == charts['commits']
+    assert 'heatmaps' not in golden['charts']
+    # Every trace's slot names one of the recording's series
+    assert {trace['meta'] for trace in golden['charts']['processing']} == set(
+        range(len(golden['series']))
     )
 
     again = generate_performance_page(
@@ -399,7 +418,8 @@ def test_a_deploys_pages_are_the_engines_published_build(tmp_path, mocker):
     """The hook's gh-deploy build writes what ``glitchygames performance-pages --published`` does.
 
     The same project (our settings: this repository's pyproject.toml), the same rows: a landed
-    and an unlanded row file, a clean and a trial pending row. Only the snippet is the script's.
+    and an unlanded row file, a clean and a trial pending row. Only the snippet and the
+    explorer's data are the script's.
     """
     clone, _landed, _unlanded, _commit = clone_with_measured_rows(tmp_path=tmp_path)
     shutil.copy(PROJECT_ROOT / 'pyproject.toml', clone / 'pyproject.toml')
@@ -426,7 +446,9 @@ def test_a_deploys_pages_are_the_engines_published_build(tmp_path, mocker):
     ])
 
     assert status == ExitCode.SUCCESS
-    comparison = filecmp.dircmp(tmp_path / 'deployed', tmp_path / 'tool', ignore=[SNIPPET_NAME])
+    comparison = filecmp.dircmp(
+        tmp_path / 'deployed', tmp_path / 'tool', ignore=[SNIPPET_NAME, EXPLORER_DATA_NAME]
+    )
     assert (comparison.left_only, comparison.right_only, comparison.diff_files) == ([], [], [])
     assert len(comparison.same_files) == 2
     deployed = parse_ledger(text=(tmp_path / 'deployed' / LEDGER_NAME).read_text(encoding='utf-8'))
