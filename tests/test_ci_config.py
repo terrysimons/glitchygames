@@ -736,6 +736,18 @@ def test_the_taplo_sessions_skip_only_linux_arm(mocker, system, machine, has_no_
     assert session.log.call_count == (2 if has_no_wheel else 0)
 
 
+def test_taplo_leaves_the_worktrees_nested_in_this_checkout_alone():
+    """Claude Code's worktrees (.claude/worktrees/<name>/) are other checkouts inside this one.
+
+    Formatted from here, their TOML files were rewritten mid-task: their CRLF sprite fixtures
+    lost their line endings, which the fixture exclusions (this checkout's paths) don't cover
+    (BUGS.md #271).
+    """
+    configuration = tomllib.loads((PROJECT_ROOT / '.taplo.toml').read_text(encoding='utf-8'))
+
+    assert '.claude/**' in configuration['exclude']
+
+
 def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
     """The Linux job (2 GB, serial) stops a run past 1600 MiB, naming the test (memory_guard.py).
 
