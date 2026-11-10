@@ -26,6 +26,8 @@ from scripts.generate_performance_graphs import (
     PROJECT_ROOT,
     PROJECT_SETTINGS,
     SNIPPET_NAME,
+    explorer_data,
+    games_with_graphs,
     generate_performance_page,
     latest_table,
     published_ledger_path,
@@ -167,7 +169,8 @@ def test_the_snippet_follows_the_pages_in_the_docs_tree(tmp_path):
         '<div class="performance-explorer" data-source="../metrics/performance-explorer.json" '
         'data-pages="../metrics/"></div>'
     ) in snippet
-    assert f'- [`{GOLDEN}`](metrics/paddleslap-golden.html)' in snippet
+    # The clone's games have no pyproject.toml to name them: each is named by its directory
+    assert f'- paddleslap: [`{GOLDEN}`](metrics/paddleslap-golden.html)' in snippet
     assert '<iframe' not in snippet
     assert f'[{LEDGER_NAME}](metrics/{LEDGER_NAME})' in snippet
     assert snippet.index('paddleslap/demos/rally.jsonl.gz`') < snippet.index(
@@ -178,6 +181,7 @@ def test_the_snippet_follows_the_pages_in_the_docs_tree(tmp_path):
     assert [entry['page'] for entry in explorer['recordings']] == list(page.graph_pages)
     golden = explorer['recordings'][1]
     assert golden['recording'] == GOLDEN
+    assert (golden['game'], golden['game_name']) == ('paddleslap', 'paddleslap')
     # The golden graph page's charts, less the heatmaps (they stay on its own page)
     assert golden['charts']['commits'] == charts['commits']
     assert 'heatmaps' not in golden['charts']
@@ -241,6 +245,57 @@ def test_the_docs_trees_published_build_leaves_out_rows_from_uncommitted_changes
     snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
     assert 'uncommitted changes' not in snippet
     assert 'Generated from 3 ledger rows' in snippet
+
+
+def test_recordings_are_grouped_under_their_game_by_name(tmp_path):
+    """A game names itself; one with no description to read, or no game at all, is still listed."""
+    game_directory = tmp_path / 'src' / 'games' / 'zebra-chase'
+    game_directory.mkdir(parents=True)
+    (game_directory / 'pyproject.toml').write_text(
+        '[project]\ndescription = "A Zebra Chase: stripes, built on GlitchyGames"\n',
+        encoding='utf-8',
+    )
+    pages = {
+        'src/games/zebra-chase/tests/golden-one.jsonl.gz': 'zebra-one.html',
+        'src/games/no-package/tests/golden.jsonl.gz': 'no-package.html',
+        'src/games/zebra-chase/tests/golden-two.jsonl.gz': 'zebra-two.html',
+        'tests/fixtures/replays/loose.jsonl.gz': 'loose.html',
+    }
+
+    games = games_with_graphs(pages=pages, project_root=tmp_path)
+
+    assert [(game.slug, game.name) for game in games] == [
+        ('zebra-chase', 'A Zebra Chase'),
+        ('no-package', 'no-package'),
+        ('other-recordings', 'Other recordings'),
+    ]
+    assert tuple(games[0].pages.values()) == ('zebra-one.html', 'zebra-two.html')
+
+
+def test_the_explorer_offers_the_recordings_game_by_game(tmp_path):
+    """Each recording names its game, and the games come in the order the picker groups them."""
+    pages = {
+        'src/games/beta/tests/classic.jsonl.gz': 'beta-classic.html',
+        'src/games/alpha/tests/golden.jsonl.gz': 'alpha.html',
+        'src/games/beta/tests/papyrus.jsonl.gz': 'beta-papyrus.html',
+    }
+
+    data = explorer_data(
+        series_list=[], games=games_with_graphs(pages=pages, project_root=tmp_path)
+    )
+
+    assert [(entry['game'], entry['page']) for entry in data['recordings']] == [
+        ('alpha', 'alpha.html'),
+        ('beta', 'beta-classic.html'),
+        ('beta', 'beta-papyrus.html'),
+    ]
+
+
+def test_the_page_loads_the_script_that_draws_the_explorer():
+    """Without the script in zensical.yml the explorer would stay empty."""
+    script = 'js/performance.js'
+    assert script in (PROJECT_ROOT / 'zensical.yml').read_text(encoding='utf-8')
+    assert (PROJECT_ROOT / 'docs' / script).is_file()
 
 
 def test_an_empty_ledger_says_how_to_measure(tmp_path):

@@ -49,6 +49,10 @@ RATE = DEFAULT_SAMPLE_RATE
 # A tone below a tenth of its full level in a chunk is absent from it (the other tone's leakage
 # through the Hann window is a few percent)
 ABSENT_LEVEL = 0.1
+# Most of a recording's trials must show the voice table's delay: a mixer thread that runs late can
+# put a trial's fadeout and play before the same chunk (CircleCI macOS, 2026-11-04: job 2844, one
+# trial's stealer at level 0.21), while a delay that stopped working would show in all of them
+MINIMUM_DELAYED_STEAL_TRIALS = TRIAL_COUNT // 2 + 1
 
 
 # How often a worker waiting for another worker's recording looks for it
@@ -194,15 +198,32 @@ def action_chunk(levels: np.ndarray, chunks: range) -> int:
     """The trial's first chunk below full level after its tone reached full level.
 
     A trial's tone plays at full level until the case acts; this chunk is the first the action
-    changed.
+    changed. A late mixer thread can miss a short fade's plateaus: the channel halts, the halt's
+    silence separates the trials, and no chunk of the trial is below full level.
 
     Returns:
-        The chunk's index in the recording.
+        The chunk's index in the recording, or ``chunks.stop`` if no chunk is below full level.
     """
     trial = levels[chunks.start : chunks.stop]
     at_full = trial >= 1.0 - LEVEL_TOLERANCE
     first_full = int(np.argmax(at_full))
-    return chunks.start + first_full + int(np.argmax(~at_full[first_full:]))
+    below_full = ~at_full[first_full:]
+    if not below_full.any():
+        return chunks.stop
+    return chunks.start + first_full + int(np.argmax(below_full))
+
+
+def delayed_steal_trials(
+    *, stolen: np.ndarray, stealer: np.ndarray, recorded_trials: list[range]
+) -> int:
+    """Count the trials whose stealer is absent from the first chunk the fade changed.
+
+    Returns:
+        How many trials put the stealer after the fade's first chunk.
+    """
+    return sum(
+        bool(stealer[action_chunk(stolen, chunks)] <= ABSENT_LEVEL) for chunks in recorded_trials
+    )
 
 
 def levels_after_the_action(levels: np.ndarray, chunks: range) -> np.ndarray:

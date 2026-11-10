@@ -643,6 +643,41 @@ only replays; Part 2 Task 1).
   `dirty_pixels` list was removed unread (BUGS.md #178.15, 2026-11-01); a new design must also
   mark everything on pan, frame switch, hover and onion-skin changes.
 
+## AI (Lucid Circuit; plans/lucid-circuit.md)
+
+- **A flow chart the AI follows for every query** (the owner, 2026-11-07): does it already have the pieces to answer,
+  or must it infer them? For example, PaddleSlap tracks no longest rally and Mr. Muncher doesn't record which chaser
+  caught you, yet both can be worked out by rewinding and replaying history. The chart decides, in order: is it in the
+  cached opening (mechanics, controls)? Can a tool read it now (`get_scene`, `get_sprite`, `get_game_facts`)? Can it be
+  computed from history (`history`, replaying to a frame) or found by experiment in a copy (`try_in_copy`)? Or is it
+  impossible, a false premise, or something to refuse? When it infers, it says how (what it counted, over which
+  frames). Draw it as a diagram for review, turn it into the system prompt's instructions, and add a behaviour test per
+  branch (plans/lucid-circuit-5-load-harness.md, Part 2b).
+
+- **A `/gist` mode in the AI console** (the owner, 2026-11-07): `/gist enable` and `/gist disable`. While
+  enabled, the AI considers what each request most likely means and answers that. When it can't
+  reasonably choose between readings, it says so instead of guessing: it explains the ambiguity,
+  lists the readings, and asks which was meant. Show the mode in `/ai` and the AI debug panel, keep
+  it per game like the history, and add behaviour tests (plans/lucid-circuit-5-load-harness.md,
+  Part 2b) with deliberately ambiguous questions: one with a clear likeliest meaning, which should
+  be answered, and one with no clear winner, which should be asked about.
+
+- **Deferred: choosing 2B's context by free memory** (the owner, 2026-11-07: "we're just going to
+  stick with the 2B model for the foreseeable future"). Every run already uses 2B
+  (`ai_service_default_bonsai_size`, plans/lucid-circuit.md section 5), at its full context, or
+  nothing when that doesn't fit. Agreed earlier and deferred: step down instead, full context, then
+  32K, then 8K, then none, with Qwen starting with the game as it does today.
+
+## Games
+
+- **Convert Drawing Fire to sprites** (the owner, 2026-11-07). It draws its soldiers, sandbags and bullets straight
+  onto the screen, so it has no sprites: the AI's sprite tools see nothing, the stable ids name nothing, and replays
+  compare nothing of it, which is why it posts a GAMEEVENT per death and seat change to give its replay something to
+  compare. As sprites (one per soldier, sandbag and bullet; its soldiers are already drawn from `sprites/soldier.toml`
+  with palette swaps), it gets ids, sprite comparison, hitboxes in the debug overlay, and the AI's tools for free.
+  Its golden replay will change, so re-recording it is a reviewed step, and the GAMEEVENTs can stay or go once the
+  sprites carry what they did. Check the per-frame cost against the run ledger, since it draws many soldiers.
+
 ## Performance and pacing
 
 - **Re-measure the requirements page** (the owner, 2026-11-09). `docs/requirements.md` gives each
@@ -660,6 +695,13 @@ only replays; Part 2 Task 1).
   site, each page loaded, each picker clicked, no console error) would keep them working. The
   frame x commit heatmaps stay on each recording's own page; they could join the performance
   explorer as a chart of their own.
+- **A per-game AI sweep of performance bottlenecks** (the owner, 2026-11-07). For each game, have the AI
+  read what our benchmarks record (the run ledger in `quality/replay-ledger/`, each recording's
+  `processing_seconds` and `FrameProfile`, the slowest frames and scenes in each `RunSummary`, and
+  `nox -s performance-test`), find where that game spends its frame time, and suggest fixes, each
+  with the evidence behind it. Suggestions are a report for the owner to choose from, not changes
+  made by the sweep. It can use Stage 4b's churn measurements (garbage collector pauses,
+  allocations by type) once they exist (plans/lucid-circuit-4b-mirror.md, step 1).
 - **Raspberry Pi hardware runners** (the user, 2026-11-02; do this on its own branch, separate from
   the sound engine work). Self-hosted CI runners on the user's Raspberry Pis, so the replay ledger
   and the sound benchmarks (`docs/specs/2026-11-02-sound-engine-implementation-spec.md` §11) are
@@ -698,10 +740,8 @@ only replays; Part 2 Task 1).
   - **The gates** come from the worst-case tier, from the slower of its two OSes.
 
   Things to settle first:
-  - **Wheels:** `uv.lock` resolves numpy to 1.26.4, which has no prebuilt wheel for Python 3.14
-    on any platform, so every install builds numpy from source (slow on a Pi, and it needs a
-    compiler). miniaudio 1.71 has no Linux ARM64 wheel. pygame-ce 2.5.8 has one
-    (`manylinux2014_aarch64`). Find what keeps numpy below 2.x.
+  - **Wheels:** numpy has a Linux ARM64 wheel since 2.x. miniaudio 1.71 has no Linux ARM64 wheel,
+    so it still compiles. pygame-ce 2.5.8 has one (`manylinux2014_aarch64`).
   - **Audio output:** the Pi 5 has no 3.5 mm jack (HDMI, USB or I2S audio only); the Pi 4 has one.
   - **The SD card** is the worst-case tier's boot storage on purpose, so the disk cache is
     measured there as is. Record the card's model, since cards differ a lot.
@@ -897,6 +937,43 @@ drafted issue text. Not posted yet:
   status, named functions and classes still existing), fix or remove it, and keep American
   spellings. Finish with `mkdocs build --strict` and the docs guard tests. Plan it as its own
   branch (design, then plan), split by area so each piece is reviewable.
+
+## Raspberry Pi speedups (user request, 2026-11-04)
+
+Try each on the Pi 4 with and without, a few runs apiece, one change at a time:
+`nox -s replay-metrics -- --allow-dirty --force` writes to the pending file, so trials are never
+published. Adopt what helps through `ansible/raspberry_pi_runner.yml`, and note when: an adopted
+change moves the Pi's line on the Performance page. As found 2026-11-04 unless marked.
+
+Engine time (today's rows):
+
+- **OpenBLAS.** `numpy` has no BLAS here (`show_config`). Needs `libopenblas-dev` and `pkg-config`,
+  and a rebuild past uv's cached `numpy`. Expected to do little: no linear algebra found in shipped
+  code.
+- **CPython's JIT: `PYTHON_JIT=1`.** Ubuntu's 3.14 has it built in but off
+  (`--enable-experimental-jit=yes-off`). The cheapest trial here.
+- **uv's managed Python** against Ubuntu's: the venv uses `/usr/bin/python3.14`, while CI's
+  `install-deps-posix` installs uv's.
+- **CPU governor and power profile.** Now `ondemand` and `balanced`; try `performance`. May help the
+  slowest frames more than the medians, as the clock ramps less.
+- **`pygame-ce` and SDL built for the Cortex-A72** (`-mcpu=cortex-a72`), not the generic ARM wheel. Most
+  work to keep up; only if the profile points there.
+- **Garbage collection pauses.** Single slow frames (Drawing Fire: p99 6.8 ms, max 48 ms). Unconfirmed:
+  check the frame heatmap first, then try `gc.freeze()` after loading.
+- **Cooling and clocks.** A heatsink or fan if `vcgencmd get_throttled` reports throttling under a
+  run. Overclocking last: it needs cooling, and the machine stops being a stock Pi 4.
+
+Driver time (needs present timing, `plans/2026-11-04-raspberry-pi-ci-runner.md`):
+
+- **SDL's render driver:** `SDL_RENDER_DRIVER` of `opengles2`, `opengl` and `software`, as the engine
+  asks for `SCALED`, which uses a renderer.
+- **Video path:** the desktop's `wayland`, against `x11`, fullscreen, and `kmsdrm` with no compositor
+  (a one-off from a console: the desktop stays).
+
+Loading and memory:
+
+- **USB 3 SSD** against the SD card, for start-up and asset loading (the runner plan's storage decision).
+- **Background services and `vm.swappiness`** (60 now): fewer services, less swapping onto the card.
 
 ## Code quality
 

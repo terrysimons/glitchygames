@@ -204,7 +204,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 431 ready-made instruments in 18 families. Each is an
+`glitchygames.audio.instruments` holds 624 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -216,6 +216,8 @@ violin = instruments.get('violin')                       # built once, then kept
 tune = audio.sound(violin, notes='G3:0.5 D4:0.5 A4:1')
 instruments.entry('alto saxophone').playing_range        # (Note('Db3'), Note('Ab5'))
 instruments.names(family=instruments.Family.BRASS)       # every brass instrument
+instruments.names(tag=instruments.Tag.MECHANICAL)        # every entry carrying a tag
+instruments.get('slapstick')                             # an alias: the same instrument as 'whip'
 ```
 
 | Family | Entries | Examples |
@@ -231,17 +233,40 @@ instruments.names(family=instruments.Family.BRASS)       # every brass instrumen
 | `plucked strings` | 58 | guitars (nylon, steel, twelve-string, electric clean to distortion), basses, ukuleles, banjos, mandolins, lutes, sitar, koto |
 | `harps` | 7 | concert, lever, wire-strung, triple harp, lyre, kora |
 | `struck strings` | 5 | hammered dulcimer, cimbalom, santur, yangqin, berimbau |
-| `keyboards` | 14 | pianos, harpsichords, clavichord, electric pianos, clavinet, celesta |
-| `organs` | 16 | pipe organ stops and plenum, tonewheel registrations and percussion, calliope |
+| `keyboards` | 11 | pianos, harpsichords, clavichord, celesta, toy piano |
+| `organs` | 9 | pipe organ stops and plenum, positive, combo and theatre organs, calliope |
+| `electromechanical` | 11 | electric pianos (tine, reed), Clavinet, Pianet, tonewheel organ registrations and percussion |
 | `electronic` | 15 | theremin, ondes Martenot, leads, pads, basses, chiptune pulses |
-| `tuned percussion` | 27 | glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan |
-| `drums and percussion` | 61 | kits (kicks, snares, toms, hi-hats, cymbals), hand drums, shakers, blocks |
+| `tuned percussion` | 23 | glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan |
+| `plucked idiophones` | 4 | kalimba, mbira, music box, sansula |
+| `friction instruments` | 3 | glass harmonica, glass harp, terpodion |
+| `drums and percussion` | 237 | kits (kicks, snares, toms, hi-hats, cymbals), hand drums (daf, dhol, kendang, mridangam), gongs, shakers, blocks, and 131 sound-alikes |
+| `noise makers` | 5 | whip crack, diaphone, air horn, vehicle horn, party horn |
+| `sound effects` | 8 | thunder sheet, rain machine, ocean drum, cannon, crash box, coconut shells, door slam |
 | `voices` | 55 | soprano, mezzo, alto, treble, countertenor, tenor, baritone, bass and basso profundo on ah, eh, ee, oh, oo and humming; whistling |
 | `choirs` | 13 | soprano, alto, tenor and bass sections on ah, oh and oo; children's choir |
 
 - Names and families are lowercase words separated by spaces (`'tenor saxophone'`, `'double
   reeds'`). `get`, `entry`, `names` and `entries` lowercase what they are given, so
   `instruments.get('Tenor Saxophone')` is the same instrument.
+- A `Tag` marks a quality that cuts across families (the set is closed): `Tag.MECHANICAL`, on
+  the music box so far, stays in the family the instrument sounds like.
+  `instruments.names(tag=...)` and `entries(tag=...)` list the entries carrying it, and combine
+  with `family=`.
+- `instruments.ALIASES` (read-only, as `instruments.CATALOG` is) maps another name to its
+  catalog name: `slapstick` to `whip`, `zanza` to `mbira`, `cylinder music box` and `disc music
+  box` to `music box`, `wurlitzer electronic piano` to `reed electric piano`, `hohner clavinet`
+  to `clavinet`, `rain box` to `rain machine`, `horse hooves` to `coconut shells`, `tavil` to
+  `thavil` and `riq` to `daf` (35 in all). `get` and `entry` resolve an alias, while `names`
+  and `entries` list catalog names only.
+- A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
+  (`bamboula` and `conga`, `tombak` and `darbuka doum`), so it is an entry of its own, listed by
+  `names` and `entries`, whose `CatalogEntry.sounds_like` names the parent whose build it
+  shares (`instruments.get('bamboula') == instruments.get('conga')`; the parent may be in
+  another family). `sound_changes` (empty so far) holds keyword overrides of the parent's
+  builder, for a sound-alike that a source sets apart by one trait; each needs a cited source.
+  Assembly refuses a `sounds_like` that names no entry, itself or another sound-alike. The 131
+  drum ones are in `drum_sound_alikes.py`, the family's builds in `drums.py`.
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (`pitch='A4'`); it does not change

@@ -178,6 +178,35 @@ nox -s docs-serve          # Serve the docs locally (same strict build, graphs i
 # `mkdocs serve` rebuild alive (about 330 MB each; BUGS.md #213)
 ```
 
+### Local AI Service (Ansible; plans/lucid-circuit.md)
+```bash
+# llama.cpp from source with Metal, the Bonsai 2 and Qwen models, per-user launchd agents and the
+# unsigned .pkg, everything created by the playbook. No root. macOS on Apple Silicon, with Xcode and
+# CMake already installed. First run downloads 14.57 GB; running it again changes nothing
+uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml
+# Only hosts whose ai_enabled is true get it (ansible/inventory.yml: on by default, off on the
+# Raspberry Pis); the playbook's first play sorts the hosts without connecting to any
+# Nothing runs until asked: ai-service.sh start loads Bonsai 2B (ai_service_default_bonsai_size;
+# config/selection.env or AI_BONSAI_SIZE picks another) when free memory allows. A model
+# unloads after 30 idle minutes (ai_service_sleep_idle_seconds)
+"$HOME/Library/Application Support/GlitchyGames/AI/bin/ai-service.sh" select   # or start, stop, status
+# ...one piece: --tags llama_cpp, ai_models, ai_sidecar, ai_service or ai_package
+# The service is its own project, outside the workspace, sharing no code with the engine. A game
+# reaches it only over a socket (127.0.0.1:23231: WebSocket /v1/session, REST /v1/*, docs at /docs)
+(cd services/ai-service && uv run pytest)   # its own tests, lock file and 100% coverage
+# Games connect to it by default: --ai (on), --no-ai. Never with --headless, in a replay or browser,
+# or without the service installed: those runs build plain HostSources and never import
+# websockets. src/glitchygames/ai_link.py (the link, on its own thread) and ai_host.py (a
+# HostSources subclass; host.py doesn't change). The harness sets GLITCHYGAMES_AI_INSTALL_ROOT
+# to nowhere, so no test can reach the real service
+# In any game with AI the ` key opens the read-only console (src/glitchygames/ai_console.py, its
+# docstring the rules): /ask, /inspect, /ai, /cancel, /history, /copy, /paste, /clear, /help. Its keys reach
+# neither the game nor a recording. A scene may say more with describe_for_ai()
+# Check every model on Metal (speed, memory, layers on the GPU), or remove the service
+uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_validate
+uvx --from ansible-core ansible-playbook -i ansible/inventory.yml ansible/macos_ai_service.yml --tags ai_uninstall
+```
+
 ### Running Bitmappy (Pixel Art Editor)
 ```bash
 # Run with default settings
@@ -227,6 +256,11 @@ uv run glitchygames record-session paddleslap out.jsonl.gz --headless \
 ```
 
 ### Example Games
+**Always use the sprite classes when creating new games** (the owner, 2026-11-07): every game object is a sprite in
+the scene's groups, never drawn straight onto the screen. Sprites are the robust objects the AI works with: stable ids
+that are never recycled, sprite comparison in replays, debug-overlay hitboxes and the AI's introspection tools. Drawing
+Fire predates this and draws without sprites (converting it is in plans/future-work.md).
+
 Every game is its own workspace package under `src/games/` (Part 2 of
 plans/2026-10-24-workspace-packages.md; the recipe is docs/architecture/game_packages.md), with
 its code, tests and golden replay; the engine has no examples package. The `demos` layer
@@ -798,9 +832,17 @@ here or from `Scene.game_time`, so a replay serves the same values. Pick by purp
   `src/glitchygames/replay/controls.py`: once per press; `.` repeats after 300 ms at 10/s) and
   presents the latest frame with a status bar (`EngineSources.draws_overlay`/`draw_overlay`,
   never in screenshots or traces); the INNER recorded game runs N full frames per tick from an
-  accumulator (real time x speed, consumed by recorded dt, at most `MAX_INNER_FRAMES_PER_TICK`
-  and `INNER_FRAME_BUDGET_SECONDS` per tick, never owing more than one tick's worth; the status
-  bar shows the real speed when it cannot keep up),
+  accumulator (real time x speed, consumed by recorded dt, within `INNER_FRAME_BUDGET_SECONDS` per
+  tick, the owed time capped at `MAX_OWED_INNER_FRAMES` and a half frames, never below a frame plus
+  a 60 Hz tick plus the tick paid for, in inner time; at every speed the work budget is the only
+  per-tick limit (no frame count), so an uncapped recording whose frames cost what they did live may
+  not keep up on a real machine, and "can't keep up" then means exactly that; up to 1x a tick runs
+  at most one unless behind, owing that frame plus a whole tick, so a long live frame and its short
+  catch-up frame are each presented, the replay then staying about a tick behind real time (a
+  constant lag a pause resets), and a recording faster than 60 FPS still runs several a tick,
+  presenting the last; above 1x the same limit follows a frame lasting at least a tick of inner time
+  at that speed (shorter frames run several a tick, fast-forward) (rule 2 of `viewer.py`); the
+  status bar shows the real speed when it cannot keep up),
   unpresented (`EngineSources.presents_frames` False). It drives the loop through
   `EngineSources.hold_frame` (held = present an outer frame, run nothing, consume no recorded
   batch). It holds at a "Press Spacebar to Start Game Replay" screen after frame 0 (the pause
@@ -1213,8 +1255,11 @@ M2 next)
 - Instrument catalog (`audio/instruments/`): `instruments.get('violin')` is an ordinary
   `Instrument` (built once per process), `instruments.entry(name)` its title, family and range
   (`lowest`/`highest`, sounding; None for unpitched drums, whose fixed tones ignore the pitch
-  given). 431 entries in 18 `Family`s (every size of each family, voices soprano to basso
-  profundo on five vowels), each built by a shape in `timbres.py` (`blown`, `plucked`, `struck`,
+  given). 624 entries in 23 `Family`s (every size of each family, voices soprano to basso
+  profundo on five vowels; `Tag.MECHANICAL` marks mechanical ones, `names(tag=...)` lists them;
+  `ALIASES` (read-only, as `CATALOG` is) maps 35 other names to catalog names, resolved by
+  `get`/`entry`; a sound-alike is its own entry sharing a parent's build via `sounds_like`, with
+  optional sourced `sound_changes`), each built by a shape in `timbres.py` (`blown`, `plucked`, `struck`, `rubbed`,
   `drum`, `with_drones`) from overtone series (`falling_series`, `plucked_series`,
   `formant_series`); `tests/audio/test_instrument_catalog.py` renders every entry across its
   range and checks each harmonic one's pitch. `scripts/make_instrument_demos.py` writes WAVs
@@ -1241,7 +1286,7 @@ screen size - 1), performance HUD with FPS, frame time, 1% low and a frame-time 
 line), and an Audio panel after Performance (cache mode, mixer, voices, an audio-time graph stacked by
 kind of work, channel strip, bus meters, compile log; under All only its header; `--sound-diagnostics`
 opens on it; built from `AudioEngine.snapshot()` only while the overlay is visible and the engine
-already exists). Drawn in `SceneManager._present_frame`, never in screenshots, with the bundled Bitstream
+already exists), then an AI panel (the link, models and requests, from the AI console). Drawn in `SceneManager._present_frame`, never in screenshots, with the bundled Bitstream
 Vera Sans font on translucent cached backings. Scenes or sprites can add annotations with
 `debug_draw(surface, camera)`. `Scene.debug_subject` names the scene to inspect (normally the scene
 itself; `PauseScene` returns the paused game, so its hitboxes line up with the frozen picture and
@@ -1368,7 +1413,7 @@ scene's logical name, which recordings hold, is `apps.bitmappy.editor:BitmapEdit
 engine never imports it. Its sprite library (71 sprites, also the AI's training data) is package
 data in `src/apps/bitmappy/src/bitmappy/resources/sprites/` (`bitmappy.SPRITE_CONFIG_DIR`), beside
 its window icon and `bitmappy.cfg`. Its tests are in `src/apps/bitmappy/tests/`, and its
-`pyproject.toml` declares what it imports (the engine, aisuite, numpy, pydantic, pygame-ce,
+`pyproject.toml` declares what it imports (the engine, numpy, pydantic, pygame-ce,
 tenacity). The Load and Save dialogs open the file name as typed (whitespace trimmed): there is
 no `example:` prefix, so a sprite in the library is opened by its path.
 
@@ -1378,7 +1423,7 @@ Features:
 - Multi-controller support (`MultiControllerManager`)
 - Collision visualization (`VisualCollisionManager`)
 - TOML file format for sprites
-- AI integration via aisuite, behind the feature flag `AI_FEATURES_ENABLED`
+- AI integration via the local AI service, behind the feature flag `AI_FEATURES_ENABLED`
   (`src/apps/bitmappy/src/bitmappy/constants.py`; off in WebAssembly builds for now: the AI worker is a separate
   process, which a browser cannot start). `tenacity` is imported only when an AI request is made
   (`src/apps/bitmappy/src/bitmappy/ai_worker.py` `_create_ai_retry_decorator`), so Bitmappy imports without it
@@ -1609,7 +1654,7 @@ alpha = 127  # 0-254 for transparency, omit for opaque
 - Onion skinning ('O' key, right-click frames)
 - TOML/PNG drag-and-drop support
 - Undo/redo system for canvas and film strip operations
-- AI sprite generation via aisuite
+- AI sprite generation via the local AI service
 - Voice recognition support
 - ASCII renderer with transparency support
 

@@ -153,6 +153,8 @@ class DebugFrameInfo:
     screen_shake_offset: tuple[float, float]
     mouse_position: tuple[int, int] | None
     inspected_scene_label: str | None = None
+    # The local AI's state, as lines of text, or empty for a run without AI
+    ai_status: tuple[str, ...] = ()
 
 
 def screen_rect_for(*, sprite: object, screen_offset: tuple[int, int]) -> pygame.Rect:
@@ -1076,6 +1078,21 @@ def draw_audio_panel(
     )
 
 
+def draw_ai_panel(
+    *, surface: pygame.Surface, font: pygame.font.Font, frame_info: DebugFrameInfo
+) -> None:
+    """Draw the AI panel: the local AI's state, or that this run has none.
+
+    Args:
+        surface (pygame.Surface): The presented frame to draw onto.
+        font (pygame.font.Font): Font used for the text.
+        frame_info (DebugFrameInfo): Supplies the status lines.
+
+    """
+    lines = list(frame_info.ai_status) or ['No AI this run']
+    _draw_text_lines(surface=surface, font=font, lines=lines, top=AUDIO_PANEL_TOP)
+
+
 def draw_mode_line(
     *,
     surface: pygame.Surface,
@@ -1092,7 +1109,8 @@ def draw_mode_line(
         inspected_scene_label (str | None): The paused scene being shown, if any.
 
     """
-    mode_text = f'DEBUG: {panel.value.capitalize()} (F3 off, F4 next)'
+    title = 'AI' if panel.value == 'ai' else panel.value.capitalize()
+    mode_text = f'DEBUG: {title} (F3 off, F4 next)'
     if inspected_scene_label is not None:
         mode_text += f' | paused: {inspected_scene_label}'
     text_surface = font.render(

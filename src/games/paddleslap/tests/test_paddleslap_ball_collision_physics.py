@@ -481,7 +481,7 @@ class TestSweptBallCollision:
             second_start=(PARTLY_CROSSING_START_X[1], 240.0),
             velocity=CAPPED_SPEED,
         )
-        harness.game._ball_collision_cooldowns = {(id(second_ball), id(first_ball)): 5}
+        harness.game._ball_collision_cooldowns = {(second_ball, first_ball): 5}
 
         harness.game._ball_collision_pairs = []
         harness.game._collide_balls_that_met_within_the_frame()

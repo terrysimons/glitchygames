@@ -212,3 +212,7 @@ src/quicklook/App/SpritePreview.xcodeproj/
 
 # Claude Code's git worktrees: checkouts of other branches, not this branch's files
 .claude/worktrees/
+
+# AI behaviour test snapshots: generated from the recordings by uv run python -m
+# scripts.ai_behaviour.capture GAME (about 10 MB; plans/lucid-circuit-5-load-harness.md, Part 2b)
+scripts/ai_behaviour/fixtures/

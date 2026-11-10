@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, NoReturn, Self, cast, 
 import pygame
 
 from glitchygames import clock, events
+from glitchygames.ai_link import AiLink, create_link
 from glitchygames.argument_types import non_negative_int, unit_interval
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -171,6 +172,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Generator, Sequence
     from types import FrameType
 
+    from glitchygames.ai_console import AiConsole
     from glitchygames.audio.voices import ChannelPartition
     from glitchygames.crt_power_on_sound import CrtPowerOnSound
     from glitchygames.input.devices import OpenedController, ReplayDeviceRegistry
@@ -214,6 +216,11 @@ DEFAULT_CRT_POWER_ON_SOUND = CRT_POWER_ON_SOUND_ON
 HEADLESS_SDL_DRIVER = 'dummy'
 # The environment variables that choose SDL's video and audio drivers (--headless sets both)
 SDL_DRIVER_VARIABLES = ('SDL_VIDEODRIVER', 'SDL_AUDIODRIVER')
+# What a Linux Wayland session runs on when nothing chose a driver: alone, SDL picks x11 there
+# whenever DISPLAY is also set (seen on Ubuntu 26.10), which goes through XWayland and cost a
+# fullscreen window about 25% on a Raspberry Pi 4. SDL tries a list in order, so x11 still starts
+# when Wayland cannot
+WAYLAND_FIRST_VIDEO_DRIVERS = 'wayland,x11'
 # SDL's hint that turns its own SIGINT/SIGTERM handlers off (the engine owns the signals)
 SDL_NO_SIGNAL_HANDLERS_HINT = 'SDL_NO_SIGNAL_HANDLERS'
 # --video-driver's choices: SDL 2's video drivers by platform.system() name (SDL's own list,
@@ -775,6 +782,9 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
     # the teardown (_shutdown). Class defaults so they read None on an engine whose __init__
     # did not run.
     onion_skin: OnionSkin | None = None
+    # The AI's console, for a run with a link (glitchygames/ai_console.py); the debug overlay's
+    # AI panel reads it
+    ai_console: AiConsole | None = None
     frame_stream: FrameStream | None = None
     # OLD when --compare-trace OLD is played live (no --replay-trace; rule 9 of
     # glitchygames/replay/tools/compare.py), else None
@@ -852,6 +862,17 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             '-w',
             '--windowed',
             help='run in a window; --no-windowed runs fullscreen (default: windowed)',
+            action=argparse.BooleanOptionalAction,
+            default=True,
+        )
+        # Not a tool in the registry: two tool flags at once are refused, and this is on by default
+        group.add_argument(
+            '--ai',
+            help=(
+                'connect to the local AI service if it is installed, starting its models as '
+                'the game loads; --no-ai never touches it (default: on, but never with '
+                '--headless or in a replay)'
+            ),
             action=argparse.BooleanOptionalAction,
             default=True,
         )
@@ -1059,7 +1080,8 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             '--video-driver',
             help=(
                 "SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: "
-                "SDL_VIDEODRIVER's own value, or SDL's choice; --headless overrides it)"
+                "SDL_VIDEODRIVER's own value, then Wayland on a Linux Wayland session, then "
+                "SDL's choice; --headless overrides it)"
             ),
             default=None,
             choices=video_driver_choices,
@@ -1392,19 +1414,20 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # A live run is hosted: the outer game (glitchygames/host.py) reads through the live
         # doors and drives the frames. A replay has no host (its viewer is its outer game)
         self.host: GameHost | None = None
+        # The run's session with the local AI service, if it has one (glitchygames/ai_link.py)
+        self.ai_link: AiLink | None = None
         if self.replay_sources is None:
+            live_sources = LiveSources(
+                random_seed=self.random_seed,
+                use_fastevents=GameEngine.USE_FASTEVENTS,
+                # A recorded run captures scene starts from its first scene on, which
+                # is built before recording starts (glitchygames/scene_start.py)
+                captures_scene_starts=options.get('record_trace') is not None,
+            )
+            self.ai_link = create_link(options=options)
             self.host = GameHost(
-                sources=HostSources(
-                    inner=LiveSources(
-                        random_seed=self.random_seed,
-                        use_fastevents=GameEngine.USE_FASTEVENTS,
-                        # A recorded run captures scene starts from its first scene on, which
-                        # is built before recording starts (glitchygames/scene_start.py)
-                        captures_scene_starts=options.get('record_trace') is not None,
-                    ),
-                    # Live play against OLD draws OLD over each presented frame
-                    overlay=self.onion_skin,
-                )
+                # Live play against OLD draws OLD over each presented frame
+                sources=self._host_sources(inner=live_sources, overlay=self.onion_skin)
             )
             install_sources(sources=self.host.sources)
         else:
@@ -3113,10 +3136,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             )
 
     def _choose_sdl_drivers(self: Self, *, options: dict[str, Any]) -> None:
-        """Apply --headless or --video-driver before anything starts the display or the mixer.
+        """Choose the drivers before anything starts the display or the mixer.
 
         --headless wins: its dummy driver is the point of the run, so --video-driver is ignored
-        (with a warning).
+        (with a warning). With neither, a Linux Wayland session runs on Wayland, unless
+        SDL_VIDEODRIVER already says otherwise.
 
         Args:
             options: The engine's options.
@@ -3133,9 +3157,25 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
             self._enter_headless_mode()
         elif video_driver:
             self._enter_video_driver(video_driver=video_driver)
+        elif self._is_on_a_wayland_session_with_no_driver_chosen():
+            self._enter_video_driver(video_driver=WAYLAND_FIRST_VIDEO_DRIVERS)
+
+    @staticmethod
+    def _is_on_a_wayland_session_with_no_driver_chosen() -> bool:
+        """Return whether this is a Linux Wayland session whose SDL_VIDEODRIVER chooses nothing.
+
+        Returns:
+            True when the engine should choose Wayland.
+
+        """
+        return (
+            platform.system() == 'Linux'
+            and bool(os.environ.get('WAYLAND_DISPLAY'))
+            and not os.environ.get('SDL_VIDEODRIVER')
+        )
 
     def _enter_video_driver(self: Self, *, video_driver: str) -> None:
-        """--video-driver: start the display on the named SDL video driver.
+        """Start the display on the named SDL video driver, or the first of a list that starts.
 
         Called right after the options are read, before ``pygame.init()`` and the display, as
         ``_enter_headless_mode`` is. A display pygame started before the engine on another driver
@@ -3144,14 +3184,16 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         (``_restore_sdl_driver_variables``).
 
         Args:
-            video_driver: The SDL video driver (an SDL_VIDEODRIVER name).
+            video_driver: What SDL_VIDEODRIVER is set to: a driver's name, or a comma-separated
+                list of them in the order to try.
 
         """
         self._remember_sdl_driver_variables()
         os.environ['SDL_VIDEODRIVER'] = video_driver
-        if pygame.display.get_init() and pygame.display.get_driver() != video_driver:
+        wanted_driver = video_driver.split(',', maxsplit=1)[0]
+        if pygame.display.get_init() and pygame.display.get_driver() != wanted_driver:
             self.log.warning(
-                '--video-driver: pygame was started before the engine; restarting the display '
+                'pygame was started before the engine; restarting the display '
                 '(video driver %r) on %r',
                 pygame.display.get_driver(),
                 video_driver,
@@ -3229,6 +3271,11 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         # the timer holds here, not in its finaliser, which must not log (BUGS.md #188)
         if self.timer is not None:
             self.timer.close()
+        # Closes this game's session; the service stops the models once the last one has gone
+        if self.ai_console is not None:
+            self.ai_console.stop()
+        if self.ai_link is not None:
+            self.ai_link.stop()
         # Before pygame quits: the sound library's voices fade over 50 ms, waited for at most
         # 100 ms (sound engine impl spec 10.3), then the channel reservation is given back (SDL
         # would keep it for a mixer started again in this process). Even when closing the audio
@@ -3675,6 +3722,26 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
         if outcome is PowerOnOutcome.QUIT:
             post_input_event(event=pygame.event.Event(pygame.QUIT))
 
+    def _host_sources(self: Self, *, inner: LiveSources, overlay: OnionSkin | None) -> HostSources:
+        """Build the host's doors: the AI's subclass only for a run that has a link.
+
+        Args:
+            inner: The live doors.
+            overlay: Drawn over each presented frame, or None.
+
+        Returns:
+            The doors.
+
+        """
+        if self.ai_link is None:
+            return HostSources(inner=inner, overlay=overlay)
+        # Imported here: a run without AI never loads it
+        from glitchygames.ai_host import AiHostSources
+
+        ai_sources = AiHostSources(inner=inner, link=self.ai_link, overlay=overlay)
+        self.ai_console = ai_sources.console
+        return ai_sources
+
     def _build_game(self: Self, *, paced_by_timer: bool) -> None:
         """Construct the game and its first scene, up to the first frame (inside the boundary).
 
@@ -3683,6 +3750,10 @@ class GameEngine(events.EventManager):  # ruff: ignore[too-many-public-methods]
                 is then calibrated; False for ``start_async()``.
 
         """
+        # As the game loads: this returns at once, and the models load on the link's thread
+        if self.ai_link is not None:
+            self.ai_link.start()
+
         # Initialize the game instance
         self.game = self.game(options=GameEngine.OPTIONS)
 

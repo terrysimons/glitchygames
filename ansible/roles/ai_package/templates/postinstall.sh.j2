@@ -1,0 +1,41 @@
+#!/bin/sh
+# Runs once the payload is in place. It only hands off to a one-shot launchd job, which downloads
+# the models and starts the service, so the installer can't hang on a slow connection and the work
+# runs as the logged-in user. With no one logged in, launchd runs the job at their next login.
+set -u
+
+label={{ ai_package_setup_label }}
+home_directory=${2:-$HOME}
+install_root="$home_directory/Library/Application Support/GlitchyGames/AI"
+launch_agents="$home_directory/Library/LaunchAgents"
+log_directory="$home_directory/Library/Logs/GlitchyGames/AI"
+
+mkdir -p "$launch_agents" "$log_directory"
+
+cat > "$launch_agents/$label.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>$label</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$install_root/bin/setup.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>$log_directory/setup.log</string>
+  <key>StandardErrorPath</key>
+  <string>$log_directory/setup.log</string>
+</dict>
+</plist>
+PLIST
+
+plutil -lint "$launch_agents/$label.plist" >/dev/null || exit 1
+
+domain="gui/$(id -u)"
+launchctl bootout "$domain/$label" 2>/dev/null
+launchctl bootstrap "$domain" "$launch_agents/$label.plist" 2>/dev/null
+exit 0

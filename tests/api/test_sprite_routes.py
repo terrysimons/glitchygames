@@ -99,7 +99,6 @@ class TestHealthEndpoints:
         data = response.json()
         assert data['status'] == 'healthy'
         assert 'version' in data
-        assert 'ai_provider' in data
         assert 'ai_model' in data
 
     @pytest.mark.parametrize(

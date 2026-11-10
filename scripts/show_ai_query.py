@@ -48,7 +48,7 @@ def construct_ai_query(
     log_separator('BITMAPPY AI QUERY CONSTRUCTION')
 
     # AI Configuration (extracted from bitmappy.py)
-    ai_model: str = 'ollama:mistral-nemo:12b'
+    ai_model: str = 'reasoning'
     ai_max_input_tokens: int = 8192
     ai_training_format: str = 'toml'
 

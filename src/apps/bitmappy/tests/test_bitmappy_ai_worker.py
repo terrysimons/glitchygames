@@ -1,12 +1,9 @@
 """Tests for bitmappy.ai_worker.
 
-The AI client that answers requests is always a local fake standing in for aisuite's client
-(the network boundary); the timeout tests build a real aisuite Client and its providers, which
-connect to nothing until a request is sent. No test sends a real AI request or opens a
-connection.
+The AI client that answers requests is always a local fake standing in for the local AI
+service's client (the network boundary). No test sends a real AI request or opens a connection.
 """
 
-import inspect
 import logging
 import os
 import queue
@@ -17,20 +14,16 @@ from http import HTTPStatus
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
-import aisuite
-import aisuite.provider
 import pytest
-from aisuite.provider import ProviderFactory
 
 from bitmappy import ai_worker
-from bitmappy.constants import AI_MODEL_DOWNLOAD_TIMEOUT, AI_TIMEOUT
+from bitmappy.constants import AI_MODEL, AI_TIMEOUT
 from bitmappy.models import AIRequest, AIResponse
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 LOG = logging.getLogger('test.ai_worker')
-OLLAMA_MODEL = 'ollama:tiny-model'
 
 
 @pytest.fixture(autouse=True)
@@ -49,7 +42,7 @@ def _response_with_content(content: str | None) -> SimpleNamespace:
     """Build a chat completion response with one choice holding ``content``.
 
     Returns:
-        An object shaped like an aisuite chat completion response.
+        An object shaped like a chat completion response.
 
     """
     return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
@@ -64,7 +57,7 @@ class FakeCompletions:
         self.error = error
         self.calls: list[dict[str, object]] = []
 
-    def create(self, *, model: str, messages: list, max_tokens: int, timeout: float = 0) -> object:
+    def create(self, *, model: str, messages: list, max_tokens: int) -> object:
         """Record the call and answer it.
 
         Returns:
@@ -75,24 +68,9 @@ class FakeCompletions:
             'model': model,
             'messages': messages,
             'max_tokens': max_tokens,
-            'timeout': timeout,
         })
         if self.error is not None:
             raise self.error
-        return self.response
-
-
-class FakeCompletionsWithoutTimeout(FakeCompletions):
-    """Completions whose create() accepts no timeout parameter."""
-
-    def create(self, *, model: str, messages: list, max_tokens: int) -> object:  # type: ignore[override]
-        """Record the call and answer it.
-
-        Returns:
-            The configured response.
-
-        """
-        self.calls.append({'model': model, 'messages': messages, 'max_tokens': max_tokens})
         return self.response
 
 
@@ -117,93 +95,33 @@ def _request(request_id: str = 'request-1') -> AIRequest:
     return AIRequest(prompt=str(messages), request_id=request_id, messages=messages)
 
 
-def _initialize_real_client() -> aisuite.Client:
-    """Run _initialize_ai_client, which builds a real aisuite Client (sending nothing).
+class TestInitializeAiClient:
+    """Test _initialize_ai_client: the local AI service's client, built with the AI timeout."""
 
-    Returns:
-        The client.
-
-    """
-    client = ai_worker._initialize_ai_client(LOG)
-    assert isinstance(client, aisuite.Client)
-    return client
-
-
-def _provider_created_from(client: aisuite.Client, provider_key: str) -> aisuite.provider.Provider:
-    """Create the provider a real aisuite Client would create for its first request.
-
-    aisuite creates a provider lazily, on the first request that names it, from the client's
-    ``provider_configs`` entry (``aisuite.client.Completions``); this does the same without
-    sending a request.
-
-    Returns:
-        The aisuite provider, holding the vendor SDK client as ``client``.
-
-    """
-    return ProviderFactory.create_provider(
-        provider_key, dict(client.provider_configs[provider_key])
-    )
-
-
-class TestProviderTimeouts:
-    """The real aisuite Client _initialize_ai_client builds gives its providers the timeouts.
-
-    No request is sent: the providers are created offline, as aisuite creates them for the
-    first request.
-    """
-
-    def test_no_provider_exists_before_the_first_request(self, mocker):
-        """The client creates providers lazily, so only its configuration can carry a timeout."""
-        mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
-
-        client = _initialize_real_client()
-
-        assert client.providers == {}
-
-    def test_anthropic_client_gets_the_timeout(self, mocker):
-        """The Anthropic SDK client aisuite creates has the AI timeout, and no ollama is set up."""
-        mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
-        mocker.patch.dict('os.environ', {'ANTHROPIC_API_KEY': 'offline-test-key'})
-
-        client = _initialize_real_client()
-        provider = _provider_created_from(client, 'anthropic')
-
-        assert provider.client.timeout == AI_TIMEOUT
-        assert 'ollama' not in client.provider_configs
-
-    @pytest.mark.parametrize(
-        ('downloaded', 'expected_timeout'),
-        [(True, AI_TIMEOUT), (False, AI_MODEL_DOWNLOAD_TIMEOUT)],
-    )
-    def test_ollama_client_gets_the_timeout_for_the_model_status(
-        self,
-        mocker,
-        downloaded,
-        expected_timeout,
-    ):
-        """The ollama provider can be created, and its HTTP client has the timeout.
-
-        A model that must be downloaded first gets the longer download timeout. The provider
-        passes its configuration to openai.OpenAI, which once raised TypeError on the
-        request_timeout and read_timeout keys the configuration held, so every ollama request
-        failed.
-        """
-        mocker.patch.object(ai_worker, 'AI_MODEL', OLLAMA_MODEL)
-        mocker.patch.dict('os.environ')
-        model_status = mocker.patch.object(
-            ai_worker,
-            '_check_ollama_model_status',
-            return_value={'downloaded': downloaded},
+    def test_the_client_is_created_with_the_ai_timeout(self, mocker):
+        """The client comes from create_chat_client, given AI_TIMEOUT."""
+        client = _client_with(FakeCompletions())
+        create_chat_client = mocker.patch(
+            'glitchygames.ai.local_service.create_chat_client',
+            return_value=client,
         )
 
-        client = _initialize_real_client()
-        ollama_provider = _provider_created_from(client, 'ollama')
+        assert ai_worker._initialize_ai_client(LOG) is client
+        create_chat_client.assert_called_once_with(timeout_seconds=AI_TIMEOUT)
 
-        assert ollama_provider.client.timeout == expected_timeout
-        assert client.provider_configs['anthropic'] == {'timeout': AI_TIMEOUT}
-        # One status query, and no OLLAMA_TIMEOUT, which nothing reads (BUGS.md #178 item 23)
-        assert model_status.call_count == 1
-        assert 'OLLAMA_TIMEOUT' not in os.environ
+    def test_a_service_that_is_not_installed_gives_no_client(self, mocker, caplog):
+        """No installed service: the failure is logged and there is no client."""
+        from glitchygames.ai.local_service import LocalAIServiceNotInstalledError
+
+        mocker.patch(
+            'glitchygames.ai.local_service.create_chat_client',
+            side_effect=LocalAIServiceNotInstalledError('not installed'),
+        )
+
+        with caplog.at_level(logging.ERROR, logger=LOG.name):
+            assert ai_worker._initialize_ai_client(LOG) is None
+
+        assert 'AI features disabled' in caplog.text
 
 
 class TestQueryModelCapabilities:
@@ -222,17 +140,6 @@ class TestQueryModelCapabilities:
         }
         assert completions.calls[0]['max_tokens'] == 256
 
-    def test_slow_answer_is_reported_as_a_likely_download(self, mocker, caplog):
-        """A query slower than the download threshold logs that the model was downloaded."""
-        mocker.patch('glitchygames.clock.measured_seconds', side_effect=[0.0, 120.0])
-        completions = FakeCompletions(response=_response_with_content('4096'))
-
-        with caplog.at_level(logging.INFO, logger=LOG.name):
-            capabilities = ai_worker._query_model_capabilities(LOG, _client_with(completions))
-
-        assert capabilities == {'max_tokens': 4096}
-        assert 'Model was likely downloaded during this request' in caplog.messages
-
     def test_response_without_choices_has_unknown_max_tokens(self):
         """An empty answer leaves max_tokens unknown."""
         completions = FakeCompletions(response=SimpleNamespace(choices=[]))
@@ -242,7 +149,7 @@ class TestQueryModelCapabilities:
         }
 
     def test_message_without_content_has_unknown_max_tokens(self):
-        """A choice whose message has no content (aisuite's Message.content is None) is no answer.
+        """A choice whose message has no content (the message's content is None) is no answer.
 
         It used to reach _parse_capabilities_response, which raised AttributeError on None.
         """
@@ -269,23 +176,13 @@ class TestGetModelCapabilities:
     """Test _get_model_capabilities."""
 
     def test_without_a_client_uses_default_capabilities(self, mocker):
-        """When aisuite is unavailable the defaults are returned."""
-        mocker.patch.object(
-            ai_worker,
-            '_check_ollama_model_status',
-            return_value={'downloaded': False, 'reason': 'needs_download'},
-        )
+        """When the local service is not installed the defaults are returned."""
         mocker.patch.object(ai_worker, '_initialize_ai_client', return_value=None)
 
         assert ai_worker._get_model_capabilities(LOG) == {'max_tokens': 8192, 'num_ctx': 65536}
 
     def test_with_a_client_queries_the_model(self, mocker):
         """With a client, the model is asked for its limits."""
-        mocker.patch.object(
-            ai_worker,
-            '_check_ollama_model_status',
-            return_value={'downloaded': True, 'reason': 'not_ollama'},
-        )
         completions = FakeCompletions(response=_response_with_content('1024'))
         mocker.patch.object(
             ai_worker,
@@ -297,11 +194,6 @@ class TestGetModelCapabilities:
 
     def test_connection_failure_gives_unknown_max_tokens(self, mocker):
         """A connection error while querying is logged and yields unknown limits."""
-        mocker.patch.object(
-            ai_worker,
-            '_check_ollama_model_status',
-            return_value={'downloaded': True, 'reason': 'not_ollama'},
-        )
         completions = FakeCompletions(error=ConnectionError('refused'))
         mocker.patch.object(
             ai_worker,
@@ -347,9 +239,8 @@ class TestIsNonRetryableAiError:
 class TestMakeAiApiCall:
     """Test _make_ai_api_call."""
 
-    def test_timeout_parameter_gets_the_normal_timeout(self, mocker):
-        """A create() that takes a timeout is called with AI_TIMEOUT for hosted models."""
-        mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
+    def test_the_call_gets_the_model_messages_and_output_limit(self):
+        """The create() call is given the model, the messages and the output token limit only."""
         expected_response = _response_with_content('[sprite]')
         completions = FakeCompletions(response=expected_response)
 
@@ -358,16 +249,14 @@ class TestMakeAiApiCall:
         assert response is expected_response
         assert completions.calls == [
             {
-                'model': 'anthropic:model',
+                'model': AI_MODEL,
                 'messages': _request().messages,
                 'max_tokens': ai_worker.AI_MAX_OUTPUT_TOKENS,
-                'timeout': AI_TIMEOUT,
             },
         ]
 
     def test_the_api_call_arguments_are_logged_at_debug_level(self, mocker, caplog):
         """The request's arguments (the whole prompt) are diagnostics, not a critical event."""
-        mocker.patch.object(ai_worker, 'AI_MODEL', 'anthropic:model')
         completions = FakeCompletions(response=_response_with_content('[sprite]'))
 
         with caplog.at_level(logging.DEBUG, logger=LOG.name):
@@ -377,24 +266,6 @@ class TestMakeAiApiCall:
             record for record in caplog.records if record.getMessage().startswith('API call kwargs')
         ]
         assert [record.levelno for record in argument_records] == [logging.DEBUG]
-
-    def test_ollama_gets_the_download_timeout(self, mocker):
-        """Ollama models get the long timeout, since the first call may download the model."""
-        mocker.patch.object(ai_worker, 'AI_MODEL', OLLAMA_MODEL)
-        completions = FakeCompletions(response=_response_with_content('x'))
-
-        ai_worker._make_ai_api_call(_request(), _client_with(completions), LOG)
-
-        assert completions.calls[0]['timeout'] == AI_MODEL_DOWNLOAD_TIMEOUT
-
-    def test_create_without_a_timeout_parameter_is_called_without_one(self):
-        """A create() with no timeout parameter is called with only the basic arguments."""
-        completions = FakeCompletionsWithoutTimeout(response=_response_with_content('x'))
-
-        ai_worker._make_ai_api_call(_request(), _client_with(completions), LOG)
-
-        assert set(completions.calls[0]) == {'model', 'messages', 'max_tokens'}
-        assert 'timeout' not in inspect.signature(completions.create).parameters
 
     def test_failed_call_is_reraised(self):
         """An error from the API propagates to the retry logic."""

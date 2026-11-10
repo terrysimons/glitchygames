@@ -52,7 +52,7 @@ pip install --find-links dist "glitchygames[templates]"  # the engine and its pr
 | `docs` | MkDocs documentation generation |
 | `templates` | cookiecutter, for building a new game project from a template (`glitchygames.templates`, `scripts/create.py`); without it, building says `pip install glitchygames[templates]` |
 
-The sprite API server and client (FastAPI, uvicorn, httpx, apng, pillow) are core dependencies; the `api` extra is empty.
+The sprite API server and client (FastAPI, uvicorn, httpx2, apng, pillow) are core dependencies; the `api` extra is empty.
 
 ## Script Entrypoints
 
@@ -118,7 +118,7 @@ uv run glitchygames-server
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | API information (name, version, docs and health links) |
-| GET | `/health` | Health check (status, version, AI provider and model) |
+| GET | `/health` | Health check (status, version and AI model) |
 | POST | `/sprites/generate` | Generate a sprite from a text prompt |
 | POST | `/sprites/refine` | Refine an existing sprite with a new prompt |
 | POST | `/sprites/extract-frames` | Extract individual frames from an APNG |
@@ -152,7 +152,7 @@ uv run glitchygames-client --extract-frames animation.apng
 uv run glitchygames-client "red mushroom" -f toml
 
 # Use a specific AI model
-uv run glitchygames-client "blue dragon" --animation-language-model anthropic:claude-sonnet-4-5
+uv run glitchygames-client "blue dragon" --animation-language-model bonsai-2-9b
 ```
 
 #### Client Options
@@ -170,7 +170,7 @@ uv run glitchygames-client "blue dragon" --animation-language-model anthropic:cl
 | `--animation-duration` | Animation duration in seconds (0-60) | -- |
 | `--png-scale` | PNG output scale factor (1-10) | 1 |
 | `--extract-scale` | Nearest-neighbor scale factor for extracted PNG frames | 8 |
-| `--animation-language-model` | AI model override (aisuite format) | -- |
+| `--animation-language-model` | AI model override: a role or an exact size | -- |
 | `--extract-frames` | Extract frames from an APNG file | -- |
 | `-v`, `--verbose` | Verbose output | -- |
 | `-q`, `--quiet` | Quiet output | -- |
@@ -203,7 +203,7 @@ All games built on GlitchyGames inherit these command-line options from the engi
 | `-r`, `--resolution` | Display resolution (e.g. `1024x768`) | `800x480` |
 | `--use-gfxdraw` | Not used yet: stored, but nothing draws with pygame.gfxdraw because of it | `False` |
 | `--update-type` | Display update method: `update` (dirty rects) or `flip` (full screen) | `update` |
-| `--video-driver` | SDL's video driver for the run (sets `SDL_VIDEODRIVER`; `--headless` overrides it) | `SDL_VIDEODRIVER`, or SDL's choice |
+| `--video-driver` | SDL's video driver for the run (sets `SDL_VIDEODRIVER`; `--headless` overrides it) | `SDL_VIDEODRIVER`, then Wayland on a Linux Wayland session, then SDL's choice |
 | `--random-seed` | Master seed for every engine random stream | a random 64-bit seed |
 | `--screen-shake-intensity` | Screen shake strength, 0.0 (off) to 1.0 | `1.0` |
 | `--rumble-intensity` | Controller rumble strength, 0.0 (off) to 1.0 | `1.0` |
@@ -273,29 +273,20 @@ The other replay options (`--replay-fps`, `--audit`, `--compare-processing`, `--
 
 ## AI Sprite Generation
 
-GlitchyGames integrates with AI providers via [aisuite](https://github.com/andrewyng/aisuite) for text-to-sprite generation. AI generation is available in both Bitmappy (interactive) and the API server (programmatic).
-
-### Supported Providers
-
-Any provider supported by aisuite, including:
-
-- **Anthropic** (Claude models) -- default
-- **OpenAI** (GPT models)
-- **Ollama** (local models)
+GlitchyGames generates sprites from text with local models, through the local AI service (`ansible/macos_ai_service.yml` or its package; Apple Silicon only for now). Nothing leaves the machine. Cloud models are planned for later (`plans/lucid-circuit.md`).
 
 ### Configuration
 
 | Environment Variable | Description | Default |
 |---------------------|-------------|---------|
-| `SPRITE_AI_PROVIDER` | AI provider name | `anthropic` |
-| `SPRITE_AI_MODEL` | Model identifier | `claude-sonnet-4-5` |
-| `SPRITE_AI_TIMEOUT` | Request timeout in seconds | `120` |
+| `SPRITE_AI_MODEL` | The model | `reasoning` |
+| `SPRITE_AI_TIMEOUT` | Request timeout in seconds | `600` |
 | `SPRITE_DEFAULT_WIDTH` | Default sprite width | `16` |
 | `SPRITE_DEFAULT_HEIGHT` | Default sprite height | `16` |
 | `SPRITE_MAX_SIZE` | Maximum sprite dimension | `64` |
 | `SPRITE_PNG_SCALE` | PNG output scale factor | `1` |
 
-The model string is formatted as `{provider}:{model}` for aisuite (e.g. `anthropic:claude-sonnet-4-5`, `ollama:llama3`).
+The model is a role (`reasoning`), which uses whichever size this machine can run, or an exact size (`bonsai-2-9b`).
 
 ### How It Works
 

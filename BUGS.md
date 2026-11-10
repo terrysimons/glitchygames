@@ -4,6 +4,86 @@ This document tracks bugs reported during development. Bugs are listed in order 
 
 ## Active Bugs
 
+### 269. The AI Console's Past-Questions Test Covered Its Own Path Only When the Worker Was Slow
+- **Description**: `test_searching_reaches_past_runs_questions` (`tests/test_ai_console.py`) says past runs' questions are "found even if they arrive after the typing", the path `AiConsole._take_past_questions` takes when a search is under way (`src/glitchygames/ai_console.py`, the `self._find_match(before=None)` line). Ctrl-R starts the history read on the console's worker thread, and each typed key drains the worker's finished updates. When the read finished before the first key, the questions were handed over while the search was still empty, the line was skipped, and typing then found them by the ordinary path: the test passed either way, and that line was covered or not by the threads' timing
+- **Status**: Resolved (2026-11-08: the test holds the worker's read until the search is typed, checks the search finds nothing before the questions arrive, then releases it)
+- **Priority**: Medium (the suite's 100% coverage gate failed at random: `ai_console.py` 99.77%, line 1084 missed, in two full `-n auto` runs on 2026-11-08)
+- **Reporter**: Found in the full suite runs while rebasing the engine-context and watched-replay branches
+- **Date Reported**: 2026-11-08
+- **Details**: The other past-questions test (`test_past_questions_arriving_with_no_search_typed_change_nothing`) covers the empty-search arrival on purpose. Pattern to avoid: a test whose subject is an ordering between a worker thread and the main thread, left to the scheduler
+- **Files**: `tests/test_ai_console.py`
+### 270. Brave Adventurer Papyrus Copied Every Sprite's Frame Every Tick
+- **Description**: The mirror measurements (plans/lucid-circuit-4b-mirror.md, step 1, 2026-11-08) counted 51 `Surface.copy` calls a frame in Papyrus's golden replay; every other game made 0 to 6 Surface-making calls a frame. All came from `refresh_drawn_image` (`brave_adventurer_papyrus/sprite_utils.py`), which every Papyrus sprite called each tick to reset its image to a fresh copy of its frame. The copy was only ever needed by the player, whose respawn fade calls `set_alpha` (a change in place, which would otherwise reach the engine's cached frame). The 46 gold scarabs, the cobra and the scarab did nothing with their copies, and the scorpion only flips, which returns a new surface. About 27 µs a frame (half a microsecond a copy), so churn rather than a slowdown
+- **Status**: Fixed (2026-11-08: `refresh_drawn_image` resets image to the drawn frame without copying; the gold scarab, cobra and scarab no longer call it (the engine redraws image as the frame changes); the scorpion still resets before its flip; the player copies only while it fades and its image is still the cached frame. `AnimatedSprite.drawn_frame_surface`'s docstring now says when a copy is needed. Tests: each sprite's tick leaves the cached frame as its image, and the player's fade never reaches it. Both Brave Adventurer goldens and the golden traces still match; the measurement now counts no copies)
+- **Priority**: Low (allocation churn)
+- **Reporter**: Claude, from the mirror measurements' surfaces count
+- **Date Reported**: 2026-11-08
+- **Files**: `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py`, `player.py`, `enemies.py`, `terrain.py`, `src/glitchygames/sprites/animated.py`, `src/games/brave-adventurer/tests/papyrus/test_brave_adventurer_papyrus.py`
+
+### 267. A Watched Comparison Replay Skipped Presenting a Frame Once on CircleCI's macOS Job
+- **Description**: CircleCI build 2986 (`build-and-test-macos`, main after #161's merge, `beb53bb8`) failed `tests/replay/tools/test_compare_trace.py::test_a_shorter_old_holds_its_last_frame_with_the_label`: the watched replay of NEW with `--compare-trace` (an OLD cut to three frames) presented frames `{1, 3, 4}`, not `{1, 2, 3, 4}`, so one viewer tick ran inner frames 2 and 3 together. Exit status was SUCCESS. The other 24,937 tests passed; the test passed on #161's own CI run. Nothing was logged in the test's capture beyond the options table. A red main also kept the merge's docs from deploying (`deploy-docs` waits for the macOS job)
+- **Status**: Resolved (2026-11-08, branch `watched-replay-every-frame`: the 2026-10-30 work of `test/compare-trace-steady-frame-times`, rebased onto main. Recurred on #164's CI, build 3019, with the same `{1, 3, 4}`)
+- **Priority**: Medium (intermittent; a failure on main stops the docs deploy)
+- **Root cause** (reproduced 2026-11-08): the time a 1x watched replay owes before presenting frame N is frame N+1's recorded `dt` (a frame's `dt` runs from its start to the next frame's start), and the accumulator ran every frame a 60 Hz tick's time covered, presenting only the last. `recorded_old` records the color game live and paced in a child, so its frame times are that machine's: a pacing hiccup on a busy runner leaves short frames, and two of them fit one tick. Rewriting the test's recording to frame times `[0.01 ms, P, P, 12 ms, 12 ms, P]` (P = 1/60.01 s) gave exactly CI's `{1, 3, 4}` with exit SUCCESS, on a faked viewer clock; a frame 33.3 ms long followed by a near-zero one hid frame 1 instead. The same rule hid real frames in committed recordings (Brave Adventurer `golden-classic` frame 460, PaddleSlap `rally` frame 286). Fixed by rule 2 of `src/glitchygames/replay/viewer.py` (up to 1x a tick runs a second frame only when the accumulator holds that frame's time plus a whole tick, so the replay runs at most a tick behind and presents every frame), a guard over every committed recording (`tests/replay/test_committed_recordings_present_every_frame.py`), steady frame times for the compare-trace tests' recordings, and `scripts/replay_schedule.py` to simulate a recording's schedule; both reproducing patterns then present every frame. Whether live pacing's catch-up after a late frame is right is future-features #72
+- **Reporter**: CircleCI pipeline for main, build 2986
+- **Date Reported**: 2026-11-08
+- **Details**: Ruled out so far (2026-11-08):
+  - The viewer's clock: every read in `src/glitchygames/replay/viewer.py` is `clock.measured_seconds`, which the test's `watched_replay` fakes along with `sleep_for` and `sleep_coarsely`, so the ticks and the inner-frame budget (`INNER_FRAME_BUDGET_SECONDS`) don't see real time
+  - OLD's uneven recorded frame times: `recorded_old` records OLD live and paced in a child, so its dt values are the machine's (locally `[0.01, 17.53, 16.67, 16.67, 16.67, 16.67]` ms). A throwaway test rewrote both recordings with a late frame 1 and a short catch-up frame 2 (17.5 to 32 ms, then the rest of two periods): every frame was still presented, as the viewer's half-frame phase absorbs it
+  - Load: 15 runs of the test alone under 20 busy loops all passed (16-core Mac)
+
+  Not ruled out: the onion skin's OLD child (a real process, reached over a socket with real-time timeouts) and order dependence (CI ran the suite with `-n 3`: state left by an earlier test on that worker, such as controls or queued key events). Next step: rerun the failing worker's test order, or `nox -s test-random` until it recurs, then bisect what ran before it
+- **Files**: `tests/replay/tools/test_compare_trace.py`, `src/glitchygames/replay/viewer.py`, `src/glitchygames/replay/tools/compare.py`
+### 266. An Orphaned Never-Ending Stand-In Game Ran for Ten Days and Held the Mac's Audio
+- **Description**: The pre-push `compare-drivers` run for PR #159 (2026-11-08) failed 96 tests on the native driver, every one needing a real mixer: `pygame.error: CoreAudio error (AudioQueueStart): -66681`, then `mixer not initialized`. A `never_ending_game.py --measure` child of `tests/replay/tools/test_measure.py::test_a_game_that_never_ends_is_stopped_at_the_projects_timeout_and_fails` had been running for about ten days. Killed, the mixer started and the next push passed every hook.
+- **Status**: Fixed (2026-11-08: the stand-in game, `tests/stand_in_games.py` `NEVER_ENDING_GAME_SOURCE`, now gives up after `NEVER_ENDING_GAME_GIVE_UP_SECONDS`, 600, far past the 2-second timeout the tests set). `process.run_command_stopped_at_timeout` stops and reaps the child on any exception, so the orphan's test process most likely died in a way Python cannot catch (SIGKILL, a killed xdist worker); that was not reproduced.
+- **Priority**: Medium (it blocked a push, and would again after any hard-killed test run)
+- **Reporter**: Claude, pushing branch `feat/instrument-catalog-batch-1`
+- **Date Reported**: 2026-11-08
+- **Files**: `tests/stand_in_games.py`
+
+### 265. The Instrument Catalog and Alias Table Could Be Changed From Outside, Skipping Their Checks
+- **Description**: `instruments.CATALOG` and `instruments.ALIASES` were the live dicts `entry()` and `get()` read, so `instruments.ALIASES['x'] = 'nope'` changed how names resolve without `aliases_from`'s checks (found by the batch 1 final review, PR #159).
+- **Status**: Fixed (2026-11-08: both are `types.MappingProxyType` views, typed `Mapping`; a write raises `TypeError`)
+- **Priority**: Low (no caller wrote to them)
+- **Reporter**: Claude (final review of instrument catalog batch 1)
+- **Date Reported**: 2026-11-08
+- **Files**: `src/glitchygames/audio/instruments/registry.py`, `tests/audio/test_instrument_catalog.py`
+
+### 264. Name Validators Accepted a Trailing Newline
+- **Description**: Validators compiled as `^...$` and checked with `.match`, where `$` also matches just before a final newline, so `'game\n'`, `'C4\n'`, `'C\n'`, `'linear\n'` and `'fife\n'` passed. The save-directory app name (`state/paths.py` `validate_app_name`) is the one that matters: it guards a directory name. Also note names, scale roots, envelope curves (`audio/spec.py`, `audio/assets.py`), catalog names and aliases.
+- **Status**: Fixed (2026-11-08: each validator uses `fullmatch`). Not changed: `audio/render.py`'s `STEPS_CURVE` (it reads curves already validated) and `animation/expressions.py`'s token patterns (tokens hold no newline)
+- **Priority**: Low (no known input carried one)
+- **Reporter**: Claude (instrument catalog batch 1)
+- **Date Reported**: 2026-11-07
+- **Files**: `src/glitchygames/state/paths.py`, `src/glitchygames/audio/pitch.py`, `src/glitchygames/audio/spec.py`, `src/glitchygames/audio/assets.py`, `src/glitchygames/audio/instruments/catalog.py`, `src/glitchygames/audio/instruments/registry.py`
+
+### 263. The AI Tests' Stand-In Control Script Couldn't Run on Windows
+- **Description**: CircleCI build 2935 (`build-and-test-windows`, PR #157) failed 22 tests in `tests/test_ai_link.py`, `tests/ai/test_local_service.py` and `tests/engine/test_engine_ai_connection.py`, and so coverage (99.85%: `ai_link.py` 60%, `ai/local_service.py` 87%). Their stand-in install's control script, `bin/ai-service.sh`, is a `#!/bin/sh` script, as the real one is (the service is macOS only), and Windows can't start one (`OSError: [WinError 193] %1 is not a valid Win32 application`), so every test that has the link or client start the service failed there. Linux and macOS passed
+- **Status**: Fixed (2026-11-07: one stand-in install for all four AI test files, `tests/ai_service_stand_in.py` (the two copies of `install()` merged), writes a Python twin beside each control script that records the same call, waits the same way and exits the same; on Windows the harness fixture `stand_in_ai_control_scripts`, which those files request, has the engine's launcher (`process.run_command`) run the twin in the script's place, so the code under test is unchanged. Proven on macOS with the routing forced on and the shell scripts made to fail: all 174 AI tests passed through the twins alone. That found `test_start_returns_before_the_service_does` writing its own shell script, which had passed on Windows only because a failing start ends the same way; it now asks `install(waits_for=...)`)
+- **Priority**: High (the Windows job fails every PR touching the AI)
+- **Reporter**: CircleCI pipeline for PR #157, build 2935
+- **Date Reported**: 2026-11-07
+- **Files**: `tests/ai_service_stand_in.py`, `tests/harness.py`, `tests/test_ai_link.py`, `tests/ai/test_local_service.py`, `tests/engine/test_engine_ai_connection.py`, `tests/test_ai_console.py`
+
+### 262. A Console Test Left Its Worker Polling for the AI Service, and Its Sleeps Failed a Later Audio Test
+- **Description**: The pre-push shuffled run (`nox -s test-random`, seed 1473918285, 2026-11-07) failed `tests/audio/test_audio_engine.py::TestTheContextSlot::test_close_without_a_mixer_does_not_wait`: its patched `clock.raw_sleep` was called 14 times with 0.25, a sleep it never makes. 0.25 s is `READY_POLL_SECONDS` in `src/glitchygames/ai/local_service.py`. `tests/test_ai_console.py::test_ctrl_c_cancels_what_is_running_and_keeps_the_line` cancelled its request at once, before the worker reached the fake service; the fixture then shut the service down, so the worker's readiness check failed, the test install's control script "started" the service (exit 0), and the worker polled for readiness through `clock.raw_sleep` for `READY_TIMEOUT_SECONDS` (120 s), landing in whichever later test on that worker had patched it
+- **Status**: Fixed (2026-11-07: proven with a throwaway plugin listing live `ai-console` threads after each test: one was left after that test, inside `_ensure_ready`'s poll, every run; none after the fix. The test now waits for the request to reach the service first, through `wait_until_the_request_reached`, which `test_stop_abandons_what_is_running` already did inline for the same reason and now shares)
+- **Priority**: Medium (an intermittent failure that stops pushes)
+- **Reporter**: The pre-push `test-random` hook, pushing branch `worktree-ai-service-ansible`
+- **Date Reported**: 2026-11-07
+- **Details**: Found, not changed: a cancelled console request isn't checked during `LocalAIClient._ensure_ready`, so in a real game a request cancelled while the models load keeps its daemon thread waiting (up to 120 s) before it notices the cancel. Harmless today (the thread then stops reading and records the cancel). A harness check failing a test that leaves a worker thread alive would catch the next leak of this kind
+- **Files**: `tests/test_ai_console.py`
+
+### 261. The Partial-Commit Refusal Test Returned SUCCESS Once in a Full Run (Suspected Order Dependence)
+- **Description**: In one full `uv run pytest` on branch `worktree-ai-service-ansible` (2026-11-07), `tests/test_measure_staged_replays.py::test_a_partial_commit_that_needs_measuring_is_refused` failed: the hook returned `SUCCESS`, not `OPTIONS_REFUSED`. `glitchygames unmeasured` reported nothing to measure, so the hook said "already measured" before it reached the partial-commit check. The test passed alone, in three parallel reruns, and in the next full run
+- **Status**: Open (not reproduced). Suspected: state left by another test on the same xdist worker (a ledger, rows directory or settings the `unmeasured` child reads) made every recording look measured
+- **Priority**: Low (intermittent; would fail a run at random)
+- **Reporter**: Claude, during the AI behaviour suite's full checks, 2026-11-07
+- **Date Reported**: 2026-11-07
+- **Details**: Next step: replay the failing worker's test order (`-p randomly` with the run's seed, or `nox -s test-random` until it recurs), then bisect the tests that ran before it on that worker
+- **Files**: `tests/test_measure_staged_replays.py`, `scripts/measure_staged_replays.py`
+
 ### 255. Inner Pytest Runs Were Shuffled, So Tests Running Them Presented Different Frames Each Run
 - **Description**: The first full `compare-drivers` pre-push run (2026-11-02) failed on `tests/test_frame_fingerprints.py::TestRecordingARun::test_without_the_option_nothing_is_recorded` (frame 0, all 480,000 pixels), with two tests of the same class listed nondeterministic; a full local run had flagged two of them the same way. Not a driver dependence: on dummy alone, with only the inner run's seed changing, the test presented `e0f4..` first in some runs and `657a..` in others. Its inner pytest run (pytester) printed a new `--randomly-seed` every time: pytest-randomly, added the same day, is blocked by the project's addopts, which an inner run does not read, so every inner run shuffled its tests, and what they presented and left behind depended on that order
 - **Status**: Fixed (2026-11-02, bug sweep: `tests/harness.py`'s autouse `inner_runs_keep_their_order` adds `-p no:randomly` to `PYTEST_ADDOPTS` for every test that uses `pytester`, after pytester is made (making it deletes `PYTEST_ADDOPTS`); in process and subprocess inner runs read it, and the outer run, which read it already, stays shuffled. Four runs then presented the same frames in the written order. Tests: `tests/test_inner_runs.py`)

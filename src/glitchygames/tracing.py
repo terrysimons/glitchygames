@@ -81,7 +81,9 @@ import dataclasses
 import gzip
 import json
 import logging
+import weakref
 import zlib
+from functools import partial
 from typing import TYPE_CHECKING, Any, Self, cast
 
 if TYPE_CHECKING:
@@ -150,7 +152,12 @@ class StableSpriteIds:
 
     Ids are ``<ClassName>#<n>``, where n counts that class's sprites in order of first
     appearance over the whole run, so a removed sprite (a collected coin, a dead ball) never
-    shifts the ids of the others.
+    shifts the ids of the others, and its number is never given out again.
+
+    A sprite is known by ``id(sprite)``, which Python gives to a new object once the old one is
+    freed, so each is watched through a weak reference and forgotten as it's freed: this holds
+    no sprite alive, and a new object at the same address counts as new. Numbers come only from
+    the counts, which never go down.
     """
 
     def __init__(self, *, recorded_ids: Iterable[str] = ()) -> None:
@@ -170,8 +177,10 @@ class StableSpriteIds:
             self._class_counts[class_name] = max(
                 self._class_counts.get(class_name, 0), int(index) + 1
             )
-        # Held so a removed sprite's id(sprite) can never be reused by a new object
-        self._seen_objects: list[object] = []
+        self._watchers: dict[int, weakref.ref[object]] = {}
+        # What can't be weakly referenced (a plain object(), or a class with __slots__ and no
+        # __weakref__; every pygame sprite can be) is held instead, so its id() can't be reused
+        self._held_objects: list[object] = []
 
     def id_for(self, sprite: object) -> str:
         """Return the sprite's id, assigning the next one for its class on first sight.
@@ -183,15 +192,24 @@ class StableSpriteIds:
             ``<ClassName>#<n>``.
 
         """
-        sprite_id = self._ids_by_object_id.get(id(sprite))
+        object_id = id(sprite)
+        sprite_id = self._ids_by_object_id.get(object_id)
         if sprite_id is None:
             class_name = type(sprite).__name__
             index = self._class_counts.get(class_name, 0)
             self._class_counts[class_name] = index + 1
             sprite_id = f'{class_name}#{index}'
-            self._ids_by_object_id[id(sprite)] = sprite_id
-            self._seen_objects.append(sprite)
+            self._ids_by_object_id[object_id] = sprite_id
+            try:
+                self._watchers[object_id] = weakref.ref(sprite, partial(self._forget, object_id))
+            except TypeError:
+                self._held_objects.append(sprite)
         return sprite_id
+
+    def _forget(self, object_id: int, _watcher: weakref.ref[object]) -> None:
+        """Forget a sprite as it's freed, before its address can go to a new object."""
+        del self._ids_by_object_id[object_id]
+        del self._watchers[object_id]
 
 
 def sample_scene_frame(

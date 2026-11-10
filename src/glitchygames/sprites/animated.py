@@ -790,9 +790,10 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     def drawn_frame_surface(self: Self) -> pygame.Surface:
         """Return the current frame's surface as drawn (at scale), before any game effects.
 
-        The surface is the sprite's cached one: copy it before changing it. A game that flips
-        or fades image each tick starts from a copy of this, since image is only redrawn when
-        the frame changes.
+        The surface is the sprite's cached one: never change it in place. image is only redrawn
+        when the frame changes, so a game that flips image each tick starts from this again
+        (``pygame.transform.flip`` returns a new surface, leaving it untouched), and one that
+        changes image in place (``set_alpha``) copies it first.
 
         Returns:
             pygame.Surface: The cached surface for the current frame.
@@ -2640,7 +2641,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
     def _debug_frame_image_data(self: Self, frame: SpriteFrame) -> None:
         """Debug image data for a frame."""
         try:
-            pixel_array = pygame.surfarray.array3d(frame.image)  # type: ignore[no-untyped-call]
+            pixel_array = pygame.surfarray.array3d(frame.image)
         except (ValueError, pygame.error) as e:
             self.log.debug('  Could not get pixel data from image: %s', e)
             return
@@ -2649,7 +2650,7 @@ class AnimatedSprite(AnimatedSpriteInterface, pygame.sprite.DirtySprite):  # ruf
         # Show a small sample of pixel data
         if pixel_array.size > 0:
             # array3d always returns a (width, height, 3) array
-            sample_data = str(pixel_array[0, 0, :])  # pyright: ignore[reportUnknownArgumentType]
+            sample_data = str(pixel_array[0, 0, :])
             self.log.debug('  Sample pixel data: %s', sample_data)
 
     def _update_surface_and_mark_dirty(self) -> None:

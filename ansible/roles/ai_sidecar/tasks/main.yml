@@ -1,0 +1,178 @@
+---
+# Builds under the cache, keyed by what goes in, then syncs to the install, so a rerun with nothing
+# changed does nothing. The package takes its copy from the same build
+- name: Hash what the packages come from
+  ansible.builtin.stat:
+    path: "{{ ai_sidecar_project }}/uv.lock"
+    checksum_algorithm: sha256
+  register: ai_sidecar_lock
+
+- name: Name this build
+  ansible.builtin.set_fact:
+    ai_sidecar_build: >-
+      {{ ai_sidecar_build_directory }}/{{ ai_sidecar_python_version }}-{{ ai_sidecar_lock.stat.checksum[:12] }}
+
+- name: Look for this build
+  ansible.builtin.stat:
+    path: "{{ ai_sidecar_build }}/.complete"
+    get_checksum: false
+  register: ai_sidecar_complete
+
+- name: Build the Python and its packages
+  when: not ai_sidecar_complete.stat.exists
+  block:
+    - name: Start from nothing
+      ansible.builtin.file:
+        path: "{{ ai_sidecar_build }}"
+        state: absent
+
+    - name: Make the build directory
+      ansible.builtin.file:
+        path: "{{ ai_sidecar_build }}"
+        state: directory
+        mode: "0755"
+
+    - name: Install the standalone Python into uv's cache
+      ansible.builtin.command:
+        argv: [uv, python, install, "{{ ai_sidecar_python_version }}"]
+      changed_when: true
+
+    - name: Find uv's Python directory
+      ansible.builtin.command:
+        argv: [uv, python, dir]
+      register: ai_sidecar_python_directory
+      changed_when: false
+
+    # A copy, with what a server never uses left out
+    - name: Copy the Python
+      ansible.builtin.command:
+        argv:
+          - rsync
+          - -a
+          - --exclude=lib/python*/test/
+          - --exclude=lib/python*/idlelib/
+          - --exclude=lib/python*/tkinter/
+          - --exclude=lib/tcl*
+          - --exclude=lib/tk*
+          - --exclude=include/
+          - "{{ ai_sidecar_python_directory.stdout }}/{{ ai_sidecar_python_build }}/"
+          - "{{ ai_sidecar_build }}/python/"
+      changed_when: true
+
+    - name: Write the pinned requirements
+      ansible.builtin.command:
+        argv:
+          - uv
+          - export
+          - --frozen
+          - --no-dev
+          - --no-emit-project
+          - --project
+          - "{{ ai_sidecar_project }}"
+          - --output-file
+          - "{{ ai_sidecar_build }}/requirements.txt"
+      changed_when: true
+
+    # Into a plain folder, each checked against the lock file's hash
+    - name: Install the packages
+      ansible.builtin.command:
+        argv:
+          - uv
+          - pip
+          - install
+          - --python
+          - "{{ ai_sidecar_build }}/python/bin/python3.14"
+          - --target
+          - "{{ ai_sidecar_build }}/site"
+          - --require-hashes
+          - --requirement
+          - "{{ ai_sidecar_build }}/requirements.txt"
+      changed_when: true
+
+    - name: Fetch Scalar's script, by checksum
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --fail
+          - --location
+          - --silent
+          - --show-error
+          - --connect-timeout
+          - "30"
+          - --retry
+          - "5"
+          - --retry-all-errors
+          - --output
+          - "{{ ai_sidecar_build }}/scalar.js"
+          - "{{ ai_sidecar_scalar_url }}"
+      changed_when: true
+
+    - name: Hash Scalar's script
+      ansible.builtin.stat:
+        path: "{{ ai_sidecar_build }}/scalar.js"
+        checksum_algorithm: sha256
+      register: ai_sidecar_scalar
+
+    - name: Refuse a Scalar script that changed
+      ansible.builtin.assert:
+        that: ai_sidecar_scalar.stat.checksum == ai_sidecar_scalar_sha256
+        fail_msg: "Scalar's script hashed to {{ ai_sidecar_scalar.stat.checksum }}"
+
+    - name: Mark the build complete
+      ansible.builtin.file:
+        path: "{{ ai_sidecar_build }}/.complete"
+        state: touch
+        mode: "0644"
+
+- name: Make the sidecar directory
+  ansible.builtin.file:
+    path: "{{ ai_sidecar_directory }}/site"
+    state: directory
+    mode: "0755"
+
+# rsync lists what it changed, so a rerun reports nothing
+- name: Sync the build to the install
+  ansible.builtin.command:
+    argv:
+      - rsync
+      - -a
+      - --delete
+      - --itemize-changes
+      - --exclude=.complete
+      - --exclude=requirements.txt
+      - --exclude=site/glitchygames_ai_service/
+      - --exclude=__pycache__/
+      - "{{ ai_sidecar_build }}/"
+      - "{{ ai_sidecar_directory }}/"
+  register: ai_sidecar_synced
+  changed_when: ai_sidecar_synced.stdout | length > 0
+
+# The service's own code, from the source each run: it changes more often than its packages
+- name: Sync the service's code
+  ansible.builtin.command:
+    argv:
+      - rsync
+      - -a
+      - --delete
+      - --itemize-changes
+      - --exclude=__pycache__/
+      - "{{ ai_sidecar_project }}/src/glitchygames_ai_service/"
+      - "{{ ai_sidecar_directory }}/site/glitchygames_ai_service/"
+  register: ai_sidecar_code_synced
+  changed_when: ai_sidecar_code_synced.stdout | length > 0
+
+- name: Check the sidecar uses nothing outside itself
+  ansible.builtin.command:
+    argv:
+      - "{{ ai_sidecar_directory }}/python/bin/python3.14"
+      - -c
+      - >-
+        import sys, os, fastapi, glitchygames_ai_service;
+        root = os.path.realpath(sys.argv[1]);
+        paths = [sys.base_prefix, os.__file__, fastapi.__file__, glitchygames_ai_service.__file__];
+        outside = [path for path in paths if not os.path.realpath(path).startswith(root)];
+        sys.exit(str(outside) if outside else 0)
+      - "{{ ai_sidecar_directory }}"
+  environment:
+    PYTHONPATH: "{{ ai_sidecar_directory }}/site"
+  changed_when: false

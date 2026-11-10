@@ -61,14 +61,17 @@ def prepare_papyrus_sprite(sprite: AnimatedSprite, scale_factor: int = SPRITE_SC
 
 
 def refresh_drawn_image(sprite: AnimatedSprite) -> None:
-    """Reset the sprite's image to a fresh copy of its current frame, as the engine draws it.
+    """Reset the sprite's image to its current frame, as the engine draws it.
 
-    The engine only redraws image when the frame changes, but Papyrus sprites flip and fade
-    image every tick; starting from a copy each tick keeps those effects from stacking up or
-    reaching the engine's cached surface.
+    The engine only redraws image when the frame changes, so a sprite that flips its image
+    each tick resets it first, or the flips would stack up. The image is the engine's cached
+    surface, not a copy: ``pygame.transform.flip`` returns a new surface, so a flip never
+    reaches the cache, and a change made in place (``set_alpha``) must copy first, as the
+    player's fade does. A sprite that never changes its image needs no refresh: the engine's
+    own redraw is enough. (Copying here every tick made 51 surfaces a frame, BUGS.md #270.)
 
     Args:
         sprite: The sprite to refresh.
 
     """
-    sprite.image = sprite.drawn_frame_surface().copy()
+    sprite.image = sprite.drawn_frame_surface()

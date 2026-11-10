@@ -22,6 +22,7 @@ from brave_adventurer_papyrus.sprite_utils import (
     refresh_drawn_image,
 )
 from glitchygames.collision.layers import collision_rect_offset
+from glitchygames.opacity import OPAQUE
 from glitchygames.physics import (
     AccelerationBehavior,
     BoundsConstraint,
@@ -212,7 +213,8 @@ class PapyrusPlayer(AnimatedSprite):
         context = self.physics.get_animation_context()
         self.state_machine.evaluate(context, dt)
 
-        # Advance TOML animation frames, then start from a fresh copy of the drawn frame
+        # Advance TOML animation frames, then start from the drawn frame (the flip below
+        # makes a new surface, so it must start afresh each tick)
         AnimatedSprite.update(self, dt)
         refresh_drawn_image(self)
 
@@ -226,8 +228,13 @@ class PapyrusPlayer(AnimatedSprite):
         self._fit_world_edge_to_hitbox()
         self._world_edge_bounds.apply(self.physics, dt)
 
-        # Apply alpha for respawn fade effect
-        self.image.set_alpha(round(self.alpha))
+        # Apply alpha for respawn fade effect. set_alpha changes the surface in place, so an
+        # image that is still the engine's cached frame (not flipped) is copied first
+        alpha = round(self.alpha)
+        if alpha < OPAQUE:
+            if self.image is self.drawn_frame_surface():
+                self.image = self.image.copy()
+            self.image.set_alpha(alpha)
 
     def jump(self) -> None:
         """Initiate a jump if the player is on the ground."""

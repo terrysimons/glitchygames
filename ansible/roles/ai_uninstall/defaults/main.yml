@@ -1,0 +1,3 @@
+---
+# Models are large and slow to download again, so they stay unless this says otherwise
+ai_uninstall_models: false

@@ -6,8 +6,10 @@
 // src/glitchygames/replay/tools/performance_pages.py), so this draws what each recording's own
 // page draws, with the same palette and layout. Each trace's `meta` is its series' slot (an index
 // into the recording's `series`, which names the machine and kind of run); a processing or frame
-// time trace's name ends in ": p50", ": p99" or ": max" (performance_pages._trace). plotly.js is
-// loaded only on this page, from the pinned URL the data names.
+// time trace's name ends in ": p50", ": p99" or ": max" (performance_pages._trace). The
+// recordings come game by game (`game`, `game_name`), and `?game=<its directory>` in the page's
+// address picks that game's first recording. plotly.js is loaded only on this page, from the
+// pinned URL the data names.
 (function () {
     "use strict";
 
@@ -120,15 +122,23 @@
         return group;
     }
 
+    // The recordings, grouped under their game's name (the data lists them game by game)
     function recordingPicker(data, state, onPick) {
         var group = element("label", "explorer-picker");
         group.appendChild(element("span", "explorer-picker-label", "Recording"));
         var select = element("select");
+        var gameGroup = null;
         data.recordings.forEach(function (entry, index) {
+            if (gameGroup === null || gameGroup.dataset.game !== entry.game) {
+                gameGroup = element("optgroup");
+                gameGroup.label = entry.game_name;
+                gameGroup.dataset.game = entry.game;
+                select.appendChild(gameGroup);
+            }
             var option = element("option", null, entry.recording);
             option.value = String(index);
             option.selected = index === state.recordingIndex;
-            select.appendChild(option);
+            gameGroup.appendChild(option);
         });
         select.addEventListener("change", function () {
             onPick(Number(select.value));
@@ -259,6 +269,10 @@
             recordingPicker(data, state, function (index) {
                 state.recordingIndex = index;
                 state.hiddenSlots.clear();
+                // The game stays in the page's address, so the view can be linked
+                var url = new URL(window.location.href);
+                url.searchParams.set("game", data.recordings[index].game);
+                window.history.replaceState(null, "", url);
                 again();
             }),
             pickerGroup("Chart", CHARTS, function (key) {
@@ -333,6 +347,12 @@
                     root.textContent = "No measurements yet.";
                     return null;
                 }
+                // ?game=<its directory> starts on that game's first recording
+                var game = new URLSearchParams(window.location.search).get("game");
+                var gameIndex = data.recordings.findIndex(function (entry) {
+                    return entry.game === game;
+                });
+                state.recordingIndex = Math.max(gameIndex, 0);
                 return loadPlotly(data.plotly).then(function () {
                     render(root, data, state);
                 });

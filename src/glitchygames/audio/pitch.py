@@ -218,7 +218,7 @@ class Note:
             ValueError: If the name is not a valid note name or cents is not finite.
 
         """
-        match = NOTE_NAME_PATTERN.match(name) if isinstance(name, str) else None  # pyright: ignore[reportUnnecessaryIsInstance] - callers may pass anything at runtime
+        match = NOTE_NAME_PATTERN.fullmatch(name) if isinstance(name, str) else None  # pyright: ignore[reportUnnecessaryIsInstance] - callers may pass anything at runtime
         if match is None:
             message = f"Invalid note name {name!r}; expected e.g. 'C4', 'F#4' or 'Bb3'"
             raise ValueError(message)
@@ -383,7 +383,7 @@ class Scale:
             ValueError: If the root or the kind is not recognised.
 
         """
-        if not isinstance(self.root, str) or PITCH_CLASS_PATTERN.match(self.root) is None:  # pyright: ignore[reportUnnecessaryIsInstance] - callers may pass anything at runtime
+        if not isinstance(self.root, str) or PITCH_CLASS_PATTERN.fullmatch(self.root) is None:  # pyright: ignore[reportUnnecessaryIsInstance] - callers may pass anything at runtime
             message = f"Invalid scale root {self.root!r}; expected e.g. 'C', 'F#' or 'Bb'"
             raise ValueError(message)
         if self.kind not in SCALE_INTERVALS:

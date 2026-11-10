@@ -4,6 +4,7 @@ import contextlib
 import dataclasses
 import json
 import os
+import platform
 import re
 import secrets
 import shlex
@@ -123,8 +124,21 @@ def _format_code(session: nox.Session) -> None:
         session.run('ruff', 'format', target)
 
 
+def _taplo_has_no_wheel() -> bool:
+    """Whether this is Linux on ARM, where pyproject.toml's marker leaves taplo uninstalled.
+
+    Returns:
+        True on Linux ARM: taplo has no wheel there and its sdist fails to build.
+
+    """
+    return sys.platform == 'linux' and platform.machine() == 'aarch64'
+
+
 def _format_toml(session: nox.Session) -> None:
     """Format TOML files with taplo."""
+    if _taplo_has_no_wheel():
+        session.log('taplo has no Linux ARM wheel; skipping TOML formatting.')
+        return
     session.run('taplo', 'format', external=True)
 
 
@@ -170,6 +184,9 @@ def _lint_github_actions(session: nox.Session) -> None:
 
 def _lint_toml(session: nox.Session) -> None:
     """Lint TOML files with taplo."""
+    if _taplo_has_no_wheel():
+        session.log('taplo has no Linux ARM wheel; skipping TOML lint.')
+        return
     session.run('taplo', 'lint', external=True)
 
 
@@ -298,6 +315,43 @@ def replay_metrics(session: nox.Session) -> None:
         nox -s replay-metrics -- --only muncher  # Only recordings whose path contains "muncher"
     """
     _glitchygames(session, 'measure', *session.posargs)
+
+
+@nox.session(venv_backend='none', name='measure-on-raspberry-pi', default=False)
+def measure_on_raspberry_pi(session: nox.Session) -> None:
+    """Measure HEAD's replays on the Raspberry Pi too, and stage the rows it sends back here.
+
+    The pre-push hook ``raspberry-pi-replay-metrics`` runs this, on what is being pushed. The rows
+    land in quality/replay-ledger/ (scripts/measure_on_raspberry_pi.py has the rules).
+
+    Usage:
+        nox -s measure-on-raspberry-pi   # Measure there, unless the Pi already has
+        git commit                       # The rows it staged
+    """
+    session.run(
+        'uv', 'run', '--locked', 'python', '-m', 'scripts.measure_on_raspberry_pi', external=True
+    )
+
+
+@nox.session(venv_backend='none', name='measure-staged', default=False)
+def measure_staged(session: nox.Session) -> None:
+    """Measure the replays on the staged code, and stage the rows for the commit to carry.
+
+    The pre-commit hook ``replay-metrics`` runs this; run it by hand after updating a branch, or on
+    a machine without the hook, then commit. This, not ``replay-metrics`` (the local pending file),
+    is what puts a machine on the Performance page: the page shows quality/replay-ledger/ rows that
+    landed on main (scripts/measure_staged_replays.py has the rules). ``--locked``: a stale uv.lock
+    fails saying so, where a plain uv run would rewrite the lock, and pre-commit would then fail
+    the hook for modifying files.
+
+    Usage:
+        git add ...                  # What the commit will hold
+        nox -s measure-staged        # Measure it, unless this machine already has
+        git commit
+    """
+    session.run(
+        'uv', 'run', '--locked', 'python', '-m', 'scripts.measure_staged_replays', external=True
+    )
 
 
 @nox.session(python=['3.14'], reuse_venv=False, name='docs-deploy', default=False)
@@ -1728,6 +1782,15 @@ def timer_report(session: nox.Session) -> None:
     session.run('python', 'scripts/timer_report.py')
 
 
+# The only places with tests that take pytest-benchmark's ``benchmark`` fixture. performance-test
+# collects just these: given the whole suite, --benchmark-only collected every test and skipped
+# all the others. tests/test_benchmark_paths.py fails if a benchmark is added anywhere else
+_BENCHMARK_PATHS = [
+    'tests/benchmarks',
+    'src/apps/bitmappy/tests/test_bitmappy_benchmarks.py',
+]
+
+
 @nox.session(python=['3.14'], reuse_venv=False, name='performance-test', default=False)
 def performance_test(session: nox.Session) -> None:
     """Run performance benchmarks."""
@@ -1743,6 +1806,7 @@ def performance_test(session: nox.Session) -> None:
         'no:xdist',
         '--benchmark-only',
         '--benchmark-save=baseline',
+        *_BENCHMARK_PATHS,
     )
 
 

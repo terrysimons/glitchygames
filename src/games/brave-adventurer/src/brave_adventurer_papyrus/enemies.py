@@ -81,8 +81,8 @@ class PapyrusCobra(AnimatedSprite):
         assert self.state_machine is not None, 'cobra.toml declares the [[transition]]s'
         self.state_machine.evaluate({}, dt)
 
+        # Its image is the drawn frame, which the engine redraws as the frame changes
         AnimatedSprite.update(self, dt)
-        refresh_drawn_image(self)
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:
@@ -146,8 +146,8 @@ class PapyrusScarab(AnimatedSprite):
 
         # Horizontal movement
         self.world_x += self.roll_speed * dt
+        # Its image is the drawn frame, which the engine redraws as the frame changes
         AnimatedSprite.update(self, dt)
-        refresh_drawn_image(self)
 
     @override
     def update(self: Self, dt: float = 0.016) -> None:

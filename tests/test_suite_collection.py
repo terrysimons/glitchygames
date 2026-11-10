@@ -1154,6 +1154,15 @@ CONFTEST_FILE_NAME = 'conftest.py'
 # script's own test file by name"). A test of the engine that uses a script's code as its test
 # data is listed only while it does (the sprite tests: the legacy loader and the stack prototype)
 SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
+    'tests/test_ai_behaviour.py': (
+        'scripts/ai_behaviour/capture.py',
+        'scripts/ai_behaviour/paired.py',
+        'scripts/ai_behaviour/questions.py',
+        'scripts/ai_behaviour/report.py',
+        'scripts/ai_behaviour/run.py',
+        'scripts/ai_behaviour/tools.py',
+    ),
+    'tests/test_ai_model_comparison.py': ('scripts/ai_model_comparison.py',),
     'tests/replay/test_record_scripted_session.py': ('scripts/record_scripted_session.py',),
     'tests/sprites/test_animated_sprite.py': ('scripts/sprite_stack.py',),
     'tests/sprites/test_legacy_sprite_glyphs.py': ('scripts/raw_sprite_loader.py',),
@@ -1180,6 +1189,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/mkdocs_hooks.py',
     ),
     'tests/test_import_published_ledger.py': ('scripts/import_published_ledger.py',),
+    'tests/test_measure_on_raspberry_pi.py': ('scripts/measure_on_raspberry_pi.py',),
     'tests/test_measure_staged_replays.py': ('scripts/measure_staged_replays.py',),
     'tests/test_microphone_capture_check.py': ('scripts/microphone_capture_check.py',),
     'tests/test_mkdocs_hooks_browser_games.py': ('scripts/mkdocs_hooks.py',),
@@ -1188,6 +1198,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/golden_inputs.py',
         'scripts/record_scripted_session.py',
     ),
+    'tests/test_replay_schedule.py': ('scripts/replay_schedule.py',),
     'tests/test_workspace_packages.py': (
         'scripts/workspace_packages.py',
         'scripts/git_checkout.py',
@@ -1208,6 +1219,9 @@ SOURCE_GUARD_REASON = (
 # had them moved out to a file named for what it checks (Task D9 fix round 1), so no engine test
 # shares an exemption. They may reach scripts/ too
 REPOSITORY_TEST_FILES: dict[str, str] = {
+    'tests/replay/test_removed_sprites_are_freed.py': (
+        "replays our members' goldens, watching for removed sprites still in memory"
+    ),
     'tests/benchmarks/test_logging_cost.py': (
         "measures what logging costs our members' goldens and bundled demos"
     ),
@@ -1221,6 +1235,9 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/replay/test_golden_replays.py': "checks our members' goldens with our games' tables",
     'tests/replay/test_replays_log_quietly.py': (
         "replays our members' goldens and bundled demos at the tools' log level"
+    ),
+    'tests/replay/test_committed_recordings_present_every_frame.py': (
+        'checks a watched 1x replay presents every frame of every committed recording'
     ),
     'tests/replay/test_recording_logical_names.py': (
         'checks the logical names of every committed recording of our members'

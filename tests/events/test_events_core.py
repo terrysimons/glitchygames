@@ -1210,7 +1210,10 @@ class TestCustomEventTypes:
         only some test orders do before a registration).
         """
         mocker.patch.dict(events_base._NAMED_CUSTOM_EVENT_TYPES)
+        # Asked until free: after a quit, pygame's next id can itself be one a name holds
         free_id = pygame.event.custom_type()
+        while free_id in NAMED_CUSTOM_EVENT_TYPES.values():
+            free_id = pygame.event.custom_type()
         mocker.patch('pygame.event.custom_type', side_effect=[FPSEVENT, free_id])
 
         level_up = named_custom_event_type('TEST_LEVEL_UP')

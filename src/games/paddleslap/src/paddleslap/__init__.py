@@ -215,7 +215,9 @@ class Game(Scene):
         # Per-pair collision cooldown to prevent duplicate collision processing
         # when ball bounding boxes overlap across multiple consecutive frames.
         # Maps (ball_id_1, ball_id_2) to remaining cooldown frames.
-        self._ball_collision_cooldowns: dict[tuple[int, int], int] = {}
+        # Keyed on the balls: an id() goes to a new object once a ball is freed, and that ball
+        # would inherit the cooldown. Entries end within BALL_COLLISION_COOLDOWN_FRAMES
+        self._ball_collision_cooldowns: dict[tuple[BallSprite, BallSprite], int] = {}
         # (ball, ball) pairs that collided this frame, for _keep_collided_balls_playable
         self._ball_collision_pairs: list[tuple[BallSprite, BallSprite]] = []
 
@@ -468,6 +470,16 @@ class Game(Scene):
         )
         self.previous_scene = self
 
+    @override
+    def describe_for_ai(self: Self) -> dict[str, Any]:
+        """Say what the score is, which no sprite shows.
+
+        Returns:
+            The rally count and the balls in play.
+
+        """
+        return {'rally_count': self.rally_count, 'balls_in_play': len(self.balls)}
+
     def _save_high_score(self: Self) -> list[dict[str, int]]:
         """Save the current rally count to the high scores list.
 
@@ -704,9 +716,9 @@ class Game(Scene):
         layer_balls = cast('list[BallSprite]', self.collisions.get_layer('balls').sprites)
         balls = [ball for ball in layer_balls if ball.alive()]
         for ball1, ball2 in itertools.combinations(balls, 2):
-            if (id(ball1), id(ball2)) in self._ball_collision_cooldowns or (
-                id(ball2),
-                id(ball1),
+            if (ball1, ball2) in self._ball_collision_cooldowns or (
+                ball2,
+                ball1,
             ) in self._ball_collision_cooldowns:
                 continue
             contact = self._swept_contact(ball1, ball2)
@@ -788,7 +800,7 @@ class Game(Scene):
             collision_distance=collision_distance,
             distance=distance,
         )
-        self._ball_collision_cooldowns[id(ball1), id(ball2)] = BALL_COLLISION_COOLDOWN_FRAMES
+        self._ball_collision_cooldowns[ball1, ball2] = BALL_COLLISION_COOLDOWN_FRAMES
         self._ball_collision_pairs.append((ball1, ball2))
 
     def _on_ball_ball_collision(self: Self, ball1: BallSprite, ball2: BallSprite) -> None:
@@ -800,8 +812,8 @@ class Game(Scene):
         cooldown_frames = BALL_COLLISION_COOLDOWN_FRAMES
 
         # Skip pairs still in cooldown
-        pair_key = (id(ball1), id(ball2))
-        reverse_key = (id(ball2), id(ball1))
+        pair_key = (ball1, ball2)
+        reverse_key = (ball2, ball1)
         if (
             pair_key in self._ball_collision_cooldowns
             or reverse_key in self._ball_collision_cooldowns
