@@ -19,9 +19,11 @@ What the scan reports (the rules; nothing else is decided):
    call to one of ``IMMUTABLE_CALLS`` (spelled in full or by its last name alone), to
    ``math.*``, or to a class in ``frozen_class_names`` (scanned classes that subclass ``Enum``,
    ``IntEnum``, ``StrEnum``, ``Flag`` or ``NamedTuple``, are ``@dataclass(frozen=True)``, or
-   set ``model_config = ConfigDict(frozen=True, ...)``). A view (``ReadOnlyView``,
-   ``ClassOnlyView``) computes on every read and stores nothing. A ``type X = ...`` statement is
-   not a binding and is never reported.
+   set ``model_config = ConfigDict(frozen=True, ...)``, and whose name no unfrozen scanned
+   class shares). ``typing.cast(type, value)`` returns its value unchanged, so it is as
+   immutable as that value. A view (``ReadOnlyView``, ``ClassOnlyView``) computes on every read
+   and stores nothing. A ``type X = ...`` statement is not a binding and is never reported, nor
+   is anything in a script's ``if __name__ == '__main__':`` block (never run on import).
 2. Except: a constant-named binding (``_*[A-Z][A-Z0-9_]*``) whose value is a dict, list or set
    display or comprehension, or an operation on one, is a table, reported only when the scan
    sees it written anywhere in the scanned files: an item or attribute assignment, augmented
@@ -32,11 +34,13 @@ What the scan reports (the rules; nothing else is decided):
    class object: the receiver is ``cls`` (reported as the enclosing class's), a capitalized,
    non-constant name, a parameter annotated ``type[...]`` (alone or in a union, such as
    ``game: type[Scene] | Scene``), ``type(<expression>)`` or ``<expression>.__class__``; and
-   every ``setattr(...)``/``delattr(...)`` call inside a function whose first argument is one of
+   every ``setattr(...)``/``delattr(...)`` call whose first argument is one of
    those, or an imported module or an attribute of one (``setattr(pygame.mixer.music, ...)``),
    reported as ``setattr(<receiver>)``. An attribute store is reported as ``<class>.<name>``:
    the enclosing class for ``cls``, ``type(self)`` and ``self.__class__``, the annotated class
-   for a ``type[...]`` parameter (the first ``type[...]`` member of a union).
+   for a ``type[...]`` parameter (the first ``type[...]`` member of a union). At import time
+   (outside every function) the same writes are reported, and an attribute store into an
+   imported module or an attribute of one too (``other.Thing.attr = 1``: ``other.Thing.attr``).
 5. Every function decorated with ``functools.cache``, ``functools.lru_cache``, ``cache`` or
    ``lru_cache`` (a process-wide cache), reported by the function's qualified name.
 
@@ -101,7 +105,6 @@ IMMUTABLE_CALLS = frozenset({
     'pydantic.ConfigDict',
     'struct.Struct',
     'enum.auto',
-    'typing.cast',
     'fractions.Fraction',
     'pygame.event.custom_type',
     'datetime.timedelta',
@@ -111,6 +114,10 @@ IMMUTABLE_CALLS = frozenset({
     'ClassOnlyView',
 })
 IMMUTABLE_CALL_LAST_NAMES = frozenset(name.rsplit('.', 1)[-1] for name in IMMUTABLE_CALLS)
+# typing.cast, as spelled: immutable only when the value it is given is (rule 1)
+CAST_CALLS = frozenset({'cast', 'typing.cast'})
+# The arguments cast takes: the type, then the value it returns
+CAST_ARGUMENT_COUNT = 2
 # The modules every function of which returns an immutable value (rule 1)
 IMMUTABLE_CALL_MODULES = frozenset({'math'})
 # The bases that make a scanned class frozen (rule 1)
@@ -181,6 +188,19 @@ def _child_statements(statement: ast.stmt) -> Iterator[ast.stmt]:
             yield from child.body
 
 
+def _is_main_block(statement: ast.If) -> bool:
+    """Return whether an ``if`` is a script's ``if __name__ == '__main__':`` block."""
+    test = statement.test
+    return (
+        isinstance(test, ast.Compare)
+        and isinstance(test.left, ast.Name)
+        and test.left.id == '__name__'
+        and len(test.comparators) == 1
+        and isinstance(test.comparators[0], ast.Constant)
+        and test.comparators[0].value == '__main__'
+    )
+
+
 def _is_true_keyword(*, keyword: ast.keyword, name: str) -> bool:
     """Return whether a call's keyword is ``name=True``."""
     return (
@@ -229,18 +249,19 @@ def frozen_class_names(*, source_paths: Sequence[Path]) -> frozenset[str]:
 
     Returns:
         The class names (``Point``) of every class that subclasses an enum or ``NamedTuple``,
-        is ``@dataclass(frozen=True)`` or sets ``model_config = ConfigDict(frozen=True, ...)``.
+        is ``@dataclass(frozen=True)`` or sets ``model_config = ConfigDict(frozen=True, ...)``,
+        less every name another scanned class that is not frozen also has: a call is matched by
+        its class's name alone, so a shared name could be either class.
 
     """
-    names: set[str] = set()
+    frozen_names: set[str] = set()
+    unfrozen_names: set[str] = set()
     for source_path in source_paths:
         tree = ast.parse(source_path.read_text(encoding='utf-8'))
-        names.update(
-            node.name
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ClassDef) and _is_frozen_class(node)
-        )
-    return frozenset(names)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                (frozen_names if _is_frozen_class(node) else unfrozen_names).add(node.name)
+    return frozenset(frozen_names - unfrozen_names)
 
 
 def _written_base(node: ast.expr) -> str | None:
@@ -350,6 +371,12 @@ def _is_evidently_immutable(
         operands = [node.operand]
     elif isinstance(node, ast.BinOp):
         operands = [node.left, node.right]
+    elif isinstance(node, ast.Call) and _dotted_name(node.func) in CAST_CALLS:
+        # cast returns its value unchanged: as immutable as that value, which is its second
+        # argument (an incomplete call is not read as one)
+        if len(node.args) != CAST_ARGUMENT_COUNT:
+            return False
+        operands = [node.args[1]]
     elif isinstance(node, ast.Call):
         return _is_immutable_call(node=node, frozen_classes=frozen_classes)
     else:
@@ -408,7 +435,9 @@ class _BindingScan:
                     prefix=f'{prefix}{statement.name}.',
                     reported_names=set(reported_names),
                 )
-            elif isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef):
+            elif isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef) or (
+                isinstance(statement, ast.If) and _is_main_block(statement)
+            ):
                 continue
             elif isinstance(statement, ast.Assign):
                 self._scan_binding(
@@ -541,6 +570,11 @@ class _WriteScan(ast.NodeVisitor):
         """Scan an ``async def`` as a ``def``."""
         self.visit_FunctionDef(node)
 
+    def visit_If(self: _WriteScan, node: ast.If) -> None:
+        """Scan an ``if``, except a script's ``__main__`` block (never run on import)."""
+        if not _is_main_block(node):
+            self.generic_visit(node)
+
     def visit_Global(self: _WriteScan, node: ast.Global) -> None:
         """Report every name a ``global`` statement names (rule 3)."""
         for name in node.names:
@@ -590,12 +624,17 @@ class _WriteScan(ast.NodeVisitor):
         return None
 
     def _report_class_attribute_writes(self: _WriteScan, *, node: ast.stmt) -> None:
-        """Report each target of a statement in a function that stores a class's attribute."""
-        if not self.type_parameters:
-            return
+        """Report each target of a statement that stores a class's attribute (rule 4).
+
+        Inside a function the receiver is a class object; at import time (outside every
+        function) an imported module, or an attribute of one, too.
+        """
+        at_import = not self.type_parameters
         for target in _assignment_targets(node):
             if isinstance(target, ast.Attribute):
                 receiver = self._class_receiver(target.value)
+                if receiver is None and at_import:
+                    receiver = self._module_receiver(target.value)
                 if receiver is not None:
                     _report(found=self.found, name=f'{receiver}.{target.attr}', line=target.lineno)
 
@@ -620,12 +659,7 @@ class _WriteScan(ast.NodeVisitor):
 
     def visit_Call(self: _WriteScan, node: ast.Call) -> None:
         """Report a ``setattr``/``delattr`` on a class object or a module (rule 4)."""
-        if (
-            self.type_parameters
-            and isinstance(node.func, ast.Name)
-            and node.func.id in ATTRIBUTE_WRITERS
-            and node.args
-        ):
+        if isinstance(node.func, ast.Name) and node.func.id in ATTRIBUTE_WRITERS and node.args:
             receiver = self._class_receiver(node.args[0]) or self._module_receiver(node.args[0])
             if receiver is not None:
                 _report(found=self.found, name=f'setattr({receiver})', line=node.lineno)
@@ -987,6 +1021,12 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     },
     'sprites/bitmappy_sprite.py': {
         'BitmappySprite.DEFAULT_SURFACE': 'R12: a class default nothing draws on.',
+        'BitmappySprite._get_pixel_string': (
+            "R12: a method attached to the class at the module's import, a function never rebound."
+        ),
+        'BitmappySprite._get_color_map': (
+            "R12: a method attached to the class at the module's import, a function never rebound."
+        ),
     },
     'state/manager.py': {
         '_DISK_SAVE_CHANGE_OBSERVERS': (
@@ -996,15 +1036,6 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     },
     'testing/frame_comparison.py': {
         'DriverComparison.frames_vary': 'R12: a pydantic field default, copied per instance.',
-    },
-    'tools/charmap.py': {
-        'chars': (
-            "R16: bound only in the module's __main__ block, when it runs as a script; never on "
-            'import.'
-        ),
-        'truncation': (
-            "R16: a string bound only in the module's __main__ block, when it runs as a script."
-        ),
     },
     'user_files.py': {
         '_REGISTRY': "S10: the browser's file picker and downloads, the player's.",
@@ -1189,6 +1220,98 @@ def test_the_process_state_scan_finds_every_kind(tmp_path):
         'setattr(Rebinder)',
         'Holder.options',
     }
+
+
+FROZEN_SETTINGS_SOURCE = """\
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Settings:
+    size: int = 0
+"""
+
+MUTABLE_SETTINGS_SOURCE = """\
+class Settings:
+    def __init__(self):
+        self.size = 0
+
+
+SETTINGS = Settings()
+"""
+
+
+def test_a_class_name_also_defined_unfrozen_is_not_trusted(tmp_path):
+    """Two files define ``Settings``, one frozen: an instance of the mutable one is reported."""
+    frozen_path = tmp_path / 'frozen_settings.py'
+    frozen_path.write_text(FROZEN_SETTINGS_SOURCE, encoding='utf-8')
+    mutable_path = tmp_path / 'mutable_settings.py'
+    mutable_path.write_text(MUTABLE_SETTINGS_SOURCE, encoding='utf-8')
+    frozen = frozen_class_names(source_paths=[frozen_path, mutable_path])
+
+    found = process_state_in_source(source_path=mutable_path, frozen_classes=frozen)
+
+    assert 'Settings' not in frozen
+    assert found == {'SETTINGS': 6}
+
+
+IMPORT_TIME_WRITES_SOURCE = """\
+import other
+
+from elsewhere import Other
+
+other.Thing.attr = 1
+Other.flag = True
+other.setting = 2
+LOCAL = 3
+"""
+
+
+def test_an_import_time_write_to_a_class_or_a_module_is_reported(tmp_path):
+    """Rule 4 at module scope: a class's or an imported module's attribute stored at import."""
+    source_path = tmp_path / 'import_time_writes.py'
+    source_path.write_text(IMPORT_TIME_WRITES_SOURCE, encoding='utf-8')
+
+    found = process_state_in_source(source_path=source_path, frozen_classes=frozenset())
+
+    assert found == {'other.Thing.attr': 5, 'Other.flag': 6, 'other.setting': 7}
+
+
+CAST_SOURCE = """\
+from typing import cast
+
+HIDDEN = cast(dict, {})
+hidden_list = cast('list[int]', [])
+SHOWN = cast(int, 3)
+NAMED = cast('tuple[str, ...]', ('a', 'b'))
+"""
+
+
+def test_a_cast_is_as_immutable_as_its_value(tmp_path):
+    """``cast`` returns its value unchanged, so it is immutable only when that value is."""
+    source_path = tmp_path / 'casts.py'
+    source_path.write_text(CAST_SOURCE, encoding='utf-8')
+
+    found = process_state_in_source(source_path=source_path, frozen_classes=frozenset())
+
+    assert found == {'HIDDEN': 3, 'hidden_list': 4}
+
+
+MAIN_BLOCK_SOURCE = """\
+import sys
+
+if __name__ == '__main__':
+    arguments = list(sys.argv)
+    seen = []
+"""
+
+
+def test_a_scripts_main_block_is_not_scanned(tmp_path):
+    """What a module binds when it runs as a script is never bound on import."""
+    source_path = tmp_path / 'script.py'
+    source_path.write_text(MAIN_BLOCK_SOURCE, encoding='utf-8')
+
+    assert process_state_in_source(source_path=source_path, frozen_classes=frozenset()) == {}
 
 
 def test_process_state_in_a_member_is_reported_under_its_repository_path(tmp_path):
