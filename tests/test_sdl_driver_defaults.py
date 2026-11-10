@@ -16,7 +16,9 @@ from tests.display_canvas import (
     canvas_color_at,
     display_looks_entirely_black,
     real_display_surface,
+    show_canvas_on_new_display,
 )
+from tests.harness import TEST_WINDOWS_HIDDEN
 from tests.sdl_defaults import (
     SDL_DRIVER_ENVIRONMENT_FOR_RUN,
     SDL_DRIVER_VARIABLES,
@@ -149,7 +151,9 @@ def test_nothing_is_restored_when_nothing_changed(run_sdl_driver_state):
     display_before = real_display_surface()
 
     restored = restore_run_sdl_drivers(
-        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+        run_state=run_sdl_driver_state,
+        hides_windows=TEST_WINDOWS_HIDDEN,
     )
 
     assert restored == []
@@ -162,7 +166,9 @@ def test_driver_variables_a_test_changed_are_put_back(monkeypatch, run_sdl_drive
     monkeypatch.delenv('SDL_AUDIODRIVER')
 
     restored = restore_run_sdl_drivers(
-        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+        run_state=run_sdl_driver_state,
+        hides_windows=TEST_WINDOWS_HIDDEN,
     )
 
     assert restored == [
@@ -187,7 +193,9 @@ def test_a_display_on_another_driver_is_reopened_on_the_runs_showing_the_canvas(
     other_run_state = run_sdl_driver_state.model_copy(update={'video_driver': OTHER_VIDEO_DRIVER})
 
     restored = restore_run_sdl_drivers(
-        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=other_run_state
+        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+        run_state=other_run_state,
+        hides_windows=TEST_WINDOWS_HIDDEN,
     )
 
     assert restored == [f"the display (video driver '{live_video_driver}')"]
@@ -197,6 +205,47 @@ def test_a_display_on_another_driver_is_reopened_on_the_runs_showing_the_canvas(
     assert not display_looks_entirely_black(display)
     assert display.get_at((0, 0))[:3] == canvas_color_at(x=0, y=0)[:3]
     assert live_sdl_driver_state().driver_names() == run_sdl_driver_state.driver_names()
+
+
+def test_a_display_reopened_in_a_run_that_hides_its_windows_is_hidden(run_sdl_driver_state):
+    """A run that hides its test windows gets its reopened display hidden too (BUGS.md #272).
+
+    The restore opened the display through pygame's own set_mode, captured before the harness
+    hid test windows (tests/hidden_test_windows.py), so on cocoa every test after a --headless
+    engine ran on a shown window: one that could take the keyboard, and lose it as the next
+    game's set_mode hid it again, posting a WINDOWFOCUSLOST that paused Clockwork Keep.
+    Hidden is told by ``pygame.display.get_active`` (False for a hidden window, on dummy too).
+    """
+    other_run_state = run_sdl_driver_state.model_copy(update={'video_driver': OTHER_VIDEO_DRIVER})
+    try:
+        restore_run_sdl_drivers(
+            run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+            run_state=other_run_state,
+            hides_windows=True,
+        )
+
+        assert real_display_surface() is not None
+        assert not pygame.display.get_active()
+    finally:
+        # The run's own window back for the next test (shown on a run that shows its windows)
+        show_canvas_on_new_display()
+
+
+def test_a_display_reopened_in_a_run_that_shows_its_windows_is_shown(run_sdl_driver_state):
+    """A run that shows its test windows (dummy, or asked to) reopens its display shown."""
+    other_run_state = run_sdl_driver_state.model_copy(update={'video_driver': OTHER_VIDEO_DRIVER})
+    try:
+        restore_run_sdl_drivers(
+            run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+            run_state=other_run_state,
+            hides_windows=False,
+        )
+
+        assert real_display_surface() is not None
+        assert pygame.display.get_active()
+    finally:
+        # The run's own window back for the next test (hidden on a run that hides its windows)
+        show_canvas_on_new_display()
 
 
 def test_a_mixer_on_another_driver_is_restarted_with_the_runs_format(run_sdl_driver_state):
@@ -213,7 +262,9 @@ def test_a_mixer_on_another_driver_is_restarted_with_the_runs_format(run_sdl_dri
     )
     try:
         restored = restore_run_sdl_drivers(
-            run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=other_run_state
+            run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+            run_state=other_run_state,
+            hides_windows=TEST_WINDOWS_HIDDEN,
         )
 
         assert restored == [f"the mixer (audio driver '{run_mixer.audio_driver}')"]
@@ -227,6 +278,7 @@ def test_a_mixer_on_another_driver_is_restarted_with_the_runs_format(run_sdl_dri
             run_state=run_sdl_driver_state.model_copy(
                 update={'mixer': run_mixer.model_copy(update={'audio_driver': OTHER_AUDIO_DRIVER})}
             ),
+            hides_windows=TEST_WINDOWS_HIDDEN,
         )
     assert live_sdl_driver_state() == run_sdl_driver_state
 
@@ -236,7 +288,9 @@ def test_a_mixer_a_test_stopped_is_started_again(run_sdl_driver_state):
     pygame.mixer.quit()
 
     restored = restore_run_sdl_drivers(
-        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+        run_state=run_sdl_driver_state,
+        hides_windows=TEST_WINDOWS_HIDDEN,
     )
 
     assert restored == ['the mixer (audio driver None)']
@@ -249,7 +303,9 @@ def test_without_pygame_running_only_the_variables_are_put_back(monkeypatch, run
     pygame.quit()
 
     restored = restore_run_sdl_drivers(
-        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+        run_state=run_sdl_driver_state,
+        hides_windows=TEST_WINDOWS_HIDDEN,
     )
 
     assert restored == [f"SDL_AUDIODRIVER (was '{OTHER_AUDIO_DRIVER}')"]

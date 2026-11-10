@@ -684,7 +684,9 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
     if pygame.mixer.get_init() is not None:
         pygame.mixer.stop()
     restore_run_sdl_drivers(
-        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+        run_state=run_sdl_driver_state,
+        hides_windows=TEST_WINDOWS_HIDDEN,
     )
     with contextlib.suppress(pygame.error):
         surface = pygame.display.get_surface() if pygame.get_init() else None

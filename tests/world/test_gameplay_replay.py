@@ -129,7 +129,7 @@ from glitchygames.tracing import (
     write_trace,
 )
 from tests.display_canvas import display_looks_entirely_black, real_display_surface
-from tests.harness import imported_engine_is_the_checkouts
+from tests.harness import TEST_WINDOWS_HIDDEN, imported_engine_is_the_checkouts
 from tests.replay.replay_helpers import (
     replay_through_engine,
     rewrite_recording,
@@ -2465,7 +2465,9 @@ class TestHeadlessDriverRestore:
             assert pygame.display.get_driver() == 'dummy'
 
         restore_run_sdl_drivers(
-            run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+            run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+            run_state=run_sdl_driver_state,
+            hides_windows=TEST_WINDOWS_HIDDEN,
         )
 
         # The drivers only: the engine reserved its live voice channels on the mixer
