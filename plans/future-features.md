@@ -1978,7 +1978,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] The 7 new builds: `angelique`, `banjolele`, `chapman stick`, `qanun`, `ruan`, `tar`,
     `tiple colombiano`: each distinct from the 58 already there and from each other (the
     anti-goal; the rule-7 test only catches equal builds)
-  - [ ] Near pairs to hear side by side: `angelique` and `lute`, `banjolele` and `ukulele`,
+  - [ ] Near pairs to hear side by side: `angelique` and `lute`, `banjolele` and `soprano ukulele`,
     `ruan` and `pipa`
   - [ ] The sound-alikes, 27 in 19 groups (each is its parent's sound):
   - [ ] `bass ukulele`, `contrabass ukulele` of `acoustic bass guitar`
@@ -2001,8 +2001,10 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] `viola da terra` of `tiple colombiano`
   - [ ] `alpine zither` of `zither`
 - **Calls to confirm** (each in `plans/data/instrument-audit/batch-4.tsv`; the sheet's 284 rows:
-  SHIP 7, SOUND_ALIKE 27, WAIT 215, ALIAS 19, DROP 16; the 245 candidates the audits left are
-  in `build/batch-4-candidates.txt`):
+  SHIP 7, SOUND_ALIKE 27, WAIT 215, ALIAS 19, DROP 16; the 245 candidates the audits left come
+  from the command in Task 3 Step 1 of
+  `plans/2026-11-09-instrument-catalog-batch-4-implementation.md`, which regenerates the
+  ignored `build/batch-4-candidates.txt`):
   - [ ] The range rule, which is why 215 rows wait. The owner ruled it strict (2026-11-09), so
     the 166 WAIT rows that wait for "a sourced range" stay out until a source gives one; the
     spec accepts fetched text or a maker's or museum's documented span, and a letter tuning
@@ -2030,8 +2032,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
     that held for drums, which have none. `mandolin` and `mandola` already shared a build with
     their own ranges
   - [ ] The 54 pairs among the 58 existing plucked entries that share a build (`mandolin` and
-    `mandola` both use `BRIGHT_LUTE`) were left as they are; the new-entry test skips them by
-    name. Confirm, or convert some into sound-alikes
+    `mandola` both use `BRIGHT_LUTE`) were left as they are; the new-entry test never checks them (it
+    loops only over `NEW_PLUCKED_NAMES`; `EXISTING_PLUCKED_NAMES` is used only in the
+    set-equality test). Confirm, or convert some into sound-alikes
   - [ ] `sitar`, `tanpura` and `veena` are old entries that approximate sympathetic strings and
     a buzzing bridge, which decision 4 now holds back. They stay; new instruments whose
     identifying sound is one of those (`rudra veena`, `surbahar`, `mohan veena`, `ten string
@@ -2062,6 +2065,13 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] None of the 58 existing plucked entries cites a source for its range or build
   - [ ] The catalog `zither` tops at C6, but the sourced fingerboard top is D7 (an existing entry
     whose data is off; `alpine zither` carries its own F1-D7)
+  - [ ] The cited infobox gives the Greek bouzouki's top as E6, while the catalog `greek
+    bouzouki` stops at D6 (C3-D6), so the new `trichordo bouzouki` sound-alike (D3-E6) tops out
+    above its parent (the `tetrachordo bouzouki` row's data note)
+  - [ ] `bozuk` is an alias of `saz` in `aliases.py`, so it reports the saz's range, but the
+    Bağlama page says "Larger saz instruments were known by other names such as: bozuk,
+    tambura" and the sheet row admits it "can mean a larger saz": bozuk may be a larger saz (a
+    sound-alike with its own range, or a WAIT) rather than another name
   - [ ] `yakumogoto` and `nigenkin` are sound-alikes of other instruments while `ichigenkin`
     waits for a slide, though all three are the same fretless tenkan tube; read as a slide for
     all, both would wait too
@@ -2078,8 +2088,6 @@ This document tracks planned future features for the GlitchyGames project. Featu
   - [ ] The audit's "Gaps you could not close" (`plans/data/instrument-audit/plucked-strings.md`)
     are a later pass over this family, along with ranging the 166 range WAIT rows from maker and
     museum sources
-  - [ ] The sheet's builder column for `banjolele` still shows the dropped `pick=0.03`; the code
-    has no pick
   - [ ] The 16 DROP rows (`aeolian harp`, `claviharp`, `divan saz`, `dolceola`, `donso ngoni`,
     `fotdella`, `kacapi suling`, `kamele ngoni`, `laudon`, `marimbula`, `meydan saz`, `nondo`,
     `quijongo`, `shudraga`, `talk box`, `zeze`): each row's notes give the fetched reason

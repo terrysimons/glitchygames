@@ -96,7 +96,9 @@ PLUCKED_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
     # with a pear-shaped body"; "played with a pick"; "The modern liuqin has four steel
     # strings"; "because of the diminutive size and resemblance of the liuqin to the pipa"): the
     # pipa is the nearest build. Range G3-G7: the common tuning "G-D-G-D", an octave above the
-    # zhongruan (https://en.wikipedia.org/wiki/Ruan_(instrument)), as the sheet derives it
+    # zhongruan (https://en.wikipedia.org/wiki/Ruan_(instrument)), as the sheet derives it:
+    # the Liuqin page says "the number of the liuqin's frets was increased from 7 to 29 over the
+    # course of the 20th century", so the highest is D5 + 29 semitones = G7
     CatalogEntry(
         'liuqin',
         'Liuqin',
@@ -288,6 +290,7 @@ PLUCKED_SOUND_ALIKES: Final[tuple[CatalogEntry, ...]] = (
         'A6',
         sounds_like='ruan',
     ),
+    # --- Batch 4's sound-alikes (zithers), in the same order
     # Sound-alike of the zither (no fetched source sets it apart in sound):
     # https://en.wikipedia.org/wiki/Zither ("The Alpine zither has 42 strings, and differs from the
     # concert zither primarily in requiring the addition of an extension to the body of the

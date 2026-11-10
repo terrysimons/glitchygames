@@ -783,6 +783,8 @@ def test_the_batch_aliases_resolve(alias, target):
     Batch 3's aliases are other names for the same drum or idiophone, which may be a sound-alike
     entry (the rainstick) or in another family (the tuned gong); a distinct instrument that sounds
     like one is its own entry (``test_a_sound_alike_is_listed_and_builds_its_parents_sound``).
+    Batch 4's aliases are other names for a plucked instrument (``kanun`` for the qanun, ``bozuk``
+    for the saz).
     """
     assert instruments.entry(alias) is instruments.entry(target)
 
@@ -1373,7 +1375,7 @@ EXISTING_PLUCKED_NAMES = frozenset({
     'kantele',
     'psaltery',
 })
-# Batch 4's entries with their own build, in the sheet's order (Task 6 appends the rest)
+# Batch 4's entries with their own build, in the sheet's order (the necked lutes and the zither)
 NEW_PLUCKED_NAMES = [
     'angelique',
     'banjolele',
@@ -1440,7 +1442,7 @@ def test_the_new_plucked_strings_are_pitched_entries_of_their_family():
 
 
 def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
-    """Each sound-alike is a drums and percussion name of its own, building its parent's sound."""
+    """Each sound-alike is a name of its own in its family, building its parent's sound."""
     listed = instruments.names(family=Family.DRUMS_AND_PERCUSSION)
     for name, parent in SOUND_ALIKE_PARENTS.items():
         assert name in listed, name

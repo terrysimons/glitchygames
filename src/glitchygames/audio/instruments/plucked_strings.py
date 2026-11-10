@@ -598,6 +598,7 @@ _PLUCKED_BUILDS: Final[tuple[CatalogEntry, ...]] = (
             pick=0.04,
         ),
     ),
+    # --- Batch 4's zither with its own build
     # Sound: https://en.wikipedia.org/wiki/Qanun_(instrument) ("Kanuns manufactured in Turkey
     # generally feature 26 courses of strings, with three strings per course in the case of all
     # regional variants. Contemporary Arabic designs use Nylon or PVF strings that are stretched
