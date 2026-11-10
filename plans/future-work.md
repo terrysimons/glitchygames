@@ -937,6 +937,20 @@ drafted issue text. Not posted yet:
   status, named functions and classes still existing), fix or remove it, and keep American
   spellings. Finish with `mkdocs build --strict` and the docs guard tests. Plan it as its own
   branch (design, then plan), split by area so each piece is reviewable.
+- **Format the docs site in Material** (the owner, 2026-11-09; on the scrub's branch, #145).
+  The pages stay markdown, written with Material's markdown conventions (admonitions, content
+  tabs, titled and annotated code blocks, collapsible reference sections), and the theme's
+  configuration turns on what is off (light/dark palette, code copy buttons, search suggestions,
+  edit links, footer navigation, a glossary of abbreviations). Material stays, with mkdocs
+  pinned below 2.0. Plan: `plans/2026-11-09-docs-material-formatting.md`.
+- **Move the docs site to Zensical** (the owner, 2026-11-09: later, after the Material
+  formatting). Material for MkDocs reaches end of life on 2027-05-05; Zensical is its successor
+  from the same team and reads the same markdown and configuration (`zensical.yml` is already
+  named for it, `mkdocs.yml` a link to it). Before moving, check that Zensical supports every
+  plugin the site uses (mkdocstrings, gen-files, macros, section-index, autorefs, search) and the
+  hook in `scripts/mkdocs_hooks.py` (the complexity and performance generation, the caches it
+  clears), then drop the `mkdocs<2.0` pin and the link, and update `CLAUDE.md`'s documentation
+  note and `tests/test_workspace_config.py`'s link test.
 
 ## Raspberry Pi speedups (user request, 2026-11-04)
 

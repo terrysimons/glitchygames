@@ -5,6 +5,10 @@ and push each item on its own branch). The request: `plans/future-work.md`, "Doc
 scrub". Done last, after the run's other branches land, since they change docs too (#178.26,
 #190, #225/#227, #251, #256, sprite tags, solid collision).
 
+The site's Material formatting (the owner, 2026-11-09) rides on this scrub:
+`plans/2026-11-09-docs-material-formatting.md`. Its conventions (which passages become
+admonitions, tabs, collapsible blocks or titled code) apply as each page is read here.
+
 ## Design
 
 **What is scrubbed (73 documents, then the engine's module docstrings):**
