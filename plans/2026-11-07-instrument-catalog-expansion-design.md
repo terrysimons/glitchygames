@@ -8,10 +8,12 @@
   `plans/2026-11-07-instrument-catalog-batch-1-implementation.md` and its audit sheet
   `plans/data/instrument-audit/batch-1.tsv`. Batch 2 (electromechanical and sound effects) is
   done: see `plans/2026-11-08-instrument-catalog-batch-2-implementation.md` and
-  `plans/data/instrument-audit/batch-2.tsv`. The later batches are not yet planned.
+  `plans/data/instrument-audit/batch-2.tsv`. Batch 3 (drums and percussion) is done: see
+  `plans/2026-11-08-instrument-catalog-batch-3-implementation.md` and
+  `plans/data/instrument-audit/batch-3.tsv`. The later batches are not yet planned.
 - **Depends on:** the instrument catalog (`src/glitchygames/audio/instruments/`, 431 instruments
   in 18 families when this was written, shipped with the sound engine M1; 439 in 21 after batch
-  1, 448 in 23 after batch 2), its range audit, and the engine's four sources per instrument
+  1, 448 in 23 after batch 2, 624 after batch 3), its range audit, and the engine's four sources per instrument
   (`src/glitchygames/audio/instrument.py`).
 - **Tracked as:** `plans/future-features.md` #70.
 
@@ -34,7 +36,8 @@ made-up instrument is a bug, so every addition has to be traceable to a source.
 ## Non-goals
 
 - Every regional name as its own instrument. A name for the same instrument is an alias
-  (resolvable by `instruments.get`), not a catalog entry.
+  (resolvable by `instruments.get`), not a catalog entry; a different instrument that sounds
+  like an entry is a sound-alike, which is one (decision 8).
 - Articulations and ensemble patches (pizzicato, mutes, string sections): those are instrument
   settings, a separate design.
 - Engine features (FM, samples, sympathetic strings, moving formants). This design lists them;
@@ -198,6 +201,20 @@ its real name or a qualified one. Each feature's design lists the instruments it
 
 7. Tags are a `tags: frozenset[Tag]` field on `CatalogEntry`, where `Tag` is a closed enum like
    `Family`; see "Tags".
+
+8. A verified instrument that sounds like an existing entry is its own entry, sharing the
+   parent's build (`CatalogEntry.sounds_like`), listed by `names` and `entries` and given a demo
+   like any other; a true alias (another name for the same instrument) stays an alias. The
+   owner, 2026-11-08: "cultural knowledge could change the instrument name they search for -
+   humans won't all necessarily know which instruments are identical or know all of their
+   names"; "could we also consider making them full on instruments that inherit from the parent
+   and change their details? ... I want them to all show up."; and, on letting a sound-alike
+   differ later, "that infrastructure would allow it in the future, which is a good option to
+   have if we find a source that indicates we should." So `sound_changes` (keyword overrides of
+   the parent's builder, empty by default) lets a sound-alike differ by a sourced trait. This is
+   an explicit exception to the anti-goal against bulk entries: sound-alikes add names, not
+   builds. Any entry with its own build must still sound different from every other (the
+   rule-7 test), and a sound-alike with changes counts as its own build.
 
 ## Open questions
 

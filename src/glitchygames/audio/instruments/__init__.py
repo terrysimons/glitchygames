@@ -31,12 +31,22 @@ organs, and adds the ``hohner pianet``. Sound effects is a new family (``thunder
 ``rain machine``, ``ocean drum``, ``cannon``, ``coconut shells``, ``door slam``), each effect
 playable as a note.
 
+Drums and percussion (237 entries) holds the family's builds in ``drums.py`` (hand drums such as
+``daf``, ``dhol``, ``kendang`` and ``mridangam``, snares, gongs such as ``agung`` and ``jing``,
+cymbals, shakers, clappers, ``garamut``, ``washboard``) and its sound-alikes in
+``drum_sound_alikes.py``. A sound-alike is a verified instrument no source sets apart in sound
+from an existing entry (``bamboula`` and ``conga``): its own entry, listed under its own name,
+with ``CatalogEntry.sounds_like`` naming the parent whose build it shares.
+``CatalogEntry.sound_changes`` (empty so far) would let one differ by a sourced trait.
+
 ``instruments.ALIASES`` (read-only, as ``CATALOG`` is) maps each other name (``slapstick``) to
-its catalog name (``whip``); ``entry`` and ``get`` resolve them, while ``names`` and ``entries``
+its catalog name (``whip``): another name for the same instrument, where a sound-alike is a
+different instrument. ``entry`` and ``get`` resolve aliases, while ``names`` and ``entries``
 list catalog names only.
 
 ``instruments.get`` builds each instrument once per process and returns the same (immutable)
-instrument afterwards.
+instrument afterwards. A sound-alike is built under its own name: its instrument is equal by
+value to its parent's, not the same object.
 """
 
 from glitchygames.audio.instruments.catalog import CatalogEntry, Family, Tag

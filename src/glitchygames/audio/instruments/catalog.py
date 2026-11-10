@@ -4,7 +4,9 @@ A ``CatalogEntry`` names an instrument, its family and its playing range (soundi
 standard orchestration ranges; folk and world instruments vary by maker and tuning, so theirs
 are typical). Unpitched entries (drums, cymbals) have no range: their tones are fixed. A ``Tag``
 marks a quality that cuts across families (``Tag.MECHANICAL``); the set is closed, so tags cannot
-drift into synonyms.
+drift into synonyms. A sound-alike (``sounds_like``) is an instrument of its own that no source
+sets apart in sound from another entry, its parent: it is listed under its own name and builds
+its parent's instrument, changed only by its sourced ``sound_changes``.
 """
 
 from __future__ import annotations
@@ -12,12 +14,13 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import StrEnum
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from glitchygames.audio.pitch import Note
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
     from glitchygames.audio.instrument import Instrument
 
@@ -68,8 +71,19 @@ class CatalogEntry:
         family: Its family.
         lowest: Its lowest sounding note name, or None when it is unpitched.
         highest: Its highest sounding note name, or None when it is unpitched.
-        build: Makes the instrument (called once; ``instruments.get`` keeps the result).
+        build: Makes the instrument (called once; ``instruments.get`` keeps the result). Every
+            entry from ``CATALOG`` / ``instruments.entry()`` has a build: None only in a raw
+            table entry for a sound-alike, which the catalog's assembly gives its parent's
+            builder.
         tags: Its tags, members of ``Tag`` (empty for most entries).
+        sounds_like: The catalog name of the entry this one sounds like (its parent), or None.
+            A sound-alike is a distinct instrument, listed under its own name, that no source
+            sets apart in sound from its parent: it builds its parent's instrument and has its
+            parent's range (another name for the same instrument is an alias instead).
+        sound_changes: Keyword overrides of the parent's builder (a ``functools.partial``), for
+            a sound-alike that a source sets apart by a trait (a smaller head's higher tone)
+            while it inherits everything else; empty for most. Each change needs a source,
+            cited in the entry's comment, as every other value does. Stored read-only.
     """
 
     name: str
@@ -77,18 +91,31 @@ class CatalogEntry:
     family: Family
     lowest: str | None
     highest: str | None
-    build: Callable[[], Instrument] = field(repr=False, compare=False)
+    build: Callable[[], Instrument] | None = field(default=None, repr=False, compare=False)
     tags: frozenset[Tag] = field(default=frozenset())
+    sounds_like: str | None = None
+    # compare=False: a mappingproxy is unhashable and the frozen entry must stay hashable, so
+    # equality ignores the changes
+    sound_changes: Mapping[str, object] = field(default=MappingProxyType({}), compare=False)
 
     def __post_init__(self) -> None:
-        """Validate the name, the range and the tags.
+        """Validate the name, the range, the tags and the build, and freeze the sound changes.
+
+        The sound-alike rules that need the whole catalog (the parent exists, is no sound-alike,
+        takes the changes) are checked when the catalog is assembled
+        (``registry.sound_alikes_from``).
 
         Raises:
             ValueError: On a name that is not lower-case words separated by single spaces, a range
-                with only one end, a note name that does not parse, or a lowest note above the
-                highest.
+                with only one end, a note name that does not parse, a lowest note above the
+                highest, or neither a build nor a ``sounds_like``.
             TypeError: On a tag that is not a ``Tag`` (a string equal to a tag's value included).
         """
+        # A copy, so the caller's dict cannot change the entry afterwards
+        object.__setattr__(self, 'sound_changes', MappingProxyType(dict(self.sound_changes)))
+        if self.build is None and self.sounds_like is None:
+            message = f'{self.name}: give a build, or the entry it sounds like'
+            raise ValueError(message)
         if ENTRY_NAME_PATTERN.fullmatch(self.name) is None:
             message = (
                 f'catalog name {self.name!r} must be lower-case words separated by single spaces'

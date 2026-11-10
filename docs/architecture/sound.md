@@ -204,7 +204,7 @@ the sound never plays where the picture does not (`--headless`, tests, replays, 
 
 ## The instrument catalog
 
-`glitchygames.audio.instruments` holds 448 ready-made instruments in 23 families. Each is an
+`glitchygames.audio.instruments` holds 624 ready-made instruments in 23 families. Each is an
 ordinary `Instrument`, built from the engine's own parts (waves from overtone series, noise,
 layers with their own envelopes and pitches, filters and drive), so it compiles, caches, plays
 and renders offline like any other:
@@ -240,7 +240,7 @@ instruments.get('slapstick')                             # an alias: the same in
 | `tuned percussion` | 23 | glockenspiel, xylophone, marimba, vibraphone, bells, steel pans, timpani, gamelan |
 | `plucked idiophones` | 4 | kalimba, mbira, music box, sansula |
 | `friction instruments` | 3 | glass harmonica, glass harp, terpodion |
-| `drums and percussion` | 61 | kits (kicks, snares, toms, hi-hats, cymbals), hand drums, shakers, blocks |
+| `drums and percussion` | 237 | kits (kicks, snares, toms, hi-hats, cymbals), hand drums (daf, dhol, kendang, mridangam), gongs, shakers, blocks, and 131 sound-alikes |
 | `noise makers` | 5 | whip crack, diaphone, air horn, vehicle horn, party horn |
 | `sound effects` | 8 | thunder sheet, rain machine, ocean drum, cannon, crash box, coconut shells, door slam |
 | `voices` | 55 | soprano, mezzo, alto, treble, countertenor, tenor, baritone, bass and basso profundo on ah, eh, ee, oh, oo and humming; whistling |
@@ -256,9 +256,17 @@ instruments.get('slapstick')                             # an alias: the same in
 - `instruments.ALIASES` (read-only, as `instruments.CATALOG` is) maps another name to its
   catalog name: `slapstick` to `whip`, `zanza` to `mbira`, `cylinder music box` and `disc music
   box` to `music box`, `wurlitzer electronic piano` to `reed electric piano`, `hohner clavinet`
-  to `clavinet`, `rain box` to `rain machine` and `horse hooves` to `coconut shells` (8 in
-  all). `get` and `entry` resolve an alias, while `names` and `entries` list catalog names
-  only.
+  to `clavinet`, `rain box` to `rain machine`, `horse hooves` to `coconut shells`, `tavil` to
+  `thavil` and `riq` to `daf` (35 in all). `get` and `entry` resolve an alias, while `names`
+  and `entries` list catalog names only.
+- A sound-alike is not an alias: it is a verified instrument that sounds like an existing entry
+  (`bamboula` and `conga`, `tombak` and `darbuka doum`), so it is an entry of its own, listed by
+  `names` and `entries`, whose `CatalogEntry.sounds_like` names the parent whose build it
+  shares (`instruments.get('bamboula') == instruments.get('conga')`; the parent may be in
+  another family). `sound_changes` (empty so far) holds keyword overrides of the parent's
+  builder, for a sound-alike that a source sets apart by one trait; each needs a cited source.
+  Assembly refuses a `sounds_like` that names no entry, itself or another sound-alike. The 131
+  drum ones are in `drum_sound_alikes.py`, the family's builds in `drums.py`.
 - Each entry has a `title`, a `family` and its playing range, `lowest` and `highest` (sounding
   pitch; folk instruments' are typical of the common keys). Drums and other unpitched entries
   have no range: their tones are fixed, so give any pitch (`pitch='A4'`); it does not change
