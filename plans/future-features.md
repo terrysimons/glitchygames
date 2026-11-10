@@ -1829,7 +1829,7 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: TODO
 - **Priority**: Medium (before batch 3 builds on the family boundaries)
 
-### 72. Sound Engine: The Owner's Checks on Instrument Catalog Batch 3 — TODO
+### 73. Sound Engine: The Owner's Checks on Instrument Catalog Batch 3 — TODO
 - **Goal**: confirm or overturn the calls made while batch 3 of #70 ran, and listen to its new
   instruments (drums and percussion, 61 to 237 entries; the owner, 2026-11-08: "I want them to
   all show up")
