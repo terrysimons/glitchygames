@@ -1,8 +1,8 @@
 {
   "app": "uv run --frozen python -m glitchy_site.app",
   "context": {
-    "circleci_organization_id": "",
-    "circleci_project_id": "",
+    "circleci_organization_id": "c50c5385-12e3-4835-946b-67938ab70fdf",
+    "circleci_project_id": "2897248e-6671-4fbd-bbba-735a51e6d4a6",
     "@aws-cdk-containers/ecs-service-extensions:enableDefaultLogDriver": true,
     "@aws-cdk/aws-apigateway:authorizerChangeDeploymentLogicalId": true,
     "@aws-cdk/aws-apigateway:disableCloudWatchRole": true,

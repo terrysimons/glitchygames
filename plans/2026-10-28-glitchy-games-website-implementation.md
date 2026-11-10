@@ -525,23 +525,47 @@ test('directory URLs on the canonical host fetch their index', () => {
 Manual steps from the spec, in order; each has its check. Nothing here is automated, and
 nothing is done without the owner at the keyboard.
 
-- [ ] **Step 1: Credentials.** The owner has an admin AWS profile on the Mac (`brew install
+- [x] **Step 1: Credentials.** The owner has an admin AWS profile on the Mac (`brew install
   awscli`, then `aws configure sso` or `aws configure`). Check: `aws sts get-caller-identity`
   prints the account. Check for things to reuse (spec, "Calls Claude made"):
   `aws cloudformation describe-stacks --stack-name CDKToolkit --region us-east-1`,
   `aws route53 list-hosted-zones`, `aws iam list-open-id-connect-providers`. If a provider for
   `oidc.circleci.com/org/<organization id>` already exists, put its ARN in `infra/cdk.json` as
   `circleci_oidc_provider_arn` (IAM allows one per URL; the stack then reuses it).
-- [ ] **Step 2: CircleCI IDs.** The owner copies the organization ID (Organization Settings)
+  - Done 2026-11-09. The `glitchygames` profile (us-east-1) signs in with `aws login`; it is the
+    account's root user for now (the owner's choice; a non-root admin identity is an open item,
+    as is root MFA). Nothing to reuse: no `CDKToolkit`, hosted zones, OIDC provider, CloudFront
+    distributions, certificates, budgets or stacks in us-east-1, so `circleci_oidc_provider_arn`
+    stays unset.
+  - Found: a shell that exports `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (here, dead keys in
+    the owner's shell profile) makes the CDK CLI ignore `AWS_PROFILE`, fail its STS lookup and
+    stop with `KeyError: 'CDK_DEFAULT_ACCOUNT'` from `glitchy_site.app`. Pass `--profile` (the
+    nox sessions forward it: `nox -s infra-deploy -- <stack> --profile <name>`), or unset those
+    variables. The CDK reads an `aws login` session itself.
+- [x] **Step 2: CircleCI IDs.** The owner copies the organization ID (Organization Settings)
   and project ID (Project Settings) into `infra/cdk.json`.
-- [ ] **Step 3: Bootstrap and zones.** `cd infra && npx --yes aws-cdk@<version> bootstrap aws://<account>/us-east-1`
+  - Done 2026-11-09: both IDs are in `infra/cdk.json`.
+- [x] **Step 3: Bootstrap and zones.** `cd infra && npx --yes aws-cdk@<version> bootstrap aws://<account>/us-east-1`
   (skip if `CDKToolkit` exists), then
   `GLITCHY_SITE_BUDGET_EMAIL=<address> nox -s infra-deploy -- GlitchyGamesDnsZones`. Check: the
   two NameServers outputs, four servers each.
+  - Done 2026-11-09. Bootstrapped (bootstrap version 32) with `aws-cdk@2.1146.1`, from a
+    directory without `cdk.json`, so the app (and its budget email) wasn't synthesized. Root
+    cannot assume the bootstrap's roles, so the CDK warns and deploys with the root credentials
+    themselves. `GlitchyGamesDnsZones` deployed (about 50 s); `cdk diff` first showed only the
+    two hosted zones and their outputs. Name servers (public, as any domain's are):
+    `glitchy.games`: ns-1512.awsdns-61.org, ns-1605.awsdns-08.co.uk, ns-430.awsdns-53.com,
+    ns-726.awsdns-26.net; `glitchygames.ai`: ns-1697.awsdns-20.co.uk, ns-546.awsdns-04.net,
+    ns-482.awsdns-60.com, ns-1224.awsdns-25.org. Each zone answers for its domain. The CDK's
+    jsii warns that Node 26 is untested (22 and 24 are supported); it worked.
 - [ ] **Step 4: Namecheap.** For `glitchy.games` and `glitchygames.ai`: Domain List → Manage →
   Nameservers → Custom DNS → the four servers from Step 3. Check:
   `dig +short NS glitchy.games` and `dig +short NS glitchygames.ai` show the `awsdns` servers
   (may take hours).
+  - In progress 2026-11-09: the owner sets them. Before the switch, both domains' records at
+    Namecheap matched "Today's DNS" in the design (parking page on `@` and `www`, email
+    forwarding MX and SPF, no DS record); the zones copy neither, as decided there. The
+    registrations stay at Namecheap (the owner, 2026-11-09).
 - [ ] **Step 5: Everything else.** `GLITCHY_SITE_BUDGET_EMAIL=<address> nox -s infra-deploy`.
   Certificate validation waits for Step 4 to propagate. Check: five stacks `CREATE_COMPLETE`;
   the `DeployRoleArn` output.
