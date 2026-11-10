@@ -26,6 +26,7 @@ from scripts.generate_performance_graphs import (
     PROJECT_SETTINGS,
     SNIPPET_NAME,
     generate_performance_page,
+    latest_table,
     published_ledger_path,
 )
 
@@ -36,6 +37,7 @@ from glitchygames.recording_metrics import (
     FrameProfile,
     LedgerOrigin,
     LedgerRow,
+    PerformanceSeries,
     ledger_text,
     parse_ledger,
     write_row_files,
@@ -157,6 +159,8 @@ def test_the_snippet_follows_the_pages_in_the_docs_tree(tmp_path):
     snippet = (metrics / SNIPPET_NAME).read_text(encoding='utf-8')
     assert 'Generated from 4 ledger rows (0 in the repository, 2 published, 3 pending)' in snippet
     assert '`def5678 (uncommitted changes)`' in snippet
+    # The newer golden row: a 2 ms mean processing time is 500 FPS of headroom
+    assert '`def5678 (uncommitted changes)` | 10 | 500 | 2.000 |' in snippet
     assert '<iframe src="../metrics/paddleslap-golden.html"' in snippet
     assert f'[{LEDGER_NAME}](metrics/{LEDGER_NAME})' in snippet
     assert snippet.index('paddleslap/demos/rally.jsonl.gz`') < snippet.index(
@@ -171,6 +175,31 @@ def test_the_snippet_follows_the_pages_in_the_docs_tree(tmp_path):
         include_uncommitted_changes=True,
     )
     assert again.written == ()
+
+
+def test_the_latest_table_leaves_the_fps_empty_when_no_frame_was_measured():
+    """No measured frame, no mean: the FPS cell is empty, never a division by zero."""
+    row = ledger_row()
+    assert row.summary is not None
+    unmeasured = row.model_copy(
+        update={
+            'summary': row.summary.model_copy(
+                update={'measured_frames': 0, 'total_processing_seconds': 0.0}
+            )
+        }
+    )
+    series = PerformanceSeries(
+        recording=GOLDEN,
+        console_script='paddleslap',
+        machine='a machine',
+        paced=False,
+        rows=(unmeasured,),
+    )
+
+    lines = latest_table(series_list=[series])
+
+    assert lines[0].split(' | ')[4] == 'FPS'
+    assert not lines[2].split(' | ')[4]
 
 
 def test_the_docs_trees_published_build_leaves_out_rows_from_uncommitted_changes(tmp_path):

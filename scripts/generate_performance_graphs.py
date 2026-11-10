@@ -39,7 +39,11 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.recording_metrics import MILLISECONDS_PER_SECOND, short_commit
+from glitchygames.recording_metrics import (
+    MILLISECONDS_PER_SECOND,
+    fps_from_seconds,
+    short_commit,
+)
 from glitchygames.replay.tools.performance_pages import build_performance_pages, write_if_changed
 from glitchygames.replay.tools.settings import ProjectSettings, load_project_settings
 
@@ -125,16 +129,25 @@ def _cell_milliseconds(seconds: float) -> str:
     return f'{seconds * MILLISECONDS_PER_SECOND:.3f}'
 
 
+def _cell_fps(seconds: float | None) -> str:
+    frames_per_second = fps_from_seconds(seconds=seconds)
+    return '' if frames_per_second is None else f'{frames_per_second:.0f}'
+
+
 def latest_table(*, series_list: Sequence[PerformanceSeries]) -> list[str]:
     """Return the markdown table of each series' latest measurement.
+
+    Its FPS column is the run's headroom FPS: one over the mean processing time, how fast the
+    work alone could run (``recording_metrics.fps_from_seconds``, as ``measure`` and ``report``
+    show it); empty when no frame was measured.
 
     Returns:
         The table's lines.
 
     """
     lines = [
-        '| Recording | Machine | Commit | Frames | p50 ms | p99 ms | Max ms | Over budget |',
-        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        '| Recording | Machine | Commit | Frames | FPS | p50 ms | p99 ms | Max ms | Over budget |',
+        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |',
     ]
     for series in series_list:
         row = series.rows[-1]
@@ -146,6 +159,7 @@ def latest_table(*, series_list: Sequence[PerformanceSeries]) -> list[str]:
         over_budget = '' if summary.frames_over_budget is None else str(summary.frames_over_budget)
         lines.append(
             f'| `{series.recording}` | {series.label} | `{commit}` | {summary.measured_frames} | '
+            f'{_cell_fps(summary.mean_processing_seconds)} | '
             f'{_cell_milliseconds(summary.p50_processing_seconds)} | '
             f'{_cell_milliseconds(summary.p99_processing_seconds)} | '
             f'{_cell_milliseconds(summary.max_processing_seconds)} | {over_budget} |'
@@ -180,7 +194,17 @@ def performance_snippet(
             'No measurements yet: `nox -s replay-metrics` measures the recordings on this machine.'
         )
         return '\n'.join(lines) + '\n'
-    lines.extend(('## Latest measurements', '', *latest_table(series_list=series_list), ''))
+    lines.extend((
+        '## Latest measurements',
+        '',
+        (
+            'FPS is the headroom: one over the mean processing time, how fast the work alone '
+            'could run without pacing or drawing to the screen.'
+        ),
+        '',
+        *latest_table(series_list=series_list),
+        '',
+    ))
     for recording, name in pages.items():
         lines.extend((
             f'## `{recording}`',
