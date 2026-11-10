@@ -29,7 +29,8 @@ if TYPE_CHECKING:
 import pygame
 import pygame.freetype
 
-from glitchygames.read_only_views import ReadOnlyViews
+from glitchygames.engine_context import ContextSlot, current_context
+from glitchygames.read_only_views import ReadOnlyView, ReadOnlyViews
 
 
 @runtime_checkable
@@ -115,7 +116,7 @@ DEFAULT_FONT_SIZE = 14
 BASE_FONT_DPI = 72
 
 # The style options a font configuration may give, and the values used when neither it nor the
-# engine's options (FontManager.OPTIONS) give one. Antialiasing is on, as pygame.freetype's is.
+# engine's font options (_font_options()) give one. Antialiasing is on, as pygame.freetype's is.
 FONT_STYLE_DEFAULTS: dict[str, bool | int] = {
     'font_bold': False,
     'font_italic': False,
@@ -170,6 +171,24 @@ class FontSettings:
         return max(1, round(self.size * self.dpi / BASE_FONT_DPI))
 
 
+# Each engine context's font options (glitchygames.engine_context; audit C13): the context's
+# FontManager sets them from its game's options, so a game in another context never draws with
+# this one's font, size, style or font system
+FONT_OPTIONS_SLOT: ContextSlot[dict[str, Any]] = ContextSlot(
+    name='glitchygames.fonts.font_manager.options', factory=dict
+)
+
+
+def _font_options() -> dict[str, Any]:
+    """Return the current engine context's font options (the dict itself, changed in place).
+
+    Returns:
+        The options (empty until the context's FontManager or set_font_system sets them).
+
+    """
+    return current_context().value(slot=FONT_OPTIONS_SLOT)
+
+
 def bundled_font_path(*, font_name: str) -> Path | None:
     """Return the file of a bundled font, or None when the name is not a bundled font.
 
@@ -210,7 +229,16 @@ class FontManager(ResourceManager, metaclass=ReadOnlyViews):
 
     """
 
-    OPTIONS: ClassVar[dict[str, Any]] = {}
+    # The current context's font options (audit C13), read on the class or on a manager; a
+    # read-only view of the context's dict, which readers may change in place
+    OPTIONS = ReadOnlyView[dict[str, Any], dict[str, Any]](
+        read_current=lambda _owner: _font_options(),
+        read_own=lambda _manager: _font_options(),
+        write_instead=(
+            "the current context's font options in place (FontManager.OPTIONS.update(...)) "
+            'or FontManager.set_font_system(...)'
+        ),
+    )
     RENDER_CACHE: ClassVar[dict[str, Any]] = {}
     _font_cache: ClassVar[dict[str, GameFont]] = {}
 
@@ -260,22 +288,21 @@ class FontManager(ResourceManager, metaclass=ReadOnlyViews):
             pygame.freetype.get_default_resolution(),
         )
 
-        # Set up the default options.
-        FontManager.OPTIONS['font_name'] = self.game.engine_options['font_name']
-        FontManager.OPTIONS['font_size'] = self.game.engine_options['font_size']
+        # Set up the default options: this context's (audit C13)
+        font_options = _font_options()
+        font_options['font_name'] = self.game.engine_options['font_name']
+        font_options['font_size'] = self.game.engine_options['font_size']
         # A style option the game's options leave out gets the engine's default (antialiasing
         # on), so options not built by the engine's parser still load fonts
         for style_option, default_value in FONT_STYLE_DEFAULTS.items():
-            FontManager.OPTIONS[style_option] = self.game.engine_options.get(
-                style_option, default_value
-            )
+            font_options[style_option] = self.game.engine_options.get(style_option, default_value)
 
         # Set font system based on command line argument
         font_system: str = self.game.engine_options.get('font_system', 'freetype')
-        FontManager.OPTIONS['use_freetype'] = font_system == 'freetype'
+        font_options['use_freetype'] = font_system == 'freetype'
         log.info('Font system initialized: %s', font_system)
 
-        pygame.freetype.set_default_resolution(FontManager.OPTIONS['font_dpi'])
+        pygame.freetype.set_default_resolution(font_options['font_dpi'])
 
         # Ideas:
         #
@@ -521,8 +548,8 @@ class FontManager(ResourceManager, metaclass=ReadOnlyViews):
     def font_settings(cls, font_config: dict[str, Any] | None = None) -> FontSettings:
         """Return the settings a font configuration asks for, without changing the configuration.
 
-        An empty or missing configuration asks for the engine's default font
-        (FontManager.OPTIONS). A name or size the configuration leaves out gets
+        An empty or missing configuration asks for the engine's default font (the current
+        context's font options). A name or size the configuration leaves out gets
         DEFAULT_FONT_NAME or DEFAULT_FONT_SIZE; a style option it leaves out gets the engine's
         option, then FONT_STYLE_DEFAULTS, so --font-bold and the rest reach every font.
 
@@ -533,10 +560,11 @@ class FontManager(ResourceManager, metaclass=ReadOnlyViews):
             The font's settings.
 
         """
-        source = font_config or FontManager.OPTIONS
+        font_options = _font_options()
+        source = font_config or font_options
 
         def option(key: str, *, default: bool | int) -> bool | int:
-            for options in (source, FontManager.OPTIONS):
+            for options in (source, font_options):
                 value = options.get(key)
                 if value is not None:
                     return value
@@ -569,7 +597,7 @@ class FontManager(ResourceManager, metaclass=ReadOnlyViews):
         """
         if font_system is None:
             # Default to freetype
-            use_freetype: bool = bool(FontManager.OPTIONS.get('use_freetype', True))
+            use_freetype: bool = bool(_font_options().get('use_freetype', True))
         else:
             use_freetype = font_system == 'freetype'
 
@@ -591,7 +619,7 @@ class FontManager(ResourceManager, metaclass=ReadOnlyViews):
             font_system: Either "pygame" or "freetype" to specify the font system.
 
         """
-        FontManager.OPTIONS['use_freetype'] = font_system == 'freetype'
+        _font_options()['use_freetype'] = font_system == 'freetype'
         log.info('Font system set to: %s', font_system)
 
     @classmethod
@@ -602,7 +630,7 @@ class FontManager(ResourceManager, metaclass=ReadOnlyViews):
             str: "freetype" or "pygame" indicating the current font system.
 
         """
-        return 'freetype' if FontManager.OPTIONS.get('use_freetype', False) else 'pygame'
+        return 'freetype' if _font_options().get('use_freetype', False) else 'pygame'
 
     @classmethod
     def compare_font_systems(

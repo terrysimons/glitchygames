@@ -34,6 +34,7 @@ from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import current_context, default_context
 from glitchygames.events.base import SHARED_INSTANCES_SLOT
 from glitchygames.fonts import FontManager
+from glitchygames.fonts.font_manager import FONT_OPTIONS_SLOT
 from glitchygames.input.state import reset_current_input
 from glitchygames.performance.adaptive_clamping import PERFORMANCE_MANAGERS_SLOT
 from glitchygames.recording import reset_internal_post_tracking
@@ -315,6 +316,9 @@ def _reset_all_singleton_instances():
     # Reset ResourceManager singleton instances (FontManager, event managers, etc.): the default
     # context's (glitchygames.events.base)
     default_context().reset_value(slot=SHARED_INSTANCES_SLOT)
+
+    # The default context's font options (glitchygames.fonts.font_manager; audit C13)
+    default_context().reset_value(slot=FONT_OPTIONS_SLOT)
 
     # Reset FontManager class-level caches that may hold mock objects
     FontManager._font_cache.clear()

@@ -14,6 +14,7 @@ import ast
 import functools
 import re
 import sys
+import types
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -23,6 +24,7 @@ import pytest
 from glitchygames import events
 from glitchygames.engine import GameEngine, current_engine
 from glitchygames.engine_context import EngineContext
+from glitchygames.fonts import FontManager
 from glitchygames.performance import AdaptiveClamping
 from glitchygames.read_only_views import (
     ClassOnlyView,
@@ -66,6 +68,9 @@ SECOND_STAND_IN_TARGET_FPS = 50
 # UNIMPLEMENTED_EVENTS check
 FIRST_UNIMPLEMENTED_EVENT_TYPE = pygame.NUMEVENTS - 1
 SECOND_UNIMPLEMENTED_EVENT_TYPE = pygame.NUMEVENTS - 2
+# Each context's game's --font-size in the FontManager.OPTIONS check (two contexts told apart)
+FIRST_FONT_SIZE = 14
+SECOND_FONT_SIZE = 20
 
 # Every view, as 'GameEngine.OPTIONS' or 'glitchygames.performance.performance_manager', with
 # the check that it answers per context: (*, first, second, mocker) -> None
@@ -1415,6 +1420,52 @@ def check_scene_manager_options_view(
 
 
 VIEW_CHECKS['SceneManager.OPTIONS'] = check_scene_manager_options_view
+
+
+def check_font_options_view(
+    *, first: EngineContext, second: EngineContext, mocker: MockerFixture
+) -> None:
+    """FontManager.OPTIONS: each context's own font options (audit C13).
+
+    Read on the class or on a manager, the current context's font options, which the context's
+    FontManager sets from its game's options (``{}`` in a fresh context). Writing or patching it
+    raises, naming where to write instead.
+    """
+    managers: list[FontManager] = []
+    class_reads: list[dict[str, object]] = []
+    instance_reads_answer_the_class_read: list[bool] = []
+    for context, font_size in ((first, FIRST_FONT_SIZE), (second, SECOND_FONT_SIZE)):
+        with context.active():
+            manager = FontManager(
+                game=types.SimpleNamespace(
+                    engine_options={'font_name': 'Vera', 'font_size': font_size}
+                )
+            )
+            managers.append(manager)
+            class_reads.append(FontManager.OPTIONS)
+            instance_reads_answer_the_class_read.append(manager.OPTIONS is FontManager.OPTIONS)
+    with EngineContext(name='fresh').active():
+        fresh_read = FontManager.OPTIONS
+
+    assert instance_reads_answer_the_class_read == [True, True]
+    assert managers[0] is not managers[1]
+    assert class_reads[0] is not class_reads[1]
+    assert [options['font_size'] for options in class_reads] == [FIRST_FONT_SIZE, SECOND_FONT_SIZE]
+    assert fresh_read == {}
+    where_to_write = re.escape(
+        "write the current context's font options in place (FontManager.OPTIONS.update(...)) "
+        'or FontManager.set_font_system(...)'
+    )
+    for write in (
+        lambda: setattr(FontManager, 'OPTIONS', {}),
+        lambda: setattr(managers[0], 'OPTIONS', {}),
+        lambda: mocker.patch.object(FontManager, 'OPTIONS', {}),
+    ):
+        with pytest.raises(ReadOnlyViewError, match=where_to_write):
+            write()
+
+
+VIEW_CHECKS['FontManager.OPTIONS'] = check_font_options_view
 
 
 def check_performance_manager_view(

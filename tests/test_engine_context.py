@@ -51,6 +51,8 @@ from glitchygames.engine_context import (
     default_context,
 )
 from glitchygames.events import ResourceManager
+from glitchygames.fonts import FontManager
+from glitchygames.fonts.font_manager import FONT_OPTIONS_SLOT
 from glitchygames.game_frames import game_frame_clock
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, EnumerationAnswer
 from glitchygames.input.state import IDLE_INPUT, current_input, set_current_input
@@ -1067,6 +1069,22 @@ def check_shared_instances(*, first: EngineContext, second: EngineContext) -> No
     assert default_instance is not second_instance
 
 
+def check_font_options(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own font options, and the default context its own (C13)."""
+    default_options = dict(default_context().value(slot=FONT_OPTIONS_SLOT))
+    with first.active():
+        FontManager.set_font_system(font_system='freetype')
+    with second.active():
+        FontManager.set_font_system(font_system='pygame')
+    with first.active():
+        first_system = FontManager.get_font_system()
+
+    assert first_system == 'freetype'
+    assert first.value(slot=FONT_OPTIONS_SLOT) == {'use_freetype': True}
+    assert second.value(slot=FONT_OPTIONS_SLOT) == {'use_freetype': False}
+    assert default_context().value(slot=FONT_OPTIONS_SLOT) == default_options
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1083,6 +1101,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.recording.internal_posts': check_internal_post_tracker,
     'glitchygames.performance.adaptive_clamping.managers': check_performance_managers,
     'glitchygames.events.base.shared_instances': check_shared_instances,
+    'glitchygames.fonts.font_manager.options': check_font_options,
 }
 
 

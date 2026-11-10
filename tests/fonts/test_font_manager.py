@@ -18,6 +18,7 @@ import pygame.sysfont
 import pytest
 
 from glitchygames.display_mode import set_display_mode
+from glitchygames.engine_context import EngineContext
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import (
     BASE_FONT_DPI,
@@ -373,6 +374,20 @@ class TestFontManagerSetGetFontSystem:
     def test_get_font_system_default(self):
         """Test get_font_system returns 'pygame' when OPTIONS is empty."""
         assert FontManager.get_font_system() == 'pygame'
+
+    def test_each_context_has_its_own_font_system(self):
+        """One context's font system never changes another's (audit C13)."""
+        first = EngineContext(name='first')
+        second = EngineContext(name='second')
+        with first.active():
+            FontManager.set_font_system(font_system='freetype')
+        with second.active():
+            second_system = FontManager.get_font_system()
+        with first.active():
+            first_system = FontManager.get_font_system()
+
+        assert first_system == 'freetype'
+        assert second_system == 'pygame'
 
 
 class TestFontManagerCompareFontSystems:

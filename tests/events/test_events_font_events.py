@@ -456,7 +456,8 @@ class TestFontManagerCoverage:
 
     def test_pygame_font_method_default_config(self, mocker):
         """Test pygame_font method with default configuration."""
-        FontManager.OPTIONS = {'font_name': 'arial', 'font_size': 16}
+        FontManager.OPTIONS.clear()
+        FontManager.OPTIONS.update({'font_name': 'arial', 'font_size': 16})
 
         system_font = bundled_pygame_font(size=16)
         system_font_lookup = mocker.patch('pygame.font.SysFont', return_value=system_font)
@@ -479,7 +480,8 @@ class TestFontManagerCoverage:
 
     def test_font_method_with_default_config(self, mocker):
         """Test font method with default configuration."""
-        FontManager.OPTIONS = {'font_name': 'arial', 'font_size': 16}
+        FontManager.OPTIONS.clear()
+        FontManager.OPTIONS.update({'font_name': 'arial', 'font_size': 16})
 
         system_font = bundled_freetype_font(size=16)
         mocker.patch('pygame.freetype.SysFont', return_value=system_font)
@@ -491,7 +493,8 @@ class TestFontManagerCoverage:
 
     def test_font_method_with_partial_config(self, mocker):
         """Test font method with partial configuration."""
-        FontManager.OPTIONS = {'font_name': 'arial', 'font_size': 16}
+        FontManager.OPTIONS.clear()
+        FontManager.OPTIONS.update({'font_name': 'arial', 'font_size': 16})
 
         system_font = bundled_freetype_font(size=14)
         mocker.patch('pygame.freetype.SysFont', return_value=system_font)
@@ -505,7 +508,8 @@ class TestFontManagerCoverage:
 
     def test_font_method_with_missing_font_name_config(self):
         """A config without a font name loads the default font, the bundled Vera (BUGS.md #156)."""
-        FontManager.OPTIONS = {'font_name': 'arial', 'font_size': 16}
+        FontManager.OPTIONS.clear()
+        FontManager.OPTIONS.update({'font_name': 'arial', 'font_size': 16})
 
         # Test with config missing font_name: the hard-coded default name, not OPTIONS'
         result = FontManager.font({'font_size': 20})
