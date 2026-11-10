@@ -398,8 +398,9 @@ def wily_revisions(*, cache_directory: Path) -> list[dict[str, Any]]:
 
     Returns:
         Each revision's index entry (``key``, ``date`` in epoch seconds, ``message``) with its
-        ``operator_data`` added; a revision without a measurement file is left out. wily's index
-        lists the newest first; equal dates keep the index's order, reversed.
+        ``operator_data`` added, its paths ``/``-separated on every platform; a revision without
+        a measurement file is left out. wily's index lists the newest first; equal dates keep
+        the index's order, reversed.
 
     """
     archiver_directory = cache_directory / WILY_ARCHIVER_DIRECTORY_NAME
@@ -410,7 +411,13 @@ def wily_revisions(*, cache_directory: Path) -> list[dict[str, Any]]:
         if not revision_path.is_file():
             continue
         revision = json.loads(revision_path.read_text(encoding='utf-8'))
-        revisions.append({**entry, 'operator_data': revision['operator_data']})
+        # wily names paths with the platform's separator (backslashes on Windows); the modules
+        # and packages they are looked up by are /-separated (measure_ranked_modules)
+        operator_data = {
+            operator: {path.replace('\\', '/'): value for path, value in measurements.items()}
+            for operator, measurements in revision['operator_data'].items()
+        }
+        revisions.append({**entry, 'operator_data': operator_data})
     return sorted(revisions, key=itemgetter('date'))
 
 

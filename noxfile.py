@@ -25,6 +25,10 @@ if TYPE_CHECKING:
 # managed by uv, without touching the project's .venv.
 nox.options.default_venv_backend = 'uv'
 
+# The docs site's configuration, named on every mkdocs command line: mkdocs.yml is a link to it,
+# which Windows may check out as a one-line text file (tests/test_workspace_config.py)
+_DOCS_CONFIGURATION = 'zensical.yml'
+
 _CODE_DIRS = [
     'noxfile.py',
     'src/glitchygames',
@@ -149,7 +153,7 @@ def _lint_code(session: nox.Session) -> None:
 
 def _lint_docs(session: nox.Session) -> None:
     """Lint documentation with mkdocs strict build."""
-    session.run('mkdocs', 'build', '--strict')
+    session.run('mkdocs', 'build', '--strict', '--config-file', _DOCS_CONFIGURATION)
 
 
 def _lint_yaml(session: nox.Session) -> None:
@@ -406,9 +410,9 @@ def docs_deploy(session: nox.Session) -> None:
     # The browser games, published with the docs as play/ (scripts/mkdocs_hooks.py)
     session.run('python', '-m', 'scripts.build_browser_bundle', 'all')
     if build_only:
-        session.run('mkdocs', 'build', '--strict')
+        session.run('mkdocs', 'build', '--strict', '--config-file', _DOCS_CONFIGURATION)
         return
-    session.run('mkdocs', 'gh-deploy', '--strict')
+    session.run('mkdocs', 'gh-deploy', '--strict', '--config-file', _DOCS_CONFIGURATION)
     _glitchygames(session, 'clear-published')
 
 
@@ -426,7 +430,9 @@ def docs_serve(session: nox.Session) -> None:
         nox -s docs-serve -- --dev-addr 127.0.0.1:8001  # Another address
     """
     _install_from_lockfile(session)
-    session.run('mkdocs', 'serve', '--strict', *session.posargs)
+    session.run(
+        'mkdocs', 'serve', '--strict', '--config-file', _DOCS_CONFIGURATION, *session.posargs
+    )
 
 
 @nox.session(venv_backend='none', name='lint-yaml', default=False)

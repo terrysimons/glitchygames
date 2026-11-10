@@ -245,7 +245,7 @@ def test_docs_deploy_measures_the_replays_by_default():
     commands = docs_deploy_commands(posargs=[])
 
     measuring = commands.index((*GLITCHYGAMES_IN_THE_PROJECT, 'measure', '--skip-dirty'))
-    deploying = commands.index(('mkdocs', 'gh-deploy', '--strict'))
+    deploying = commands.index(('mkdocs', 'gh-deploy', '--strict', '--config-file', 'zensical.yml'))
     clearing = commands.index((*GLITCHYGAMES_IN_THE_PROJECT, 'clear-published'))
     assert measuring < deploying < clearing
 
@@ -282,7 +282,7 @@ def test_docs_deploy_with_no_measure_measures_nothing():
 
     assert not any('measure' in command for command in commands)
     assert ('python', '-m', 'scripts.build_browser_bundle', 'all') in commands
-    assert ('mkdocs', 'gh-deploy', '--strict') in commands
+    assert ('mkdocs', 'gh-deploy', '--strict', '--config-file', 'zensical.yml') in commands
 
 
 def circleci_workflow_job(*, name: str) -> str:
@@ -605,7 +605,13 @@ def test_docs_deploy_publishes_only_from_main():
     on_main = ('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main')
 
     assert on_main in commands
-    assert commands.index(on_main) < commands.index(('mkdocs', 'gh-deploy', '--strict'))
+    assert commands.index(on_main) < commands.index((
+        'mkdocs',
+        'gh-deploy',
+        '--strict',
+        '--config-file',
+        'zensical.yml',
+    ))
     assert on_main not in docs_deploy_commands(posargs=['--build-only'])
 
 

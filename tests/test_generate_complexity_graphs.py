@@ -407,6 +407,31 @@ def test_wily_revisions_are_oldest_first_and_skip_a_revision_without_measurement
     assert revisions[0]['operator_data'] == {'raw': {}}
 
 
+def test_wily_revisions_name_windows_paths_with_slashes(tmp_path):
+    """On Windows wily names paths with backslashes; the modules are looked up /-separated."""
+    archiver_directory = tmp_path / 'git'
+    archiver_directory.mkdir()
+    index = [{'key': 'only', 'date': 10, 'message': 'Only'}]
+    (archiver_directory / 'index.json').write_text(json.dumps(index), encoding='utf-8')
+    measured = {
+        'operator_data': {
+            'raw': {
+                'src\\glitchygames': {'total': {'loc': 5}},
+                'src\\glitchygames\\scene.py': {'total': {'loc': 3}},
+            }
+        }
+    }
+    (archiver_directory / 'only.json').write_text(json.dumps(measured), encoding='utf-8')
+
+    revisions = wily_revisions(cache_directory=tmp_path)
+
+    assert set(revisions[0]['operator_data']['raw']) == {
+        'src/glitchygames',
+        'src/glitchygames/scene.py',
+    }
+    assert packages_at_head(revisions=revisions) == ['src/glitchygames']
+
+
 def test_measurement_reads_a_paths_total_rounded_or_none():
     """A path's total, rounded; None for an unmeasured path, operator or non-number."""
     operator_data = {
