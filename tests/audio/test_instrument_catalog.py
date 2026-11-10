@@ -754,6 +754,23 @@ def test_the_sansula_rings_longer_than_the_kalimba():
         ('zills', 'finger cymbals'),
         ('cencerro', 'cowbell'),
         ('afuche', 'cabasa'),
+        ('rumbler', 'contrabass ukulele'),
+        ('u bass', 'contrabass ukulele'),
+        ('chartar', 'tar'),
+        ('chitarrone', 'theorbo'),
+        ('hawaiian steel guitar', 'lap steel guitar'),
+        ('liuyeqin', 'liuqin'),
+        ('neapolitan mandolin', 'mandolin'),
+        ('zhongruan', 'ruan'),
+        ('piccolo ukulele', 'sopranino ukulele'),
+        ('pocket ukulele', 'sopranino ukulele'),
+        ('sopranissimo', 'sopranino ukulele'),
+        ('taar', 'tar'),
+        ('tetrachordo bouzouki', 'greek bouzouki'),
+        ('baglama', 'saz'),
+        ('bozuk', 'saz'),
+        ('outi', 'oud'),
+        ('ud', 'oud'),
     ],
 )
 def test_the_batch_aliases_resolve(alias, target):
@@ -1293,6 +1310,124 @@ def test_no_two_drums_build_the_same_instrument():
     assert same == []
 
 
+# The 58 plucked strings that predate batch 4: their shared builds predate the anti-goal rule
+EXISTING_PLUCKED_NAMES = frozenset({
+    'classical guitar',
+    'acoustic guitar',
+    'twelve string guitar',
+    'baritone guitar',
+    'resonator guitar',
+    'jazz guitar',
+    'electric guitar',
+    'electric guitar overdrive',
+    'electric guitar distortion',
+    'lap steel guitar',
+    'pedal steel guitar',
+    'bass guitar',
+    'picked bass',
+    'slap bass',
+    'fretless bass',
+    'five string bass',
+    'six string bass',
+    'acoustic bass guitar',
+    'soprano ukulele',
+    'concert ukulele',
+    'tenor ukulele',
+    'baritone ukulele',
+    'banjo',
+    'tenor banjo',
+    'mandolin',
+    'mandola',
+    'octave mandolin',
+    'mandocello',
+    'irish bouzouki',
+    'greek bouzouki',
+    'lute',
+    'archlute',
+    'theorbo',
+    'baroque guitar',
+    'vihuela',
+    'cittern',
+    'oud',
+    'saz',
+    'sitar',
+    'tanpura',
+    'veena',
+    'sarod',
+    'koto',
+    'shamisen',
+    'pipa',
+    'guzheng',
+    'gayageum',
+    'balalaika',
+    'bass balalaika',
+    'domra',
+    'charango',
+    'cuatro',
+    'tres',
+    'appalachian dulcimer',
+    'zither',
+    'autoharp',
+    'kantele',
+    'psaltery',
+})
+# Batch 4's entries with their own build, in the sheet's order (Task 6 appends the rest)
+NEW_PLUCKED_NAMES = [
+    'angelique',
+    'banjolele',
+    'chapman stick',
+    'ruan',
+    'tar',
+    'tiple colombiano',
+]
+# Batch 4's sound-alikes and the entry each sounds like, in the sheet's order
+PLUCKED_SOUND_ALIKE_PARENTS = {
+    'bass ukulele': 'acoustic bass guitar',
+    'contrabass ukulele': 'acoustic bass guitar',
+    'bulgarian tambura': 'mandolin',
+    'electric bass vi': 'baritone guitar',
+    'gaoyin ruan': 'ruan',
+    'liuqin': 'pipa',
+    'piccolo domra': 'domra',
+    'plectrum banjo': 'tenor banjo',
+    'requinto guitar': 'classical guitar',
+    'daruan': 'ruan',
+    'sanxian': 'banjo',
+    'secunda balalaika': 'balalaika',
+    'setar': 'pipa',
+    'seven string guitar': 'electric guitar',
+    'sopranino ukulele': 'soprano ukulele',
+    'terz guitar': 'classical guitar',
+    'trichordo bouzouki': 'greek bouzouki',
+    'viola da terra': 'tiple colombiano',
+    'xiaoruan': 'ruan',
+}
+
+
+def test_no_new_plucked_string_builds_another_entrys_instrument():
+    """A batch 4 build is its own sound (the anti-goal), whatever entry it is set against."""
+    names = instruments.names(family=Family.PLUCKED_STRINGS)
+    same = [
+        (new_name, other)
+        for new_name in NEW_PLUCKED_NAMES
+        for other in names
+        if other != new_name
+        and instruments.entry(other).sounds_like is None
+        and instruments.get(new_name) == instruments.get(other)
+    ]
+    assert same == []
+
+
+def test_the_new_plucked_strings_are_pitched_entries_of_their_family():
+    """Each new entry, sound-alikes included, is a plucked string with a range."""
+    for name in [*NEW_PLUCKED_NAMES, *PLUCKED_SOUND_ALIKE_PARENTS]:
+        assert instruments.entry(name).family == Family.PLUCKED_STRINGS, name
+        assert instruments.entry(name).pitched, name
+    assert set(instruments.names(family=Family.PLUCKED_STRINGS)) == (
+        EXISTING_PLUCKED_NAMES | set(NEW_PLUCKED_NAMES) | set(PLUCKED_SOUND_ALIKE_PARENTS)
+    )
+
+
 def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
     """Each sound-alike is a drums and percussion name of its own, building its parent's sound."""
     listed = instruments.names(family=Family.DRUMS_AND_PERCUSSION)
@@ -1300,12 +1435,18 @@ def test_a_sound_alike_is_listed_and_builds_its_parents_sound():
         assert name in listed, name
         assert instruments.entry(name).sounds_like == parent, name
         assert instruments.get(name) == instruments.get(parent), name
+    listed_plucked = instruments.names(family=Family.PLUCKED_STRINGS)
+    for name, parent in PLUCKED_SOUND_ALIKE_PARENTS.items():
+        assert name in listed_plucked, name
+        assert instruments.entry(name).sounds_like == parent, name
+        assert instruments.get(name) == instruments.get(parent), name
     every_sound_alike = [
         catalog_entry.name
         for catalog_entry in instruments.entries()
         if catalog_entry.sounds_like is not None
     ]
-    assert every_sound_alike == SOUND_ALIKE_NAMES
+    # The catalog lists families in table order: plucked strings come before the drums
+    assert every_sound_alike == list(PLUCKED_SOUND_ALIKE_PARENTS) + SOUND_ALIKE_NAMES
 
 
 def test_the_new_drums_are_in_their_family():

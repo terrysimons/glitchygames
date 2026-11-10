@@ -12,6 +12,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Final
 
 from glitchygames.audio.instruments.catalog import CatalogEntry, Family
+from glitchygames.audio.instruments.plucked_sound_alikes import PLUCKED_SOUND_ALIKES
 from glitchygames.audio.instruments.timbres import Course, plucked, plucked_series
 
 if TYPE_CHECKING:
@@ -78,7 +79,7 @@ SHORT_LUTE = partial(
     _plucked, ring_seconds=0.9, low_pass=6000.0, slope=4.5, position=0.12, pick=0.06
 )
 
-PLUCKED_STRINGS: Final[tuple[CatalogEntry, ...]] = (
+_PLUCKED_BUILDS: Final[tuple[CatalogEntry, ...]] = (
     CatalogEntry(
         'classical guitar',
         'Classical guitar (nylon)',
@@ -479,4 +480,125 @@ PLUCKED_STRINGS: Final[tuple[CatalogEntry, ...]] = (
         'C6',
         partial(_plucked, ring_seconds=2.0, low_pass=6500.0, slope=4.0, position=0.1, pick=0.04),
     ),
+    # --- Batch 4's necked lutes with their own build, in the order of
+    # plans/data/instrument-audit/batch-4.tsv; the sound-alikes that share these builds are in
+    # ``plucked_sound_alikes.py``. Each build's numbers are sound design unless a comment says a
+    # source gives them
+    # Sound and range: https://en.wikipedia.org/wiki/Ang%C3%A9lique_(instrument) ("A two-headed
+    # lute, it contains ten single strings on the lower head and six or seven single strings on
+    # the upper head"; "Differing from the lute, the 16 or 17 string angelica was single-strung
+    # like a theorbo"; "produced a full and clear tone by the increased use of open strings";
+    # sounded with bare hands and fingers; range "C - E - F - G - A - B - c - d - e - f - g - a
+    # - b - c' - d' - e'", Helmholtz C = C2, e' = E4, the open-string compass). The lute's
+    # traits without its courses, single-strung and fingered: the numbers are the catalog's LUTE
+    # values (sound design)
+    CatalogEntry(
+        'angelique',
+        'Angélique (angel lute)',
+        Family.PLUCKED_STRINGS,
+        'C2',
+        'E4',
+        partial(_plucked, ring_seconds=1.8, low_pass=4500.0, slope=6.5, position=0.15),
+    ),
+    # Sound and range: https://en.wikipedia.org/wiki/Banjolele ("a four-stringed musical
+    # instrument with a small banjo-type body and a fretted ukulele neck"; "Banjo ukulele heads
+    # were traditionally made of calf skin, but most modern instruments are fitted with
+    # synthetic heads"; "The head typically has a firm tension"; "originally outfitted with gut
+    # strings. Nylon strings are now typically used"; "The banjo ukulele neck typically has
+    # sixteen frets"; "commonly tuned G4 C4 E4 A4", with a re-entrant 4th string). Range derived
+    # from the page: lowest C4 (the re-entrant G4 is above it), highest A4 + 16 frets = C#6. A
+    # skin head's short, bright ring on gut or nylon strings (softer than the banjo's steel); no
+    # source gives a plectrum, so no pick click. Every number is sound design
+    CatalogEntry(
+        'banjolele',
+        'Banjo ukulele (banjolele)',
+        Family.PLUCKED_STRINGS,
+        'C4',
+        'C#6',
+        partial(_plucked, ring_seconds=0.8, low_pass=6000.0, slope=4.0, position=0.12),
+    ),
+    # Sound and range: https://en.wikipedia.org/wiki/Chapman_Stick ("While the electric guitar
+    # is usually played by strumming or plucking the strings, the Chapman stick is usually
+    # played by tapping or fretting the strings"; "a long scale length, stainless steel
+    # pyramidal fret rails, very low string action, and very sensitive pickups"; "The 36\"
+    # scale-length standard-sized Chapman Stick in Matched Reciprocal tuning can play from
+    # C1-C6"). Tapped, not plucked: no pick click, a rounder attack, the position further from
+    # the bridge, and the long ring of a long-scale electric instrument. Every number is sound
+    # design
+    CatalogEntry(
+        'chapman stick',
+        'Chapman Stick',
+        Family.PLUCKED_STRINGS,
+        'C1',
+        'C6',
+        partial(_plucked, ring_seconds=4.0, low_pass=4500.0, slope=6.5, position=0.3, attack=0.004),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Ruan_(instrument) ("It is a lute with a fretted neck,
+    # a circular body, and four strings"; strings "made of steel (flatwound for the lower
+    # strings)"; "Mainstream ruan players use plectrums"; "The instrument produces a mellow
+    # tone"). Range from the same page, the tenor size (zhongruan, "tuning: G2-D3-G3-D4", "24
+    # frets with 12 semitones on each string"): lowest G2, highest D4 + 24 frets = D6. A mellow
+    # plectrum-played steel lute; every number is sound design
+    CatalogEntry(
+        'ruan',
+        'Ruan (zhongruan)',
+        Family.PLUCKED_STRINGS,
+        'G2',
+        'D6',
+        partial(_plucked, ring_seconds=1.8, low_pass=3500.0, slope=6.0, position=0.15, pick=0.05),
+    ),
+    # Sound: https://en.wikipedia.org/wiki/Tar_(lute) ("a thin membrane covering the top"; "The
+    # Persian tar has three double courses of strings"; "each pair tuned in unison"; "plucked at
+    # the centre of the body using a small brass plectrum"). Range:
+    # https://www.geidai.ac.jp/labs/koizumi/gcato/english/html-text/268.html ("body: mulberry
+    # wood, with sheep foetus skin over front face"; "frets: 23, gut, movable"; "range: ca.
+    # c-g\"", C3 to G5, approximate). A skin belly's short, bright ring (as the banjo), unison
+    # pairs (PAIRED) and a brass plectrum (pick); every number is sound design
+    CatalogEntry(
+        'tar',
+        'Tar (Persian)',
+        Family.PLUCKED_STRINGS,
+        'C3',
+        'G5',
+        partial(
+            _plucked,
+            ring_seconds=1.0,
+            low_pass=7000.0,
+            slope=3.5,
+            position=0.1,
+            courses=PAIRED,
+            pick=0.08,
+        ),
+    ),
+    # Sound and range: https://en.wikipedia.org/wiki/Tiple_colombiano ("plucked, metal string
+    # chordophones usually played with a pick"; "Its twelve strings are arranged in four groups
+    # of three"; "The outer two strings of each of course is tuned an octave higher than the
+    # middle string in the course"; "This arrangement produces the set of harmonics that gives
+    # the instrument its unique voice"; "An 18 or 19 fret fingerboard gives the tiple Colombiano
+    # a range of about 2-2/3 octaves, from C3 - G#5 (or A5)", the 19-fret top A5). Two octave
+    # courses, slightly detuned against each other: as with the twelve string guitar, the
+    # courses double every note, though the top course is unison on the instrument. Every number
+    # is sound design
+    CatalogEntry(
+        'tiple colombiano',
+        'Tiple (Colombian)',
+        Family.PLUCKED_STRINGS,
+        'C3',
+        'A5',
+        partial(
+            _plucked,
+            ring_seconds=2.0,
+            low_pass=6500.0,
+            slope=5.0,
+            position=0.15,
+            courses=(
+                Course(semitones=12.0, cents=2.0, level=0.8),
+                Course(semitones=12.0, cents=-3.0, level=0.8),
+            ),
+            pick=0.04,
+        ),
+    ),
 )
+
+# The family: its builds, then the sound-alikes that share them (``plucked_sound_alikes.py``)
+PLUCKED_STRINGS: Final[tuple[CatalogEntry, ...]] = _PLUCKED_BUILDS + PLUCKED_SOUND_ALIKES

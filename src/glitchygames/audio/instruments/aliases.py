@@ -122,4 +122,65 @@ ALIASES: Final[dict[str, str]] = {
     # https://en.wikipedia.org/wiki/Cabasa: "This company has built a more durable cabasa that they
     # call an afuche-cabasa"; another name for the cabasa
     'afuche': 'cabasa',
+    # --- Batch 4's necked lutes (321.3), in the order of plans/data/instrument-audit/batch-4.tsv
+    # https://en.wikipedia.org/wiki/Ukulele: the contrabass size's other names, "| Contrabass |
+    # U-Bass, Rumbler | 32 in (81 cm)"; another name for the contrabass ukulele
+    'rumbler': 'contrabass ukulele',
+    # https://en.wikipedia.org/wiki/Ukulele: "| Contrabass | U-Bass, Rumbler" and "E1-A1-D2-G2
+    # for U-Bass style instruments (sometimes called contrabass)"; another name for the
+    # contrabass ukulele
+    'u bass': 'contrabass ukulele',
+    # https://en.wikipedia.org/wiki/Tar_(string_instrument): the tar "was originally known as
+    # the chahartar (چهارتار) or chartar (چارتار), which translates into Persian as
+    # 'four-stringed'"; another (older) name for the tar
+    'chartar': 'tar',
+    # https://en.wikipedia.org/wiki/Chitarrone: "\"Chitarrone\" redirects here" (to the Theorbo
+    # page, which says "Although the words chitarrone and tiorba were both used to describe the
+    # instrument"); another name for the theorbo
+    'chitarrone': 'theorbo',
+    # https://en.wikipedia.org/wiki/Hawaiian_steel_guitar (redirects to the Lap steel guitar
+    # page): "The lap steel guitar, also known as a Hawaiian guitar or lap slide guitar";
+    # another name for the lap steel guitar
+    'hawaiian steel guitar': 'lap steel guitar',
+    # https://en.wikipedia.org/wiki/Liuqin: the infobox's alternative Chinese name 柳葉琴, "Hanyu
+    # Pinyin | liǔyèqín"; another name for the liuqin
+    'liuyeqin': 'liuqin',
+    # https://en.wikipedia.org/wiki/Mandolino (the Mandolin page): "There were a variety of
+    # regional variants, but the two most widespread ones were the Neapolitan mandolin and the
+    # Lombard mandolin"; "The Neapolitan style has spread worldwide"; the catalog mandolin is
+    # this round-backed form, so another name for it
+    'neapolitan mandolin': 'mandolin',
+    # https://en.wikipedia.org/wiki/Ruan_(instrument): "tenor: zhongruan (中阮, lit. \"medium
+    # ruan\"; tuning: G2-D3-G3-D4)", the size the page calls commonly used and the catalog ruan;
+    # another name for the ruan
+    'zhongruan': 'ruan',
+    # https://en.wikipedia.org/wiki/Ukulele: "Less common are the sopranino (also called
+    # piccolo, bambino, or \"pocket uke\")"; another name for the sopranino ukulele
+    'piccolo ukulele': 'sopranino ukulele',
+    # https://en.wikipedia.org/wiki/Ukulele: "Less common are the sopranino (also called
+    # piccolo, bambino, or \"pocket uke\")"; "| Pocket | piccolo, sopranino, sopranissimo";
+    # another name for the sopranino ukulele
+    'pocket ukulele': 'sopranino ukulele',
+    # https://en.wikipedia.org/wiki/Ukulele: the Pocket size's other names, "| Pocket | piccolo,
+    # sopranino, sopranissimo | 16 in (41 cm)"; another name for the sopranino ukulele
+    'sopranissimo': 'sopranino ukulele',
+    # https://en.wikipedia.org/wiki/Tar_(lute): "\"Taar\" redirects here"; another spelling of
+    # the tar
+    'taar': 'tar',
+    # https://en.wikipedia.org/wiki/Bouzouki: infobox range "C3 - E6 (tetrachordo), D3 - E6
+    # (trichordo)"; "The four-course bouzouki was made popular by Manolis Chiotis"; the catalog
+    # greek bouzouki is the four-course (tetrachordo) instrument, so another name for it
+    'tetrachordo bouzouki': 'greek bouzouki',
+    # https://en.wikipedia.org/wiki/Ba%C4%9Flama: "The bağlama, saz, tambura or bozuk is a
+    # long-necked fretted lute used in the folk music of Turkey"; another name for the saz
+    'baglama': 'saz',
+    # https://en.wikipedia.org/wiki/Ba%C4%9Flama: "The bağlama, saz, tambura or bozuk is a
+    # long-necked fretted lute"; another name for the saz
+    'bozuk': 'saz',
+    # https://en.wikipedia.org/wiki/Oud: "Turkish ouds have been played by Anatolian Greeks,
+    # where they are called outi"; another name for the oud
+    'outi': 'oud',
+    # https://en.wikipedia.org/wiki/Oud: "The oud (Arabic, romanized: ʿūd";
+    # another spelling of the oud
+    'ud': 'oud',
 }
