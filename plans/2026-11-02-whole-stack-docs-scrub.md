@@ -122,7 +122,61 @@ from the same worklist.
   `tests/workspace_expectations.py`) and "the nine members" (`tests/workspace_expectations.py`,
   `docs/architecture/gameplay_replay.md`); now four and ten.
 
-After those: 0 claims. The reading pass (steps 3-7) is next.
+After those: 0 claims (2026-11-04, at ff1e3f51). The reading pass (steps 3-7) is next.
+
+## Status and handoff (2026-11-09)
+
+Where the scrub stands, for whoever picks it up (the session that did steps 1-2 was closed):
+
+- **Done and on the branch:** e3649791 (the claims script, its tests and this worklist; the
+  audio area added to the design), e422d6e8 (the owner's worklist decisions,
+  `TEST_UPDATE_PLAN.md` retired, the canvas `save()` docstring fixed), ff1e3f51
+  (`game_packages.md`'s "Adding a member", the stale member counts). Steps 1 and 2 are done.
+- **Since then on the branch** (another session, 2026-11-09): main merged in, the Material
+  theme with `zensical.yml` (`mkdocs.yml` a link to it), the Replay Performance and Code
+  Complexity explorers, and `plans/2026-11-09-docs-material-formatting.md`, whose conventions
+  apply as each page is read in steps 3-5. Check which session owns the branch before writing
+  to it: two writers on it collide.
+- **The claims report at 270aa294: 4 claims, from the explorer work; none is a stale claim:**
+  - `CLAUDE.md:1701` `quality/metrics/performance-explorer.json`, `CLAUDE.md:1703`
+    `quality/graphs/complexity-explorer.json` and `docs/quality/complexity.md:19`
+    `docs/quality/graphs/complexity-explorer.json`: files the docs build writes
+    (`scripts/generate_performance_graphs.py`, `scripts/generate_complexity_graphs.py`;
+    `docs/quality/graphs/` and `docs/quality/metrics/` are gitignored). Either record them as
+    exceptions with that reason, or teach the checker that a path under a gitignored generated
+    directory is the build's (`UNCHECKED_DOCS` already skips those directories as documents,
+    not as paths named elsewhere). The second is general; the first is quicker.
+  - `docs/requirements.md:64` `quality/performance.md`: a markdown link target, relative to its
+    page (`docs/quality/performance.md`), which the checker reads as a path from the repository
+    root because `quality/` is one of `REPOSITORY_PATH`'s roots. Fix in the checker: skip a
+    `](...)` link target in a page under `docs/` (mkdocs checks those, `--strict`), with a test
+    in `tests/test_docs_claims.py`.
+  The report must be empty again before step 6 makes it a test.
+- **Next: step 3, the root files.** Decide with the owner, per file, keep, fold into `docs/` or
+  retire: `ANIMATION_README.md`, `API_README.md`, `BITMAPPY_ARCHITECTURE.md`,
+  `CONTROLLER_CONTROLS_README.md`, `LOADER_README.md` (`README.md` and `CLAUDE.md` stay; read
+  them in full). Not yet read; bring a recommendation per file. Then step 4 (`docs/` by area,
+  one commit each, then the audio area as designed above: `sound.md`'s package map and how a
+  sound flows, the 9 undocumented audio modules, `CLAUDE.md`'s audio section, the sound tools,
+  the Sound Board README, an API page per audio module), step 5 (member READMEs, module
+  docstrings), step 6 (a test asserting `all_claims() == []`, beside the path guard in
+  `tests/test_suite_collection.py`), step 7.
+- **Open question for the owner:** read steps 3-5 in sequence (the default so far) or as
+  parallel agents, one per area.
+- **When the scrub closes:** update `plans/future-work.md`'s "Documentation scrub" item (it
+  still lists `TEST_UPDATE_PLAN.md`, now removed) and mark it done; take #145 out of draft.
+- **Working notes:**
+  - `uv run python -m scripts.docs_claims` (as a module: it imports `scripts.*`);
+    `--kind path` and so on narrow it. Exit 1 means claims found.
+  - A claim that is right but no check can see goes in `RECORDED_EXCEPTIONS` with its reason;
+    a whole document goes in `UNCHECKED_DOCUMENTS`.
+  - Run a test subset as `uv run pytest --no-cov -n0 <paths>`. Not with `-p no:cacheprovider`
+    (the native driver-comparison child fails on it, so the comparison silently never runs) or
+    `-o addopts=` (it drops the import mode and fails
+    `test_tests_are_imported_by_their_paths`).
+  - `uv run mkdocs build --strict -d <scratch directory>` takes about 2.5 minutes.
+  - Push only from the main checkout, never from a worktree (the pre-push hook broke the
+    repository once from one); the hooks take about 20 minutes.
 
 ## `docs/architecture/game_packages.md`
 

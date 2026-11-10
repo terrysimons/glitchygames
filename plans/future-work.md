@@ -937,6 +937,10 @@ drafted issue text. Not posted yet:
   status, named functions and classes still existing), fix or remove it, and keep American
   spellings. Finish with `mkdocs build --strict` and the docs guard tests. Plan it as its own
   branch (design, then plan), split by area so each piece is reviewable.
+  **In progress** (#145, draft): planned in `plans/2026-11-02-whole-stack-docs-scrub.md`;
+  the claims check (`scripts/docs_claims.py`) and its worklist done, `TEST_UPDATE_PLAN.md`
+  retired, `docs/architecture/game_packages.md` rewritten. Next: the root files, then the
+  reading pass (that plan's "Status and handoff").
 - **Format the docs site in Material** (the owner, 2026-11-09; on the scrub's branch, #145).
   The pages stay markdown, written with Material's markdown conventions (admonitions, content
   tabs, titled and annotated code blocks, collapsible reference sections), and the theme's
